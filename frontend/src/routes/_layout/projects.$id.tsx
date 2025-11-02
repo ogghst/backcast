@@ -5,11 +5,12 @@ import {
   Flex,
   Heading,
   Table,
+  Text,
   VStack,
 } from "@chakra-ui/react"
 import { useQuery } from "@tanstack/react-query"
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
-import { FiBox } from "react-icons/fi"
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
+import { FiBox, FiChevronRight } from "react-icons/fi"
 import { z } from "zod"
 
 import { ProjectsService, WbesService } from "@/client"
@@ -190,9 +191,20 @@ function ProjectDetail() {
 
   return (
     <Container maxW="full">
-      <Heading size="lg" pt={12}>
-        {project.project_name}
-      </Heading>
+      <Flex alignItems="center" gap={2} pt={12} mb={2}>
+        <Link
+          to="/projects"
+          color="blue.500"
+          _hover={{ textDecoration: "underline" }}
+        >
+          <Text fontSize="sm">Projects</Text>
+        </Link>
+        <FiChevronRight />
+        <Text fontSize="sm" color="gray.600">
+          {project.project_name}
+        </Text>
+      </Flex>
+      <Heading size="lg">{project.project_name}</Heading>
       <Box mt={4}>
         <Heading size="md" mb={4}>
           Work Breakdown Elements

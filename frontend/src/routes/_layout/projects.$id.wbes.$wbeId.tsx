@@ -5,11 +5,12 @@ import {
   Flex,
   Heading,
   Table,
+  Text,
   VStack,
 } from "@chakra-ui/react"
 import { useQuery } from "@tanstack/react-query"
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
-import { FiTag } from "react-icons/fi"
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
+import { FiChevronRight, FiTag } from "react-icons/fi"
 import { z } from "zod"
 
 import { CostElementsService, ProjectsService, WbesService } from "@/client"
@@ -187,7 +188,28 @@ function WBEDetail() {
 
   return (
     <Container maxW="full">
-      <Heading size="lg" pt={12}>
+      <Flex alignItems="center" gap={2} pt={12} mb={2}>
+        <Link
+          to="/projects"
+          color="blue.500"
+          _hover={{ textDecoration: "underline" }}
+        >
+          <Text fontSize="sm">Projects</Text>
+        </Link>
+        <FiChevronRight />
+        <Link
+          to={`/projects/${project.project_id}`}
+          color="blue.500"
+          _hover={{ textDecoration: "underline" }}
+        >
+          <Text fontSize="sm">{project.project_name}</Text>
+        </Link>
+        <FiChevronRight />
+        <Text fontSize="sm" color="gray.600">
+          {wbe.machine_type}
+        </Text>
+      </Flex>
+      <Heading size="lg">
         {project.project_name} - {wbe.machine_type}
       </Heading>
       <Box mt={4}>
