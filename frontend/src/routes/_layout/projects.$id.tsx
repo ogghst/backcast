@@ -192,12 +192,14 @@ function ProjectDetail() {
   return (
     <Container maxW="full">
       <Flex alignItems="center" gap={2} pt={12} mb={2}>
-        <Link
-          to="/projects"
-          color="blue.500"
-          _hover={{ textDecoration: "underline" }}
-        >
-          <Text fontSize="sm">Projects</Text>
+        <Link to="/projects" search={{ page: 1 }}>
+          <Text
+            fontSize="sm"
+            color="blue.500"
+            _hover={{ textDecoration: "underline" }}
+          >
+            Projects
+          </Text>
         </Link>
         <FiChevronRight />
         <Text fontSize="sm" color="gray.600">

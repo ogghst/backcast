@@ -189,20 +189,28 @@ function WBEDetail() {
   return (
     <Container maxW="full">
       <Flex alignItems="center" gap={2} pt={12} mb={2}>
-        <Link
-          to="/projects"
-          color="blue.500"
-          _hover={{ textDecoration: "underline" }}
-        >
-          <Text fontSize="sm">Projects</Text>
+        <Link to="/projects" search={{ page: 1 }}>
+          <Text
+            fontSize="sm"
+            color="blue.500"
+            _hover={{ textDecoration: "underline" }}
+          >
+            Projects
+          </Text>
         </Link>
         <FiChevronRight />
         <Link
-          to={`/projects/${project.project_id}`}
-          color="blue.500"
-          _hover={{ textDecoration: "underline" }}
+          to="/projects/$id"
+          params={{ id: project.project_id }}
+          search={{ page: 1 }}
         >
-          <Text fontSize="sm">{project.project_name}</Text>
+          <Text
+            fontSize="sm"
+            color="blue.500"
+            _hover={{ textDecoration: "underline" }}
+          >
+            {project.project_name}
+          </Text>
         </Link>
         <FiChevronRight />
         <Text fontSize="sm" color="gray.600">
