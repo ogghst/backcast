@@ -100,6 +100,14 @@ function ProjectsTable() {
             <Table.Row
               key={project.project_id}
               opacity={isPlaceholderData ? 0.5 : 1}
+              cursor="pointer"
+              onClick={() =>
+                navigate({
+                  to: `/projects/${project.project_id}`,
+                  search: { page: 1 },
+                })
+              }
+              _hover={{ bg: "gray.100" }}
             >
               <Table.Cell truncate maxW="md">
                 {project.project_name}

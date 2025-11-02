@@ -111,7 +111,18 @@ function WBEsTable({ projectId }: { projectId: string }) {
         </Table.Header>
         <Table.Body>
           {wbes?.map((wbe) => (
-            <Table.Row key={wbe.wbe_id} opacity={isPlaceholderData ? 0.5 : 1}>
+            <Table.Row
+              key={wbe.wbe_id}
+              opacity={isPlaceholderData ? 0.5 : 1}
+              cursor="pointer"
+              onClick={() =>
+                navigate({
+                  to: `/projects/${projectId}/wbes/${wbe.wbe_id}`,
+                  search: { page: 1 },
+                })
+              }
+              _hover={{ bg: "gray.100" }}
+            >
               <Table.Cell truncate maxW="md">
                 {wbe.machine_type}
               </Table.Cell>
