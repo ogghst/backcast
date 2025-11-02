@@ -7,7 +7,12 @@ import {
   VStack,
 } from "@chakra-ui/react"
 import { useQuery } from "@tanstack/react-query"
-import { createFileRoute, useNavigate } from "@tanstack/react-router"
+import {
+  createFileRoute,
+  Outlet,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router"
 import { FiFolder } from "react-icons/fi"
 import { z } from "zod"
 
@@ -102,12 +107,13 @@ function ProjectsTable() {
               key={project.project_id}
               opacity={isPlaceholderData ? 0.5 : 1}
               cursor="pointer"
-              onClick={() =>
+              onClick={() => {
                 navigate({
-                  to: `/projects/${project.project_id}`,
+                  to: "/projects/$id",
+                  params: { id: project.project_id },
                   search: { page: 1 },
                 })
-              }
+              }}
               _hover={{ bg: "gray.100" }}
             >
               <Table.Cell truncate maxW="md">
@@ -149,13 +155,25 @@ function ProjectsTable() {
 }
 
 function Projects() {
+  // In TanStack Router, when child routes exist, we need to render Outlet
+  // Check if we're on exact /projects route (no child route)
+  const location = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  const isExactProjectsRoute = location === "/projects"
+
   return (
-    <Container maxW="full">
-      <Heading size="lg" pt={12}>
-        Projects Management
-      </Heading>
-      <AddProject />
-      <ProjectsTable />
-    </Container>
+    <>
+      {isExactProjectsRoute && (
+        <Container maxW="full">
+          <Heading size="lg" pt={12}>
+            Projects Management
+          </Heading>
+          <AddProject />
+          <ProjectsTable />
+        </Container>
+      )}
+      <Outlet />
+    </>
   )
 }

@@ -37,7 +37,7 @@
 | E1-002 | Core Data Models | Implement Project, WBE, and Cost Element models with relationships | ✅ Done | Implemented as part of E1-001. All models include Base/Create/Update/Public schemas with proper relationships. |
 | E1-003 | Application Framework Setup | Create basic app structure with navigation and page templates | ✅ Done | Complete! Full CRUD APIs for Projects, WBEs, and Cost Elements. Frontend navigation with nested detail views. Template import API for bulk project creation. All tests passing. |
 | E1-004 | Project Creation Interface | Build UI for creating projects with essential metadata | ✅ Done | Complete! Modal form with all 10 fields (required + optional). Status & Project Manager dropdowns. Integrated into projects page. All validation working. |
-| E1-005 | WBE Creation Interface | Build UI for creating work breakdown elements within projects | ⏳ Todo | Sprint 1 deliverable. Supports machine/deliverable definition. |
+| E1-005 | WBE Creation Interface | Build UI for creating work breakdown elements within projects | ✅ Done | Complete! Modal form with all 7 fields (machine_type required, others optional). Status dropdown with 5 options. Revenue allocation validation. Integrated into project detail page. Matches AddProject pattern. Navigation fix: Added Outlet to parent route for nested routing. |
 | E1-006 | Cost Element Creation Interface | Build UI for creating cost elements within WBEs | ⏳ Todo | Sprint 1 deliverable. Department-level budget tracking. |
 | E1-007 | Data Validation Rules | Implement validation logic for project hierarchy integrity | ⏳ Todo | Rules defined in data model. Need implementation in business logic layer. |
 
@@ -129,16 +129,16 @@
 | Category | Done | In Progress | Todo | Total |
 |----------|------|-------------|------|-------|
 | Documentation | 5 | 0 | 0 | 5 |
-| Epic 1 | 3 | 0 | 4 | 7 |
+| Epic 1 | 5 | 0 | 2 | 7 |
 | Epic 2 | 0 | 0 | 6 | 6 |
 | Epic 3 | 0 | 0 | 7 | 7 |
 | Epic 4 | 0 | 0 | 11 | 11 |
 | Epic 5 | 0 | 0 | 7 | 7 |
 | Testing & QA | 0 | 0 | 5 | 5 |
 | Deployment | 0 | 0 | 3 | 3 |
-| **Total** | **7** | **0** | **44** | **51** |
+| **Total** | **9** | **0** | **42** | **51** |
 
-**Overall Completion:** 15.7% (8/51 tasks)
+**Overall Completion:** 17.6% (9/51 tasks)
 
 **Note:** See `E1-001_COMPLETION_SUMMARY.md` for detailed completion report with full statistics.
 
@@ -276,11 +276,11 @@ The MVP development is structured across six two-week sprints, each building on 
 
 ### Sprint 1: Foundation and Data Model Implementation (Current)
 
-- **Status:** 🔄 In Progress (3/8 tasks complete)
-- **Completed Tasks:** E1-001, E1-002, E1-003, E1-004
-- **In Progress:** Next up: E1-005 (WBE Creation Interface)
+- **Status:** 🔄 In Progress (5/8 tasks complete)
+- **Completed Tasks:** E1-001, E1-002, E1-003, E1-004, E1-005
+- **In Progress:** Next up: E1-006 (Cost Element Creation Interface)
 - **Blockers:** None
-- **Progress:** 50% of Sprint 1 complete
+- **Progress:** 62.5% of Sprint 1 complete (5/8 tasks)
 - **Key Achievements:**
   - ✅ Complete database schema with all 19 models implemented
 - ✅ All migrations applied and tested
@@ -326,6 +326,7 @@ The MVP development is structured across six two-week sprints, each building on 
 
 ### Recent Updates
 
+- **2025-11-02:** ✅ **E1-005 COMPLETE!** WBE Creation Interface implemented. Modal form following AddProject pattern with all 7 fields (machine_type required, others optional). Status dropdown with 5 options (designing, in-production, shipped, commissioning, completed). Revenue allocation validation (min >= 0). Integrated into project detail page. Navigation fix: Discovered and fixed TanStack Router nested route issue - parent routes must render `<Outlet />` for child routes to render. Typed route navigation pattern used for type safety.
 - **2025-11-02:** ✅ **E1-004 COMPLETE!** Project Creation Interface implemented. Modal form with all 10 fields (required + optional). Status dropdown with 4 predefined values. Project Manager dropdown loads all active users. Full validation with React Hook Form. Toast notifications on success/error. Query invalidation refreshes projects list. Matches existing AddUser pattern perfectly.
 - **2025-11-01:** ✅ **DOC-005 COMPLETE!** Development environment setup finalized. Environment scaffolded using ready-made template from FastAPI GitHub repository. Includes Docker Compose infrastructure, dependency management (uv for Python, npm for Node.js), CI/CD workflows (GitHub Actions), pre-commit hooks, and comprehensive documentation. All development tools and workflows are configured and ready for use.
 - **2025-11-01:** 🎉 **E1-001 COMPLETE!** Database schema implementation finished. All 19 models implemented including User/Item, lookup tables, core hierarchy (Project/WBE/CostElement), all EVM tracking models, change/quality management, and audit/compliance. 19 Alembic migrations applied successfully. 121/121 tests passing. Comprehensive test coverage with proper relationships. Clean model organization with SQLModel patterns. Foundation established for Sprint 1.
@@ -348,81 +349,9 @@ The MVP development is structured across six two-week sprints, each building on 
 
 ### Next Steps
 
-1. **Immediate:** ✅ Database schema complete - Begin E1-005 (WBE Creation Interface)
-2. **Short-term:** Build UI interfaces for WBE and Cost Element creation
+1. **Immediate:** ✅ WBE Creation Interface complete - Begin E1-006 (Cost Element Creation Interface)
+2. **Short-term:** Build UI interface for Cost Element creation (following same pattern)
 3. **Medium-term:** Implement data validation rules and hierarchy integrity
-
----
-
-## Retrospectives and Lessons Learned
-
-This section captures key learnings from development sessions to prevent repeating mistakes and improve our workflow.
-
-### Session 1: E1-004 Project Creation Interface (2025-11-02)
-
-**Process Improvements That Worked:**
-
-- High-level analysis before implementation (PLA_1 pattern)
-- Reusing existing components as reference (AddUser.tsx pattern)
-- TypeScript strict checking caught issues early
-- Working agreements (TDD mindset) kept focus on quality
-
-**Key Patterns to Remember:**
-
-1. Modal forms: DialogRoot → DialogTrigger (Button) → DialogContent → Form
-2. useQuery needs arrow function: `queryFn: () => Service.method()`
-3. useMutation: mutationFn → onSuccess (toast, reset, close) → onSettled (invalidate)
-4. React Hook Form Controller: `value={field.value || ""}` for nullable selects
-5. React Hook Form: mode="onBlur" for optimal UX, criteriaMode="all" for validation
-
-**Docker Build Checklist:**
-
-```bash
-After Docker build:
-1. docker compose up -d --force-recreate <service>
-2. docker compose exec <service> ls <expected-files>
-3. docker compose logs <service> --tail=20
-4. Hard refresh browser (Ctrl+F5)
-5. Screenshot to verify UI changes
-```
-
-### Session 2: E1-004 Permission Bug Fix (2025-11-02)
-
-**Critical Learning:** Always check logs FIRST before theorizing root causes.
-
-**Process Improvements That Worked:**
-
-- Direct database access via Docker exec for quick operations
-- Python one-liner for database queries: `python -c "..."`
-- Verification step after fixes
-
-**Debugging Workflow Checklist:**
-
-```bash
-When debugging unexpected behavior:
-1. Check backend logs: docker compose logs backend --tail=100
-2. Check frontend browser console for errors
-3. Check network tab for failed requests (status codes)
-4. Identify failing endpoint and check its permissions
-5. THEN review code and form hypotheses
-6. Verify with additional logging/testing
-```
-
-**Key Technical Patterns:**
-
-1. Debugging order: Logs → Network → Code (NOT Code → Theory → Logs)
-2. Permission dependencies: Check `dependencies=[Depends(...)]` in route decorators
-3. 403 vs 401: 403 = authenticated but insufficient privileges, 401 = not authenticated
-4. Role-based access: Understand permission model before implementing features
-5. JWT tokens contain user role - changes require logout/login to update
-
-**Architectural Concern:**
-
-Current design requires admin access to see project manager dropdown. Consider alternatives:
-
-- Public endpoint `/api/v1/users/list-for-selection` (dropdown-only data)
-- UI-level filtering by role
-- Separate permission like "can_view_users"
 
 ---
 

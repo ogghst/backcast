@@ -9,12 +9,19 @@ import {
   VStack,
 } from "@chakra-ui/react"
 import { useQuery } from "@tanstack/react-query"
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router"
 import { FiBox, FiChevronRight } from "react-icons/fi"
 import { z } from "zod"
 
 import { ProjectsService, WbesService } from "@/client"
 import PendingItems from "@/components/Pending/PendingItems"
+import AddWBE from "@/components/Projects/AddWBE"
 import {
   PaginationItems,
   PaginationNextTrigger,
@@ -116,12 +123,13 @@ function WBEsTable({ projectId }: { projectId: string }) {
               key={wbe.wbe_id}
               opacity={isPlaceholderData ? 0.5 : 1}
               cursor="pointer"
-              onClick={() =>
+              onClick={() => {
                 navigate({
-                  to: `/projects/${projectId}/wbes/${wbe.wbe_id}`,
+                  to: "/projects/$id/wbes/$wbeId",
+                  params: { id: projectId, wbeId: wbe.wbe_id },
                   search: { page: 1 },
                 })
-              }
+              }}
               _hover={{ bg: "gray.100" }}
             >
               <Table.Cell truncate maxW="md">
@@ -164,6 +172,10 @@ function WBEsTable({ projectId }: { projectId: string }) {
 
 function ProjectDetail() {
   const { id } = Route.useParams()
+  const location = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  const isWBERoute = location.includes("/wbes/")
 
   const { data: project, isLoading: isLoadingProject } = useQuery({
     ...getProjectQueryOptions({ id }),
@@ -189,6 +201,11 @@ function ProjectDetail() {
     )
   }
 
+  // If we're on a WBE detail route, render Outlet for child route
+  if (isWBERoute) {
+    return <Outlet />
+  }
+
   return (
     <Container maxW="full">
       <Flex alignItems="center" gap={2} pt={12} mb={2}>
@@ -208,9 +225,10 @@ function ProjectDetail() {
       </Flex>
       <Heading size="lg">{project.project_name}</Heading>
       <Box mt={4}>
-        <Heading size="md" mb={4}>
-          Work Breakdown Elements
-        </Heading>
+        <Flex alignItems="center" justifyContent="space-between" mb={4}>
+          <Heading size="md">Work Breakdown Elements</Heading>
+          <AddWBE projectId={project.project_id} />
+        </Flex>
         <WBEsTable projectId={project.project_id} />
       </Box>
     </Container>

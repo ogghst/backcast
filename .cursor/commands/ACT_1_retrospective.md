@@ -1,4 +1,4 @@
-RETROSPECTIVE: Continuous Improvement Analysis
+# RETROSPECTIVE: Continuous Improvement Analysis
 
 Reflect on this coding session to improve future interactions:
 
@@ -50,4 +50,10 @@ Reflect on this coding session to improve future interactions:
 
 Be specific and actionable in your recommendations.
 
-Add the process improvement that worked and to remember for next session to docs/project_status.md in lesson learned chapter
+## Document update
+
+Update the doc/project_status.md with work performed
+
+Revise README.md and docs/prd.md in case of major changes applied to architecture
+
+Add the process improvement that worked and to remember for next session to docs/retrospective.md
