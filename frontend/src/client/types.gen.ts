@@ -63,40 +63,6 @@ export type HTTPValidationError = {
 };
 
 /**
- * Schema for creating a new item.
- */
-export type ItemCreate = {
-    title: string;
-    description?: (string | null);
-};
-
-/**
- * Public item schema for API responses.
- */
-export type ItemPublic = {
-    title: string;
-    description?: (string | null);
-    id: string;
-    owner_id: string;
-};
-
-/**
- * Schema for list of items.
- */
-export type ItemsPublic = {
-    data: Array<ItemPublic>;
-    count: number;
-};
-
-/**
- * Schema for updating an item.
- */
-export type ItemUpdate = {
-    title?: (string | null);
-    description?: (string | null);
-};
-
-/**
  * Generic message response.
  */
 export type Message = {
@@ -362,38 +328,6 @@ export type CostElementsDeleteCostElementData = {
 };
 
 export type CostElementsDeleteCostElementResponse = (Message);
-
-export type ItemsReadItemsData = {
-    limit?: number;
-    skip?: number;
-};
-
-export type ItemsReadItemsResponse = (ItemsPublic);
-
-export type ItemsCreateItemData = {
-    requestBody: ItemCreate;
-};
-
-export type ItemsCreateItemResponse = (ItemPublic);
-
-export type ItemsReadItemData = {
-    id: string;
-};
-
-export type ItemsReadItemResponse = (ItemPublic);
-
-export type ItemsUpdateItemData = {
-    id: string;
-    requestBody: ItemUpdate;
-};
-
-export type ItemsUpdateItemResponse = (ItemPublic);
-
-export type ItemsDeleteItemData = {
-    id: string;
-};
-
-export type ItemsDeleteItemResponse = (Message);
 
 export type LoginLoginAccessTokenData = {
     formData: Body_login_login_access_token;

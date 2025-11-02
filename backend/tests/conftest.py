@@ -21,7 +21,6 @@ from app.models import (
     Department,
     EarnedValueEntry,
     Forecast,
-    Item,
     Project,
     ProjectEvent,
     ProjectPhase,
@@ -38,8 +37,6 @@ def db() -> Generator[Session, None, None]:
         init_db(session)
         yield session
         # Clean up all tables in reverse dependency order
-        statement = delete(Item)
-        session.execute(statement)
         statement = delete(
             EarnedValueEntry
         )  # Must be before CostElement/BaselineLog/User due to FK

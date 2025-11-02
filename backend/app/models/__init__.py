@@ -92,14 +92,6 @@ from app.models.forecast import (
     ForecastPublic,
     ForecastUpdate,
 )
-from app.models.item import (
-    Item,
-    ItemBase,
-    ItemCreate,
-    ItemPublic,
-    ItemsPublic,
-    ItemUpdate,
-)
 from app.models.project import (
     Project,
     ProjectBase,
@@ -190,13 +182,6 @@ __all__ = [
     "UserUpdateMe",
     "UsersPublic",
     "UpdatePassword",
-    # Item models
-    "Item",
-    "ItemBase",
-    "ItemCreate",
-    "ItemPublic",
-    "ItemUpdate",
-    "ItemsPublic",
     # Department models
     "Department",
     "DepartmentBase",

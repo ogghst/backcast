@@ -1,12 +1,8 @@
 """User model and related schemas."""
 import uuid
-from typing import TYPE_CHECKING
 
 from pydantic import EmailStr
-from sqlmodel import Field, Relationship, SQLModel
-
-if TYPE_CHECKING:
-    from app.models.item import Item
+from sqlmodel import Field, SQLModel
 
 
 # Shared properties
@@ -62,7 +58,6 @@ class User(UserBase, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     hashed_password: str
-    items: list["Item"] = Relationship(back_populates="owner", cascade_delete=True)
 
 
 # Properties to return via API, id is always required
