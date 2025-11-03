@@ -2,6 +2,7 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     budget_summary,
+    budget_timeline,
     cost_element_schedules,
     cost_element_types,
     cost_elements,
@@ -24,6 +25,7 @@ api_router.include_router(cost_elements.router)
 api_router.include_router(cost_element_schedules.router)
 api_router.include_router(cost_element_types.router)
 api_router.include_router(budget_summary.router)
+api_router.include_router(budget_timeline.router)
 
 
 if settings.ENVIRONMENT == "local":

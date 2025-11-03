@@ -35,6 +35,9 @@ from app.models.budget_allocation import (
     BudgetAllocationPublic,
     BudgetAllocationUpdate,
 )
+from app.models.budget_timeline import (
+    CostElementWithSchedulePublic,
+)
 from app.models.change_order import (
     ChangeOrder,
     ChangeOrderBase,
@@ -267,6 +270,8 @@ __all__ = [
     "BudgetAllocationCreate",
     "BudgetAllocationPublic",
     "BudgetAllocationUpdate",
+    # Budget Timeline models
+    "CostElementWithSchedulePublic",
     # Cost Registration models
     "CostRegistration",
     "CostRegistrationBase",
