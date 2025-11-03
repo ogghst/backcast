@@ -7,17 +7,8 @@
     "description": "Robot mechanical engineering and design work",
     "display_order": 10,
     "is_active": true,
-    "department_code": "MECH"
-  },
-  {
-    "type_code": "utm_robot_h",
-    "type_name": "Robot Mechanical Engineering (Hours)",
-    "category_type": "engineering_mechanical",
-    "tracks_hours": true,
-    "description": "Robot mechanical engineering hours tracking",
-    "display_order": 11,
-    "is_active": true,
-    "department_code": "MECH"
+    "department_code": "MECH",
+    "cost_element_type_id": "226d529f-8495-575f-b8b7-44a553ad379c"
   },
   {
     "type_code": "utm_lgv",
@@ -27,17 +18,19 @@
     "description": "LGV (Laser Guided Vehicle) mechanical engineering and design work",
     "display_order": 12,
     "is_active": true,
-    "department_code": "MECH"
+    "department_code": "MECH",
+    "cost_element_type_id": "26fc7547-000e-5af6-bf17-15e3c966dadd"
   },
   {
-    "type_code": "utm_lgv_h",
-    "type_name": "LGV Mechanical Engineering (Hours)",
+    "type_code": "utm_layout",
+    "type_name": "Layout Engineering",
     "category_type": "engineering_mechanical",
     "tracks_hours": true,
-    "description": "LGV mechanical engineering hours tracking",
-    "display_order": 13,
+    "description": "Layout engineering and spatial design work",
+    "display_order": 14,
     "is_active": true,
-    "department_code": "MECH"
+    "department_code": "MECH",
+    "cost_element_type_id": "027c11ab-84aa-5bbe-99cf-760a6e36f272"
   },
   {
     "type_code": "site",
@@ -45,19 +38,10 @@
     "category_type": "engineering_mechanical",
     "tracks_hours": true,
     "description": "Site engineering and on-site mechanical work",
-    "display_order": 14,
+    "display_order": 16,
     "is_active": true,
-    "department_code": "MECH"
-  },
-  {
-    "type_code": "site_h",
-    "type_name": "Site Engineering (Hours)",
-    "category_type": "engineering_mechanical",
-    "tracks_hours": true,
-    "description": "Site engineering hours tracking",
-    "display_order": 15,
-    "is_active": true,
-    "department_code": "MECH"
+    "department_code": "MECH",
+    "cost_element_type_id": "8a81ad45-f2c1-5378-b0a4-377e8574fd11"
   },
   {
     "type_code": "install",
@@ -65,19 +49,10 @@
     "category_type": "engineering_mechanical",
     "tracks_hours": true,
     "description": "Physical installation and mechanical assembly work",
-    "display_order": 16,
+    "display_order": 19,
     "is_active": true,
-    "department_code": "MECH"
-  },
-  {
-    "type_code": "install_h",
-    "type_name": "Installation (Hours)",
-    "category_type": "engineering_mechanical",
-    "tracks_hours": true,
-    "description": "Installation hours tracking",
-    "display_order": 17,
-    "is_active": true,
-    "department_code": "MECH"
+    "department_code": "MECH",
+    "cost_element_type_id": "6ef2c360-35b6-5554-9305-ab606207800e"
   },
   {
     "type_code": "ute",
@@ -87,17 +62,8 @@
     "description": "Electrical engineering and design work",
     "display_order": 20,
     "is_active": true,
-    "department_code": "ELEC"
-  },
-  {
-    "type_code": "ute_h",
-    "type_name": "Electrical Engineering (Hours)",
-    "category_type": "engineering_electrical",
-    "tracks_hours": true,
-    "description": "Electrical engineering hours tracking",
-    "display_order": 21,
-    "is_active": true,
-    "department_code": "ELEC"
+    "department_code": "ELEC",
+    "cost_element_type_id": "7ee61ba9-4cb1-53b1-b956-5deb8423fdfe"
   },
   {
     "type_code": "sw_pc",
@@ -107,17 +73,8 @@
     "description": "PC software development and programming",
     "display_order": 30,
     "is_active": true,
-    "department_code": "SW"
-  },
-  {
-    "type_code": "sw_pc_h",
-    "type_name": "PC Software Development (Hours)",
-    "category_type": "software",
-    "tracks_hours": true,
-    "description": "PC software development hours tracking",
-    "display_order": 31,
-    "is_active": true,
-    "department_code": "SW"
+    "department_code": "SW",
+    "cost_element_type_id": "ae3333b4-ce17-5da7-a8f3-2c23012bf2e8"
   },
   {
     "type_code": "sw_plc",
@@ -127,17 +84,19 @@
     "description": "PLC software development and programming",
     "display_order": 32,
     "is_active": true,
-    "department_code": "SW"
+    "department_code": "SW",
+    "cost_element_type_id": "2300b3bd-8505-5938-a8fb-f60cf42a173d"
   },
   {
-    "type_code": "sw_plc_h",
-    "type_name": "PLC Software Development (Hours)",
+    "type_code": "sw_lgv",
+    "type_name": "LGV Software Development",
     "category_type": "software",
     "tracks_hours": true,
-    "description": "PLC software development hours tracking",
-    "display_order": 33,
+    "description": "LGV (Laser Guided Vehicle) software development and programming",
+    "display_order": 34,
     "is_active": true,
-    "department_code": "SW"
+    "department_code": "SW",
+    "cost_element_type_id": "30121226-f9db-55b6-83c8-bb9eccd174e0"
   },
   {
     "type_code": "mtg_mec",
@@ -147,17 +106,8 @@
     "description": "Mechanical assembly work",
     "display_order": 40,
     "is_active": true,
-    "department_code": "ASM"
-  },
-  {
-    "type_code": "mtg_mec_h",
-    "type_name": "Mechanical Assembly (Hours)",
-    "category_type": "assembly",
-    "tracks_hours": true,
-    "description": "Mechanical assembly hours tracking",
-    "display_order": 41,
-    "is_active": true,
-    "department_code": "ASM"
+    "department_code": "ASM",
+    "cost_element_type_id": "c9fdb631-4f3c-5e74-9d9f-eb98da68d4df"
   },
   {
     "type_code": "cab_ele",
@@ -167,17 +117,8 @@
     "description": "Electrical cabinet assembly work",
     "display_order": 42,
     "is_active": true,
-    "department_code": "ASM"
-  },
-  {
-    "type_code": "cab_ele_h",
-    "type_name": "Electrical Cabinet Assembly (Hours)",
-    "category_type": "assembly",
-    "tracks_hours": true,
-    "description": "Electrical cabinet assembly hours tracking",
-    "display_order": 43,
-    "is_active": true,
-    "department_code": "ASM"
+    "department_code": "ASM",
+    "cost_element_type_id": "7ef5e693-b075-5bc8-b507-e12ddff6eb6f"
   },
   {
     "type_code": "coll_ba",
@@ -187,17 +128,8 @@
     "description": "Busbar commissioning and testing",
     "display_order": 50,
     "is_active": true,
-    "department_code": "COM"
-  },
-  {
-    "type_code": "coll_ba_h",
-    "type_name": "Busbar Commissioning (Hours)",
-    "category_type": "commissioning",
-    "tracks_hours": true,
-    "description": "Busbar commissioning hours tracking",
-    "display_order": 51,
-    "is_active": true,
-    "department_code": "COM"
+    "department_code": "COM",
+    "cost_element_type_id": "52068c5c-af1d-5313-bd1d-5098659669ba"
   },
   {
     "type_code": "coll_pc",
@@ -207,17 +139,8 @@
     "description": "PC commissioning and testing",
     "display_order": 52,
     "is_active": true,
-    "department_code": "COM"
-  },
-  {
-    "type_code": "coll_pc_h",
-    "type_name": "PC Commissioning (Hours)",
-    "category_type": "commissioning",
-    "tracks_hours": true,
-    "description": "PC commissioning hours tracking",
-    "display_order": 53,
-    "is_active": true,
-    "department_code": "COM"
+    "department_code": "COM",
+    "cost_element_type_id": "ea45a972-b53f-5e59-8f03-d7bbe9a499b5"
   },
   {
     "type_code": "coll_plc",
@@ -227,17 +150,8 @@
     "description": "PLC commissioning and testing",
     "display_order": 54,
     "is_active": true,
-    "department_code": "COM"
-  },
-  {
-    "type_code": "coll_plc_h",
-    "type_name": "PLC Commissioning (Hours)",
-    "category_type": "commissioning",
-    "tracks_hours": true,
-    "description": "PLC commissioning hours tracking",
-    "display_order": 55,
-    "is_active": true,
-    "department_code": "COM"
+    "department_code": "COM",
+    "cost_element_type_id": "147a7dce-380d-54a3-b368-5c2cb0978cc1"
   },
   {
     "type_code": "pm_cost",
@@ -247,17 +161,8 @@
     "description": "Project management activities and overhead",
     "display_order": 60,
     "is_active": true,
-    "department_code": "PM"
-  },
-  {
-    "type_code": "pm_h",
-    "type_name": "Project Management (Hours)",
-    "category_type": "management",
-    "tracks_hours": true,
-    "description": "Project management hours tracking",
-    "display_order": 61,
-    "is_active": true,
-    "department_code": "PM"
+    "department_code": "PM",
+    "cost_element_type_id": "c76dc252-17f9-5c8f-937a-8e48558102a5"
   },
   {
     "type_code": "document",
@@ -267,17 +172,8 @@
     "description": "Technical documentation and manuals creation",
     "display_order": 70,
     "is_active": true,
-    "department_code": "SUPPORT"
-  },
-  {
-    "type_code": "document_h",
-    "type_name": "Documentation (Hours)",
-    "category_type": "support",
-    "tracks_hours": true,
-    "description": "Documentation hours tracking",
-    "display_order": 71,
-    "is_active": true,
-    "department_code": "SUPPORT"
+    "department_code": "SUPPORT",
+    "cost_element_type_id": "c3e1583b-5011-5574-bdd2-4d8a6f745d66"
   },
   {
     "type_code": "av_pc",
@@ -287,17 +183,8 @@
     "description": "PC warranty and post-delivery support",
     "display_order": 72,
     "is_active": true,
-    "department_code": "SUPPORT"
-  },
-  {
-    "type_code": "av_pc_h",
-    "type_name": "PC Warranty and Support (Hours)",
-    "category_type": "support",
-    "tracks_hours": true,
-    "description": "PC warranty and support hours tracking",
-    "display_order": 73,
-    "is_active": true,
-    "department_code": "SUPPORT"
+    "department_code": "SUPPORT",
+    "cost_element_type_id": "296e82cc-3a46-5517-bdec-a7fddacd6a4a"
   },
   {
     "type_code": "mat",
@@ -307,7 +194,8 @@
     "description": "Material costs and procurement",
     "display_order": 80,
     "is_active": true,
-    "department_code": "MAT"
+    "department_code": "MAT",
+    "cost_element_type_id": "dc7a6217-6dd3-5daa-9aea-88166ec10310"
   },
   {
     "type_code": "imballo",
@@ -317,7 +205,8 @@
     "description": "Packaging materials and handling",
     "display_order": 81,
     "is_active": true,
-    "department_code": "MAT"
+    "department_code": "MAT",
+    "cost_element_type_id": "b9b2bd40-5f4f-5a4c-96d7-6d0c9ab88543"
   },
   {
     "type_code": "stoccaggio",
@@ -327,7 +216,8 @@
     "description": "Storage and warehousing costs",
     "display_order": 82,
     "is_active": true,
-    "department_code": "MAT"
+    "department_code": "MAT",
+    "cost_element_type_id": "61a23dbb-b1c9-56ae-85ff-b16836661105"
   },
   {
     "type_code": "trasporto",
@@ -337,7 +227,8 @@
     "description": "Transportation and logistics costs",
     "display_order": 83,
     "is_active": true,
-    "department_code": "MAT"
+    "department_code": "MAT",
+    "cost_element_type_id": "0944ca6d-3c2d-5c5b-bbda-e466424963d7"
   },
   {
     "type_code": "spese_pm",
@@ -347,7 +238,8 @@
     "description": "Miscellaneous project management expenses",
     "display_order": 90,
     "is_active": true,
-    "department_code": "OTHER"
+    "department_code": "OTHER",
+    "cost_element_type_id": "442a2a84-d970-576c-bc26-1b9c679ff2ec"
   },
   {
     "type_code": "spese_field",
@@ -357,6 +249,7 @@
     "description": "Field operations and on-site expenses",
     "display_order": 91,
     "is_active": true,
-    "department_code": "OTHER"
+    "department_code": "OTHER",
+    "cost_element_type_id": "2cba627d-5916-5fa0-b6f5-d27d6d7cf9d5"
   }
 ]

@@ -2,7 +2,11 @@ from sqlmodel import Session, create_engine, select
 
 from app import crud
 from app.core.config import settings
-from app.core.seeds import _seed_cost_element_types, _seed_departments
+from app.core.seeds import (
+    _seed_cost_element_types,
+    _seed_departments,
+    _seed_project_from_template,
+)
 from app.models import User, UserCreate, UserRole
 
 engine = create_engine(str(settings.SQLALCHEMY_DATABASE_URI))
@@ -37,3 +41,5 @@ def init_db(session: Session) -> None:
     _seed_departments(session)
     # Seed cost element types
     _seed_cost_element_types(session)
+    # Seed project from template (depends on departments, cost element types, and user)
+    _seed_project_from_template(session)

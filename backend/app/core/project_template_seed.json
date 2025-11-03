@@ -25,7 +25,7 @@
         {
           "department_code": "PM",
           "department_name": "Project Management",
-          "cost_element_type_id": "REPLACE_WITH_VALID_COST_ELEMENT_TYPE_UUID",
+          "cost_element_type_id": "c76dc252-17f9-5c8f-937a-8e48558102a5",
           "budget_bac": 419035.76,
           "revenue_plan": 502842.91,
           "status": "planned",
@@ -46,7 +46,7 @@
         {
           "department_code": "MECH",
           "department_name": "Mechanical Engineering",
-          "cost_element_type_id": "REPLACE_WITH_VALID_COST_ELEMENT_TYPE_UUID",
+          "cost_element_type_id": "226d529f-8495-575f-b8b7-44a553ad379c",
           "budget_bac": 4058.22,
           "revenue_plan": 4869.86,
           "status": "planned",
@@ -55,7 +55,7 @@
         {
           "department_code": "ELEC",
           "department_name": "Electrical Engineering",
-          "cost_element_type_id": "REPLACE_WITH_VALID_COST_ELEMENT_TYPE_UUID",
+          "cost_element_type_id": "7ee61ba9-4cb1-53b1-b956-5deb8423fdfe",
           "budget_bac": 2109.56,
           "revenue_plan": 2531.47,
           "status": "planned",
@@ -64,7 +64,7 @@
         {
           "department_code": "SW",
           "department_name": "Software Development",
-          "cost_element_type_id": "REPLACE_WITH_VALID_COST_ELEMENT_TYPE_UUID",
+          "cost_element_type_id": "2300b3bd-8505-5938-a8fb-f60cf42a173d",
           "budget_bac": 3355.67,
           "revenue_plan": 4026.8,
           "status": "planned",
@@ -73,7 +73,7 @@
         {
           "department_code": "ASM",
           "department_name": "Assembly",
-          "cost_element_type_id": "REPLACE_WITH_VALID_COST_ELEMENT_TYPE_UUID",
+          "cost_element_type_id": "c9fdb631-4f3c-5e74-9d9f-eb98da68d4df",
           "budget_bac": 2913.88,
           "revenue_plan": 3496.66,
           "status": "planned",
@@ -82,7 +82,7 @@
         {
           "department_code": "ASM",
           "department_name": "Assembly",
-          "cost_element_type_id": "REPLACE_WITH_VALID_COST_ELEMENT_TYPE_UUID",
+          "cost_element_type_id": "7ef5e693-b075-5bc8-b507-e12ddff6eb6f",
           "budget_bac": 8870.97,
           "revenue_plan": 10645.16,
           "status": "planned",
@@ -91,7 +91,7 @@
         {
           "department_code": "SW",
           "department_name": "Software Development",
-          "cost_element_type_id": "REPLACE_WITH_VALID_COST_ELEMENT_TYPE_UUID",
+          "cost_element_type_id": "ae3333b4-ce17-5da7-a8f3-2c23012bf2e8",
           "budget_bac": 288.0,
           "revenue_plan": 345.6,
           "status": "planned",
@@ -100,7 +100,7 @@
         {
           "department_code": "MECH",
           "department_name": "Mechanical Engineering",
-          "cost_element_type_id": "REPLACE_WITH_VALID_COST_ELEMENT_TYPE_UUID",
+          "cost_element_type_id": "027c11ab-84aa-5bbe-99cf-760a6e36f272",
           "budget_bac": 152.44,
           "revenue_plan": 182.93,
           "status": "planned",
@@ -121,7 +121,7 @@
         {
           "department_code": "SW",
           "department_name": "Software Development",
-          "cost_element_type_id": "REPLACE_WITH_VALID_COST_ELEMENT_TYPE_UUID",
+          "cost_element_type_id": "ae3333b4-ce17-5da7-a8f3-2c23012bf2e8",
           "budget_bac": 54720.0,
           "revenue_plan": 65664.0,
           "status": "planned",
@@ -130,7 +130,7 @@
         {
           "department_code": "SW",
           "department_name": "Software Development",
-          "cost_element_type_id": "REPLACE_WITH_VALID_COST_ELEMENT_TYPE_UUID",
+          "cost_element_type_id": "30121226-f9db-55b6-83c8-bb9eccd174e0",
           "budget_bac": 5440.0,
           "revenue_plan": 6528.0,
           "status": "planned",
