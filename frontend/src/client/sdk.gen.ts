@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { CostElementsReadCostElementsData, CostElementsReadCostElementsResponse, CostElementsCreateCostElementData, CostElementsCreateCostElementResponse, CostElementsReadCostElementData, CostElementsReadCostElementResponse, CostElementsUpdateCostElementData, CostElementsUpdateCostElementResponse, CostElementsDeleteCostElementData, CostElementsDeleteCostElementResponse, CostElementTypesReadCostElementTypesResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, PrivateCreateUserData, PrivateCreateUserResponse, ProjectsReadProjectsData, ProjectsReadProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsReadProjectData, ProjectsReadProjectResponse, ProjectsUpdateProjectData, ProjectsUpdateProjectResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsCreateProjectFromTemplateData, ProjectsCreateProjectFromTemplateResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse, WbesReadWbesData, WbesReadWbesResponse, WbesCreateWbeData, WbesCreateWbeResponse, WbesReadWbeData, WbesReadWbeResponse, WbesUpdateWbeData, WbesUpdateWbeResponse, WbesDeleteWbeData, WbesDeleteWbeResponse } from './types.gen';
+import type { CostElementsReadCostElementsData, CostElementsReadCostElementsResponse, CostElementsCreateCostElementData, CostElementsCreateCostElementResponse, CostElementsReadCostElementData, CostElementsReadCostElementResponse, CostElementsUpdateCostElementData, CostElementsUpdateCostElementResponse, CostElementsDeleteCostElementData, CostElementsDeleteCostElementResponse, CostElementSchedulesReadScheduleByCostElementData, CostElementSchedulesReadScheduleByCostElementResponse, CostElementSchedulesCreateScheduleData, CostElementSchedulesCreateScheduleResponse, CostElementSchedulesUpdateScheduleData, CostElementSchedulesUpdateScheduleResponse, CostElementSchedulesDeleteScheduleData, CostElementSchedulesDeleteScheduleResponse, CostElementTypesReadCostElementTypesResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, PrivateCreateUserData, PrivateCreateUserResponse, ProjectsReadProjectsData, ProjectsReadProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsReadProjectData, ProjectsReadProjectResponse, ProjectsUpdateProjectData, ProjectsUpdateProjectResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsCreateProjectFromTemplateData, ProjectsCreateProjectFromTemplateResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse, WbesReadWbesData, WbesReadWbesResponse, WbesCreateWbeData, WbesCreateWbeResponse, WbesReadWbeData, WbesReadWbeResponse, WbesUpdateWbeData, WbesUpdateWbeResponse, WbesDeleteWbeData, WbesDeleteWbeResponse } from './types.gen';
 
 export class CostElementsService {
     /**
@@ -108,6 +108,98 @@ export class CostElementsService {
         return __request(OpenAPI, {
             method: 'DELETE',
             url: '/api/v1/cost-elements/{id}',
+            path: {
+                id: data.id
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+}
+
+export class CostElementSchedulesService {
+    /**
+     * Read Schedule By Cost Element
+     * Get schedule for a cost element.
+     * @param data The data for the request.
+     * @param data.costElementId Cost element ID
+     * @returns CostElementSchedulePublic Successful Response
+     * @throws ApiError
+     */
+    public static readScheduleByCostElement(data: CostElementSchedulesReadScheduleByCostElementData): CancelablePromise<CostElementSchedulesReadScheduleByCostElementResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/cost-element-schedules/',
+            query: {
+                cost_element_id: data.costElementId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Create Schedule
+     * Create a new schedule for a cost element.
+     * @param data The data for the request.
+     * @param data.costElementId Cost element ID
+     * @param data.requestBody
+     * @returns CostElementSchedulePublic Successful Response
+     * @throws ApiError
+     */
+    public static createSchedule(data: CostElementSchedulesCreateScheduleData): CancelablePromise<CostElementSchedulesCreateScheduleResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/cost-element-schedules/',
+            query: {
+                cost_element_id: data.costElementId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Update Schedule
+     * Update a schedule.
+     * @param data The data for the request.
+     * @param data.id
+     * @param data.requestBody
+     * @returns CostElementSchedulePublic Successful Response
+     * @throws ApiError
+     */
+    public static updateSchedule(data: CostElementSchedulesUpdateScheduleData): CancelablePromise<CostElementSchedulesUpdateScheduleResponse> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/cost-element-schedules/{id}',
+            path: {
+                id: data.id
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Delete Schedule
+     * Delete a schedule.
+     * @param data The data for the request.
+     * @param data.id
+     * @returns Message Successful Response
+     * @throws ApiError
+     */
+    public static deleteSchedule(data: CostElementSchedulesDeleteScheduleData): CancelablePromise<CostElementSchedulesDeleteScheduleResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/cost-element-schedules/{id}',
             path: {
                 id: data.id
             },

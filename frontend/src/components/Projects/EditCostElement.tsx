@@ -3,20 +3,25 @@ import {
   DialogActionTrigger,
   DialogTitle,
   Input,
+  Separator,
   Text,
   Textarea,
   VStack,
 } from "@chakra-ui/react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useState } from "react"
 import { Controller, type SubmitHandler, useForm } from "react-hook-form"
 import { FaExchangeAlt } from "react-icons/fa"
 import {
+  ApiError,
   type CostElementPublic,
+  type CostElementScheduleBase,
+  type CostElementSchedulePublic,
+  CostElementSchedulesService,
+  type CostElementScheduleUpdate,
   CostElementsService,
   type CostElementUpdate,
 } from "@/client"
-import type { ApiError } from "@/client/core/ApiError"
 import useCustomToast from "@/hooks/useCustomToast"
 import { useRevenuePlanValidation } from "@/hooks/useRevenuePlanValidation"
 import { handleError } from "@/utils"
@@ -40,6 +45,26 @@ const EditCostElement = ({ costElement }: EditCostElementProps) => {
   const queryClient = useQueryClient()
   const { showSuccessToast } = useCustomToast()
 
+  // Fetch the schedule for this cost element
+  const { data: scheduleData } = useQuery<CostElementSchedulePublic | null>({
+    queryKey: ["cost-element-schedule", costElement.cost_element_id],
+    queryFn: async () => {
+      try {
+        return await CostElementSchedulesService.readScheduleByCostElement({
+          costElementId: costElement.cost_element_id,
+        })
+      } catch (error) {
+        // Handle 404 gracefully - schedule not found is expected for older cost elements
+        if (error instanceof ApiError && error.status === 404) {
+          return null
+        }
+        throw error // Re-throw other errors
+      }
+    },
+    enabled: isOpen, // Only fetch when dialog is open
+    retry: false, // Don't retry on 404
+  })
+
   const {
     control,
     register,
@@ -61,6 +86,39 @@ const EditCostElement = ({ costElement }: EditCostElementProps) => {
       notes: costElement.notes,
     },
   })
+
+  // Schedule form state - uses ScheduleBase when no schedule exists (for create), Update otherwise
+  const {
+    control: scheduleControl,
+    getValues: getScheduleValues,
+    register: registerSchedule,
+    reset: resetSchedule,
+    formState: { errors: scheduleErrors },
+  } = useForm<CostElementScheduleBase>({
+    mode: "onBlur",
+    defaultValues: scheduleData
+      ? {
+          start_date: scheduleData.start_date,
+          end_date: scheduleData.end_date,
+          progression_type: scheduleData.progression_type,
+          notes: scheduleData.notes,
+        }
+      : {
+          progression_type: "linear", // Default for new schedules
+        },
+  })
+
+  // Reset schedule form when scheduleData changes
+  useEffect(() => {
+    if (scheduleData) {
+      resetSchedule({
+        start_date: scheduleData.start_date,
+        end_date: scheduleData.end_date,
+        progression_type: scheduleData.progression_type,
+        notes: scheduleData.notes,
+      })
+    }
+  }, [scheduleData, resetSchedule])
 
   // Watch revenue_plan for real-time validation
   const revenuePlanValue = watch("revenue_plan")
@@ -103,9 +161,8 @@ const EditCostElement = ({ costElement }: EditCostElementProps) => {
         requestBody: data,
       }),
     onSuccess: () => {
-      showSuccessToast("Cost Element updated successfully.")
+      // Don't show toast here - will show after both operations complete
       reset()
-      setIsOpen(false)
     },
     onError: (err: ApiError) => {
       handleError(err)
@@ -118,8 +175,67 @@ const EditCostElement = ({ costElement }: EditCostElementProps) => {
     },
   })
 
-  const onSubmit: SubmitHandler<CostElementUpdate> = (data) => {
-    mutation.mutate(data)
+  const scheduleMutation = useMutation({
+    mutationFn: (data: CostElementScheduleUpdate) =>
+      CostElementSchedulesService.updateSchedule({
+        id: scheduleData!.schedule_id,
+        requestBody: data,
+      }),
+    onSuccess: () => {
+      resetSchedule()
+    },
+    onError: (err: ApiError) => {
+      handleError(err)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["cost-element-schedule", costElement.cost_element_id],
+      })
+    },
+  })
+
+  const createScheduleMutation = useMutation({
+    mutationFn: (data: CostElementScheduleBase) =>
+      CostElementSchedulesService.createSchedule({
+        costElementId: costElement.cost_element_id,
+        requestBody: data,
+      }),
+    onSuccess: () => {
+      resetSchedule()
+      // Refetch schedule data
+      queryClient.invalidateQueries({
+        queryKey: ["cost-element-schedule", costElement.cost_element_id],
+      })
+    },
+    onError: (err: ApiError) => {
+      handleError(err)
+    },
+  })
+
+  const onSubmit: SubmitHandler<CostElementUpdate> = async (data) => {
+    try {
+      // First update the cost element
+      await mutation.mutateAsync(data)
+
+      // Then update/create the schedule if form data exists
+      const scheduleFormData = getScheduleValues()
+      if (
+        scheduleFormData &&
+        (scheduleFormData.start_date || scheduleFormData.end_date)
+      ) {
+        if (scheduleData) {
+          await scheduleMutation.mutateAsync(scheduleFormData)
+        } else {
+          await createScheduleMutation.mutateAsync(scheduleFormData)
+        }
+      }
+
+      // Show success toast and close dialog only after both operations complete
+      showSuccessToast("Cost Element updated successfully.")
+      setIsOpen(false)
+    } catch (_error) {
+      // Error handling is already done in individual mutation onError callbacks
+    }
   }
 
   return (
@@ -267,6 +383,83 @@ const EditCostElement = ({ costElement }: EditCostElementProps) => {
               >
                 <Textarea {...register("notes")} placeholder="Notes" rows={3} />
               </Field>
+            </VStack>
+
+            {/* Schedule Section */}
+            <VStack gap={4} mt={6}>
+              <Separator />
+              <Text fontSize="lg" fontWeight="semibold" width="full">
+                Schedule
+              </Text>
+              <VStack gap={4} width="full">
+                <Field
+                  required
+                  invalid={!!scheduleErrors.start_date}
+                  errorText={scheduleErrors.start_date?.message}
+                  label="Start Date"
+                >
+                  <Input
+                    {...registerSchedule("start_date", {
+                      required: "Start date is required",
+                    })}
+                    type="date"
+                  />
+                </Field>
+
+                <Field
+                  required
+                  invalid={!!scheduleErrors.end_date}
+                  errorText={scheduleErrors.end_date?.message}
+                  label="End Date"
+                >
+                  <Input
+                    {...registerSchedule("end_date", {
+                      required: "End date is required",
+                    })}
+                    type="date"
+                  />
+                </Field>
+
+                <Field
+                  invalid={!!scheduleErrors.progression_type}
+                  errorText={scheduleErrors.progression_type?.message}
+                  label="Progression Type"
+                >
+                  <Controller
+                    control={scheduleControl}
+                    name="progression_type"
+                    render={({ field }) => (
+                      <select
+                        {...field}
+                        value={field.value || ""}
+                        style={{
+                          width: "100%",
+                          padding: "8px",
+                          borderRadius: "4px",
+                          border: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <option value="linear">Linear</option>
+                        <option value="front-loaded">Front-Loaded</option>
+                        <option value="back-loaded">Back-Loaded</option>
+                        <option value="s-curve">S-Curve</option>
+                      </select>
+                    )}
+                  />
+                </Field>
+
+                <Field
+                  invalid={!!scheduleErrors.notes}
+                  errorText={scheduleErrors.notes?.message}
+                  label="Schedule Notes"
+                >
+                  <Textarea
+                    {...registerSchedule("notes")}
+                    placeholder="Schedule Notes"
+                    rows={3}
+                  />
+                </Field>
+              </VStack>
             </VStack>
           </DialogBody>
 

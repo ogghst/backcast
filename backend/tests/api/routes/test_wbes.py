@@ -212,3 +212,48 @@ def test_delete_wbe_with_cost_elements_should_fail(
         headers=superuser_token_headers,
     )
     assert response.status_code == 200
+
+
+def test_create_wbe_exceeds_project_contract_value(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Test creating a WBE with revenue_allocation that exceeds project contract_value."""
+    from decimal import Decimal
+
+    from app import crud
+    from app.models import Project, ProjectCreate, UserCreate
+
+    email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
+    password = "testpassword123"
+    user_in = UserCreate(email=email, password=password)
+    pm_user = crud.create_user(session=db, user_create=user_in)
+
+    project_in = ProjectCreate(
+        project_name="Test Project",
+        customer_name="Test Customer",
+        contract_value=Decimal("100000.00"),
+        start_date=date.today(),
+        planned_completion_date=date.today() + timedelta(days=365),
+        project_manager_id=pm_user.id,
+        status="active",
+    )
+    project = Project.model_validate(project_in)
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+
+    # Try to create WBE with revenue_allocation exceeding contract_value
+    wbe_data = {
+        "machine_type": "Test Machine",
+        "revenue_allocation": 150000.00,  # Exceeds project contract_value of 100000.00
+        "status": "designing",
+        "project_id": str(project.project_id),
+    }
+    response = client.post(
+        f"{settings.API_V1_STR}/wbes/",
+        headers=superuser_token_headers,
+        json=wbe_data,
+    )
+    assert response.status_code == 400
+    content = response.json()
+    assert "exceeds project contract value" in content["detail"]

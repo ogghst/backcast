@@ -39,6 +39,42 @@ export type CostElementPublic = {
 };
 
 /**
+ * Base cost element schedule schema with common fields.
+ */
+export type CostElementScheduleBase = {
+    start_date: string;
+    end_date: string;
+    progression_type: string;
+    notes?: (string | null);
+};
+
+/**
+ * Public cost element schedule schema for API responses.
+ */
+export type CostElementSchedulePublic = {
+    start_date: string;
+    end_date: string;
+    progression_type: string;
+    notes?: (string | null);
+    schedule_id: string;
+    cost_element_id: string;
+    baseline_id?: (string | null);
+    created_by_id: string;
+    created_at: string;
+    updated_at: string;
+};
+
+/**
+ * Schema for updating a cost element schedule.
+ */
+export type CostElementScheduleUpdate = {
+    start_date?: (string | null);
+    end_date?: (string | null);
+    progression_type?: (string | null);
+    notes?: (string | null);
+};
+
+/**
  * Schema for list of cost elements.
  */
 export type CostElementsPublic = {
@@ -363,6 +399,38 @@ export type CostElementsDeleteCostElementData = {
 };
 
 export type CostElementsDeleteCostElementResponse = (Message);
+
+export type CostElementSchedulesReadScheduleByCostElementData = {
+    /**
+     * Cost element ID
+     */
+    costElementId: string;
+};
+
+export type CostElementSchedulesReadScheduleByCostElementResponse = (CostElementSchedulePublic);
+
+export type CostElementSchedulesCreateScheduleData = {
+    /**
+     * Cost element ID
+     */
+    costElementId: string;
+    requestBody: CostElementScheduleBase;
+};
+
+export type CostElementSchedulesCreateScheduleResponse = (CostElementSchedulePublic);
+
+export type CostElementSchedulesUpdateScheduleData = {
+    id: string;
+    requestBody: CostElementScheduleUpdate;
+};
+
+export type CostElementSchedulesUpdateScheduleResponse = (CostElementSchedulePublic);
+
+export type CostElementSchedulesDeleteScheduleData = {
+    id: string;
+};
+
+export type CostElementSchedulesDeleteScheduleResponse = (Message);
 
 export type CostElementTypesReadCostElementTypesResponse = (CostElementTypesPublic);
 

@@ -8,12 +8,13 @@ import {
   VStack,
 } from "@chakra-ui/react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Controller, type SubmitHandler, useForm } from "react-hook-form"
 import { FaExchangeAlt } from "react-icons/fa"
 import { type WBEPublic, type WBEUpdate, WbesService } from "@/client"
 import type { ApiError } from "@/client/core/ApiError"
 import useCustomToast from "@/hooks/useCustomToast"
+import { useRevenueAllocationValidation } from "@/hooks/useRevenueAllocationValidation"
 import { handleError } from "@/utils"
 import {
   DialogBody,
@@ -39,6 +40,9 @@ const EditWBE = ({ wbe }: EditWBEProps) => {
     register,
     handleSubmit,
     reset,
+    watch,
+    setError,
+    clearErrors,
     formState: { errors, isValid, isSubmitting },
   } = useForm<WBEUpdate>({
     mode: "onBlur",
@@ -52,6 +56,45 @@ const EditWBE = ({ wbe }: EditWBEProps) => {
       notes: wbe.notes,
     },
   })
+
+  // Watch revenue_allocation for real-time validation
+  const revenueAllocationValue = watch("revenue_allocation")
+
+  // Validate revenue_allocation against project contract_value limit
+  const revenueValidation = useRevenueAllocationValidation(
+    wbe.project_id,
+    wbe.wbe_id,
+    revenueAllocationValue !== undefined
+      ? Number(revenueAllocationValue)
+      : undefined,
+  )
+
+  // Update form error state based on validation (using useEffect to avoid infinite loops)
+  useEffect(() => {
+    if (
+      revenueValidation.errorMessage &&
+      revenueAllocationValue !== undefined
+    ) {
+      setError("revenue_allocation", {
+        type: "manual",
+        message: revenueValidation.errorMessage,
+      })
+    } else if (
+      !revenueValidation.errorMessage &&
+      errors.revenue_allocation?.type === "manual"
+    ) {
+      clearErrors("revenue_allocation")
+    }
+  }, [
+    revenueValidation.errorMessage,
+    revenueAllocationValue,
+    setError,
+    clearErrors,
+    errors.revenue_allocation?.type,
+  ])
+
+  // Form is valid only if React Hook Form validation passes AND revenue validation passes
+  const isFormValid = isValid && revenueValidation.isValid
 
   const mutation = useMutation({
     mutationFn: (data: WBEUpdate) =>
@@ -130,8 +173,13 @@ const EditWBE = ({ wbe }: EditWBEProps) => {
               </Field>
 
               <Field
-                invalid={!!errors.revenue_allocation}
-                errorText={errors.revenue_allocation?.message}
+                invalid={
+                  !!errors.revenue_allocation || !revenueValidation.isValid
+                }
+                errorText={
+                  errors.revenue_allocation?.message ||
+                  revenueValidation.errorMessage
+                }
                 label="Revenue Allocation"
               >
                 <Input
@@ -145,6 +193,27 @@ const EditWBE = ({ wbe }: EditWBEProps) => {
                   type="number"
                   step="0.01"
                 />
+                {revenueAllocationValue !== undefined &&
+                  revenueValidation.limit > 0 && (
+                    <Text fontSize="xs" color="gray.600" mt={1}>
+                      Total: €
+                      {revenueValidation.currentTotal.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      / Limit: €
+                      {revenueValidation.limit.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      ({revenueValidation.remaining >= 0 ? "+" : ""}€
+                      {revenueValidation.remaining.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      remaining)
+                    </Text>
+                  )}
               </Field>
 
               <Field
@@ -199,7 +268,7 @@ const EditWBE = ({ wbe }: EditWBEProps) => {
             <Button
               variant="solid"
               type="submit"
-              disabled={!isValid || isSubmitting}
+              disabled={!isFormValid || isSubmitting}
               loading={isSubmitting}
             >
               Save

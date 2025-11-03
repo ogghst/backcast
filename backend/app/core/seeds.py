@@ -1,6 +1,7 @@
 """Seed functions for initializing database with reference data."""
 import json
 import uuid
+from datetime import date
 from pathlib import Path
 
 from sqlmodel import Session, select
@@ -8,8 +9,12 @@ from sqlmodel import Session, select
 from app.core.config import settings
 from app.models import (
     WBE,
+    BudgetAllocation,
+    BudgetAllocationCreate,
     CostElement,
     CostElementCreate,
+    CostElementSchedule,
+    CostElementScheduleCreate,
     CostElementType,
     CostElementTypeCreate,
     Department,
@@ -189,6 +194,22 @@ def _seed_project_from_template(session: Session) -> None:
                 select(CostElement).where(CostElement.wbe_id == wbe.wbe_id)
             ).all()
             for ce in existing_cost_elements:
+                # Delete associated budget allocations first (to avoid foreign key violation)
+                existing_budget_allocations = session.exec(
+                    select(BudgetAllocation).where(
+                        BudgetAllocation.cost_element_id == ce.cost_element_id
+                    )
+                ).all()
+                for budget_allocation in existing_budget_allocations:
+                    session.delete(budget_allocation)
+                # Delete associated cost element schedules (to avoid foreign key violation)
+                existing_schedules = session.exec(
+                    select(CostElementSchedule).where(
+                        CostElementSchedule.cost_element_id == ce.cost_element_id
+                    )
+                ).all()
+                for schedule in existing_schedules:
+                    session.delete(schedule)
                 session.delete(ce)
             session.delete(wbe)
         session.flush()
@@ -225,5 +246,46 @@ def _seed_project_from_template(session: Session) -> None:
             ce_create = CostElementCreate(**ce_data_with_wbe)
             ce = CostElement.model_validate(ce_create)
             session.add(ce)
+            session.flush()  # Get cost_element_id without committing
+
+            # Create initial budget allocation for this cost element
+            budget_allocation_data = BudgetAllocationCreate(
+                cost_element_id=ce.cost_element_id,
+                allocation_date=project.start_date,
+                budget_amount=ce.budget_bac,
+                revenue_amount=ce.revenue_plan,
+                allocation_type="initial",
+                description="Initial budget allocation from seed data",
+                created_by_id=first_superuser.id,
+            )
+            budget_allocation = BudgetAllocation.model_validate(budget_allocation_data)
+            session.add(budget_allocation)
+
+            # Create schedule for this cost element
+            # Use schedule data from JSON if available, otherwise use project dates
+            schedule_info = ce_data.get("schedule")
+            if schedule_info:
+                # Schedule data explicitly provided in JSON
+                schedule_start = date.fromisoformat(schedule_info["start_date"])
+                schedule_end = date.fromisoformat(schedule_info["end_date"])
+                schedule_progression = schedule_info.get("progression_type", "linear")
+                schedule_notes = schedule_info.get("notes")
+            else:
+                # Fallback to project dates (backward compatibility)
+                schedule_start = project.start_date
+                schedule_end = project.planned_completion_date
+                schedule_progression = "linear"
+                schedule_notes = "Initial schedule baseline from seed data"
+
+            schedule_data = CostElementScheduleCreate(
+                cost_element_id=ce.cost_element_id,
+                start_date=schedule_start,
+                end_date=schedule_end,
+                progression_type=schedule_progression,
+                notes=schedule_notes,
+                created_by_id=first_superuser.id,
+            )
+            schedule = CostElementSchedule.model_validate(schedule_data)
+            session.add(schedule)
 
     session.commit()

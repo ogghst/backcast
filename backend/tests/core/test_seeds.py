@@ -10,7 +10,9 @@ from app.core.seeds import (
 )
 from app.models import (
     WBE,
+    BudgetAllocation,
     CostElement,
+    CostElementSchedule,
     CostElementType,
     Department,
     Project,
@@ -342,3 +344,167 @@ def test_integration_all_seeds_together(db: Session) -> None:
         assert (
             cet is not None
         ), f"Cost element type {ce.cost_element_type_id} should exist"
+
+
+def test_seed_project_from_template_creates_budget_allocations_and_schedules(
+    db: Session,
+) -> None:
+    """Test that _seed_project_from_template creates budget allocations and schedules for cost elements."""
+    from app import crud
+    from app.core.config import settings
+    from app.models import User, UserCreate, UserRole
+
+    # Ensure prerequisites exist
+    user = db.exec(select(User).where(User.email == settings.FIRST_SUPERUSER)).first()
+    if not user:
+        user_in = UserCreate(
+            email=settings.FIRST_SUPERUSER,
+            password=settings.FIRST_SUPERUSER_PASSWORD,
+            role=UserRole.admin,
+        )
+        user = crud.create_user(session=db, user_create=user_in)
+
+    _seed_departments(db)
+    _seed_cost_element_types(db)
+
+    # Run seed function
+    _seed_project_from_template(db)
+
+    # Get project
+    project = db.exec(
+        select(Project).where(Project.project_code == "PRE_LSI2300157_05_03_ET_01-")
+    ).first()
+    assert project is not None
+
+    # Get all cost elements for this project
+    wbes = db.exec(select(WBE).where(WBE.project_id == project.project_id)).all()
+    cost_elements = []
+    for wbe in wbes:
+        ces = db.exec(select(CostElement).where(CostElement.wbe_id == wbe.wbe_id)).all()
+        cost_elements.extend(ces)
+
+    assert len(cost_elements) > 0, "Should have cost elements to test"
+
+    # Verify each cost element has a budget allocation
+    for ce in cost_elements:
+        budget_allocations = db.exec(
+            select(BudgetAllocation).where(
+                BudgetAllocation.cost_element_id == ce.cost_element_id
+            )
+        ).all()
+        assert (
+            len(budget_allocations) > 0
+        ), f"Cost element {ce.cost_element_id} should have at least one budget allocation"
+
+        # Verify budget allocation matches cost element budget_bac and revenue_plan
+        initial_budget = next(
+            (ba for ba in budget_allocations if ba.allocation_type == "initial"),
+            None,
+        )
+        assert (
+            initial_budget is not None
+        ), f"Cost element {ce.cost_element_id} should have initial budget allocation"
+        assert (
+            initial_budget.budget_amount == ce.budget_bac
+        ), "Budget allocation amount should match cost element budget_bac"
+        assert (
+            initial_budget.revenue_amount == ce.revenue_plan
+        ), "Budget allocation revenue should match cost element revenue_plan"
+        assert (
+            initial_budget.allocation_date == project.start_date
+        ), "Budget allocation date should match project start date"
+        assert (
+            initial_budget.created_by_id == user.id
+        ), "Budget allocation should be created by first superuser"
+
+    # Load template data to verify schedules match JSON
+    import json
+    from pathlib import Path
+
+    # Path from tests/core/ to backend/app/core/
+    seed_file = (
+        Path(__file__).parent.parent.parent
+        / "app"
+        / "core"
+        / "project_template_seed.json"
+    )
+    with open(seed_file, encoding="utf-8") as f:
+        template_data = json.load(f)
+
+    # Build list of expected schedules in order (matching JSON structure)
+    expected_schedules_list = []
+    for wbe_item in template_data.get("wbes", []):
+        wbe_machine_type = wbe_item.get("wbe", {}).get("machine_type")
+        for ce_data in wbe_item.get("cost_elements", []):
+            expected_schedules_list.append(
+                {
+                    "wbe_machine_type": wbe_machine_type,
+                    "department_code": ce_data.get("department_code"),
+                    "cost_element_type_id": ce_data.get("cost_element_type_id"),
+                    "budget_bac": ce_data.get("budget_bac"),
+                    "schedule": ce_data.get("schedule"),
+                }
+            )
+
+    # Verify each cost element has a schedule and matches JSON
+    # Match cost elements to expected schedules by matching wbe + department + type + budget
+    for ce in cost_elements:
+        schedules = db.exec(
+            select(CostElementSchedule).where(
+                CostElementSchedule.cost_element_id == ce.cost_element_id
+            )
+        ).all()
+        assert (
+            len(schedules) == 1
+        ), f"Cost element {ce.cost_element_id} should have exactly one schedule"
+
+        schedule = schedules[0]
+
+        # Find matching expected schedule from JSON
+        # Get the WBE for this cost element
+        ce_wbe = db.get(WBE, ce.wbe_id)
+        expected_schedule_data = None
+        for exp_data in expected_schedules_list:
+            if (
+                exp_data["department_code"] == ce.department_code
+                and exp_data["cost_element_type_id"] == str(ce.cost_element_type_id)
+                and float(exp_data["budget_bac"]) == float(ce.budget_bac)
+                and ce_wbe.machine_type == exp_data["wbe_machine_type"]
+            ):
+                expected_schedule_data = exp_data.get("schedule")
+                break
+
+        if expected_schedule_data:
+            # Verify schedule matches JSON data
+            from datetime import date
+
+            expected_start = date.fromisoformat(expected_schedule_data["start_date"])
+            expected_end = date.fromisoformat(expected_schedule_data["end_date"])
+            assert (
+                schedule.start_date == expected_start
+            ), f"Schedule start date should match JSON data for {ce.department_code} (expected {expected_start}, got {schedule.start_date})"
+            assert (
+                schedule.end_date == expected_end
+            ), f"Schedule end date should match JSON data for {ce.department_code} (expected {expected_end}, got {schedule.end_date})"
+            assert (
+                schedule.progression_type == expected_schedule_data["progression_type"]
+            ), f"Schedule progression type should match JSON data for {ce.department_code} (expected {expected_schedule_data['progression_type']}, got {schedule.progression_type})"
+            if expected_schedule_data.get("notes"):
+                assert (
+                    schedule.notes == expected_schedule_data["notes"]
+                ), f"Schedule notes should match JSON data for {ce.department_code}"
+        else:
+            # Fallback: if no schedule in JSON, should use project dates (backward compatibility)
+            assert (
+                schedule.start_date == project.start_date
+            ), "Schedule start date should match project start date when not in JSON"
+            assert (
+                schedule.end_date == project.planned_completion_date
+            ), "Schedule end date should match project planned completion date when not in JSON"
+            assert (
+                schedule.progression_type == "linear"
+            ), "Schedule progression type should be linear by default"
+
+        assert (
+            schedule.created_by_id == user.id
+        ), "Schedule should be created by first superuser"

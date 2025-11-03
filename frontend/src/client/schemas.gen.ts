@@ -190,6 +190,168 @@ export const CostElementPublicSchema = {
     description: 'Public cost element schema for API responses.'
 } as const;
 
+export const CostElementScheduleBaseSchema = {
+    properties: {
+        start_date: {
+            type: 'string',
+            format: 'date',
+            title: 'Start Date'
+        },
+        end_date: {
+            type: 'string',
+            format: 'date',
+            title: 'End Date'
+        },
+        progression_type: {
+            type: 'string',
+            maxLength: 50,
+            title: 'Progression Type'
+        },
+        notes: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Notes'
+        }
+    },
+    type: 'object',
+    required: ['start_date', 'end_date', 'progression_type'],
+    title: 'CostElementScheduleBase',
+    description: 'Base cost element schedule schema with common fields.'
+} as const;
+
+export const CostElementSchedulePublicSchema = {
+    properties: {
+        start_date: {
+            type: 'string',
+            format: 'date',
+            title: 'Start Date'
+        },
+        end_date: {
+            type: 'string',
+            format: 'date',
+            title: 'End Date'
+        },
+        progression_type: {
+            type: 'string',
+            maxLength: 50,
+            title: 'Progression Type'
+        },
+        notes: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Notes'
+        },
+        schedule_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Schedule Id'
+        },
+        cost_element_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Cost Element Id'
+        },
+        baseline_id: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'uuid'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Baseline Id'
+        },
+        created_by_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Created By Id'
+        },
+        created_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Created At'
+        },
+        updated_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Updated At'
+        }
+    },
+    type: 'object',
+    required: ['start_date', 'end_date', 'progression_type', 'schedule_id', 'cost_element_id', 'created_by_id', 'created_at', 'updated_at'],
+    title: 'CostElementSchedulePublic',
+    description: 'Public cost element schedule schema for API responses.'
+} as const;
+
+export const CostElementScheduleUpdateSchema = {
+    properties: {
+        start_date: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Start Date'
+        },
+        end_date: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'End Date'
+        },
+        progression_type: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 50
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Progression Type'
+        },
+        notes: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Notes'
+        }
+    },
+    type: 'object',
+    title: 'CostElementScheduleUpdate',
+    description: 'Schema for updating a cost element schedule.'
+} as const;
+
 export const CostElementTypePublicSchema = {
     properties: {
         type_code: {
