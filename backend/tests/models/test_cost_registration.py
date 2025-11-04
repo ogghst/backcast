@@ -88,10 +88,12 @@ def test_create_cost_registration(db: Session) -> None:
         cost_category="labor",
         description="8 hours of engineering work",
         is_quality_cost=False,
-        created_by_id=pm_user.id,
     )
 
-    cost = CostRegistration.model_validate(cost_in)
+    # Add created_by_id when creating the model (not in CostRegistrationCreate schema)
+    cost_data = cost_in.model_dump()
+    cost_data["created_by_id"] = pm_user.id
+    cost = CostRegistration.model_validate(cost_data)
     db.add(cost)
     db.commit()
     db.refresh(cost)
@@ -166,7 +168,7 @@ def test_cost_category_enum(db: Session) -> None:
     db.refresh(ce)
 
     # Test valid cost categories
-    valid_categories = ["labor", "materials", "subcontracts", "other"]
+    valid_categories = ["labor", "materials", "subcontractors"]
     for cost_category in valid_categories:
         cost_in = CostRegistrationCreate(
             cost_element_id=ce.cost_element_id,
@@ -175,9 +177,11 @@ def test_cost_category_enum(db: Session) -> None:
             cost_category=cost_category,
             description="Test cost",
             is_quality_cost=False,
-            created_by_id=pm_user.id,
         )
-        cost = CostRegistration.model_validate(cost_in)
+        # Add created_by_id when creating the model (not in CostRegistrationCreate schema)
+        cost_data = cost_in.model_dump()
+        cost_data["created_by_id"] = pm_user.id
+        cost = CostRegistration.model_validate(cost_data)
         db.add(cost)
         db.commit()
         db.refresh(cost)

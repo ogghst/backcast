@@ -42,6 +42,8 @@ def create_random_cost_registration(
     )
 
     # Create cost registration with created_by_id
+    # Note: created_by_id is not in CostRegistrationCreate schema,
+    # so we add it directly when creating the model
     cost_data = cost_in.model_dump()
     cost_data["created_by_id"] = created_by_id
     cost = CostRegistration.model_validate(cost_data)

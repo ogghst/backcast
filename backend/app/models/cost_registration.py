@@ -28,7 +28,10 @@ class CostRegistrationBase(SQLModel):
 
 
 class CostRegistrationCreate(CostRegistrationBase):
-    """Schema for creating a new cost registration."""
+    """Schema for creating a new cost registration.
+
+    Note: created_by_id is set automatically by the API from current_user.
+    """
 
     cost_element_id: uuid.UUID
 
