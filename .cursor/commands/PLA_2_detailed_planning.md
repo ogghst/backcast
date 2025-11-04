@@ -1,13 +1,14 @@
-PLANNING PHASE: Execution Strategy
+# PLANNING PHASE: Execution Strategy
 
 Based on our analysis and the approach we've selected, create a coherent implementation plan.
 
-EXECUTION CONTEXT:
+## EXECUTION CONTEXT
+
 - This plan will be implemented using TDD discipline with human supervision
 - Implementation will occur in steps within this conversation thread
 - Each step must have clear stop/go criteria
 
-PLAN STRUCTURE REQUIREMENTS:
+## PLAN STRUCTURE REQUIREMENTS
 
 1. IMPLEMENTATION STEPS (Numbered list with explicit acceptance criteria)
    For each step provide:
@@ -30,17 +31,17 @@ PLAN STRUCTURE REQUIREMENTS:
    - "Does the current state match our expectations?"
 
 4. SCOPE BOUNDARIES
-   This plan explicitly EXCLUDES:
-   - [List what's out of scope]
-   
-   If we discover need for these during implementation:
-   - [Strategy for handling scope creep]
+   You shall adhere on what the user is asking and avoid scope creep. If you find useful improvements or alternatives, ask the user for confirmation
 
 5. ROLLBACK STRATEGY
    If we need to abandon this approach:
    - What's the safe rollback point?
    - What alternative do we try next?
 
+## OUTPUT
+
 Format your plan as a numbered checklist that can be tracked during implementation.
+
+## CONFIRM
 
 Confirm you understand the plan structure requirements before generating the plan.

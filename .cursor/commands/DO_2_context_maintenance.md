@@ -1,6 +1,6 @@
 CONTEXT CHECK AND RESET
 
-We've been working for [X minutes/steps]. Let's verify we're still on track:
+Let's verify we're still on track:
 
 1. CURRENT STATE SUMMARY
    - What have we completed so far?

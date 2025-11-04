@@ -1,0 +1,56 @@
+[
+  {
+    "department_code": "MECH",
+    "department_name": "Mechanical Engineering",
+    "description": "Mechanical engineering department",
+    "is_active": true
+  },
+  {
+    "department_code": "ELEC",
+    "department_name": "Electrical Engineering",
+    "description": "Electrical engineering department",
+    "is_active": true
+  },
+  {
+    "department_code": "SW",
+    "department_name": "Software Development",
+    "description": "Software development department",
+    "is_active": true
+  },
+  {
+    "department_code": "ASM",
+    "department_name": "Assembly",
+    "description": "Assembly department",
+    "is_active": true
+  },
+  {
+    "department_code": "COM",
+    "department_name": "Commissioning",
+    "description": "Commissioning department",
+    "is_active": true
+  },
+  {
+    "department_code": "PM",
+    "department_name": "Project Management",
+    "description": "Project management department",
+    "is_active": true
+  },
+  {
+    "department_code": "SUPPORT",
+    "department_name": "Support & Documentation",
+    "description": "Support and documentation department",
+    "is_active": true
+  },
+  {
+    "department_code": "MAT",
+    "department_name": "Materials",
+    "description": "Materials department",
+    "is_active": true
+  },
+  {
+    "department_code": "OTHER",
+    "department_name": "Other",
+    "description": "Other departments",
+    "is_active": true
+  }
+]
