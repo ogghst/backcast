@@ -55,7 +55,7 @@ def test_get_schedule_not_found(
 
 
 def test_get_schedule_invalid_cost_element_id(
-    client: TestClient, superuser_token_headers: dict[str, str], _db: Session
+    client: TestClient, superuser_token_headers: dict[str, str]
 ) -> None:
     """Test getting schedule with invalid cost_element_id."""
     invalid_id = uuid.uuid4()
@@ -119,7 +119,7 @@ def test_create_schedule_invalid_dates(
 
 
 def test_create_schedule_invalid_cost_element(
-    client: TestClient, superuser_token_headers: dict[str, str], _db: Session
+    client: TestClient, superuser_token_headers: dict[str, str]
 ) -> None:
     """Test creating schedule with invalid cost_element_id should fail."""
     invalid_id = uuid.uuid4()
@@ -197,7 +197,7 @@ def test_update_schedule_invalid_dates(
 
 
 def test_update_schedule_not_found(
-    client: TestClient, superuser_token_headers: dict[str, str], _db: Session
+    client: TestClient, superuser_token_headers: dict[str, str]
 ) -> None:
     """Test updating a schedule that doesn't exist returns 404."""
     invalid_id = uuid.uuid4()
@@ -244,7 +244,7 @@ def test_delete_schedule(
 
 
 def test_delete_schedule_not_found(
-    client: TestClient, superuser_token_headers: dict[str, str], _db: Session
+    client: TestClient, superuser_token_headers: dict[str, str]
 ) -> None:
     """Test deleting a schedule that doesn't exist returns 404."""
     invalid_id = uuid.uuid4()

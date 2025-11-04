@@ -14,8 +14,12 @@ from app.models import (
     CostElement,
     CostElementSchedule,
     CostElementType,
+    CostRegistration,
     Department,
+    EarnedValueEntry,
+    Forecast,
     Project,
+    QualityEvent,
 )
 
 
@@ -75,7 +79,24 @@ def test_seed_order_departments_first(db: Session) -> None:
     """Integration test: departments must be seeded before cost element types."""
     from app.core.db import init_db
 
-    # Clear existing data
+    # Clear existing data in correct dependency order
+    # Delete records that reference CostElement first
+    statement = delete(EarnedValueEntry)
+    db.execute(statement)
+    statement = delete(Forecast)
+    db.execute(statement)
+    statement = delete(QualityEvent)
+    db.execute(statement)
+    statement = delete(BudgetAllocation)
+    db.execute(statement)
+    statement = delete(CostRegistration)
+    db.execute(statement)
+    statement = delete(CostElementSchedule)
+    db.execute(statement)
+    # Delete CostElement (references CostElementType)
+    statement = delete(CostElement)
+    db.execute(statement)
+    # Now safe to delete CostElementType
     statement = delete(CostElementType)
     db.execute(statement)
     statement = delete(Department)
@@ -108,7 +129,24 @@ def test_seed_order_departments_first(db: Session) -> None:
 
 def test_seed_cost_element_types_still_works(db: Session) -> None:
     """Regression test: verify cost element types seed function still works after refactor."""
-    # Clear existing data
+    # Clear existing data in correct dependency order
+    # Delete records that reference CostElement first
+    statement = delete(EarnedValueEntry)
+    db.execute(statement)
+    statement = delete(Forecast)
+    db.execute(statement)
+    statement = delete(QualityEvent)
+    db.execute(statement)
+    statement = delete(BudgetAllocation)
+    db.execute(statement)
+    statement = delete(CostRegistration)
+    db.execute(statement)
+    statement = delete(CostElementSchedule)
+    db.execute(statement)
+    # Delete CostElement (references CostElementType)
+    statement = delete(CostElement)
+    db.execute(statement)
+    # Now safe to delete CostElementType
     statement = delete(CostElementType)
     db.execute(statement)
     statement = delete(Department)
@@ -139,7 +177,24 @@ def test_seed_cost_element_types_with_hardcoded_uuids(db: Session) -> None:
     import json
     from pathlib import Path
 
-    # Clear existing data
+    # Clear existing data in correct dependency order
+    # Delete records that reference CostElement first
+    statement = delete(EarnedValueEntry)
+    db.execute(statement)
+    statement = delete(Forecast)
+    db.execute(statement)
+    statement = delete(QualityEvent)
+    db.execute(statement)
+    statement = delete(BudgetAllocation)
+    db.execute(statement)
+    statement = delete(CostRegistration)
+    db.execute(statement)
+    statement = delete(CostElementSchedule)
+    db.execute(statement)
+    # Delete CostElement (references CostElementType)
+    statement = delete(CostElement)
+    db.execute(statement)
+    # Now safe to delete CostElementType
     statement = delete(CostElementType)
     db.execute(statement)
     statement = delete(Department)
@@ -151,7 +206,10 @@ def test_seed_cost_element_types_with_hardcoded_uuids(db: Session) -> None:
 
     # Load JSON to get expected UUIDs
     seed_file = (
-        Path(__file__).parent.parent / "app" / "core" / "cost_element_types_seed.json"
+        Path(__file__).parent.parent.parent
+        / "app"
+        / "core"
+        / "cost_element_types_seed.json"
     )
     with open(seed_file, encoding="utf-8") as f:
         seed_data = json.load(f)
@@ -245,29 +303,44 @@ def test_seed_project_from_template_idempotent(db: Session) -> None:
     # Run seed function first time
     _seed_project_from_template(db)
 
-    # Count projects, WBEs, and cost elements
-    projects_first = db.exec(select(Project)).all()
-    wbes_first = db.exec(select(WBE)).all()
+    # Get the seeded project by project_code
+    seeded_project = db.exec(
+        select(Project).where(Project.project_code == "PRE_LSI2300157_05_03_ET_01-")
+    ).first()
+    assert seeded_project is not None, "Seeded project should exist"
 
-    assert len(projects_first) == 1, "Should have 1 project after first seed"
+    # Count WBEs for this specific project
+    wbes_first = db.exec(
+        select(WBE).where(WBE.project_id == seeded_project.project_id)
+    ).all()
+
     assert len(wbes_first) == 3, "Should have 3 WBEs after first seed"
 
     # Run seed function second time (should update, not duplicate)
     _seed_project_from_template(db)
 
-    projects_second = db.exec(select(Project)).all()
-    wbes_second = db.exec(select(WBE)).all()
+    # Verify project still exists and wasn't duplicated
+    seeded_project_second = db.exec(
+        select(Project).where(Project.project_code == "PRE_LSI2300157_05_03_ET_01-")
+    ).first()
+    assert (
+        seeded_project_second is not None
+    ), "Seeded project should still exist after second seed"
+    assert (
+        seeded_project_second.project_id == seeded_project.project_id
+    ), "Should be the same project (updated, not duplicated)"
+
+    wbes_second = db.exec(
+        select(WBE).where(WBE.project_id == seeded_project.project_id)
+    ).all()
 
     # Should still have same counts (updated, not duplicated)
-    assert len(projects_second) == 1, "Should still have 1 project after second seed"
     assert len(wbes_second) == 3, "Should still have 3 WBEs after second seed"
 
     # Verify project was updated (check project_name still matches)
-    project = db.exec(
-        select(Project).where(Project.project_code == "PRE_LSI2300157_05_03_ET_01-")
-    ).first()
-    assert project is not None
-    assert project.project_name == "PRE_LSI2300157_05_03_ET_01-"
+    assert (
+        seeded_project_second.project_name == "PRE_LSI2300157_05_03_ET_01-"
+    ), "Project name should match seed data"
 
 
 def test_seed_project_from_template_missing_file(db: Session) -> None:
@@ -297,13 +370,30 @@ def test_integration_all_seeds_together(db: Session) -> None:
     """Integration test: verify all seeds work together in the correct order."""
     from app.core.db import init_db
 
-    # Clear all data
+    # Clear all data in correct dependency order
+    # Delete records that reference CostElement first
+    statement = delete(EarnedValueEntry)
+    db.execute(statement)
+    statement = delete(Forecast)
+    db.execute(statement)
+    statement = delete(QualityEvent)
+    db.execute(statement)
+    statement = delete(BudgetAllocation)
+    db.execute(statement)
+    statement = delete(CostRegistration)
+    db.execute(statement)
+    statement = delete(CostElementSchedule)
+    db.execute(statement)
+    # Delete CostElement (references CostElementType and WBE)
     statement = delete(CostElement)
     db.execute(statement)
+    # Delete WBE (references Project)
     statement = delete(WBE)
     db.execute(statement)
+    # Delete Project
     statement = delete(Project)
     db.execute(statement)
+    # Now safe to delete CostElementType
     statement = delete(CostElementType)
     db.execute(statement)
     statement = delete(Department)

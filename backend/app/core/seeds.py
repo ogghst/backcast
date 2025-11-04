@@ -17,6 +17,7 @@ from app.models import (
     CostElementScheduleCreate,
     CostElementType,
     CostElementTypeCreate,
+    CostRegistration,
     Department,
     DepartmentCreate,
     Project,
@@ -210,6 +211,14 @@ def _seed_project_from_template(session: Session) -> None:
                 ).all()
                 for schedule in existing_schedules:
                     session.delete(schedule)
+                # Delete associated cost registrations (to avoid foreign key violation)
+                existing_cost_registrations = session.exec(
+                    select(CostRegistration).where(
+                        CostRegistration.cost_element_id == ce.cost_element_id
+                    )
+                ).all()
+                for cost_registration in existing_cost_registrations:
+                    session.delete(cost_registration)
                 session.delete(ce)
             session.delete(wbe)
         session.flush()
