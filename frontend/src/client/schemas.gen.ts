@@ -818,7 +818,9 @@ export const CostRegistrationCreateSchema = {
     type: 'object',
     required: ['registration_date', 'cost_category', 'description', 'cost_element_id'],
     title: 'CostRegistrationCreate',
-    description: 'Schema for creating a new cost registration.'
+    description: `Schema for creating a new cost registration.
+
+Note: created_by_id is set automatically by the API from current_user.`
 } as const;
 
 export const CostRegistrationPublicSchema = {
@@ -991,6 +993,88 @@ export const CostRegistrationsPublicSchema = {
     required: ['data', 'count'],
     title: 'CostRegistrationsPublic',
     description: 'Public cost registrations list schema.'
+} as const;
+
+export const CostSummaryPublicSchema = {
+    properties: {
+        level: {
+            type: 'string',
+            maxLength: 20,
+            title: 'Level'
+        },
+        total_cost: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Total Cost',
+            default: '0.00'
+        },
+        budget_bac: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Budget Bac'
+        },
+        cost_registration_count: {
+            type: 'integer',
+            minimum: 0,
+            title: 'Cost Registration Count',
+            default: 0
+        },
+        cost_element_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Cost Element Id'
+        },
+        wbe_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Wbe Id'
+        },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id'
+        },
+        calculated_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Calculated At'
+        },
+        cost_percentage_of_budget: {
+            type: 'number',
+            title: 'Cost Percentage Of Budget',
+            description: 'Calculate cost percentage of budget (total_cost / budget_bac) * 100.',
+            readOnly: true
+        }
+    },
+    type: 'object',
+    required: ['level', 'cost_percentage_of_budget'],
+    title: 'CostSummaryPublic',
+    description: 'Public schema for cost summary response.'
 } as const;
 
 export const HTTPValidationErrorSchema = {

@@ -1,8 +1,8 @@
 # Project Status: EVM Project Budget Management System
 
 **Last Updated:** 2025-01-27
-**Current Phase:** Sprint 2 Complete - Ready for Sprint 3
-**Overall Progress:** 33% Complete - Sprint 1 Complete, Sprint 2 Complete (5/6 tasks, 1 skipped)
+**Current Phase:** Sprint 3 In Progress
+**Overall Progress:** 40% Complete - Sprint 1 Complete, Sprint 2 Complete, Sprint 3 Started (1/7 tasks complete)
 
 ---
 
@@ -61,8 +61,8 @@
 
 | Task ID | Task Name | Description | Status | Notes |
 |---------|-----------|-------------|--------|-------|
-| E3-001 | Cost Registration Interface | Build UI for capturing actual expenditures with attributes | ⏳ Todo | Sprint 3 deliverable. Captures date, amount, category, reference info. |
-| E3-002 | Cost Aggregation Logic | Roll up individual cost transactions to element/WBE/project levels | ⏳ Todo | Required for Actual Cost (AC) calculations. |
+| E3-001 | Cost Registration Interface | Build UI for capturing actual expenditures with attributes | ✅ Done | Complete! Backend API with cost categories endpoint and full CRUD for cost registrations. Frontend: cost element detail page with tabbed layout (info, cost-registrations), accessible via row click navigation. CostRegistrationsTable with DataTable component. Add/Edit/Delete components with form validation. Date alert for registrations outside schedule boundaries. Cost categories hardcoded (labor, materials, subcontractors) via dedicated endpoint. All 19 tests passing (3 categories + 13 registrations API + 3 models). |
+| E3-002 | Cost Aggregation Logic | Roll up individual cost transactions to element/WBE/project levels | ✅ Done | Complete! Backend API with 3 aggregation endpoints (cost-element, WBE, project) with optional is_quality_cost filter. Computed field cost_percentage_of_budget. Frontend: reusable CostSummary component integrated into Project, WBE, and Cost Element detail pages with dedicated tabs. Visual status indicators (color-coded) based on budget percentage. All 10 tests passing, no regressions. Follows budget_summary.py pattern. |
 | E3-003 | Cost Validation Rules | Ensure costs recorded against valid elements with appropriate dates | ⏳ Todo | Defined in data model validation rules. |
 | E3-004 | Cost History Views | Display all recorded costs with filtering and sorting | ⏳ Todo | Sprint 3 deliverable. Enables cost tracking and review. |
 | E3-005 | Baseline Log Implementation | Build baseline tracking system for schedule and earned value baselines | ⏳ Todo | Required for proper baseline management. Replaces boolean flags with baseline_id references. |

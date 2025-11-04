@@ -13,9 +13,12 @@ import { z } from "zod"
 import { CostElementsService, ProjectsService, WbesService } from "@/client"
 import PendingItems from "@/components/Pending/PendingItems"
 import CostRegistrationsTable from "@/components/Projects/CostRegistrationsTable"
+import CostSummary from "@/components/Projects/CostSummary"
 
 const costElementDetailSearchSchema = z.object({
-  tab: z.enum(["info", "cost-registrations"]).catch("cost-registrations"),
+  tab: z
+    .enum(["info", "cost-registrations", "cost-summary"])
+    .catch("cost-registrations"),
 })
 
 const _PER_PAGE = 10
@@ -69,7 +72,7 @@ function CostElementDetail() {
     navigate({
       search: (prev) => ({
         ...prev,
-        tab: value as "info" | "cost-registrations",
+        tab: value as "info" | "cost-registrations" | "cost-summary",
       }),
     })
   }
@@ -138,6 +141,7 @@ function CostElementDetail() {
           <Tabs.Trigger value="cost-registrations">
             Cost Registrations
           </Tabs.Trigger>
+          <Tabs.Trigger value="cost-summary">Cost Summary</Tabs.Trigger>
         </Tabs.List>
 
         <Tabs.Content value="info">
@@ -151,6 +155,12 @@ function CostElementDetail() {
         <Tabs.Content value="cost-registrations">
           <Box mt={4}>
             <CostRegistrationsTable costElementId={costElementId} />
+          </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="cost-summary">
+          <Box mt={4}>
+            <CostSummary level="cost-element" costElementId={costElementId} />
           </Box>
         </Tabs.Content>
       </Tabs.Root>

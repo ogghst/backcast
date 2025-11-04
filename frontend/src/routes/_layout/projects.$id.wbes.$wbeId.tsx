@@ -33,13 +33,14 @@ import AddCostElement from "@/components/Projects/AddCostElement"
 import BudgetSummary from "@/components/Projects/BudgetSummary"
 import BudgetTimeline from "@/components/Projects/BudgetTimeline"
 import BudgetTimelineFilter from "@/components/Projects/BudgetTimelineFilter"
+import CostSummary from "@/components/Projects/CostSummary"
 import DeleteCostElement from "@/components/Projects/DeleteCostElement"
 import EditCostElement from "@/components/Projects/EditCostElement"
 
 const wbeDetailSearchSchema = z.object({
   page: z.number().catch(1),
   tab: z
-    .enum(["info", "cost-elements", "summary", "timeline"])
+    .enum(["info", "cost-elements", "summary", "cost-summary", "timeline"])
     .catch("cost-elements"),
 })
 
@@ -286,7 +287,12 @@ function WBEDetail() {
     navigate({
       search: (prev) => ({
         ...prev,
-        tab: value as "info" | "cost-elements" | "summary" | "timeline",
+        tab: value as
+          | "info"
+          | "cost-elements"
+          | "summary"
+          | "cost-summary"
+          | "timeline",
       }),
     })
   }
@@ -361,6 +367,7 @@ function WBEDetail() {
           <Tabs.Trigger value="info">WBE Information</Tabs.Trigger>
           <Tabs.Trigger value="cost-elements">Cost Elements</Tabs.Trigger>
           <Tabs.Trigger value="summary">Budget Summary</Tabs.Trigger>
+          <Tabs.Trigger value="cost-summary">Cost Summary</Tabs.Trigger>
           <Tabs.Trigger value="timeline">Budget Timeline</Tabs.Trigger>
         </Tabs.List>
 
@@ -385,6 +392,12 @@ function WBEDetail() {
         <Tabs.Content value="summary">
           <Box mt={4}>
             <BudgetSummary level="wbe" wbeId={wbe.wbe_id} />
+          </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="cost-summary">
+          <Box mt={4}>
+            <CostSummary level="wbe" wbeId={wbe.wbe_id} />
           </Box>
         </Tabs.Content>
 

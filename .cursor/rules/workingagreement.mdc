@@ -31,7 +31,7 @@ Before you proceed with any implementation, I will ask:
 
 ## MCP TOOLS TO USE
 
-- time: to get current time
+- get_current_time: to set current time in documents
 - context7: to get insights on what libraries to use and guidelines for coding with them
 
 Acknowledge these agreements and confirm your understanding.

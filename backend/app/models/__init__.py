@@ -80,6 +80,10 @@ from app.models.cost_registration import (
     CostRegistrationsPublic,
     CostRegistrationUpdate,
 )
+from app.models.cost_summary import (
+    CostSummaryBase,
+    CostSummaryPublic,
+)
 from app.models.department import (
     Department,
     DepartmentBase,
@@ -287,6 +291,9 @@ __all__ = [
     "CostRegistrationPublic",
     "CostRegistrationsPublic",
     "CostRegistrationUpdate",
+    # Cost Summary models
+    "CostSummaryBase",
+    "CostSummaryPublic",
     # Cost Element Schedule models
     "CostElementSchedule",
     "CostElementScheduleBase",

@@ -177,6 +177,8 @@ export type CostElementWithSchedulePublic = {
 
 /**
  * Schema for creating a new cost registration.
+ *
+ * Note: created_by_id is set automatically by the API from current_user.
  */
 export type CostRegistrationCreate = {
     registration_date: string;
@@ -223,6 +225,24 @@ export type CostRegistrationUpdate = {
     invoice_number?: (string | null);
     description?: (string | null);
     is_quality_cost?: (boolean | null);
+};
+
+/**
+ * Public schema for cost summary response.
+ */
+export type CostSummaryPublic = {
+    level: string;
+    total_cost?: string;
+    budget_bac?: (string | null);
+    cost_registration_count?: number;
+    cost_element_id?: (string | null);
+    wbe_id?: (string | null);
+    project_id?: (string | null);
+    calculated_at?: string;
+    /**
+     * Calculate cost percentage of budget (total_cost / budget_bac) * 100.
+     */
+    readonly cost_percentage_of_budget: number;
 };
 
 export type HTTPValidationError = {
@@ -605,6 +625,36 @@ export type CostRegistrationsDeleteCostRegistrationData = {
 };
 
 export type CostRegistrationsDeleteCostRegistrationResponse = (Message);
+
+export type CostSummaryGetCostElementCostSummaryData = {
+    costElementId: string;
+    /**
+     * Filter by quality cost
+     */
+    isQualityCost?: (boolean | null);
+};
+
+export type CostSummaryGetCostElementCostSummaryResponse = (CostSummaryPublic);
+
+export type CostSummaryGetWbeCostSummaryData = {
+    /**
+     * Filter by quality cost
+     */
+    isQualityCost?: (boolean | null);
+    wbeId: string;
+};
+
+export type CostSummaryGetWbeCostSummaryResponse = (CostSummaryPublic);
+
+export type CostSummaryGetProjectCostSummaryData = {
+    /**
+     * Filter by quality cost
+     */
+    isQualityCost?: (boolean | null);
+    projectId: string;
+};
+
+export type CostSummaryGetProjectCostSummaryResponse = (CostSummaryPublic);
 
 export type LoginLoginAccessTokenData = {
     formData: Body_login_login_access_token;

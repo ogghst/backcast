@@ -28,12 +28,15 @@ import AddWBE from "@/components/Projects/AddWBE"
 import BudgetSummary from "@/components/Projects/BudgetSummary"
 import BudgetTimeline from "@/components/Projects/BudgetTimeline"
 import BudgetTimelineFilter from "@/components/Projects/BudgetTimelineFilter"
+import CostSummary from "@/components/Projects/CostSummary"
 import DeleteWBE from "@/components/Projects/DeleteWBE"
 import EditWBE from "@/components/Projects/EditWBE"
 
 const projectDetailSearchSchema = z.object({
   page: z.number().catch(1),
-  tab: z.enum(["info", "wbes", "summary", "timeline"]).catch("wbes"),
+  tab: z
+    .enum(["info", "wbes", "summary", "cost-summary", "timeline"])
+    .catch("wbes"),
 })
 
 const PER_PAGE = 10
@@ -264,7 +267,7 @@ function ProjectDetail() {
     navigate({
       search: (prev) => ({
         ...prev,
-        tab: value as "info" | "wbes" | "summary" | "timeline",
+        tab: value as "info" | "wbes" | "summary" | "cost-summary" | "timeline",
       }),
     })
   }
@@ -323,6 +326,7 @@ function ProjectDetail() {
           <Tabs.Trigger value="info">Project Information</Tabs.Trigger>
           <Tabs.Trigger value="wbes">Work Breakdown Elements</Tabs.Trigger>
           <Tabs.Trigger value="summary">Budget Summary</Tabs.Trigger>
+          <Tabs.Trigger value="cost-summary">Cost Summary</Tabs.Trigger>
           <Tabs.Trigger value="timeline">Budget Timeline</Tabs.Trigger>
         </Tabs.List>
 
@@ -347,6 +351,12 @@ function ProjectDetail() {
         <Tabs.Content value="summary">
           <Box mt={4}>
             <BudgetSummary level="project" projectId={project.project_id} />
+          </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="cost-summary">
+          <Box mt={4}>
+            <CostSummary level="project" projectId={project.project_id} />
           </Box>
         </Tabs.Content>
 

@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { BudgetSummaryGetProjectBudgetSummaryData, BudgetSummaryGetProjectBudgetSummaryResponse, BudgetSummaryGetWbeBudgetSummaryData, BudgetSummaryGetWbeBudgetSummaryResponse, BudgetTimelineGetCostElementsWithSchedulesData, BudgetTimelineGetCostElementsWithSchedulesResponse, CostCategoriesReadCostCategoriesResponse, CostElementsReadCostElementsData, CostElementsReadCostElementsResponse, CostElementsCreateCostElementData, CostElementsCreateCostElementResponse, CostElementsReadCostElementData, CostElementsReadCostElementResponse, CostElementsUpdateCostElementData, CostElementsUpdateCostElementResponse, CostElementsDeleteCostElementData, CostElementsDeleteCostElementResponse, CostElementSchedulesReadScheduleByCostElementData, CostElementSchedulesReadScheduleByCostElementResponse, CostElementSchedulesCreateScheduleData, CostElementSchedulesCreateScheduleResponse, CostElementSchedulesUpdateScheduleData, CostElementSchedulesUpdateScheduleResponse, CostElementSchedulesDeleteScheduleData, CostElementSchedulesDeleteScheduleResponse, CostElementTypesReadCostElementTypesResponse, CostRegistrationsReadCostRegistrationsData, CostRegistrationsReadCostRegistrationsResponse, CostRegistrationsCreateCostRegistrationData, CostRegistrationsCreateCostRegistrationResponse, CostRegistrationsReadCostRegistrationData, CostRegistrationsReadCostRegistrationResponse, CostRegistrationsUpdateCostRegistrationData, CostRegistrationsUpdateCostRegistrationResponse, CostRegistrationsDeleteCostRegistrationData, CostRegistrationsDeleteCostRegistrationResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, PrivateCreateUserData, PrivateCreateUserResponse, ProjectsReadProjectsData, ProjectsReadProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsReadProjectData, ProjectsReadProjectResponse, ProjectsUpdateProjectData, ProjectsUpdateProjectResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsCreateProjectFromTemplateData, ProjectsCreateProjectFromTemplateResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse, WbesReadWbesData, WbesReadWbesResponse, WbesCreateWbeData, WbesCreateWbeResponse, WbesReadWbeData, WbesReadWbeResponse, WbesUpdateWbeData, WbesUpdateWbeResponse, WbesDeleteWbeData, WbesDeleteWbeResponse } from './types.gen';
+import type { BudgetSummaryGetProjectBudgetSummaryData, BudgetSummaryGetProjectBudgetSummaryResponse, BudgetSummaryGetWbeBudgetSummaryData, BudgetSummaryGetWbeBudgetSummaryResponse, BudgetTimelineGetCostElementsWithSchedulesData, BudgetTimelineGetCostElementsWithSchedulesResponse, CostCategoriesReadCostCategoriesResponse, CostElementsReadCostElementsData, CostElementsReadCostElementsResponse, CostElementsCreateCostElementData, CostElementsCreateCostElementResponse, CostElementsReadCostElementData, CostElementsReadCostElementResponse, CostElementsUpdateCostElementData, CostElementsUpdateCostElementResponse, CostElementsDeleteCostElementData, CostElementsDeleteCostElementResponse, CostElementSchedulesReadScheduleByCostElementData, CostElementSchedulesReadScheduleByCostElementResponse, CostElementSchedulesCreateScheduleData, CostElementSchedulesCreateScheduleResponse, CostElementSchedulesUpdateScheduleData, CostElementSchedulesUpdateScheduleResponse, CostElementSchedulesDeleteScheduleData, CostElementSchedulesDeleteScheduleResponse, CostElementTypesReadCostElementTypesResponse, CostRegistrationsReadCostRegistrationsData, CostRegistrationsReadCostRegistrationsResponse, CostRegistrationsCreateCostRegistrationData, CostRegistrationsCreateCostRegistrationResponse, CostRegistrationsReadCostRegistrationData, CostRegistrationsReadCostRegistrationResponse, CostRegistrationsUpdateCostRegistrationData, CostRegistrationsUpdateCostRegistrationResponse, CostRegistrationsDeleteCostRegistrationData, CostRegistrationsDeleteCostRegistrationResponse, CostSummaryGetCostElementCostSummaryData, CostSummaryGetCostElementCostSummaryResponse, CostSummaryGetWbeCostSummaryData, CostSummaryGetWbeCostSummaryResponse, CostSummaryGetProjectCostSummaryData, CostSummaryGetProjectCostSummaryResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, PrivateCreateUserData, PrivateCreateUserResponse, ProjectsReadProjectsData, ProjectsReadProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsReadProjectData, ProjectsReadProjectResponse, ProjectsUpdateProjectData, ProjectsUpdateProjectResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsCreateProjectFromTemplateData, ProjectsCreateProjectFromTemplateResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse, WbesReadWbesData, WbesReadWbesResponse, WbesCreateWbeData, WbesCreateWbeResponse, WbesReadWbeData, WbesReadWbeResponse, WbesUpdateWbeData, WbesUpdateWbeResponse, WbesDeleteWbeData, WbesDeleteWbeResponse } from './types.gen';
 
 export class BudgetSummaryService {
     /**
@@ -437,6 +437,108 @@ export class CostRegistrationsService {
             url: '/api/v1/cost-registrations/{id}',
             path: {
                 id: data.id
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+}
+
+export class CostSummaryService {
+    /**
+     * Get Cost Element Cost Summary
+     * Get cost summary for a cost element.
+     *
+     * Aggregates:
+     * - total_cost: sum of cost_registration.amount for this cost element
+     * - budget_bac: cost_element.budget_bac
+     * - cost_registration_count: number of cost registrations aggregated
+     * - cost_percentage_of_budget: (total_cost / budget_bac) * 100
+     *
+     * Optional filter:
+     * - is_quality_cost: If True, only include quality costs. If False, only regular costs. If None, include all.
+     * @param data The data for the request.
+     * @param data.costElementId
+     * @param data.isQualityCost Filter by quality cost
+     * @returns CostSummaryPublic Successful Response
+     * @throws ApiError
+     */
+    public static getCostElementCostSummary(data: CostSummaryGetCostElementCostSummaryData): CancelablePromise<CostSummaryGetCostElementCostSummaryResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/cost-summary/cost-element/{cost_element_id}',
+            path: {
+                cost_element_id: data.costElementId
+            },
+            query: {
+                is_quality_cost: data.isQualityCost
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Wbe Cost Summary
+     * Get cost summary for a WBE.
+     *
+     * Aggregates:
+     * - total_cost: sum of cost_registration.amount for all cost elements in this WBE
+     * - budget_bac: sum of cost_element.budget_bac for all cost elements in this WBE
+     * - cost_registration_count: number of cost registrations aggregated across all cost elements
+     *
+     * Optional filter:
+     * - is_quality_cost: If True, only include quality costs. If False, only regular costs. If None, include all.
+     * @param data The data for the request.
+     * @param data.wbeId
+     * @param data.isQualityCost Filter by quality cost
+     * @returns CostSummaryPublic Successful Response
+     * @throws ApiError
+     */
+    public static getWbeCostSummary(data: CostSummaryGetWbeCostSummaryData): CancelablePromise<CostSummaryGetWbeCostSummaryResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/cost-summary/wbe/{wbe_id}',
+            path: {
+                wbe_id: data.wbeId
+            },
+            query: {
+                is_quality_cost: data.isQualityCost
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Project Cost Summary
+     * Get cost summary for a project.
+     *
+     * Aggregates:
+     * - total_cost: sum of cost_registration.amount for all cost elements in all WBEs in this project
+     * - budget_bac: sum of cost_element.budget_bac for all cost elements in all WBEs
+     * - cost_registration_count: number of cost registrations aggregated across all cost elements
+     *
+     * Optional filter:
+     * - is_quality_cost: If True, only include quality costs. If False, only regular costs. If None, include all.
+     * @param data The data for the request.
+     * @param data.projectId
+     * @param data.isQualityCost Filter by quality cost
+     * @returns CostSummaryPublic Successful Response
+     * @throws ApiError
+     */
+    public static getProjectCostSummary(data: CostSummaryGetProjectCostSummaryData): CancelablePromise<CostSummaryGetProjectCostSummaryResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/cost-summary/project/{project_id}',
+            path: {
+                project_id: data.projectId
+            },
+            query: {
+                is_quality_cost: data.isQualityCost
             },
             errors: {
                 422: 'Validation Error'
