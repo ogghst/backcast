@@ -4,6 +4,7 @@ import {
   EmptyState,
   Flex,
   Heading,
+  Tabs,
   Text,
   VStack,
 } from "@chakra-ui/react"
@@ -31,6 +32,9 @@ import EditCostElement from "@/components/Projects/EditCostElement"
 
 const wbeDetailSearchSchema = z.object({
   page: z.number().catch(1),
+  tab: z
+    .enum(["info", "cost-elements", "summary", "timeline"])
+    .catch("cost-elements"),
 })
 
 const PER_PAGE = 10
@@ -202,6 +206,9 @@ function CostElementsTable({ wbeId }: { wbeId: string }) {
 
 function WBEDetail() {
   const { id: projectId, wbeId } = Route.useParams()
+  const navigate = useNavigate({ from: Route.fullPath })
+
+  const { tab } = Route.useSearch()
 
   const { data: project, isLoading: isLoadingProject } = useQuery({
     ...getProjectQueryOptions({ id: projectId }),
@@ -211,7 +218,8 @@ function WBEDetail() {
     ...getWBEQueryOptions({ id: wbeId }),
   })
 
-  // Budget Timeline state - pre-select current WBE
+  // Budget Timeline state - persists across tab switches
+  // Pre-select current WBE by default
   const [filter, setFilter] = useState<{
     wbeIds?: string[]
     costElementIds?: string[]
@@ -245,6 +253,15 @@ function WBEDetail() {
     costElementTypeIds?: string[]
   }) => {
     setFilter(newFilter)
+  }
+
+  const handleTabChange = (value: string) => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        tab: value as "info" | "cost-elements" | "summary" | "timeline",
+      }),
+    })
   }
 
   if (isLoadingProject || isLoadingWBE) {
@@ -283,7 +300,7 @@ function WBEDetail() {
         <Link
           to="/projects/$id"
           params={{ id: project.project_id }}
-          search={{ page: 1 }}
+          search={{ page: 1, tab: "wbes" } as any}
         >
           <Text
             fontSize="sm"
@@ -301,45 +318,88 @@ function WBEDetail() {
       <Heading size="lg">
         {project.project_name} - {wbe.machine_type}
       </Heading>
-      <Box mt={4}>
-        <BudgetSummary level="wbe" wbeId={wbe.wbe_id} />
-      </Box>
-      <Box mt={4}>
-        <Heading size="md" mb={4}>
-          Budget Timeline
-        </Heading>
-        <BudgetTimelineFilter
-          projectId={projectId}
-          context="wbe"
-          initialFilters={{ wbeIds: [wbeId] }}
-          onFilterChange={handleFilterChange}
-        />
-        {isLoadingCostElements ? (
-          <Box p={4} borderWidth="1px" borderRadius="lg" bg="bg.surface" mt={4}>
-            <Text>Loading cost elements...</Text>
-          </Box>
-        ) : costElements && costElements.length === 0 ? (
-          <Box p={4} borderWidth="1px" borderRadius="lg" bg="bg.surface" mt={4}>
+
+      <Tabs.Root
+        value={tab}
+        onValueChange={({ value }) => handleTabChange(value)}
+        variant="subtle"
+        mt={4}
+      >
+        <Tabs.List>
+          <Tabs.Trigger value="info">WBE Information</Tabs.Trigger>
+          <Tabs.Trigger value="cost-elements">Cost Elements</Tabs.Trigger>
+          <Tabs.Trigger value="summary">Budget Summary</Tabs.Trigger>
+          <Tabs.Trigger value="timeline">Budget Timeline</Tabs.Trigger>
+        </Tabs.List>
+
+        <Tabs.Content value="info">
+          <Box mt={4}>
             <Text color="fg.muted">
-              No cost elements found matching the selected filters.
+              WBE information content will be added here.
             </Text>
           </Box>
-        ) : (
+        </Tabs.Content>
+
+        <Tabs.Content value="cost-elements">
           <Box mt={4}>
-            <BudgetTimeline
-              costElements={costElements || []}
-              viewMode="aggregated"
-            />
+            <Flex alignItems="center" justifyContent="space-between" mb={4}>
+              <Heading size="md">Cost Elements</Heading>
+              <AddCostElement wbeId={wbe.wbe_id} />
+            </Flex>
+            <CostElementsTable wbeId={wbe.wbe_id} />
           </Box>
-        )}
-      </Box>
-      <Box mt={4}>
-        <Flex alignItems="center" justifyContent="space-between" mb={4}>
-          <Heading size="md">Cost Elements</Heading>
-          <AddCostElement wbeId={wbe.wbe_id} />
-        </Flex>
-        <CostElementsTable wbeId={wbe.wbe_id} />
-      </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="summary">
+          <Box mt={4}>
+            <BudgetSummary level="wbe" wbeId={wbe.wbe_id} />
+          </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="timeline">
+          <Box mt={4}>
+            <Heading size="md" mb={4}>
+              Budget Timeline
+            </Heading>
+            <BudgetTimelineFilter
+              projectId={projectId}
+              context="wbe"
+              initialFilters={{ wbeIds: [wbeId] }}
+              onFilterChange={handleFilterChange}
+            />
+            {isLoadingCostElements ? (
+              <Box
+                p={4}
+                borderWidth="1px"
+                borderRadius="lg"
+                bg="bg.surface"
+                mt={4}
+              >
+                <Text>Loading cost elements...</Text>
+              </Box>
+            ) : costElements && costElements.length === 0 ? (
+              <Box
+                p={4}
+                borderWidth="1px"
+                borderRadius="lg"
+                bg="bg.surface"
+                mt={4}
+              >
+                <Text color="fg.muted">
+                  No cost elements found matching the selected filters.
+                </Text>
+              </Box>
+            ) : (
+              <Box mt={4}>
+                <BudgetTimeline
+                  costElements={costElements || []}
+                  viewMode="aggregated"
+                />
+              </Box>
+            )}
+          </Box>
+        </Tabs.Content>
+      </Tabs.Root>
     </Container>
   )
 }

@@ -4,6 +4,7 @@ import {
   EmptyState,
   Flex,
   Heading,
+  Tabs,
   Text,
   VStack,
 } from "@chakra-ui/react"
@@ -32,6 +33,7 @@ import EditWBE from "@/components/Projects/EditWBE"
 
 const projectDetailSearchSchema = z.object({
   page: z.number().catch(1),
+  tab: z.enum(["info", "wbes", "summary", "timeline"]).catch("wbes"),
 })
 
 const PER_PAGE = 10
@@ -172,7 +174,7 @@ function WBEsTable({ projectId }: { projectId: string }) {
     navigate({
       to: "/projects/$id/wbes/$wbeId",
       params: { id: projectId, wbeId: wbe.wbe_id },
-      search: { page: 1 },
+      search: { page: 1 } as any,
     })
   }
 
@@ -211,17 +213,20 @@ function WBEsTable({ projectId }: { projectId: string }) {
 
 function ProjectDetail() {
   const { id } = Route.useParams()
+  const navigate = useNavigate({ from: Route.fullPath })
   const location = useRouterState({
     select: (state) => state.location.pathname,
   })
   const isWBERoute = location.includes("/wbes/")
   const isBudgetTimelineRoute = location.includes("/budget-timeline")
 
+  const { tab } = Route.useSearch()
+
   const { data: project, isLoading: isLoadingProject } = useQuery({
     ...getProjectQueryOptions({ id }),
   })
 
-  // Budget Timeline state
+  // Budget Timeline state - persists across tab switches
   const [filter, setFilter] = useState<{
     wbeIds?: string[]
     costElementIds?: string[]
@@ -253,6 +258,15 @@ function ProjectDetail() {
     costElementTypeIds?: string[]
   }) => {
     setFilter(newFilter)
+  }
+
+  const handleTabChange = (value: string) => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        tab: value as "info" | "wbes" | "summary" | "timeline",
+      }),
+    })
   }
 
   if (isLoadingProject) {
@@ -298,58 +312,100 @@ function ProjectDetail() {
         </Text>
       </Flex>
       <Heading size="lg">{project.project_name}</Heading>
-      <Box mt={4}>
-        <BudgetSummary level="project" projectId={project.project_id} />
-      </Box>
-      <Box mt={4}>
-        <Flex alignItems="center" justifyContent="space-between" mb={4}>
-          <Heading size="md">Budget Timeline</Heading>
-          <Link
-            to="/projects/$id/budget-timeline"
-            as
-            any
-            params={{ id: project.project_id } as any}
-          >
-            <Text
-              fontSize="sm"
-              color="blue.500"
-              _hover={{ textDecoration: "underline" }}
-            >
-              View Full Timeline →
-            </Text>
-          </Link>
-        </Flex>
-        <BudgetTimelineFilter
-          projectId={project.project_id}
-          context="project"
-          onFilterChange={handleFilterChange}
-        />
-        {isLoadingCostElements ? (
-          <Box p={4} borderWidth="1px" borderRadius="lg" bg="bg.surface" mt={4}>
-            <Text>Loading cost elements...</Text>
-          </Box>
-        ) : costElements && costElements.length === 0 ? (
-          <Box p={4} borderWidth="1px" borderRadius="lg" bg="bg.surface" mt={4}>
-            <Text color="fg.muted">
-              No cost elements found matching the selected filters.
-            </Text>
-          </Box>
-        ) : (
+
+      <Tabs.Root
+        value={tab}
+        onValueChange={({ value }) => handleTabChange(value)}
+        variant="subtle"
+        mt={4}
+      >
+        <Tabs.List>
+          <Tabs.Trigger value="info">Project Information</Tabs.Trigger>
+          <Tabs.Trigger value="wbes">Work Breakdown Elements</Tabs.Trigger>
+          <Tabs.Trigger value="summary">Budget Summary</Tabs.Trigger>
+          <Tabs.Trigger value="timeline">Budget Timeline</Tabs.Trigger>
+        </Tabs.List>
+
+        <Tabs.Content value="info">
           <Box mt={4}>
-            <BudgetTimeline
-              costElements={costElements || []}
-              viewMode="aggregated"
-            />
+            <Text color="fg.muted">
+              Project information content will be added here.
+            </Text>
           </Box>
-        )}
-      </Box>
-      <Box mt={4}>
-        <Flex alignItems="center" justifyContent="space-between" mb={4}>
-          <Heading size="md">Work Breakdown Elements</Heading>
-          <AddWBE projectId={project.project_id} />
-        </Flex>
-        <WBEsTable projectId={project.project_id} />
-      </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="wbes">
+          <Box mt={4}>
+            <Flex alignItems="center" justifyContent="space-between" mb={4}>
+              <Heading size="md">Work Breakdown Elements</Heading>
+              <AddWBE projectId={project.project_id} />
+            </Flex>
+            <WBEsTable projectId={project.project_id} />
+          </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="summary">
+          <Box mt={4}>
+            <BudgetSummary level="project" projectId={project.project_id} />
+          </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="timeline">
+          <Box mt={4}>
+            <Flex alignItems="center" justifyContent="space-between" mb={4}>
+              <Heading size="md">Budget Timeline</Heading>
+              <Link
+                to="/projects/$id/budget-timeline"
+                params={{ id: project.project_id } as any}
+                search={{} as any}
+              >
+                <Text
+                  fontSize="sm"
+                  color="blue.500"
+                  _hover={{ textDecoration: "underline" }}
+                >
+                  View Full Timeline →
+                </Text>
+              </Link>
+            </Flex>
+            <BudgetTimelineFilter
+              projectId={project.project_id}
+              context="project"
+              onFilterChange={handleFilterChange}
+            />
+            {isLoadingCostElements ? (
+              <Box
+                p={4}
+                borderWidth="1px"
+                borderRadius="lg"
+                bg="bg.surface"
+                mt={4}
+              >
+                <Text>Loading cost elements...</Text>
+              </Box>
+            ) : costElements && costElements.length === 0 ? (
+              <Box
+                p={4}
+                borderWidth="1px"
+                borderRadius="lg"
+                bg="bg.surface"
+                mt={4}
+              >
+                <Text color="fg.muted">
+                  No cost elements found matching the selected filters.
+                </Text>
+              </Box>
+            ) : (
+              <Box mt={4}>
+                <BudgetTimeline
+                  costElements={costElements || []}
+                  viewMode="aggregated"
+                />
+              </Box>
+            )}
+          </Box>
+        </Tabs.Content>
+      </Tabs.Root>
     </Container>
   )
 }
