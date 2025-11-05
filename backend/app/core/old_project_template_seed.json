@@ -1,0 +1,202 @@
+{
+  "project": {
+    "project_name": "PRE_LSI2300157_05_03_ET_01-",
+    "customer_name": "",
+    "contract_value": 1507417.0,
+    "project_code": "PRE_LSI2300157_05_03_ET_01-",
+    "pricelist_code": "LISTINO 118",
+    "start_date": "2025-11-03",
+    "planned_completion_date": "2026-11-03",
+    "project_manager_id": "REPLACE_WITH_VALID_USER_UUID",
+    "status": "active",
+    "notes": "Generated from quotation: PRE_LSI2300157_05_03_ET_01-"
+  },
+  "wbes": [
+    {
+      "wbe": {
+        "machine_type": "PROJECT MANAGER",
+        "serial_number": "PROMAN-001",
+        "contracted_delivery_date": "2026-11-03",
+        "revenue_allocation": 143637.0,
+        "status": "designing",
+        "notes": "WBE generated from category: PROJECT MANAGER"
+      },
+      "cost_elements": [
+        {
+          "department_code": "PM",
+          "department_name": "Project Management",
+          "cost_element_type_id": "c76dc252-17f9-5c8f-937a-8e48558102a5",
+          "budget_bac": 419035.76,
+          "revenue_plan": 502842.91,
+          "status": "planned",
+          "notes": "Cost element for Project Management (type: pm_cost) aggregated from category items",
+          "schedule": {
+            "start_date": "2025-11-03",
+            "end_date": "2026-11-03",
+            "progression_type": "linear",
+            "notes": "Project management runs throughout entire project duration"
+          }
+        }
+      ]
+    },
+    {
+      "wbe": {
+        "machine_type": "PALLET CONVEYORS INFEED 1",
+        "serial_number": "PALCON-002",
+        "contracted_delivery_date": "2026-11-03",
+        "revenue_allocation": 284250.0,
+        "status": "designing",
+        "notes": "WBE generated from category: PALLET CONVEYORS INFEED 1"
+      },
+      "cost_elements": [
+        {
+          "department_code": "MECH",
+          "department_name": "Mechanical Engineering",
+          "cost_element_type_id": "226d529f-8495-575f-b8b7-44a553ad379c",
+          "budget_bac": 4058.22,
+          "revenue_plan": 4869.86,
+          "status": "planned",
+          "notes": "Cost element for Mechanical Engineering (type: utm_robot) aggregated from category items",
+          "schedule": {
+            "start_date": "2025-11-10",
+            "end_date": "2026-04-15",
+            "progression_type": "gaussian",
+            "notes": "Mechanical engineering design phase with peak activity in mid-phase"
+          }
+        },
+        {
+          "department_code": "ELEC",
+          "department_name": "Electrical Engineering",
+          "cost_element_type_id": "7ee61ba9-4cb1-53b1-b956-5deb8423fdfe",
+          "budget_bac": 2109.56,
+          "revenue_plan": 2531.47,
+          "status": "planned",
+          "notes": "Cost element for Electrical Engineering (type: ute) aggregated from category items",
+          "schedule": {
+            "start_date": "2025-11-15",
+            "end_date": "2026-04-30",
+            "progression_type": "gaussian",
+            "notes": "Electrical engineering design phase, parallel with mechanical"
+          }
+        },
+        {
+          "department_code": "SW",
+          "department_name": "Software Development",
+          "cost_element_type_id": "2300b3bd-8505-5938-a8fb-f60cf42a173d",
+          "budget_bac": 3355.67,
+          "revenue_plan": 4026.8,
+          "status": "planned",
+          "notes": "Cost element for Software Development (type: sw_plc) aggregated from category items",
+          "schedule": {
+            "start_date": "2026-02-01",
+            "end_date": "2026-08-31",
+            "progression_type": "logarithmic",
+            "notes": "PLC software development, accelerating as design matures"
+          }
+        },
+        {
+          "department_code": "ASM",
+          "department_name": "Montaggio Meccanico",
+          "cost_element_type_id": "c9fdb631-4f3c-5e74-9d9f-eb98da68d4df",
+          "budget_bac": 2913.88,
+          "revenue_plan": 3496.66,
+          "status": "planned",
+          "notes": "Cost element for Assembly (type: mtg_mec) aggregated from category items",
+          "schedule": {
+            "start_date": "2026-05-01",
+            "end_date": "2026-09-30",
+            "progression_type": "linear",
+            "notes": "Mechanical assembly phase"
+          }
+        },
+        {
+          "department_code": "ASM",
+          "department_name": "Cablaggio Elettrico",
+          "cost_element_type_id": "7ef5e693-b075-5bc8-b507-e12ddff6eb6f",
+          "budget_bac": 8870.97,
+          "revenue_plan": 10645.16,
+          "status": "planned",
+          "notes": "Cost element for Assembly (type: cab_ele) aggregated from category items",
+          "schedule": {
+            "start_date": "2026-06-01",
+            "end_date": "2026-10-15",
+            "progression_type": "gaussian",
+            "notes": "Electrical cabinet assembly and wiring, peak activity mid-phase"
+          }
+        },
+        {
+          "department_code": "SW",
+          "department_name": "Software Development PC",
+          "cost_element_type_id": "ae3333b4-ce17-5da7-a8f3-2c23012bf2e8",
+          "budget_bac": 288.0,
+          "revenue_plan": 345.6,
+          "status": "planned",
+          "notes": "Cost element for Software Development (type: sw_pc) aggregated from category items",
+          "schedule": {
+            "start_date": "2026-02-15",
+            "end_date": "2026-07-31",
+            "progression_type": "logarithmic",
+            "notes": "PC software development, integrated with PLC development"
+          }
+        },
+        {
+          "department_code": "MECH",
+          "department_name": "UTM Layout",
+          "cost_element_type_id": "027c11ab-84aa-5bbe-99cf-760a6e36f272",
+          "budget_bac": 152.44,
+          "revenue_plan": 182.93,
+          "status": "planned",
+          "notes": "Cost element for Mechanical Engineering (type: utm_layout) aggregated from category items",
+          "schedule": {
+            "start_date": "2025-11-10",
+            "end_date": "2026-03-31",
+            "progression_type": "linear",
+            "notes": "Layout design work, early phase engineering"
+          }
+        }
+      ]
+    },
+    {
+      "wbe": {
+        "machine_type": "SMILE FULL VERSION - SOFTWARE",
+        "serial_number": "SMIFUL-003",
+        "contracted_delivery_date": "2026-11-03",
+        "revenue_allocation": 1079530.0,
+        "status": "designing",
+        "notes": "WBE generated from category: SMILE FULL VERSION - SOFTWARE"
+      },
+      "cost_elements": [
+        {
+          "department_code": "SW",
+          "department_name": "Software Development PC",
+          "cost_element_type_id": "ae3333b4-ce17-5da7-a8f3-2c23012bf2e8",
+          "budget_bac": 54720.0,
+          "revenue_plan": 65664.0,
+          "status": "planned",
+          "notes": "Cost element for Software Development (type: sw_pc) aggregated from category items",
+          "schedule": {
+            "start_date": "2025-12-01",
+            "end_date": "2026-09-30",
+            "progression_type": "logarithmic",
+            "notes": "Major software development effort for SMILE system, accelerating development curve"
+          }
+        },
+        {
+          "department_code": "SW",
+          "department_name": "Software Development LGV",
+          "cost_element_type_id": "30121226-f9db-55b6-83c8-bb9eccd174e0",
+          "budget_bac": 5440.0,
+          "revenue_plan": 6528.0,
+          "status": "planned",
+          "notes": "Cost element for Software Development (type: sw_lgv) aggregated from category items",
+          "schedule": {
+            "start_date": "2026-01-15",
+            "end_date": "2026-08-31",
+            "progression_type": "logarithmic",
+            "notes": "LGV software integration, builds on core system development"
+          }
+        }
+      ]
+    }
+  ]
+}

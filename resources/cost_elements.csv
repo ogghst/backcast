@@ -1,0 +1,33 @@
+﻿type_name,category_type,Planned Cost (P0)
+Commission,PROVVIGIONI ESTERO,283493 €
+Commission,PROVVIGIONI ITALIA,8946 €
+Expenses,ALTRE SPESE TRASFERTA,86188 €
+Expenses,RIMBORSO SPESE TRASFERTE DIPENDENTI,1859440 €
+Field engineering,Avviamento e collaudo  PLC,178303 €
+Field engineering,Avviamento e collaudo LGV,561279 €
+Field engineering,Avviamento e collaudo PC,707460 €
+Field engineering,FIELD: installazione commessa in cantier,366289 €
+Field engineering,Installazione c/o cliente terze parti,1618857 €
+Field engineering,Site manager,435888 €
+Hardware design,Def. Spec./Layout,5200 €
+Hardware design,UTE,126540 €
+Hardware design,UTM,291816 €
+Logistic costs,IMBALLAGGIO,264505 €
+Logistic costs,Trasporti su vendite,553083 €
+Manufacturing,PROD: assemblaggio meccanico,290525 €
+Manufacturing,PROD: cablaggio elettrico,481130 €
+Other activities,Prest.Esterni Customer Services (Ord.ne),457837 €
+Other costs,Prestazioni diverse,145401 €
+Other costs,Servizi diversi,282619 €
+Project management,PM,401931 €
+Software design,Prog. SW LGV,149792 €
+Software design,Prog. SW PC,354742 €
+Software design,Prog. SW PLC,135888 €
+Software design,Spec. Funz. wms,241176 €
+Software testing,Collaudo interno wms del BA,56650 €
+Software testing,Collaudo SWLGV interno,125920 €
+Software testing,Collaudo SWPC interno,106982 €
+Software testing,Collaudo SWPLC interno,97384 €
+Technical documentation,DOCUMENTAZIONE,128554 €
+TP Materials,CONSUMO MATERIALI DEL COMMERCIO,12794247 €
+TP Materials,Consumo su OdP Comp.& Idr./Pneum.,1488818 €
