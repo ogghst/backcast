@@ -14,12 +14,12 @@ import { Controller, type SubmitHandler, useForm } from "react-hook-form"
 import { FaPlus } from "react-icons/fa"
 import {
   CostCategoriesService,
-  CostElementSchedulesService,
   type CostRegistrationCreate,
   CostRegistrationsService,
 } from "@/client"
 import type { ApiError } from "@/client/core/ApiError"
 import useCustomToast from "@/hooks/useCustomToast"
+import { useRegistrationDateValidation } from "@/hooks/useRegistrationDateValidation"
 import { handleError } from "@/utils"
 import {
   DialogBody,
@@ -40,7 +40,6 @@ const AddCostRegistration = ({ costElementId }: AddCostRegistrationProps) => {
   const [isOpen, setIsOpen] = useState(false)
   const queryClient = useQueryClient()
   const { showSuccessToast } = useCustomToast()
-  const [dateAlert, setDateAlert] = useState<string | null>(null)
 
   // Fetch cost categories for dropdown
   const { data: categoriesData } = useQuery({
@@ -50,32 +49,14 @@ const AddCostRegistration = ({ costElementId }: AddCostRegistrationProps) => {
 
   const costCategories = categoriesData?.data || []
 
-  // Fetch schedule for date boundary check
-  const { data: scheduleData } = useQuery({
-    queryKey: ["cost-element-schedule", costElementId],
-    queryFn: async () => {
-      try {
-        return await CostElementSchedulesService.readScheduleByCostElement({
-          costElementId,
-        })
-      } catch (error) {
-        // Handle 404 gracefully - schedule may not exist
-        if (error instanceof ApiError && error.status === 404) {
-          return null
-        }
-        throw error
-      }
-    },
-    enabled: isOpen, // Only fetch when dialog is open
-    retry: false,
-  })
-
   const {
     control,
     register,
     handleSubmit,
     reset,
     watch,
+    setError,
+    clearErrors,
     formState: { errors, isValid, isSubmitting },
   } = useForm<CostRegistrationCreate>({
     mode: "onBlur",
@@ -91,28 +72,27 @@ const AddCostRegistration = ({ costElementId }: AddCostRegistrationProps) => {
     },
   })
 
-  // Watch registration_date for alert check
+  // Watch registration_date for validation
   const registrationDate = watch("registration_date")
 
-  // Check date against schedule boundaries
+  // Use validation hook for date validation
+  const dateValidation = useRegistrationDateValidation(
+    costElementId,
+    registrationDate,
+    isOpen, // Only validate when dialog is open
+  )
+
+  // Update form errors based on validation hook result
   useEffect(() => {
-    if (!registrationDate || !scheduleData) {
-      setDateAlert(null)
-      return
-    }
-
-    const date = new Date(registrationDate)
-    const startDate = new Date(scheduleData.start_date)
-    const endDate = new Date(scheduleData.end_date)
-
-    if (date < startDate || date > endDate) {
-      setDateAlert(
-        `Warning: Registration date is outside the cost element schedule boundaries (${scheduleData.start_date} to ${scheduleData.end_date}).`,
-      )
+    if (dateValidation.errorMessage) {
+      setError("registration_date", {
+        type: "manual",
+        message: dateValidation.errorMessage,
+      })
     } else {
-      setDateAlert(null)
+      clearErrors("registration_date")
     }
-  }, [registrationDate, scheduleData])
+  }, [dateValidation.errorMessage, setError, clearErrors])
 
   const mutation = useMutation({
     mutationFn: (data: CostRegistrationCreate) =>
@@ -121,7 +101,6 @@ const AddCostRegistration = ({ costElementId }: AddCostRegistrationProps) => {
       showSuccessToast("Cost registration created successfully.")
       reset()
       setIsOpen(false)
-      setDateAlert(null)
     },
     onError: (err: ApiError) => {
       handleError(err)
@@ -158,17 +137,21 @@ const AddCostRegistration = ({ costElementId }: AddCostRegistrationProps) => {
               Fill in the form below to create a new cost registration.
             </Text>
             <VStack gap={4}>
-              {dateAlert && (
+              {/* Show warning alert for dates after end_date (non-blocking) */}
+              {dateValidation.warningMessage && (
                 <Alert.Root status="warning" width="100%">
                   <Alert.Indicator />
-                  <Alert.Title>{dateAlert}</Alert.Title>
+                  <Alert.Title>{dateValidation.warningMessage}</Alert.Title>
                 </Alert.Root>
               )}
 
               <Field
                 required
-                invalid={!!errors.registration_date}
-                errorText={errors.registration_date?.message}
+                invalid={!!errors.registration_date || !dateValidation.isValid}
+                errorText={
+                  errors.registration_date?.message ||
+                  dateValidation.errorMessage
+                }
                 label="Registration Date"
               >
                 <Input
@@ -292,7 +275,12 @@ const AddCostRegistration = ({ costElementId }: AddCostRegistrationProps) => {
             <Button
               variant="solid"
               type="submit"
-              disabled={!isValid || isSubmitting}
+              disabled={
+                !isValid ||
+                !dateValidation.isValid ||
+                isSubmitting ||
+                dateValidation.isLoading
+              }
               loading={isSubmitting}
             >
               Save

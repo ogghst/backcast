@@ -1,9 +1,11 @@
 """Cost Registrations API routes."""
 import uuid
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlmodel import Session, func, select
 
 from app.api.deps import CurrentUser, SessionDep
@@ -93,6 +95,55 @@ def get_cost_element_schedule(
     return session.exec(statement).first()
 
 
+def validate_registration_date(
+    session: Session,
+    cost_element_id: uuid.UUID,
+    registration_date: date,
+) -> dict[str, str] | None:
+    """
+    Validate registration date against cost element schedule.
+
+    Validation rules:
+    - If schedule exists and registration_date < start_date: raises HTTPException(400)
+    - If schedule exists and registration_date > end_date: returns warning dict
+    - If schedule exists and date is within bounds: returns None (valid)
+    - If no schedule exists: returns None (allow registration)
+
+    Args:
+        session: Database session
+        cost_element_id: ID of the cost element
+        registration_date: Date to validate
+
+    Returns:
+        dict with warning message if date after end_date, None otherwise
+        Raises HTTPException(400) if date before start_date
+
+    Raises:
+        HTTPException: If registration_date is before schedule start_date
+    """
+    schedule = get_cost_element_schedule(session, cost_element_id)
+
+    # If no schedule exists, allow registration (no validation)
+    if schedule is None:
+        return None
+
+    # Check if date is before start_date (hard block)
+    if registration_date < schedule.start_date:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Registration date ({registration_date.isoformat()}) cannot be before schedule start date ({schedule.start_date.isoformat()})",
+        )
+
+    # Check if date is after end_date (warning but allow)
+    if registration_date > schedule.end_date:
+        return {
+            "warning": f"Registration date ({registration_date.isoformat()}) is after schedule end date ({schedule.end_date.isoformat()})",
+        }
+
+    # Date is within bounds (valid)
+    return None
+
+
 @router.get("/", response_model=CostRegistrationsPublic)
 def read_cost_registrations(
     session: SessionDep,
@@ -161,6 +212,13 @@ def create_cost_registration(
     # Validate amount
     validate_amount(cost_registration_in.amount)
 
+    # Validate registration date against schedule
+    warning = validate_registration_date(
+        session,
+        cost_registration_in.cost_element_id,
+        cost_registration_in.registration_date,
+    )
+
     # Create cost registration with created_by_id from current user
     cost_registration_data = cost_registration_in.model_dump()
     cost_registration_data["created_by_id"] = current_user.id
@@ -168,7 +226,18 @@ def create_cost_registration(
     session.add(cost_registration)
     session.commit()
     session.refresh(cost_registration)
-    return cost_registration
+
+    # Convert to public schema and add warning if present
+    result = CostRegistrationPublic.model_validate(cost_registration)
+    if warning:
+        # Add warning to response by converting to dict and adding warning
+        # Use mode='json' to serialize dates properly
+        # Return as JSONResponse to bypass response_model validation
+        result_dict = result.model_dump(mode="json")
+        result_dict["warning"] = warning["warning"]
+        return JSONResponse(content=result_dict)
+
+    return result
 
 
 @router.put("/{id}", response_model=CostRegistrationPublic)
@@ -200,11 +269,38 @@ def update_cost_registration(
     if "cost_element_id" in update_dict:
         validate_cost_element_exists(session, update_dict["cost_element_id"])
 
+    # Validate registration date if being updated
+    # Use updated date if provided, otherwise use existing date
+    registration_date = update_dict.get(
+        "registration_date", cost_registration.registration_date
+    )
+    # Use updated cost_element_id if provided, otherwise use existing cost_element_id
+    cost_element_id = update_dict.get(
+        "cost_element_id", cost_registration.cost_element_id
+    )
+
+    warning = validate_registration_date(
+        session,
+        cost_element_id,
+        registration_date,
+    )
+
     cost_registration.sqlmodel_update(update_dict)
     session.add(cost_registration)
     session.commit()
     session.refresh(cost_registration)
-    return cost_registration
+
+    # Convert to public schema and add warning if present
+    result = CostRegistrationPublic.model_validate(cost_registration)
+    if warning:
+        # Add warning to response by converting to dict and adding warning
+        # Use mode='json' to serialize dates properly
+        # Return as JSONResponse to bypass response_model validation
+        result_dict = result.model_dump(mode="json")
+        result_dict["warning"] = warning["warning"]
+        return JSONResponse(content=result_dict)
+
+    return result
 
 
 @router.delete("/{id}")

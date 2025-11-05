@@ -1,11 +1,13 @@
 """Tests for Cost Registrations API routes."""
 import uuid
+from datetime import date, timedelta
 
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app.core.config import settings
 from tests.utils.cost_element import create_random_cost_element
+from tests.utils.cost_element_schedule import create_schedule_for_cost_element
 from tests.utils.cost_registration import create_random_cost_registration
 
 
@@ -305,3 +307,186 @@ def test_create_cost_registration_all_categories(
         assert response.status_code == 200
         content = response.json()
         assert content["cost_category"] == category
+
+
+def test_create_cost_registration_before_schedule_start_date(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Test creating a cost registration with date before schedule start_date should fail."""
+    cost_element = create_random_cost_element(db)
+
+    # Create schedule with start_date = today, end_date = today + 30 days
+    schedule_start = date.today()
+    schedule_end = date.today() + timedelta(days=30)
+    create_schedule_for_cost_element(
+        db,
+        cost_element_id=cost_element.cost_element_id,
+        start_date=schedule_start,
+        end_date=schedule_end,
+    )
+
+    # Try to create registration with date before start_date
+    registration_date = schedule_start - timedelta(days=1)
+    data = {
+        "cost_element_id": str(cost_element.cost_element_id),
+        "registration_date": registration_date.isoformat(),
+        "amount": "1500.00",
+        "cost_category": "labor",
+        "description": "Test cost registration before start",
+        "is_quality_cost": False,
+    }
+    response = client.post(
+        f"{settings.API_V1_STR}/cost-registrations/",
+        headers=superuser_token_headers,
+        json=data,
+    )
+    assert response.status_code == 400
+    content = response.json()
+    assert "registration date" in content["detail"].lower()
+    assert "before" in content["detail"].lower() or "start" in content["detail"].lower()
+
+
+def test_create_cost_registration_after_schedule_end_date(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Test creating a cost registration with date after schedule end_date should succeed with warning."""
+    cost_element = create_random_cost_element(db)
+
+    # Create schedule with start_date = today, end_date = today + 30 days
+    schedule_start = date.today()
+    schedule_end = date.today() + timedelta(days=30)
+    create_schedule_for_cost_element(
+        db,
+        cost_element_id=cost_element.cost_element_id,
+        start_date=schedule_start,
+        end_date=schedule_end,
+    )
+
+    # Create registration with date after end_date (should succeed with warning)
+    registration_date = schedule_end + timedelta(days=1)
+    data = {
+        "cost_element_id": str(cost_element.cost_element_id),
+        "registration_date": registration_date.isoformat(),
+        "amount": "1500.00",
+        "cost_category": "labor",
+        "description": "Test cost registration after end",
+        "is_quality_cost": False,
+    }
+    response = client.post(
+        f"{settings.API_V1_STR}/cost-registrations/",
+        headers=superuser_token_headers,
+        json=data,
+    )
+    assert response.status_code == 200
+    content = response.json()
+    assert content["amount"] == "1500.00"
+    # Check that warning is included in response
+    assert "warning" in content
+    assert "after" in content["warning"].lower() or "end" in content["warning"].lower()
+
+
+def test_create_cost_registration_within_schedule_bounds(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Test creating a cost registration with date within schedule bounds should succeed without warning."""
+    cost_element = create_random_cost_element(db)
+
+    # Create schedule with start_date = today, end_date = today + 30 days
+    schedule_start = date.today()
+    schedule_end = date.today() + timedelta(days=30)
+    create_schedule_for_cost_element(
+        db,
+        cost_element_id=cost_element.cost_element_id,
+        start_date=schedule_start,
+        end_date=schedule_end,
+    )
+
+    # Create registration with date within bounds
+    registration_date = schedule_start + timedelta(days=15)  # Middle of schedule
+    data = {
+        "cost_element_id": str(cost_element.cost_element_id),
+        "registration_date": registration_date.isoformat(),
+        "amount": "1500.00",
+        "cost_category": "labor",
+        "description": "Test cost registration within bounds",
+        "is_quality_cost": False,
+    }
+    response = client.post(
+        f"{settings.API_V1_STR}/cost-registrations/",
+        headers=superuser_token_headers,
+        json=data,
+    )
+    assert response.status_code == 200
+    content = response.json()
+    assert content["amount"] == "1500.00"
+    # Check that no warning is included in response
+    assert "warning" not in content or content.get("warning") is None
+
+
+def test_create_cost_registration_without_schedule(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Test creating a cost registration when cost element has no schedule should succeed."""
+    cost_element = create_random_cost_element(db)
+    # No schedule created
+
+    # Create registration (should succeed - no schedule means no validation)
+    registration_date = date.today()
+    data = {
+        "cost_element_id": str(cost_element.cost_element_id),
+        "registration_date": registration_date.isoformat(),
+        "amount": "1500.00",
+        "cost_category": "labor",
+        "description": "Test cost registration without schedule",
+        "is_quality_cost": False,
+    }
+    response = client.post(
+        f"{settings.API_V1_STR}/cost-registrations/",
+        headers=superuser_token_headers,
+        json=data,
+    )
+    assert response.status_code == 200
+    content = response.json()
+    assert content["amount"] == "1500.00"
+    # No warning should be present
+    assert "warning" not in content or content.get("warning") is None
+
+
+def test_update_cost_registration_date_before_start(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Test updating a cost registration date to before schedule start_date should fail."""
+    cost_element = create_random_cost_element(db)
+
+    # Create schedule with start_date = today, end_date = today + 30 days
+    schedule_start = date.today()
+    schedule_end = date.today() + timedelta(days=30)
+    create_schedule_for_cost_element(
+        db,
+        cost_element_id=cost_element.cost_element_id,
+        start_date=schedule_start,
+        end_date=schedule_end,
+    )
+
+    # Create initial registration with valid date
+    valid_date = schedule_start + timedelta(days=10)
+    cost_registration = create_random_cost_registration(
+        db,
+        cost_element_id=cost_element.cost_element_id,
+        registration_date=valid_date,
+    )
+
+    # Try to update registration date to before start_date
+    invalid_date = schedule_start - timedelta(days=1)
+    data = {
+        "registration_date": invalid_date.isoformat(),
+    }
+    response = client.put(
+        f"{settings.API_V1_STR}/cost-registrations/{cost_registration.cost_registration_id}",
+        headers=superuser_token_headers,
+        json=data,
+    )
+    assert response.status_code == 400
+    content = response.json()
+    assert "registration date" in content["detail"].lower()
+    assert "before" in content["detail"].lower() or "start" in content["detail"].lower()

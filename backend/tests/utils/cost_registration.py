@@ -15,6 +15,7 @@ def create_random_cost_registration(
     db: Session,
     cost_element_id: uuid.UUID | None = None,
     created_by_id: uuid.UUID | None = None,
+    registration_date: date | None = None,
 ) -> CostRegistration:
     """Create a random cost registration."""
     if cost_element_id is None:
@@ -32,9 +33,12 @@ def create_random_cost_registration(
         user = crud.create_user(session=db, user_create=user_in)
         created_by_id = user.id
 
+    if registration_date is None:
+        registration_date = date(2024, 2, 15)
+
     cost_in = CostRegistrationCreate(
         cost_element_id=cost_element_id,
-        registration_date=date(2024, 2, 15),
+        registration_date=registration_date,
         amount=Decimal("1500.00"),
         cost_category="labor",
         description="Test cost registration",

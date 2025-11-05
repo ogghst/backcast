@@ -107,24 +107,40 @@ Ensure costs are recorded against valid cost elements with appropriate dates. Im
 **Validation Logic:**
 - Get cost element schedule via `get_cost_element_schedule()`
 - If schedule exists:
-  - Check if `registration_date < schedule.start_date` → raise HTTPException(400)
-  - Optionally check if `registration_date > schedule.end_date` → warning or error?
+  - Check if `registration_date < schedule.start_date` → raise HTTPException(400) with error
+  - Check if `registration_date > schedule.end_date` → return warning dict: `{"warning": "Registration date is after schedule end date"}`
+  - Check if `registration_date` is within bounds → return None (valid)
 - If no schedule exists:
-  - **Decision needed:** Allow registration or require schedule first?
-  - **Recommendation:** Allow registration (schedule may be created later)
+  - **Decision:** Allow registration (schedule may be created later)
+  - **Implementation:** No validation, proceed normally (return None)
+
+**Response Structure:**
+- Success response: Include optional `warning` field in response if validation returns warning
+- Error response: HTTPException(400) with error detail message
+- Frontend: Handle warning in response, show alert but allow submission
 
 ### 2.2 Frontend Touchpoints
 
 **Files to Modify:**
 1. `frontend/src/components/Projects/AddCostRegistration.tsx`
-   - Update date validation to **block submission** (not just alert)
-   - Show error message in form field
-   - Disable submit button when date invalid
-   - Remove or update alert logic
+   - Integrate `useRegistrationDateValidation()` hook
+   - Show error message in form field (before start_date - blocks submission)
+   - Show warning alert (after end_date - allows submission)
+   - Disable submit button when date invalid (before start_date)
+   - Handle schedule loading state
 
 2. `frontend/src/components/Projects/EditCostRegistration.tsx`
    - Apply same date validation logic
    - Handle date changes during edit
+   - Show errors/warnings appropriately
+
+**Files to Create:**
+1. `frontend/src/hooks/useRegistrationDateValidation.ts` (or similar location)
+   - Custom hook for date validation
+   - Fetches schedule data for cost element
+   - Validates registration_date against schedule
+   - Returns validation state (error, warning, valid)
+   - Provides helper functions for form integration
 
 **Files to Review (No Changes Expected):**
 - `frontend/src/components/Projects/CostRegistrationsTable.tsx` - Display only
@@ -141,11 +157,14 @@ Ensure costs are recorded against valid cost elements with appropriate dates. Im
    - Update existing tests if validation behavior changes
 
 **Test Scenarios:**
-- Registration date before schedule start date → should fail (400)
-- Registration date after schedule end date → decision needed (warning vs error)
-- Registration date within schedule bounds → should succeed
+- Registration date before schedule start date → should fail (400 error)
+- Registration date after schedule end date → should succeed with warning (non-blocking)
+- Registration date within schedule bounds → should succeed (no warning)
 - Cost element without schedule → should succeed (allow registration)
-- Schedule with null start_date → should succeed (no validation)
+- Schedule with null start_date → should succeed (no validation for start)
+- Schedule with null end_date → should validate only start_date
+- Frontend validation hook → should disable submit button when date invalid
+- Frontend validation hook → should show warning alert when date after end_date
 
 ---
 
@@ -160,8 +179,12 @@ Ensure costs are recorded against valid cost elements with appropriate dates. Im
 **New Function to Create:**
 - `validate_registration_date()` - New validation function following existing pattern
   - Parameters: `session`, `cost_element_id`, `registration_date`
-  - Returns: None (raises HTTPException on failure)
-  - Logic: Check schedule exists, compare dates, raise error if invalid
+  - Returns: `dict | None` (warning message dict if date after end_date, None if valid, raises HTTPException on error)
+  - Logic:
+    - Check schedule exists
+    - Compare dates: raise HTTPException(400) if before start_date
+    - Return warning dict if after end_date (non-blocking)
+    - Return None if valid or no schedule
 
 ### 3.2 Validation Pattern Abstraction
 
@@ -281,21 +304,28 @@ def validate_<field>(<params>) -> None:
 
 ---
 
-### Recommended Approach: Approach 1 (Server-Side Validation Only)
+### Recommended Approach: Approach 2 (Combined Frontend + Backend Validation)
+
+**Stakeholder Decisions (2025-01-27):**
+- ✅ **End date validation:** Warning but allow (soft validation)
+- ✅ **No schedule handling:** Allow registration
+- ✅ **Frontend validation:** Add now (combined approach)
 
 **Rationale:**
-- Meets PRD requirement for enforcement
-- Simple implementation following existing patterns
-- Consistent with other validation rules (budget/revenue)
-- Low risk and complexity
-- Can enhance with frontend validation later if needed
+- Meets PRD requirement for enforcement (hard block before start_date)
+- Provides better user experience with real-time frontend validation
+- Matches existing validation hook patterns (useRevenuePlanValidation, etc.)
+- End date validation is warning-only (allows flexibility for edge cases)
+- Frontend validation prevents unnecessary API calls
 
 **Validation Rules:**
-1. **Enforce:** Registration date cannot be before schedule start_date (if schedule exists)
-2. **Decision Needed:** Registration date after schedule end_date
-   - **Option A:** Allow with warning (soft validation)
-   - **Option B:** Block with error (hard validation)
-   - **Recommendation:** Option B (hard validation) for consistency
+1. **Enforce (Hard Block):** Registration date cannot be before schedule start_date (if schedule exists)
+   - Backend: Raises HTTPException(400) with error message
+   - Frontend: Disables submit button, shows error in form field
+2. **Warning (Soft Validation):** Registration date after schedule end_date
+   - Backend: Returns warning in response (non-blocking)
+   - Frontend: Shows warning alert, allows submission
+   - User can proceed despite warning
 3. **Allow:** Registration when no schedule exists (schedule may be created later)
 
 ---
@@ -369,8 +399,8 @@ def validate_<field>(<params>) -> None:
 **Risk 3: End Date Validation Strictness**
 - **Impact:** Low
 - **Scenario:** Should registration after end_date be blocked or allowed?
-- **Mitigation:** Recommend hard validation (block) for consistency
-- **Decision Needed:** Confirm with stakeholder
+- **Mitigation:** ✅ **Decision Made:** Soft validation (warning but allow)
+- **Status:** Resolved - warning provides flexibility while maintaining data integrity
 
 ### 6.2 Unknown Factors
 
@@ -394,39 +424,56 @@ def validate_<field>(<params>) -> None:
 
 ---
 
-## 7. DECISIONS NEEDED
+## 7. DECISIONS MADE
 
-### Decision 1: End Date Validation
+### Decision 1: End Date Validation ✅
 **Question:** Should registration_date after schedule.end_date be blocked or allowed?
 
-**Options:**
-- **Option A:** Hard block (error) - consistent with start_date validation
-- **Option B:** Soft validation (warning) - allows with user confirmation
-- **Option C:** Allow (no validation) - flexible but less strict
+**Decision:** ✅ **Soft validation (warning) - allows with user confirmation**
 
-**Recommendation:** Option A (hard block) for consistency and data integrity
+**Rationale:**
+- Provides flexibility for edge cases (retroactive cost entry, schedule changes)
+- Maintains data integrity with warning (user aware of date issue)
+- Less restrictive than hard block while still providing guidance
+
+**Implementation:**
+- Backend: Returns warning message in response (non-blocking)
+- Frontend: Shows warning alert, allows submission to proceed
 
 ---
 
-### Decision 2: No Schedule Handling
+### Decision 2: No Schedule Handling ✅
 **Question:** Should cost registration be allowed when cost element has no schedule?
 
-**Options:**
-- **Option A:** Allow (current behavior) - schedule may be created later
-- **Option B:** Require schedule first - enforce schedule creation before cost entry
+**Decision:** ✅ **Allow (current behavior) - schedule may be created later**
 
-**Recommendation:** Option A (allow) - supports retroactive cost entry and flexible workflows
+**Rationale:**
+- Supports retroactive cost entry workflows
+- Flexible for cost elements without schedules
+- Schedule can be created later without blocking cost entry
+
+**Implementation:**
+- No validation when schedule is missing
+- Registration proceeds normally
 
 ---
 
-### Decision 3: Frontend Validation
+### Decision 3: Frontend Validation ✅
 **Question:** Should frontend validation be added for better UX, or server-side only?
 
-**Options:**
-- **Option A:** Server-side only (simpler, recommended for initial implementation)
-- **Option B:** Combined frontend + backend (better UX, more complex)
+**Decision:** ✅ **Combined frontend + backend (better UX, real-time validation)**
 
-**Recommendation:** Option A for initial implementation, can enhance later if needed
+**Rationale:**
+- Better user experience with immediate feedback
+- Prevents unnecessary API calls
+- Matches existing validation hook patterns in codebase
+- Provides real-time validation before submission
+
+**Implementation:**
+- Frontend validation hook: `useRegistrationDateValidation()`
+- Real-time validation with visual feedback
+- Submit button disabled when date invalid
+- Server validation as final check
 
 ---
 
@@ -443,16 +490,19 @@ def validate_<field>(<params>) -> None:
 - Validation should enforce PRD requirement: "actual costs not being recorded before cost element start dates"
 
 **Recommended Approach:**
-- Server-side validation only (Approach 1)
-- Add `validate_registration_date()` function
-- Block registration before start_date (hard validation)
-- Block registration after end_date (hard validation, pending decision)
+- Combined frontend + backend validation (Approach 2)
+- Add `validate_registration_date()` function (backend)
+- Add `useRegistrationDateValidation()` hook (frontend)
+- Block registration before start_date (hard validation - error)
+- Warn but allow registration after end_date (soft validation - warning)
 - Allow registration when no schedule exists
 
-**Estimated Implementation Time:** 2-3 hours
+**Estimated Implementation Time:** 4-5 hours
 - Backend validation function: 1 hour
+- Backend warning response (end date): 30 minutes
+- Frontend validation hook: 1.5 hours
+- Frontend integration (Add/Edit components): 1 hour
 - Test coverage: 1 hour
-- Frontend error handling: 30 minutes
 
 **Dependencies:**
 - ✅ E3-001: Cost Registration Interface (complete)
