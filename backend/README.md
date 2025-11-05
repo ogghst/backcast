@@ -29,6 +29,59 @@ Make sure your editor is using the correct Python virtual environment, with the 
 
 Modify or add SQLModel models for data and SQL tables in `./backend/app/models.py`, API endpoints in `./backend/app/api/`, CRUD (Create, Read, Update, Delete) utils in `./backend/app/crud.py`.
 
+## Scripts
+
+The `./backend/scripts/` directory contains utility scripts for initializing, managing, and testing the application.
+
+### Initializing the Application
+
+To initialize the application with a fresh database setup, you can use the `prestart.sh` script. This script:
+
+1. Waits for the database to be ready
+2. Runs database migrations to create/update the schema
+3. Creates initial data in the database
+
+**From inside the Docker container:**
+
+```console
+$ docker compose exec backend bash scripts/prestart.sh
+```
+
+**Or from the host machine (if you have the virtual environment activated):**
+
+```console
+$ bash ./scripts/prestart.sh
+```
+
+### Clearing Database Data
+
+If you need to reset the database and clear all existing data while keeping the schema intact, use the `clear_data.sh` script. This script:
+
+1. Waits for the database to be ready
+2. Runs database migrations to ensure the schema is up to date
+3. Clears all data from the database
+
+**From inside the Docker container:**
+
+```console
+$ docker compose exec backend bash scripts/clear_data.sh
+```
+
+**Or from the host machine (if you have the virtual environment activated):**
+
+```console
+$ bash ./scripts/clear_data.sh
+```
+
+**Note:** This is useful when you want to start with a clean database but maintain the current database schema. After clearing data, you may want to run `prestart.sh` again to populate initial data.
+
+### Other Scripts
+
+* `test.sh` - Runs the test suite with coverage reporting
+* `tests-start.sh` - Prepares the test environment and runs tests (used when the stack is already running)
+* `lint.sh` - Runs linting checks (mypy, ruff check, ruff format check)
+* `format.sh` - Formats code using ruff
+
 ## VS Code
 
 There are already configurations in place to run the backend through the VS Code debugger, so that you can use breakpoints, pause and explore variables, etc.
@@ -127,6 +180,66 @@ As during local development your app directory is mounted as a volume inside the
 
 Make sure you create a "revision" of your models and that you "upgrade" your database with that revision every time you change them. As this is what will update the tables in your database. Otherwise, your application will have errors.
 
+### Creating the Initial Database Setup
+
+When starting with a fresh database or when no migration files exist (for example, if you've removed all migration files from `./backend/app/alembic/versions/`), you need to create the initial migration that will set up your database schema.
+
+**From inside the Docker container:**
+
+1. Start an interactive session in the backend container:
+
+```console
+$ docker compose exec backend bash
+```
+
+2. Ensure the database is running and ready. The `backend_pre_start.py` script handles this, but you can also wait manually if needed.
+
+3. Create the initial migration using Alembic's autogenerate feature. This will scan your SQLModel models and create a migration file with all the necessary table creation statements:
+
+```console
+$ alembic revision --autogenerate -m "Initial migration"
+```
+
+This will create a new migration file in `./backend/app/alembic/versions/` that contains the SQL statements to create all your tables based on your current models.
+
+4. Review the generated migration file to ensure it correctly reflects your models. The file will be in `./backend/app/alembic/versions/` with a name like `XXXX_initial_migration.py`.
+
+5. Apply the migration to create the database schema:
+
+```console
+$ alembic upgrade head
+```
+
+This will execute the migration and create all the tables in your database.
+
+6. Populate the database with initial data:
+
+```console
+$ python app/initial_data.py
+```
+
+Or use the prestart script which does steps 2, 5, and 6 in sequence:
+
+```console
+$ bash scripts/prestart.sh
+```
+
+**From the host machine (if you have the virtual environment activated):**
+
+The same commands can be run from the host machine, but make sure you're in the `./backend/` directory and have activated the virtual environment:
+
+```console
+$ cd backend
+$ source .venv/bin/activate
+$ alembic revision --autogenerate -m "Initial migration"
+$ alembic upgrade head
+$ python app/initial_data.py
+```
+
+**Note:** After creating the initial migration, commit the migration file to your git repository so it can be version controlled and shared with your team.
+
+### Updating Existing Models
+
 * Start an interactive session in the backend container:
 
 ```console
@@ -161,7 +274,7 @@ and comment the line in the file `scripts/prestart.sh` that contains:
 $ alembic upgrade head
 ```
 
-If you don't want to start with the default models and want to remove them / modify them, from the beginning, without having any previous revision, you can remove the revision files (`.py` Python files) under `./backend/app/alembic/versions/`. And then create a first migration as described above.
+If you don't want to start with the default models and want to remove them / modify them, from the beginning, without having any previous revision, you can remove the revision files (`.py` Python files) under `./backend/app/alembic/versions/`. Then follow the steps in the [Creating the Initial Database Setup](#creating-the-initial-database-setup) section above to create a new initial migration.
 
 ## Email Templates
 
