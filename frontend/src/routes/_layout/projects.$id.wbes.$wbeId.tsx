@@ -36,15 +36,25 @@ import BudgetTimelineFilter from "@/components/Projects/BudgetTimelineFilter"
 import CostSummary from "@/components/Projects/CostSummary"
 import DeleteCostElement from "@/components/Projects/DeleteCostElement"
 import EditCostElement from "@/components/Projects/EditCostElement"
+import type { CostElementView } from "./projects.$id.wbes.$wbeId.cost-elements.$costElementId"
+
+const WBE_TAB_OPTIONS = [
+  "info",
+  "cost-elements",
+  "summary",
+  "cost-summary",
+  "timeline",
+] as const
+
+type WbeDetailTab = (typeof WBE_TAB_OPTIONS)[number]
 
 const wbeDetailSearchSchema = z.object({
   page: z.number().catch(1),
-  tab: z
-    .enum(["info", "cost-elements", "summary", "cost-summary", "timeline"])
-    .catch("cost-elements"),
+  tab: z.enum(WBE_TAB_OPTIONS).catch("cost-elements"),
 })
 
 const PER_PAGE = 10
+const COST_ELEMENT_DETAIL_DEFAULT_VIEW: CostElementView = "cost-registrations"
 
 function getProjectQueryOptions({ id }: { id: string }) {
   return {
@@ -190,7 +200,10 @@ function CostElementsTable({ wbeId }: { wbeId: string }) {
         wbeId: wbeId,
         costElementId: costElement.cost_element_id,
       },
-      search: { tab: "cost-registrations" } as any,
+      search: (prev) => ({
+        ...prev,
+        view: COST_ELEMENT_DETAIL_DEFAULT_VIEW,
+      }),
     })
   }
 
@@ -300,13 +313,13 @@ function WBEDetail() {
     setFilter(newFilter)
   }
 
-  const handleTabChange = (value: string) => {
-    const currentSearch = Route.useSearch()
+  const handleTabChange = (value: WbeDetailTab) => {
     navigate({
-      search: {
-        page: currentSearch.page,
-        tab: value,
-      } as any,
+      search: (prev) =>
+        ({
+          ...prev,
+          tab: value,
+        }) as typeof prev,
     })
   }
 
@@ -372,7 +385,7 @@ function WBEDetail() {
 
       <Tabs.Root
         value={tab}
-        onValueChange={({ value }) => handleTabChange(value)}
+        onValueChange={({ value }) => handleTabChange(value as WbeDetailTab)}
         variant="subtle"
         mt={4}
       >
