@@ -7,7 +7,7 @@ import {
   VStack,
 } from "@chakra-ui/react"
 import { useQuery } from "@tanstack/react-query"
-import type { BaselineSnapshotSummaryPublic } from "@/client"
+import type { BaselineSummaryPublic } from "@/client"
 import { BaselineLogsService } from "@/client"
 
 interface BaselineSummaryProps {
@@ -21,7 +21,7 @@ export default function BaselineSummary({
 }: BaselineSummaryProps) {
   const queryKey = ["baseline-snapshot-summary", projectId, baselineId]
 
-  const { data: summary, isLoading } = useQuery<BaselineSnapshotSummaryPublic>({
+  const { data: summary, isLoading } = useQuery<BaselineSummaryPublic>({
     queryKey,
     queryFn: () =>
       BaselineLogsService.getBaselineSnapshotSummary({

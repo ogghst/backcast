@@ -102,6 +102,7 @@ from app.models.department import (
     DepartmentUpdate,
 )
 from app.models.earned_value_entry import (
+    EarnedValueEntriesPublic,
     EarnedValueEntry,
     EarnedValueEntryBase,
     EarnedValueEntryCreate,
@@ -321,6 +322,7 @@ __all__ = [
     "CostElementSchedulePublic",
     "CostElementScheduleUpdate",
     # Earned Value Entry models
+    "EarnedValueEntriesPublic",
     "EarnedValueEntry",
     "EarnedValueEntryBase",
     "EarnedValueEntryCreate",

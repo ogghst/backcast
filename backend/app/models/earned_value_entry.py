@@ -28,10 +28,12 @@ class EarnedValueEntryBase(SQLModel):
 
 
 class EarnedValueEntryCreate(EarnedValueEntryBase):
-    """Schema for creating a new earned value entry."""
+    """Schema for creating a new earned value entry.
+
+    Note: created_by_id is set automatically by the API from current_user.
+    """
 
     cost_element_id: uuid.UUID
-    created_by_id: uuid.UUID
 
 
 class EarnedValueEntryUpdate(SQLModel):
@@ -84,3 +86,10 @@ class EarnedValueEntryPublic(EarnedValueEntryBase):
     created_by_id: uuid.UUID
     created_at: datetime
     last_modified_at: datetime
+
+
+class EarnedValueEntriesPublic(SQLModel):
+    """Public earned value entries list schema."""
+
+    data: list[EarnedValueEntryPublic]
+    count: int

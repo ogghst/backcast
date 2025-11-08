@@ -11,6 +11,7 @@ from app.api.routes import (
     cost_registrations,
     cost_summary,
     cost_timeline,
+    earned_value_entries,
     login,
     private,
     projects,
@@ -33,6 +34,7 @@ api_router.include_router(cost_categories.router)
 api_router.include_router(cost_registrations.router)
 api_router.include_router(cost_summary.router)
 api_router.include_router(cost_timeline.router)
+api_router.include_router(earned_value_entries.router)
 api_router.include_router(budget_summary.router)
 api_router.include_router(budget_timeline.router)
 api_router.include_router(baseline_logs.router)

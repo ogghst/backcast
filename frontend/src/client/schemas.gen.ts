@@ -367,7 +367,7 @@ export const BaselineLogUpdateSchema = {
     description: 'Schema for updating a baseline log entry.'
 } as const;
 
-export const BaselineSnapshotSummaryPublicSchema = {
+export const BaselineSummaryPublicSchema = {
     properties: {
         snapshot_id: {
             type: 'string',
@@ -454,8 +454,8 @@ export const BaselineSnapshotSummaryPublicSchema = {
     },
     type: 'object',
     required: ['snapshot_id', 'baseline_id', 'baseline_date', 'milestone_type', 'total_budget_bac', 'total_revenue_plan'],
-    title: 'BaselineSnapshotSummaryPublic',
-    description: 'Public schema for baseline snapshot summary with aggregated values.'
+    title: 'BaselineSummaryPublic',
+    description: 'Public schema for baseline summary with aggregated values.'
 } as const;
 
 export const Body_login_login_access_tokenSchema = {
@@ -1578,6 +1578,260 @@ export const CostTimelinePublicSchema = {
     type: 'object',
     title: 'CostTimelinePublic',
     description: 'Public schema for cost timeline response.'
+} as const;
+
+export const EarnedValueEntriesPublicSchema = {
+    properties: {
+        data: {
+            items: {
+                '$ref': '#/components/schemas/EarnedValueEntryPublic'
+            },
+            type: 'array',
+            title: 'Data'
+        },
+        count: {
+            type: 'integer',
+            title: 'Count'
+        }
+    },
+    type: 'object',
+    required: ['data', 'count'],
+    title: 'EarnedValueEntriesPublic',
+    description: 'Public earned value entries list schema.'
+} as const;
+
+export const EarnedValueEntryCreateSchema = {
+    properties: {
+        completion_date: {
+            type: 'string',
+            format: 'date',
+            title: 'Completion Date'
+        },
+        percent_complete: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                }
+            ],
+            title: 'Percent Complete',
+            default: '0.00'
+        },
+        earned_value: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Earned Value'
+        },
+        deliverables: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Deliverables'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        },
+        cost_element_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Cost Element Id'
+        }
+    },
+    type: 'object',
+    required: ['completion_date', 'cost_element_id'],
+    title: 'EarnedValueEntryCreate',
+    description: `Schema for creating a new earned value entry.
+
+Note: created_by_id is set automatically by the API from current_user.`
+} as const;
+
+export const EarnedValueEntryPublicSchema = {
+    properties: {
+        completion_date: {
+            type: 'string',
+            format: 'date',
+            title: 'Completion Date'
+        },
+        percent_complete: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Percent Complete',
+            default: '0.00'
+        },
+        earned_value: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Earned Value'
+        },
+        deliverables: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Deliverables'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        },
+        earned_value_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Earned Value Id'
+        },
+        cost_element_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Cost Element Id'
+        },
+        baseline_id: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'uuid'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Baseline Id'
+        },
+        created_by_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Created By Id'
+        },
+        created_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Created At'
+        },
+        last_modified_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Last Modified At'
+        }
+    },
+    type: 'object',
+    required: ['completion_date', 'earned_value_id', 'cost_element_id', 'created_by_id', 'created_at', 'last_modified_at'],
+    title: 'EarnedValueEntryPublic',
+    description: 'Public earned value entry schema for API responses.'
+} as const;
+
+export const EarnedValueEntryUpdateSchema = {
+    properties: {
+        completion_date: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Completion Date'
+        },
+        percent_complete: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Percent Complete'
+        },
+        earned_value: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Earned Value'
+        },
+        deliverables: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Deliverables'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        }
+    },
+    type: 'object',
+    title: 'EarnedValueEntryUpdate',
+    description: 'Schema for updating an earned value entry.'
 } as const;
 
 export const HTTPValidationErrorSchema = {

@@ -80,9 +80,9 @@ export type BaselineLogUpdate = {
 };
 
 /**
- * Public schema for baseline snapshot summary with aggregated values.
+ * Public schema for baseline summary with aggregated values.
  */
-export type BaselineSnapshotSummaryPublic = {
+export type BaselineSummaryPublic = {
     snapshot_id: string;
     baseline_id: string;
     baseline_date: string;
@@ -356,6 +356,56 @@ export type CostTimelinePointPublic = {
 export type CostTimelinePublic = {
     data?: Array<CostTimelinePointPublic>;
     total_cost?: string;
+};
+
+/**
+ * Public earned value entries list schema.
+ */
+export type EarnedValueEntriesPublic = {
+    data: Array<EarnedValueEntryPublic>;
+    count: number;
+};
+
+/**
+ * Schema for creating a new earned value entry.
+ *
+ * Note: created_by_id is set automatically by the API from current_user.
+ */
+export type EarnedValueEntryCreate = {
+    completion_date: string;
+    percent_complete?: (number | string);
+    earned_value?: (number | string | null);
+    deliverables?: (string | null);
+    description?: (string | null);
+    cost_element_id: string;
+};
+
+/**
+ * Public earned value entry schema for API responses.
+ */
+export type EarnedValueEntryPublic = {
+    completion_date: string;
+    percent_complete?: string;
+    earned_value?: (string | null);
+    deliverables?: (string | null);
+    description?: (string | null);
+    earned_value_id: string;
+    cost_element_id: string;
+    baseline_id?: (string | null);
+    created_by_id: string;
+    created_at: string;
+    last_modified_at: string;
+};
+
+/**
+ * Schema for updating an earned value entry.
+ */
+export type EarnedValueEntryUpdate = {
+    completion_date?: (string | null);
+    percent_complete?: (number | string | null);
+    earned_value?: (number | string | null);
+    deliverables?: (string | null);
+    description?: (string | null);
 };
 
 export type HTTPValidationError = {
@@ -660,7 +710,7 @@ export type BaselineLogsGetBaselineSnapshotSummaryData = {
     projectId: string;
 };
 
-export type BaselineLogsGetBaselineSnapshotSummaryResponse = (BaselineSnapshotSummaryPublic);
+export type BaselineLogsGetBaselineSnapshotSummaryResponse = (BaselineSummaryPublic);
 
 export type BaselineLogsGetBaselineCostElementsByWbeData = {
     baselineId: string;
@@ -867,6 +917,42 @@ export type CostTimelineGetProjectCostTimelineData = {
 };
 
 export type CostTimelineGetProjectCostTimelineResponse = (CostTimelinePublic);
+
+export type EarnedValueEntriesReadEarnedValueEntriesData = {
+    /**
+     * Filter by cost element ID
+     */
+    costElementId?: (string | null);
+    limit?: number;
+    skip?: number;
+};
+
+export type EarnedValueEntriesReadEarnedValueEntriesResponse = (EarnedValueEntriesPublic);
+
+export type EarnedValueEntriesCreateEarnedValueEntryData = {
+    requestBody: EarnedValueEntryCreate;
+};
+
+export type EarnedValueEntriesCreateEarnedValueEntryResponse = (EarnedValueEntryPublic);
+
+export type EarnedValueEntriesReadEarnedValueEntryData = {
+    earnedValueId: string;
+};
+
+export type EarnedValueEntriesReadEarnedValueEntryResponse = (EarnedValueEntryPublic);
+
+export type EarnedValueEntriesUpdateEarnedValueEntryData = {
+    earnedValueId: string;
+    requestBody: EarnedValueEntryUpdate;
+};
+
+export type EarnedValueEntriesUpdateEarnedValueEntryResponse = (EarnedValueEntryPublic);
+
+export type EarnedValueEntriesDeleteEarnedValueEntryData = {
+    earnedValueId: string;
+};
+
+export type EarnedValueEntriesDeleteEarnedValueEntryResponse = (Message);
 
 export type LoginLoginAccessTokenData = {
     formData: Body_login_login_access_token;

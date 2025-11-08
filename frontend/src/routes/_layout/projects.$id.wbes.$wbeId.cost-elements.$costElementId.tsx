@@ -9,7 +9,6 @@ import {
 } from "@chakra-ui/react"
 import { useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router"
-import { useState } from "react"
 import { z } from "zod"
 import type { CostElementWithSchedulePublic } from "@/client"
 import {
@@ -20,14 +19,24 @@ import {
 } from "@/client"
 import PendingItems from "@/components/Pending/PendingItems"
 import BudgetTimeline from "@/components/Projects/BudgetTimeline"
-import BudgetTimelineFilter from "@/components/Projects/BudgetTimelineFilter"
 import CostRegistrationsTable from "@/components/Projects/CostRegistrationsTable"
 import CostSummary from "@/components/Projects/CostSummary"
+import EarnedValueEntriesTable from "@/components/Projects/EarnedValueEntriesTable"
+
+const COST_ELEMENT_VIEW_OPTIONS = [
+  "info",
+  "cost-registrations",
+  "earned-value",
+  "cost-summary",
+  "timeline",
+] as const
+
+export type CostElementView = (typeof COST_ELEMENT_VIEW_OPTIONS)[number]
+
+const DEFAULT_COST_ELEMENT_VIEW: CostElementView = "cost-registrations"
 
 const costElementDetailSearchSchema = z.object({
-  tab: z
-    .enum(["info", "cost-registrations", "cost-summary", "timeline"])
-    .catch("cost-registrations"),
+  view: z.enum(COST_ELEMENT_VIEW_OPTIONS).catch(DEFAULT_COST_ELEMENT_VIEW),
 })
 
 function getProjectQueryOptions({ id }: { id: string }) {
@@ -55,13 +64,21 @@ export const Route = createFileRoute(
   "/_layout/projects/$id/wbes/$wbeId/cost-elements/$costElementId",
 )({
   component: CostElementDetail,
-  validateSearch: (search) => costElementDetailSearchSchema.parse(search),
+  validateSearch: (search) =>
+    costElementDetailSearchSchema.parse({
+      view:
+        typeof search.view === "string"
+          ? search.view
+          : typeof search.tab === "string"
+            ? search.tab
+            : undefined,
+    }),
 })
 
 function CostElementDetail() {
   const { id: projectId, wbeId, costElementId } = Route.useParams()
   const navigate = useNavigate({ from: Route.fullPath })
-  const { tab } = Route.useSearch()
+  const { view } = Route.useSearch()
 
   const { data: project, isLoading: isLoadingProject } = useQuery({
     ...getProjectQueryOptions({ id: projectId }),
@@ -75,11 +92,6 @@ function CostElementDetail() {
     ...getCostElementQueryOptions({ id: costElementId }),
   })
 
-  // Budget Timeline state - pre-select current cost element
-  const [displayMode, setDisplayMode] = useState<"budget" | "costs" | "both">(
-    "budget",
-  )
-
   // Fetch cost element with schedule for timeline
   const { data: costElementsWithSchedule, isLoading: isLoadingCostElements } =
     useQuery<CostElementWithSchedulePublic[]>({
@@ -88,18 +100,16 @@ function CostElementDetail() {
           projectId: projectId,
           costElementIds: [costElementId],
         }),
-      queryKey: [
-        "cost-elements-with-schedules",
-        { projectId, costElementIds: [costElementId] },
-      ],
+      queryKey: ["cost-elements-with-schedules", projectId, costElementId],
       enabled: !!projectId && !!costElementId,
     })
 
-  const handleTabChange = (value: string) => {
+  const handleTabChange = (value: CostElementView) => {
     navigate({
-      search: {
-        tab: value,
-      } as any,
+      search: (prev) => ({
+        ...prev,
+        view: value,
+      }),
     })
   }
 
@@ -152,13 +162,16 @@ function CostElementDetail() {
         <Text color="fg.muted">{costElement.department_name}</Text>
       </Flex>
 
-      <Heading size="lg" mb={4}>
+      <Heading size="lg" mb={1}>
         {costElement.department_name} ({costElement.department_code})
       </Heading>
+      <Text color="fg.muted" mb={4}>
+        Budget BAC: {costElement.budget_bac ?? "0.00"}
+      </Text>
 
       <Tabs.Root
-        value={tab}
-        onValueChange={({ value }) => handleTabChange(value)}
+        value={view}
+        onValueChange={({ value }) => handleTabChange(value as CostElementView)}
         variant="subtle"
         mt={4}
       >
@@ -167,21 +180,47 @@ function CostElementDetail() {
           <Tabs.Trigger value="cost-registrations">
             Cost Registrations
           </Tabs.Trigger>
+          <Tabs.Trigger value="earned-value">Earned Value</Tabs.Trigger>
           <Tabs.Trigger value="cost-summary">Cost Summary</Tabs.Trigger>
           <Tabs.Trigger value="timeline">Timeline</Tabs.Trigger>
         </Tabs.List>
 
         <Tabs.Content value="info">
-          <Box mt={4}>
-            <Text color="fg.muted">
-              Cost element information content will be added here.
+          <Box mt={4} display="grid" gap={2}>
+            <Text>
+              <strong>Department:</strong> {costElement.department_name} (
+              {costElement.department_code})
             </Text>
+            <Text>
+              <strong>Status:</strong> {costElement.status ?? "active"}
+            </Text>
+            <Text>
+              <strong>Budget BAC:</strong> {costElement.budget_bac ?? "0.00"}
+            </Text>
+            <Text>
+              <strong>Revenue Plan:</strong>{" "}
+              {costElement.revenue_plan ?? "0.00"}
+            </Text>
+            {costElement.notes && (
+              <Text>
+                <strong>Notes:</strong> {costElement.notes}
+              </Text>
+            )}
           </Box>
         </Tabs.Content>
 
         <Tabs.Content value="cost-registrations">
           <Box mt={4}>
             <CostRegistrationsTable costElementId={costElementId} />
+          </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="earned-value">
+          <Box mt={4}>
+            <EarnedValueEntriesTable
+              costElementId={costElementId}
+              budgetBac={costElement.budget_bac ?? null}
+            />
           </Box>
         </Tabs.Content>
 
@@ -196,14 +235,6 @@ function CostElementDetail() {
             <Heading size="md" mb={4}>
               Budget Timeline
             </Heading>
-            <BudgetTimelineFilter
-              projectId={projectId}
-              context="cost-element"
-              initialFilters={{ costElementIds: [costElementId] }}
-              onFilterChange={() => {}} // No-op since we're on a single cost element
-              displayMode={displayMode}
-              onDisplayModeChange={setDisplayMode}
-            />
             {isLoadingCostElements ? (
               <Box
                 p={4}
@@ -233,7 +264,7 @@ function CostElementDetail() {
                 <BudgetTimeline
                   costElements={costElementsWithSchedule || []}
                   viewMode="aggregated"
-                  displayMode={displayMode}
+                  displayMode="budget"
                   projectId={projectId}
                   costElementIds={[costElementId]}
                 />

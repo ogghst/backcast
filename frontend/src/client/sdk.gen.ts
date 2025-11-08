@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { BaselineLogsListBaselineLogsData, BaselineLogsListBaselineLogsResponse, BaselineLogsCreateBaselineLogData, BaselineLogsCreateBaselineLogResponse, BaselineLogsReadBaselineLogData, BaselineLogsReadBaselineLogResponse, BaselineLogsUpdateBaselineLogData, BaselineLogsUpdateBaselineLogResponse, BaselineLogsCancelBaselineLogData, BaselineLogsCancelBaselineLogResponse, BaselineLogsGetBaselineSnapshotSummaryData, BaselineLogsGetBaselineSnapshotSummaryResponse, BaselineLogsGetBaselineCostElementsByWbeData, BaselineLogsGetBaselineCostElementsByWbeResponse, BaselineLogsGetBaselineCostElementsData, BaselineLogsGetBaselineCostElementsResponse, BudgetSummaryGetProjectBudgetSummaryData, BudgetSummaryGetProjectBudgetSummaryResponse, BudgetSummaryGetWbeBudgetSummaryData, BudgetSummaryGetWbeBudgetSummaryResponse, BudgetTimelineGetCostElementsWithSchedulesData, BudgetTimelineGetCostElementsWithSchedulesResponse, CostCategoriesReadCostCategoriesResponse, CostElementsReadCostElementsData, CostElementsReadCostElementsResponse, CostElementsCreateCostElementData, CostElementsCreateCostElementResponse, CostElementsReadCostElementData, CostElementsReadCostElementResponse, CostElementsUpdateCostElementData, CostElementsUpdateCostElementResponse, CostElementsDeleteCostElementData, CostElementsDeleteCostElementResponse, CostElementSchedulesReadScheduleByCostElementData, CostElementSchedulesReadScheduleByCostElementResponse, CostElementSchedulesCreateScheduleData, CostElementSchedulesCreateScheduleResponse, CostElementSchedulesUpdateScheduleData, CostElementSchedulesUpdateScheduleResponse, CostElementSchedulesDeleteScheduleData, CostElementSchedulesDeleteScheduleResponse, CostElementTypesReadCostElementTypesResponse, CostRegistrationsReadCostRegistrationsData, CostRegistrationsReadCostRegistrationsResponse, CostRegistrationsCreateCostRegistrationData, CostRegistrationsCreateCostRegistrationResponse, CostRegistrationsReadCostRegistrationData, CostRegistrationsReadCostRegistrationResponse, CostRegistrationsUpdateCostRegistrationData, CostRegistrationsUpdateCostRegistrationResponse, CostRegistrationsDeleteCostRegistrationData, CostRegistrationsDeleteCostRegistrationResponse, CostSummaryGetCostElementCostSummaryData, CostSummaryGetCostElementCostSummaryResponse, CostSummaryGetWbeCostSummaryData, CostSummaryGetWbeCostSummaryResponse, CostSummaryGetProjectCostSummaryData, CostSummaryGetProjectCostSummaryResponse, CostTimelineGetProjectCostTimelineData, CostTimelineGetProjectCostTimelineResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, PrivateCreateUserData, PrivateCreateUserResponse, ProjectsReadProjectsData, ProjectsReadProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsReadProjectData, ProjectsReadProjectResponse, ProjectsUpdateProjectData, ProjectsUpdateProjectResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsCreateProjectFromTemplateData, ProjectsCreateProjectFromTemplateResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse, WbesReadWbesData, WbesReadWbesResponse, WbesCreateWbeData, WbesCreateWbeResponse, WbesReadWbeData, WbesReadWbeResponse, WbesUpdateWbeData, WbesUpdateWbeResponse, WbesDeleteWbeData, WbesDeleteWbeResponse } from './types.gen';
+import type { BaselineLogsListBaselineLogsData, BaselineLogsListBaselineLogsResponse, BaselineLogsCreateBaselineLogData, BaselineLogsCreateBaselineLogResponse, BaselineLogsReadBaselineLogData, BaselineLogsReadBaselineLogResponse, BaselineLogsUpdateBaselineLogData, BaselineLogsUpdateBaselineLogResponse, BaselineLogsCancelBaselineLogData, BaselineLogsCancelBaselineLogResponse, BaselineLogsGetBaselineSnapshotSummaryData, BaselineLogsGetBaselineSnapshotSummaryResponse, BaselineLogsGetBaselineCostElementsByWbeData, BaselineLogsGetBaselineCostElementsByWbeResponse, BaselineLogsGetBaselineCostElementsData, BaselineLogsGetBaselineCostElementsResponse, BudgetSummaryGetProjectBudgetSummaryData, BudgetSummaryGetProjectBudgetSummaryResponse, BudgetSummaryGetWbeBudgetSummaryData, BudgetSummaryGetWbeBudgetSummaryResponse, BudgetTimelineGetCostElementsWithSchedulesData, BudgetTimelineGetCostElementsWithSchedulesResponse, CostCategoriesReadCostCategoriesResponse, CostElementsReadCostElementsData, CostElementsReadCostElementsResponse, CostElementsCreateCostElementData, CostElementsCreateCostElementResponse, CostElementsReadCostElementData, CostElementsReadCostElementResponse, CostElementsUpdateCostElementData, CostElementsUpdateCostElementResponse, CostElementsDeleteCostElementData, CostElementsDeleteCostElementResponse, CostElementSchedulesReadScheduleByCostElementData, CostElementSchedulesReadScheduleByCostElementResponse, CostElementSchedulesCreateScheduleData, CostElementSchedulesCreateScheduleResponse, CostElementSchedulesUpdateScheduleData, CostElementSchedulesUpdateScheduleResponse, CostElementSchedulesDeleteScheduleData, CostElementSchedulesDeleteScheduleResponse, CostElementTypesReadCostElementTypesResponse, CostRegistrationsReadCostRegistrationsData, CostRegistrationsReadCostRegistrationsResponse, CostRegistrationsCreateCostRegistrationData, CostRegistrationsCreateCostRegistrationResponse, CostRegistrationsReadCostRegistrationData, CostRegistrationsReadCostRegistrationResponse, CostRegistrationsUpdateCostRegistrationData, CostRegistrationsUpdateCostRegistrationResponse, CostRegistrationsDeleteCostRegistrationData, CostRegistrationsDeleteCostRegistrationResponse, CostSummaryGetCostElementCostSummaryData, CostSummaryGetCostElementCostSummaryResponse, CostSummaryGetWbeCostSummaryData, CostSummaryGetWbeCostSummaryResponse, CostSummaryGetProjectCostSummaryData, CostSummaryGetProjectCostSummaryResponse, CostTimelineGetProjectCostTimelineData, CostTimelineGetProjectCostTimelineResponse, EarnedValueEntriesReadEarnedValueEntriesData, EarnedValueEntriesReadEarnedValueEntriesResponse, EarnedValueEntriesCreateEarnedValueEntryData, EarnedValueEntriesCreateEarnedValueEntryResponse, EarnedValueEntriesReadEarnedValueEntryData, EarnedValueEntriesReadEarnedValueEntryResponse, EarnedValueEntriesUpdateEarnedValueEntryData, EarnedValueEntriesUpdateEarnedValueEntryResponse, EarnedValueEntriesDeleteEarnedValueEntryData, EarnedValueEntriesDeleteEarnedValueEntryResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, PrivateCreateUserData, PrivateCreateUserResponse, ProjectsReadProjectsData, ProjectsReadProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsReadProjectData, ProjectsReadProjectResponse, ProjectsUpdateProjectData, ProjectsUpdateProjectResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsCreateProjectFromTemplateData, ProjectsCreateProjectFromTemplateResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse, WbesReadWbesData, WbesReadWbesResponse, WbesCreateWbeData, WbesCreateWbeResponse, WbesReadWbeData, WbesReadWbeResponse, WbesUpdateWbeData, WbesUpdateWbeResponse, WbesDeleteWbeData, WbesDeleteWbeResponse } from './types.gen';
 
 export class BaselineLogsService {
     /**
@@ -188,7 +188,7 @@ export class BaselineLogsService {
      * @param data The data for the request.
      * @param data.projectId
      * @param data.baselineId
-     * @returns BaselineSnapshotSummaryPublic Successful Response
+     * @returns BaselineSummaryPublic Successful Response
      * @throws ApiError
      */
     public static getBaselineSnapshotSummary(data: BaselineLogsGetBaselineSnapshotSummaryData): CancelablePromise<BaselineLogsGetBaselineSnapshotSummaryResponse> {
@@ -860,6 +860,119 @@ export class CostTimelineService {
                 cost_element_ids: data.costElementIds,
                 start_date: data.startDate,
                 end_date: data.endDate
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+}
+
+export class EarnedValueEntriesService {
+    /**
+     * Read Earned Value Entries
+     * Retrieve earned value entries with optional filtering and pagination.
+     * @param data The data for the request.
+     * @param data.costElementId Filter by cost element ID
+     * @param data.skip
+     * @param data.limit
+     * @returns EarnedValueEntriesPublic Successful Response
+     * @throws ApiError
+     */
+    public static readEarnedValueEntries(data: EarnedValueEntriesReadEarnedValueEntriesData = {}): CancelablePromise<EarnedValueEntriesReadEarnedValueEntriesResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/earned-value-entries/',
+            query: {
+                cost_element_id: data.costElementId,
+                skip: data.skip,
+                limit: data.limit
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Create Earned Value Entry
+     * Create a new earned value entry.
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns EarnedValueEntryPublic Successful Response
+     * @throws ApiError
+     */
+    public static createEarnedValueEntry(data: EarnedValueEntriesCreateEarnedValueEntryData): CancelablePromise<EarnedValueEntriesCreateEarnedValueEntryResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/earned-value-entries/',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Read Earned Value Entry
+     * Retrieve a single earned value entry by ID.
+     * @param data The data for the request.
+     * @param data.earnedValueId
+     * @returns EarnedValueEntryPublic Successful Response
+     * @throws ApiError
+     */
+    public static readEarnedValueEntry(data: EarnedValueEntriesReadEarnedValueEntryData): CancelablePromise<EarnedValueEntriesReadEarnedValueEntryResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/earned-value-entries/{earned_value_id}',
+            path: {
+                earned_value_id: data.earnedValueId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Update Earned Value Entry
+     * Update an existing earned value entry.
+     * @param data The data for the request.
+     * @param data.earnedValueId
+     * @param data.requestBody
+     * @returns EarnedValueEntryPublic Successful Response
+     * @throws ApiError
+     */
+    public static updateEarnedValueEntry(data: EarnedValueEntriesUpdateEarnedValueEntryData): CancelablePromise<EarnedValueEntriesUpdateEarnedValueEntryResponse> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/earned-value-entries/{earned_value_id}',
+            path: {
+                earned_value_id: data.earnedValueId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Delete Earned Value Entry
+     * Delete an earned value entry.
+     * @param data The data for the request.
+     * @param data.earnedValueId
+     * @returns Message Successful Response
+     * @throws ApiError
+     */
+    public static deleteEarnedValueEntry(data: EarnedValueEntriesDeleteEarnedValueEntryData): CancelablePromise<EarnedValueEntriesDeleteEarnedValueEntryResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/earned-value-entries/{earned_value_id}',
+            path: {
+                earned_value_id: data.earnedValueId
             },
             errors: {
                 422: 'Validation Error'
