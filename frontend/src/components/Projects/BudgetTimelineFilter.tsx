@@ -84,8 +84,6 @@ export interface BudgetTimelineFilterProps {
     costElementIds?: string[]
     costElementTypeIds?: string[]
   }
-  displayMode?: "budget" | "costs" | "both"
-  onDisplayModeChange?: (displayMode: "budget" | "costs" | "both") => void
 }
 
 export default function BudgetTimelineFilter({
@@ -93,8 +91,6 @@ export default function BudgetTimelineFilter({
   context,
   onFilterChange,
   initialFilters = {},
-  displayMode = "budget",
-  onDisplayModeChange,
 }: BudgetTimelineFilterProps) {
   // Local state for filter selections
   const [selectedWbeIds, setSelectedWbeIds] = useState<string[]>(
@@ -106,7 +102,6 @@ export default function BudgetTimelineFilter({
   const [selectedCostElementTypeIds, setSelectedCostElementTypeIds] = useState<
     string[]
   >(initialFilters.costElementTypeIds || [])
-  const [isDisplayModeOpen, setIsDisplayModeOpen] = useState(false)
   const [isWbeSectionOpen, setIsWbeSectionOpen] = useState(false)
   const [isTypeSectionOpen, setIsTypeSectionOpen] = useState(false)
   const [isCostElementSectionOpen, setIsCostElementSectionOpen] =
@@ -247,48 +242,6 @@ export default function BudgetTimelineFilter({
         <Text fontWeight="semibold" fontSize="md">
           Filter Budget Timeline
         </Text>
-
-        {onDisplayModeChange && (
-          <FilterSection
-            title="Display Mode"
-            subtitle={
-              displayMode === "both"
-                ? "Budget & Costs"
-                : displayMode === "budget"
-                  ? "Budget only"
-                  : "Costs only"
-            }
-            isOpen={isDisplayModeOpen}
-            onToggle={setIsDisplayModeOpen}
-          >
-            <HStack gap={2}>
-              <Button
-                size="sm"
-                colorPalette={displayMode === "budget" ? "blue" : "gray"}
-                variant={displayMode === "budget" ? "solid" : "outline"}
-                onClick={() => onDisplayModeChange("budget")}
-              >
-                Budget
-              </Button>
-              <Button
-                size="sm"
-                colorPalette={displayMode === "costs" ? "blue" : "gray"}
-                variant={displayMode === "costs" ? "solid" : "outline"}
-                onClick={() => onDisplayModeChange("costs")}
-              >
-                Costs
-              </Button>
-              <Button
-                size="sm"
-                colorPalette={displayMode === "both" ? "blue" : "gray"}
-                variant={displayMode === "both" ? "solid" : "outline"}
-                onClick={() => onDisplayModeChange("both")}
-              >
-                Both
-              </Button>
-            </HStack>
-          </FilterSection>
-        )}
 
         {showWbeSelector && (
           <FilterSection

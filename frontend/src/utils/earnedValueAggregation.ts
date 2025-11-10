@@ -1,9 +1,8 @@
 import type { EarnedValueEntryPublic } from "@/client"
-import { generateTimeSeries } from "@/utils/timeSeriesGenerator"
 
 export interface EarnedValueTimelinePoint {
   date: Date
-  cumulativeEarnedValue: number
+  earnedValue: number
 }
 
 function toDateKey(date: Date): string {
@@ -12,12 +11,8 @@ function toDateKey(date: Date): string {
 
 export function buildEarnedValueTimeline({
   entries,
-  startDate,
-  endDate,
 }: {
   entries: EarnedValueEntryPublic[]
-  startDate?: Date
-  endDate?: Date
 }): EarnedValueTimelinePoint[] {
   if (!entries || entries.length === 0) {
     return []
@@ -57,28 +52,11 @@ export function buildEarnedValueTimeline({
 
   const sortedKeys = Array.from(valuesByDate.keys()).sort()
 
-  const firstDate = startDate ?? new Date(sortedKeys[0])
-  const lastDate = endDate ?? new Date(sortedKeys[sortedKeys.length - 1])
-
-  if (Number.isNaN(firstDate.getTime()) || Number.isNaN(lastDate.getTime())) {
-    return []
-  }
-
-  if (firstDate > lastDate) {
-    return []
-  }
-
-  const dateSeries = generateTimeSeries(firstDate, lastDate, "daily")
-  let cumulative = 0
-
-  return dateSeries.map((date) => {
-    const key = toDateKey(date)
-    if (valuesByDate.has(key)) {
-      cumulative += valuesByDate.get(key) ?? 0
-    }
+  return sortedKeys.map((key) => {
+    const value = valuesByDate.get(key) ?? 0
     return {
-      date,
-      cumulativeEarnedValue: cumulative,
+      date: new Date(key),
+      earnedValue: value,
     }
   })
 }

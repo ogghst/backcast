@@ -27,10 +27,6 @@ function BudgetTimelinePage() {
     costElementIds?: string[]
     costElementTypeIds?: string[]
   }>({})
-  const [displayMode, setDisplayMode] = useState<"budget" | "costs" | "both">(
-    "budget",
-  )
-
   // Fetch project data
   const { data: project, isLoading: isLoadingProject } = useQuery(
     getProjectQueryOptions({ id: projectId }),
@@ -129,8 +125,6 @@ function BudgetTimelinePage() {
           projectId={projectId}
           context="standalone"
           onFilterChange={handleFilterChange}
-          displayMode={displayMode}
-          onDisplayModeChange={setDisplayMode}
         />
 
         {/* Timeline Visualization */}
@@ -149,7 +143,6 @@ function BudgetTimelinePage() {
           <BudgetTimeline
             costElements={costElements || []}
             viewMode="aggregated"
-            displayMode={displayMode}
             projectId={projectId}
             wbeIds={normalizedFilter.wbeIds}
             costElementIds={normalizedFilter.costElementIds}

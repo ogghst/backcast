@@ -269,10 +269,6 @@ function WBEDetail() {
   }>({
     wbeIds: [wbeId],
   })
-  const [displayMode, setDisplayMode] = useState<"budget" | "costs" | "both">(
-    "budget",
-  )
-
   // Fetch cost elements with schedules based on filter
   // Normalize filter arrays for consistent query key comparison
   const normalizedFilter = {
@@ -437,8 +433,6 @@ function WBEDetail() {
               context="wbe"
               initialFilters={{ wbeIds: [wbeId] }}
               onFilterChange={handleFilterChange}
-              displayMode={displayMode}
-              onDisplayModeChange={setDisplayMode}
             />
             {isLoadingCostElements ? (
               <Box
@@ -467,7 +461,6 @@ function WBEDetail() {
                 <BudgetTimeline
                   costElements={costElements || []}
                   viewMode="aggregated"
-                  displayMode={displayMode}
                   projectId={projectId}
                   wbeIds={normalizedFilter.wbeIds}
                   costElementIds={normalizedFilter.costElementIds}

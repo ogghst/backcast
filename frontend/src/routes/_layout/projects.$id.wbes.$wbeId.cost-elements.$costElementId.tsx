@@ -264,7 +264,6 @@ function CostElementDetail() {
                 <BudgetTimeline
                   costElements={costElementsWithSchedule || []}
                   viewMode="aggregated"
-                  displayMode="budget"
                   projectId={projectId}
                   costElementIds={[costElementId]}
                 />

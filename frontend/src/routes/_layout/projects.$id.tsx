@@ -236,10 +236,6 @@ function ProjectDetail() {
     costElementIds?: string[]
     costElementTypeIds?: string[]
   }>({})
-  const [displayMode, setDisplayMode] = useState<"budget" | "costs" | "both">(
-    "budget",
-  )
-
   // Fetch cost elements with schedules based on filter
   // Normalize filter arrays for consistent query key comparison
   const normalizedFilter = {
@@ -406,8 +402,6 @@ function ProjectDetail() {
               projectId={project.project_id}
               context="project"
               onFilterChange={handleFilterChange}
-              displayMode={displayMode}
-              onDisplayModeChange={setDisplayMode}
             />
             {isLoadingCostElements ? (
               <Box
@@ -436,7 +430,6 @@ function ProjectDetail() {
                 <BudgetTimeline
                   costElements={costElements || []}
                   viewMode="aggregated"
-                  displayMode={displayMode}
                   projectId={project.project_id}
                   wbeIds={normalizedFilter.wbeIds}
                   costElementIds={normalizedFilter.costElementIds}
