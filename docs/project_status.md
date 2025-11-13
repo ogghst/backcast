@@ -78,7 +78,7 @@
 | Task ID | Task Name | Description | Status | Notes |
 |---------|-----------|-------------|--------|-------|
 | E4-001 | Planned Value Calculation Engine | Compute PV = BAC × planned completion % from schedule baseline | ✅ Done | Backend PV service + FastAPI endpoints delivered, baseline snapshots persist planned_value, and `python -m pytest backend/tests/services/test_planned_value.py backend/tests/api/routes/test_planned_value.py` passes against local Postgres (`postgres/changethis@localhost:5432/app`). |
-| E4-002 | Earned Value Calculation Engine | Compute EV = BAC × physical completion % from earned value entries | ⏳ Todo | Sprint 4 deliverable. Core EVM metric. |
+| E4-002 | Earned Value Calculation Engine | Compute EV = BAC × physical completion % from earned value entries | ✅ Done | Complete! Backend EV service + FastAPI endpoints (cost element, WBE, project levels). Frontend EarnedValueSummary component integrated into all detail pages. Entry selection logic: most recent entry where completion_date ≤ control_date. Aggregation with weighted percent complete. 35 tests passing (21 service + 14 API). Follows E4-001 PV pattern. Client regenerated. All tests passing. |
 | E4-003 | EVM Performance Indices | Implement CPI, SPI, and TCPI calculation algorithms | ⏳ Todo | Sprint 4 deliverable. Standard EVM metrics. |
 | E4-004 | Variance Calculations | Implement cost variance and schedule variance logic | ⏳ Todo | Sprint 4 deliverable. CV = EV - AC, SV = EV - PV. |
 | E4-005 | EVM Aggregation Logic | Roll up EVM metrics from cost elements to WBEs to project level | ⏳ Todo | Required for hierarchical reporting. |
@@ -291,7 +291,7 @@ The MVP development is structured across six two-week sprints, each building on 
 | E1-003 (App Framework) | DOC-004 (Tech Stack) | ✅ Ready - Tech stack selected |
 | E2-004 (Schedule Implementation) | E1-002 (Core Models) | ✅ Ready - Core models complete |
 | E4-001 (PV Calculation) | E2-004 (Schedule Implementation) | ✅ Complete |
-| E4-002 (EV Calculation) | E3-006 (Earned Value Recording) | 🔸 Blocked |
+| E4-002 (EV Calculation) | E3-006 (Earned Value Recording) | ✅ Complete |
 
 ---
 

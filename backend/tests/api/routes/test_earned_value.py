@@ -101,8 +101,8 @@ def _create_cost_element(
 
 
 def test_select_entry_for_cost_element_finds_latest(
-    _client: TestClient,
-    _superuser_token_headers: dict[str, str],
+    client: TestClient,  # noqa: ARG001
+    superuser_token_headers: dict[str, str],  # noqa: ARG001
     db: Session,
 ) -> None:
     """Should find the most recent entry where completion_date <= control_date."""
@@ -157,8 +157,8 @@ def test_select_entry_for_cost_element_finds_latest(
 
 
 def test_select_entry_for_cost_element_returns_none_if_none(
-    _client: TestClient,
-    _superuser_token_headers: dict[str, str],
+    client: TestClient,  # noqa: ARG001
+    superuser_token_headers: dict[str, str],  # noqa: ARG001
     db: Session,
 ) -> None:
     """Should return None if no entries exist or all entries are after control_date."""
@@ -196,8 +196,8 @@ def test_select_entry_for_cost_element_returns_none_if_none(
 
 
 def test_get_entry_map_batches_queries(
-    _client: TestClient,
-    _superuser_token_headers: dict[str, str],
+    client: TestClient,  # noqa: ARG001
+    superuser_token_headers: dict[str, str],  # noqa: ARG001
     db: Session,
 ) -> None:
     """Should efficiently query entries for multiple cost elements."""
@@ -254,8 +254,8 @@ def test_get_entry_map_batches_queries(
 
 
 def test_get_entry_map_empty_list(
-    _client: TestClient,
-    _superuser_token_headers: dict[str, str],
+    client: TestClient,  # noqa: ARG001
+    superuser_token_headers: dict[str, str],  # noqa: ARG001
     db: Session,
 ) -> None:
     """Should return empty dict for empty cost_element_ids list."""
@@ -624,7 +624,7 @@ def test_get_earned_value_project_no_entries_returns_zero(
 def test_get_earned_value_project_not_found(
     client: TestClient,
     superuser_token_headers: dict[str, str],
-    _db: Session,
+    db: Session,  # noqa: ARG001
 ) -> None:
     """Should return 404 if project not found."""
     control_date = date(2024, 2, 20)
