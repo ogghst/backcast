@@ -1,8 +1,8 @@
-# EVM Project Budget Management System
+# PESTA - Project Earned value Simulator, Time traveller and Analyzer
 
 ## High-Level Goal
 
-The **EVM Project Budget Management System** is a comprehensive application designed for the Project Management Directorate to simulate, test, and validate financial management processes for end-of-line automation projects before implementing them in production environments.
+PESTA is a comprehensive application designed for the Project Management Directorate to simulate, test, and validate financial management processes for end-of-line automation projects before implementing them in production environments.
 
 The system enables organizations to:
 
@@ -43,28 +43,15 @@ All project documentation is located in the [`docs/`](docs/) directory:
   - Current development status
   - Progress tracking and milestones
 
-- **[`technology_stack_selection.md`](docs/technology_stack_selection.md)** - Technology Stack Selection
-  - Technology stack rationale and justification
-  - Component specifications and versions
-  - Architecture diagrams
-  - Risk assessment and mitigation
-
-### Additional Resources
-
-- **`prompts/`** - Development prompts and guidance
-- **`resources/`** - Additional project resources
-
 ## Project Structure
 
 ```text
-E80_pm_mockup/
+/
 ├── docs/                    # Project documentation
 │   ├── prd.md              # Product Requirements Document
 │   ├── plan.md             # Project plan and roadmap
 │   ├── data_model.md       # Data model documentation
 │   └── project_status.md   # Current project status
-├── prompts/                 # Development prompts
-├── resources/              # Project resources
 ├── frontend/              # Frontend app
 ├── backend/              # Backend app
 └── README.md               # This file
