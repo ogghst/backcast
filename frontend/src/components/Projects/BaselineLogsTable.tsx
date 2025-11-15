@@ -9,6 +9,7 @@ import AddBaselineLog from "@/components/Projects/AddBaselineLog"
 import CancelBaselineLog from "@/components/Projects/CancelBaselineLog"
 import EditBaselineLog from "@/components/Projects/EditBaselineLog"
 import ViewBaseline from "@/components/Projects/ViewBaseline"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 
 interface BaselineLogsTableProps {
   projectId: string
@@ -38,6 +39,7 @@ const MILESTONE_TYPE_LABELS: Record<string, string> = {
 }
 
 function BaselineLogsTable({ projectId }: BaselineLogsTableProps) {
+  const { controlDate } = useTimeMachine()
   // Column definitions for Baseline Logs table
   const baselineLogsColumns: ColumnDefExtended<BaselineLogPublic>[] = [
     {
@@ -193,7 +195,7 @@ function BaselineLogsTable({ projectId }: BaselineLogsTableProps) {
         projectId,
         excludeCancelled: false, // Show all by default, user can filter
       }),
-    queryKey: ["baseline-logs", { projectId }],
+    queryKey: ["baseline-logs", { projectId }, controlDate],
   })
 
   const baselineList = baselines ?? []

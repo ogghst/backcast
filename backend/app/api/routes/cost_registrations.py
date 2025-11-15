@@ -3,13 +3,17 @@
 import uuid
 from datetime import date
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlmodel import Session, func, select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import (
+    CurrentUser,
+    SessionDep,
+    get_time_machine_control_date,
+)
 from app.models import (
     CostElement,
     CostElementSchedule,
@@ -149,6 +153,7 @@ def validate_registration_date(
 def read_cost_registrations(
     session: SessionDep,
     _current_user: CurrentUser,
+    control_date: Annotated[date, Depends(get_time_machine_control_date)],
     cost_element_id: uuid.UUID | None = Query(
         default=None, description="Filter by cost element ID"
     ),
@@ -159,8 +164,20 @@ def read_cost_registrations(
     Retrieve cost registrations.
     Optionally filter by cost_element_id.
     """
-    statement = select(CostRegistration)
-    count_statement = select(func.count()).select_from(CostRegistration)
+    statement = (
+        select(CostRegistration)
+        .where(CostRegistration.registration_date <= control_date)
+        .order_by(
+            CostRegistration.registration_date.desc(),
+            CostRegistration.created_at.desc(),
+            CostRegistration.cost_registration_id.desc(),
+        )
+    )
+    count_statement = (
+        select(func.count())
+        .select_from(CostRegistration)
+        .where(CostRegistration.registration_date <= control_date)
+    )
 
     if cost_element_id:
         statement = statement.where(CostRegistration.cost_element_id == cost_element_id)

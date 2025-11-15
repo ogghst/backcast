@@ -24,6 +24,7 @@ import CostRegistrationsTable from "@/components/Projects/CostRegistrationsTable
 import CostSummary from "@/components/Projects/CostSummary"
 import EarnedValueEntriesTable from "@/components/Projects/EarnedValueEntriesTable"
 import EarnedValueSummary from "@/components/Projects/EarnedValueSummary"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 
 const COST_ELEMENT_VIEW_OPTIONS = [
   "info",
@@ -42,24 +43,42 @@ const costElementDetailSearchSchema = z.object({
   view: z.enum(COST_ELEMENT_VIEW_OPTIONS).catch(DEFAULT_COST_ELEMENT_VIEW),
 })
 
-function getProjectQueryOptions({ id }: { id: string }) {
+function getProjectQueryOptions({
+  id,
+  controlDate,
+}: {
+  id: string
+  controlDate: string
+}) {
   return {
     queryFn: () => ProjectsService.readProject({ id }),
-    queryKey: ["projects", id],
+    queryKey: ["projects", id, controlDate],
   }
 }
 
-function getWBEQueryOptions({ id }: { id: string }) {
+function getWBEQueryOptions({
+  id,
+  controlDate,
+}: {
+  id: string
+  controlDate: string
+}) {
   return {
     queryFn: () => WbesService.readWbe({ id }),
-    queryKey: ["wbes", id],
+    queryKey: ["wbes", id, controlDate],
   }
 }
 
-function getCostElementQueryOptions({ id }: { id: string }) {
+function getCostElementQueryOptions({
+  id,
+  controlDate,
+}: {
+  id: string
+  controlDate: string
+}) {
   return {
     queryFn: () => CostElementsService.readCostElement({ id }),
-    queryKey: ["cost-elements", id],
+    queryKey: ["cost-elements", id, controlDate],
   }
 }
 
@@ -82,17 +101,18 @@ function CostElementDetail() {
   const { id: projectId, wbeId, costElementId } = Route.useParams()
   const navigate = useNavigate({ from: Route.fullPath })
   const { view } = Route.useSearch()
+  const { controlDate } = useTimeMachine()
 
   const { data: project, isLoading: isLoadingProject } = useQuery({
-    ...getProjectQueryOptions({ id: projectId }),
+    ...getProjectQueryOptions({ id: projectId, controlDate }),
   })
 
   const { data: wbe, isLoading: isLoadingWBE } = useQuery({
-    ...getWBEQueryOptions({ id: wbeId }),
+    ...getWBEQueryOptions({ id: wbeId, controlDate }),
   })
 
   const { data: costElement, isLoading: isLoadingCostElement } = useQuery({
-    ...getCostElementQueryOptions({ id: costElementId }),
+    ...getCostElementQueryOptions({ id: costElementId, controlDate }),
   })
 
   // Fetch cost element with schedule for timeline
@@ -103,7 +123,12 @@ function CostElementDetail() {
           projectId: projectId,
           costElementIds: [costElementId],
         }),
-      queryKey: ["cost-elements-with-schedules", projectId, costElementId],
+      queryKey: [
+        "cost-elements-with-schedules",
+        projectId,
+        costElementId,
+        controlDate,
+      ],
       enabled: !!projectId && !!costElementId,
     })
 

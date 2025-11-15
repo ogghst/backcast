@@ -7,15 +7,22 @@ import type { CostElementWithSchedulePublic } from "@/client"
 import { BudgetTimelineService, ProjectsService } from "@/client"
 import BudgetTimeline from "@/components/Projects/BudgetTimeline"
 import BudgetTimelineFilter from "@/components/Projects/BudgetTimelineFilter"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 
 export const Route = createFileRoute("/_layout/projects/$id/budget-timeline")({
   component: BudgetTimelinePage,
 })
 
-function getProjectQueryOptions({ id }: { id: string }) {
+function getProjectQueryOptions({
+  id,
+  controlDate,
+}: {
+  id: string
+  controlDate: string
+}) {
   return {
     queryFn: () => ProjectsService.readProject({ id }),
-    queryKey: ["projects", id],
+    queryKey: ["projects", id, controlDate],
   }
 }
 
@@ -27,9 +34,10 @@ function BudgetTimelinePage() {
     costElementIds?: string[]
     costElementTypeIds?: string[]
   }>({})
+  const { controlDate } = useTimeMachine()
   // Fetch project data
   const { data: project, isLoading: isLoadingProject } = useQuery(
-    getProjectQueryOptions({ id: projectId }),
+    getProjectQueryOptions({ id: projectId, controlDate }),
   )
 
   // Fetch cost elements with schedules based on filter
@@ -60,6 +68,7 @@ function BudgetTimelinePage() {
       normalizedFilter.wbeIds,
       normalizedFilter.costElementIds,
       normalizedFilter.costElementTypeIds,
+      controlDate,
     ],
     enabled: !!projectId,
   })

@@ -8,6 +8,7 @@ import type { ColumnDefExtended } from "@/components/DataTable/types"
 import AddCostRegistration from "@/components/Projects/AddCostRegistration"
 import DeleteCostRegistration from "@/components/Projects/DeleteCostRegistration"
 import EditCostRegistration from "@/components/Projects/EditCostRegistration"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 
 interface CostRegistrationsTableProps {
   costElementId: string
@@ -116,6 +117,7 @@ function CostRegistrationsTable({
   costElementId,
 }: CostRegistrationsTableProps) {
   const [page, setPage] = useState(1)
+  const { controlDate } = useTimeMachine()
 
   const { data, isLoading } = useQuery({
     queryFn: () =>
@@ -124,7 +126,7 @@ function CostRegistrationsTable({
         skip: (page - 1) * PER_PAGE,
         limit: PER_PAGE,
       }),
-    queryKey: ["cost-registrations", { costElementId, page }],
+    queryKey: ["cost-registrations", { costElementId, page }, controlDate],
   })
 
   const costRegistrations = data?.data ?? []

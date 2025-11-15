@@ -33,6 +33,7 @@ import CostSummary from "@/components/Projects/CostSummary"
 import DeleteWBE from "@/components/Projects/DeleteWBE"
 import EarnedValueSummary from "@/components/Projects/EarnedValueSummary"
 import EditWBE from "@/components/Projects/EditWBE"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 
 const projectDetailSearchSchema = z.object({
   page: z.number().catch(1),
@@ -43,19 +44,27 @@ const projectDetailSearchSchema = z.object({
 
 const PER_PAGE = 10
 
-function getProjectQueryOptions({ id }: { id: string }) {
+function getProjectQueryOptions({
+  id,
+  controlDate,
+}: {
+  id: string
+  controlDate: string
+}) {
   return {
     queryFn: () => ProjectsService.readProject({ id }),
-    queryKey: ["projects", id],
+    queryKey: ["projects", id, controlDate],
   }
 }
 
 function getWBEsQueryOptions({
   projectId,
   page,
+  controlDate,
 }: {
   projectId: string
   page: number
+  controlDate: string
 }) {
   return {
     queryFn: () =>
@@ -64,7 +73,7 @@ function getWBEsQueryOptions({
         skip: (page - 1) * PER_PAGE,
         limit: PER_PAGE,
       }),
-    queryKey: ["wbes", { projectId: projectId, page }],
+    queryKey: ["wbes", { projectId: projectId, page }, controlDate],
   }
 }
 
@@ -160,9 +169,10 @@ const wbesColumns: ColumnDefExtended<WBEPublic>[] = [
 function WBEsTable({ projectId }: { projectId: string }) {
   const navigate = useNavigate({ from: Route.fullPath })
   const { page } = Route.useSearch()
+  const { controlDate } = useTimeMachine()
 
   const { data, isLoading } = useQuery({
-    ...getWBEsQueryOptions({ projectId, page }),
+    ...getWBEsQueryOptions({ projectId, page, controlDate }),
     placeholderData: (prevData) => prevData,
   })
 
@@ -226,9 +236,10 @@ function ProjectDetail() {
   const isBudgetTimelineRoute = location.includes("/budget-timeline")
 
   const { tab } = Route.useSearch()
+  const { controlDate } = useTimeMachine()
 
   const { data: project, isLoading: isLoadingProject } = useQuery({
-    ...getProjectQueryOptions({ id }),
+    ...getProjectQueryOptions({ id, controlDate }),
   })
 
   // Budget Timeline state - persists across tab switches
@@ -258,6 +269,7 @@ function ProjectDetail() {
         wbeIds: normalizedFilter.wbeIds,
         costElementIds: normalizedFilter.costElementIds,
         costElementTypeIds: normalizedFilter.costElementTypeIds,
+        // controlDate removed to match BudgetTimelineGetCostElementsWithSchedulesData type
       }),
     queryKey: [
       "cost-elements-with-schedules",
@@ -265,6 +277,7 @@ function ProjectDetail() {
       normalizedFilter.wbeIds,
       normalizedFilter.costElementIds,
       normalizedFilter.costElementTypeIds,
+      controlDate,
     ],
     enabled: !!id,
   })

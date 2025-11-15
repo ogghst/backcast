@@ -16,6 +16,7 @@ import {
   CostElementTypesService,
   WbesService,
 } from "@/client"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 
 export type FilterContext = "project" | "wbe" | "cost-element" | "standalone"
 
@@ -108,6 +109,7 @@ export default function BudgetTimelineFilter({
   const [isTypeSectionOpen, setIsTypeSectionOpen] = useState(false)
   const [isCostElementSectionOpen, setIsCostElementSectionOpen] =
     useState(false)
+  const { controlDate } = useTimeMachine()
 
   // Fetch WBEs for this project
   const { data: wbesData, isLoading: isLoadingWbes } = useQuery({
@@ -117,7 +119,7 @@ export default function BudgetTimelineFilter({
         skip: 0,
         limit: 1000, // Get all WBEs for the project
       }),
-    queryKey: ["wbes", { projectId }],
+    queryKey: ["wbes", { projectId }, controlDate],
     enabled: !!projectId,
   })
 
@@ -159,7 +161,11 @@ export default function BudgetTimelineFilter({
         }
         return Promise.resolve({ data: [], count: 0 })
       },
-      queryKey: ["cost-elements", { projectId, wbeIds: selectedWbeIds }],
+      queryKey: [
+        "cost-elements",
+        { projectId, wbeIds: selectedWbeIds },
+        controlDate,
+      ],
       enabled: !!projectId && (selectedWbeIds.length > 0 || !!wbesData),
     },
   )

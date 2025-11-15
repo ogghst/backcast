@@ -9,6 +9,7 @@ import type {
 import { BaselineLogsService } from "@/client"
 import { DataTable } from "@/components/DataTable/DataTable"
 import { buildBaselineEarnedValueColumns } from "@/components/Projects/earnedValueColumns"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 
 interface BaselineEarnedValueEntriesTableProps {
   projectId: string
@@ -22,6 +23,7 @@ export default function BaselineEarnedValueEntriesTable({
   baselineId,
 }: BaselineEarnedValueEntriesTableProps) {
   const [page, setPage] = useState(1)
+  const { controlDate } = useTimeMachine()
 
   const { data, isLoading } = useQuery<BaselineCostElementsPublic>({
     queryFn: () =>
@@ -34,6 +36,7 @@ export default function BaselineEarnedValueEntriesTable({
     queryKey: [
       "baseline-earned-value-snapshots",
       { projectId, baselineId, page },
+      controlDate,
     ],
     enabled: !!projectId && !!baselineId,
   })

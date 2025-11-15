@@ -37,6 +37,7 @@ import CostSummary from "@/components/Projects/CostSummary"
 import DeleteCostElement from "@/components/Projects/DeleteCostElement"
 import EarnedValueSummary from "@/components/Projects/EarnedValueSummary"
 import EditCostElement from "@/components/Projects/EditCostElement"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 import type { CostElementView } from "./projects.$id.wbes.$wbeId.cost-elements.$costElementId"
 
 const WBE_TAB_OPTIONS = [
@@ -57,26 +58,40 @@ const wbeDetailSearchSchema = z.object({
 const PER_PAGE = 10
 const COST_ELEMENT_DETAIL_DEFAULT_VIEW: CostElementView = "cost-registrations"
 
-function getProjectQueryOptions({ id }: { id: string }) {
+function getProjectQueryOptions({
+  id,
+  controlDate,
+}: {
+  id: string
+  controlDate: string
+}) {
   return {
     queryFn: () => ProjectsService.readProject({ id }),
-    queryKey: ["projects", id],
+    queryKey: ["projects", id, controlDate],
   }
 }
 
-function getWBEQueryOptions({ id }: { id: string }) {
+function getWBEQueryOptions({
+  id,
+  controlDate,
+}: {
+  id: string
+  controlDate: string
+}) {
   return {
     queryFn: () => WbesService.readWbe({ id }),
-    queryKey: ["wbes", id],
+    queryKey: ["wbes", id, controlDate],
   }
 }
 
 function getCostElementsQueryOptions({
   wbeId,
   page,
+  controlDate,
 }: {
   wbeId: string
   page: number
+  controlDate: string
 }) {
   return {
     queryFn: () =>
@@ -85,7 +100,7 @@ function getCostElementsQueryOptions({
         skip: (page - 1) * PER_PAGE,
         limit: PER_PAGE,
       }),
-    queryKey: ["cost-elements", { wbeId: wbeId, page }],
+    queryKey: ["cost-elements", { wbeId: wbeId, page }, controlDate],
   }
 }
 
@@ -176,9 +191,10 @@ const costElementsColumns: ColumnDefExtended<CostElementPublic>[] = [
 function CostElementsTable({ wbeId }: { wbeId: string }) {
   const navigate = useNavigate({ from: Route.fullPath })
   const { page } = Route.useSearch()
+  const { controlDate } = useTimeMachine()
 
   const { data, isLoading } = useQuery({
-    ...getCostElementsQueryOptions({ wbeId, page }),
+    ...getCostElementsQueryOptions({ wbeId, page, controlDate }),
     placeholderData: (prevData) => prevData,
   })
 
@@ -252,13 +268,14 @@ function WBEDetail() {
   const isCostElementRoute = location.includes("/cost-elements/")
 
   const { tab } = Route.useSearch()
+  const { controlDate } = useTimeMachine()
 
   const { data: project, isLoading: isLoadingProject } = useQuery({
-    ...getProjectQueryOptions({ id: projectId }),
+    ...getProjectQueryOptions({ id: projectId, controlDate }),
   })
 
   const { data: wbe, isLoading: isLoadingWBE } = useQuery({
-    ...getWBEQueryOptions({ id: wbeId }),
+    ...getWBEQueryOptions({ id: wbeId, controlDate }),
   })
 
   // Budget Timeline state - persists across tab switches
@@ -298,6 +315,7 @@ function WBEDetail() {
       normalizedFilter.wbeIds,
       normalizedFilter.costElementIds,
       normalizedFilter.costElementTypeIds,
+      controlDate,
     ],
     enabled: !!projectId && !!wbeId,
   })

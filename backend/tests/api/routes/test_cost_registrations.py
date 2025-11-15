@@ -9,6 +9,7 @@ from app.core.config import settings
 from tests.utils.cost_element import create_random_cost_element
 from tests.utils.cost_element_schedule import create_schedule_for_cost_element
 from tests.utils.cost_registration import create_random_cost_registration
+from tests.utils.user import set_time_machine_date
 
 
 def test_create_cost_registration(
@@ -143,13 +144,14 @@ def test_read_cost_registrations_list(
 
     response = client.get(
         f"{settings.API_V1_STR}/cost-registrations/",
+        params={"cost_element_id": str(cost_element.cost_element_id)},
         headers=superuser_token_headers,
     )
     assert response.status_code == 200
     content = response.json()
     assert "data" in content
     assert "count" in content
-    assert content["count"] >= 2
+    assert content["count"] == 2
 
     # Verify the created registrations are in the response
     registration_ids = [cr["cost_registration_id"] for cr in content["data"]]
@@ -188,6 +190,67 @@ def test_read_cost_registrations_filtered_by_cost_element(
     assert str(cr1.cost_registration_id) in registration_ids
     assert str(cr2.cost_registration_id) in registration_ids
     assert str(cr3.cost_registration_id) not in registration_ids
+
+
+def test_read_cost_registrations_respect_time_machine(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Time machine date should hide registrations after the control date."""
+    cost_element = create_random_cost_element(db)
+    control_date = date.today()
+    earlier = create_random_cost_registration(
+        db,
+        cost_element_id=cost_element.cost_element_id,
+        registration_date=control_date,
+    )
+    later = create_random_cost_registration(
+        db,
+        cost_element_id=cost_element.cost_element_id,
+        registration_date=control_date + timedelta(days=10),
+    )
+
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/cost-registrations/",
+        headers=superuser_token_headers,
+    )
+    assert response.status_code == 200
+    content = response.json()
+    ids = [item["cost_registration_id"] for item in content["data"]]
+    assert str(earlier.cost_registration_id) in ids
+    assert str(later.cost_registration_id) not in ids
+
+
+def test_read_cost_registrations_time_machine_future_includes(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Setting time machine to future date should include later registrations."""
+    cost_element = create_random_cost_element(db)
+    control_date = date.today()
+    future_date = control_date + timedelta(days=30)
+    earlier = create_random_cost_registration(
+        db,
+        cost_element_id=cost_element.cost_element_id,
+        registration_date=control_date,
+    )
+    later = create_random_cost_registration(
+        db,
+        cost_element_id=cost_element.cost_element_id,
+        registration_date=future_date,
+    )
+
+    set_time_machine_date(client, superuser_token_headers, future_date)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/cost-registrations/",
+        headers=superuser_token_headers,
+    )
+    assert response.status_code == 200
+    content = response.json()
+    ids = [item["cost_registration_id"] for item in content["data"]]
+    assert str(earlier.cost_registration_id) in ids
+    assert str(later.cost_registration_id) in ids
 
 
 def test_update_cost_registration(

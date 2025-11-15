@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from datetime import date
 from typing import Annotated
 
 import jwt
@@ -47,6 +48,15 @@ def get_current_user(session: SessionDep, token: TokenDep) -> User:
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+def get_time_machine_control_date(current_user: CurrentUser) -> date:
+    """Resolve the effective control date for the current request."""
+
+    return current_user.time_machine_date or date.today()
+
+
+TimeMachineControlDate = Annotated[date, Depends(get_time_machine_control_date)]
 
 
 def get_current_active_admin(current_user: CurrentUser) -> User:

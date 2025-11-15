@@ -14,6 +14,7 @@ import { FaExchangeAlt } from "react-icons/fa"
 import type { BaselineLogPublic, BaselineLogUpdate } from "@/client"
 import { BaselineLogsService } from "@/client"
 import type { ApiError } from "@/client/core/ApiError"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
 import {
@@ -59,10 +60,11 @@ const EditBaselineLog = ({ baseline, projectId }: EditBaselineLogProps) => {
   const [isOpen, setIsOpen] = useState(false)
   const queryClient = useQueryClient()
   const { showSuccessToast } = useCustomToast()
+  const { controlDate } = useTimeMachine()
 
   // Fetch latest baseline data when dialog opens
   const { data: latestBaseline, isLoading: isLoadingBaseline } = useQuery({
-    queryKey: ["baseline-logs", projectId, baseline.baseline_id],
+    queryKey: ["baseline-logs", projectId, baseline.baseline_id, controlDate],
     queryFn: () =>
       BaselineLogsService.readBaselineLog({
         projectId,
@@ -120,7 +122,9 @@ const EditBaselineLog = ({ baseline, projectId }: EditBaselineLogProps) => {
       handleError(err)
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["baseline-logs"] })
+      queryClient.invalidateQueries({
+        queryKey: ["baseline-logs", { projectId }, controlDate],
+      })
     },
   })
 

@@ -20,6 +20,7 @@ from app.models import (
     WBECreate,
 )
 from tests.utils.earned_value_entry import create_earned_value_entry
+from tests.utils.user import set_time_machine_date
 
 
 def _create_project_with_manager(db: Session) -> tuple[Project, uuid.UUID]:
@@ -295,13 +296,14 @@ def test_get_earned_value_for_cost_element(
     )
 
     control_date = date(2024, 2, 20)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
     response = client.get(
         (
             f"{settings.API_V1_STR}/projects/{project.project_id}"
             f"/earned-value/cost-elements/{cost_element.cost_element_id}"
         ),
         headers=superuser_token_headers,
-        params={"control_date": control_date.isoformat()},
     )
 
     assert response.status_code == 200
@@ -334,13 +336,14 @@ def test_get_earned_value_cost_element_no_entry_returns_zero(
     )
 
     control_date = date(2024, 2, 20)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
     response = client.get(
         (
             f"{settings.API_V1_STR}/projects/{project.project_id}"
             f"/earned-value/cost-elements/{cost_element.cost_element_id}"
         ),
         headers=superuser_token_headers,
-        params={"control_date": control_date.isoformat()},
     )
 
     assert response.status_code == 200
@@ -357,23 +360,24 @@ def test_get_earned_value_cost_element_not_found(
     project, _ = _create_project_with_manager(db)
 
     control_date = date(2024, 2, 20)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
     response = client.get(
         (
             f"{settings.API_V1_STR}/projects/{project.project_id}"
             f"/earned-value/cost-elements/{uuid.uuid4()}"
         ),
         headers=superuser_token_headers,
-        params={"control_date": control_date.isoformat()},
     )
 
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
 
 
-def test_get_earned_value_requires_control_date(
+def test_get_earned_value_cost_element_uses_time_machine(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
-    """Should return 422 if control_date is missing."""
+    """Should use stored time machine date when query param is omitted."""
     project, created_by_id = _create_project_with_manager(db)
     wbe = _create_wbe(db, project.project_id, Decimal("100000.00"))
     cet = _create_cost_element_type(db)
@@ -388,6 +392,17 @@ def test_get_earned_value_requires_control_date(
         revenue_plan=Decimal("120000.00"),
     )
 
+    control_date = date(2024, 2, 20)
+    create_earned_value_entry(
+        db,
+        cost_element_id=cost_element.cost_element_id,
+        completion_date=control_date,
+        percent_complete=Decimal("25.00"),
+        created_by_id=created_by_id,
+    )
+
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
     response = client.get(
         (
             f"{settings.API_V1_STR}/projects/{project.project_id}"
@@ -396,7 +411,11 @@ def test_get_earned_value_requires_control_date(
         headers=superuser_token_headers,
     )
 
-    assert response.status_code == 422
+    assert response.status_code == 200
+    data = response.json()
+    assert data["control_date"] == control_date.isoformat()
+    assert Decimal(data["earned_value"]) == Decimal("25000.00")
+    assert Decimal(data["percent_complete"]) == Decimal("0.2500")
 
 
 def test_get_earned_value_for_wbe(
@@ -443,13 +462,14 @@ def test_get_earned_value_for_wbe(
     )
 
     control_date = date(2024, 2, 20)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
     response = client.get(
         (
             f"{settings.API_V1_STR}/projects/{project.project_id}"
             f"/earned-value/wbes/{wbe.wbe_id}"
         ),
         headers=superuser_token_headers,
-        params={"control_date": control_date.isoformat()},
     )
 
     assert response.status_code == 200
@@ -485,13 +505,14 @@ def test_get_earned_value_wbe_no_entries_returns_zero(
     )
 
     control_date = date(2024, 2, 20)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
     response = client.get(
         (
             f"{settings.API_V1_STR}/projects/{project.project_id}"
             f"/earned-value/wbes/{wbe.wbe_id}"
         ),
         headers=superuser_token_headers,
-        params={"control_date": control_date.isoformat()},
     )
 
     assert response.status_code == 200
@@ -508,13 +529,14 @@ def test_get_earned_value_wbe_not_found(
     project, _ = _create_project_with_manager(db)
 
     control_date = date(2024, 2, 20)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
     response = client.get(
         (
             f"{settings.API_V1_STR}/projects/{project.project_id}"
             f"/earned-value/wbes/{uuid.uuid4()}"
         ),
         headers=superuser_token_headers,
-        params={"control_date": control_date.isoformat()},
     )
 
     assert response.status_code == 404
@@ -567,10 +589,11 @@ def test_get_earned_value_for_project(
     )
 
     control_date = date(2024, 2, 20)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
     response = client.get(
         f"{settings.API_V1_STR}/projects/{project.project_id}/earned-value",
         headers=superuser_token_headers,
-        params={"control_date": control_date.isoformat()},
     )
 
     assert response.status_code == 200
@@ -608,10 +631,11 @@ def test_get_earned_value_project_no_entries_returns_zero(
     )
 
     control_date = date(2024, 2, 20)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
     response = client.get(
         f"{settings.API_V1_STR}/projects/{project.project_id}/earned-value",
         headers=superuser_token_headers,
-        params={"control_date": control_date.isoformat()},
     )
 
     assert response.status_code == 200
@@ -628,10 +652,11 @@ def test_get_earned_value_project_not_found(
 ) -> None:
     """Should return 404 if project not found."""
     control_date = date(2024, 2, 20)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
     response = client.get(
         f"{settings.API_V1_STR}/projects/{uuid.uuid4()}/earned-value",
         headers=superuser_token_headers,
-        params={"control_date": control_date.isoformat()},
     )
 
     assert response.status_code == 404

@@ -1,4 +1,5 @@
 import uuid
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi.testclient import TestClient
@@ -16,14 +17,13 @@ from app.models import (
     WBECreate,
 )
 from tests.utils.cost_element_type import create_random_cost_element_type
+from tests.utils.user import set_time_machine_date
 
 
 def test_get_project_budget_summary(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
     """Test getting project-level budget summary with WBEs and cost elements."""
-    from datetime import date, timedelta
-
     # Create project manager user
     email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
     password = "testpassword123"
@@ -142,12 +142,127 @@ def test_get_project_budget_summary(
     )  # (100000 / 100000) * 100
 
 
+def test_project_budget_summary_respects_control_date(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Ensure only WBEs and cost elements created on/before control date are included."""
+    # Create project manager user
+    email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
+    password = "testpassword123"
+    user_in = UserCreate(email=email, password=password)
+    pm_user = crud.create_user(session=db, user_create=user_in)
+
+    project_in = ProjectCreate(
+        project_name="Time Machine Project",
+        customer_name="Test Customer",
+        contract_value=Decimal("150000.00"),
+        start_date=date(2024, 1, 1),
+        planned_completion_date=date(2024, 12, 31),
+        project_manager_id=pm_user.id,
+        status="active",
+    )
+    project = Project.model_validate(project_in)
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+
+    control_date = date(2024, 2, 15)
+    early_dt = datetime(2024, 1, 10, tzinfo=timezone.utc)
+    late_dt = datetime(2024, 3, 15, tzinfo=timezone.utc)
+
+    # Create WBEs with different created_at timestamps
+    wbe1 = WBE.model_validate(
+        WBECreate(
+            project_id=project.project_id,
+            machine_type="Early Machine",
+            revenue_allocation=Decimal("80000.00"),
+            status="designing",
+        )
+    )
+    wbe1.created_at = early_dt
+    db.add(wbe1)
+
+    wbe2 = WBE.model_validate(
+        WBECreate(
+            project_id=project.project_id,
+            machine_type="Late Machine",
+            revenue_allocation=Decimal("70000.00"),
+            status="designing",
+        )
+    )
+    wbe2.created_at = late_dt
+    db.add(wbe2)
+    db.commit()
+    db.refresh(wbe1)
+    db.refresh(wbe2)
+
+    cost_element_type = create_random_cost_element_type(db)
+
+    # Early cost elements (should be counted)
+    ce1 = CostElement.model_validate(
+        CostElementCreate(
+            wbe_id=wbe1.wbe_id,
+            cost_element_type_id=cost_element_type.cost_element_type_id,
+            department_code="ENG",
+            department_name="Engineering",
+            budget_bac=Decimal("30000.00"),
+            revenue_plan=Decimal("35000.00"),
+            status="active",
+        )
+    )
+    ce1.created_at = early_dt
+    db.add(ce1)
+
+    ce2 = CostElement.model_validate(
+        CostElementCreate(
+            wbe_id=wbe1.wbe_id,
+            cost_element_type_id=cost_element_type.cost_element_type_id,
+            department_code="PROC",
+            department_name="Procurement",
+            budget_bac=Decimal("10000.00"),
+            revenue_plan=Decimal("12000.00"),
+            status="active",
+        )
+    )
+    ce2.created_at = early_dt + timedelta(days=1)
+    db.add(ce2)
+
+    # Late cost element (should be excluded)
+    ce3 = CostElement.model_validate(
+        CostElementCreate(
+            wbe_id=wbe2.wbe_id,
+            cost_element_type_id=cost_element_type.cost_element_type_id,
+            department_code="MFG",
+            department_name="Manufacturing",
+            budget_bac=Decimal("20000.00"),
+            revenue_plan=Decimal("25000.00"),
+            status="active",
+        )
+    )
+    ce3.created_at = late_dt
+    db.add(ce3)
+    db.commit()
+
+    # Set control date for the authenticated user
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/budget-summary/project/{project.project_id}",
+        headers=superuser_token_headers,
+    )
+    assert response.status_code == 200
+    content = response.json()
+
+    # Only early WBE and cost elements should be included
+    assert float(content["total_revenue_allocated"]) == 80000.00
+    assert float(content["total_budget_bac"]) == 40000.00  # 30k + 10k
+    assert float(content["total_revenue_plan"]) == 47000.00  # 35k + 12k
+
+
 def test_get_project_budget_summary_empty_project(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
     """Test getting project-level budget summary for project with no WBEs."""
-    from datetime import date, timedelta
-
     # Create project manager user
     email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
     password = "testpassword123"
@@ -208,8 +323,6 @@ def test_get_wbe_budget_summary(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
     """Test getting WBE-level budget summary with cost elements."""
-    from datetime import date, timedelta
-
     # Create project manager user
     email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
     password = "testpassword123"

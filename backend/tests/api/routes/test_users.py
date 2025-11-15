@@ -1,4 +1,5 @@
 import uuid
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -20,6 +21,8 @@ def test_get_users_superuser_me(
     assert current_user["is_active"] is True
     assert current_user["role"] == UserRole.admin.value
     assert current_user["email"] == settings.FIRST_SUPERUSER
+    assert "time_machine_date" in current_user
+    assert current_user["time_machine_date"] is None
 
 
 def test_get_users_normal_user_me(
@@ -31,6 +34,45 @@ def test_get_users_normal_user_me(
     assert current_user["is_active"] is True
     assert current_user["role"] == UserRole.controller.value  # Default role
     assert current_user["email"] == settings.EMAIL_TEST_USER
+    assert "time_machine_date" in current_user
+    assert current_user["time_machine_date"] is None
+
+
+def test_time_machine_me_defaults_to_today(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+) -> None:
+    response = client.get(
+        f"{settings.API_V1_STR}/users/me/time-machine",
+        headers=superuser_token_headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "time_machine_date" in data
+    assert data["time_machine_date"] == date.today().isoformat()
+
+
+def test_time_machine_me_update_and_persist(
+    client: TestClient,
+    superuser_token_headers: dict[str, str],
+) -> None:
+    new_date = date.today() - timedelta(days=30)
+    response = client.put(
+        f"{settings.API_V1_STR}/users/me/time-machine",
+        headers=superuser_token_headers,
+        json={"time_machine_date": new_date.isoformat()},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["time_machine_date"] == new_date.isoformat()
+
+    verify = client.get(
+        f"{settings.API_V1_STR}/users/me/time-machine",
+        headers=superuser_token_headers,
+    )
+    assert verify.status_code == 200
+    verify_data = verify.json()
+    assert verify_data["time_machine_date"] == new_date.isoformat()
 
 
 def test_create_user_new_email(

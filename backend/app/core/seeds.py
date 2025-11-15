@@ -2,7 +2,7 @@
 
 import json
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -33,6 +33,35 @@ from app.models import (
     User,
     WBECreate,
 )
+
+
+def _parse_iso_datetime(raw_value: str | None) -> datetime | None:
+    """Parse ISO-8601 strings (with optional trailing Z) into aware datetimes."""
+    if not raw_value:
+        return None
+    normalized = (
+        raw_value.replace("Z", "+00:00") if raw_value.endswith("Z") else raw_value
+    )
+    try:
+        return datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+
+
+def _apply_timestamps(
+    instance: object,
+    created_at_str: str | None,
+    updated_at_str: str | None,
+    updated_field: str = "updated_at",
+) -> None:
+    """Assign created/updated timestamps to SQLModel instances if provided."""
+    created_at_value = _parse_iso_datetime(created_at_str)
+    if created_at_value is not None and hasattr(instance, "created_at"):
+        instance.created_at = created_at_value
+
+    updated_at_value = _parse_iso_datetime(updated_at_str)
+    if updated_at_value is not None and hasattr(instance, updated_field):
+        setattr(instance, updated_field, updated_at_value)
 
 
 def _seed_cost_element_types(session: Session) -> None:
@@ -155,7 +184,11 @@ def _seed_project_from_template(session: Session) -> None:
     if "project" in template_data and "wbes" in template_data:
         # Single project format
         projects_data = [
-            {"project": template_data["project"], "wbes": template_data["wbes"]}
+            {
+                "project": template_data["project"],
+                "wbes": template_data["wbes"],
+                "earned_value_entries": template_data.get("earned_value_entries", []),
+            }
         ]
     elif isinstance(template_data, list):
         # Multiple projects format
@@ -166,13 +199,18 @@ def _seed_project_from_template(session: Session) -> None:
 
     # Process each project entry
     for project_entry in projects_data:
-        project_data = project_entry.get("project")
-        if not project_data:
+        project_data_raw = project_entry.get("project")
+        if not project_data_raw:
             continue
 
+        project_data = project_data_raw.copy()
+        project_created_at_str = project_data.pop("created_at", None)
+        project_updated_at_str = project_data.pop("updated_at", None)
         project_code = project_data.get("project_code")
         if not project_code:
             continue  # Cannot seed project without project_code
+
+        project_data["project_name"] = project_code
 
         # Check if project already exists
         existing_project = session.exec(
@@ -194,7 +232,7 @@ def _seed_project_from_template(session: Session) -> None:
 
         if existing_project:
             # Update existing project
-            project_data_for_update = dict(project_data.items())
+            project_data_for_update = project_data.copy()
             project_data_for_update["project_manager_id"] = project_manager_id
             for key, value in project_data_for_update.items():
                 if hasattr(existing_project, key):
@@ -202,11 +240,21 @@ def _seed_project_from_template(session: Session) -> None:
             session.add(existing_project)
             session.flush()
             project = existing_project
+            _apply_timestamps(
+                project,
+                created_at_str=project_created_at_str,
+                updated_at_str=project_updated_at_str,
+            )
         else:
             # Create new project
             project_data["project_manager_id"] = project_manager_id
             project_create = ProjectCreate(**project_data)
             project = Project.model_validate(project_create)
+            _apply_timestamps(
+                project,
+                created_at_str=project_created_at_str,
+                updated_at_str=project_updated_at_str,
+            )
             session.add(project)
             session.flush()  # Get project_id without committing
 
@@ -295,9 +343,16 @@ def _seed_project_from_template(session: Session) -> None:
         # Create WBEs and cost elements
         for wbe_item in project_entry.get("wbes", []):
             wbe_data = wbe_item["wbe"].copy()
+            wbe_created_at_str = wbe_data.pop("created_at", None)
+            wbe_updated_at_str = wbe_data.pop("updated_at", None)
             wbe_data["project_id"] = project.project_id
             wbe_create = WBECreate(**wbe_data)
             wbe = WBE.model_validate(wbe_create)
+            _apply_timestamps(
+                wbe,
+                created_at_str=wbe_created_at_str,
+                updated_at_str=wbe_updated_at_str,
+            )
             session.add(wbe)
             session.flush()  # Get wbe_id without committing
 
@@ -319,10 +374,17 @@ def _seed_project_from_template(session: Session) -> None:
                     continue  # Skip if cost element type doesn't exist
 
                 ce_data_with_wbe = ce_data.copy()
+                ce_created_at_str = ce_data_with_wbe.pop("created_at", None)
+                ce_updated_at_str = ce_data_with_wbe.pop("updated_at", None)
                 ce_data_with_wbe["wbe_id"] = wbe.wbe_id
                 ce_data_with_wbe["cost_element_type_id"] = cost_element_type_id
                 ce_create = CostElementCreate(**ce_data_with_wbe)
                 ce = CostElement.model_validate(ce_create)
+                _apply_timestamps(
+                    ce,
+                    created_at_str=ce_created_at_str,
+                    updated_at_str=ce_updated_at_str,
+                )
                 session.add(ce)
                 session.flush()  # Get cost_element_id without committing
 
@@ -343,7 +405,9 @@ def _seed_project_from_template(session: Session) -> None:
 
                 # Create schedule for this cost element
                 # Use schedule data from JSON if available, otherwise use project dates
-                schedule_info = ce_data.get("schedule", {})
+                schedule_info = ce_data.get("schedule", {}).copy()
+                schedule_created_at_str = schedule_info.pop("created_at", None)
+                schedule_updated_at_str = schedule_info.pop("updated_at", None)
                 if schedule_info:
                     # Schedule data explicitly provided in JSON
                     schedule_start = date.fromisoformat(schedule_info["start_date"])
@@ -368,6 +432,11 @@ def _seed_project_from_template(session: Session) -> None:
                     created_by_id=first_superuser.id,
                 )
                 schedule = CostElementSchedule.model_validate(schedule_data)
+                _apply_timestamps(
+                    schedule,
+                    created_at_str=schedule_created_at_str,
+                    updated_at_str=schedule_updated_at_str,
+                )
                 session.add(schedule)
 
                 # Create cost registrations if provided in seed data
@@ -381,6 +450,9 @@ def _seed_project_from_template(session: Session) -> None:
                         amount = Decimal(str(amount))
                     else:
                         amount = Decimal("0.00")
+
+                    cr_created_at_str = cr_data.get("created_at")
+                    cr_last_modified_str = cr_data.get("last_modified_at")
 
                     cost_registration_data = CostRegistrationCreate(
                         cost_element_id=ce.cost_element_id,
@@ -397,6 +469,12 @@ def _seed_project_from_template(session: Session) -> None:
                     cr_model_data = cost_registration_data.model_dump()
                     cr_model_data["created_by_id"] = first_superuser.id
                     cost_registration = CostRegistration.model_validate(cr_model_data)
+                    _apply_timestamps(
+                        cost_registration,
+                        created_at_str=cr_created_at_str,
+                        updated_at_str=cr_last_modified_str,
+                        updated_field="last_modified_at",
+                    )
                     session.add(cost_registration)
 
                 # Create earned value entries if provided in seed data
@@ -408,6 +486,8 @@ def _seed_project_from_template(session: Session) -> None:
                     )
 
                 for ev_data in earned_value_entries_data:
+                    ev_created_at_str = ev_data.get("created_at")
+                    ev_last_modified_str = ev_data.get("last_modified_at")
                     percent_complete_raw = ev_data.get("percent_complete", 0.0)
                     if isinstance(percent_complete_raw, Decimal):
                         percent_complete = percent_complete_raw
@@ -437,6 +517,12 @@ def _seed_project_from_template(session: Session) -> None:
                     ev_model_data = earned_value_entry_data.model_dump()
                     ev_model_data["created_by_id"] = first_superuser.id
                     earned_value_entry = EarnedValueEntry.model_validate(ev_model_data)
+                    _apply_timestamps(
+                        earned_value_entry,
+                        created_at_str=ev_created_at_str,
+                        updated_at_str=ev_last_modified_str,
+                        updated_field="last_modified_at",
+                    )
                     session.add(earned_value_entry)
 
     session.commit()

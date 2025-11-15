@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
@@ -25,6 +27,25 @@ def create_random_user(db: Session) -> User:
     user_in = UserCreate(email=email, password=password)
     user = crud.create_user(session=db, user_create=user_in)
     return user
+
+
+def set_time_machine_date(
+    client: TestClient,
+    headers: dict[str, str],
+    target_date: date | None,
+) -> None:
+    """Helper to set or clear the current user's time-machine date via API."""
+    payload = (
+        {"time_machine_date": target_date.isoformat()}
+        if target_date is not None
+        else {"time_machine_date": None}
+    )
+    response = client.put(
+        f"{settings.API_V1_STR}/users/me/time-machine",
+        headers=headers,
+        json=payload,
+    )
+    assert response.status_code == 200
 
 
 def authentication_token_from_email(

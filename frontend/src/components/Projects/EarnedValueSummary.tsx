@@ -13,13 +13,13 @@ import {
   EarnedValueService,
   type EarnedValueWBEPublic,
 } from "@/client"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 
 interface EarnedValueSummaryProps {
   level: "project" | "wbe" | "cost-element"
   projectId?: string
   wbeId?: string
   costElementId?: string
-  controlDate?: string // ISO date string, defaults to today
 }
 
 export default function EarnedValueSummary({
@@ -27,17 +27,14 @@ export default function EarnedValueSummary({
   projectId,
   wbeId,
   costElementId,
-  controlDate,
 }: EarnedValueSummaryProps) {
-  // Default to today if no control date provided
-  const effectiveControlDate =
-    controlDate || new Date().toISOString().split("T")[0]
+  const { controlDate } = useTimeMachine()
 
   const queryKey = [
     "earned-value",
     level,
     level === "project" ? projectId : level === "wbe" ? wbeId : costElementId,
-    effectiveControlDate,
+    controlDate,
   ]
 
   const { data: earnedValue, isLoading } = useQuery<
@@ -50,21 +47,18 @@ export default function EarnedValueSummary({
       if (level === "project" && projectId) {
         return EarnedValueService.getProjectEarnedValue({
           projectId: projectId,
-          controlDate: effectiveControlDate,
         })
       }
       if (level === "wbe" && wbeId && projectId) {
         return EarnedValueService.getWbeEarnedValue({
           projectId: projectId,
           wbeId: wbeId,
-          controlDate: effectiveControlDate,
         })
       }
       if (level === "cost-element" && costElementId && projectId) {
         return EarnedValueService.getCostElementEarnedValue({
           projectId: projectId,
           costElementId: costElementId,
-          controlDate: effectiveControlDate,
         })
       }
       throw new Error(
@@ -148,7 +142,7 @@ export default function EarnedValueSummary({
         Earned Value Summary
       </Heading>
       <Text fontSize="sm" color="gray.600" mb={4}>
-        Control Date: {new Date(effectiveControlDate).toLocaleDateString()}
+        Control Date: {new Date(controlDate).toLocaleDateString()}
       </Text>
       <Grid
         templateColumns={{

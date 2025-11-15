@@ -1,6 +1,7 @@
 import uuid
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
@@ -8,7 +9,28 @@ from app.core.config import settings
 from app.models import BudgetAllocation
 from tests.utils.cost_element import create_random_cost_element
 from tests.utils.cost_element_type import create_random_cost_element_type
+from tests.utils.user import set_time_machine_date
 from tests.utils.wbe import create_random_wbe
+
+
+def _set_cost_element_created_at(db: Session, ce, target_date: date) -> None:
+    ce.created_at = datetime(
+        target_date.year,
+        target_date.month,
+        target_date.day,
+        tzinfo=timezone.utc,
+    )
+    db.add(ce)
+    db.commit()
+    db.refresh(ce)
+
+
+@pytest.fixture(autouse=True)
+def reset_time_machine(
+    client: TestClient, superuser_token_headers: dict[str, str]
+) -> None:
+    """Ensure each test starts with default time-machine date."""
+    set_time_machine_date(client, superuser_token_headers, None)
 
 
 def test_create_cost_element(
@@ -119,6 +141,23 @@ def test_read_cost_element_not_found(
     assert content["detail"] == "Cost element not found"
 
 
+def test_read_cost_element_hidden_after_control_date(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Cost element created after control date should return 404."""
+    cost_element = create_random_cost_element(db)
+    future_date = date.today() + timedelta(days=45)
+    _set_cost_element_created_at(db, cost_element, future_date)
+
+    set_time_machine_date(client, superuser_token_headers, date.today())
+
+    response = client.get(
+        f"{settings.API_V1_STR}/cost-elements/{cost_element.cost_element_id}",
+        headers=superuser_token_headers,
+    )
+    assert response.status_code == 404
+
+
 def test_read_cost_elements_list_all(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
@@ -159,6 +198,32 @@ def test_read_cost_elements_filtered_by_wbe(
     # All results should belong to the requested WBE
     for ce in content["data"]:
         assert ce["wbe_id"] == str(wbe.wbe_id)
+
+
+def test_read_cost_elements_respects_time_machine(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Cost elements created after control date should be hidden."""
+    wbe = create_random_wbe(db)
+    past_date = date.today() - timedelta(days=60)
+    future_date = date.today() + timedelta(days=15)
+
+    visible = create_random_cost_element(db, wbe.wbe_id)
+    future = create_random_cost_element(db, wbe.wbe_id)
+    _set_cost_element_created_at(db, visible, past_date)
+    _set_cost_element_created_at(db, future, future_date)
+
+    set_time_machine_date(client, superuser_token_headers, past_date)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/cost-elements/?wbe_id={wbe.wbe_id}",
+        headers=superuser_token_headers,
+    )
+    assert response.status_code == 200
+    content = response.json()
+    ids = {item["cost_element_id"] for item in content["data"]}
+    assert str(visible.cost_element_id) in ids
+    assert str(future.cost_element_id) not in ids
 
 
 def test_update_cost_element(

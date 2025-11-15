@@ -1,12 +1,13 @@
 """Budget Timeline API routes."""
 
 import uuid
+from datetime import date, datetime, time, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, TimeMachineControlDate
 from app.models import (
     WBE,
     CostElement,
@@ -20,6 +21,11 @@ from app.models.cost_element_schedule import CostElementSchedulePublic
 router = APIRouter(prefix="/projects", tags=["budget-timeline"])
 
 
+def _end_of_day(control_date: date) -> datetime:
+    """Return timezone-aware datetime representing end of control date."""
+    return datetime.combine(control_date, time.max, tzinfo=timezone.utc)
+
+
 @router.get(
     "/{project_id}/cost-elements-with-schedules",
     response_model=list[CostElementWithSchedulePublic],
@@ -28,6 +34,7 @@ def get_cost_elements_with_schedules(
     session: SessionDep,
     _current_user: CurrentUser,
     project_id: uuid.UUID,
+    control_date: TimeMachineControlDate,
     wbe_ids: list[uuid.UUID] | None = Query(
         default=None, description="Filter by WBE IDs"
     ),
@@ -50,7 +57,10 @@ def get_cost_elements_with_schedules(
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Get all WBEs for this project
-    wbes_statement = select(WBE).where(WBE.project_id == project_id)
+    wbes_statement = select(WBE).where(
+        WBE.project_id == project_id,
+        WBE.created_at <= _end_of_day(control_date),
+    )
     wbes = session.exec(wbes_statement).all()
     wbe_ids_from_project = [wbe.wbe_id for wbe in wbes]
 
@@ -58,7 +68,10 @@ def get_cost_elements_with_schedules(
         return []
 
     # Build base query for cost elements in project WBEs
-    statement = select(CostElement).where(CostElement.wbe_id.in_(wbe_ids_from_project))
+    statement = select(CostElement).where(
+        CostElement.wbe_id.in_(wbe_ids_from_project),
+        CostElement.created_at <= _end_of_day(control_date),
+    )
 
     # Apply filters
     if wbe_ids:
@@ -85,8 +98,16 @@ def get_cost_elements_with_schedules(
     result = []
     for ce in cost_elements:
         # Get schedule for this cost element
-        schedule_statement = select(CostElementSchedule).where(
-            CostElementSchedule.cost_element_id == ce.cost_element_id
+        schedule_statement = (
+            select(CostElementSchedule)
+            .where(
+                CostElementSchedule.cost_element_id == ce.cost_element_id,
+                CostElementSchedule.registration_date <= control_date,
+            )
+            .order_by(
+                CostElementSchedule.registration_date.desc(),
+                CostElementSchedule.created_at.desc(),
+            )
         )
         schedule = session.exec(schedule_statement).first()
 

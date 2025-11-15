@@ -1,19 +1,28 @@
 import uuid
+from datetime import date, datetime, time, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, TimeMachineControlDate
 from app.models import WBE, CostElement, Project
 from app.models.budget_summary import BudgetSummaryPublic
 
 router = APIRouter(prefix="/budget-summary", tags=["budget-summary"])
 
 
+def _end_of_day(control_date: date) -> datetime:
+    """Return timezone-aware datetime representing the end of the control date."""
+    return datetime.combine(control_date, time.max, tzinfo=timezone.utc)
+
+
 @router.get("/project/{project_id}", response_model=BudgetSummaryPublic)
 def get_project_budget_summary(
-    session: SessionDep, _current_user: CurrentUser, project_id: uuid.UUID
+    session: SessionDep,
+    _current_user: CurrentUser,
+    project_id: uuid.UUID,
+    control_date: TimeMachineControlDate,
 ) -> Any:
     """
     Get budget summary for a project.
@@ -30,7 +39,12 @@ def get_project_budget_summary(
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Get all WBEs for this project
-    wbes = session.exec(select(WBE).where(WBE.project_id == project_id)).all()
+    wbes = session.exec(
+        select(WBE).where(
+            WBE.project_id == project_id,
+            WBE.created_at <= _end_of_day(control_date),
+        )
+    ).all()
 
     # Calculate total revenue allocated (sum of WBE revenue_allocation)
     total_revenue_allocated = sum(wbe.revenue_allocation for wbe in wbes)
@@ -39,7 +53,10 @@ def get_project_budget_summary(
     wbe_ids = [wbe.wbe_id for wbe in wbes]
     if wbe_ids:
         cost_elements = session.exec(
-            select(CostElement).where(CostElement.wbe_id.in_(wbe_ids))
+            select(CostElement).where(
+                CostElement.wbe_id.in_(wbe_ids),
+                CostElement.created_at <= _end_of_day(control_date),
+            )
         ).all()
     else:
         cost_elements = []
@@ -63,7 +80,10 @@ def get_project_budget_summary(
 
 @router.get("/wbe/{wbe_id}", response_model=BudgetSummaryPublic)
 def get_wbe_budget_summary(
-    session: SessionDep, _current_user: CurrentUser, wbe_id: uuid.UUID
+    session: SessionDep,
+    _current_user: CurrentUser,
+    wbe_id: uuid.UUID,
+    control_date: TimeMachineControlDate,
 ) -> Any:
     """
     Get budget summary for a WBE.
@@ -78,10 +98,15 @@ def get_wbe_budget_summary(
     wbe = session.get(WBE, wbe_id)
     if not wbe:
         raise HTTPException(status_code=404, detail="WBE not found")
+    if wbe.created_at > _end_of_day(control_date):
+        raise HTTPException(status_code=404, detail="WBE not found")
 
     # Get all cost elements for this WBE
     cost_elements = session.exec(
-        select(CostElement).where(CostElement.wbe_id == wbe_id)
+        select(CostElement).where(
+            CostElement.wbe_id == wbe_id,
+            CostElement.created_at <= _end_of_day(control_date),
+        )
     ).all()
 
     # Calculate totals from cost elements

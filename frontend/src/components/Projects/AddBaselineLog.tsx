@@ -14,6 +14,7 @@ import { FaPlus } from "react-icons/fa"
 import type { BaselineLogBase } from "@/client"
 import { BaselineLogsService } from "@/client"
 import type { ApiError } from "@/client/core/ApiError"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
 import {
@@ -57,6 +58,7 @@ const MILESTONE_TYPES = [
 const AddBaselineLog = ({ projectId }: AddBaselineLogProps) => {
   const [isOpen, setIsOpen] = useState(false)
   const queryClient = useQueryClient()
+  const { controlDate } = useTimeMachine()
   const { showSuccessToast } = useCustomToast()
   const {
     control,
@@ -91,7 +93,9 @@ const AddBaselineLog = ({ projectId }: AddBaselineLogProps) => {
       handleError(err)
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["baseline-logs"] })
+      queryClient.invalidateQueries({
+        queryKey: ["baseline-logs", { projectId }, controlDate],
+      })
     },
   })
 

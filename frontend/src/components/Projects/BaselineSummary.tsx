@@ -9,6 +9,7 @@ import {
 import { useQuery } from "@tanstack/react-query"
 import type { BaselineSummaryPublic } from "@/client"
 import { BaselineLogsService } from "@/client"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 
 interface BaselineSummaryProps {
   projectId: string
@@ -19,7 +20,13 @@ export default function BaselineSummary({
   projectId,
   baselineId,
 }: BaselineSummaryProps) {
-  const queryKey = ["baseline-snapshot-summary", projectId, baselineId]
+  const { controlDate } = useTimeMachine()
+  const queryKey = [
+    "baseline-snapshot-summary",
+    projectId,
+    baselineId,
+    controlDate,
+  ]
 
   const { data: summary, isLoading } = useQuery<BaselineSummaryPublic>({
     queryKey,

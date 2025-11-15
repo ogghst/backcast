@@ -15,6 +15,7 @@ import {
   DialogRoot,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
 
@@ -31,6 +32,7 @@ const CancelBaselineLog = ({
 }: CancelBaselineLogProps) => {
   const [isOpen, setIsOpen] = useState(false)
   const queryClient = useQueryClient()
+  const { controlDate } = useTimeMachine()
   const { showSuccessToast } = useCustomToast()
   const {
     handleSubmit,
@@ -51,7 +53,9 @@ const CancelBaselineLog = ({
       handleError(err)
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ["baseline-logs"] })
+      queryClient.invalidateQueries({
+        queryKey: ["baseline-logs", { projectId }, controlDate],
+      })
     },
   })
 

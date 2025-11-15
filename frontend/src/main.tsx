@@ -9,6 +9,7 @@ import { StrictMode } from "react"
 import ReactDOM from "react-dom/client"
 import { ApiError, OpenAPI } from "./client"
 import { CustomProvider } from "./components/ui/provider"
+import { TimeMachineProvider } from "./context/TimeMachineContext"
 import { routeTree } from "./routeTree.gen"
 
 OpenAPI.BASE = import.meta.env.VITE_API_URL
@@ -42,7 +43,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <CustomProvider>
       <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
+        <TimeMachineProvider>
+          <RouterProvider router={router} />
+        </TimeMachineProvider>
       </QueryClientProvider>
     </CustomProvider>
   </StrictMode>,

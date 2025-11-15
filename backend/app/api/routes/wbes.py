@@ -1,11 +1,16 @@
 import uuid
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, func, select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import (
+    CurrentUser,
+    SessionDep,
+    get_time_machine_control_date,
+)
 from app.models import (
     WBE,
     CostElement,
@@ -65,10 +70,16 @@ def validate_revenue_allocation_against_project_limit(
         )
 
 
+def _end_of_day(control_date: date) -> datetime:
+    """Return a timezone-aware datetime representing the end of the given control date."""
+    return datetime.combine(control_date, time.max, tzinfo=timezone.utc)
+
+
 @router.get("/", response_model=WBEsPublic)
 def read_wbes(
     session: SessionDep,
     _current_user: CurrentUser,
+    control_date: Annotated[date, Depends(get_time_machine_control_date)],
     skip: int = 0,
     limit: int = 100,
     project_id: uuid.UUID | None = Query(
@@ -78,32 +89,55 @@ def read_wbes(
     """
     Retrieve WBEs.
     """
+    cutoff = _end_of_day(control_date)
+
     if project_id:
         # Filter by project
         count_statement = (
-            select(func.count()).select_from(WBE).where(WBE.project_id == project_id)
+            select(func.count())
+            .select_from(WBE)
+            .where(WBE.project_id == project_id)
+            .where(WBE.created_at <= cutoff)
         )
         count = session.exec(count_statement).one()
         statement = (
-            select(WBE).where(WBE.project_id == project_id).offset(skip).limit(limit)
+            select(WBE)
+            .where(WBE.project_id == project_id)
+            .where(WBE.created_at <= cutoff)
+            .order_by(WBE.created_at.asc(), WBE.wbe_id.asc())
+            .offset(skip)
+            .limit(limit)
         )
     else:
         # Get all
-        count_statement = select(func.count()).select_from(WBE)
+        count_statement = (
+            select(func.count()).select_from(WBE).where(WBE.created_at <= cutoff)
+        )
         count = session.exec(count_statement).one()
-        statement = select(WBE).offset(skip).limit(limit)
+        statement = (
+            select(WBE)
+            .where(WBE.created_at <= cutoff)
+            .order_by(WBE.created_at.asc(), WBE.wbe_id.asc())
+            .offset(skip)
+            .limit(limit)
+        )
 
     wbes = session.exec(statement).all()
     return WBEsPublic(data=wbes, count=count)
 
 
 @router.get("/{id}", response_model=WBEPublic)
-def read_wbe(session: SessionDep, _current_user: CurrentUser, id: uuid.UUID) -> Any:
+def read_wbe(
+    session: SessionDep,
+    _current_user: CurrentUser,
+    control_date: Annotated[date, Depends(get_time_machine_control_date)],
+    id: uuid.UUID,
+) -> Any:
     """
     Get WBE by ID.
     """
     wbe = session.get(WBE, id)
-    if not wbe:
+    if not wbe or wbe.created_at > _end_of_day(control_date):
         raise HTTPException(status_code=404, detail="WBE not found")
     return wbe
 

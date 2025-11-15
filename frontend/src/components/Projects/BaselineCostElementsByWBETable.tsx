@@ -20,6 +20,7 @@ import type {
 import { BaselineLogsService } from "@/client"
 import { DataTable } from "@/components/DataTable/DataTable"
 import type { ColumnDefExtended } from "@/components/DataTable/types"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 
 interface BaselineCostElementsByWBETableProps {
   projectId: string
@@ -123,7 +124,13 @@ export default function BaselineCostElementsByWBETable({
   projectId,
   baselineId,
 }: BaselineCostElementsByWBETableProps) {
-  const queryKey = ["baseline-cost-elements-by-wbe", projectId, baselineId]
+  const { controlDate } = useTimeMachine()
+  const queryKey = [
+    "baseline-cost-elements-by-wbe",
+    projectId,
+    baselineId,
+    controlDate,
+  ]
 
   const { data, isLoading } = useQuery<BaselineCostElementsByWBEPublic>({
     queryKey,

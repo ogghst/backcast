@@ -917,3 +917,180 @@ def test_seed_project_from_template_creates_earned_value_entries(
     assert (
         total_seeded_entries == total_expected_entries
     ), "Total seeded earned value entries should match template data"
+
+
+def test_seed_project_from_template_applies_timestamp_metadata(db: Session) -> None:
+    """Seeded records should respect created/updated timestamps defined in template."""
+    from app import crud
+    from app.core.config import settings
+    from app.models import User, UserCreate, UserRole
+
+    user = db.exec(select(User).where(User.email == settings.FIRST_SUPERUSER)).first()
+    if not user:
+        user_in = UserCreate(
+            email=settings.FIRST_SUPERUSER,
+            password=settings.FIRST_SUPERUSER_PASSWORD,
+            role=UserRole.admin,
+        )
+        user = crud.create_user(session=db, user_create=user_in)
+
+    _seed_departments(db)
+    _seed_cost_element_types(db)
+
+    _seed_project_from_template(db)
+
+    project = db.exec(select(Project).where(Project.project_code == "CC2134")).first()
+    assert project is not None
+
+    import json
+    from pathlib import Path
+
+    seed_file = (
+        Path(__file__).parent.parent.parent
+        / "app"
+        / "core"
+        / "project_template_seed.json"
+    )
+    with open(seed_file, encoding="utf-8") as f:
+        template_data = json.load(f)
+
+    assert (
+        project.created_at.isoformat() == template_data["project"]["created_at"]
+    ), "Project created_at should match template timestamps"
+    assert (
+        project.updated_at.isoformat() == template_data["project"]["updated_at"]
+    ), "Project updated_at should match template timestamps"
+
+    template_wbe_map = {
+        wbe_item.get("wbe", {}).get("serial_number"): wbe_item.get("wbe", {})
+        for wbe_item in template_data.get("wbes", [])
+    }
+
+    wbes = db.exec(select(WBE).where(WBE.project_id == project.project_id)).all()
+    assert wbes, "Project should include WBEs"
+
+    for wbe in wbes:
+        template_wbe = template_wbe_map.get(wbe.serial_number)
+        assert (
+            template_wbe is not None
+        ), "Template should define timestamps for each WBE"
+        assert (
+            wbe.created_at.isoformat() == template_wbe["created_at"]
+        ), f"WBE {wbe.serial_number} created_at should match template"
+        assert (
+            wbe.updated_at.isoformat() == template_wbe["updated_at"]
+        ), f"WBE {wbe.serial_number} updated_at should match template"
+
+    template_ce_map = {}
+    for wbe_item in template_data.get("wbes", []):
+        serial = wbe_item.get("wbe", {}).get("serial_number")
+        for ce_data in wbe_item.get("cost_elements", []):
+            key = (
+                serial,
+                ce_data.get("department_code"),
+                ce_data.get("cost_element_type_id"),
+                float(ce_data.get("budget_bac", 0.0)),
+            )
+            template_ce_map[key] = ce_data
+
+    top_level_entries_by_type: dict[str, list[dict]] = {}
+    for entry in template_data.get("earned_value_entries", []):
+        ref = entry.get("cost_element_ref") or entry.get("cost_element_id")
+        if ref:
+            top_level_entries_by_type.setdefault(ref, []).append(entry)
+
+    cost_elements: list[CostElement] = []
+    for wbe in wbes:
+        ce_subset = db.exec(
+            select(CostElement).where(CostElement.wbe_id == wbe.wbe_id)
+        ).all()
+        cost_elements.extend(ce_subset)
+    assert cost_elements, "Should have cost elements for timestamp checks"
+
+    for ce in cost_elements:
+        ce_wbe = db.get(WBE, ce.wbe_id)
+        key = (
+            ce_wbe.serial_number if ce_wbe else None,
+            ce.department_code,
+            str(ce.cost_element_type_id),
+            float(ce.budget_bac),
+        )
+        template_ce = template_ce_map.get(key)
+        assert template_ce is not None, (
+            "Each cost element in DB should map to template data "
+            f"(missing key: {key})"
+        )
+
+        assert (
+            ce.created_at.isoformat() == template_ce["created_at"]
+        ), f"Cost element {ce.cost_element_id} created_at should match template"
+        assert (
+            ce.updated_at.isoformat() == template_ce["updated_at"]
+        ), f"Cost element {ce.cost_element_id} updated_at should match template"
+
+        schedule = db.exec(
+            select(CostElementSchedule).where(
+                CostElementSchedule.cost_element_id == ce.cost_element_id
+            )
+        ).one()
+        schedule_template = template_ce.get("schedule")
+        assert schedule_template is not None, "Schedule timestamps must be defined"
+        assert (
+            schedule.created_at.isoformat() == schedule_template["created_at"]
+        ), f"Schedule for {ce.cost_element_id} created_at should match template"
+        assert (
+            schedule.updated_at.isoformat() == schedule_template["updated_at"]
+        ), f"Schedule for {ce.cost_element_id} updated_at should match template"
+
+        template_regs = template_ce.get("cost_registrations", [])
+        cost_regs = db.exec(
+            select(CostRegistration).where(
+                CostRegistration.cost_element_id == ce.cost_element_id
+            )
+        ).all()
+
+        if template_regs:
+            assert len(cost_regs) == len(
+                template_regs
+            ), "Cost registration counts should match template data"
+            for db_reg, template_reg in zip(
+                sorted(cost_regs, key=lambda r: r.registration_date),
+                template_regs,
+                strict=False,
+            ):
+                assert (
+                    db_reg.created_at.isoformat() == template_reg["created_at"]
+                ), "Cost registration created_at should match template"
+                assert (
+                    db_reg.last_modified_at.isoformat()
+                    == template_reg["last_modified_at"]
+                ), "Cost registration last_modified_at should match template"
+
+        template_ev_entries = template_ce.get(
+            "earned_value_entries"
+        ) or top_level_entries_by_type.get(template_ce.get("cost_element_type_id"), [])
+        ev_entries = db.exec(
+            select(EarnedValueEntry).where(
+                EarnedValueEntry.cost_element_id == ce.cost_element_id
+            )
+        ).all()
+        if template_ev_entries:
+            assert len(ev_entries) == len(
+                template_ev_entries
+            ), "Earned value entry counts should match template data"
+            for db_entry, template_entry in zip(
+                sorted(ev_entries, key=lambda ev: ev.completion_date),
+                sorted(template_ev_entries, key=lambda ev: ev["completion_date"]),
+                strict=False,
+            ):
+                assert (
+                    db_entry.created_at.isoformat() == template_entry["created_at"]
+                ), "Earned value entry created_at should match template"
+                assert (
+                    db_entry.last_modified_at.isoformat()
+                    == template_entry["last_modified_at"]
+                ), "Earned value entry last_modified_at should match template"
+        else:
+            assert (
+                len(ev_entries) == 0
+            ), "Cost elements without template EV entries should have none"

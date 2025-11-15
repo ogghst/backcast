@@ -1,13 +1,35 @@
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app.core.config import settings
 from tests.utils.cost_element import create_random_cost_element
 from tests.utils.project import create_random_project
+from tests.utils.user import set_time_machine_date
 from tests.utils.wbe import create_random_wbe
+
+
+def _set_wbe_created_at(db: Session, wbe, target_date: date) -> None:
+    wbe.created_at = datetime(
+        target_date.year,
+        target_date.month,
+        target_date.day,
+        tzinfo=timezone.utc,
+    )
+    db.add(wbe)
+    db.commit()
+    db.refresh(wbe)
+
+
+@pytest.fixture(autouse=True)
+def reset_time_machine(
+    client: TestClient, superuser_token_headers: dict[str, str]
+) -> None:
+    """Ensure each test starts with the default (today) control date."""
+    set_time_machine_date(client, superuser_token_headers, None)
 
 
 def test_create_wbe(
@@ -87,6 +109,23 @@ def test_read_wbe_not_found(
     assert content["detail"] == "WBE not found"
 
 
+def test_read_wbe_hidden_after_control_date(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """WBE created after control date should behave as not found."""
+    wbe = create_random_wbe(db)
+    future_date = date.today() + timedelta(days=60)
+    _set_wbe_created_at(db, wbe, future_date)
+
+    set_time_machine_date(client, superuser_token_headers, date.today())
+
+    response = client.get(
+        f"{settings.API_V1_STR}/wbes/{wbe.wbe_id}",
+        headers=superuser_token_headers,
+    )
+    assert response.status_code == 404
+
+
 def test_read_wbes_list_all(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
@@ -127,6 +166,33 @@ def test_read_wbes_filtered_by_project(
     # All results should belong to the requested project
     for wbe in content["data"]:
         assert wbe["project_id"] == str(project.project_id)
+
+
+def test_read_wbes_respects_time_machine(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """WBEs created after control date should be hidden."""
+    project = create_random_project(db)
+    past_date = date.today() - timedelta(days=90)
+    future_date = date.today() + timedelta(days=30)
+
+    visible_wbe = create_random_wbe(db, project.project_id)
+    future_wbe = create_random_wbe(db, project.project_id)
+    _set_wbe_created_at(db, visible_wbe, past_date)
+    _set_wbe_created_at(db, future_wbe, future_date)
+
+    set_time_machine_date(client, superuser_token_headers, past_date)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/wbes/?project_id={project.project_id}",
+        headers=superuser_token_headers,
+    )
+    assert response.status_code == 200
+    content = response.json()
+    assert content["count"] == 1
+    returned_ids = {wbe["wbe_id"] for wbe in content["data"]}
+    assert str(visible_wbe.wbe_id) in returned_ids
+    assert str(future_wbe.wbe_id) not in returned_ids
 
 
 def test_update_wbe(

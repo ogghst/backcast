@@ -27,7 +27,7 @@ from app.models import (
     QualityEvent,
     User,
 )
-from tests.utils.user import authentication_token_from_email
+from tests.utils.user import authentication_token_from_email, set_time_machine_date
 from tests.utils.utils import get_superuser_token_headers
 
 
@@ -104,3 +104,13 @@ def normal_user_token_headers(client: TestClient, db: Session) -> dict[str, str]
     return authentication_token_from_email(
         client=client, email=settings.EMAIL_TEST_USER, db=db
     )
+
+
+@pytest.fixture(autouse=True)
+def reset_time_machine(
+    client: TestClient, superuser_token_headers: dict[str, str]
+) -> Generator[None, None, None]:
+    """Ensure each test starts with the default (today) control date."""
+    set_time_machine_date(client, superuser_token_headers, None)
+    yield
+    set_time_machine_date(client, superuser_token_headers, None)

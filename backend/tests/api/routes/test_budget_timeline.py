@@ -1,6 +1,6 @@
 """Tests for budget timeline API endpoints."""
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi.testclient import TestClient
@@ -20,6 +20,7 @@ from app.models import (
     WBECreate,
 )
 from tests.utils.cost_element_schedule import create_schedule_for_cost_element
+from tests.utils.user import set_time_machine_date
 
 
 def test_get_cost_elements_with_schedules_by_project(
@@ -119,6 +120,11 @@ def test_get_cost_elements_with_schedules_by_project(
         created_by_id=pm_user.id,
     )
 
+    # Ensure control date is after the latest schedule registration so both appear
+    set_time_machine_date(
+        client, superuser_token_headers, date.today() + timedelta(days=400)
+    )
+
     # Call the endpoint
     response = client.get(
         f"{settings.API_V1_STR}/projects/{project.project_id}/cost-elements-with-schedules",
@@ -151,6 +157,134 @@ def test_get_cost_elements_with_schedules_by_project(
     assert float(ce2_data["budget_bac"]) == 15000.00
     assert ce2_data["schedule"] is not None
     assert ce2_data["schedule"]["progression_type"] == "gaussian"
+
+
+def test_budget_timeline_respects_control_date(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Ensure cost elements/schedules after control date are excluded."""
+    email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
+    password = "testpassword123"
+    user_in = UserCreate(email=email, password=password)
+    pm_user = crud.create_user(session=db, user_create=user_in)
+
+    project_in = ProjectCreate(
+        project_name="Timeline Control Project",
+        customer_name="Test Customer",
+        contract_value=Decimal("80000.00"),
+        start_date=date(2024, 1, 1),
+        planned_completion_date=date(2024, 12, 31),
+        project_manager_id=pm_user.id,
+        status="active",
+    )
+    project = Project.model_validate(project_in)
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+
+    control_date = date(2024, 2, 1)
+    early_dt = datetime(2024, 1, 5, tzinfo=timezone.utc)
+    late_dt = datetime(2024, 3, 5, tzinfo=timezone.utc)
+
+    wbe1 = WBE.model_validate(
+        WBECreate(
+            project_id=project.project_id,
+            machine_type="Machine Early",
+            revenue_allocation=Decimal("40000.00"),
+            status="designing",
+        )
+    )
+    wbe1.created_at = early_dt
+    db.add(wbe1)
+
+    wbe2 = WBE.model_validate(
+        WBECreate(
+            project_id=project.project_id,
+            machine_type="Machine Late",
+            revenue_allocation=Decimal("40000.00"),
+            status="designing",
+        )
+    )
+    wbe2.created_at = late_dt
+    db.add(wbe2)
+    db.commit()
+    db.refresh(wbe1)
+    db.refresh(wbe2)
+
+    cost_element_type = CostElementType.model_validate(
+        CostElementTypeCreate(
+            type_code=f"ct_{uuid.uuid4().hex[:6]}",
+            type_name="Control Type",
+            category_type="engineering_mechanical",
+            display_order=1,
+            is_active=True,
+        )
+    )
+    db.add(cost_element_type)
+    db.commit()
+    db.refresh(cost_element_type)
+
+    ce1 = CostElement.model_validate(
+        CostElementCreate(
+            wbe_id=wbe1.wbe_id,
+            cost_element_type_id=cost_element_type.cost_element_type_id,
+            department_code="ENG",
+            department_name="Engineering",
+            budget_bac=Decimal("15000.00"),
+            revenue_plan=Decimal("18000.00"),
+            status="active",
+        )
+    )
+    ce1.created_at = early_dt
+    db.add(ce1)
+
+    ce2 = CostElement.model_validate(
+        CostElementCreate(
+            wbe_id=wbe2.wbe_id,
+            cost_element_type_id=cost_element_type.cost_element_type_id,
+            department_code="MFG",
+            department_name="Manufacturing",
+            budget_bac=Decimal("12000.00"),
+            revenue_plan=Decimal("15000.00"),
+            status="active",
+        )
+    )
+    ce2.created_at = late_dt
+    db.add(ce2)
+    db.commit()
+    db.refresh(ce1)
+    db.refresh(ce2)
+
+    schedule1 = create_schedule_for_cost_element(
+        db,
+        ce1.cost_element_id,
+        start_date=date(2024, 1, 10),
+        end_date=date(2024, 6, 1),
+        progression_type="linear",
+        registration_date=date(2024, 1, 12),
+        created_by_id=pm_user.id,
+    )
+    create_schedule_for_cost_element(
+        db,
+        ce2.cost_element_id,
+        start_date=date(2024, 3, 10),
+        end_date=date(2024, 8, 1),
+        progression_type="gaussian",
+        registration_date=date(2024, 3, 15),
+        created_by_id=pm_user.id,
+    )
+
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/projects/{project.project_id}/cost-elements-with-schedules",
+        headers=superuser_token_headers,
+    )
+    assert response.status_code == 200
+    content = response.json()
+    assert len(content) == 1
+    assert content[0]["cost_element_id"] == str(ce1.cost_element_id)
+    assert content[0]["schedule"]["schedule_id"] == str(schedule1.schedule_id)
 
 
 def test_get_cost_elements_with_schedules_by_wbe(

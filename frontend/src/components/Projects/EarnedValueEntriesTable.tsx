@@ -7,6 +7,7 @@ import { EarnedValueEntriesService } from "@/client"
 import { DataTable } from "@/components/DataTable/DataTable"
 import AddEarnedValueEntry from "@/components/Projects/AddEarnedValueEntry"
 import { buildEarnedValueColumns } from "@/components/Projects/earnedValueColumns"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 
 interface EarnedValueEntriesTableProps {
   costElementId: string
@@ -20,6 +21,7 @@ const EarnedValueEntriesTable = ({
   budgetBac,
 }: EarnedValueEntriesTableProps) => {
   const [page, setPage] = useState(1)
+  const { controlDate } = useTimeMachine()
 
   const { data, isLoading } = useQuery({
     queryFn: () =>
@@ -28,7 +30,7 @@ const EarnedValueEntriesTable = ({
         skip: (page - 1) * PER_PAGE,
         limit: PER_PAGE,
       }),
-    queryKey: ["earned-value-entries", { costElementId, page }],
+    queryKey: ["earned-value-entries", { costElementId, page }, controlDate],
   })
 
   const entries: EarnedValueEntryPublic[] = data?.data ?? []

@@ -1,17 +1,23 @@
 """Cost Summary API routes."""
 
 import uuid
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, TimeMachineControlDate
 from app.models import WBE, CostElement, CostRegistration, Project
 from app.models.cost_summary import CostSummaryPublic
 
 router = APIRouter(prefix="/cost-summary", tags=["cost-summary"])
+
+
+def _end_of_day(control_date: date) -> datetime:
+    """Return timezone-aware datetime representing end of control date."""
+    return datetime.combine(control_date, time.max, tzinfo=timezone.utc)
 
 
 @router.get("/cost-element/{cost_element_id}", response_model=CostSummaryPublic)
@@ -19,6 +25,7 @@ def get_cost_element_cost_summary(
     session: SessionDep,
     _current_user: CurrentUser,
     cost_element_id: uuid.UUID,
+    control_date: TimeMachineControlDate,
     is_quality_cost: bool | None = Query(
         default=None, description="Filter by quality cost"
     ),
@@ -39,10 +46,13 @@ def get_cost_element_cost_summary(
     cost_element = session.get(CostElement, cost_element_id)
     if not cost_element:
         raise HTTPException(status_code=404, detail="Cost element not found")
+    if cost_element.created_at > _end_of_day(control_date):
+        raise HTTPException(status_code=404, detail="Cost element not found")
 
     # Get all cost registrations for this cost element
     statement = select(CostRegistration).where(
-        CostRegistration.cost_element_id == cost_element_id
+        CostRegistration.cost_element_id == cost_element_id,
+        CostRegistration.registration_date <= control_date,
     )
 
     # Apply quality cost filter if provided
@@ -71,6 +81,7 @@ def get_wbe_cost_summary(
     session: SessionDep,
     _current_user: CurrentUser,
     wbe_id: uuid.UUID,
+    control_date: TimeMachineControlDate,
     is_quality_cost: bool | None = Query(
         default=None, description="Filter by quality cost"
     ),
@@ -90,10 +101,15 @@ def get_wbe_cost_summary(
     wbe = session.get(WBE, wbe_id)
     if not wbe:
         raise HTTPException(status_code=404, detail="WBE not found")
+    if wbe.created_at > _end_of_day(control_date):
+        raise HTTPException(status_code=404, detail="WBE not found")
 
     # Get all cost elements for this WBE
     cost_elements = session.exec(
-        select(CostElement).where(CostElement.wbe_id == wbe_id)
+        select(CostElement).where(
+            CostElement.wbe_id == wbe_id,
+            CostElement.created_at <= _end_of_day(control_date),
+        )
     ).all()
 
     # Calculate total budget BAC for this WBE
@@ -105,7 +121,8 @@ def get_wbe_cost_summary(
     cost_element_ids = [ce.cost_element_id for ce in cost_elements]
     if cost_element_ids:
         statement = select(CostRegistration).where(
-            CostRegistration.cost_element_id.in_(cost_element_ids)
+            CostRegistration.cost_element_id.in_(cost_element_ids),
+            CostRegistration.registration_date <= control_date,
         )
 
         # Apply quality cost filter if provided
@@ -138,6 +155,7 @@ def get_project_cost_summary(
     session: SessionDep,
     _current_user: CurrentUser,
     project_id: uuid.UUID,
+    control_date: TimeMachineControlDate,
     is_quality_cost: bool | None = Query(
         default=None, description="Filter by quality cost"
     ),
@@ -159,13 +177,21 @@ def get_project_cost_summary(
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Get all WBEs for this project
-    wbes = session.exec(select(WBE).where(WBE.project_id == project_id)).all()
+    wbes = session.exec(
+        select(WBE).where(
+            WBE.project_id == project_id,
+            WBE.created_at <= _end_of_day(control_date),
+        )
+    ).all()
 
     # Get all cost elements for all WBEs in this project
     wbe_ids = [wbe.wbe_id for wbe in wbes]
     if wbe_ids:
         cost_elements = session.exec(
-            select(CostElement).where(CostElement.wbe_id.in_(wbe_ids))
+            select(CostElement).where(
+                CostElement.wbe_id.in_(wbe_ids),
+                CostElement.created_at <= _end_of_day(control_date),
+            )
         ).all()
     else:
         cost_elements = []
@@ -179,7 +205,8 @@ def get_project_cost_summary(
     cost_element_ids = [ce.cost_element_id for ce in cost_elements]
     if cost_element_ids:
         statement = select(CostRegistration).where(
-            CostRegistration.cost_element_id.in_(cost_element_ids)
+            CostRegistration.cost_element_id.in_(cost_element_ids),
+            CostRegistration.registration_date <= control_date,
         )
 
         # Apply quality cost filter if provided

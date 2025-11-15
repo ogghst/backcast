@@ -160,6 +160,8 @@ from app.models.quality_event import (
 
 # Import shared models first
 from app.models.user import (
+    TimeMachinePreference,
+    TimeMachinePreferenceUpdate,
     UpdatePassword,
     User,
     UserBase,
@@ -219,6 +221,8 @@ __all__ = [
     "UserUpdate",
     "UserUpdateMe",
     "UsersPublic",
+    "TimeMachinePreference",
+    "TimeMachinePreferenceUpdate",
     "UpdatePassword",
     # Department models
     "Department",

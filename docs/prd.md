@@ -220,6 +220,10 @@ The system shall provide intuitive navigation supporting the hierarchical projec
 
 The interface shall support common workflows including project setup and configuration, budget allocation and baseline creation, regular cost and earned value recording, periodic forecast updates, change order processing, quality event registration, and report generation and analysis.
 
+#### 14.1.1 Time Machine Control
+
+The interface shall include a persistent “time machine” date selector in the application header, positioned to the left of the user menu. The control defaults to the current date, supports selection of past and future dates, and determines the control date for every view and calculation. When a user adjusts the time machine date, the system must only display or aggregate records whose creation, modification, registration, or baseline date is on or before the selected control date. The selected value must be persisted per user session on the backend so that subsequent requests automatically honor the chosen date without requiring clients to restate it.
+
 ### 14.2 Data Entry and Validation
 
 All data entry screens shall provide clear field labels, contextual help text, input validation with immediate feedback, default values where appropriate, and required field indicators. The system must prevent invalid data entry and provide meaningful error messages guiding users to correct input.

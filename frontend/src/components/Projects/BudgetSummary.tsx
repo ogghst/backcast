@@ -18,6 +18,7 @@ import {
 } from "chart.js"
 import { Bar, Doughnut } from "react-chartjs-2"
 import { type BudgetSummaryPublic, BudgetSummaryService } from "@/client"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 
 // Register Chart.js components
 ChartJS.register(
@@ -40,10 +41,11 @@ export default function BudgetSummary({
   projectId,
   wbeId,
 }: BudgetSummaryProps) {
+  const { controlDate } = useTimeMachine()
   const queryKey =
     level === "project"
-      ? ["budget-summary", "project", projectId]
-      : ["budget-summary", "wbe", wbeId]
+      ? ["budget-summary", "project", projectId, controlDate]
+      : ["budget-summary", "wbe", wbeId, controlDate]
 
   const { data: summary, isLoading } = useQuery<BudgetSummaryPublic>({
     queryKey,
@@ -51,6 +53,7 @@ export default function BudgetSummary({
       if (level === "project" && projectId) {
         return BudgetSummaryService.getProjectBudgetSummary({
           projectId: projectId,
+          controlDate: controlDate,
         })
       }
       if (level === "wbe" && wbeId) {

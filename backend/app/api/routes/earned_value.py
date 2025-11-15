@@ -3,11 +3,16 @@
 import uuid
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import (
+    CurrentUser,
+    SessionDep,
+    get_time_machine_control_date,
+)
 from app.models import (
     WBE,
     CostElement,
@@ -120,7 +125,7 @@ def get_cost_element_earned_value(
     _current_user: CurrentUser,
     project_id: uuid.UUID,
     cost_element_id: uuid.UUID,
-    control_date: date = Query(..., description="Control date for earned value"),
+    control_date: Annotated[date, Depends(get_time_machine_control_date)],
 ) -> EarnedValueCostElementPublic:
     project = _ensure_project_exists(session, project_id)
 
@@ -160,7 +165,7 @@ def get_wbe_earned_value(
     _current_user: CurrentUser,
     project_id: uuid.UUID,
     wbe_id: uuid.UUID,
-    control_date: date = Query(..., description="Control date for earned value"),
+    control_date: Annotated[date, Depends(get_time_machine_control_date)],
 ) -> EarnedValueWBEPublic:
     project = _ensure_project_exists(session, project_id)
 
@@ -206,7 +211,7 @@ def get_project_earned_value(
     session: SessionDep,
     _current_user: CurrentUser,
     project_id: uuid.UUID,
-    control_date: date = Query(..., description="Control date for earned value"),
+    control_date: Annotated[date, Depends(get_time_machine_control_date)],
 ) -> EarnedValueProjectPublic:
     project = _ensure_project_exists(session, project_id)
 

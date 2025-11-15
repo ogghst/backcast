@@ -2674,6 +2674,40 @@ export const ProjectsPublicSchema = {
     description: 'Schema for list of projects.'
 } as const;
 
+export const TimeMachinePreferenceSchema = {
+    properties: {
+        time_machine_date: {
+            type: 'string',
+            format: 'date',
+            title: 'Time Machine Date'
+        }
+    },
+    type: 'object',
+    required: ['time_machine_date'],
+    title: 'TimeMachinePreference',
+    description: 'Represents a resolved time machine date for the current user.'
+} as const;
+
+export const TimeMachinePreferenceUpdateSchema = {
+    properties: {
+        time_machine_date: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Time Machine Date'
+        }
+    },
+    type: 'object',
+    title: 'TimeMachinePreferenceUpdate',
+    description: 'Payload to update or reset the stored time machine date.'
+} as const;
+
 export const TokenSchema = {
     properties: {
         access_token: {
@@ -2754,6 +2788,18 @@ export const UserCreateSchema = {
             ],
             title: 'Full Name'
         },
+        time_machine_date: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Time Machine Date'
+        },
         password: {
             type: 'string',
             maxLength: 128,
@@ -2807,6 +2853,18 @@ export const UserPublicSchema = {
                 }
             ],
             title: 'Full Name'
+        },
+        time_machine_date: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Time Machine Date'
         },
         id: {
             type: 'string',
@@ -2913,6 +2971,18 @@ export const UserUpdateSchema = {
                 }
             ],
             title: 'Full Name'
+        },
+        time_machine_date: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Time Machine Date'
         },
         password: {
             anyOf: [

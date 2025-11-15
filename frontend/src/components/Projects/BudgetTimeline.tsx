@@ -21,6 +21,7 @@ import {
   EarnedValueEntriesService,
   type EarnedValueEntryPublic,
 } from "@/client"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 import { buildEarnedValueTimeline } from "@/utils/earnedValueAggregation"
 import type { TimePeriod } from "@/utils/progressionCalculations"
 import {
@@ -234,6 +235,7 @@ export default function BudgetTimeline({
   wbeIds,
   costElementIds,
 }: BudgetTimelineProps) {
+  const { controlDate } = useTimeMachine()
   const normalizedWbeIds = wbeIds?.length ? [...wbeIds].sort() : undefined
   const normalizedCostElementIds = costElementIds?.length
     ? [...costElementIds].sort()
@@ -263,6 +265,7 @@ export default function BudgetTimeline({
       projectId,
       normalizedWbeIds,
       normalizedCostElementIds,
+      controlDate,
     ],
     enabled: !!projectId,
   })
@@ -282,6 +285,7 @@ export default function BudgetTimeline({
       normalizedWbeIds,
       normalizedCostElementIds,
       sortedCostElementIdsForEarnedValue,
+      controlDate,
     ],
     enabled: sortedCostElementIdsForEarnedValue.length > 0,
   })

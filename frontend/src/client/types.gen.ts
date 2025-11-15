@@ -591,6 +591,20 @@ export type ProjectUpdate = {
 };
 
 /**
+ * Represents a resolved time machine date for the current user.
+ */
+export type TimeMachinePreference = {
+    time_machine_date: string;
+};
+
+/**
+ * Payload to update or reset the stored time machine date.
+ */
+export type TimeMachinePreferenceUpdate = {
+    time_machine_date?: (string | null);
+};
+
+/**
  * JSON payload containing access token.
  */
 export type Token = {
@@ -615,6 +629,7 @@ export type UserCreate = {
     role?: UserRole;
     department?: (string | null);
     full_name?: (string | null);
+    time_machine_date?: (string | null);
     password: string;
 };
 
@@ -627,6 +642,7 @@ export type UserPublic = {
     role?: UserRole;
     department?: (string | null);
     full_name?: (string | null);
+    time_machine_date?: (string | null);
     id: string;
 };
 
@@ -661,6 +677,7 @@ export type UserUpdate = {
     role?: (UserRole | null);
     department?: (string | null);
     full_name?: (string | null);
+    time_machine_date?: (string | null);
     password?: (string | null);
 };
 
@@ -1028,10 +1045,6 @@ export type CostTimelineGetProjectCostTimelineData = {
 export type CostTimelineGetProjectCostTimelineResponse = (CostTimelinePublic);
 
 export type EarnedValueGetCostElementEarnedValueData = {
-    /**
-     * Control date for earned value
-     */
-    controlDate: string;
     costElementId: string;
     projectId: string;
 };
@@ -1039,10 +1052,6 @@ export type EarnedValueGetCostElementEarnedValueData = {
 export type EarnedValueGetCostElementEarnedValueResponse = (EarnedValueCostElementPublic);
 
 export type EarnedValueGetWbeEarnedValueData = {
-    /**
-     * Control date for earned value
-     */
-    controlDate: string;
     projectId: string;
     wbeId: string;
 };
@@ -1050,10 +1059,6 @@ export type EarnedValueGetWbeEarnedValueData = {
 export type EarnedValueGetWbeEarnedValueResponse = (EarnedValueWBEPublic);
 
 export type EarnedValueGetProjectEarnedValueData = {
-    /**
-     * Control date for earned value
-     */
-    controlDate: string;
     projectId: string;
 };
 
@@ -1225,6 +1230,14 @@ export type UsersUpdatePasswordMeData = {
 };
 
 export type UsersUpdatePasswordMeResponse = (Message);
+
+export type UsersReadTimeMachinePreferenceResponse = (TimeMachinePreference);
+
+export type UsersUpdateTimeMachinePreferenceData = {
+    requestBody: TimeMachinePreferenceUpdate;
+};
+
+export type UsersUpdateTimeMachinePreferenceResponse = (TimeMachinePreference);
 
 export type UsersRegisterUserData = {
     requestBody: UserRegister;

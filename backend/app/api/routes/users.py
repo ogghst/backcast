@@ -1,5 +1,6 @@
 import uuid
-from typing import Any
+from datetime import date
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import func, select
@@ -9,11 +10,14 @@ from app.api.deps import (
     CurrentUser,
     SessionDep,
     get_current_active_admin,
+    get_time_machine_control_date,
 )
 from app.core.config import settings
 from app.core.security import get_password_hash, verify_password
 from app.models import (
     Message,
+    TimeMachinePreference,
+    TimeMachinePreferenceUpdate,
     UpdatePassword,
     User,
     UserCreate,
@@ -123,6 +127,42 @@ def read_user_me(current_user: CurrentUser) -> Any:
     Get current user.
     """
     return current_user
+
+
+@router.get("/me/time-machine", response_model=TimeMachinePreference)
+def read_time_machine_preference(
+    control_date: Annotated[date, Depends(get_time_machine_control_date)],
+) -> TimeMachinePreference:
+    """
+    Return the effective time machine control date for the current user.
+    """
+
+    return TimeMachinePreference(time_machine_date=control_date)
+
+
+@router.put("/me/time-machine", response_model=TimeMachinePreference)
+def update_time_machine_preference(
+    *,
+    session: SessionDep,
+    current_user: CurrentUser,
+    preference: TimeMachinePreferenceUpdate,
+) -> TimeMachinePreference:
+    """
+    Update or reset the stored time machine control date for the current user.
+    """
+
+    if preference.time_machine_date is None:
+        current_user.time_machine_date = None
+        effective_date = date.today()
+    else:
+        current_user.time_machine_date = preference.time_machine_date
+        effective_date = preference.time_machine_date
+
+    session.add(current_user)
+    session.commit()
+    session.refresh(current_user)
+
+    return TimeMachinePreference(time_machine_date=effective_date)
 
 
 @router.delete("/me", response_model=Message)

@@ -7,6 +7,7 @@ import type { ColumnDefExtended } from "@/components/DataTable/types"
 import AddCostElementSchedule from "@/components/Projects/AddCostElementSchedule"
 import DeleteCostElementSchedule from "@/components/Projects/DeleteCostElementSchedule"
 import EditCostElementSchedule from "@/components/Projects/EditCostElementSchedule"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 
 interface CostElementSchedulesTableProps {
   costElementId: string
@@ -106,10 +107,11 @@ const costElementSchedulesColumns: ColumnDefExtended<CostElementSchedulePublicEx
 function CostElementSchedulesTable({
   costElementId,
 }: CostElementSchedulesTableProps) {
+  const { controlDate } = useTimeMachine()
   const { data: scheduleHistoryData = [], isLoading } = useQuery<
     CostElementSchedulePublicExtended[]
   >({
-    queryKey: ["cost-element-schedule-history", costElementId],
+    queryKey: ["cost-element-schedule-history", costElementId, controlDate],
     queryFn: async () =>
       await CostElementSchedulesService.readScheduleHistoryByCostElement({
         costElementId,

@@ -1,12 +1,16 @@
 import uuid
-from datetime import date
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, func, select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import (
+    CurrentUser,
+    SessionDep,
+    get_time_machine_control_date,
+)
 from app.models import (
     WBE,
     BudgetAllocation,
@@ -21,6 +25,11 @@ from app.models import (
 )
 
 router = APIRouter(prefix="/cost-elements", tags=["cost-elements"])
+
+
+def _end_of_day(control_date: date) -> datetime:
+    """Return timezone-aware datetime representing the end of the control date."""
+    return datetime.combine(control_date, time.max, tzinfo=timezone.utc)
 
 
 def create_budget_allocation_for_cost_element(
@@ -106,6 +115,7 @@ def validate_revenue_plan_against_wbe_limit(
 def read_cost_elements(
     session: SessionDep,
     _current_user: CurrentUser,
+    control_date: Annotated[date, Depends(get_time_machine_control_date)],
     skip: int = 0,
     limit: int = 100,
     wbe_id: uuid.UUID | None = Query(default=None, description="Filter by WBE ID"),
@@ -113,25 +123,40 @@ def read_cost_elements(
     """
     Retrieve cost elements.
     """
+    cutoff = _end_of_day(control_date)
+
     if wbe_id:
         # Filter by WBE
         count_statement = (
             select(func.count())
             .select_from(CostElement)
             .where(CostElement.wbe_id == wbe_id)
+            .where(CostElement.created_at <= cutoff)
         )
         count = session.exec(count_statement).one()
         statement = (
             select(CostElement)
             .where(CostElement.wbe_id == wbe_id)
+            .where(CostElement.created_at <= cutoff)
+            .order_by(CostElement.created_at.asc(), CostElement.cost_element_id.asc())
             .offset(skip)
             .limit(limit)
         )
     else:
         # Get all
-        count_statement = select(func.count()).select_from(CostElement)
+        count_statement = (
+            select(func.count())
+            .select_from(CostElement)
+            .where(CostElement.created_at <= cutoff)
+        )
         count = session.exec(count_statement).one()
-        statement = select(CostElement).offset(skip).limit(limit)
+        statement = (
+            select(CostElement)
+            .where(CostElement.created_at <= cutoff)
+            .order_by(CostElement.created_at.asc(), CostElement.cost_element_id.asc())
+            .offset(skip)
+            .limit(limit)
+        )
 
     cost_elements = session.exec(statement).all()
     return CostElementsPublic(data=cost_elements, count=count)
@@ -139,13 +164,16 @@ def read_cost_elements(
 
 @router.get("/{id}", response_model=CostElementPublic)
 def read_cost_element(
-    session: SessionDep, _current_user: CurrentUser, id: uuid.UUID
+    session: SessionDep,
+    _current_user: CurrentUser,
+    control_date: Annotated[date, Depends(get_time_machine_control_date)],
+    id: uuid.UUID,
 ) -> Any:
     """
     Get cost element by ID.
     """
     cost_element = session.get(CostElement, id)
-    if not cost_element:
+    if not cost_element or cost_element.created_at > _end_of_day(control_date):
         raise HTTPException(status_code=404, detail="Cost element not found")
     return cost_element
 

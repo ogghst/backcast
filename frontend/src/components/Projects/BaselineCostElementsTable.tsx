@@ -9,6 +9,7 @@ import type {
 import { BaselineLogsService } from "@/client"
 import { DataTable } from "@/components/DataTable/DataTable"
 import type { ColumnDefExtended } from "@/components/DataTable/types"
+import { useTimeMachine } from "@/context/TimeMachineContext"
 
 interface BaselineCostElementsTableProps {
   projectId: string
@@ -146,6 +147,7 @@ export default function BaselineCostElementsTable({
   baselineId,
 }: BaselineCostElementsTableProps) {
   const [page, setPage] = useState(1)
+  const { controlDate } = useTimeMachine()
 
   const { data, isLoading } = useQuery<BaselineCostElementsPublic>({
     queryFn: () =>
@@ -155,7 +157,11 @@ export default function BaselineCostElementsTable({
         skip: (page - 1) * PER_PAGE,
         limit: PER_PAGE,
       }),
-    queryKey: ["baseline-cost-elements", { projectId, baselineId, page }],
+    queryKey: [
+      "baseline-cost-elements",
+      { projectId, baselineId, page },
+      controlDate,
+    ],
     enabled: !!projectId && !!baselineId,
   })
 
