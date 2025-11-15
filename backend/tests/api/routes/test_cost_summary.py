@@ -1,6 +1,6 @@
 """Tests for Cost Summary API routes."""
 import uuid
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi.testclient import TestClient
@@ -20,13 +20,13 @@ from app.models import (
     WBECreate,
 )
 from tests.utils.cost_element_type import create_random_cost_element_type
+from tests.utils.user import set_time_machine_date
 
 
 def test_get_cost_element_cost_summary(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
     """Test getting cost-element-level cost summary with multiple registrations."""
-    from datetime import timedelta
 
     # Create project manager user
     email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
@@ -152,7 +152,6 @@ def test_get_cost_element_cost_summary_empty(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
     """Test getting cost-element-level cost summary with no registrations."""
-    from datetime import timedelta
 
     # Create project manager user
     email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
@@ -226,7 +225,6 @@ def test_get_cost_element_cost_summary_quality_only(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
     """Test getting cost-element-level cost summary filtered by quality costs only."""
-    from datetime import timedelta
 
     # Create project manager user
     email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
@@ -344,7 +342,6 @@ def test_get_wbe_cost_summary(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
     """Test getting WBE-level cost summary with multiple cost elements."""
-    from datetime import timedelta
 
     # Create project manager user
     email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
@@ -471,7 +468,6 @@ def test_get_wbe_cost_summary_empty(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
     """Test getting WBE-level cost summary with no cost elements."""
-    from datetime import timedelta
 
     # Create project manager user
     email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
@@ -542,7 +538,6 @@ def test_get_project_cost_summary(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
     """Test getting project-level cost summary with multiple WBEs and cost elements."""
-    from datetime import timedelta
 
     # Create project manager user
     email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
@@ -677,11 +672,140 @@ def test_get_project_cost_summary(
     assert content["project_id"] == str(project.project_id)
 
 
+def test_project_cost_summary_respects_control_date(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Ensure project cost summary only includes data on/before control date."""
+    email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
+    password = "testpassword123"
+    user_in = UserCreate(email=email, password=password)
+    pm_user = crud.create_user(session=db, user_create=user_in)
+
+    project_in = ProjectCreate(
+        project_name="Control Date Project",
+        customer_name="Test Customer",
+        contract_value=Decimal("120000.00"),
+        start_date=date(2024, 1, 1),
+        planned_completion_date=date(2024, 12, 31),
+        project_manager_id=pm_user.id,
+        status="active",
+    )
+    project = Project.model_validate(project_in)
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+
+    control_date = date(2024, 2, 1)
+    early_dt = datetime(2024, 1, 10, tzinfo=timezone.utc)
+    late_dt = datetime(2024, 3, 10, tzinfo=timezone.utc)
+
+    wbe1 = WBE.model_validate(
+        WBECreate(
+            project_id=project.project_id,
+            machine_type="Early Machine",
+            revenue_allocation=Decimal("60000.00"),
+            status="designing",
+        )
+    )
+    wbe1.created_at = early_dt
+    db.add(wbe1)
+
+    wbe2 = WBE.model_validate(
+        WBECreate(
+            project_id=project.project_id,
+            machine_type="Late Machine",
+            revenue_allocation=Decimal("60000.00"),
+            status="designing",
+        )
+    )
+    wbe2.created_at = late_dt
+    db.add(wbe2)
+    db.commit()
+    db.refresh(wbe1)
+    db.refresh(wbe2)
+
+    cost_element_type = create_random_cost_element_type(db)
+
+    ce1 = CostElement.model_validate(
+        CostElementCreate(
+            wbe_id=wbe1.wbe_id,
+            cost_element_type_id=cost_element_type.cost_element_type_id,
+            department_code="ENG",
+            department_name="Engineering",
+            budget_bac=Decimal("25000.00"),
+            revenue_plan=Decimal("30000.00"),
+            status="active",
+        )
+    )
+    ce1.created_at = early_dt
+    db.add(ce1)
+
+    ce2 = CostElement.model_validate(
+        CostElementCreate(
+            wbe_id=wbe2.wbe_id,
+            cost_element_type_id=cost_element_type.cost_element_type_id,
+            department_code="MFG",
+            department_name="Manufacturing",
+            budget_bac=Decimal("22000.00"),
+            revenue_plan=Decimal("26000.00"),
+            status="active",
+        )
+    )
+    ce2.created_at = late_dt
+    db.add(ce2)
+    db.commit()
+    db.refresh(ce1)
+    db.refresh(ce2)
+
+    cr1 = CostRegistration.model_validate(
+        {
+            **CostRegistrationCreate(
+                cost_element_id=ce1.cost_element_id,
+                registration_date=date(2024, 1, 25),
+                amount=Decimal("7000.00"),
+                cost_category="labor",
+                description="Early labor",
+                is_quality_cost=False,
+            ).model_dump(),
+            "created_by_id": pm_user.id,
+        }
+    )
+    db.add(cr1)
+
+    cr2 = CostRegistration.model_validate(
+        {
+            **CostRegistrationCreate(
+                cost_element_id=ce2.cost_element_id,
+                registration_date=date(2024, 3, 20),
+                amount=Decimal("9000.00"),
+                cost_category="materials",
+                description="Late materials",
+                is_quality_cost=False,
+            ).model_dump(),
+            "created_by_id": pm_user.id,
+        }
+    )
+    db.add(cr2)
+    db.commit()
+
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/cost-summary/project/{project.project_id}",
+        headers=superuser_token_headers,
+    )
+    assert response.status_code == 200
+    content = response.json()
+
+    assert float(content["total_cost"]) == 7000.00
+    assert float(content["budget_bac"]) == 25000.00
+    assert content["cost_registration_count"] == 1
+
+
 def test_get_project_cost_summary_empty(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
     """Test getting project-level cost summary with no WBEs."""
-    from datetime import timedelta
 
     # Create project manager user
     email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
