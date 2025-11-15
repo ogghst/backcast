@@ -8,6 +8,7 @@ from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 
 from app.models import CostElement, EarnedValueEntry
+from app.services.time_machine import end_of_day
 
 TWO_PLACES = Decimal("0.01")
 FOUR_PLACES = Decimal("0.0001")
@@ -42,8 +43,13 @@ def _select_latest_entry_for_control_date(
         return None
 
     # Filter entries where completion_date <= control_date
+    cutoff = end_of_day(control_date)
     valid_entries = [
-        entry for entry in entries if entry.completion_date <= control_date
+        entry
+        for entry in entries
+        if entry.completion_date <= control_date
+        and entry.registration_date <= control_date
+        and entry.created_at <= cutoff
     ]
 
     if not valid_entries:

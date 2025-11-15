@@ -16,7 +16,7 @@
   "wbes": [
     {
       "wbe": {
-        "machine_type": "Work Package 01",
+        "machine_type": "Design & Development",
         "serial_number": "PRJ-0001-WP-01",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 21362.88,
@@ -148,7 +148,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 02",
+        "machine_type": "Power Supply System",
         "serial_number": "PRJ-0001-WP-02",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 43535.18,
@@ -398,7 +398,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 03",
+        "machine_type": "Material Handling System",
         "serial_number": "PRJ-0001-WP-03",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 105086.74,
@@ -1002,7 +1002,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 04",
+        "machine_type": "Warehousing System",
         "serial_number": "PRJ-0001-WP-04",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 1453133.16,
@@ -1559,7 +1559,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 05",
+        "machine_type": "Design & Development - Labelling System",
         "serial_number": "PRJ-0001-WP-05",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 14057.63,
@@ -1762,7 +1762,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 06",
+        "machine_type": "Labelling System",
         "serial_number": "PRJ-0001-WP-06",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 265910.74,
@@ -2248,7 +2248,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 07",
+        "machine_type": "Design & Development - Transportation System",
         "serial_number": "PRJ-0001-WP-07",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 10190.73,
@@ -2498,7 +2498,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 08",
+        "machine_type": "Transportation System",
         "serial_number": "PRJ-0001-WP-08",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 157252.45,
@@ -2725,7 +2725,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 09",
+        "machine_type": "Warehouse Management System",
         "serial_number": "PRJ-0001-WP-09",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 148958.68,
@@ -3046,7 +3046,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 10",
+        "machine_type": "Outsourced Machines",
         "serial_number": "PRJ-0001-WP-10",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 259101.22,
@@ -3131,7 +3131,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 11",
+        "machine_type": "Packaging and Transportation System",
         "serial_number": "PRJ-0001-WP-11",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 41540.52,
@@ -3334,7 +3334,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 12",
+        "machine_type": "Project Management",
         "serial_number": "PRJ-0001-WP-12",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 125871.23,
@@ -3608,7 +3608,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 13",
+        "machine_type": "Installation & Commissioning",
         "serial_number": "PRJ-0001-WP-13",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 556851.34,
@@ -3764,7 +3764,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 14",
+        "machine_type": "Warranty & Maintenance",
         "serial_number": "PRJ-0001-WP-14",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 66225.17,
@@ -3849,7 +3849,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 15",
+        "machine_type": "Extended warranty",
         "serial_number": "PRJ-0001-WP-15",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 11854.08,
@@ -3934,7 +3934,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 16",
+        "machine_type": "Extended warranty - IT Support",
         "serial_number": "PRJ-0001-WP-16",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 32044.32,
@@ -4019,7 +4019,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 17",
+        "machine_type": "Extended warranty - Logistics",
         "serial_number": "PRJ-0001-WP-17",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 31403.43,
@@ -4104,7 +4104,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 18",
+        "machine_type": "Extended warranty - Quality Assurance",
         "serial_number": "PRJ-0001-WP-18",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 32345.91,
@@ -4189,7 +4189,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 19",
+        "machine_type": "Extended warranty - Quality Control",
         "serial_number": "PRJ-0001-WP-19",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 32364.76,
@@ -4274,7 +4274,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 20",
+        "machine_type": "Maintenance & Repair",
         "serial_number": "PRJ-0001-WP-20",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 25920.92,
@@ -4359,7 +4359,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 21",
+        "machine_type": "Maintenance & Repair - IT Support",
         "serial_number": "PRJ-0001-WP-21",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 28103.04,
@@ -4444,7 +4444,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 22",
+        "machine_type": "Maintenance & Repair - Logistics",
         "serial_number": "PRJ-0001-WP-22",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 27540.98,
@@ -4529,7 +4529,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 23",
+        "machine_type": "Maintenance & Repair - Quality Assurance",
         "serial_number": "PRJ-0001-WP-23",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 28367.54,
@@ -4614,7 +4614,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 24",
+        "machine_type": "Maintenance & Repair - Quality Control",
         "serial_number": "PRJ-0001-WP-24",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 28384.07,
@@ -4699,7 +4699,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 25",
+        "machine_type": "Helpdesk Support",
         "serial_number": "PRJ-0001-WP-25",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 16491.66,
@@ -4784,7 +4784,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 26",
+        "machine_type": "Helpdesk Support - IT Support",
         "serial_number": "PRJ-0001-WP-26",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 15736.56,
@@ -4869,7 +4869,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 27",
+        "machine_type": "Helpdesk Support - Logistics",
         "serial_number": "PRJ-0001-WP-27",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 15421.83,
@@ -4954,7 +4954,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 28",
+        "machine_type": "Helpdesk Support - Quality Assurance",
         "serial_number": "PRJ-0001-WP-28",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 15884.67,
@@ -5039,7 +5039,7 @@
     },
     {
       "wbe": {
-        "machine_type": "Work Package 29",
+        "machine_type": "Helpdesk Support - Quality Control",
         "serial_number": "PRJ-0001-WP-29",
         "contracted_delivery_date": "2026-12-31",
         "revenue_allocation": 15893.93,

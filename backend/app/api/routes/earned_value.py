@@ -26,6 +26,11 @@ from app.services.earned_value import (
     aggregate_earned_value,
     calculate_cost_element_earned_value,
 )
+from app.services.time_machine import (
+    TimeMachineEventType,
+    apply_time_machine_filters,
+    end_of_day,
+)
 
 router = APIRouter(prefix="/projects", tags=["earned-value"])
 
@@ -51,14 +56,14 @@ def _select_entry_for_cost_element(
         Most recent EarnedValueEntry where completion_date <= control_date, or None if no such entry exists.
         Tie-breaking: If multiple entries have the same completion_date, selects the one with latest created_at.
     """
-    statement = (
-        select(EarnedValueEntry)
-        .where(EarnedValueEntry.cost_element_id == cost_element_id)
-        .where(EarnedValueEntry.completion_date <= control_date)
-        .order_by(
-            EarnedValueEntry.completion_date.desc(),
-            EarnedValueEntry.created_at.desc(),
-        )
+    statement = select(EarnedValueEntry).where(
+        EarnedValueEntry.cost_element_id == cost_element_id,
+    )
+    statement = apply_time_machine_filters(
+        statement, TimeMachineEventType.EARNED_VALUE, control_date
+    ).order_by(
+        EarnedValueEntry.completion_date.desc(),
+        EarnedValueEntry.created_at.desc(),
     )
     return session.exec(statement).first()
 
@@ -84,15 +89,15 @@ def _get_entry_map(
     # Query all entries for the cost elements where completion_date <= control_date
     # We'll need to use a window function or subquery to get the latest per cost element
     # For simplicity, we'll query all and filter in Python (acceptable for reasonable number of entries)
-    statement = (
-        select(EarnedValueEntry)
-        .where(EarnedValueEntry.cost_element_id.in_(cost_element_ids))
-        .where(EarnedValueEntry.completion_date <= control_date)
-        .order_by(
-            EarnedValueEntry.cost_element_id,
-            EarnedValueEntry.completion_date.desc(),
-            EarnedValueEntry.created_at.desc(),
-        )
+    statement = select(EarnedValueEntry).where(
+        EarnedValueEntry.cost_element_id.in_(cost_element_ids),
+    )
+    statement = apply_time_machine_filters(
+        statement, TimeMachineEventType.EARNED_VALUE, control_date
+    ).order_by(
+        EarnedValueEntry.cost_element_id,
+        EarnedValueEntry.completion_date.desc(),
+        EarnedValueEntry.created_at.desc(),
     )
     entries = session.exec(statement).all()
 
@@ -132,9 +137,14 @@ def get_cost_element_earned_value(
     cost_element = session.get(CostElement, cost_element_id)
     if not cost_element:
         raise HTTPException(status_code=404, detail="Cost element not found")
+    cutoff = end_of_day(control_date)
+    if cost_element.created_at > cutoff:
+        raise HTTPException(status_code=404, detail="Cost element not found")
 
     wbe = session.get(WBE, cost_element.wbe_id)
     if not wbe or wbe.project_id != project.project_id:
+        raise HTTPException(status_code=404, detail="Cost element not found")
+    if wbe.created_at > cutoff:
         raise HTTPException(status_code=404, detail="Cost element not found")
 
     entry = _select_entry_for_cost_element(
@@ -172,9 +182,15 @@ def get_wbe_earned_value(
     wbe = session.get(WBE, wbe_id)
     if not wbe or wbe.project_id != project.project_id:
         raise HTTPException(status_code=404, detail="WBE not found")
+    cutoff = end_of_day(control_date)
+    if wbe.created_at > cutoff:
+        raise HTTPException(status_code=404, detail="WBE not found")
 
     cost_elements = session.exec(
-        select(CostElement).where(CostElement.wbe_id == wbe.wbe_id)
+        select(CostElement).where(
+            CostElement.wbe_id == wbe.wbe_id,
+            CostElement.created_at <= cutoff,
+        )
     ).all()
 
     entry_map = _get_entry_map(
@@ -183,9 +199,12 @@ def get_wbe_earned_value(
 
     tuples: list[tuple[Decimal, Decimal]] = []
     for cost_element in cost_elements:
+        entry = entry_map.get(cost_element.cost_element_id)
+        if entry is None:
+            continue
         earned_value, _percent = calculate_cost_element_earned_value(
             cost_element=cost_element,
-            entry=entry_map.get(cost_element.cost_element_id),
+            entry=entry,
             control_date=control_date,
         )
         tuples.append((earned_value, cost_element.budget_bac or Decimal("0.00")))
@@ -215,11 +234,20 @@ def get_project_earned_value(
 ) -> EarnedValueProjectPublic:
     project = _ensure_project_exists(session, project_id)
 
-    wbes = session.exec(select(WBE).where(WBE.project_id == project.project_id)).all()
+    cutoff = end_of_day(control_date)
+    wbes = session.exec(
+        select(WBE).where(
+            WBE.project_id == project.project_id,
+            WBE.created_at <= cutoff,
+        )
+    ).all()
     wbe_ids = [wbe.wbe_id for wbe in wbes]
     if wbe_ids:
         cost_elements = session.exec(
-            select(CostElement).where(CostElement.wbe_id.in_(wbe_ids))
+            select(CostElement).where(
+                CostElement.wbe_id.in_(wbe_ids),
+                CostElement.created_at <= cutoff,
+            )
         ).all()
     else:
         cost_elements = []
@@ -230,9 +258,12 @@ def get_project_earned_value(
 
     tuples: list[tuple[Decimal, Decimal]] = []
     for cost_element in cost_elements:
+        entry = entry_map.get(cost_element.cost_element_id)
+        if entry is None:
+            continue
         earned_value, _percent = calculate_cost_element_earned_value(
             cost_element=cost_element,
-            entry=entry_map.get(cost_element.cost_element_id),
+            entry=entry,
             control_date=control_date,
         )
         tuples.append((earned_value, cost_element.budget_bac or Decimal("0.00")))

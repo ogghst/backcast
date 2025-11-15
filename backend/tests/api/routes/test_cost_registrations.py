@@ -1,6 +1,6 @@
 """Tests for Cost Registrations API routes."""
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
 from sqlmodel import Session
@@ -251,6 +251,45 @@ def test_read_cost_registrations_time_machine_future_includes(
     ids = [item["cost_registration_id"] for item in content["data"]]
     assert str(earlier.cost_registration_id) in ids
     assert str(later.cost_registration_id) in ids
+
+
+def test_read_cost_registrations_excludes_late_created_entries(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Registrations created after the control date should stay hidden."""
+    cost_element = create_random_cost_element(db)
+    control_date = date(2024, 2, 20)
+
+    visible = create_random_cost_registration(
+        db,
+        cost_element_id=cost_element.cost_element_id,
+        registration_date=control_date,
+        created_at=datetime(2024, 2, 20, tzinfo=timezone.utc),
+    )
+
+    hidden = create_random_cost_registration(
+        db,
+        cost_element_id=cost_element.cost_element_id,
+        registration_date=control_date,
+    )
+    hidden.created_at = datetime(2024, 3, 5, tzinfo=timezone.utc)
+    db.add(hidden)
+    db.commit()
+    db.refresh(hidden)
+
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/cost-registrations/",
+        params={"cost_element_id": str(cost_element.cost_element_id)},
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    ids = [item["cost_registration_id"] for item in data]
+    assert str(visible.cost_registration_id) in ids
+    assert str(hidden.cost_registration_id) not in ids
 
 
 def test_update_cost_registration(

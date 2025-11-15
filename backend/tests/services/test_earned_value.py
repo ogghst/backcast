@@ -18,10 +18,13 @@ def _create_test_entry(
     completion_date: date,
     percent_complete: Decimal = Decimal("50.00"),
     created_at: datetime | None = None,
+    registration_date: date | None = None,
 ) -> EarnedValueEntry:
     """Create a test EarnedValueEntry without database."""
     if created_at is None:
         created_at = datetime.now(timezone.utc)
+
+    registration_date = registration_date or completion_date
 
     return EarnedValueEntry(
         earned_value_id=uuid.uuid4(),
@@ -32,6 +35,7 @@ def _create_test_entry(
         earned_value=Decimal("50000.00"),
         deliverables="Test",
         description="Test entry",
+        registration_date=registration_date,
         created_at=created_at,
         last_modified_at=created_at,
     )
@@ -59,6 +63,27 @@ def test_select_latest_entry_before_control_date() -> None:
 
     assert result == entry2
     assert result.completion_date == date(2024, 2, 10)
+
+
+def test_select_latest_entry_respects_registration_date() -> None:
+    """Entries with registration_date after control_date should be excluded."""
+    control_date = date(2024, 2, 15)
+
+    entry_valid = _create_test_entry(
+        completion_date=date(2024, 2, 1),
+        created_at=datetime(2024, 2, 1, tzinfo=timezone.utc),
+        registration_date=date(2024, 2, 5),
+    )
+    entry_future = _create_test_entry(
+        completion_date=date(2024, 1, 31),
+        created_at=datetime(2024, 2, 1, tzinfo=timezone.utc),
+        registration_date=date(2024, 3, 1),
+    )
+
+    entries = [entry_future, entry_valid]
+    result = _select_latest_entry_for_control_date(entries, control_date)
+
+    assert result == entry_valid
 
 
 def test_select_latest_entry_after_control_date_returns_none() -> None:

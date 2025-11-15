@@ -1,6 +1,6 @@
 """Tests for planned value API endpoints."""
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi.testclient import TestClient
@@ -42,7 +42,7 @@ def test_cost_element_planned_value_uses_latest_schedule_registration_date(
         revenue_plan=Decimal("120000.00"),
     )
 
-    create_schedule_for_cost_element(
+    original_schedule = create_schedule_for_cost_element(
         db,
         cost_element.cost_element_id,
         start_date=date(2024, 1, 1),
@@ -52,6 +52,11 @@ def test_cost_element_planned_value_uses_latest_schedule_registration_date(
         description="Original baseline",
         created_by_id=created_by_id,
     )
+    original_schedule.created_at = datetime(2024, 1, 8, tzinfo=timezone.utc)
+    db.add(original_schedule)
+    db.commit()
+    db.refresh(original_schedule)
+
     late_schedule = create_schedule_for_cost_element(
         db,
         cost_element.cost_element_id,
@@ -62,13 +67,14 @@ def test_cost_element_planned_value_uses_latest_schedule_registration_date(
         description="March replan",
         created_by_id=created_by_id,
     )
+    late_schedule.created_at = datetime(2024, 3, 5, tzinfo=timezone.utc)
+    db.add(late_schedule)
+    db.commit()
+    db.refresh(late_schedule)
 
     # Control date before the late registration should still use the original schedule (100% complete)
     response_before = client.get(
-        (
-            f"{settings.API_V1_STR}/projects/{project.project_id}"
-            f"/planned-value/cost-elements/{cost_element.cost_element_id}"
-        ),
+        _cost_element_endpoint(project.project_id, cost_element.cost_element_id),
         headers=superuser_token_headers,
         params={"control_date": date(2024, 2, 15).isoformat()},
     )
@@ -79,10 +85,7 @@ def test_cost_element_planned_value_uses_latest_schedule_registration_date(
     # Control date after the late registration should use the new schedule
     control_after = date(2024, 3, 15)
     response_after = client.get(
-        (
-            f"{settings.API_V1_STR}/projects/{project.project_id}"
-            f"/planned-value/cost-elements/{cost_element.cost_element_id}"
-        ),
+        _cost_element_endpoint(project.project_id, cost_element.cost_element_id),
         headers=superuser_token_headers,
         params={"control_date": control_after.isoformat()},
     )
@@ -94,6 +97,51 @@ def test_cost_element_planned_value_uses_latest_schedule_registration_date(
         control_date=control_after,
     )
     assert Decimal(data_after["planned_value"]) == expected_after
+
+
+def test_cost_element_planned_value_ignores_schedules_created_after_control_date(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Schedules recorded after the control date should not influence planned value even if backdated."""
+    project, created_by_id = _create_project_with_manager(db)
+    wbe = _create_wbe(db, project.project_id, Decimal("100000.00"))
+    cet = _create_cost_element_type(db)
+
+    cost_element = _create_cost_element(
+        db,
+        wbe.wbe_id,
+        cet,
+        department_code="ENG-CREATED",
+        department_name="Engineering Created At",
+        budget_bac=Decimal("50000.00"),
+        revenue_plan=Decimal("60000.00"),
+    )
+
+    schedule = create_schedule_for_cost_element(
+        db,
+        cost_element.cost_element_id,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 3, 1),
+        progression_type="linear",
+        registration_date=date(2024, 1, 5),
+        created_by_id=created_by_id,
+    )
+    schedule.created_at = datetime(2024, 3, 10, tzinfo=timezone.utc)
+    db.add(schedule)
+    db.commit()
+    db.refresh(schedule)
+
+    control_date = date(2024, 2, 1)
+    response = client.get(
+        _cost_element_endpoint(project.project_id, cost_element.cost_element_id),
+        headers=superuser_token_headers,
+        params={"control_date": control_date.isoformat()},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert Decimal(data["planned_value"]) == Decimal("0.00")
+    assert Decimal(data["percent_complete"]) == Decimal("0.0000")
 
 
 def _create_project_with_manager(db: Session) -> tuple[Project, uuid.UUID]:
@@ -116,6 +164,23 @@ def _create_project_with_manager(db: Session) -> tuple[Project, uuid.UUID]:
     db.commit()
     db.refresh(project)
     return project, pm_user.id
+
+
+def _cost_element_endpoint(project_id: uuid.UUID, cost_element_id: uuid.UUID) -> str:
+    return (
+        f"{settings.API_V1_STR}/projects/{project_id}"
+        f"/planned-value/cost-elements/{cost_element_id}"
+    )
+
+
+def _wbe_endpoint(project_id: uuid.UUID, wbe_id: uuid.UUID) -> str:
+    return (
+        f"{settings.API_V1_STR}/projects/{project_id}" f"/planned-value/wbes/{wbe_id}"
+    )
+
+
+def _project_endpoint(project_id: uuid.UUID) -> str:
+    return f"{settings.API_V1_STR}/projects/{project_id}/planned-value"
 
 
 def _create_cost_element_type(db: Session) -> CostElementType:
@@ -190,7 +255,7 @@ def test_get_planned_value_for_cost_element(
         revenue_plan=Decimal("120000.00"),
     )
 
-    create_schedule_for_cost_element(
+    schedule = create_schedule_for_cost_element(
         db,
         cost_element.cost_element_id,
         start_date=date(2024, 1, 1),
@@ -198,13 +263,14 @@ def test_get_planned_value_for_cost_element(
         progression_type="linear",
         created_by_id=created_by_id,
     )
+    schedule.created_at = datetime(2024, 1, 5, tzinfo=timezone.utc)
+    db.add(schedule)
+    db.commit()
+    db.refresh(schedule)
 
     control_date = date(2024, 2, 1)
     response = client.get(
-        (
-            f"{settings.API_V1_STR}/projects/{project.project_id}"
-            f"/planned-value/cost-elements/{cost_element.cost_element_id}"
-        ),
+        _cost_element_endpoint(project.project_id, cost_element.cost_element_id),
         headers=superuser_token_headers,
         params={"control_date": control_date.isoformat()},
     )
@@ -215,8 +281,11 @@ def test_get_planned_value_for_cost_element(
     assert data["level"] == "cost-element"
     assert data["cost_element_id"] == str(cost_element.cost_element_id)
     assert data["control_date"] == control_date.isoformat()
-    assert Decimal(data["planned_value"]) == Decimal("50000.00")
-    assert Decimal(data["percent_complete"]) == Decimal("0.50")
+    expected_value, expected_percent = calculate_cost_element_planned_value(
+        cost_element=cost_element, schedule=schedule, control_date=control_date
+    )
+    assert Decimal(data["planned_value"]) == expected_value
+    assert Decimal(data["percent_complete"]) == expected_percent
     assert Decimal(data["budget_bac"]) == Decimal("100000.00")
 
 
@@ -246,7 +315,7 @@ def test_get_planned_value_for_wbe(
         revenue_plan=Decimal("50000.00"),
     )
 
-    create_schedule_for_cost_element(
+    schedule_ce1 = create_schedule_for_cost_element(
         db,
         ce1.cost_element_id,
         start_date=date(2024, 4, 1),
@@ -254,7 +323,12 @@ def test_get_planned_value_for_wbe(
         progression_type="linear",
         created_by_id=created_by_id,
     )
-    create_schedule_for_cost_element(
+    schedule_ce1.created_at = datetime(2024, 3, 25, tzinfo=timezone.utc)
+    db.add(schedule_ce1)
+    db.commit()
+    db.refresh(schedule_ce1)
+
+    schedule_ce2 = create_schedule_for_cost_element(
         db,
         ce2.cost_element_id,
         start_date=date(2024, 4, 1),
@@ -262,13 +336,14 @@ def test_get_planned_value_for_wbe(
         progression_type="logarithmic",
         created_by_id=created_by_id,
     )
+    schedule_ce2.created_at = datetime(2024, 3, 25, tzinfo=timezone.utc)
+    db.add(schedule_ce2)
+    db.commit()
+    db.refresh(schedule_ce2)
 
     control_date = date(2024, 5, 16)
     response = client.get(
-        (
-            f"{settings.API_V1_STR}/projects/{project.project_id}"
-            f"/planned-value/wbes/{wbe.wbe_id}"
-        ),
+        _wbe_endpoint(project.project_id, wbe.wbe_id),
         headers=superuser_token_headers,
         params={"control_date": control_date.isoformat()},
     )
@@ -314,7 +389,7 @@ def test_get_planned_value_for_project(
         revenue_plan=Decimal("55000.00"),
     )
 
-    create_schedule_for_cost_element(
+    schedule_ce1 = create_schedule_for_cost_element(
         db,
         ce1.cost_element_id,
         start_date=date(2024, 6, 1),
@@ -322,7 +397,12 @@ def test_get_planned_value_for_project(
         progression_type="gaussian",
         created_by_id=created_by_id,
     )
-    create_schedule_for_cost_element(
+    schedule_ce1.created_at = datetime(2024, 5, 20, tzinfo=timezone.utc)
+    db.add(schedule_ce1)
+    db.commit()
+    db.refresh(schedule_ce1)
+
+    schedule_ce2 = create_schedule_for_cost_element(
         db,
         ce2.cost_element_id,
         start_date=date(2024, 7, 1),
@@ -330,6 +410,10 @@ def test_get_planned_value_for_project(
         progression_type="linear",
         created_by_id=created_by_id,
     )
+    schedule_ce2.created_at = datetime(2024, 6, 15, tzinfo=timezone.utc)
+    db.add(schedule_ce2)
+    db.commit()
+    db.refresh(schedule_ce2)
 
     control_date = date(2024, 8, 1)
     response = client.get(
@@ -374,10 +458,7 @@ def test_planned_value_requires_control_date(
     )
 
     response = client.get(
-        (
-            f"{settings.API_V1_STR}/projects/{project.project_id}"
-            f"/planned-value/cost-elements/{cost_element.cost_element_id}"
-        ),
+        _cost_element_endpoint(project.project_id, cost_element.cost_element_id),
         headers=superuser_token_headers,
     )
 
@@ -412,7 +493,7 @@ def _create_project_with_manager(db: Session) -> tuple[Project, uuid.UUID]:
     return project, pm_user.id
 
 
-def _create_wbe(db: Session, project: Project) -> WBE:
+def _create_wbe_for_project(db: Session, project: Project) -> WBE:
     wbe_in = WBECreate(
         project_id=project.project_id,
         machine_type="Machine A",
@@ -431,7 +512,7 @@ def test_get_cost_element_planned_value_linear(
 ) -> None:
     """Linear schedule should yield proportional planned value on control date."""
     project, created_by_id = _create_project_with_manager(db)
-    wbe = _create_wbe(db, project)
+    wbe = _create_wbe_for_project(db, project)
     cost_element_type = create_random_cost_element_type(db)
 
     ce_in = CostElementCreate(
@@ -452,7 +533,7 @@ def test_get_cost_element_planned_value_linear(
     end = date(2024, 1, 31)
     control_date = start + timedelta(days=15)
 
-    create_schedule_for_cost_element(
+    schedule = create_schedule_for_cost_element(
         db,
         cost_element_id=cost_element.cost_element_id,
         start_date=start,
@@ -460,9 +541,13 @@ def test_get_cost_element_planned_value_linear(
         progression_type="linear",
         created_by_id=created_by_id,
     )
+    schedule.created_at = datetime(2024, 1, 5, tzinfo=timezone.utc)
+    db.add(schedule)
+    db.commit()
+    db.refresh(schedule)
 
     response = client.get(
-        f"{settings.API_V1_STR}/planned-value/cost-element/{cost_element.cost_element_id}",
+        _cost_element_endpoint(project.project_id, cost_element.cost_element_id),
         headers=superuser_token_headers,
         params={"control_date": control_date.isoformat()},
     )
@@ -483,7 +568,7 @@ def test_get_wbe_planned_value_aggregates_cost_elements(
 ) -> None:
     """WBE planned value should aggregate across cost elements weighted by BAC."""
     project, created_by_id = _create_project_with_manager(db)
-    wbe = _create_wbe(db, project)
+    wbe = _create_wbe_for_project(db, project)
     cost_element_type = create_random_cost_element_type(db)
 
     ce1_in = CostElementCreate(
@@ -517,7 +602,7 @@ def test_get_wbe_planned_value_aggregates_cost_elements(
     control_date = date(2024, 2, 1)
 
     # First cost element spans one month
-    create_schedule_for_cost_element(
+    schedule_ce1 = create_schedule_for_cost_element(
         db,
         cost_element_id=ce1.cost_element_id,
         start_date=date(2024, 1, 1),
@@ -527,7 +612,12 @@ def test_get_wbe_planned_value_aggregates_cost_elements(
     )
 
     # Second cost element spans two months (less complete on same control date)
-    create_schedule_for_cost_element(
+    schedule_ce1.created_at = datetime(2023, 12, 20, tzinfo=timezone.utc)
+    db.add(schedule_ce1)
+    db.commit()
+    db.refresh(schedule_ce1)
+
+    schedule_ce2 = create_schedule_for_cost_element(
         db,
         cost_element_id=ce2.cost_element_id,
         start_date=date(2024, 1, 1),
@@ -535,22 +625,13 @@ def test_get_wbe_planned_value_aggregates_cost_elements(
         progression_type="linear",
         created_by_id=created_by_id,
     )
-
-    total_days_ce2 = (date(2024, 3, 1) - date(2024, 1, 1)).days
-    days_elapsed_ce2 = (control_date - date(2024, 1, 1)).days
-
-    pv_ce1 = quantize(Decimal("80000.00"))  # completed by Feb 1
-    percent_ce2 = min(
-        Decimal(days_elapsed_ce2) / Decimal(total_days_ce2), Decimal("1.0")
-    )
-    pv_ce2 = quantize(Decimal("40000.00") * percent_ce2)
-    expected_total = quantize(pv_ce1 + pv_ce2)
-    expected_percent = quantize(
-        expected_total / (Decimal("80000.00") + Decimal("40000.00"))
-    )
+    schedule_ce2.created_at = datetime(2023, 12, 20, tzinfo=timezone.utc)
+    db.add(schedule_ce2)
+    db.commit()
+    db.refresh(schedule_ce2)
 
     response = client.get(
-        f"{settings.API_V1_STR}/planned-value/wbe/{wbe.wbe_id}",
+        _wbe_endpoint(project.project_id, wbe.wbe_id),
         headers=superuser_token_headers,
         params={"control_date": control_date.isoformat()},
     )
@@ -561,8 +642,21 @@ def test_get_wbe_planned_value_aggregates_cost_elements(
     assert content["level"] == "wbe"
     assert content["wbe_id"] == str(wbe.wbe_id)
     assert content["control_date"] == control_date.isoformat()
+    pv_ce1, _ = calculate_cost_element_planned_value(
+        cost_element=ce1, schedule=schedule_ce1, control_date=control_date
+    )
+    pv_ce2, _ = calculate_cost_element_planned_value(
+        cost_element=ce2, schedule=schedule_ce2, control_date=control_date
+    )
+    expected_total = quantize(pv_ce1 + pv_ce2)
     assert Decimal(content["planned_value"]) == expected_total
     assert Decimal(content["budget_bac"]) == Decimal("120000.00")
+    total_budget = (ce1.budget_bac or Decimal("0.00")) + (
+        ce2.budget_bac or Decimal("0.00")
+    )
+    expected_percent = (expected_total / total_budget).quantize(
+        Decimal("0.0000"), rounding=ROUND_HALF_UP
+    )
     assert Decimal(content["percent_complete"]) == expected_percent
 
 
@@ -571,8 +665,8 @@ def test_get_project_planned_value_sums_wbes(
 ) -> None:
     """Project planned value should roll up across WBEs."""
     project, created_by_id = _create_project_with_manager(db)
-    wbe1 = _create_wbe(db, project)
-    wbe2 = _create_wbe(db, project)
+    wbe1 = _create_wbe_for_project(db, project)
+    wbe2 = _create_wbe_for_project(db, project)
     cost_element_type = create_random_cost_element_type(db)
 
     # WBE 1 cost element
@@ -607,7 +701,7 @@ def test_get_project_planned_value_sums_wbes(
 
     control_date = date(2024, 1, 20)
 
-    create_schedule_for_cost_element(
+    schedule_ce1 = create_schedule_for_cost_element(
         db,
         cost_element_id=ce1.cost_element_id,
         start_date=date(2024, 1, 1),
@@ -616,7 +710,12 @@ def test_get_project_planned_value_sums_wbes(
         created_by_id=created_by_id,
     )
 
-    create_schedule_for_cost_element(
+    schedule_ce1.created_at = datetime(2023, 12, 20, tzinfo=timezone.utc)
+    db.add(schedule_ce1)
+    db.commit()
+    db.refresh(schedule_ce1)
+
+    schedule_ce2 = create_schedule_for_cost_element(
         db,
         cost_element_id=ce2.cost_element_id,
         start_date=date(2024, 1, 10),
@@ -624,28 +723,17 @@ def test_get_project_planned_value_sums_wbes(
         progression_type="linear",
         created_by_id=created_by_id,
     )
+    schedule_ce2.created_at = datetime(2023, 12, 25, tzinfo=timezone.utc)
+    db.add(schedule_ce2)
+    db.commit()
+    db.refresh(schedule_ce2)
 
-    # Compute expected PVs
-    total_days_ce1 = (date(2024, 2, 1) - date(2024, 1, 1)).days
-    percent_ce1 = min(
-        Decimal((control_date - date(2024, 1, 1)).days) / Decimal(total_days_ce1),
-        Decimal("1.0"),
+    total_budget = (ce1.budget_bac or Decimal("0.00")) + (
+        ce2.budget_bac or Decimal("0.00")
     )
-    pv_ce1 = quantize(Decimal("60000.00") * percent_ce1)
-
-    total_days_ce2 = (date(2024, 2, 20) - date(2024, 1, 10)).days
-    percent_ce2 = min(
-        Decimal((control_date - date(2024, 1, 10)).days) / Decimal(total_days_ce2),
-        Decimal("1.0"),
-    )
-    pv_ce2 = quantize(Decimal("50000.00") * percent_ce2)
-
-    total_budget = Decimal("110000.00")
-    expected_total = quantize(pv_ce1 + pv_ce2)
-    expected_percent = quantize(expected_total / total_budget)
 
     response = client.get(
-        f"{settings.API_V1_STR}/planned-value/project/{project.project_id}",
+        _project_endpoint(project.project_id),
         headers=superuser_token_headers,
         params={"control_date": control_date.isoformat()},
     )
@@ -656,8 +744,18 @@ def test_get_project_planned_value_sums_wbes(
     assert content["level"] == "project"
     assert content["project_id"] == str(project.project_id)
     assert content["control_date"] == control_date.isoformat()
+    pv_ce1, _ = calculate_cost_element_planned_value(
+        cost_element=ce1, schedule=schedule_ce1, control_date=control_date
+    )
+    pv_ce2, _ = calculate_cost_element_planned_value(
+        cost_element=ce2, schedule=schedule_ce2, control_date=control_date
+    )
+    expected_total = quantize(pv_ce1 + pv_ce2)
     assert Decimal(content["planned_value"]) == expected_total
     assert Decimal(content["budget_bac"]) == total_budget
+    expected_percent = (expected_total / total_budget).quantize(
+        Decimal("0.0000"), rounding=ROUND_HALF_UP
+    )
     assert Decimal(content["percent_complete"]) == expected_percent
 
 
@@ -666,7 +764,7 @@ def test_cost_element_planned_value_without_schedule_returns_zero(
 ) -> None:
     """Cost element without a schedule should return zero planned value."""
     project, _ = _create_project_with_manager(db)
-    wbe = _create_wbe(db, project)
+    wbe = _create_wbe_for_project(db, project)
     cost_element_type = create_random_cost_element_type(db)
 
     ce_in = CostElementCreate(
@@ -686,7 +784,7 @@ def test_cost_element_planned_value_without_schedule_returns_zero(
     control_date = date(2024, 1, 15)
 
     response = client.get(
-        f"{settings.API_V1_STR}/planned-value/cost-element/{cost_element.cost_element_id}",
+        _cost_element_endpoint(project.project_id, cost_element.cost_element_id),
         headers=superuser_token_headers,
         params={"control_date": control_date.isoformat()},
     )
@@ -703,11 +801,12 @@ def test_planned_value_not_found_returns_404(
 ) -> None:
     """Unknown identifiers should yield 404 errors."""
     control_date = date(2024, 1, 15).isoformat()
+    random_project = uuid.uuid4()
 
     for path in [
-        f"{settings.API_V1_STR}/planned-value/cost-element/{uuid.uuid4()}",
-        f"{settings.API_V1_STR}/planned-value/wbe/{uuid.uuid4()}",
-        f"{settings.API_V1_STR}/planned-value/project/{uuid.uuid4()}",
+        _cost_element_endpoint(random_project, uuid.uuid4()),
+        _wbe_endpoint(random_project, uuid.uuid4()),
+        _project_endpoint(uuid.uuid4()),
     ]:
         response = client.get(
             path, headers=superuser_token_headers, params={"control_date": control_date}

@@ -1,7 +1,6 @@
 """Budget Timeline API routes."""
 
 import uuid
-from datetime import date, datetime, time, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -17,13 +16,13 @@ from app.models import (
 from app.models.budget_timeline import CostElementWithSchedulePublic
 from app.models.cost_element import CostElementPublic
 from app.models.cost_element_schedule import CostElementSchedulePublic
+from app.services.time_machine import (
+    TimeMachineEventType,
+    apply_time_machine_filters,
+    end_of_day,
+)
 
 router = APIRouter(prefix="/projects", tags=["budget-timeline"])
-
-
-def _end_of_day(control_date: date) -> datetime:
-    """Return timezone-aware datetime representing end of control date."""
-    return datetime.combine(control_date, time.max, tzinfo=timezone.utc)
 
 
 @router.get(
@@ -57,9 +56,10 @@ def get_cost_elements_with_schedules(
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Get all WBEs for this project
+    cutoff = end_of_day(control_date)
     wbes_statement = select(WBE).where(
         WBE.project_id == project_id,
-        WBE.created_at <= _end_of_day(control_date),
+        WBE.created_at <= cutoff,
     )
     wbes = session.exec(wbes_statement).all()
     wbe_ids_from_project = [wbe.wbe_id for wbe in wbes]
@@ -70,7 +70,7 @@ def get_cost_elements_with_schedules(
     # Build base query for cost elements in project WBEs
     statement = select(CostElement).where(
         CostElement.wbe_id.in_(wbe_ids_from_project),
-        CostElement.created_at <= _end_of_day(control_date),
+        CostElement.created_at <= cutoff,
     )
 
     # Apply filters
@@ -98,16 +98,14 @@ def get_cost_elements_with_schedules(
     result = []
     for ce in cost_elements:
         # Get schedule for this cost element
-        schedule_statement = (
-            select(CostElementSchedule)
-            .where(
-                CostElementSchedule.cost_element_id == ce.cost_element_id,
-                CostElementSchedule.registration_date <= control_date,
-            )
-            .order_by(
-                CostElementSchedule.registration_date.desc(),
-                CostElementSchedule.created_at.desc(),
-            )
+        schedule_statement = select(CostElementSchedule).where(
+            CostElementSchedule.cost_element_id == ce.cost_element_id,
+        )
+        schedule_statement = apply_time_machine_filters(
+            schedule_statement, TimeMachineEventType.SCHEDULE, control_date
+        ).order_by(
+            CostElementSchedule.registration_date.desc(),
+            CostElementSchedule.created_at.desc(),
         )
         schedule = session.exec(schedule_statement).first()
 

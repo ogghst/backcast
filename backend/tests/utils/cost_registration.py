@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from sqlmodel import Session
@@ -16,6 +16,7 @@ def create_random_cost_registration(
     cost_element_id: uuid.UUID | None = None,
     created_by_id: uuid.UUID | None = None,
     registration_date: date | None = None,
+    created_at: datetime | None = None,
 ) -> CostRegistration:
     """Create a random cost registration."""
     if cost_element_id is None:
@@ -51,6 +52,15 @@ def create_random_cost_registration(
     cost_data = cost_in.model_dump()
     cost_data["created_by_id"] = created_by_id
     cost = CostRegistration.model_validate(cost_data)
+    if created_at is not None:
+        cost.created_at = created_at
+        cost.last_modified_at = created_at
+    elif registration_date is not None:
+        default_created = datetime.combine(
+            registration_date, datetime.min.time(), tzinfo=timezone.utc
+        )
+        cost.created_at = default_created
+        cost.last_modified_at = default_created
     db.add(cost)
     db.commit()
     db.refresh(cost)

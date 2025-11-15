@@ -1,6 +1,6 @@
 """Tests for Earned Value Entries API routes."""
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from fastapi.testclient import TestClient
@@ -11,6 +11,7 @@ from app.models import WBE, BaselineLog, Project
 from tests.utils.cost_element import create_random_cost_element
 from tests.utils.cost_element_schedule import create_schedule_for_cost_element
 from tests.utils.earned_value_entry import create_earned_value_entry
+from tests.utils.user import set_time_machine_date
 
 
 def _post_earned_value_entry(
@@ -351,6 +352,46 @@ def test_list_earned_value_entries_filtered_by_cost_element(
     returned_ids = {item["earned_value_id"] for item in content["data"]}
     assert str(entry1.earned_value_id) in returned_ids
     assert str(entry2.earned_value_id) in returned_ids
+
+
+def test_list_earned_value_entries_respects_control_date(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Listing should exclude entries registered after the control date."""
+    cost_element = create_random_cost_element(db)
+    control_date = date(2024, 2, 15)
+
+    visible = create_earned_value_entry(
+        db,
+        cost_element_id=cost_element.cost_element_id,
+        completion_date=date(2024, 2, 1),
+        percent_complete=Decimal("20.00"),
+        registration_date=date(2024, 2, 1),
+        created_at=datetime(2024, 2, 1, tzinfo=timezone.utc),
+    )
+
+    hidden = create_earned_value_entry(
+        db,
+        cost_element_id=cost_element.cost_element_id,
+        completion_date=date(2024, 2, 10),
+        percent_complete=Decimal("30.00"),
+        registration_date=date(2024, 2, 10),
+        created_at=datetime(2024, 3, 1, tzinfo=timezone.utc),
+    )
+
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/earned-value-entries/",
+        headers=superuser_token_headers,
+        params={"cost_element_id": str(cost_element.cost_element_id)},
+    )
+    assert response.status_code == 200
+    content = response.json()
+    ids = [item["earned_value_id"] for item in content["data"]]
+    assert str(visible.earned_value_id) in ids
+    assert str(hidden.earned_value_id) not in ids
+    assert content["count"] == 1
 
 
 def test_update_earned_value_entry(

@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 
 from sqlmodel import Session
@@ -27,6 +27,8 @@ def create_earned_value_entry(
     percent_complete: Decimal = Decimal("50.00"),
     deliverables: str = "Test deliverable",
     description: str = "Test earned value entry",
+    registration_date: date | None = None,
+    created_at: datetime | None = None,
     created_by_id: uuid.UUID | None = None,
 ) -> EarnedValueEntry:
     """Create an earned value entry for tests."""
@@ -44,6 +46,8 @@ def create_earned_value_entry(
     budget_bac = Decimal(str(cost_element.budget_bac or 0))
     earned_value = _calculate_earned_value(budget_bac, percent_complete)
 
+    registration_date = registration_date or completion_date
+
     ev_in = EarnedValueEntryCreate(
         cost_element_id=cost_element_id,
         completion_date=completion_date,
@@ -51,12 +55,19 @@ def create_earned_value_entry(
         earned_value=earned_value,
         deliverables=deliverables,
         description=description,
+        registration_date=registration_date,
     )
 
     ev_data = ev_in.model_dump()
     ev_data["created_by_id"] = created_by_id
 
     earned_value_entry = EarnedValueEntry.model_validate(ev_data)
+    if created_at is None:
+        created_at = datetime.combine(
+            registration_date, datetime.min.time(), tzinfo=timezone.utc
+        )
+    earned_value_entry.created_at = created_at
+    earned_value_entry.last_modified_at = created_at
     db.add(earned_value_entry)
     db.commit()
     db.refresh(earned_value_entry)

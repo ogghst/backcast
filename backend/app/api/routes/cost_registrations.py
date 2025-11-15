@@ -24,6 +24,7 @@ from app.models import (
     CostRegistrationUpdate,
     Message,
 )
+from app.services.time_machine import TimeMachineEventType, apply_time_machine_filters
 
 router = APIRouter(prefix="/cost-registrations", tags=["cost-registrations"])
 
@@ -164,26 +165,25 @@ def read_cost_registrations(
     Retrieve cost registrations.
     Optionally filter by cost_element_id.
     """
-    statement = (
-        select(CostRegistration)
-        .where(CostRegistration.registration_date <= control_date)
-        .order_by(
-            CostRegistration.registration_date.desc(),
-            CostRegistration.created_at.desc(),
-            CostRegistration.cost_registration_id.desc(),
-        )
+    statement = select(CostRegistration).order_by(
+        CostRegistration.registration_date.desc(),
+        CostRegistration.created_at.desc(),
+        CostRegistration.cost_registration_id.desc(),
     )
-    count_statement = (
-        select(func.count())
-        .select_from(CostRegistration)
-        .where(CostRegistration.registration_date <= control_date)
-    )
+    count_statement = select(func.count()).select_from(CostRegistration)
 
     if cost_element_id:
         statement = statement.where(CostRegistration.cost_element_id == cost_element_id)
         count_statement = count_statement.where(
             CostRegistration.cost_element_id == cost_element_id
         )
+
+    statement = apply_time_machine_filters(
+        statement, TimeMachineEventType.COST_REGISTRATION, control_date
+    )
+    count_statement = apply_time_machine_filters(
+        count_statement, TimeMachineEventType.COST_REGISTRATION, control_date
+    )
 
     # Get count
     count = session.exec(count_statement).one()

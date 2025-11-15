@@ -33,6 +33,10 @@ from app.models import (
     WBEWithBaselineCostElementsPublic,
 )
 from app.services.planned_value import calculate_cost_element_planned_value
+from app.services.time_machine import (
+    TimeMachineEventType,
+    apply_time_machine_filters,
+)
 
 router = APIRouter(prefix="/projects", tags=["baseline-logs"])
 
@@ -46,21 +50,13 @@ def _select_schedule_for_baseline(
         .where(CostElementSchedule.baseline_id.is_(None))
     )
 
-    prioritized = base_statement.where(
-        CostElementSchedule.registration_date <= reference_date
+    prioritized = apply_time_machine_filters(
+        base_statement, TimeMachineEventType.SCHEDULE, reference_date
     ).order_by(
         CostElementSchedule.registration_date.desc(),
         CostElementSchedule.created_at.desc(),
     )
-    schedule = session.exec(prioritized).first()
-    if schedule:
-        return schedule
-
-    fallback = base_statement.order_by(
-        CostElementSchedule.registration_date.asc(),
-        CostElementSchedule.created_at.asc(),
-    )
-    return session.exec(fallback).first()
+    return session.exec(prioritized).first()
 
 
 def create_baseline_cost_elements_for_baseline_log(
