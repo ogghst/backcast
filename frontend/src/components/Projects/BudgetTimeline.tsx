@@ -310,17 +310,6 @@ export default function BudgetTimeline({
     enabled: sortedCostElementIdsForEarnedValue.length > 0,
   })
 
-  if (elementsWithSchedules.length === 0) {
-    return (
-      <Box p={4} borderWidth="1px" borderRadius="lg" bg="bg.surface">
-        <Text color="fg.muted">
-          No cost elements with schedules selected. Please select cost elements
-          that have schedules defined.
-        </Text>
-      </Box>
-    )
-  }
-
   const timelines: TimePeriod[][] = elementsWithSchedules
     .map((ce) => {
       const schedule = ce.schedule!
@@ -406,20 +395,7 @@ export default function BudgetTimeline({
         })
       : []
 
-  const hasBudgetData = timelines.length > 0
-  const hasCostData = costData.length > 0
   const hasEarnedValueData = earnedValueTimeline.length > 0
-
-  if (!hasBudgetData && !hasCostData && !hasEarnedValueData) {
-    return (
-      <Box p={4} borderWidth="1px" borderRadius="lg" bg="bg.surface">
-        <Text color="fg.muted">
-          No budget, cost, or earned value data available for the selected
-          filters.
-        </Text>
-      </Box>
-    )
-  }
 
   let plannedValueSeries: PlannedValueSeries[]
 
