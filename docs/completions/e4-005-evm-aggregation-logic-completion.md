@@ -343,9 +343,13 @@ E4-005 EVM Aggregation Logic implementation is **100% complete**. All 6 phases i
 
 ## COMMIT MESSAGE PREPARATION
 
-```
-feat(evm): implement E4-005 unified EVM aggregation logic
+**Commit:** `3dbe6e7` - "feat(evm): implement E4-005 unified EVM aggregation logic"
 
+**Type:** feat
+**Scope:** evm
+**Summary:** implement E4-005 unified EVM aggregation logic
+
+**Details:**
 - Add unified aggregation service (evm_aggregation.py) reusing existing services
 - Add cost element level EVMIndices model (EVMIndicesCostElementPublic)
 - Add unified API endpoints at cost element, WBE, and project levels
@@ -364,7 +368,6 @@ All endpoints return complete EVM metrics: PV, EV, AC, BAC, CPI, SPI, TCPI, CV, 
 Follows E4-001 (Planned Value) and E4-002 (Earned Value) patterns.
 Eliminates ~70 lines of code duplication in evm_indices.py.
 All tests passing. No regressions.
-```
 
 ---
 
@@ -392,3 +395,5 @@ All tests passing. No regressions.
 **Document Owner:** Development Team
 **Review Status:** Complete
 **Next Review:** After frontend integration
+**Commit Hash:** 3dbe6e7
+**Commit Date:** 2025-11-16 23:11:35 CET
