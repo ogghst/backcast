@@ -123,6 +123,11 @@ def _quantize_decimal(value: Decimal) -> Decimal:
 @router.get(
     "/{project_id}/earned-value/cost-elements/{cost_element_id}",
     response_model=EarnedValueCostElementPublic,
+    deprecated=True,
+    summary="Get earned value for a cost element (DEPRECATED)",
+    description="**DEPRECATED:** Use `/projects/{project_id}/evm-metrics/cost-elements/{cost_element_id}` instead. "
+    "This endpoint will be removed in a future version. The unified EVM metrics endpoint provides all EVM metrics "
+    "including planned value, earned value, actual cost, and performance indices.",
 )
 def get_cost_element_earned_value(
     *,
@@ -168,6 +173,11 @@ def get_cost_element_earned_value(
 @router.get(
     "/{project_id}/earned-value/wbes/{wbe_id}",
     response_model=EarnedValueWBEPublic,
+    deprecated=True,
+    summary="Get earned value for a WBE (DEPRECATED)",
+    description="**DEPRECATED:** Use `/projects/{project_id}/evm-metrics/wbes/{wbe_id}` instead. "
+    "This endpoint will be removed in a future version. The unified EVM metrics endpoint provides all EVM metrics "
+    "including planned value, earned value, actual cost, and performance indices.",
 )
 def get_wbe_earned_value(
     *,
@@ -224,6 +234,11 @@ def get_wbe_earned_value(
 @router.get(
     "/{project_id}/earned-value",
     response_model=EarnedValueProjectPublic,
+    deprecated=True,
+    summary="Get earned value for a project (DEPRECATED)",
+    description="**DEPRECATED:** Use `/projects/{project_id}/evm-metrics` instead. "
+    "This endpoint will be removed in a future version. The unified EVM metrics endpoint provides all EVM metrics "
+    "including planned value, earned value, actual cost, and performance indices.",
 )
 def get_project_earned_value(
     *,

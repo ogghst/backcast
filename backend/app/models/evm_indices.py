@@ -39,6 +39,22 @@ class EVMIndicesBase(SQLModel):
     budget_bac: Decimal = Field(
         default=Decimal("0.00"), sa_column=Column(DECIMAL(15, 2), nullable=False)
     )
+    cost_variance: Decimal = Field(
+        default=Decimal("0.00"),
+        sa_column=Column(DECIMAL(15, 2), nullable=False),
+        description="Cost Variance (CV) = EV - AC. Negative = over-budget, positive = under-budget, zero = on-budget.",
+    )
+    schedule_variance: Decimal = Field(
+        default=Decimal("0.00"),
+        sa_column=Column(DECIMAL(15, 2), nullable=False),
+        description="Schedule Variance (SV) = EV - PV. Negative = behind-schedule, positive = ahead-of-schedule, zero = on-schedule.",
+    )
+
+
+class EVMIndicesCostElementPublic(EVMIndicesBase):
+    """EVM performance indices response for cost elements."""
+
+    cost_element_id: uuid.UUID = Field(nullable=False)
 
 
 class EVMIndicesWBEPublic(EVMIndicesBase):

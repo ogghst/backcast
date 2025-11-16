@@ -1,6 +1,5 @@
 import { Flex, useBreakpointValue } from "@chakra-ui/react"
 
-import TimeMachinePicker from "./TimeMachinePicker"
 import UserMenu from "./UserMenu"
 
 function Navbar() {
@@ -20,7 +19,6 @@ function Navbar() {
     >
       <div />
       <Flex gap={4} alignItems="center">
-        <TimeMachinePicker />
         <UserMenu />
       </Flex>
     </Flex>

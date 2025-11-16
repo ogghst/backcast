@@ -86,26 +86,55 @@ export default function TimeMachinePicker() {
       : 0
 
   return (
-    <HStack gap={3} align="center" flexWrap="nowrap">
-      <Text fontSize="sm" color={labelColor} whiteSpace="nowrap">
-        As of
-      </Text>
-      <Input
-        data-testid="time-machine-input"
-        type="date"
-        size="sm"
-        value={controlDate}
-        onChange={handleChange}
-        disabled={isLoading || isUpdating}
-        minW="200px"
-        w="auto"
-        bg={inputBg}
-        color={inputColor}
-        borderColor={inputBorder}
-        _hover={{ borderColor: inputBorderHover }}
-      />
-      {hasBounds && startDateObj && endDateObj ? (
-        <Box minW="260px" w="320px">
+    <Box w="200px">
+      <HStack gap={1} align="center" flexWrap="wrap">
+        <Text fontSize="xs" color={labelColor} whiteSpace="nowrap">
+          Date:
+        </Text>
+        <Input
+          data-testid="time-machine-input"
+          type="date"
+          size="xs"
+          value={controlDate}
+          onChange={handleChange}
+          disabled={isLoading || isUpdating}
+          minW="0"
+          w="auto"
+          flex="1"
+          bg={inputBg}
+          color={inputColor}
+          borderColor={inputBorder}
+          _hover={{ borderColor: inputBorderHover }}
+        />
+        <Tooltip.Root openDelay={200}>
+          <Tooltip.Trigger asChild>
+            <IconButton
+              data-testid="time-machine-reset"
+              aria-label="Reset to today"
+              size="xs"
+              variant="ghost"
+              color={iconColor}
+              _hover={{ bg: iconHoverBg }}
+              onClick={() => {
+                void resetToToday()
+              }}
+              loading={isUpdating}
+            >
+              <FiRotateCcw />
+            </IconButton>
+          </Tooltip.Trigger>
+          <Tooltip.Positioner>
+            <Tooltip.Content>
+              Reset to today
+              <Tooltip.Arrow>
+                <Tooltip.ArrowTip />
+              </Tooltip.Arrow>
+            </Tooltip.Content>
+          </Tooltip.Positioner>
+        </Tooltip.Root>
+      </HStack>
+      {hasBounds && startDateObj && endDateObj && (
+        <Box w="100%" mt={1} pt={1} borderTop="1px" borderColor={inputBorder}>
           <Slider.Root
             min={sliderMin}
             max={sliderMax}
@@ -118,6 +147,7 @@ export default function TimeMachinePicker() {
               void setControlDate(toIso(nextDate))
             }}
             disabled={isLoading || isUpdating}
+            size="sm"
           >
             <Slider.Control>
               <Slider.Track>
@@ -127,41 +157,15 @@ export default function TimeMachinePicker() {
             </Slider.Control>
           </Slider.Root>
           <HStack justify="space-between" mt={1}>
-            <Text fontSize="xs" color={labelColor}>
+            <Text fontSize="xxs" color={labelColor}>
               {projectStartIso}
             </Text>
-            <Text fontSize="xs" color={labelColor}>
+            <Text fontSize="xxs" color={labelColor}>
               {projectEndIso}
             </Text>
           </HStack>
         </Box>
-      ) : null}
-      <Tooltip.Root openDelay={200}>
-        <Tooltip.Trigger asChild>
-          <IconButton
-            data-testid="time-machine-reset"
-            aria-label="Reset to today"
-            size="sm"
-            variant="ghost"
-            color={iconColor}
-            _hover={{ bg: iconHoverBg }}
-            onClick={() => {
-              void resetToToday()
-            }}
-            loading={isUpdating}
-          >
-            <FiRotateCcw />
-          </IconButton>
-        </Tooltip.Trigger>
-        <Tooltip.Positioner>
-          <Tooltip.Content>
-            Reset to today
-            <Tooltip.Arrow>
-              <Tooltip.ArrowTip />
-            </Tooltip.Arrow>
-          </Tooltip.Content>
-        </Tooltip.Positioner>
-      </Tooltip.Root>
-    </HStack>
+      )}
+    </Box>
   )
 }

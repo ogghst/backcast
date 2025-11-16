@@ -117,6 +117,7 @@ from app.models.earned_value_entry import (
 )
 from app.models.evm_indices import (
     EVMIndicesBase,
+    EVMIndicesCostElementPublic,
     EVMIndicesProjectPublic,
     EVMIndicesWBEPublic,
 )
@@ -263,6 +264,7 @@ __all__ = [
     "EarnedValueProjectPublic",
     # EVM Indices models
     "EVMIndicesBase",
+    "EVMIndicesCostElementPublic",
     "EVMIndicesWBEPublic",
     "EVMIndicesProjectPublic",
     # Project models

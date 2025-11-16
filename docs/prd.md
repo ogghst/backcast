@@ -190,6 +190,10 @@ The system shall support calculation of percent complete using multiple methods 
 
 The system must calculate Estimate to Complete (ETC) using multiple methods including bottom-up detailed estimates from forecasts, ETC calculated as (BAC minus EV) divided by CPI for performance-based projections, and ETC calculated using management judgment factors when appropriate.
 
+### 12.6 Project Assessment report
+
+The system shall be able to collect all project metrics at a control date or from a baseline, and generate an assessment using an artificial intelligence endpoint.
+
 ## 13. Reporting and Analytics Requirements
 
 ### 13.1 Standard EVM Reports

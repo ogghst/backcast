@@ -70,6 +70,11 @@ def _get_schedule_map(
 @router.get(
     "/{project_id}/planned-value/cost-elements/{cost_element_id}",
     response_model=PlannedValueCostElementPublic,
+    deprecated=True,
+    summary="Get planned value for a cost element (DEPRECATED)",
+    description="**DEPRECATED:** Use `/projects/{project_id}/evm-metrics/cost-elements/{cost_element_id}` instead. "
+    "This endpoint will be removed in a future version. The unified EVM metrics endpoint provides all EVM metrics "
+    "including planned value, earned value, actual cost, and performance indices.",
 )
 def get_cost_element_planned_value(
     *,
@@ -110,6 +115,11 @@ def get_cost_element_planned_value(
 @router.get(
     "/{project_id}/planned-value/wbes/{wbe_id}",
     response_model=PlannedValueWBEPublic,
+    deprecated=True,
+    summary="Get planned value for a WBE (DEPRECATED)",
+    description="**DEPRECATED:** Use `/projects/{project_id}/evm-metrics/wbes/{wbe_id}` instead. "
+    "This endpoint will be removed in a future version. The unified EVM metrics endpoint provides all EVM metrics "
+    "including planned value, earned value, actual cost, and performance indices.",
 )
 def get_wbe_planned_value(
     *,
@@ -157,6 +167,11 @@ def get_wbe_planned_value(
 @router.get(
     "/{project_id}/planned-value",
     response_model=PlannedValueProjectPublic,
+    deprecated=True,
+    summary="Get planned value for a project (DEPRECATED)",
+    description="**DEPRECATED:** Use `/projects/{project_id}/evm-metrics` instead. "
+    "This endpoint will be removed in a future version. The unified EVM metrics endpoint provides all EVM metrics "
+    "including planned value, earned value, actual cost, and performance indices.",
 )
 def get_project_planned_value(
     *,

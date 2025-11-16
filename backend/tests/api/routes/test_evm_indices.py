@@ -400,6 +400,288 @@ def test_get_wbe_evm_indices_not_found(
     assert response.status_code == 404
 
 
+def test_get_wbe_evm_indices_includes_variances(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """WBE EVM indices should include cost_variance and schedule_variance fields."""
+    project, created_by_id = _create_project_with_manager(db)
+    wbe = _create_wbe(db, project.project_id, Decimal("200000.00"))
+    cet = _create_cost_element_type(db)
+
+    ce = _create_cost_element(
+        db,
+        wbe.wbe_id,
+        cet,
+        department_code="ENG",
+        department_name="Engineering",
+        budget_bac=Decimal("100000.00"),
+        revenue_plan=Decimal("120000.00"),
+    )
+
+    schedule = create_schedule_for_cost_element(
+        db,
+        ce.cost_element_id,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 2, 1),
+        progression_type="linear",
+        registration_date=date(2024, 1, 1),
+        description="Baseline",
+        created_by_id=created_by_id,
+    )
+    schedule.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    db.add(schedule)
+    db.commit()
+
+    create_earned_value_entry(
+        db,
+        cost_element_id=ce.cost_element_id,
+        completion_date=date(2024, 1, 15),
+        percent_complete=Decimal("40.00"),
+        created_by_id=created_by_id,
+    )
+
+    cr_in = CostRegistrationCreate(
+        cost_element_id=ce.cost_element_id,
+        registration_date=date(2024, 1, 15),
+        amount=Decimal("45000.00"),
+        cost_category="labor",
+        description="Test cost registration",
+        is_quality_cost=False,
+    )
+    cr_data = cr_in.model_dump()
+    cr_data["created_by_id"] = created_by_id
+    cr = CostRegistration.model_validate(cr_data)
+    cr.created_at = datetime(2024, 1, 15, tzinfo=timezone.utc)
+    db.add(cr)
+    db.commit()
+
+    control_date = date(2024, 1, 15)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        _wbe_endpoint(project.project_id, wbe.wbe_id),
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # Verify variance fields exist
+    assert "cost_variance" in data
+    assert "schedule_variance" in data
+
+
+def test_get_wbe_evm_indices_variance_calculation(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """WBE EVM indices should calculate variances correctly: CV=EV-AC, SV=EV-PV."""
+    project, created_by_id = _create_project_with_manager(db)
+    wbe = _create_wbe(db, project.project_id, Decimal("200000.00"))
+    cet = _create_cost_element_type(db)
+
+    ce = _create_cost_element(
+        db,
+        wbe.wbe_id,
+        cet,
+        department_code="ENG",
+        department_name="Engineering",
+        budget_bac=Decimal("100000.00"),
+        revenue_plan=Decimal("120000.00"),
+    )
+
+    schedule = create_schedule_for_cost_element(
+        db,
+        ce.cost_element_id,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 2, 1),
+        progression_type="linear",
+        registration_date=date(2024, 1, 1),
+        description="Baseline",
+        created_by_id=created_by_id,
+    )
+    schedule.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    db.add(schedule)
+    db.commit()
+
+    create_earned_value_entry(
+        db,
+        cost_element_id=ce.cost_element_id,
+        completion_date=date(2024, 1, 15),
+        percent_complete=Decimal("40.00"),
+        created_by_id=created_by_id,
+    )
+
+    cr_in = CostRegistrationCreate(
+        cost_element_id=ce.cost_element_id,
+        registration_date=date(2024, 1, 15),
+        amount=Decimal("45000.00"),
+        cost_category="labor",
+        description="Test cost registration",
+        is_quality_cost=False,
+    )
+    cr_data = cr_in.model_dump()
+    cr_data["created_by_id"] = created_by_id
+    cr = CostRegistration.model_validate(cr_data)
+    cr.created_at = datetime(2024, 1, 15, tzinfo=timezone.utc)
+    db.add(cr)
+    db.commit()
+
+    control_date = date(2024, 1, 15)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        _wbe_endpoint(project.project_id, wbe.wbe_id),
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # EV = 40000, AC = 45000, PV ≈ 45160
+    # CV = EV - AC = 40000 - 45000 = -5000 (over-budget)
+    # SV = EV - PV = 40000 - 45160 = -5160 (behind-schedule)
+    ev = Decimal(str(data["earned_value"]))
+    ac = Decimal(str(data["actual_cost"]))
+    pv = Decimal(str(data["planned_value"]))
+    cv = Decimal(str(data["cost_variance"]))
+    sv = Decimal(str(data["schedule_variance"]))
+
+    # Verify CV = EV - AC
+    assert abs(cv - (ev - ac)) < Decimal("0.01")
+    # Verify SV = EV - PV
+    assert abs(sv - (ev - pv)) < Decimal("1.00")  # Allow for PV rounding
+
+
+def test_get_wbe_evm_indices_backward_compatibility(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """WBE EVM indices should maintain backward compatibility with existing fields."""
+    project, created_by_id = _create_project_with_manager(db)
+    wbe = _create_wbe(db, project.project_id, Decimal("200000.00"))
+    cet = _create_cost_element_type(db)
+
+    ce = _create_cost_element(
+        db,
+        wbe.wbe_id,
+        cet,
+        department_code="ENG",
+        department_name="Engineering",
+        budget_bac=Decimal("100000.00"),
+        revenue_plan=Decimal("120000.00"),
+    )
+
+    schedule = create_schedule_for_cost_element(
+        db,
+        ce.cost_element_id,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 2, 1),
+        progression_type="linear",
+        registration_date=date(2024, 1, 1),
+        description="Baseline",
+        created_by_id=created_by_id,
+    )
+    schedule.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    db.add(schedule)
+    db.commit()
+
+    control_date = date(2024, 1, 15)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        _wbe_endpoint(project.project_id, wbe.wbe_id),
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # Verify all existing fields are still present
+    assert "cpi" in data
+    assert "spi" in data
+    assert "tcpi" in data
+    assert "planned_value" in data
+    assert "earned_value" in data
+    assert "actual_cost" in data
+    assert "budget_bac" in data
+    assert "level" in data
+    assert "control_date" in data
+    assert "wbe_id" in data
+
+
+def test_get_wbe_evm_indices_negative_variances(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """WBE EVM indices should handle negative variances correctly."""
+    project, created_by_id = _create_project_with_manager(db)
+    wbe = _create_wbe(db, project.project_id, Decimal("200000.00"))
+    cet = _create_cost_element_type(db)
+
+    ce = _create_cost_element(
+        db,
+        wbe.wbe_id,
+        cet,
+        department_code="ENG",
+        department_name="Engineering",
+        budget_bac=Decimal("100000.00"),
+        revenue_plan=Decimal("120000.00"),
+    )
+
+    schedule = create_schedule_for_cost_element(
+        db,
+        ce.cost_element_id,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 2, 1),
+        progression_type="linear",
+        registration_date=date(2024, 1, 1),
+        description="Baseline",
+        created_by_id=created_by_id,
+    )
+    schedule.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    db.add(schedule)
+    db.commit()
+
+    # Create earned value entry (30% complete - behind schedule)
+    create_earned_value_entry(
+        db,
+        cost_element_id=ce.cost_element_id,
+        completion_date=date(2024, 1, 15),
+        percent_complete=Decimal("30.00"),
+        created_by_id=created_by_id,
+    )
+
+    # Create cost registration (AC = 50000 - over budget)
+    cr_in = CostRegistrationCreate(
+        cost_element_id=ce.cost_element_id,
+        registration_date=date(2024, 1, 15),
+        amount=Decimal("50000.00"),
+        cost_category="labor",
+        description="Test cost registration",
+        is_quality_cost=False,
+    )
+    cr_data = cr_in.model_dump()
+    cr_data["created_by_id"] = created_by_id
+    cr = CostRegistration.model_validate(cr_data)
+    cr.created_at = datetime(2024, 1, 15, tzinfo=timezone.utc)
+    db.add(cr)
+    db.commit()
+
+    control_date = date(2024, 1, 15)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        _wbe_endpoint(project.project_id, wbe.wbe_id),
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # EV = 30000, AC = 50000, PV ≈ 45160
+    # CV = EV - AC = 30000 - 50000 = -20000 (over-budget, negative)
+    # SV = EV - PV = 30000 - 45160 = -15160 (behind-schedule, negative)
+    cv = Decimal(str(data["cost_variance"]))
+    sv = Decimal(str(data["schedule_variance"]))
+
+    assert cv < Decimal("0.00")  # Negative (over-budget)
+    assert sv < Decimal("0.00")  # Negative (behind-schedule)
+
+
 def test_get_project_evm_indices_normal_case(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
@@ -539,7 +821,7 @@ def test_get_project_evm_indices_normal_case(
 
 
 def test_get_project_evm_indices_not_found(
-    client: TestClient, superuser_token_headers: dict[str, str], _db: Session
+    client: TestClient, superuser_token_headers: dict[str, str]
 ) -> None:
     """Project EVM indices should return 404 for non-existent project."""
     fake_project_id = uuid.uuid4()
@@ -553,3 +835,285 @@ def test_get_project_evm_indices_not_found(
     )
 
     assert response.status_code == 404
+
+
+def test_get_project_evm_indices_includes_variances(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Project EVM indices should include cost_variance and schedule_variance fields."""
+    project, created_by_id = _create_project_with_manager(db)
+    wbe = _create_wbe(db, project.project_id, Decimal("200000.00"))
+    cet = _create_cost_element_type(db)
+
+    ce = _create_cost_element(
+        db,
+        wbe.wbe_id,
+        cet,
+        department_code="ENG",
+        department_name="Engineering",
+        budget_bac=Decimal("100000.00"),
+        revenue_plan=Decimal("120000.00"),
+    )
+
+    schedule = create_schedule_for_cost_element(
+        db,
+        ce.cost_element_id,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 2, 1),
+        progression_type="linear",
+        registration_date=date(2024, 1, 1),
+        description="Baseline",
+        created_by_id=created_by_id,
+    )
+    schedule.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    db.add(schedule)
+    db.commit()
+
+    create_earned_value_entry(
+        db,
+        cost_element_id=ce.cost_element_id,
+        completion_date=date(2024, 1, 15),
+        percent_complete=Decimal("40.00"),
+        created_by_id=created_by_id,
+    )
+
+    cr_in = CostRegistrationCreate(
+        cost_element_id=ce.cost_element_id,
+        registration_date=date(2024, 1, 15),
+        amount=Decimal("45000.00"),
+        cost_category="labor",
+        description="Test cost registration",
+        is_quality_cost=False,
+    )
+    cr_data = cr_in.model_dump()
+    cr_data["created_by_id"] = created_by_id
+    cr = CostRegistration.model_validate(cr_data)
+    cr.created_at = datetime(2024, 1, 15, tzinfo=timezone.utc)
+    db.add(cr)
+    db.commit()
+
+    control_date = date(2024, 1, 15)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        _project_endpoint(project.project_id),
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # Verify variance fields exist
+    assert "cost_variance" in data
+    assert "schedule_variance" in data
+
+
+def test_get_project_evm_indices_variance_calculation(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Project EVM indices should calculate variances correctly: CV=EV-AC, SV=EV-PV."""
+    project, created_by_id = _create_project_with_manager(db)
+    wbe = _create_wbe(db, project.project_id, Decimal("200000.00"))
+    cet = _create_cost_element_type(db)
+
+    ce = _create_cost_element(
+        db,
+        wbe.wbe_id,
+        cet,
+        department_code="ENG",
+        department_name="Engineering",
+        budget_bac=Decimal("100000.00"),
+        revenue_plan=Decimal("120000.00"),
+    )
+
+    schedule = create_schedule_for_cost_element(
+        db,
+        ce.cost_element_id,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 2, 1),
+        progression_type="linear",
+        registration_date=date(2024, 1, 1),
+        description="Baseline",
+        created_by_id=created_by_id,
+    )
+    schedule.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    db.add(schedule)
+    db.commit()
+
+    create_earned_value_entry(
+        db,
+        cost_element_id=ce.cost_element_id,
+        completion_date=date(2024, 1, 15),
+        percent_complete=Decimal("40.00"),
+        created_by_id=created_by_id,
+    )
+
+    cr_in = CostRegistrationCreate(
+        cost_element_id=ce.cost_element_id,
+        registration_date=date(2024, 1, 15),
+        amount=Decimal("45000.00"),
+        cost_category="labor",
+        description="Test cost registration",
+        is_quality_cost=False,
+    )
+    cr_data = cr_in.model_dump()
+    cr_data["created_by_id"] = created_by_id
+    cr = CostRegistration.model_validate(cr_data)
+    cr.created_at = datetime(2024, 1, 15, tzinfo=timezone.utc)
+    db.add(cr)
+    db.commit()
+
+    control_date = date(2024, 1, 15)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        _project_endpoint(project.project_id),
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # EV = 40000, AC = 45000, PV ≈ 45160
+    # CV = EV - AC = 40000 - 45000 = -5000 (over-budget)
+    # SV = EV - PV = 40000 - 45160 = -5160 (behind-schedule)
+    ev = Decimal(str(data["earned_value"]))
+    ac = Decimal(str(data["actual_cost"]))
+    pv = Decimal(str(data["planned_value"]))
+    cv = Decimal(str(data["cost_variance"]))
+    sv = Decimal(str(data["schedule_variance"]))
+
+    # Verify CV = EV - AC
+    assert abs(cv - (ev - ac)) < Decimal("0.01")
+    # Verify SV = EV - PV
+    assert abs(sv - (ev - pv)) < Decimal("1.00")  # Allow for PV rounding
+
+
+def test_get_project_evm_indices_backward_compatibility(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Project EVM indices should maintain backward compatibility with existing fields."""
+    project, created_by_id = _create_project_with_manager(db)
+    wbe = _create_wbe(db, project.project_id, Decimal("200000.00"))
+    cet = _create_cost_element_type(db)
+
+    ce = _create_cost_element(
+        db,
+        wbe.wbe_id,
+        cet,
+        department_code="ENG",
+        department_name="Engineering",
+        budget_bac=Decimal("100000.00"),
+        revenue_plan=Decimal("120000.00"),
+    )
+
+    schedule = create_schedule_for_cost_element(
+        db,
+        ce.cost_element_id,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 2, 1),
+        progression_type="linear",
+        registration_date=date(2024, 1, 1),
+        description="Baseline",
+        created_by_id=created_by_id,
+    )
+    schedule.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    db.add(schedule)
+    db.commit()
+
+    control_date = date(2024, 1, 15)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        _project_endpoint(project.project_id),
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # Verify all existing fields are still present
+    assert "cpi" in data
+    assert "spi" in data
+    assert "tcpi" in data
+    assert "planned_value" in data
+    assert "earned_value" in data
+    assert "actual_cost" in data
+    assert "budget_bac" in data
+    assert "level" in data
+    assert "control_date" in data
+    assert "project_id" in data
+
+
+def test_get_project_evm_indices_negative_variances(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Project EVM indices should handle negative variances correctly."""
+    project, created_by_id = _create_project_with_manager(db)
+    wbe = _create_wbe(db, project.project_id, Decimal("200000.00"))
+    cet = _create_cost_element_type(db)
+
+    ce = _create_cost_element(
+        db,
+        wbe.wbe_id,
+        cet,
+        department_code="ENG",
+        department_name="Engineering",
+        budget_bac=Decimal("100000.00"),
+        revenue_plan=Decimal("120000.00"),
+    )
+
+    schedule = create_schedule_for_cost_element(
+        db,
+        ce.cost_element_id,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 2, 1),
+        progression_type="linear",
+        registration_date=date(2024, 1, 1),
+        description="Baseline",
+        created_by_id=created_by_id,
+    )
+    schedule.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    db.add(schedule)
+    db.commit()
+
+    # Create earned value entry (30% complete - behind schedule)
+    create_earned_value_entry(
+        db,
+        cost_element_id=ce.cost_element_id,
+        completion_date=date(2024, 1, 15),
+        percent_complete=Decimal("30.00"),
+        created_by_id=created_by_id,
+    )
+
+    # Create cost registration (AC = 50000 - over budget)
+    cr_in = CostRegistrationCreate(
+        cost_element_id=ce.cost_element_id,
+        registration_date=date(2024, 1, 15),
+        amount=Decimal("50000.00"),
+        cost_category="labor",
+        description="Test cost registration",
+        is_quality_cost=False,
+    )
+    cr_data = cr_in.model_dump()
+    cr_data["created_by_id"] = created_by_id
+    cr = CostRegistration.model_validate(cr_data)
+    cr.created_at = datetime(2024, 1, 15, tzinfo=timezone.utc)
+    db.add(cr)
+    db.commit()
+
+    control_date = date(2024, 1, 15)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        _project_endpoint(project.project_id),
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # EV = 30000, AC = 50000, PV ≈ 45160
+    # CV = EV - AC = 30000 - 50000 = -20000 (over-budget, negative)
+    # SV = EV - PV = 30000 - 45160 = -15160 (behind-schedule, negative)
+    cv = Decimal(str(data["cost_variance"]))
+    sv = Decimal(str(data["schedule_variance"]))
+
+    assert cv < Decimal("0.00")  # Negative (over-budget)
+    assert sv < Decimal("0.00")  # Negative (behind-schedule)

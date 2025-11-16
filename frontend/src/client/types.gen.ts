@@ -462,6 +462,39 @@ export type EarnedValueWBEPublic = {
 };
 
 /**
+ * EVM performance indices response for cost elements.
+ */
+export type EVMIndicesCostElementPublic = {
+    level: string;
+    control_date: string;
+    /**
+     * Cost Performance Index (CPI) = EV / AC. None when AC = 0.
+     */
+    cpi?: (string | null);
+    /**
+     * Schedule Performance Index (SPI) = EV / PV. None when PV = 0.
+     */
+    spi?: (string | null);
+    /**
+     * To-Complete Performance Index (TCPI) = (BAC - EV) / (BAC - AC). Returns 'overrun' when BAC ≤ AC.
+     */
+    tcpi?: (string | null);
+    planned_value?: string;
+    earned_value?: string;
+    actual_cost?: string;
+    budget_bac?: string;
+    /**
+     * Cost Variance (CV) = EV - AC. Negative = over-budget, positive = under-budget, zero = on-budget.
+     */
+    cost_variance?: string;
+    /**
+     * Schedule Variance (SV) = EV - PV. Negative = behind-schedule, positive = ahead-of-schedule, zero = on-schedule.
+     */
+    schedule_variance?: string;
+    cost_element_id: string;
+};
+
+/**
  * EVM performance indices response for projects.
  */
 export type EVMIndicesProjectPublic = {
@@ -483,6 +516,14 @@ export type EVMIndicesProjectPublic = {
     earned_value?: string;
     actual_cost?: string;
     budget_bac?: string;
+    /**
+     * Cost Variance (CV) = EV - AC. Negative = over-budget, positive = under-budget, zero = on-budget.
+     */
+    cost_variance?: string;
+    /**
+     * Schedule Variance (SV) = EV - PV. Negative = behind-schedule, positive = ahead-of-schedule, zero = on-schedule.
+     */
+    schedule_variance?: string;
     project_id: string;
 };
 
@@ -508,6 +549,14 @@ export type EVMIndicesWBEPublic = {
     earned_value?: string;
     actual_cost?: string;
     budget_bac?: string;
+    /**
+     * Cost Variance (CV) = EV - AC. Negative = over-budget, positive = under-budget, zero = on-budget.
+     */
+    cost_variance?: string;
+    /**
+     * Schedule Variance (SV) = EV - PV. Negative = behind-schedule, positive = ahead-of-schedule, zero = on-schedule.
+     */
+    schedule_variance?: string;
     wbe_id: string;
 };
 
@@ -1165,6 +1214,26 @@ export type EvmIndicesGetProjectEvmIndicesData = {
 };
 
 export type EvmIndicesGetProjectEvmIndicesResponse = (EVMIndicesProjectPublic);
+
+export type EvmMetricsGetCostElementEvmMetricsEndpointData = {
+    costElementId: string;
+    projectId: string;
+};
+
+export type EvmMetricsGetCostElementEvmMetricsEndpointResponse = (EVMIndicesCostElementPublic);
+
+export type EvmMetricsGetWbeEvmMetricsEndpointData = {
+    projectId: string;
+    wbeId: string;
+};
+
+export type EvmMetricsGetWbeEvmMetricsEndpointResponse = (EVMIndicesWBEPublic);
+
+export type EvmMetricsGetProjectEvmMetricsEndpointData = {
+    projectId: string;
+};
+
+export type EvmMetricsGetProjectEvmMetricsEndpointResponse = (EVMIndicesProjectPublic);
 
 export type LoginLoginAccessTokenData = {
     formData: Body_login_login_access_token;

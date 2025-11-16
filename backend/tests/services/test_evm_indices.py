@@ -1,10 +1,14 @@
 """Unit tests for EVM performance indices calculation helpers."""
 
+from datetime import date
 from decimal import Decimal
 
+from app.models.evm_indices import EVMIndicesBase
 from app.services.evm_indices import (
     aggregate_evm_indices,
+    calculate_cost_variance,
     calculate_cpi,
+    calculate_schedule_variance,
     calculate_spi,
     calculate_tcpi,
 )
@@ -243,3 +247,186 @@ def test_aggregate_evm_indices_quantization() -> None:
     assert result.earned_value == Decimal("80.12")
     assert result.actual_cost == Decimal("90.12")
     assert result.budget_bac == Decimal("200.12")
+
+
+def test_calculate_cost_variance_under_budget() -> None:
+    """CV should be positive when under-budget: EV=100, AC=80 → CV=20.00."""
+    ev = Decimal("100.00")
+    ac = Decimal("80.00")
+
+    result = calculate_cost_variance(ev, ac)
+
+    assert result == Decimal("20.00")
+
+
+def test_calculate_cost_variance_over_budget() -> None:
+    """CV should be negative when over-budget: EV=80, AC=100 → CV=-20.00."""
+    ev = Decimal("80.00")
+    ac = Decimal("100.00")
+
+    result = calculate_cost_variance(ev, ac)
+
+    assert result == Decimal("-20.00")
+
+
+def test_calculate_cost_variance_on_budget() -> None:
+    """CV should be zero when on-budget: EV=100, AC=100 → CV=0.00."""
+    ev = Decimal("100.00")
+    ac = Decimal("100.00")
+
+    result = calculate_cost_variance(ev, ac)
+
+    assert result == Decimal("0.00")
+
+
+def test_calculate_cost_variance_zero_ev_positive_ac() -> None:
+    """CV should be negative when no work earned but costs incurred: EV=0, AC=50 → CV=-50.00."""
+    ev = Decimal("0.00")
+    ac = Decimal("50.00")
+
+    result = calculate_cost_variance(ev, ac)
+
+    assert result == Decimal("-50.00")
+
+
+def test_calculate_cost_variance_quantization() -> None:
+    """CV should be quantized to 2 decimal places."""
+    ev = Decimal("100.123456")
+    ac = Decimal("80.123456")
+
+    result = calculate_cost_variance(ev, ac)
+
+    # Should be 20.00 (quantized to 2 places)
+    assert result == Decimal("20.00")
+    # Verify it's exactly 2 decimal places
+    assert str(result).split(".")[1] == "00"
+
+
+def test_calculate_cost_variance_negative_values() -> None:
+    """CV should handle negative values appropriately."""
+    ev = Decimal("-100.00")
+    ac = Decimal("-80.00")
+
+    result = calculate_cost_variance(ev, ac)
+
+    # CV = EV - AC = -100 - (-80) = -20
+    assert result == Decimal("-20.00")
+
+
+def test_calculate_schedule_variance_ahead_schedule() -> None:
+    """SV should be positive when ahead-of-schedule: EV=100, PV=80 → SV=20.00."""
+    ev = Decimal("100.00")
+    pv = Decimal("80.00")
+
+    result = calculate_schedule_variance(ev, pv)
+
+    assert result == Decimal("20.00")
+
+
+def test_calculate_schedule_variance_behind_schedule() -> None:
+    """SV should be negative when behind-schedule: EV=80, PV=100 → SV=-20.00."""
+    ev = Decimal("80.00")
+    pv = Decimal("100.00")
+
+    result = calculate_schedule_variance(ev, pv)
+
+    assert result == Decimal("-20.00")
+
+
+def test_calculate_schedule_variance_on_schedule() -> None:
+    """SV should be zero when on-schedule: EV=100, PV=100 → SV=0.00."""
+    ev = Decimal("100.00")
+    pv = Decimal("100.00")
+
+    result = calculate_schedule_variance(ev, pv)
+
+    assert result == Decimal("0.00")
+
+
+def test_calculate_schedule_variance_zero_ev_positive_pv() -> None:
+    """SV should be negative when no work earned but work planned: EV=0, PV=50 → SV=-50.00."""
+    ev = Decimal("0.00")
+    pv = Decimal("50.00")
+
+    result = calculate_schedule_variance(ev, pv)
+
+    assert result == Decimal("-50.00")
+
+
+def test_calculate_schedule_variance_quantization() -> None:
+    """SV should be quantized to 2 decimal places."""
+    ev = Decimal("100.123456")
+    pv = Decimal("80.123456")
+
+    result = calculate_schedule_variance(ev, pv)
+
+    # Should be 20.00 (quantized to 2 places)
+    assert result == Decimal("20.00")
+    # Verify it's exactly 2 decimal places
+    assert str(result).split(".")[1] == "00"
+
+
+def test_calculate_schedule_variance_negative_values() -> None:
+    """SV should handle negative values appropriately."""
+    ev = Decimal("-100.00")
+    pv = Decimal("-80.00")
+
+    result = calculate_schedule_variance(ev, pv)
+
+    # SV = EV - PV = -100 - (-80) = -20
+    assert result == Decimal("-20.00")
+
+
+def test_evm_indices_base_with_variances() -> None:
+    """EVMIndicesBase should accept cost_variance and schedule_variance fields."""
+    model = EVMIndicesBase(
+        level="project",
+        control_date=date(2024, 1, 15),
+        cost_variance=Decimal("20.00"),
+        schedule_variance=Decimal("-10.00"),
+        planned_value=Decimal("100.00"),
+        earned_value=Decimal("90.00"),
+        actual_cost=Decimal("70.00"),
+        budget_bac=Decimal("200.00"),
+    )
+
+    assert model.cost_variance == Decimal("20.00")
+    assert model.schedule_variance == Decimal("-10.00")
+
+
+def test_evm_indices_base_defaults() -> None:
+    """EVMIndicesBase should default variance fields to 0.00 when not provided."""
+    model = EVMIndicesBase(
+        level="project",
+        control_date=date(2024, 1, 15),
+        planned_value=Decimal("100.00"),
+        earned_value=Decimal("90.00"),
+        actual_cost=Decimal("70.00"),
+        budget_bac=Decimal("200.00"),
+    )
+
+    assert model.cost_variance == Decimal("0.00")
+    assert model.schedule_variance == Decimal("0.00")
+
+
+def test_evm_indices_base_quantization() -> None:
+    """EVMIndicesBase should accept variance fields with proper Decimal type."""
+    # Note: Quantization happens in service layer, not in model
+    # Model accepts Decimal values and validates type/precision via DECIMAL(15, 2) column
+    model = EVMIndicesBase(
+        level="project",
+        control_date=date(2024, 1, 15),
+        cost_variance=Decimal("20.12"),
+        schedule_variance=Decimal("-10.12"),
+        planned_value=Decimal("100.00"),
+        earned_value=Decimal("90.00"),
+        actual_cost=Decimal("70.00"),
+        budget_bac=Decimal("200.00"),
+    )
+
+    # Model accepts quantized values (quantization done by service functions)
+    assert model.cost_variance == Decimal("20.12")
+    assert model.schedule_variance == Decimal("-10.12")
+    # Verify type is Decimal
+    assert isinstance(model.cost_variance, Decimal)
+    assert isinstance(model.schedule_variance, Decimal)

@@ -27,18 +27,16 @@ from app.models import (
     EVMIndicesWBEPublic,
     Project,
 )
-from app.services.earned_value import (
-    aggregate_earned_value,
-    calculate_cost_element_earned_value,
+from app.services.evm_aggregation import (
+    aggregate_cost_element_metrics,
+    get_cost_element_evm_metrics,
 )
 from app.services.evm_indices import (
+    calculate_cost_variance,
     calculate_cpi,
+    calculate_schedule_variance,
     calculate_spi,
     calculate_tcpi,
-)
-from app.services.planned_value import (
-    aggregate_planned_value,
-    calculate_cost_element_planned_value,
 )
 from app.services.time_machine import (
     TimeMachineEventType,
@@ -72,7 +70,7 @@ def _ensure_wbe_exists(
 def _get_wbe_evm_inputs(
     session: SessionDep, wbe_id: uuid.UUID, control_date: date
 ) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-    """Get PV, EV, AC, and BAC for a WBE at control date.
+    """Get PV, EV, AC, and BAC for a WBE at control date using unified aggregation service.
 
     Returns:
         Tuple of (planned_value, earned_value, actual_cost, budget_bac)
@@ -91,58 +89,54 @@ def _get_wbe_evm_inputs(
 
     cost_element_ids = [ce.cost_element_id for ce in cost_elements]
 
-    # Get PV
+    # Get schedules, entries, and cost registrations
     schedule_map = _get_schedule_map(session, cost_element_ids, control_date)
-    pv_tuples: list[tuple[Decimal, Decimal]] = []
+    entry_map = _get_entry_map(session, cost_element_ids, control_date)
+
+    statement = select(CostRegistration).where(
+        CostRegistration.cost_element_id.in_(cost_element_ids),
+    )
+    statement = apply_time_machine_filters(
+        statement, TimeMachineEventType.COST_REGISTRATION, control_date
+    )
+    all_cost_registrations = session.exec(statement).all()
+
+    # Group cost registrations by cost element
+    cost_registrations_by_ce: dict[uuid.UUID, list[CostRegistration]] = {}
+    for cr in all_cost_registrations:
+        if cr.cost_element_id not in cost_registrations_by_ce:
+            cost_registrations_by_ce[cr.cost_element_id] = []
+        cost_registrations_by_ce[cr.cost_element_id].append(cr)
+
+    # Calculate metrics for each cost element using unified service
+    cost_element_metrics = []
     for cost_element in cost_elements:
-        pv, _ = calculate_cost_element_planned_value(
+        metrics = get_cost_element_evm_metrics(
             cost_element=cost_element,
             schedule=schedule_map.get(cost_element.cost_element_id),
+            entry=entry_map.get(cost_element.cost_element_id),
+            cost_registrations=cost_registrations_by_ce.get(
+                cost_element.cost_element_id, []
+            ),
             control_date=control_date,
         )
-        pv_tuples.append((pv, cost_element.budget_bac or Decimal("0.00")))
-    pv_aggregates = aggregate_planned_value(pv_tuples)
-    planned_value = pv_aggregates.planned_value
+        cost_element_metrics.append(metrics)
 
-    # Get EV
-    entry_map = _get_entry_map(session, cost_element_ids, control_date)
-    ev_tuples: list[tuple[Decimal, Decimal]] = []
-    for cost_element in cost_elements:
-        entry = entry_map.get(cost_element.cost_element_id)
-        if entry is None:
-            continue
-        ev, _ = calculate_cost_element_earned_value(
-            cost_element=cost_element,
-            entry=entry,
-            control_date=control_date,
-        )
-        ev_tuples.append((ev, cost_element.budget_bac or Decimal("0.00")))
-    ev_aggregates = aggregate_earned_value(ev_tuples)
-    earned_value = ev_aggregates.earned_value
+    # Aggregate metrics
+    aggregated = aggregate_cost_element_metrics(cost_element_metrics)
 
-    # Get AC (actual cost)
-    if cost_element_ids:
-        statement = select(CostRegistration).where(
-            CostRegistration.cost_element_id.in_(cost_element_ids),
-        )
-        statement = apply_time_machine_filters(
-            statement, TimeMachineEventType.COST_REGISTRATION, control_date
-        )
-        cost_registrations = session.exec(statement).all()
-        actual_cost = sum(cr.amount for cr in cost_registrations)
-    else:
-        actual_cost = Decimal("0.00")
-
-    # Get BAC (budget at completion)
-    budget_bac = sum(ce.budget_bac for ce in cost_elements)
-
-    return planned_value, earned_value, actual_cost, budget_bac
+    return (
+        aggregated.planned_value,
+        aggregated.earned_value,
+        aggregated.actual_cost,
+        aggregated.budget_bac,
+    )
 
 
 def _get_project_evm_inputs(
     session: SessionDep, project_id: uuid.UUID, control_date: date
 ) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-    """Get PV, EV, AC, and BAC for a project at control date.
+    """Get PV, EV, AC, and BAC for a project at control date using unified aggregation service.
 
     Returns:
         Tuple of (planned_value, earned_value, actual_cost, budget_bac)
@@ -176,54 +170,58 @@ def _get_project_evm_inputs(
 
     cost_element_ids = [ce.cost_element_id for ce in cost_elements]
 
-    # Get PV
+    # Get schedules, entries, and cost registrations
     schedule_map = _get_schedule_map(session, cost_element_ids, control_date)
-    pv_tuples: list[tuple[Decimal, Decimal]] = []
-    for cost_element in cost_elements:
-        pv, _ = calculate_cost_element_planned_value(
-            cost_element=cost_element,
-            schedule=schedule_map.get(cost_element.cost_element_id),
-            control_date=control_date,
-        )
-        pv_tuples.append((pv, cost_element.budget_bac or Decimal("0.00")))
-    pv_aggregates = aggregate_planned_value(pv_tuples)
-    planned_value = pv_aggregates.planned_value
-
-    # Get EV
     entry_map = _get_entry_map(session, cost_element_ids, control_date)
-    ev_tuples: list[tuple[Decimal, Decimal]] = []
-    for cost_element in cost_elements:
-        entry = entry_map.get(cost_element.cost_element_id)
-        if entry is None:
-            continue
-        ev, _ = calculate_cost_element_earned_value(
-            cost_element=cost_element,
-            entry=entry,
-            control_date=control_date,
-        )
-        ev_tuples.append((ev, cost_element.budget_bac or Decimal("0.00")))
-    ev_aggregates = aggregate_earned_value(ev_tuples)
-    earned_value = ev_aggregates.earned_value
 
-    # Get AC (actual cost)
     statement = select(CostRegistration).where(
         CostRegistration.cost_element_id.in_(cost_element_ids),
     )
     statement = apply_time_machine_filters(
         statement, TimeMachineEventType.COST_REGISTRATION, control_date
     )
-    cost_registrations = session.exec(statement).all()
-    actual_cost = sum(cr.amount for cr in cost_registrations)
+    all_cost_registrations = session.exec(statement).all()
 
-    # Get BAC (budget at completion)
-    budget_bac = sum(ce.budget_bac for ce in cost_elements)
+    # Group cost registrations by cost element
+    cost_registrations_by_ce: dict[uuid.UUID, list[CostRegistration]] = {}
+    for cr in all_cost_registrations:
+        if cr.cost_element_id not in cost_registrations_by_ce:
+            cost_registrations_by_ce[cr.cost_element_id] = []
+        cost_registrations_by_ce[cr.cost_element_id].append(cr)
 
-    return planned_value, earned_value, actual_cost, budget_bac
+    # Calculate metrics for each cost element using unified service
+    cost_element_metrics = []
+    for cost_element in cost_elements:
+        metrics = get_cost_element_evm_metrics(
+            cost_element=cost_element,
+            schedule=schedule_map.get(cost_element.cost_element_id),
+            entry=entry_map.get(cost_element.cost_element_id),
+            cost_registrations=cost_registrations_by_ce.get(
+                cost_element.cost_element_id, []
+            ),
+            control_date=control_date,
+        )
+        cost_element_metrics.append(metrics)
+
+    # Aggregate metrics
+    aggregated = aggregate_cost_element_metrics(cost_element_metrics)
+
+    return (
+        aggregated.planned_value,
+        aggregated.earned_value,
+        aggregated.actual_cost,
+        aggregated.budget_bac,
+    )
 
 
 @router.get(
     "/{project_id}/evm-indices/wbes/{wbe_id}",
     response_model=EVMIndicesWBEPublic,
+    deprecated=True,
+    summary="Get EVM indices for a WBE (DEPRECATED)",
+    description="**DEPRECATED:** Use `/projects/{project_id}/evm-metrics/wbes/{wbe_id}` instead. "
+    "This endpoint will be removed in a future version. The unified EVM metrics endpoint provides the same functionality "
+    "with consistent aggregation logic.",
 )
 def get_wbe_evm_indices(
     *,
@@ -247,6 +245,10 @@ def get_wbe_evm_indices(
     spi = calculate_spi(ev, pv)
     tcpi = calculate_tcpi(bac, ev, ac)
 
+    # Calculate variances
+    cost_variance = calculate_cost_variance(ev, ac)
+    schedule_variance = calculate_schedule_variance(ev, pv)
+
     return EVMIndicesWBEPublic(
         level="wbe",
         control_date=control_date,
@@ -257,6 +259,8 @@ def get_wbe_evm_indices(
         earned_value=ev,
         actual_cost=ac,
         budget_bac=bac,
+        cost_variance=cost_variance,
+        schedule_variance=schedule_variance,
         wbe_id=wbe.wbe_id,
     )
 
@@ -264,6 +268,11 @@ def get_wbe_evm_indices(
 @router.get(
     "/{project_id}/evm-indices",
     response_model=EVMIndicesProjectPublic,
+    deprecated=True,
+    summary="Get EVM indices for a project (DEPRECATED)",
+    description="**DEPRECATED:** Use `/projects/{project_id}/evm-metrics` instead. "
+    "This endpoint will be removed in a future version. The unified EVM metrics endpoint provides the same functionality "
+    "with consistent aggregation logic.",
 )
 def get_project_evm_indices(
     *,
@@ -286,6 +295,10 @@ def get_project_evm_indices(
     spi = calculate_spi(ev, pv)
     tcpi = calculate_tcpi(bac, ev, ac)
 
+    # Calculate variances
+    cost_variance = calculate_cost_variance(ev, ac)
+    schedule_variance = calculate_schedule_variance(ev, pv)
+
     return EVMIndicesProjectPublic(
         level="project",
         control_date=control_date,
@@ -296,5 +309,7 @@ def get_project_evm_indices(
         earned_value=ev,
         actual_cost=ac,
         budget_bac=bac,
+        cost_variance=cost_variance,
+        schedule_variance=schedule_variance,
         project_id=project.project_id,
     )

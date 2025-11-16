@@ -13,6 +13,7 @@ from app.api.routes import (
     cost_timeline,
     earned_value,
     earned_value_entries,
+    evm_aggregation,
     evm_indices,
     login,
     planned_value,
@@ -43,6 +44,7 @@ api_router.include_router(budget_timeline.router)
 api_router.include_router(planned_value.router)
 api_router.include_router(earned_value.router)
 api_router.include_router(evm_indices.router)
+api_router.include_router(evm_aggregation.router)
 api_router.include_router(baseline_logs.router)
 
 

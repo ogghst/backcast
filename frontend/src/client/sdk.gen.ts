@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { BaselineLogsListBaselineLogsData, BaselineLogsListBaselineLogsResponse, BaselineLogsCreateBaselineLogData, BaselineLogsCreateBaselineLogResponse, BaselineLogsReadBaselineLogData, BaselineLogsReadBaselineLogResponse, BaselineLogsUpdateBaselineLogData, BaselineLogsUpdateBaselineLogResponse, BaselineLogsCancelBaselineLogData, BaselineLogsCancelBaselineLogResponse, BaselineLogsGetBaselineSnapshotSummaryData, BaselineLogsGetBaselineSnapshotSummaryResponse, BaselineLogsGetBaselineCostElementsByWbeData, BaselineLogsGetBaselineCostElementsByWbeResponse, BaselineLogsGetBaselineCostElementsData, BaselineLogsGetBaselineCostElementsResponse, BaselineLogsGetBaselineEarnedValueEntriesData, BaselineLogsGetBaselineEarnedValueEntriesResponse, BudgetSummaryGetProjectBudgetSummaryData, BudgetSummaryGetProjectBudgetSummaryResponse, BudgetSummaryGetWbeBudgetSummaryData, BudgetSummaryGetWbeBudgetSummaryResponse, BudgetTimelineGetCostElementsWithSchedulesData, BudgetTimelineGetCostElementsWithSchedulesResponse, CostCategoriesReadCostCategoriesResponse, CostElementsReadCostElementsData, CostElementsReadCostElementsResponse, CostElementsCreateCostElementData, CostElementsCreateCostElementResponse, CostElementsReadCostElementData, CostElementsReadCostElementResponse, CostElementsUpdateCostElementData, CostElementsUpdateCostElementResponse, CostElementsDeleteCostElementData, CostElementsDeleteCostElementResponse, CostElementSchedulesReadScheduleByCostElementData, CostElementSchedulesReadScheduleByCostElementResponse, CostElementSchedulesCreateScheduleData, CostElementSchedulesCreateScheduleResponse, CostElementSchedulesReadScheduleHistoryByCostElementData, CostElementSchedulesReadScheduleHistoryByCostElementResponse, CostElementSchedulesUpdateScheduleData, CostElementSchedulesUpdateScheduleResponse, CostElementSchedulesDeleteScheduleData, CostElementSchedulesDeleteScheduleResponse, CostElementTypesReadCostElementTypesResponse, CostRegistrationsReadCostRegistrationsData, CostRegistrationsReadCostRegistrationsResponse, CostRegistrationsCreateCostRegistrationData, CostRegistrationsCreateCostRegistrationResponse, CostRegistrationsReadCostRegistrationData, CostRegistrationsReadCostRegistrationResponse, CostRegistrationsUpdateCostRegistrationData, CostRegistrationsUpdateCostRegistrationResponse, CostRegistrationsDeleteCostRegistrationData, CostRegistrationsDeleteCostRegistrationResponse, CostSummaryGetCostElementCostSummaryData, CostSummaryGetCostElementCostSummaryResponse, CostSummaryGetWbeCostSummaryData, CostSummaryGetWbeCostSummaryResponse, CostSummaryGetProjectCostSummaryData, CostSummaryGetProjectCostSummaryResponse, CostTimelineGetProjectCostTimelineData, CostTimelineGetProjectCostTimelineResponse, EarnedValueGetCostElementEarnedValueData, EarnedValueGetCostElementEarnedValueResponse, EarnedValueGetWbeEarnedValueData, EarnedValueGetWbeEarnedValueResponse, EarnedValueGetProjectEarnedValueData, EarnedValueGetProjectEarnedValueResponse, EarnedValueEntriesReadEarnedValueEntriesData, EarnedValueEntriesReadEarnedValueEntriesResponse, EarnedValueEntriesCreateEarnedValueEntryData, EarnedValueEntriesCreateEarnedValueEntryResponse, EarnedValueEntriesReadEarnedValueEntryData, EarnedValueEntriesReadEarnedValueEntryResponse, EarnedValueEntriesUpdateEarnedValueEntryData, EarnedValueEntriesUpdateEarnedValueEntryResponse, EarnedValueEntriesDeleteEarnedValueEntryData, EarnedValueEntriesDeleteEarnedValueEntryResponse, EvmIndicesGetWbeEvmIndicesData, EvmIndicesGetWbeEvmIndicesResponse, EvmIndicesGetProjectEvmIndicesData, EvmIndicesGetProjectEvmIndicesResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, PlannedValueGetCostElementPlannedValueData, PlannedValueGetCostElementPlannedValueResponse, PlannedValueGetWbePlannedValueData, PlannedValueGetWbePlannedValueResponse, PlannedValueGetProjectPlannedValueData, PlannedValueGetProjectPlannedValueResponse, PrivateCreateUserData, PrivateCreateUserResponse, ProjectsReadProjectsData, ProjectsReadProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsReadProjectData, ProjectsReadProjectResponse, ProjectsUpdateProjectData, ProjectsUpdateProjectResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsCreateProjectFromTemplateData, ProjectsCreateProjectFromTemplateResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersReadTimeMachinePreferenceResponse, UsersUpdateTimeMachinePreferenceData, UsersUpdateTimeMachinePreferenceResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse, WbesReadWbesData, WbesReadWbesResponse, WbesCreateWbeData, WbesCreateWbeResponse, WbesReadWbeData, WbesReadWbeResponse, WbesUpdateWbeData, WbesUpdateWbeResponse, WbesDeleteWbeData, WbesDeleteWbeResponse } from './types.gen';
+import type { BaselineLogsListBaselineLogsData, BaselineLogsListBaselineLogsResponse, BaselineLogsCreateBaselineLogData, BaselineLogsCreateBaselineLogResponse, BaselineLogsReadBaselineLogData, BaselineLogsReadBaselineLogResponse, BaselineLogsUpdateBaselineLogData, BaselineLogsUpdateBaselineLogResponse, BaselineLogsCancelBaselineLogData, BaselineLogsCancelBaselineLogResponse, BaselineLogsGetBaselineSnapshotSummaryData, BaselineLogsGetBaselineSnapshotSummaryResponse, BaselineLogsGetBaselineCostElementsByWbeData, BaselineLogsGetBaselineCostElementsByWbeResponse, BaselineLogsGetBaselineCostElementsData, BaselineLogsGetBaselineCostElementsResponse, BaselineLogsGetBaselineEarnedValueEntriesData, BaselineLogsGetBaselineEarnedValueEntriesResponse, BudgetSummaryGetProjectBudgetSummaryData, BudgetSummaryGetProjectBudgetSummaryResponse, BudgetSummaryGetWbeBudgetSummaryData, BudgetSummaryGetWbeBudgetSummaryResponse, BudgetTimelineGetCostElementsWithSchedulesData, BudgetTimelineGetCostElementsWithSchedulesResponse, CostCategoriesReadCostCategoriesResponse, CostElementsReadCostElementsData, CostElementsReadCostElementsResponse, CostElementsCreateCostElementData, CostElementsCreateCostElementResponse, CostElementsReadCostElementData, CostElementsReadCostElementResponse, CostElementsUpdateCostElementData, CostElementsUpdateCostElementResponse, CostElementsDeleteCostElementData, CostElementsDeleteCostElementResponse, CostElementSchedulesReadScheduleByCostElementData, CostElementSchedulesReadScheduleByCostElementResponse, CostElementSchedulesCreateScheduleData, CostElementSchedulesCreateScheduleResponse, CostElementSchedulesReadScheduleHistoryByCostElementData, CostElementSchedulesReadScheduleHistoryByCostElementResponse, CostElementSchedulesUpdateScheduleData, CostElementSchedulesUpdateScheduleResponse, CostElementSchedulesDeleteScheduleData, CostElementSchedulesDeleteScheduleResponse, CostElementTypesReadCostElementTypesResponse, CostRegistrationsReadCostRegistrationsData, CostRegistrationsReadCostRegistrationsResponse, CostRegistrationsCreateCostRegistrationData, CostRegistrationsCreateCostRegistrationResponse, CostRegistrationsReadCostRegistrationData, CostRegistrationsReadCostRegistrationResponse, CostRegistrationsUpdateCostRegistrationData, CostRegistrationsUpdateCostRegistrationResponse, CostRegistrationsDeleteCostRegistrationData, CostRegistrationsDeleteCostRegistrationResponse, CostSummaryGetCostElementCostSummaryData, CostSummaryGetCostElementCostSummaryResponse, CostSummaryGetWbeCostSummaryData, CostSummaryGetWbeCostSummaryResponse, CostSummaryGetProjectCostSummaryData, CostSummaryGetProjectCostSummaryResponse, CostTimelineGetProjectCostTimelineData, CostTimelineGetProjectCostTimelineResponse, EarnedValueGetCostElementEarnedValueData, EarnedValueGetCostElementEarnedValueResponse, EarnedValueGetWbeEarnedValueData, EarnedValueGetWbeEarnedValueResponse, EarnedValueGetProjectEarnedValueData, EarnedValueGetProjectEarnedValueResponse, EarnedValueEntriesReadEarnedValueEntriesData, EarnedValueEntriesReadEarnedValueEntriesResponse, EarnedValueEntriesCreateEarnedValueEntryData, EarnedValueEntriesCreateEarnedValueEntryResponse, EarnedValueEntriesReadEarnedValueEntryData, EarnedValueEntriesReadEarnedValueEntryResponse, EarnedValueEntriesUpdateEarnedValueEntryData, EarnedValueEntriesUpdateEarnedValueEntryResponse, EarnedValueEntriesDeleteEarnedValueEntryData, EarnedValueEntriesDeleteEarnedValueEntryResponse, EvmIndicesGetWbeEvmIndicesData, EvmIndicesGetWbeEvmIndicesResponse, EvmIndicesGetProjectEvmIndicesData, EvmIndicesGetProjectEvmIndicesResponse, EvmMetricsGetCostElementEvmMetricsEndpointData, EvmMetricsGetCostElementEvmMetricsEndpointResponse, EvmMetricsGetWbeEvmMetricsEndpointData, EvmMetricsGetWbeEvmMetricsEndpointResponse, EvmMetricsGetProjectEvmMetricsEndpointData, EvmMetricsGetProjectEvmMetricsEndpointResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, PlannedValueGetCostElementPlannedValueData, PlannedValueGetCostElementPlannedValueResponse, PlannedValueGetWbePlannedValueData, PlannedValueGetWbePlannedValueResponse, PlannedValueGetProjectPlannedValueData, PlannedValueGetProjectPlannedValueResponse, PrivateCreateUserData, PrivateCreateUserResponse, ProjectsReadProjectsData, ProjectsReadProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsReadProjectData, ProjectsReadProjectResponse, ProjectsUpdateProjectData, ProjectsUpdateProjectResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsCreateProjectFromTemplateData, ProjectsCreateProjectFromTemplateResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersReadTimeMachinePreferenceResponse, UsersUpdateTimeMachinePreferenceData, UsersUpdateTimeMachinePreferenceResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse, WbesReadWbesData, WbesReadWbesResponse, WbesCreateWbeData, WbesCreateWbeResponse, WbesReadWbeData, WbesReadWbeResponse, WbesUpdateWbeData, WbesUpdateWbeResponse, WbesDeleteWbeData, WbesDeleteWbeResponse } from './types.gen';
 
 export class BaselineLogsService {
     /**
@@ -933,7 +933,9 @@ export class CostTimelineService {
 
 export class EarnedValueService {
     /**
-     * Get Cost Element Earned Value
+     * @deprecated
+     * Get earned value for a cost element (DEPRECATED)
+     * **DEPRECATED:** Use `/projects/{project_id}/evm-metrics/cost-elements/{cost_element_id}` instead. This endpoint will be removed in a future version. The unified EVM metrics endpoint provides all EVM metrics including planned value, earned value, actual cost, and performance indices.
      * @param data The data for the request.
      * @param data.projectId
      * @param data.costElementId
@@ -955,7 +957,9 @@ export class EarnedValueService {
     }
     
     /**
-     * Get Wbe Earned Value
+     * @deprecated
+     * Get earned value for a WBE (DEPRECATED)
+     * **DEPRECATED:** Use `/projects/{project_id}/evm-metrics/wbes/{wbe_id}` instead. This endpoint will be removed in a future version. The unified EVM metrics endpoint provides all EVM metrics including planned value, earned value, actual cost, and performance indices.
      * @param data The data for the request.
      * @param data.projectId
      * @param data.wbeId
@@ -977,7 +981,9 @@ export class EarnedValueService {
     }
     
     /**
-     * Get Project Earned Value
+     * @deprecated
+     * Get earned value for a project (DEPRECATED)
+     * **DEPRECATED:** Use `/projects/{project_id}/evm-metrics` instead. This endpoint will be removed in a future version. The unified EVM metrics endpoint provides all EVM metrics including planned value, earned value, actual cost, and performance indices.
      * @param data The data for the request.
      * @param data.projectId
      * @returns EarnedValueProjectPublic Successful Response
@@ -1112,11 +1118,9 @@ export class EarnedValueEntriesService {
 
 export class EvmIndicesService {
     /**
-     * Get Wbe Evm Indices
-     * Get EVM performance indices (CPI, SPI, TCPI) for a WBE.
-     *
-     * Returns:
-     * EVMIndicesWBEPublic with CPI, SPI, TCPI, and underlying PV, EV, AC, BAC values.
+     * @deprecated
+     * Get EVM indices for a WBE (DEPRECATED)
+     * **DEPRECATED:** Use `/projects/{project_id}/evm-metrics/wbes/{wbe_id}` instead. This endpoint will be removed in a future version. The unified EVM metrics endpoint provides the same functionality with consistent aggregation logic.
      * @param data The data for the request.
      * @param data.projectId
      * @param data.wbeId
@@ -1138,11 +1142,9 @@ export class EvmIndicesService {
     }
     
     /**
-     * Get Project Evm Indices
-     * Get EVM performance indices (CPI, SPI, TCPI) for a project.
-     *
-     * Returns:
-     * EVMIndicesProjectPublic with CPI, SPI, TCPI, and underlying PV, EV, AC, BAC values.
+     * @deprecated
+     * Get EVM indices for a project (DEPRECATED)
+     * **DEPRECATED:** Use `/projects/{project_id}/evm-metrics` instead. This endpoint will be removed in a future version. The unified EVM metrics endpoint provides the same functionality with consistent aggregation logic.
      * @param data The data for the request.
      * @param data.projectId
      * @returns EVMIndicesProjectPublic Successful Response
@@ -1152,6 +1154,84 @@ export class EvmIndicesService {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/projects/{project_id}/evm-indices',
+            path: {
+                project_id: data.projectId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+}
+
+export class EvmMetricsService {
+    /**
+     * Get Cost Element Evm Metrics Endpoint
+     * Get all EVM metrics for a cost element.
+     *
+     * Returns:
+     * EVMIndicesCostElementPublic with PV, EV, AC, BAC, CPI, SPI, TCPI, CV, SV.
+     * @param data The data for the request.
+     * @param data.projectId
+     * @param data.costElementId
+     * @returns EVMIndicesCostElementPublic Successful Response
+     * @throws ApiError
+     */
+    public static getCostElementEvmMetricsEndpoint(data: EvmMetricsGetCostElementEvmMetricsEndpointData): CancelablePromise<EvmMetricsGetCostElementEvmMetricsEndpointResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/projects/{project_id}/evm-metrics/cost-elements/{cost_element_id}',
+            path: {
+                project_id: data.projectId,
+                cost_element_id: data.costElementId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Wbe Evm Metrics Endpoint
+     * Get all EVM metrics for a WBE (aggregated from cost elements).
+     *
+     * Returns:
+     * EVMIndicesWBEPublic with PV, EV, AC, BAC, CPI, SPI, TCPI, CV, SV.
+     * @param data The data for the request.
+     * @param data.projectId
+     * @param data.wbeId
+     * @returns EVMIndicesWBEPublic Successful Response
+     * @throws ApiError
+     */
+    public static getWbeEvmMetricsEndpoint(data: EvmMetricsGetWbeEvmMetricsEndpointData): CancelablePromise<EvmMetricsGetWbeEvmMetricsEndpointResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/projects/{project_id}/evm-metrics/wbes/{wbe_id}',
+            path: {
+                project_id: data.projectId,
+                wbe_id: data.wbeId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Project Evm Metrics Endpoint
+     * Get all EVM metrics for a project (aggregated from WBEs).
+     *
+     * Returns:
+     * EVMIndicesProjectPublic with PV, EV, AC, BAC, CPI, SPI, TCPI, CV, SV.
+     * @param data The data for the request.
+     * @param data.projectId
+     * @returns EVMIndicesProjectPublic Successful Response
+     * @throws ApiError
+     */
+    public static getProjectEvmMetricsEndpoint(data: EvmMetricsGetProjectEvmMetricsEndpointData): CancelablePromise<EvmMetricsGetProjectEvmMetricsEndpointResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/projects/{project_id}/evm-metrics',
             path: {
                 project_id: data.projectId
             },
@@ -1261,7 +1341,9 @@ export class LoginService {
 
 export class PlannedValueService {
     /**
-     * Get Cost Element Planned Value
+     * @deprecated
+     * Get planned value for a cost element (DEPRECATED)
+     * **DEPRECATED:** Use `/projects/{project_id}/evm-metrics/cost-elements/{cost_element_id}` instead. This endpoint will be removed in a future version. The unified EVM metrics endpoint provides all EVM metrics including planned value, earned value, actual cost, and performance indices.
      * @param data The data for the request.
      * @param data.projectId
      * @param data.costElementId
@@ -1287,7 +1369,9 @@ export class PlannedValueService {
     }
     
     /**
-     * Get Wbe Planned Value
+     * @deprecated
+     * Get planned value for a WBE (DEPRECATED)
+     * **DEPRECATED:** Use `/projects/{project_id}/evm-metrics/wbes/{wbe_id}` instead. This endpoint will be removed in a future version. The unified EVM metrics endpoint provides all EVM metrics including planned value, earned value, actual cost, and performance indices.
      * @param data The data for the request.
      * @param data.projectId
      * @param data.wbeId
@@ -1313,7 +1397,9 @@ export class PlannedValueService {
     }
     
     /**
-     * Get Project Planned Value
+     * @deprecated
+     * Get planned value for a project (DEPRECATED)
+     * **DEPRECATED:** Use `/projects/{project_id}/evm-metrics` instead. This endpoint will be removed in a future version. The unified EVM metrics endpoint provides all EVM metrics including planned value, earned value, actual cost, and performance indices.
      * @param data The data for the request.
      * @param data.projectId
      * @param data.controlDate Control date for planned value

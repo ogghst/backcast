@@ -21,6 +21,50 @@ def _quantize(value: Decimal, exp: Decimal) -> Decimal:
     return value.quantize(exp, rounding=ROUND_HALF_UP)
 
 
+def calculate_cost_variance(ev: Decimal, ac: Decimal) -> Decimal:
+    """Calculate Cost Variance (CV) = EV - AC.
+
+    Args:
+        ev: Earned Value
+        ac: Actual Cost
+
+    Returns:
+        CV as Decimal quantized to 2 decimal places.
+        CV is always defined (no None case).
+        Negative CV = over-budget, positive CV = under-budget, zero CV = on-budget.
+
+    Business Rules:
+        - CV = EV - AC (always defined)
+        - CV < 0 indicates over-budget (costs exceed earned value)
+        - CV > 0 indicates under-budget (earned value exceeds costs)
+        - CV = 0 indicates on-budget (earned value equals costs)
+    """
+    cv = ev - ac
+    return _quantize(cv, TWO_PLACES)
+
+
+def calculate_schedule_variance(ev: Decimal, pv: Decimal) -> Decimal:
+    """Calculate Schedule Variance (SV) = EV - PV.
+
+    Args:
+        ev: Earned Value
+        pv: Planned Value
+
+    Returns:
+        SV as Decimal quantized to 2 decimal places.
+        SV is always defined (no None case).
+        Negative SV = behind-schedule, positive SV = ahead-of-schedule, zero SV = on-schedule.
+
+    Business Rules:
+        - SV = EV - PV (always defined)
+        - SV < 0 indicates behind-schedule (earned value less than planned)
+        - SV > 0 indicates ahead-of-schedule (earned value greater than planned)
+        - SV = 0 indicates on-schedule (earned value equals planned)
+    """
+    sv = ev - pv
+    return _quantize(sv, TWO_PLACES)
+
+
 def calculate_cpi(ev: Decimal, ac: Decimal) -> Decimal | None:
     """Calculate Cost Performance Index (CPI) = EV / AC.
 

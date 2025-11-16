@@ -15,6 +15,7 @@ import {
   DrawerTrigger,
 } from "../ui/drawer"
 import SidebarItems from "./SidebarItems"
+import TimeMachinePicker from "./TimeMachinePicker"
 
 const Sidebar = () => {
   const queryClient = useQueryClient()
@@ -57,6 +58,9 @@ const Sidebar = () => {
                     w="50%"
                     objectFit="cover"
                   />
+                </Box>
+                <Box mb={4} px={4}>
+                  <TimeMachinePicker />
                 </Box>
                 <SidebarItems onClose={() => setOpen(false)} />
                 <Flex
@@ -104,6 +108,9 @@ const Sidebar = () => {
               w="50%"
               objectFit="cover"
             />
+          </Box>
+          <Box mb={4}>
+            <TimeMachinePicker />
           </Box>
           <SidebarItems />
         </Box>

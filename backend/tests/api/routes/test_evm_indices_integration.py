@@ -286,6 +286,20 @@ def test_wbe_evm_indices_integration(
     assert data["tcpi"] is not None
     assert abs(Decimal(str(data["tcpi"])) - Decimal("1.0196")) < Decimal("0.0001")
 
+    # Verify variances are included and calculated correctly
+    assert "cost_variance" in data
+    assert "schedule_variance" in data
+    # CV = EV - AC = 190000 - 195000 = -5000 (over-budget)
+    # SV = EV - PV (will be calculated)
+    cv = Decimal(str(data["cost_variance"]))
+    sv = Decimal(str(data["schedule_variance"]))
+    ev = Decimal(str(data["earned_value"]))
+    ac = Decimal(str(data["actual_cost"]))
+    pv = Decimal(str(data["planned_value"]))
+    assert abs(cv - (ev - ac)) < Decimal("0.01")  # CV = EV - AC
+    assert abs(sv - (ev - pv)) < Decimal("1.00")  # SV = EV - PV (allow for PV rounding)
+    assert cv < Decimal("0.00")  # Negative (over-budget)
+
 
 def test_project_evm_indices_integration(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
@@ -474,6 +488,20 @@ def test_project_evm_indices_integration(
     assert data["tcpi"] is not None
     assert abs(Decimal(str(data["tcpi"])) - Decimal("1.0677")) < Decimal("0.0001")
 
+    # Verify variances are included and calculated correctly
+    assert "cost_variance" in data
+    assert "schedule_variance" in data
+    # CV = EV - AC = 98000 - 107000 = -9000 (over-budget)
+    # SV = EV - PV (will be calculated)
+    cv = Decimal(str(data["cost_variance"]))
+    sv = Decimal(str(data["schedule_variance"]))
+    ev = Decimal(str(data["earned_value"]))
+    ac = Decimal(str(data["actual_cost"]))
+    pv = Decimal(str(data["planned_value"]))
+    assert abs(cv - (ev - ac)) < Decimal("0.01")  # CV = EV - AC
+    assert abs(sv - (ev - pv)) < Decimal("1.00")  # SV = EV - PV (allow for PV rounding)
+    assert cv < Decimal("0.00")  # Negative (over-budget)
+
 
 def test_evm_indices_time_machine_integration(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
@@ -593,6 +621,18 @@ def test_evm_indices_time_machine_integration(
 
     # Verify indices changed
     assert data1["cpi"] != data2["cpi"] or data1["spi"] != data2["spi"]
+
+    # Verify variances are included and respect control date
+    assert "cost_variance" in data1
+    assert "schedule_variance" in data1
+    assert "cost_variance" in data2
+    assert "schedule_variance" in data2
+    # At Feb 15: CV = 30000 - 30000 = 0 (on-budget)
+    # At Mar 15: CV = 50000 - 50000 = 0 (on-budget)
+    assert Decimal(str(data1["cost_variance"])) == Decimal("0.00")
+    assert Decimal(str(data2["cost_variance"])) == Decimal("0.00")
+    # Variances should change as control date changes (if EV/PV/AC change)
+    # In this case, both dates have EV=AC, so CV stays 0, but SV may change
 
 
 def test_evm_indices_edge_cases_integration(
@@ -754,3 +794,119 @@ def test_evm_indices_edge_cases_integration(
     assert data["spi"] is not None  # PV > 0 from CE1
     assert data["tcpi"] is not None
     assert isinstance(data["tcpi"], str | float)  # Can be number or 'overrun' string
+
+    # Verify variances are included and handle edge cases correctly
+    assert "cost_variance" in data
+    assert "schedule_variance" in data
+    # CV = EV - AC = 71000 - 65000 = 6000 (under-budget, positive)
+    # SV = EV - PV (will be calculated)
+    cv = Decimal(str(data["cost_variance"]))
+    sv = Decimal(str(data["schedule_variance"]))
+    ev = Decimal(str(data["earned_value"]))
+    ac = Decimal(str(data["actual_cost"]))
+    pv = Decimal(str(data["planned_value"]))
+    assert abs(cv - (ev - ac)) < Decimal("0.01")  # CV = EV - AC
+    assert abs(sv - (ev - pv)) < Decimal("1.00")  # SV = EV - PV (allow for PV rounding)
+    assert cv > Decimal("0.00")  # Positive (under-budget)
+
+
+def test_evm_indices_variance_consistency(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Integration test: Verify variances and indices use the same inputs (consistency check)."""
+    project, created_by_id = _create_project_with_manager(db)
+    wbe = _create_wbe(db, project.project_id, Decimal("200000.00"))
+    cet = _create_cost_element_type(db)
+
+    ce = _create_cost_element(
+        db,
+        wbe.wbe_id,
+        cet,
+        department_code="ENG",
+        department_name="Engineering",
+        budget_bac=Decimal("100000.00"),
+        revenue_plan=Decimal("120000.00"),
+    )
+
+    schedule = create_schedule_for_cost_element(
+        db,
+        ce.cost_element_id,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 2, 1),
+        progression_type="linear",
+        registration_date=date(2024, 1, 1),
+        description="Baseline",
+        created_by_id=created_by_id,
+    )
+    schedule.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    db.add(schedule)
+    db.commit()
+    db.refresh(schedule)
+
+    create_earned_value_entry(
+        db,
+        cost_element_id=ce.cost_element_id,
+        completion_date=date(2024, 1, 15),
+        percent_complete=Decimal("40.00"),
+        created_by_id=created_by_id,
+    )
+
+    cr_in = CostRegistrationCreate(
+        cost_element_id=ce.cost_element_id,
+        registration_date=date(2024, 1, 15),
+        amount=Decimal("45000.00"),
+        cost_category="labor",
+        description="Test cost registration",
+        is_quality_cost=False,
+    )
+    cr_data = cr_in.model_dump()
+    cr_data["created_by_id"] = created_by_id
+    cr = CostRegistration.model_validate(cr_data)
+    cr.created_at = datetime(2024, 1, 15, tzinfo=timezone.utc)
+    db.add(cr)
+    db.commit()
+
+    control_date = date(2024, 1, 15)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        _wbe_endpoint(project.project_id, wbe.wbe_id),
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Extract values
+    ev = Decimal(str(data["earned_value"]))
+    ac = Decimal(str(data["actual_cost"]))
+    pv = Decimal(str(data["planned_value"]))
+    cpi = Decimal(str(data["cpi"])) if data["cpi"] is not None else None
+    spi = Decimal(str(data["spi"])) if data["spi"] is not None else None
+    cv = Decimal(str(data["cost_variance"]))
+    sv = Decimal(str(data["schedule_variance"]))
+
+    # Verify consistency: CV should match EV - AC
+    assert abs(cv - (ev - ac)) < Decimal("0.01")
+    # Verify consistency: SV should match EV - PV
+    assert abs(sv - (ev - pv)) < Decimal("1.00")
+
+    # Verify consistency: CPI and CV should be consistent
+    # If CPI is defined, CV should be negative when CPI < 1, positive when CPI > 1
+    if cpi is not None:
+        if cpi < Decimal("1.0"):
+            assert cv < Decimal("0.00")  # Over-budget
+        elif cpi > Decimal("1.0"):
+            assert cv > Decimal("0.00")  # Under-budget
+        else:
+            assert abs(cv) < Decimal("0.01")  # On-budget
+
+    # Verify consistency: SPI and SV should be consistent
+    # If SPI is defined, SV should be negative when SPI < 1, positive when SPI > 1
+    if spi is not None:
+        if spi < Decimal("1.0"):
+            assert sv < Decimal("0.00")  # Behind-schedule
+        elif spi > Decimal("1.0"):
+            assert sv > Decimal("0.00")  # Ahead-of-schedule
+        else:
+            assert abs(sv) < Decimal("1.00")  # On-schedule (allow for PV rounding)

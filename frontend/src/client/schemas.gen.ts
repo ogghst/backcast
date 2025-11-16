@@ -1727,6 +1727,110 @@ export const CostTimelinePublicSchema = {
     description: 'Public schema for cost timeline response.'
 } as const;
 
+export const EVMIndicesCostElementPublicSchema = {
+    properties: {
+        level: {
+            type: 'string',
+            maxLength: 20,
+            title: 'Level'
+        },
+        control_date: {
+            type: 'string',
+            format: 'date',
+            title: 'Control Date'
+        },
+        cpi: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Cpi',
+            description: 'Cost Performance Index (CPI) = EV / AC. None when AC = 0.'
+        },
+        spi: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Spi',
+            description: 'Schedule Performance Index (SPI) = EV / PV. None when PV = 0.'
+        },
+        tcpi: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Tcpi',
+            description: "To-Complete Performance Index (TCPI) = (BAC - EV) / (BAC - AC). Returns 'overrun' when BAC ≤ AC."
+        },
+        planned_value: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Planned Value',
+            default: '0.00'
+        },
+        earned_value: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Earned Value',
+            default: '0.00'
+        },
+        actual_cost: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Actual Cost',
+            default: '0.00'
+        },
+        budget_bac: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Budget Bac',
+            default: '0.00'
+        },
+        cost_variance: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Cost Variance',
+            description: 'Cost Variance (CV) = EV - AC. Negative = over-budget, positive = under-budget, zero = on-budget.',
+            default: '0.00'
+        },
+        schedule_variance: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Schedule Variance',
+            description: 'Schedule Variance (SV) = EV - PV. Negative = behind-schedule, positive = ahead-of-schedule, zero = on-schedule.',
+            default: '0.00'
+        },
+        cost_element_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Cost Element Id'
+        }
+    },
+    type: 'object',
+    required: ['level', 'control_date', 'cost_element_id'],
+    title: 'EVMIndicesCostElementPublic',
+    description: 'EVM performance indices response for cost elements.'
+} as const;
+
 export const EVMIndicesProjectPublicSchema = {
     properties: {
         level: {
@@ -1803,6 +1907,20 @@ export const EVMIndicesProjectPublicSchema = {
             type: 'string',
             pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
             title: 'Budget Bac',
+            default: '0.00'
+        },
+        cost_variance: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Cost Variance',
+            description: 'Cost Variance (CV) = EV - AC. Negative = over-budget, positive = under-budget, zero = on-budget.',
+            default: '0.00'
+        },
+        schedule_variance: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Schedule Variance',
+            description: 'Schedule Variance (SV) = EV - PV. Negative = behind-schedule, positive = ahead-of-schedule, zero = on-schedule.',
             default: '0.00'
         },
         project_id: {
@@ -1893,6 +2011,20 @@ export const EVMIndicesWBEPublicSchema = {
             type: 'string',
             pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
             title: 'Budget Bac',
+            default: '0.00'
+        },
+        cost_variance: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Cost Variance',
+            description: 'Cost Variance (CV) = EV - AC. Negative = over-budget, positive = under-budget, zero = on-budget.',
+            default: '0.00'
+        },
+        schedule_variance: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Schedule Variance',
+            description: 'Schedule Variance (SV) = EV - PV. Negative = behind-schedule, positive = ahead-of-schedule, zero = on-schedule.',
             default: '0.00'
         },
         wbe_id: {
