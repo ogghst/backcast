@@ -322,7 +322,7 @@ test("Edit cost element modal shows schedule history entries", async ({
   await page.getByRole("button", { name: "Cancel" }).click()
 })
 
-test("Budget Summary tab displays the budget summary view", async ({
+test("Metrics tab displays combined budget and cost summaries", async ({
   page,
 }) => {
   const { projectId, wbeId } = testEntities
@@ -338,17 +338,57 @@ test("Budget Summary tab displays the budget summary view", async ({
     page.getByRole("heading", { name: "Cost Elements" }),
   ).toBeVisible()
 
-  await page.getByRole("tab", { name: "Budget Summary" }).click()
+  await page.getByRole("tab", { name: "Metrics" }).click()
 
-  await expect(page).toHaveURL(/tab=summary/)
+  await expect(page).toHaveURL(/tab=metrics/)
 
   await expect(
     page.getByRole("heading", { name: "Budget Summary" }),
   ).toBeVisible()
 
   await expect(
-    page.getByRole("heading", { name: "Cost Elements" }),
-  ).toBeHidden()
+    page.getByRole("heading", { name: "Cost Summary" }),
+  ).toBeVisible()
+})
+
+test("Old tab=summary silently maps to Metrics content (no redirect)", async ({
+  page,
+}) => {
+  const { projectId, wbeId } = testEntities
+  if (!projectId || !wbeId) {
+    test.fail(true, "Test data was not initialized correctly")
+    return
+  }
+  await page.goto(`/projects/${projectId}/wbes/${wbeId}?tab=summary`)
+  // URL remains with summary (silent mapping)
+  await expect(page).toHaveURL(/tab=summary/)
+  // Metrics content is shown
+  await expect(
+    page.getByRole("heading", { name: "Budget Summary" }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: "Cost Summary" }),
+  ).toBeVisible()
+})
+
+test("Old tab=cost-summary silently maps to Metrics content (no redirect)", async ({
+  page,
+}) => {
+  const { projectId, wbeId } = testEntities
+  if (!projectId || !wbeId) {
+    test.fail(true, "Test data was not initialized correctly")
+    return
+  }
+  await page.goto(`/projects/${projectId}/wbes/${wbeId}?tab=cost-summary`)
+  // URL remains with cost-summary (silent mapping)
+  await expect(page).toHaveURL(/tab=cost-summary/)
+  // Metrics content is shown
+  await expect(
+    page.getByRole("heading", { name: "Budget Summary" }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole("heading", { name: "Cost Summary" }),
+  ).toBeVisible()
 })
 
 test("Budget timeline shows earned value dataset with collapsible filters", async ({

@@ -26,19 +26,25 @@ import type { ColumnDefExtended } from "@/components/DataTable/types"
 import PendingItems from "@/components/Pending/PendingItems"
 import AddWBE from "@/components/Projects/AddWBE"
 import BaselineLogsTable from "@/components/Projects/BaselineLogsTable"
-import BudgetSummary from "@/components/Projects/BudgetSummary"
 import BudgetTimeline from "@/components/Projects/BudgetTimeline"
 import BudgetTimelineFilter from "@/components/Projects/BudgetTimelineFilter"
-import CostSummary from "@/components/Projects/CostSummary"
 import DeleteWBE from "@/components/Projects/DeleteWBE"
-import EarnedValueSummary from "@/components/Projects/EarnedValueSummary"
 import EditWBE from "@/components/Projects/EditWBE"
+import MetricsSummary from "@/components/Projects/MetricsSummary"
 import { useTimeMachine } from "@/context/TimeMachineContext"
 
 const projectDetailSearchSchema = z.object({
   page: z.number().catch(1),
   tab: z
-    .enum(["info", "wbes", "summary", "cost-summary", "timeline", "baselines"])
+    .enum([
+      "info",
+      "wbes",
+      "summary",
+      "cost-summary",
+      "metrics",
+      "timeline",
+      "baselines",
+    ])
     .catch("wbes"),
 })
 
@@ -237,6 +243,8 @@ function ProjectDetail() {
 
   const { tab } = Route.useSearch()
   const { controlDate } = useTimeMachine()
+  const mappedTab =
+    tab === "summary" || tab === "cost-summary" ? "metrics" : tab
 
   const { data: project, isLoading: isLoadingProject } = useQuery({
     ...getProjectQueryOptions({ id, controlDate }),
@@ -294,13 +302,7 @@ function ProjectDetail() {
     navigate({
       search: (prev) => ({
         ...prev,
-        tab: value as
-          | "info"
-          | "wbes"
-          | "summary"
-          | "cost-summary"
-          | "timeline"
-          | "baselines",
+        tab: value as "info" | "wbes" | "metrics" | "timeline" | "baselines",
       }),
     })
   }
@@ -350,7 +352,7 @@ function ProjectDetail() {
       <Heading size="lg">{project.project_name}</Heading>
 
       <Tabs.Root
-        value={tab}
+        value={mappedTab}
         onValueChange={({ value }) => handleTabChange(value)}
         variant="subtle"
         mt={4}
@@ -358,8 +360,7 @@ function ProjectDetail() {
         <Tabs.List>
           <Tabs.Trigger value="info">Project Information</Tabs.Trigger>
           <Tabs.Trigger value="wbes">Work Breakdown Elements</Tabs.Trigger>
-          <Tabs.Trigger value="summary">Budget Summary</Tabs.Trigger>
-          <Tabs.Trigger value="cost-summary">Cost Summary</Tabs.Trigger>
+          <Tabs.Trigger value="metrics">Metrics</Tabs.Trigger>
           <Tabs.Trigger value="timeline">Budget Timeline</Tabs.Trigger>
           <Tabs.Trigger value="baselines">Baselines</Tabs.Trigger>
         </Tabs.List>
@@ -382,22 +383,8 @@ function ProjectDetail() {
           </Box>
         </Tabs.Content>
 
-        <Tabs.Content value="summary">
-          <Box mt={4}>
-            <BudgetSummary level="project" projectId={project.project_id} />
-            <Box mt={6}>
-              <EarnedValueSummary
-                level="project"
-                projectId={project.project_id}
-              />
-            </Box>
-          </Box>
-        </Tabs.Content>
-
-        <Tabs.Content value="cost-summary">
-          <Box mt={4}>
-            <CostSummary level="project" projectId={project.project_id} />
-          </Box>
+        <Tabs.Content value="metrics">
+          <MetricsSummary level="project" projectId={project.project_id} />
         </Tabs.Content>
 
         <Tabs.Content value="timeline">

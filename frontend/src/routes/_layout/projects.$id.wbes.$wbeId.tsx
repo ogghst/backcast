@@ -30,13 +30,11 @@ import { DataTable } from "@/components/DataTable/DataTable"
 import type { ColumnDefExtended } from "@/components/DataTable/types"
 import PendingItems from "@/components/Pending/PendingItems"
 import AddCostElement from "@/components/Projects/AddCostElement"
-import BudgetSummary from "@/components/Projects/BudgetSummary"
 import BudgetTimeline from "@/components/Projects/BudgetTimeline"
 import BudgetTimelineFilter from "@/components/Projects/BudgetTimelineFilter"
-import CostSummary from "@/components/Projects/CostSummary"
 import DeleteCostElement from "@/components/Projects/DeleteCostElement"
-import EarnedValueSummary from "@/components/Projects/EarnedValueSummary"
 import EditCostElement from "@/components/Projects/EditCostElement"
+import MetricsSummary from "@/components/Projects/MetricsSummary"
 import { useTimeMachine } from "@/context/TimeMachineContext"
 import type { CostElementView } from "./projects.$id.wbes.$wbeId.cost-elements.$costElementId"
 
@@ -45,6 +43,7 @@ const WBE_TAB_OPTIONS = [
   "cost-elements",
   "summary",
   "cost-summary",
+  "metrics",
   "timeline",
 ] as const
 
@@ -269,6 +268,8 @@ function WBEDetail() {
 
   const { tab } = Route.useSearch()
   const { controlDate } = useTimeMachine()
+  const mappedTab =
+    tab === "summary" || tab === "cost-summary" ? "metrics" : tab
 
   const { data: project, isLoading: isLoadingProject } = useQuery({
     ...getProjectQueryOptions({ id: projectId, controlDate }),
@@ -399,7 +400,7 @@ function WBEDetail() {
       </Heading>
 
       <Tabs.Root
-        value={tab}
+        value={mappedTab}
         onValueChange={({ value }) => handleTabChange(value as WbeDetailTab)}
         variant="subtle"
         mt={4}
@@ -407,8 +408,7 @@ function WBEDetail() {
         <Tabs.List>
           <Tabs.Trigger value="info">WBE Information</Tabs.Trigger>
           <Tabs.Trigger value="cost-elements">Cost Elements</Tabs.Trigger>
-          <Tabs.Trigger value="summary">Budget Summary</Tabs.Trigger>
-          <Tabs.Trigger value="cost-summary">Cost Summary</Tabs.Trigger>
+          <Tabs.Trigger value="metrics">Metrics</Tabs.Trigger>
           <Tabs.Trigger value="timeline">Budget Timeline</Tabs.Trigger>
         </Tabs.List>
 
@@ -430,23 +430,12 @@ function WBEDetail() {
           </Box>
         </Tabs.Content>
 
-        <Tabs.Content value="summary">
-          <Box mt={4}>
-            <BudgetSummary level="wbe" wbeId={wbe.wbe_id} />
-            <Box mt={6}>
-              <EarnedValueSummary
-                level="wbe"
-                projectId={projectId}
-                wbeId={wbe.wbe_id}
-              />
-            </Box>
-          </Box>
-        </Tabs.Content>
-
-        <Tabs.Content value="cost-summary">
-          <Box mt={4}>
-            <CostSummary level="wbe" wbeId={wbe.wbe_id} />
-          </Box>
+        <Tabs.Content value="metrics">
+          <MetricsSummary
+            level="wbe"
+            projectId={projectId}
+            wbeId={wbe.wbe_id}
+          />
         </Tabs.Content>
 
         <Tabs.Content value="timeline">

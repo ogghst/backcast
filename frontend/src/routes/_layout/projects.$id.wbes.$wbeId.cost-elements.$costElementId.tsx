@@ -21,9 +21,9 @@ import PendingItems from "@/components/Pending/PendingItems"
 import BudgetTimeline from "@/components/Projects/BudgetTimeline"
 import CostElementSchedulesTable from "@/components/Projects/CostElementSchedulesTable"
 import CostRegistrationsTable from "@/components/Projects/CostRegistrationsTable"
-import CostSummary from "@/components/Projects/CostSummary"
 import EarnedValueEntriesTable from "@/components/Projects/EarnedValueEntriesTable"
 import EarnedValueSummary from "@/components/Projects/EarnedValueSummary"
+import MetricsSummary from "@/components/Projects/MetricsSummary"
 import { useTimeMachine } from "@/context/TimeMachineContext"
 
 const COST_ELEMENT_VIEW_OPTIONS = [
@@ -31,7 +31,7 @@ const COST_ELEMENT_VIEW_OPTIONS = [
   "cost-registrations",
   "schedule",
   "earned-value",
-  "cost-summary",
+  "metrics",
   "timeline",
 ] as const
 
@@ -102,6 +102,7 @@ function CostElementDetail() {
   const navigate = useNavigate({ from: Route.fullPath })
   const { view } = Route.useSearch()
   const { controlDate } = useTimeMachine()
+  const mappedView = view === "cost-summary" ? "metrics" : view
 
   const { data: project, isLoading: isLoadingProject } = useQuery({
     ...getProjectQueryOptions({ id: projectId, controlDate }),
@@ -198,7 +199,7 @@ function CostElementDetail() {
       </Text>
 
       <Tabs.Root
-        value={view}
+        value={mappedView}
         onValueChange={({ value }) => handleTabChange(value as CostElementView)}
         variant="subtle"
         mt={4}
@@ -210,7 +211,7 @@ function CostElementDetail() {
           </Tabs.Trigger>
           <Tabs.Trigger value="schedule">Schedule</Tabs.Trigger>
           <Tabs.Trigger value="earned-value">Earned Value</Tabs.Trigger>
-          <Tabs.Trigger value="cost-summary">Cost Summary</Tabs.Trigger>
+          <Tabs.Trigger value="metrics">Metrics</Tabs.Trigger>
           <Tabs.Trigger value="timeline">Timeline</Tabs.Trigger>
         </Tabs.List>
 
@@ -266,10 +267,12 @@ function CostElementDetail() {
           </Box>
         </Tabs.Content>
 
-        <Tabs.Content value="cost-summary">
-          <Box mt={4}>
-            <CostSummary level="cost-element" costElementId={costElementId} />
-          </Box>
+        <Tabs.Content value="metrics">
+          <MetricsSummary
+            level="cost-element"
+            projectId={projectId}
+            costElementId={costElementId}
+          />
         </Tabs.Content>
 
         <Tabs.Content value="timeline">
