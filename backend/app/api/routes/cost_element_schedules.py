@@ -1,11 +1,11 @@
 import uuid
 from datetime import date
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query
 from sqlmodel import select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, TimeMachineControlDate
 from app.models import (
     CostElement,
     CostElementSchedule,
@@ -15,12 +15,18 @@ from app.models import (
     CostElementScheduleUpdate,
     Message,
 )
+from app.services.time_machine import (
+    TimeMachineEventType,
+    apply_time_machine_filters,
+)
 
 router = APIRouter(prefix="/cost-element-schedules", tags=["cost-element-schedules"])
 
 
 def _select_latest_operational_schedule(
-    session: SessionDep, cost_element_id: uuid.UUID
+    session: SessionDep,
+    cost_element_id: uuid.UUID,
+    control_date: date | None = None,
 ) -> CostElementSchedule | None:
     statement = (
         select(CostElementSchedule)
@@ -31,11 +37,15 @@ def _select_latest_operational_schedule(
             CostElementSchedule.created_at.desc(),
         )
     )
+    if control_date:
+        statement = apply_time_machine_filters(
+            statement, TimeMachineEventType.SCHEDULE, control_date
+        )
     return session.exec(statement).first()
 
 
 def _select_operational_schedule_history(
-    session: SessionDep, cost_element_id: uuid.UUID
+    session: SessionDep, cost_element_id: uuid.UUID, control_date: date | None = None
 ) -> list[CostElementSchedule]:
     statement = (
         select(CostElementSchedule)
@@ -46,6 +56,10 @@ def _select_operational_schedule_history(
             CostElementSchedule.created_at.desc(),
         )
     )
+    if control_date:
+        statement = apply_time_machine_filters(
+            statement, TimeMachineEventType.SCHEDULE, control_date
+        )
     return list(session.exec(statement).all())
 
 
@@ -53,12 +67,15 @@ def _select_operational_schedule_history(
 def read_schedule_by_cost_element(
     session: SessionDep,
     _current_user: CurrentUser,
-    cost_element_id: uuid.UUID = Query(..., description="Cost element ID"),
+    cost_element_id: Annotated[uuid.UUID, Query(..., description="Cost element ID")],
+    control_date: TimeMachineControlDate,
 ) -> Any:
     """
     Get the latest operational schedule for a cost element.
     """
-    schedule = _select_latest_operational_schedule(session, cost_element_id)
+    schedule = _select_latest_operational_schedule(
+        session, cost_element_id, control_date
+    )
     if not schedule:
         raise HTTPException(status_code=404, detail="Schedule not found")
     return schedule
@@ -68,12 +85,13 @@ def read_schedule_by_cost_element(
 def read_schedule_history_by_cost_element(
     session: SessionDep,
     _current_user: CurrentUser,
-    cost_element_id: uuid.UUID = Query(..., description="Cost element ID"),
+    cost_element_id: Annotated[uuid.UUID, Query(..., description="Cost element ID")],
+    control_date: TimeMachineControlDate,
 ) -> list[CostElementSchedule]:
     """
     Get the full operational schedule history for a cost element.
     """
-    return _select_operational_schedule_history(session, cost_element_id)
+    return _select_operational_schedule_history(session, cost_element_id, control_date)
 
 
 @router.post("/", response_model=CostElementSchedulePublic)

@@ -4,12 +4,12 @@ import uuid
 from collections import defaultdict
 from datetime import date
 from decimal import Decimal
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, get_time_machine_control_date
 from app.models import (
     WBE,
     CostElement,
@@ -20,6 +20,7 @@ from app.models.cost_timeline import (
     CostTimelinePointPublic,
     CostTimelinePublic,
 )
+from app.services.time_machine import TimeMachineEventType, apply_time_machine_filters
 
 router = APIRouter(prefix="/projects", tags=["cost-timeline"])
 
@@ -29,6 +30,10 @@ def get_project_cost_timeline(
     session: SessionDep,
     _current_user: CurrentUser,
     project_id: uuid.UUID,
+    control_date: Annotated[
+        date,
+        Depends(get_time_machine_control_date),
+    ],
     wbe_ids: list[uuid.UUID] | None = Query(
         default=None, description="Filter by WBE IDs"
     ),
@@ -115,6 +120,9 @@ def get_project_cost_timeline(
             CostRegistration.registration_date <= end_date
         )
 
+    registrations_statement = apply_time_machine_filters(
+        registrations_statement, TimeMachineEventType.COST_REGISTRATION, control_date
+    )
     cost_registrations = session.exec(registrations_statement).all()
 
     if not cost_registrations:

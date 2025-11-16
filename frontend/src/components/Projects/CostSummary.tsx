@@ -14,6 +14,7 @@ import {
   FiXCircle,
 } from "react-icons/fi"
 import { type CostSummaryPublic, CostSummaryService } from "@/client"
+import { useColorModeValue } from "@/components/ui/color-mode"
 import { useTimeMachine } from "@/context/TimeMachineContext"
 
 interface CostSummaryProps {
@@ -32,6 +33,11 @@ export default function CostSummary({
   isQualityCost,
 }: CostSummaryProps) {
   const { controlDate } = useTimeMachine()
+  // Theme-aware colors (declare before early returns)
+  const cardBg = useColorModeValue("bg.surface", "bg.surface")
+  const borderCol = useColorModeValue("border", "border")
+  const mutedText = useColorModeValue("fg.muted", "fg.muted")
+  const noticeBg = useColorModeValue("bg.subtle", "bg.subtle")
   const queryKey = [
     "cost-summary",
     level,
@@ -92,7 +98,8 @@ export default function CostSummary({
               p={4}
               borderWidth="1px"
               borderRadius="md"
-              borderColor="gray.200"
+              borderColor={borderCol}
+              bg={cardBg}
             >
               <SkeletonText noOfLines={2} />
             </Box>
@@ -177,17 +184,17 @@ export default function CostSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={1}>
-            <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
               Total Cost
             </Text>
             <Text fontSize="xl" fontWeight="bold">
               {formatCurrency(totalCost)}
             </Text>
-            <Text fontSize="xs" color="gray.500" mt={1}>
+            <Text fontSize="xs" color={mutedText} mt={1}>
               {registrationCount} registration
               {registrationCount !== 1 ? "s" : ""}
             </Text>
@@ -200,17 +207,17 @@ export default function CostSummary({
             p={4}
             borderWidth="1px"
             borderRadius="md"
-            borderColor="gray.200"
-            bg="white"
+            borderColor={borderCol}
+            bg={cardBg}
           >
             <VStack align="stretch" gap={1}>
-              <Text fontSize="sm" color="gray.600" fontWeight="medium">
+              <Text fontSize="sm" color={mutedText} fontWeight="medium">
                 Budget BAC
               </Text>
               <Text fontSize="xl" fontWeight="bold">
                 {formatCurrency(budgetBac)}
               </Text>
-              <Text fontSize="xs" color="gray.500" mt={1}>
+              <Text fontSize="xs" color={mutedText} mt={1}>
                 Budget at Completion
               </Text>
             </VStack>
@@ -223,11 +230,11 @@ export default function CostSummary({
             p={4}
             borderWidth="1px"
             borderRadius="md"
-            borderColor="gray.200"
-            bg="white"
+            borderColor={borderCol}
+            bg={cardBg}
           >
             <VStack align="stretch" gap={1}>
-              <Text fontSize="sm" color="gray.600" fontWeight="medium">
+              <Text fontSize="sm" color={mutedText} fontWeight="medium">
                 Cost % of Budget
               </Text>
               <Text fontSize="xl" fontWeight="bold" color={costStatus.color}>
@@ -247,17 +254,17 @@ export default function CostSummary({
             p={4}
             borderWidth="1px"
             borderRadius="md"
-            borderColor="gray.200"
-            bg="white"
+            borderColor={borderCol}
+            bg={cardBg}
           >
             <VStack align="stretch" gap={1}>
-              <Text fontSize="sm" color="gray.600" fontWeight="medium">
+              <Text fontSize="sm" color={mutedText} fontWeight="medium">
                 Registrations
               </Text>
               <Text fontSize="xl" fontWeight="bold">
                 {registrationCount}
               </Text>
-              <Text fontSize="xs" color="gray.500" mt={1}>
+              <Text fontSize="xs" color={mutedText} mt={1}>
                 Cost registrations
               </Text>
             </VStack>
@@ -270,12 +277,12 @@ export default function CostSummary({
         <Box
           mt={4}
           p={3}
-          bg="blue.50"
+          bg={noticeBg}
           borderRadius="md"
           borderWidth="1px"
-          borderColor="blue.200"
+          borderColor={borderCol}
         >
-          <Text fontSize="sm" color="blue.700">
+          <Text fontSize="sm" color={mutedText}>
             {isQualityCost
               ? "Showing quality costs only"
               : "Showing regular costs only"}

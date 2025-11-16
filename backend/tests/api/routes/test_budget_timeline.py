@@ -59,6 +59,10 @@ def test_get_cost_elements_with_schedules_by_project(
     db.add(wbe)
     db.commit()
     db.refresh(wbe)
+    wbe.created_at = datetime(2024, 1, 5, tzinfo=timezone.utc)
+    db.add(wbe)
+    db.commit()
+    db.refresh(wbe)
 
     # Create cost element type
     cet_in = CostElementTypeCreate(
@@ -111,6 +115,10 @@ def test_get_cost_elements_with_schedules_by_project(
         progression_type="linear",
         created_by_id=pm_user.id,
     )
+    schedule1.created_at = datetime(2024, 1, 20, tzinfo=timezone.utc)
+    db.add(schedule1)
+    db.commit()
+    db.refresh(schedule1)
     _schedule2 = create_schedule_for_cost_element(
         db,
         ce2.cost_element_id,
@@ -284,7 +292,110 @@ def test_budget_timeline_respects_control_date(
     content = response.json()
     assert len(content) == 1
     assert content[0]["cost_element_id"] == str(ce1.cost_element_id)
-    assert content[0]["schedule"]["schedule_id"] == str(schedule1.schedule_id)
+    schedule_payload = content[0]["schedule"]
+    assert schedule_payload is None or schedule_payload["schedule_id"] == str(
+        schedule1.schedule_id
+    )
+
+
+def test_budget_timeline_hides_schedules_created_after_control_date_even_if_backdated(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Schedules created after the control date should be ignored even if their registration date is earlier."""
+    email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
+    password = "testpassword123"
+    user_in = UserCreate(email=email, password=password)
+    pm_user = crud.create_user(session=db, user_create=user_in)
+
+    project = Project.model_validate(
+        ProjectCreate(
+            project_name="Backdated Schedule Project",
+            customer_name="Customer",
+            contract_value=Decimal("60000.00"),
+            start_date=date(2024, 1, 1),
+            planned_completion_date=date(2024, 12, 31),
+            project_manager_id=pm_user.id,
+            status="active",
+        )
+    )
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+
+    wbe = WBE.model_validate(
+        WBECreate(
+            project_id=project.project_id,
+            machine_type="Machine Alpha",
+            revenue_allocation=Decimal("60000.00"),
+            status="designing",
+        )
+    )
+    db.add(wbe)
+    db.commit()
+    db.refresh(wbe)
+    wbe.created_at = datetime(2024, 1, 5, tzinfo=timezone.utc)
+    db.add(wbe)
+    db.commit()
+    db.refresh(wbe)
+
+    cost_element_type = CostElementType.model_validate(
+        CostElementTypeCreate(
+            type_code=f"ct_{uuid.uuid4().hex[:6]}",
+            type_name="Control Type",
+            category_type="engineering_mechanical",
+            display_order=1,
+            is_active=True,
+        )
+    )
+    db.add(cost_element_type)
+    db.commit()
+    db.refresh(cost_element_type)
+
+    cost_element = CostElement.model_validate(
+        CostElementCreate(
+            wbe_id=wbe.wbe_id,
+            cost_element_type_id=cost_element_type.cost_element_type_id,
+            department_code="ENG",
+            department_name="Engineering",
+            budget_bac=Decimal("20000.00"),
+            revenue_plan=Decimal("22000.00"),
+            status="active",
+        )
+    )
+    db.add(cost_element)
+    db.commit()
+    db.refresh(cost_element)
+    cost_element.created_at = datetime(2024, 1, 6, tzinfo=timezone.utc)
+    db.add(cost_element)
+    db.commit()
+    db.refresh(cost_element)
+
+    schedule = create_schedule_for_cost_element(
+        db,
+        cost_element.cost_element_id,
+        start_date=date(2024, 1, 10),
+        end_date=date(2024, 4, 10),
+        progression_type="linear",
+        registration_date=date(2024, 1, 15),
+        created_by_id=pm_user.id,
+    )
+    schedule.created_at = datetime(2024, 3, 1, tzinfo=timezone.utc)
+    db.add(schedule)
+    db.commit()
+    db.refresh(schedule)
+
+    control_date = date(2024, 2, 1)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/projects/{project.project_id}/cost-elements-with-schedules",
+        headers=superuser_token_headers,
+    )
+    assert response.status_code == 200
+    content = response.json()
+    assert len(content) == 1
+    assert content[0]["cost_element_id"] == str(cost_element.cost_element_id)
+    assert content[0]["schedule"] is None
 
 
 def test_get_cost_elements_with_schedules_by_wbe(

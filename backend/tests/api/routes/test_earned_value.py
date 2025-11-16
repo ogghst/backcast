@@ -1,6 +1,6 @@
 """Tests for earned value API endpoints."""
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from fastapi.testclient import TestClient
@@ -61,7 +61,13 @@ def _create_cost_element_type(db: Session) -> CostElementType:
     return cet
 
 
-def _create_wbe(db: Session, project_id: uuid.UUID, revenue: Decimal) -> WBE:
+def _create_wbe(
+    db: Session,
+    project_id: uuid.UUID,
+    revenue: Decimal,
+    *,
+    created_at: datetime | None = None,
+) -> WBE:
     wbe_in = WBECreate(
         project_id=project_id,
         machine_type="EV Machine",
@@ -69,6 +75,10 @@ def _create_wbe(db: Session, project_id: uuid.UUID, revenue: Decimal) -> WBE:
         status="designing",
     )
     wbe = WBE.model_validate(wbe_in)
+    if created_at is None:
+        created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    wbe.created_at = created_at
+    wbe.updated_at = created_at
     db.add(wbe)
     db.commit()
     db.refresh(wbe)
@@ -84,6 +94,7 @@ def _create_cost_element(
     department_name: str,
     budget_bac: Decimal,
     revenue_plan: Decimal,
+    created_at: datetime | None = None,
 ) -> CostElement:
     ce_in = CostElementCreate(
         wbe_id=wbe_id,
@@ -95,6 +106,10 @@ def _create_cost_element(
         status="active",
     )
     ce = CostElement.model_validate(ce_in)
+    if created_at is None:
+        created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    ce.created_at = created_at
+    ce.updated_at = created_at
     db.add(ce)
     db.commit()
     db.refresh(ce)
@@ -315,6 +330,96 @@ def test_get_earned_value_for_cost_element(
     assert Decimal(data["earned_value"]) == Decimal("50000.00")  # 100000 * 0.50
     assert Decimal(data["percent_complete"]) == Decimal("0.5000")
     assert Decimal(data["budget_bac"]) == Decimal("100000.00")
+
+
+def test_get_earned_value_cost_element_excludes_future_registration(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Entries registered after the control date should be excluded."""
+    project, created_by_id = _create_project_with_manager(db)
+    wbe = _create_wbe(db, project.project_id, Decimal("100000.00"))
+    cet = _create_cost_element_type(db)
+
+    cost_element = _create_cost_element(
+        db,
+        wbe.wbe_id,
+        cet,
+        department_code="ENG",
+        department_name="Engineering",
+        budget_bac=Decimal("100000.00"),
+        revenue_plan=Decimal("120000.00"),
+    )
+
+    create_earned_value_entry(
+        db,
+        cost_element_id=cost_element.cost_element_id,
+        completion_date=date(2024, 2, 10),
+        percent_complete=Decimal("60.00"),
+        created_by_id=created_by_id,
+        registration_date=date(2024, 3, 5),
+        created_at=datetime(2024, 2, 15, tzinfo=timezone.utc),
+    )
+
+    control_date = date(2024, 2, 20)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        (
+            f"{settings.API_V1_STR}/projects/{project.project_id}"
+            f"/earned-value/cost-elements/{cost_element.cost_element_id}"
+        ),
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert Decimal(data["earned_value"]) == Decimal("0.00")
+    assert Decimal(data["percent_complete"]) == Decimal("0.0000")
+
+
+def test_get_earned_value_cost_element_excludes_future_created_at(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Entries created after the control date should be excluded even if registered earlier."""
+    project, created_by_id = _create_project_with_manager(db)
+    wbe = _create_wbe(db, project.project_id, Decimal("100000.00"))
+    cet = _create_cost_element_type(db)
+
+    cost_element = _create_cost_element(
+        db,
+        wbe.wbe_id,
+        cet,
+        department_code="ENG",
+        department_name="Engineering",
+        budget_bac=Decimal("100000.00"),
+        revenue_plan=Decimal("120000.00"),
+    )
+
+    create_earned_value_entry(
+        db,
+        cost_element_id=cost_element.cost_element_id,
+        completion_date=date(2024, 2, 10),
+        percent_complete=Decimal("40.00"),
+        created_by_id=created_by_id,
+        registration_date=date(2024, 2, 11),
+        created_at=datetime(2024, 3, 1, tzinfo=timezone.utc),
+    )
+
+    control_date = date(2024, 2, 20)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        (
+            f"{settings.API_V1_STR}/projects/{project.project_id}"
+            f"/earned-value/cost-elements/{cost_element.cost_element_id}"
+        ),
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert Decimal(data["earned_value"]) == Decimal("0.00")
+    assert Decimal(data["percent_complete"]) == Decimal("0.0000")
 
 
 def test_get_earned_value_cost_element_no_entry_returns_zero(
@@ -608,6 +713,67 @@ def test_get_earned_value_for_project(
     assert Decimal(data["budget_bac"]) == Decimal("80000.00")
     # Weighted percent = 38000 / 80000 = 0.4750
     assert Decimal(data["percent_complete"]) == Decimal("0.4750")
+
+
+def test_get_earned_value_project_excludes_future_registered_entries(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Project totals should ignore entries registered after control date."""
+    project, created_by_id = _create_project_with_manager(db)
+    cet = _create_cost_element_type(db)
+    wbe = _create_wbe(db, project.project_id, Decimal("150000.00"))
+
+    valid_ce = _create_cost_element(
+        db,
+        wbe.wbe_id,
+        cet,
+        department_code="ENG1",
+        department_name="Engineering 1",
+        budget_bac=Decimal("80000.00"),
+        revenue_plan=Decimal("90000.00"),
+    )
+    future_ce = _create_cost_element(
+        db,
+        wbe.wbe_id,
+        cet,
+        department_code="ENG2",
+        department_name="Engineering 2",
+        budget_bac=Decimal("40000.00"),
+        revenue_plan=Decimal("50000.00"),
+    )
+
+    create_earned_value_entry(
+        db,
+        cost_element_id=valid_ce.cost_element_id,
+        completion_date=date(2024, 1, 31),
+        percent_complete=Decimal("50.00"),
+        created_by_id=created_by_id,
+        registration_date=date(2024, 2, 15),
+        created_at=datetime(2024, 2, 15, tzinfo=timezone.utc),
+    )
+    create_earned_value_entry(
+        db,
+        cost_element_id=future_ce.cost_element_id,
+        completion_date=date(2024, 1, 31),
+        percent_complete=Decimal("80.00"),
+        created_by_id=created_by_id,
+        registration_date=date(2024, 3, 10),
+        created_at=datetime(2024, 3, 10, tzinfo=timezone.utc),
+    )
+
+    control_date = date(2024, 2, 20)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/projects/{project.project_id}/earned-value",
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    # Only valid entry counts: 80000 * 0.50 = 40000
+    assert Decimal(data["earned_value"]) == Decimal("40000.00")
+    assert Decimal(data["percent_complete"]) == Decimal("0.5000")
 
 
 def test_get_earned_value_project_no_entries_returns_zero(

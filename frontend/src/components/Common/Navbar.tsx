@@ -1,7 +1,5 @@
-import { Flex, Image, useBreakpointValue } from "@chakra-ui/react"
-import { Link } from "@tanstack/react-router"
+import { Flex, useBreakpointValue } from "@chakra-ui/react"
 
-import Logo from "/assets/images/fastapi-logo.svg"
 import TimeMachinePicker from "./TimeMachinePicker"
 import UserMenu from "./UserMenu"
 
@@ -20,9 +18,7 @@ function Navbar() {
       top={0}
       p={4}
     >
-      <Link to="/">
-        <Image src={Logo} alt="Logo" maxW="3xs" p={2} />
-      </Link>
+      <div />
       <Flex gap={4} alignItems="center">
         <TimeMachinePicker />
         <UserMenu />

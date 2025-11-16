@@ -21,6 +21,10 @@ from app.services.planned_value import (
     aggregate_planned_value,
     calculate_cost_element_planned_value,
 )
+from app.services.time_machine import (
+    TimeMachineEventType,
+    apply_time_machine_filters,
+)
 
 router = APIRouter(prefix="/projects", tags=["planned-value"])
 
@@ -41,21 +45,13 @@ def _select_schedule_for_cost_element(
         .where(CostElementSchedule.baseline_id.is_(None))
     )
 
-    prioritized = base_statement.where(
-        CostElementSchedule.registration_date <= control_date
+    prioritized = apply_time_machine_filters(
+        base_statement, TimeMachineEventType.SCHEDULE, control_date
     ).order_by(
         CostElementSchedule.registration_date.desc(),
         CostElementSchedule.created_at.desc(),
     )
-    schedule = session.exec(prioritized).first()
-    if schedule:
-        return schedule
-
-    fallback = base_statement.order_by(
-        CostElementSchedule.registration_date.asc(),
-        CostElementSchedule.created_at.asc(),
-    )
-    return session.exec(fallback).first()
+    return session.exec(prioritized).first()
 
 
 def _get_schedule_map(

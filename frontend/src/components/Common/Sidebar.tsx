@@ -1,4 +1,4 @@
-import { Box, Flex, IconButton, Text } from "@chakra-ui/react"
+import { Box, Flex, IconButton, Image, Text } from "@chakra-ui/react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { FaBars } from "react-icons/fa"
@@ -49,6 +49,15 @@ const Sidebar = () => {
           <DrawerBody>
             <Flex flexDir="column" justify="space-between">
               <Box>
+                <Box px={4} py={3}>
+                  <Image
+                    src="/assets/images/favicon.png"
+                    alt="Project"
+                    borderRadius="md"
+                    w="50%"
+                    objectFit="cover"
+                  />
+                </Box>
                 <SidebarItems onClose={() => setOpen(false)} />
                 <Flex
                   as="button"
@@ -87,6 +96,15 @@ const Sidebar = () => {
         p={4}
       >
         <Box w="100%">
+          <Box mb={4}>
+            <Image
+              src="/assets/images/favicon.png"
+              alt="Project"
+              borderRadius="md"
+              w="50%"
+              objectFit="cover"
+            />
+          </Box>
           <SidebarItems />
         </Box>
       </Box>

@@ -770,6 +770,7 @@ def test_project_cost_summary_respects_control_date(
             "created_by_id": pm_user.id,
         }
     )
+    cr1.created_at = datetime(2024, 1, 25, tzinfo=timezone.utc)
     db.add(cr1)
 
     cr2 = CostRegistration.model_validate(
@@ -799,6 +800,110 @@ def test_project_cost_summary_respects_control_date(
 
     assert float(content["total_cost"]) == 7000.00
     assert float(content["budget_bac"]) == 25000.00
+    assert content["cost_registration_count"] == 1
+
+
+def test_get_cost_element_cost_summary_excludes_late_created_entries(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Cost element summary should hide registrations created after control date."""
+    email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
+    password = "testpassword123"
+    user_in = UserCreate(email=email, password=password)
+    pm_user = crud.create_user(session=db, user_create=user_in)
+
+    project = Project.model_validate(
+        ProjectCreate(
+            project_name="Summary Control Project",
+            customer_name="Test Customer",
+            contract_value=Decimal("60000.00"),
+            start_date=date(2024, 1, 1),
+            planned_completion_date=date(2024, 12, 31),
+            project_manager_id=pm_user.id,
+            status="active",
+        )
+    )
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+
+    wbe = WBE.model_validate(
+        WBECreate(
+            project_id=project.project_id,
+            machine_type="Machine A",
+            revenue_allocation=Decimal("30000.00"),
+            status="designing",
+        )
+    )
+    db.add(wbe)
+    db.commit()
+    db.refresh(wbe)
+
+    cost_element_type = create_random_cost_element_type(db)
+    cost_element = CostElement.model_validate(
+        CostElementCreate(
+            wbe_id=wbe.wbe_id,
+            cost_element_type_id=cost_element_type.cost_element_type_id,
+            department_code="ENG",
+            department_name="Engineering",
+            budget_bac=Decimal("15000.00"),
+            revenue_plan=Decimal("18000.00"),
+            status="active",
+        )
+    )
+    cost_element.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    db.add(cost_element)
+    db.commit()
+    db.refresh(cost_element)
+
+    control_date = date(2024, 4, 1)
+
+    keep = CostRegistration.model_validate(
+        {
+            **CostRegistrationCreate(
+                cost_element_id=cost_element.cost_element_id,
+                registration_date=control_date,
+                amount=Decimal("3500.00"),
+                cost_category="labor",
+                description="Current cost",
+                is_quality_cost=False,
+            ).model_dump(),
+            "created_by_id": pm_user.id,
+        }
+    )
+    keep.created_at = datetime(2024, 4, 1, tzinfo=timezone.utc)
+    db.add(keep)
+
+    hide = CostRegistration.model_validate(
+        {
+            **CostRegistrationCreate(
+                cost_element_id=cost_element.cost_element_id,
+                registration_date=control_date,
+                amount=Decimal("4000.00"),
+                cost_category="materials",
+                description="Late entered cost",
+                is_quality_cost=False,
+            ).model_dump(),
+            "created_by_id": pm_user.id,
+        }
+    )
+    db.add(hide)
+    db.commit()
+
+    hide.created_at = datetime(2024, 5, 1, tzinfo=timezone.utc)
+    db.add(hide)
+    db.commit()
+
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/cost-summary/cost-element/{cost_element.cost_element_id}",
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200
+    content = response.json()
+    assert float(content["total_cost"]) == 3500.00
     assert content["cost_registration_count"] == 1
 
 

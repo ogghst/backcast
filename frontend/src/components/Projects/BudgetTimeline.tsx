@@ -12,6 +12,7 @@ import {
   Tooltip,
   type TooltipItem,
 } from "chart.js"
+import { useColorModeValue } from "@/components/ui/color-mode"
 import "chartjs-adapter-date-fns"
 import { useQuery } from "@tanstack/react-query"
 import { Line } from "react-chartjs-2"
@@ -147,6 +148,9 @@ export function createBudgetTimelineConfig({
       legend: {
         display: true,
         position: "top",
+        labels: {
+          color: "#2D3748", // will be overridden in component with theme value
+        },
       },
       tooltip: {
         callbacks: {
@@ -171,6 +175,12 @@ export function createBudgetTimelineConfig({
           display: true,
           text: "Date",
         },
+        grid: {
+          color: "rgba(0,0,0,0.1)", // will be overridden in component
+        },
+        ticks: {
+          color: "#2D3748", // will be overridden in component
+        },
       },
       y: {
         title: {
@@ -178,6 +188,7 @@ export function createBudgetTimelineConfig({
           text: "Amount (€)",
         },
         ticks: {
+          color: "#2D3748", // will be overridden in component
           callback: (value: string | number) => {
             const numericValue =
               typeof value === "number" ? value : Number(value)
@@ -188,6 +199,9 @@ export function createBudgetTimelineConfig({
 
             return formatCurrency(numericValue)
           },
+        },
+        grid: {
+          color: "rgba(0,0,0,0.1)", // will be overridden in component
         },
       },
     },
@@ -236,6 +250,12 @@ export default function BudgetTimeline({
   costElementIds,
 }: BudgetTimelineProps) {
   const { controlDate } = useTimeMachine()
+  // Theme-aware colors (declare before early returns)
+  const axisColor = useColorModeValue("#2D3748", "#E2E8F0")
+  const gridColor = useColorModeValue(
+    "rgba(0,0,0,0.1)",
+    "rgba(255,255,255,0.12)",
+  )
   const normalizedWbeIds = wbeIds?.length ? [...wbeIds].sort() : undefined
   const normalizedCostElementIds = costElementIds?.length
     ? [...costElementIds].sort()
@@ -289,17 +309,6 @@ export default function BudgetTimeline({
     ],
     enabled: sortedCostElementIdsForEarnedValue.length > 0,
   })
-
-  if (elementsWithSchedules.length === 0) {
-    return (
-      <Box p={4} borderWidth="1px" borderRadius="lg" bg="bg.surface">
-        <Text color="fg.muted">
-          No cost elements with schedules selected. Please select cost elements
-          that have schedules defined.
-        </Text>
-      </Box>
-    )
-  }
 
   const timelines: TimePeriod[][] = elementsWithSchedules
     .map((ce) => {
@@ -386,20 +395,7 @@ export default function BudgetTimeline({
         })
       : []
 
-  const hasBudgetData = timelines.length > 0
-  const hasCostData = costData.length > 0
   const hasEarnedValueData = earnedValueTimeline.length > 0
-
-  if (!hasBudgetData && !hasCostData && !hasEarnedValueData) {
-    return (
-      <Box p={4} borderWidth="1px" borderRadius="lg" bg="bg.surface">
-        <Text color="fg.muted">
-          No budget, cost, or earned value data available for the selected
-          filters.
-        </Text>
-      </Box>
-    )
-  }
 
   let plannedValueSeries: PlannedValueSeries[]
 
@@ -464,12 +460,43 @@ export default function BudgetTimeline({
     datasets: chartConfig.datasets,
   }
 
+  // Override colors with theme-aware values
+  const themedOptions: ChartOptions<"line"> = {
+    ...chartConfig.options,
+    plugins: {
+      ...chartConfig.options.plugins,
+      legend: {
+        ...chartConfig.options.plugins?.legend,
+        labels: {
+          ...(chartConfig.options.plugins?.legend as any)?.labels,
+          color: axisColor,
+        },
+      },
+    },
+    scales: {
+      ...chartConfig.options.scales,
+      x: {
+        ...(chartConfig.options.scales?.x as any),
+        grid: { color: gridColor },
+        ticks: { color: axisColor },
+      },
+      y: {
+        ...(chartConfig.options.scales?.y as any),
+        grid: { color: gridColor },
+        ticks: {
+          ...(chartConfig.options.scales?.y as any)?.ticks,
+          color: axisColor,
+        },
+      },
+    },
+  }
+
   return (
     <Box borderWidth="1px" borderRadius="lg" p={4} bg="bg.surface" mb={4}>
       <VStack gap={4} align="stretch">
         <Heading size="md">Budget, Cost & Earned Value Timeline</Heading>
         <Box height="400px">
-          <Line data={chartData} options={chartConfig.options} />
+          <Line data={chartData} options={themedOptions} />
         </Box>
         <Text fontSize="sm" color="fg.muted">
           Showing {timelines.length} cost element(s) with schedules.{" "}

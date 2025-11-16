@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
+import { TimeMachineProvider } from "@/context/TimeMachineContext"
 
 import BudgetTimelineFilter from "../BudgetTimelineFilter"
 
@@ -47,11 +48,13 @@ describe("BudgetTimelineFilter", () => {
     const queryClient = new QueryClient()
     const markup = renderToStaticMarkup(
       <QueryClientProvider client={queryClient}>
-        <BudgetTimelineFilter
-          projectId="project-1"
-          context="project"
-          onFilterChange={() => {}}
-        />
+        <TimeMachineProvider>
+          <BudgetTimelineFilter
+            projectId="project-1"
+            context="project"
+            onFilterChange={() => {}}
+          />
+        </TimeMachineProvider>
       </QueryClientProvider>,
     )
 

@@ -1,4 +1,4 @@
-# PLA-2 Time Machine Detailed Plan
+# E4-011 Time Machine Detailed Plan
 
 Numbered checklist for implementing the global “time machine” date selector with backend session persistence and data filtering.
 

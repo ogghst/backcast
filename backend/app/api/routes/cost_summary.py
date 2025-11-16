@@ -11,6 +11,7 @@ from sqlmodel import select
 from app.api.deps import CurrentUser, SessionDep, TimeMachineControlDate
 from app.models import WBE, CostElement, CostRegistration, Project
 from app.models.cost_summary import CostSummaryPublic
+from app.services.time_machine import TimeMachineEventType, apply_time_machine_filters
 
 router = APIRouter(prefix="/cost-summary", tags=["cost-summary"])
 
@@ -52,13 +53,15 @@ def get_cost_element_cost_summary(
     # Get all cost registrations for this cost element
     statement = select(CostRegistration).where(
         CostRegistration.cost_element_id == cost_element_id,
-        CostRegistration.registration_date <= control_date,
     )
 
     # Apply quality cost filter if provided
     if is_quality_cost is not None:
         statement = statement.where(CostRegistration.is_quality_cost == is_quality_cost)
 
+    statement = apply_time_machine_filters(
+        statement, TimeMachineEventType.COST_REGISTRATION, control_date
+    )
     cost_registrations = session.exec(statement).all()
 
     # Calculate total cost
@@ -122,7 +125,6 @@ def get_wbe_cost_summary(
     if cost_element_ids:
         statement = select(CostRegistration).where(
             CostRegistration.cost_element_id.in_(cost_element_ids),
-            CostRegistration.registration_date <= control_date,
         )
 
         # Apply quality cost filter if provided
@@ -131,6 +133,9 @@ def get_wbe_cost_summary(
                 CostRegistration.is_quality_cost == is_quality_cost
             )
 
+        statement = apply_time_machine_filters(
+            statement, TimeMachineEventType.COST_REGISTRATION, control_date
+        )
         cost_registrations = session.exec(statement).all()
     else:
         cost_registrations = []
@@ -206,7 +211,6 @@ def get_project_cost_summary(
     if cost_element_ids:
         statement = select(CostRegistration).where(
             CostRegistration.cost_element_id.in_(cost_element_ids),
-            CostRegistration.registration_date <= control_date,
         )
 
         # Apply quality cost filter if provided
@@ -215,6 +219,9 @@ def get_project_cost_summary(
                 CostRegistration.is_quality_cost == is_quality_cost
             )
 
+        statement = apply_time_machine_filters(
+            statement, TimeMachineEventType.COST_REGISTRATION, control_date
+        )
         cost_registrations = session.exec(statement).all()
     else:
         cost_registrations = []

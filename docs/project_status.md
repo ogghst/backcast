@@ -83,13 +83,12 @@
 | E4-004 | Variance Calculations | Implement cost variance and schedule variance logic | ⏳ Todo | Sprint 4 deliverable. CV = EV - AC, SV = EV - PV. |
 | E4-005 | EVM Aggregation Logic | Roll up EVM metrics from cost elements to WBEs to project level | ⏳ Todo | Required for hierarchical reporting. |
 | E4-006 | EVM Summary Displays | Show current performance indices and variances | ⏳ Todo | Sprint 4 deliverable. Basic EVM status display. |
-| PLA-2 | Global Time Machine Control | Implement header date picker, user-level persistence, and backend filtering so every metric reflects the selected control date. | ⏳ Todo | Planned across Sprint 4 (backend storage, dependency, filtering) and Sprint 5 (UI control, React context, client query propagation). Detailed plan documented in `docs/plans/PLA_2_detailed_planning.md`. |
 | E4-007 | Cost Performance Report | Generate report showing cumulative performance with all key metrics | ⏳ Todo | Sprint 5 deliverable. Tabular format with all EVM metrics. |
 | E4-008 | Variance Analysis Report | Highlight areas where performance deviates from plan | ⏳ Todo | Sprint 5 deliverable. Includes drill-down capabilities. |
 | E4-009 | Project Performance Dashboard | Visual dashboard with EV curves, trend charts, variance indicators | ⏳ Todo | Sprint 5 deliverable. Visual representation of performance. |
 | E4-010 | Report Export Functionality | Enable data export to CSV and Excel formats | ⏳ Todo | Sprint 5 deliverable. Supports additional analysis. |
 | E4-011 | Report Filtering | Implement filtering and date range selection | ⏳ Todo | Sprint 5 deliverable. Enables focused reporting. |
-
+| E4-011 | Global Time Machine Control | Implement header date picker, user-level persistence, and backend filtering so every metric reflects the selected control date. | ⏳ Todo | Planned across Sprint 4 (backend storage, dependency, filtering) and Sprint 5 (UI control, React context, client query propagation). Detailed plan documented in `docs/plans/e4-011-time-machine-detailed_planning.md`. |
 ---
 
 ### Epic 5: Forecasting and Change Management
@@ -312,6 +311,7 @@ The MVP development is structured across six two-week sprints, each building on 
 ### Recent Updates
 
 - **2025-11-14:** 📋 **PLA-2 Detailed Plan Approved.** Documented global time machine requirement covering header control, backend session persistence, and filtering. See `docs/plans/PLA_2_detailed_planning.md`. Implementation scheduled across Sprint 4 (backend) and Sprint 5 (UI/client propagation).
+- **2025-11-15:** ✅ **PLA-1 Control-Date Filtering Complete.** Added shared `time_machine` helper module, enforced schedule cutoffs by both `registration_date` and `created_at` across budget timeline, planned value, cost element schedules, and baseline logs, and backfilled regression tests to cover late-created registrations. Documentation and plan checklist updated.
 - **2025-11-13:** ✅ **PLA-1 Schedule Tab Migration Complete!** Cost element schedule CRUD operations moved from EditCostElement form to dedicated "Schedule" tab following CostRegistrationsTable pattern. Created CostElementSchedulesTable component with full history view, Add/Edit/Delete schedule components, and E2E test coverage. Schedule section completely removed from EditCostElement form. Timeline query invalidation added to all schedule, earned value, and cost registration CRUD operations ensuring timeline visualizations refresh automatically. Earned value color updated to green (#48bb78) in timeline charts per EVM standards. All tests passing (4/4 BudgetTimeline tests). Completion report: `docs/completions/pla_1_cost-element-schedule-tab-migration-completion.md`.
 
 - **2025-11-12:** ✅ **Cost Element Schedule Documentation Refined.** Updated PRD, data model, and roadmap language to document schedule registration description/registration date requirements, newest-registration selection for live EVM, and baseline cloning rules ahead of implementation phase.

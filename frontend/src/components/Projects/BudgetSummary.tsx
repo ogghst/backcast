@@ -18,6 +18,7 @@ import {
 } from "chart.js"
 import { Bar, Doughnut } from "react-chartjs-2"
 import { type BudgetSummaryPublic, BudgetSummaryService } from "@/client"
+import { useColorModeValue } from "@/components/ui/color-mode"
 import { useTimeMachine } from "@/context/TimeMachineContext"
 
 // Register Chart.js components
@@ -65,6 +66,16 @@ export default function BudgetSummary({
       (level === "project" && !!projectId) || (level === "wbe" && !!wbeId),
   })
 
+  // Theme-aware colors (declare before early returns)
+  const cardBg = useColorModeValue("bg.surface", "bg.surface")
+  const borderCol = useColorModeValue("border", "border")
+  const mutedText = useColorModeValue("fg.muted", "fg.muted")
+  const axisColor = useColorModeValue("#2D3748", "#E2E8F0") // gray.700 / gray.200
+  const gridColor = useColorModeValue(
+    "rgba(0,0,0,0.1)",
+    "rgba(255,255,255,0.12)",
+  )
+
   if (isLoading) {
     return (
       <Box mb={6}>
@@ -85,7 +96,8 @@ export default function BudgetSummary({
               p={4}
               borderWidth="1px"
               borderRadius="md"
-              borderColor="gray.200"
+              borderColor={borderCol}
+              bg={cardBg}
             >
               <SkeletonText noOfLines={2} />
             </Box>
@@ -142,6 +154,7 @@ export default function BudgetSummary({
       legend: {
         position: "bottom" as const,
         labels: {
+          color: axisColor,
           padding: 10,
           font: {
             size: 12,
@@ -182,6 +195,9 @@ export default function BudgetSummary({
     plugins: {
       legend: {
         display: false,
+        labels: {
+          color: axisColor,
+        },
       },
       tooltip: {
         callbacks: {
@@ -199,7 +215,19 @@ export default function BudgetSummary({
       y: {
         beginAtZero: true,
         ticks: {
+          color: axisColor,
           callback: (value: any) => `€${value.toLocaleString()}`,
+        },
+        grid: {
+          color: gridColor,
+        },
+      },
+      x: {
+        ticks: {
+          color: axisColor,
+        },
+        grid: {
+          color: gridColor,
         },
       },
     },
@@ -225,11 +253,11 @@ export default function BudgetSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={1}>
-            <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
               Revenue Limit
             </Text>
             <Text fontSize="xl" fontWeight="bold">
@@ -246,11 +274,11 @@ export default function BudgetSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={1}>
-            <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
               Total Allocated
             </Text>
             <Text fontSize="xl" fontWeight="bold">
@@ -274,11 +302,11 @@ export default function BudgetSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={1}>
-            <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
               Total Budget (BAC)
             </Text>
             <Text fontSize="xl" fontWeight="bold">
@@ -295,11 +323,11 @@ export default function BudgetSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={1}>
-            <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
               Total Revenue Plan
             </Text>
             <Text fontSize="xl" fontWeight="bold">
@@ -325,15 +353,15 @@ export default function BudgetSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={2}>
             <Heading size="sm">Revenue Utilization</Heading>
             <Box h="250px">
               <Doughnut data={revenueChartData} options={revenueChartOptions} />
             </Box>
-            <Text fontSize="xs" color="gray.600" textAlign="center">
+            <Text fontSize="xs" color={mutedText} textAlign="center">
               Utilization: {utilizationPercent.toFixed(1)}% | Remaining: €
               {remainingRevenue.toLocaleString("en-US", {
                 minimumFractionDigits: 2,
@@ -347,8 +375,8 @@ export default function BudgetSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={2}>
             <Heading size="sm">Budget vs Revenue</Heading>
@@ -358,7 +386,7 @@ export default function BudgetSummary({
                 options={comparisonChartOptions}
               />
             </Box>
-            <Text fontSize="xs" color="gray.600" textAlign="center">
+            <Text fontSize="xs" color={mutedText} textAlign="center">
               Comparison of total budget and revenue allocations
             </Text>
           </VStack>

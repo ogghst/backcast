@@ -25,6 +25,9 @@ class EarnedValueEntryBase(SQLModel):
     )
     deliverables: str | None = Field(default=None)
     description: str | None = Field(default=None)
+    registration_date: date = Field(
+        default_factory=date.today, sa_column=Column(Date, nullable=False)
+    )
 
 
 class EarnedValueEntryCreate(EarnedValueEntryBase):
@@ -48,6 +51,7 @@ class EarnedValueEntryUpdate(SQLModel):
     )
     deliverables: str | None = None
     description: str | None = None
+    registration_date: date | None = None
 
 
 class EarnedValueEntry(EarnedValueEntryBase, table=True):

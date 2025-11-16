@@ -397,6 +397,7 @@ def _seed_project_from_template(session: Session) -> None:
                     allocation_type="initial",
                     description="Initial budget allocation from seed data",
                     created_by_id=first_superuser.id,
+                    created_at=project.start_date,
                 )
                 budget_allocation = BudgetAllocation.model_validate(
                     budget_allocation_data
@@ -506,6 +507,15 @@ def _seed_project_from_template(session: Session) -> None:
                     else:
                         earned_value_amount = None
 
+                    # Ensure registration_date is a pure date (no time component)
+                    reg_date = None
+                    if ev_created_at_str:
+                        parsed_dt = _parse_iso_datetime(ev_created_at_str)
+                        if parsed_dt is not None:
+                            reg_date = date(
+                                parsed_dt.year, parsed_dt.month, parsed_dt.day
+                            )
+
                     earned_value_entry_data = EarnedValueEntryCreate(
                         cost_element_id=ce.cost_element_id,
                         completion_date=date.fromisoformat(ev_data["completion_date"]),
@@ -513,6 +523,7 @@ def _seed_project_from_template(session: Session) -> None:
                         earned_value=earned_value_amount,
                         deliverables=ev_data.get("deliverables"),
                         description=ev_data.get("description"),
+                        registration_date=reg_date,
                     )
                     ev_model_data = earned_value_entry_data.model_dump()
                     ev_model_data["created_by_id"] = first_superuser.id

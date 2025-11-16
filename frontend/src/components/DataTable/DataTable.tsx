@@ -116,7 +116,9 @@ export function DataTable<TData>({
                     userSelect="none"
                     onClick={header.column.getToggleSortingHandler()}
                     _hover={
-                      header.column.getCanSort() ? { bg: "gray.50" } : undefined
+                      header.column.getCanSort()
+                        ? { bg: "bg.subtle" }
+                        : undefined
                     }
                   >
                     <Flex alignItems="center" gap={2}>
@@ -133,7 +135,7 @@ export function DataTable<TData>({
                             color={
                               header.column.getIsSorted() === "asc"
                                 ? "currentColor"
-                                : "#d1d5db"
+                                : "fg.muted"
                             }
                           />
                           <FiChevronDown
@@ -141,7 +143,7 @@ export function DataTable<TData>({
                             color={
                               header.column.getIsSorted() === "desc"
                                 ? "currentColor"
-                                : "#d1d5db"
+                                : "fg.muted"
                             }
                           />
                         </Flex>
@@ -162,7 +164,7 @@ export function DataTable<TData>({
               key={row.id}
               cursor={onRowClick ? "pointer" : "default"}
               onClick={() => onRowClick?.(row.original)}
-              _hover={onRowClick ? { bg: "gray.100" } : undefined}
+              _hover={onRowClick ? { bg: "bg.muted" } : undefined}
             >
               {row.getVisibleCells().map((cell) => (
                 <Table.Cell

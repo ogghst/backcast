@@ -1,6 +1,6 @@
 """Tests for cost timeline API endpoints."""
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
 from fastapi.testclient import TestClient
@@ -20,6 +20,7 @@ from app.models import (
     WBECreate,
 )
 from tests.utils.cost_element_type import create_random_cost_element_type
+from tests.utils.user import set_time_machine_date
 
 
 def test_get_project_cost_timeline(
@@ -90,8 +91,14 @@ def test_get_project_cost_timeline(
     cr = CostRegistration.model_validate(
         {**cr_data.model_dump(), "created_by_id": pm_user.id}
     )
+    cr.created_at = datetime.combine(
+        registration_date, datetime.min.time(), tzinfo=timezone.utc
+    )
     db.add(cr)
     db.commit()
+
+    control_date = registration_date + timedelta(days=5)
+    set_time_machine_date(client, superuser_token_headers, control_date)
 
     # Call the endpoint
     response = client.get(
@@ -197,6 +204,7 @@ def test_get_project_cost_timeline_multiple_dates(
     cr1 = CostRegistration.model_validate(
         {**cr1_data.model_dump(), "created_by_id": pm_user.id}
     )
+    cr1.created_at = datetime.combine(date1, datetime.min.time(), tzinfo=timezone.utc)
     db.add(cr1)
 
     cr2_data = CostRegistrationCreate(
@@ -210,6 +218,7 @@ def test_get_project_cost_timeline_multiple_dates(
     cr2 = CostRegistration.model_validate(
         {**cr2_data.model_dump(), "created_by_id": pm_user.id}
     )
+    cr2.created_at = datetime.combine(date2, datetime.min.time(), tzinfo=timezone.utc)
     db.add(cr2)
 
     cr3_data = CostRegistrationCreate(
@@ -223,9 +232,13 @@ def test_get_project_cost_timeline_multiple_dates(
     cr3 = CostRegistration.model_validate(
         {**cr3_data.model_dump(), "created_by_id": pm_user.id}
     )
+    cr3.created_at = datetime.combine(date3, datetime.min.time(), tzinfo=timezone.utc)
     db.add(cr3)
 
     db.commit()
+
+    control_date = date3 + timedelta(days=5)
+    set_time_machine_date(client, superuser_token_headers, control_date)
 
     # Call the endpoint
     response = client.get(
@@ -328,6 +341,9 @@ def test_get_project_cost_timeline_same_date(
     cr1 = CostRegistration.model_validate(
         {**cr1_data.model_dump(), "created_by_id": pm_user.id}
     )
+    cr1.created_at = datetime.combine(
+        same_date, datetime.min.time(), tzinfo=timezone.utc
+    )
     db.add(cr1)
 
     cr2_data = CostRegistrationCreate(
@@ -341,9 +357,15 @@ def test_get_project_cost_timeline_same_date(
     cr2 = CostRegistration.model_validate(
         {**cr2_data.model_dump(), "created_by_id": pm_user.id}
     )
+    cr2.created_at = datetime.combine(
+        same_date, datetime.min.time(), tzinfo=timezone.utc
+    )
     db.add(cr2)
 
     db.commit()
+
+    control_date = same_date + timedelta(days=5)
+    set_time_machine_date(client, superuser_token_headers, control_date)
 
     # Call the endpoint
     response = client.get(
@@ -365,6 +387,113 @@ def test_get_project_cost_timeline_same_date(
     assert point["point_date"] == same_date.isoformat()
     assert float(point["cumulative_cost"]) == 5000.00  # Sum of both
     assert float(point["period_cost"]) == 5000.00  # Sum of both
+
+
+def test_get_project_cost_timeline_excludes_late_created_entries(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Cost timeline should hide registrations created after the control date."""
+    email = f"pm_{uuid.uuid4().hex[:8]}@example.com"
+    password = "testpassword123"
+    user_in = UserCreate(email=email, password=password)
+    pm_user = crud.create_user(session=db, user_create=user_in)
+
+    project = Project.model_validate(
+        ProjectCreate(
+            project_name="Timeline Control Project",
+            customer_name="Test Customer",
+            contract_value=Decimal("50000.00"),
+            start_date=date(2024, 1, 1),
+            planned_completion_date=date(2024, 12, 31),
+            project_manager_id=pm_user.id,
+            status="active",
+        )
+    )
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+
+    wbe = WBE.model_validate(
+        WBECreate(
+            project_id=project.project_id,
+            machine_type="Machine 1",
+            revenue_allocation=Decimal("20000.00"),
+            status="designing",
+        )
+    )
+    db.add(wbe)
+    db.commit()
+    db.refresh(wbe)
+
+    cost_element_type = create_random_cost_element_type(db)
+    cost_element = CostElement.model_validate(
+        CostElementCreate(
+            wbe_id=wbe.wbe_id,
+            cost_element_type_id=cost_element_type.cost_element_type_id,
+            department_code="ENG",
+            department_name="Engineering",
+            budget_bac=Decimal("10000.00"),
+            revenue_plan=Decimal("12000.00"),
+            status="active",
+        )
+    )
+    db.add(cost_element)
+    db.commit()
+    db.refresh(cost_element)
+
+    control_date = date(2024, 3, 15)
+
+    on_time = CostRegistration.model_validate(
+        {
+            **CostRegistrationCreate(
+                cost_element_id=cost_element.cost_element_id,
+                registration_date=control_date,
+                amount=Decimal("1500.00"),
+                cost_category="labor",
+                description="On-time cost",
+                is_quality_cost=False,
+            ).model_dump(),
+            "created_by_id": pm_user.id,
+        }
+    )
+    on_time.created_at = datetime.combine(
+        control_date, datetime.min.time(), tzinfo=timezone.utc
+    )
+    db.add(on_time)
+
+    late_entry = CostRegistration.model_validate(
+        {
+            **CostRegistrationCreate(
+                cost_element_id=cost_element.cost_element_id,
+                registration_date=control_date,
+                amount=Decimal("2000.00"),
+                cost_category="materials",
+                description="Late created cost",
+                is_quality_cost=False,
+            ).model_dump(),
+            "created_by_id": pm_user.id,
+        }
+    )
+    db.add(late_entry)
+    db.commit()
+
+    late_entry.created_at = datetime(2024, 4, 1, tzinfo=timezone.utc)
+    db.add(late_entry)
+    db.commit()
+
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/projects/{project.project_id}/cost-timeline/",
+        headers=superuser_token_headers,
+    )
+
+    assert response.status_code == 200
+    content = response.json()
+    assert float(content["total_cost"]) == 1500.00
+    assert len(content["data"]) == 1
+    point = content["data"][0]
+    assert float(point["period_cost"]) == 1500.00
 
 
 def test_get_project_cost_timeline_empty(

@@ -1,12 +1,14 @@
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app.core.config import settings
+from app.models import WBE, BaselineLog, Project
 from tests.utils.cost_element import create_random_cost_element
 from tests.utils.cost_element_schedule import create_schedule_for_cost_element
+from tests.utils.user import set_time_machine_date
 
 
 def test_get_schedule_by_cost_element_id(
@@ -379,6 +381,99 @@ def test_list_schedule_history_orders_by_registration_date(
     assert descriptions == ["Summer acceleration", "Spring replan", "Initial"]
 
 
+def test_get_schedule_respects_control_date_created_at_filter(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """Latest registration created after the control date should be hidden."""
+    cost_element = create_random_cost_element(db)
+    earlier = create_schedule_for_cost_element(
+        db,
+        cost_element.cost_element_id,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 3, 31),
+        progression_type="linear",
+        registration_date=date(2024, 1, 10),
+        description="Initial",
+    )
+    earlier.created_at = datetime(2024, 1, 25, tzinfo=timezone.utc)
+    db.add(earlier)
+    db.commit()
+    db.refresh(earlier)
+    future_created = create_schedule_for_cost_element(
+        db,
+        cost_element.cost_element_id,
+        start_date=date(2024, 2, 1),
+        end_date=date(2024, 5, 31),
+        progression_type="gaussian",
+        registration_date=date(2024, 1, 20),
+        description="Backdated but late entry",
+    )
+    future_created.created_at = datetime(2024, 3, 10, tzinfo=timezone.utc)
+    db.add(future_created)
+    db.commit()
+    db.refresh(future_created)
+
+    control_date = date(2024, 2, 1)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/cost-element-schedules/",
+        headers=superuser_token_headers,
+        params={"cost_element_id": str(cost_element.cost_element_id)},
+    )
+    assert response.status_code == 200
+    content = response.json()
+    assert content["schedule_id"] == str(earlier.schedule_id)
+    assert content["description"] == "Initial"
+
+
+def test_schedule_history_respects_control_date_filters(
+    client: TestClient, superuser_token_headers: dict[str, str], db: Session
+) -> None:
+    """History endpoint should exclude entries created after the control date even if registration date is backdated."""
+    cost_element = create_random_cost_element(db)
+    retained = create_schedule_for_cost_element(
+        db,
+        cost_element.cost_element_id,
+        start_date=date(2024, 1, 1),
+        end_date=date(2024, 3, 31),
+        progression_type="linear",
+        registration_date=date(2024, 1, 10),
+        description="Historical",
+    )
+    retained.created_at = datetime(2024, 1, 20, tzinfo=timezone.utc)
+    db.add(retained)
+    db.commit()
+    db.refresh(retained)
+    hidden = create_schedule_for_cost_element(
+        db,
+        cost_element.cost_element_id,
+        start_date=date(2024, 2, 1),
+        end_date=date(2024, 5, 1),
+        progression_type="logarithmic",
+        registration_date=date(2024, 1, 15),
+        description="Late data entry",
+    )
+    hidden.created_at = datetime(2024, 3, 5, tzinfo=timezone.utc)
+    db.add(hidden)
+    db.commit()
+    db.refresh(hidden)
+
+    control_date = date(2024, 2, 1)
+    set_time_machine_date(client, superuser_token_headers, control_date)
+
+    response = client.get(
+        f"{settings.API_V1_STR}/cost-element-schedules/history",
+        headers=superuser_token_headers,
+        params={"cost_element_id": str(cost_element.cost_element_id)},
+    )
+    assert response.status_code == 200
+    content = response.json()
+    assert len(content) == 1
+    assert content[0]["schedule_id"] == str(retained.schedule_id)
+    assert content[0]["description"] == "Historical"
+
+
 def test_history_excludes_baseline_snapshots(
     client: TestClient, superuser_token_headers: dict[str, str], db: Session
 ) -> None:
@@ -402,7 +497,22 @@ def test_history_excludes_baseline_snapshots(
         registration_date=date(2024, 1, 10),
         description="Baseline copy",
     )
-    baseline_schedule.baseline_id = uuid.uuid4()
+    wbe = db.get(WBE, cost_element.wbe_id)
+    assert wbe is not None
+    project = db.get(Project, wbe.project_id)
+    assert project is not None
+    baseline_log = BaselineLog(
+        baseline_type="schedule",
+        baseline_date=date(2024, 1, 1),
+        milestone_type="kickoff",
+        project_id=project.project_id,
+        created_by_id=project.project_manager_id,
+    )
+    db.add(baseline_log)
+    db.commit()
+    db.refresh(baseline_log)
+
+    baseline_schedule.baseline_id = baseline_log.baseline_id
     db.add(baseline_schedule)
     db.commit()
 

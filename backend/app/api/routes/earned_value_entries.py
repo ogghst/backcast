@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlmodel import Session, func, select
 
-from app.api.deps import CurrentUser, SessionDep
+from app.api.deps import CurrentUser, SessionDep, TimeMachineControlDate
 from app.models import (
     CostElement,
     CostElementSchedule,
@@ -20,6 +20,7 @@ from app.models import (
     EarnedValueEntryUpdate,
     Message,
 )
+from app.services.time_machine import TimeMachineEventType, apply_time_machine_filters
 
 router = APIRouter(prefix="/earned-value-entries", tags=["earned-value-entries"])
 
@@ -147,6 +148,7 @@ def calculate_earned_value(
 def read_earned_value_entries(
     session: SessionDep,
     _current_user: CurrentUser,
+    control_date: TimeMachineControlDate,
     cost_element_id: uuid.UUID | None = Query(
         default=None, description="Filter by cost element ID"
     ),
@@ -165,6 +167,13 @@ def read_earned_value_entries(
         count_statement = count_statement.where(
             EarnedValueEntry.cost_element_id == cost_element_id
         )
+
+    statement = apply_time_machine_filters(
+        statement, TimeMachineEventType.EARNED_VALUE, control_date
+    )
+    count_statement = apply_time_machine_filters(
+        count_statement, TimeMachineEventType.EARNED_VALUE, control_date
+    )
 
     count = session.exec(count_statement).one()
     entries = session.exec(statement.offset(skip).limit(limit)).all()
@@ -226,6 +235,8 @@ def create_earned_value_entry(
 
     ev_data = earned_value_entry_in.model_dump()
     ev_data["earned_value"] = earned_value
+    if not ev_data.get("registration_date"):
+        ev_data["registration_date"] = date.today()
     ev_data["created_by_id"] = current_user.id
 
     earned_value_entry = EarnedValueEntry.model_validate(ev_data)
@@ -271,6 +282,9 @@ def update_earned_value_entry(
     completion_date = update_data.get(
         "completion_date", earned_value_entry.completion_date
     )
+    registration_date = update_data.get(
+        "registration_date", earned_value_entry.registration_date
+    )
 
     ensure_unique_completion_date(
         session,
@@ -292,6 +306,7 @@ def update_earned_value_entry(
     earned_value_entry.sqlmodel_update(update_data)
     earned_value_entry.completion_date = completion_date
     earned_value_entry.percent_complete = percent_complete
+    earned_value_entry.registration_date = registration_date
     earned_value_entry.earned_value = calculate_earned_value(
         Decimal(str(cost_element.budget_bac or 0)),
         percent_complete,

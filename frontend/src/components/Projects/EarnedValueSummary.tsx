@@ -13,6 +13,7 @@ import {
   EarnedValueService,
   type EarnedValueWBEPublic,
 } from "@/client"
+import { useColorModeValue } from "@/components/ui/color-mode"
 import { useTimeMachine } from "@/context/TimeMachineContext"
 
 interface EarnedValueSummaryProps {
@@ -29,6 +30,10 @@ export default function EarnedValueSummary({
   costElementId,
 }: EarnedValueSummaryProps) {
   const { controlDate } = useTimeMachine()
+  // Theme-aware colors (declare before early returns)
+  const cardBg = useColorModeValue("bg.surface", "bg.surface")
+  const borderCol = useColorModeValue("border", "border")
+  const mutedText = useColorModeValue("fg.muted", "fg.muted")
 
   const queryKey = [
     "earned-value",
@@ -118,7 +123,8 @@ export default function EarnedValueSummary({
               p={4}
               borderWidth="1px"
               borderRadius="md"
-              borderColor="gray.200"
+              borderColor={borderCol}
+              bg={cardBg}
             >
               <SkeletonText noOfLines={2} />
             </Box>
@@ -141,7 +147,7 @@ export default function EarnedValueSummary({
       <Heading size="md" mb={4}>
         Earned Value Summary
       </Heading>
-      <Text fontSize="sm" color="gray.600" mb={4}>
+      <Text fontSize="sm" color={mutedText} mb={4}>
         Control Date: {new Date(controlDate).toLocaleDateString()}
       </Text>
       <Grid
@@ -157,17 +163,17 @@ export default function EarnedValueSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={1}>
-            <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
               Earned Value (EV)
             </Text>
             <Text fontSize="xl" fontWeight="bold">
               {formatCurrency(earnedValueNum)}
             </Text>
-            <Text fontSize="xs" color="gray.500" mt={1}>
+            <Text fontSize="xs" color={mutedText} mt={1}>
               Budgeted Cost of Work Performed
             </Text>
           </VStack>
@@ -178,17 +184,17 @@ export default function EarnedValueSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={1}>
-            <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
               Budget at Completion (BAC)
             </Text>
             <Text fontSize="xl" fontWeight="bold">
               {formatCurrency(budgetBacNum)}
             </Text>
-            <Text fontSize="xs" color="gray.500" mt={1}>
+            <Text fontSize="xs" color={mutedText} mt={1}>
               Total Planned Budget
             </Text>
           </VStack>
@@ -199,17 +205,17 @@ export default function EarnedValueSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={1}>
-            <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
               Physical Completion
             </Text>
             <Text fontSize="xl" fontWeight="bold">
               {formatPercent(percentCompleteNum)}
             </Text>
-            <Text fontSize="xs" color="gray.500" mt={1}>
+            <Text fontSize="xs" color={mutedText} mt={1}>
               EV / BAC
             </Text>
           </VStack>
