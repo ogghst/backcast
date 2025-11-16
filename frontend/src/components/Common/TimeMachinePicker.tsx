@@ -1,7 +1,7 @@
 import { HStack, IconButton, Input, Text, Tooltip } from "@chakra-ui/react"
 import type { ChangeEvent } from "react"
 import { FiRotateCcw } from "react-icons/fi"
-
+import { useColorModeValue } from "@/components/ui/color-mode"
 import { useTimeMachine } from "@/context/TimeMachineContext"
 
 export default function TimeMachinePicker() {
@@ -15,9 +15,17 @@ export default function TimeMachinePicker() {
     }
   }
 
+  const labelColor = useColorModeValue("gray.700", "whiteAlpha.800")
+  const inputBg = useColorModeValue("white", "whiteAlpha.200")
+  const inputColor = useColorModeValue("gray.800", "white")
+  const inputBorder = useColorModeValue("gray.300", "whiteAlpha.400")
+  const inputBorderHover = useColorModeValue("gray.400", "whiteAlpha.600")
+  const iconColor = useColorModeValue("gray.700", "whiteAlpha.900")
+  const iconHoverBg = useColorModeValue("gray.100", "whiteAlpha.200")
+
   return (
     <HStack spacing={2} align="center">
-      <Text fontSize="sm" color="whiteAlpha.800">
+      <Text fontSize="sm" color={labelColor}>
         As of
       </Text>
       <Input
@@ -28,10 +36,10 @@ export default function TimeMachinePicker() {
         onChange={handleChange}
         isDisabled={isLoading || isUpdating}
         maxW="170px"
-        bg="whiteAlpha.200"
-        color="white"
-        borderColor="whiteAlpha.400"
-        _hover={{ borderColor: "whiteAlpha.600" }}
+        bg={inputBg}
+        color={inputColor}
+        borderColor={inputBorder}
+        _hover={{ borderColor: inputBorderHover }}
       />
       <Tooltip.Root openDelay={200}>
         <Tooltip.Trigger asChild>
@@ -41,8 +49,8 @@ export default function TimeMachinePicker() {
             icon={<FiRotateCcw />}
             size="sm"
             variant="ghost"
-            color="whiteAlpha.900"
-            _hover={{ bg: "whiteAlpha.200" }}
+            color={iconColor}
+            _hover={{ bg: iconHoverBg }}
             onClick={() => {
               void resetToToday()
             }}
