@@ -3608,6 +3608,545 @@ export const ValidationErrorSchema = {
     title: 'ValidationError'
 } as const;
 
+export const VarianceAnalysisReportPublicSchema = {
+    properties: {
+        project_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Project Id'
+        },
+        project_name: {
+            type: 'string',
+            maxLength: 200,
+            title: 'Project Name'
+        },
+        control_date: {
+            type: 'string',
+            format: 'date',
+            title: 'Control Date'
+        },
+        rows: {
+            items: {
+                '$ref': '#/components/schemas/VarianceAnalysisReportRowPublic'
+            },
+            type: 'array',
+            title: 'Rows',
+            description: 'Report rows (filtered to problem areas by default)'
+        },
+        summary: {
+            '$ref': '#/components/schemas/EVMIndicesProjectPublic',
+            description: 'Aggregated project totals (EVM metrics)'
+        },
+        total_problem_areas: {
+            type: 'integer',
+            title: 'Total Problem Areas',
+            description: 'Count of cost elements with negative CV or SV',
+            default: 0
+        },
+        config_used: {
+            additionalProperties: {
+                type: 'string'
+            },
+            type: 'object',
+            title: 'Config Used',
+            description: 'Variance threshold configuration used for severity calculation'
+        }
+    },
+    type: 'object',
+    required: ['project_id', 'project_name', 'control_date', 'summary'],
+    title: 'VarianceAnalysisReportPublic',
+    description: 'Variance Analysis Report response containing filtered rows and project summary.'
+} as const;
+
+export const VarianceAnalysisReportRowPublicSchema = {
+    properties: {
+        cost_element_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Cost Element Id'
+        },
+        wbe_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Wbe Id'
+        },
+        wbe_name: {
+            type: 'string',
+            maxLength: 200,
+            title: 'Wbe Name',
+            description: 'WBE machine_type'
+        },
+        wbe_serial_number: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 100
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Wbe Serial Number',
+            description: 'WBE serial_number'
+        },
+        department_code: {
+            type: 'string',
+            maxLength: 50,
+            title: 'Department Code'
+        },
+        department_name: {
+            type: 'string',
+            maxLength: 200,
+            title: 'Department Name'
+        },
+        cost_element_type_id: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'uuid'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Cost Element Type Id'
+        },
+        cost_element_type_name: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 200
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Cost Element Type Name',
+            description: 'Cost element type name'
+        },
+        planned_value: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Planned Value',
+            default: '0.00'
+        },
+        earned_value: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Earned Value',
+            default: '0.00'
+        },
+        actual_cost: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Actual Cost',
+            default: '0.00'
+        },
+        budget_bac: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Budget Bac',
+            default: '0.00'
+        },
+        cpi: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Cpi',
+            description: 'Cost Performance Index (CPI) = EV / AC. None when AC = 0.'
+        },
+        spi: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Spi',
+            description: 'Schedule Performance Index (SPI) = EV / PV. None when PV = 0.'
+        },
+        tcpi: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Tcpi',
+            description: "To-Complete Performance Index (TCPI) = (BAC - EV) / (BAC - AC). Returns 'overrun' when BAC ≤ AC."
+        },
+        cost_variance: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Cost Variance',
+            description: 'Cost Variance (CV) = EV - AC. Negative = over-budget, positive = under-budget, zero = on-budget.',
+            default: '0.00'
+        },
+        schedule_variance: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Schedule Variance',
+            description: 'Schedule Variance (SV) = EV - PV. Negative = behind-schedule, positive = ahead-of-schedule, zero = on-schedule.',
+            default: '0.00'
+        },
+        cv_percentage: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Cv Percentage',
+            description: 'Cost Variance Percentage (CV%) = CV / BAC * 100. None when BAC = 0.'
+        },
+        sv_percentage: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Sv Percentage',
+            description: 'Schedule Variance Percentage (SV%) = SV / BAC * 100. None when BAC = 0.'
+        },
+        variance_severity: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 20
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Variance Severity',
+            description: "Overall variance severity: 'critical', 'warning', or 'normal'. None if percentages undefined."
+        },
+        has_cost_variance_issue: {
+            type: 'boolean',
+            title: 'Has Cost Variance Issue',
+            description: 'True if cost variance is negative (over-budget)',
+            default: false
+        },
+        has_schedule_variance_issue: {
+            type: 'boolean',
+            title: 'Has Schedule Variance Issue',
+            description: 'True if schedule variance is negative (behind-schedule)',
+            default: false
+        }
+    },
+    type: 'object',
+    required: ['cost_element_id', 'wbe_id', 'wbe_name', 'department_code', 'department_name'],
+    title: 'VarianceAnalysisReportRowPublic',
+    description: 'A single row in the variance analysis report representing a cost element.'
+} as const;
+
+export const VarianceThresholdConfigCreateSchema = {
+    properties: {
+        threshold_type: {
+            '$ref': '#/components/schemas/VarianceThresholdType'
+        },
+        threshold_percentage: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                }
+            ],
+            title: 'Threshold Percentage',
+            description: 'Threshold percentage (-100 to 0)'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 500
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        },
+        is_active: {
+            type: 'boolean',
+            title: 'Is Active',
+            default: true
+        }
+    },
+    type: 'object',
+    required: ['threshold_type', 'threshold_percentage'],
+    title: 'VarianceThresholdConfigCreate',
+    description: 'Schema for creating a new variance threshold configuration.'
+} as const;
+
+export const VarianceThresholdConfigPublicSchema = {
+    properties: {
+        threshold_type: {
+            '$ref': '#/components/schemas/VarianceThresholdType'
+        },
+        threshold_percentage: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Threshold Percentage',
+            description: 'Threshold percentage (-100 to 0)'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 500
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        },
+        is_active: {
+            type: 'boolean',
+            title: 'Is Active',
+            default: true
+        },
+        variance_threshold_config_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Variance Threshold Config Id'
+        },
+        created_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Created At'
+        },
+        updated_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Updated At'
+        }
+    },
+    type: 'object',
+    required: ['threshold_type', 'threshold_percentage', 'variance_threshold_config_id', 'created_at', 'updated_at'],
+    title: 'VarianceThresholdConfigPublic',
+    description: 'Public variance threshold configuration schema for API responses.'
+} as const;
+
+export const VarianceThresholdConfigUpdateSchema = {
+    properties: {
+        threshold_type: {
+            anyOf: [
+                {
+                    '$ref': '#/components/schemas/VarianceThresholdType'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        threshold_percentage: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Threshold Percentage',
+            description: 'Threshold percentage (-100 to 0)'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 500
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        },
+        is_active: {
+            anyOf: [
+                {
+                    type: 'boolean'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Is Active'
+        }
+    },
+    type: 'object',
+    title: 'VarianceThresholdConfigUpdate',
+    description: 'Schema for updating a variance threshold configuration.'
+} as const;
+
+export const VarianceThresholdConfigsPublicSchema = {
+    properties: {
+        data: {
+            items: {
+                '$ref': '#/components/schemas/VarianceThresholdConfigPublic'
+            },
+            type: 'array',
+            title: 'Data'
+        },
+        count: {
+            type: 'integer',
+            title: 'Count'
+        }
+    },
+    type: 'object',
+    required: ['data', 'count'],
+    title: 'VarianceThresholdConfigsPublic',
+    description: 'Schema for list of variance threshold configurations.'
+} as const;
+
+export const VarianceThresholdTypeSchema = {
+    type: 'string',
+    enum: ['critical_cv', 'warning_cv', 'critical_sv', 'warning_sv'],
+    title: 'VarianceThresholdType',
+    description: 'Variance threshold type enumeration.'
+} as const;
+
+export const VarianceTrendPointPublicSchema = {
+    properties: {
+        month: {
+            type: 'string',
+            format: 'date',
+            title: 'Month',
+            description: 'First day of the month for this trend point'
+        },
+        cost_variance: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Cost Variance',
+            description: 'Cost Variance (CV) as of end of month',
+            default: '0.00'
+        },
+        schedule_variance: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Schedule Variance',
+            description: 'Schedule Variance (SV) as of end of month',
+            default: '0.00'
+        },
+        cv_percentage: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Cv Percentage',
+            description: 'Cost Variance Percentage (CV%) = CV / BAC * 100. None when BAC = 0.'
+        },
+        sv_percentage: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Sv Percentage',
+            description: 'Schedule Variance Percentage (SV%) = SV / BAC * 100. None when BAC = 0.'
+        }
+    },
+    type: 'object',
+    required: ['month'],
+    title: 'VarianceTrendPointPublic',
+    description: 'A single point in variance trend analysis representing a month.'
+} as const;
+
+export const VarianceTrendPublicSchema = {
+    properties: {
+        project_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Project Id'
+        },
+        cost_element_id: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'uuid'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Cost Element Id',
+            description: 'Cost element ID if cost element level, None if project/WBE level'
+        },
+        wbe_id: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'uuid'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Wbe Id',
+            description: 'WBE ID if WBE level, None if project level'
+        },
+        control_date: {
+            type: 'string',
+            format: 'date',
+            title: 'Control Date',
+            description: 'Current control date (trend ends at this date)'
+        },
+        trend_points: {
+            items: {
+                '$ref': '#/components/schemas/VarianceTrendPointPublic'
+            },
+            type: 'array',
+            title: 'Trend Points',
+            description: 'Monthly variance trend points from project start to control date'
+        }
+    },
+    type: 'object',
+    required: ['project_id', 'control_date'],
+    title: 'VarianceTrendPublic',
+    description: 'Variance Trend Analysis response containing monthly variance evolution over time.'
+} as const;
+
 export const WBECreateSchema = {
     properties: {
         machine_type: {

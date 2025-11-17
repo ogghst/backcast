@@ -859,6 +859,204 @@ export type ValidationError = {
 };
 
 /**
+ * Variance Analysis Report response containing filtered rows and project summary.
+ */
+export type VarianceAnalysisReportPublic = {
+    project_id: string;
+    project_name: string;
+    control_date: string;
+    /**
+     * Report rows (filtered to problem areas by default)
+     */
+    rows?: Array<VarianceAnalysisReportRowPublic>;
+    /**
+     * Aggregated project totals (EVM metrics)
+     */
+    summary: EVMIndicesProjectPublic;
+    /**
+     * Count of cost elements with negative CV or SV
+     */
+    total_problem_areas?: number;
+    /**
+     * Variance threshold configuration used for severity calculation
+     */
+    config_used?: {
+        [key: string]: (string);
+    };
+};
+
+/**
+ * A single row in the variance analysis report representing a cost element.
+ */
+export type VarianceAnalysisReportRowPublic = {
+    cost_element_id: string;
+    wbe_id: string;
+    /**
+     * WBE machine_type
+     */
+    wbe_name: string;
+    /**
+     * WBE serial_number
+     */
+    wbe_serial_number?: (string | null);
+    department_code: string;
+    department_name: string;
+    cost_element_type_id?: (string | null);
+    /**
+     * Cost element type name
+     */
+    cost_element_type_name?: (string | null);
+    planned_value?: string;
+    earned_value?: string;
+    actual_cost?: string;
+    budget_bac?: string;
+    /**
+     * Cost Performance Index (CPI) = EV / AC. None when AC = 0.
+     */
+    cpi?: (string | null);
+    /**
+     * Schedule Performance Index (SPI) = EV / PV. None when PV = 0.
+     */
+    spi?: (string | null);
+    /**
+     * To-Complete Performance Index (TCPI) = (BAC - EV) / (BAC - AC). Returns 'overrun' when BAC ≤ AC.
+     */
+    tcpi?: (string | null);
+    /**
+     * Cost Variance (CV) = EV - AC. Negative = over-budget, positive = under-budget, zero = on-budget.
+     */
+    cost_variance?: string;
+    /**
+     * Schedule Variance (SV) = EV - PV. Negative = behind-schedule, positive = ahead-of-schedule, zero = on-schedule.
+     */
+    schedule_variance?: string;
+    /**
+     * Cost Variance Percentage (CV%) = CV / BAC * 100. None when BAC = 0.
+     */
+    cv_percentage?: (string | null);
+    /**
+     * Schedule Variance Percentage (SV%) = SV / BAC * 100. None when BAC = 0.
+     */
+    sv_percentage?: (string | null);
+    /**
+     * Overall variance severity: 'critical', 'warning', or 'normal'. None if percentages undefined.
+     */
+    variance_severity?: (string | null);
+    /**
+     * True if cost variance is negative (over-budget)
+     */
+    has_cost_variance_issue?: boolean;
+    /**
+     * True if schedule variance is negative (behind-schedule)
+     */
+    has_schedule_variance_issue?: boolean;
+};
+
+/**
+ * Schema for creating a new variance threshold configuration.
+ */
+export type VarianceThresholdConfigCreate = {
+    threshold_type: VarianceThresholdType;
+    /**
+     * Threshold percentage (-100 to 0)
+     */
+    threshold_percentage: (number | string);
+    description?: (string | null);
+    is_active?: boolean;
+};
+
+/**
+ * Public variance threshold configuration schema for API responses.
+ */
+export type VarianceThresholdConfigPublic = {
+    threshold_type: VarianceThresholdType;
+    /**
+     * Threshold percentage (-100 to 0)
+     */
+    threshold_percentage: string;
+    description?: (string | null);
+    is_active?: boolean;
+    variance_threshold_config_id: string;
+    created_at: string;
+    updated_at: string;
+};
+
+/**
+ * Schema for list of variance threshold configurations.
+ */
+export type VarianceThresholdConfigsPublic = {
+    data: Array<VarianceThresholdConfigPublic>;
+    count: number;
+};
+
+/**
+ * Schema for updating a variance threshold configuration.
+ */
+export type VarianceThresholdConfigUpdate = {
+    threshold_type?: (VarianceThresholdType | null);
+    /**
+     * Threshold percentage (-100 to 0)
+     */
+    threshold_percentage?: (number | string | null);
+    description?: (string | null);
+    is_active?: (boolean | null);
+};
+
+/**
+ * Variance threshold type enumeration.
+ */
+export type VarianceThresholdType = 'critical_cv' | 'warning_cv' | 'critical_sv' | 'warning_sv';
+
+/**
+ * A single point in variance trend analysis representing a month.
+ */
+export type VarianceTrendPointPublic = {
+    /**
+     * First day of the month for this trend point
+     */
+    month: string;
+    /**
+     * Cost Variance (CV) as of end of month
+     */
+    cost_variance?: string;
+    /**
+     * Schedule Variance (SV) as of end of month
+     */
+    schedule_variance?: string;
+    /**
+     * Cost Variance Percentage (CV%) = CV / BAC * 100. None when BAC = 0.
+     */
+    cv_percentage?: (string | null);
+    /**
+     * Schedule Variance Percentage (SV%) = SV / BAC * 100. None when BAC = 0.
+     */
+    sv_percentage?: (string | null);
+};
+
+/**
+ * Variance Trend Analysis response containing monthly variance evolution over time.
+ */
+export type VarianceTrendPublic = {
+    project_id: string;
+    /**
+     * Cost element ID if cost element level, None if project/WBE level
+     */
+    cost_element_id?: (string | null);
+    /**
+     * WBE ID if WBE level, None if project level
+     */
+    wbe_id?: (string | null);
+    /**
+     * Current control date (trend ends at this date)
+     */
+    control_date: string;
+    /**
+     * Monthly variance trend points from project start to control date
+     */
+    trend_points?: Array<VarianceTrendPointPublic>;
+};
+
+/**
  * Schema for creating a new WBE.
  */
 export type WBECreate = {
@@ -932,6 +1130,33 @@ export type WBEWithBaselineCostElementsPublic = {
     wbe_total_forecast_eac?: (string | null);
     wbe_total_earned_ev?: (string | null);
 };
+
+export type AdminListVarianceThresholdConfigsResponse = (VarianceThresholdConfigsPublic);
+
+export type AdminCreateVarianceThresholdConfigData = {
+    requestBody: VarianceThresholdConfigCreate;
+};
+
+export type AdminCreateVarianceThresholdConfigResponse = (VarianceThresholdConfigPublic);
+
+export type AdminGetVarianceThresholdConfigData = {
+    configId: string;
+};
+
+export type AdminGetVarianceThresholdConfigResponse = (VarianceThresholdConfigPublic);
+
+export type AdminUpdateVarianceThresholdConfigData = {
+    configId: string;
+    requestBody: VarianceThresholdConfigUpdate;
+};
+
+export type AdminUpdateVarianceThresholdConfigResponse = (VarianceThresholdConfigPublic);
+
+export type AdminDeleteVarianceThresholdConfigData = {
+    configId: string;
+};
+
+export type AdminDeleteVarianceThresholdConfigResponse = (Message);
 
 export type BaselineLogsListBaselineLogsData = {
     /**
@@ -1403,6 +1628,34 @@ export type ReportsGetProjectCostPerformanceReportEndpointData = {
 };
 
 export type ReportsGetProjectCostPerformanceReportEndpointResponse = (CostPerformanceReportPublic);
+
+export type ReportsGetProjectVarianceAnalysisReportEndpointData = {
+    projectId: string;
+    /**
+     * Filter to show only problem areas (negative CV or SV)
+     */
+    showOnlyProblems?: boolean;
+    /**
+     * Sort field: 'cv' (cost variance) or 'sv' (schedule variance)
+     */
+    sortBy?: string;
+};
+
+export type ReportsGetProjectVarianceAnalysisReportEndpointResponse = (VarianceAnalysisReportPublic);
+
+export type ReportsGetVarianceTrendEndpointData = {
+    /**
+     * Optional cost element ID for cost element-level trend (cannot be used with wbe_id)
+     */
+    costElementId?: (string | null);
+    projectId: string;
+    /**
+     * Optional WBE ID for WBE-level trend
+     */
+    wbeId?: (string | null);
+};
+
+export type ReportsGetVarianceTrendEndpointResponse = (VarianceTrendPublic);
 
 export type UsersReadUsersData = {
     limit?: number;

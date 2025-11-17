@@ -183,6 +183,21 @@ from app.models.user import (
     UserUpdate,
     UserUpdateMe,
 )
+from app.models.variance_analysis_report import (
+    VarianceAnalysisReportPublic,
+    VarianceAnalysisReportRowPublic,
+    VarianceTrendPointPublic,
+    VarianceTrendPublic,
+)
+from app.models.variance_threshold_config import (
+    VarianceThresholdConfig,
+    VarianceThresholdConfigBase,
+    VarianceThresholdConfigCreate,
+    VarianceThresholdConfigPublic,
+    VarianceThresholdConfigsPublic,
+    VarianceThresholdConfigUpdate,
+    VarianceThresholdType,
+)
 from app.models.wbe import (
     WBE,
     WBEBase,
@@ -359,6 +374,19 @@ __all__ = [
     # Cost Performance Report models
     "CostPerformanceReportPublic",
     "CostPerformanceReportRowPublic",
+    # Variance Threshold Config models
+    "VarianceThresholdConfig",
+    "VarianceThresholdConfigBase",
+    "VarianceThresholdConfigCreate",
+    "VarianceThresholdConfigPublic",
+    "VarianceThresholdConfigsPublic",
+    "VarianceThresholdConfigUpdate",
+    "VarianceThresholdType",
+    # Variance Analysis Report models
+    "VarianceAnalysisReportPublic",
+    "VarianceAnalysisReportRowPublic",
+    "VarianceTrendPointPublic",
+    "VarianceTrendPublic",
     # Cost Element Schedule models
     "CostElementSchedule",
     "CostElementScheduleBase",

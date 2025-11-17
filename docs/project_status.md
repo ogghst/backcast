@@ -84,7 +84,7 @@
 | E4-005 | EVM Aggregation Logic | Roll up EVM metrics from cost elements to WBEs to project level | ✅ Done | Complete! Unified EVM aggregation service and endpoints implemented. New unified endpoints at cost element, WBE, and project levels. Code duplication eliminated in evm_indices.py. Separate endpoints (planned_value, earned_value, old evm_indices) marked as deprecated. All tests passing (29 tests: 9 service + 3 API + 2 integration + 15 existing evm_indices). OpenAPI client regenerated. Completion report: `docs/completions/e4-005-evm-aggregation-logic-completion.md`. |
 | E4-006 | EVM Summary Displays | Show current performance indices and variances | ✅ Done | Complete! Extended EarnedValueSummary component with 5 new EVM metric cards (CPI, SPI, TCPI, CV, SV). Color-coded status indicators with thresholds. CPI/SPI as decimals, TCPI as decimal or 'overrun', CV/SV as currency. Responsive grid layout (8 cards: 1/2/4 columns). Edge cases handled (null values, 'overrun' string, zero values). Theme tests updated. All 14 implementation steps completed. Completion report: `docs/completions/e4-006-evm-summary-displays-completion.md`. |
 | E4-007 | Cost Performance Report | Generate report showing cumulative performance with all key metrics | ✅ Complete | Sprint 5 deliverable. Tabular format with all EVM metrics. Implemented with status indicators, summary row, filtering, navigation, route integration, and Playwright coverage. Completion report: `docs/completions/e4-007-cost-performance-report-completion.md`. |
-| E4-008 | Variance Analysis Report | Highlight areas where performance deviates from plan | ⏳ Todo | Sprint 5 deliverable. Includes drill-down capabilities. |
+| E4-008 | Variance Analysis Report | Highlight areas where performance deviates from plan | ✅ Complete | Variance analysis with configurable thresholds, trend charts, and drill-down navigation. |
 | E4-009 | Project Performance Dashboard | Visual dashboard with EV curves, trend charts, variance indicators | ⏳ Todo | Sprint 5 deliverable. Visual representation of performance. |
 | E4-010 | Report Export Functionality | Enable data export to CSV and Excel formats | ⏳ Todo | Sprint 5 deliverable. Supports additional analysis. |
 | E4-011 | Global Time Machine Control | Implement header date picker, user-level persistence, and backend filtering so every metric reflects the selected control date. | ✅ Done | Planned across Sprint 4 (backend storage, dependency, filtering) and Sprint 5 (UI control, React context, client query propagation). Detailed plan documented in `docs/plans/e4-011-time-machine-detailed_planning.md`. |
@@ -221,15 +221,15 @@ The MVP development is structured across six two-week sprints, each building on 
 
 **Key Tasks:**
 
-- E4-007: Cost Performance Report
-- E4-008: Variance Analysis Report
+- ✅ E4-007: Cost Performance Report
+- ✅ E4-008: Variance Analysis Report
 - E4-009: Project Performance Dashboard
 - E4-010: Report Export Functionality (CSV, Excel)
 - E4-011: Report Filtering and Date Range Selection
 
 **Deliverables:** Detailed reports for analysis and visual dashboards for quick status assessment, making performance information easily accessible and understandable.
 
-**Status:** ⏳ Not Started
+**Status:** 🔄 In Progress (E4-007 & E4-008 complete)
 
 ---
 
@@ -311,6 +311,7 @@ The MVP development is structured across six two-week sprints, each building on 
 
 ### Recent Updates
 
+- **2025-01-17:** ✅ **E4-008 Variance Analysis Report – Implementation Complete!** Full variance analysis report implementation with configurable thresholds, trend analysis, and comprehensive UI. Backend: VarianceThresholdConfig model with CRUD API, VarianceAnalysisReport service with filtering/sorting, VarianceTrend service for monthly trend analysis. Frontend: VarianceAnalysisReport component with DataTable, VarianceTrendChart with Chart.js, column header tooltips, help section, responsive design, and drill-down navigation to cost elements. Includes problem area filtering, CV/SV sorting, severity indicators, and trend visualization. All 29 steps across 12 phases completed following TDD. Comprehensive test coverage (model, API, component tests). Completion report: `docs/completions/e4-008-variance-analysis-report-completion.md`.
 - **2025-11-17:** ✅ **E4-006 EVM Summary Displays – Implementation Complete!** Extended EarnedValueSummary component with 5 new EVM metric cards (CPI, SPI, TCPI, CV, SV) following Approach B. Added EVM metrics query using EvmMetricsService. Implemented status indicator helper functions with color thresholds and formatting helpers. Updated loading state to show 8 skeleton cards. Responsive grid layout (1/2/4 columns). Edge cases handled (null values, 'overrun' string, zero values). Theme tests updated to cover all 8 cards. All 14 implementation steps completed. Component displays CPI/SPI as decimals, TCPI as decimal or 'overrun', CV/SV as currency with color-coded status indicators. Completion report: `docs/completions/e4-006-evm-summary-displays-completion.md`.
 - **2025-11-16:** ✅ **E4-005 EVM Aggregation Logic – Implementation Complete!** Unified EVM aggregation service and endpoints implemented following TDD discipline. Created unified aggregation service (`evm_aggregation.py`) that reuses existing services, eliminating code duplication in `evm_indices.py`. New unified endpoints at cost element, WBE, and project levels (`/evm-metrics/*`). Added `EVMIndicesCostElementPublic` model. Refactored `evm_indices.py` to use unified service. Deprecated separate endpoints (planned_value, earned_value, old evm_indices). All tests passing (29 tests: 9 service + 3 API + 2 integration + 15 existing evm_indices). Integration tests verify unified endpoints match separate endpoint aggregation. OpenAPI client regenerated. Completion report: `docs/completions/e4-005-evm-aggregation-logic-completion.md`.
 - **2025-11-16:** ✅ **E4-003 EVM Performance Indices – Implementation Complete!** All 5 phases implemented following TDD discipline. Service layer with CPI, SPI, TCPI calculations (19 service tests), response models, API routes for WBE and project levels (7 API tests), router registration, and comprehensive integration tests (4 integration tests). Total: 30 tests passing. Business rules implemented: CPI = EV/AC (None when AC=0 and EV>0), SPI = EV/PV (None when PV=0), TCPI = (BAC-EV)/(BAC-AC) ('overrun' when BAC≤AC). Follows E4-001 PV and E4-002 EV patterns. OpenAPI client regenerated with TypeScript types. Completion report: `docs/completions/e4-003-evm-performance-indices-completion.md`.

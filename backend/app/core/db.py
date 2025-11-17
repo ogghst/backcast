@@ -6,6 +6,7 @@ from app.core.seeds import (
     _seed_cost_element_types,
     _seed_departments,
     _seed_project_from_template,
+    _seed_variance_threshold_configs,
 )
 from app.models import User, UserCreate, UserRole
 
@@ -41,5 +42,7 @@ def init_db(session: Session) -> None:
     _seed_departments(session)
     # Seed cost element types
     _seed_cost_element_types(session)
+    # Seed variance threshold configurations (no dependencies)
+    _seed_variance_threshold_configs(session)
     # Seed project from template (depends on departments, cost element types, and user)
     _seed_project_from_template(session)

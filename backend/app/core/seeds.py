@@ -31,6 +31,9 @@ from app.models import (
     ProjectCreate,
     QualityEvent,
     User,
+    VarianceThresholdConfig,
+    VarianceThresholdConfigCreate,
+    VarianceThresholdType,
     WBECreate,
 )
 
@@ -535,5 +538,52 @@ def _seed_project_from_template(session: Session) -> None:
                         updated_field="last_modified_at",
                     )
                     session.add(earned_value_entry)
+
+    session.commit()
+
+
+def _seed_variance_threshold_configs(session: Session) -> None:
+    """Seed default variance threshold configurations if they don't exist."""
+    default_configs = [
+        {
+            "threshold_type": VarianceThresholdType.critical_cv,
+            "threshold_percentage": Decimal("-10.00"),
+            "description": "Critical cost variance threshold",
+            "is_active": True,
+        },
+        {
+            "threshold_type": VarianceThresholdType.warning_cv,
+            "threshold_percentage": Decimal("-5.00"),
+            "description": "Warning cost variance threshold",
+            "is_active": True,
+        },
+        {
+            "threshold_type": VarianceThresholdType.critical_sv,
+            "threshold_percentage": Decimal("-10.00"),
+            "description": "Critical schedule variance threshold",
+            "is_active": True,
+        },
+        {
+            "threshold_type": VarianceThresholdType.warning_sv,
+            "threshold_percentage": Decimal("-5.00"),
+            "description": "Warning schedule variance threshold",
+            "is_active": True,
+        },
+    ]
+
+    for config_data in default_configs:
+        # Check if active configuration of this type already exists
+        existing = session.exec(
+            select(VarianceThresholdConfig).where(
+                VarianceThresholdConfig.threshold_type == config_data["threshold_type"],
+                VarianceThresholdConfig.is_active == True,  # noqa: E712
+            )
+        ).first()
+
+        if not existing:
+            # Create new configuration
+            config_in = VarianceThresholdConfigCreate(**config_data)
+            config = VarianceThresholdConfig.model_validate(config_in)
+            session.add(config)
 
     session.commit()

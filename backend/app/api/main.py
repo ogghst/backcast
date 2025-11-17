@@ -22,6 +22,8 @@ from app.api.routes import (
     projects,
     users,
     utils,
+    variance_analysis_report,
+    variance_threshold_config,
     wbes,
 )
 from app.core.config import settings
@@ -48,6 +50,8 @@ api_router.include_router(evm_indices.router)
 api_router.include_router(evm_aggregation.router)
 api_router.include_router(baseline_logs.router)
 api_router.include_router(cost_performance_report.router)
+api_router.include_router(variance_analysis_report.router)
+api_router.include_router(variance_threshold_config.router)
 
 
 if settings.ENVIRONMENT == "local":
