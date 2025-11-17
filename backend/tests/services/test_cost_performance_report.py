@@ -149,15 +149,16 @@ def test_get_cost_performance_report_single_cost_element(db: Session) -> None:
     db.refresh(cr)
 
     # Create earned value entry
+    from tests.utils.earned_value_entry import create_earned_value_entry
 
-    # ev = create_earned_value_entry(
-    #    db,
-    #    cost_element_id=ce.cost_element_id,
-    #    completion_date=date(2024, 6, 15),
-    #    percent_complete=Decimal("50.00"),  # 50% as percentage (not decimal)
-    #    description="50% complete",
-    #    created_by_id=pm_user.id,
-    # )
+    create_earned_value_entry(
+        db,
+        cost_element_id=ce.cost_element_id,
+        completion_date=date(2024, 6, 15),
+        percent_complete=Decimal("50.00"),  # 50% completion
+        description="50% complete",
+        created_by_id=pm_user.id,
+    )
 
     # Use a control date in the future to include all created items
     control_date = date(2025, 12, 31)  # Future date to include all items
