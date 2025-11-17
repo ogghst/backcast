@@ -87,6 +87,7 @@ This project follows an agile development methodology with a planned 12-week MVP
     - 🤖 An automatically generated frontend client.
     - 🧪 [Playwright](https://playwright.dev) for End-to-End testing.
     - 🦇 Dark mode support.
+    - [Langchain and Langgraph](https://www.langchain.com/) for AI-Driven Project Assessment
 - 🐋 [Docker Compose](https://www.docker.com) for development and production.
 - 🔒 Secure password hashing by default.
 - 🔑 JWT (JSON Web Token) authentication.
