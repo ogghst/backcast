@@ -124,16 +124,22 @@ root@7f2607af31c3:/app#
 
 that means that you are in a `bash` session inside your container, as a `root` user, under the `/app` directory, this directory has another directory called "app" inside, that's where your code lives inside the container: `/app/app`.
 
-There you can use the `fastapi run --reload` command to run the debug live reloading server.
+There you can use the `fastapi run --reload` command to run the debug live reloading server. The default port is 8010 (set via PORT environment variable).
 
 ```console
-$ fastapi run --reload app/main.py
+$ fastapi run --reload --port 8010 app/main.py
+```
+
+Or use the helper script:
+
+```console
+$ bash scripts/run-dev.sh
 ```
 
 ...it will look like:
 
 ```console
-root@7f2607af31c3:/app# fastapi run --reload app/main.py
+root@7f2607af31c3:/app# fastapi run --reload --port 8010 app/main.py
 ```
 
 and then hit enter. That runs the live reloading server that auto reloads when it detects code changes.

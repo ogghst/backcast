@@ -142,15 +142,17 @@ export default function VarianceTrendChart({
           label: (context) => {
             const label = context.dataset.label || ""
             const value = context.parsed.y || 0
-            const point = trend.trend_points[context.dataIndex]
+            const point = trend.trend_points?.[context.dataIndex]
             let cvPercentage = "N/A"
             let svPercentage = "N/A"
 
-            if (label.includes("CV") && point.cv_percentage !== null) {
-              cvPercentage = `${Number(point.cv_percentage).toFixed(2)}%`
-            }
-            if (label.includes("SV") && point.sv_percentage !== null) {
-              svPercentage = `${Number(point.sv_percentage).toFixed(2)}%`
+            if (point) {
+              if (label.includes("CV") && point.cv_percentage !== null) {
+                cvPercentage = `${Number(point.cv_percentage).toFixed(2)}%`
+              }
+              if (label.includes("SV") && point.sv_percentage !== null) {
+                svPercentage = `${Number(point.sv_percentage).toFixed(2)}%`
+              }
             }
 
             return `${label}: €${value.toLocaleString("en-US", {

@@ -58,15 +58,14 @@ services:
   backend:
     restart: "no"
     ports:
-      - "8010:8000"
+      - "8010:8010"
     build:
       context: ./backend
     # command: sleep infinity  # Infinite loop to keep container alive doing nothing
     command:
-      - fastapi
-      - run
-      - --reload
-      - "app/main.py"
+      - sh
+      - -c
+      - "fastapi run --reload --port 8010 app/main.py"
     develop:
       watch:
         - path: ./backend

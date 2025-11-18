@@ -582,7 +582,7 @@ export default function VarianceAnalysisReport({
             <Text fontSize="xs" color={mutedText}>
               of{" "}
               {report.rows.length +
-                (showOnlyProblems ? 0 : report.total_problem_areas)}{" "}
+                (showOnlyProblems ? 0 : (report.total_problem_areas ?? 0))}{" "}
               cost elements
             </Text>
           </Box>
@@ -600,7 +600,14 @@ export default function VarianceAnalysisReport({
             <Text
               fontSize={{ base: "xl", md: "2xl" }}
               fontWeight="bold"
-              color={summary.cost_variance < 0 ? "red.500" : "green.500"}
+              color={(() => {
+                const cv = summary.cost_variance
+                if (cv === null || cv === undefined) return "gray.500"
+                const numCv = typeof cv === "string" ? Number(cv) : cv
+                return Number.isNaN(numCv) || numCv < 0
+                  ? "red.500"
+                  : "green.500"
+              })()}
             >
               {formatCurrency(summary.cost_variance)}
             </Text>
@@ -619,7 +626,14 @@ export default function VarianceAnalysisReport({
             <Text
               fontSize={{ base: "xl", md: "2xl" }}
               fontWeight="bold"
-              color={summary.schedule_variance < 0 ? "red.500" : "green.500"}
+              color={(() => {
+                const sv = summary.schedule_variance
+                if (sv === null || sv === undefined) return "gray.500"
+                const numSv = typeof sv === "string" ? Number(sv) : sv
+                return Number.isNaN(numSv) || numSv < 0
+                  ? "red.500"
+                  : "green.500"
+              })()}
             >
               {formatCurrency(summary.schedule_variance)}
             </Text>
@@ -675,7 +689,9 @@ export default function VarianceAnalysisReport({
           <Flex alignItems="center" gap={2}>
             <Checkbox
               checked={showOnlyProblems}
-              onCheckedChange={({ checked }) => setShowOnlyProblems(checked)}
+              onCheckedChange={({ checked }) =>
+                setShowOnlyProblems(checked === true)
+              }
             >
               Show only problem areas
             </Checkbox>
