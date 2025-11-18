@@ -1,4 +1,4 @@
-FROM python:3.10
+FROM python:3.12
 
 ENV PYTHONUNBUFFERED=1
 
@@ -28,6 +28,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project
 
 ENV PYTHONPATH=/app
+ENV PORT=8010
 
 COPY ./scripts /app/scripts
 
@@ -41,4 +42,4 @@ COPY ./tests /app/tests
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync
 
-CMD ["fastapi", "run", "--workers", "4", "app/main.py"]
+CMD ["sh", "-c", "fastapi run --workers 4 --port ${PORT:-8010} app/main.py"]
