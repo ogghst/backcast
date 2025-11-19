@@ -22,6 +22,7 @@ import { Route as LayoutProjectsIdRouteImport } from './routes/_layout/projects.
 import { Route as LayoutProjectsIdBudgetTimelineRouteImport } from './routes/_layout/projects.$id.budget-timeline'
 import { Route as LayoutProjectsIdWbesWbeIdRouteImport } from './routes/_layout/projects.$id.wbes.$wbeId'
 import { Route as LayoutProjectsIdReportsVarianceAnalysisRouteImport } from './routes/_layout/projects.$id.reports.variance-analysis'
+import { Route as LayoutProjectsIdReportsProjectPerformanceDashboardRouteImport } from './routes/_layout/projects.$id.reports.project-performance-dashboard'
 import { Route as LayoutProjectsIdReportsCostPerformanceRouteImport } from './routes/_layout/projects.$id.reports.cost-performance'
 import { Route as LayoutProjectsIdWbesWbeIdCostElementsCostElementIdRouteImport } from './routes/_layout/projects.$id.wbes.$wbeId.cost-elements.$costElementId'
 
@@ -92,6 +93,12 @@ const LayoutProjectsIdReportsVarianceAnalysisRoute =
     path: '/reports/variance-analysis',
     getParentRoute: () => LayoutProjectsIdRoute,
   } as any)
+const LayoutProjectsIdReportsProjectPerformanceDashboardRoute =
+  LayoutProjectsIdReportsProjectPerformanceDashboardRouteImport.update({
+    id: '/reports/project-performance-dashboard',
+    path: '/reports/project-performance-dashboard',
+    getParentRoute: () => LayoutProjectsIdRoute,
+  } as any)
 const LayoutProjectsIdReportsCostPerformanceRoute =
   LayoutProjectsIdReportsCostPerformanceRouteImport.update({
     id: '/reports/cost-performance',
@@ -117,6 +124,7 @@ export interface FileRoutesByFullPath {
   '/projects/$id': typeof LayoutProjectsIdRouteWithChildren
   '/projects/$id/budget-timeline': typeof LayoutProjectsIdBudgetTimelineRoute
   '/projects/$id/reports/cost-performance': typeof LayoutProjectsIdReportsCostPerformanceRoute
+  '/projects/$id/reports/project-performance-dashboard': typeof LayoutProjectsIdReportsProjectPerformanceDashboardRoute
   '/projects/$id/reports/variance-analysis': typeof LayoutProjectsIdReportsVarianceAnalysisRoute
   '/projects/$id/wbes/$wbeId': typeof LayoutProjectsIdWbesWbeIdRouteWithChildren
   '/projects/$id/wbes/$wbeId/cost-elements/$costElementId': typeof LayoutProjectsIdWbesWbeIdCostElementsCostElementIdRoute
@@ -133,6 +141,7 @@ export interface FileRoutesByTo {
   '/projects/$id': typeof LayoutProjectsIdRouteWithChildren
   '/projects/$id/budget-timeline': typeof LayoutProjectsIdBudgetTimelineRoute
   '/projects/$id/reports/cost-performance': typeof LayoutProjectsIdReportsCostPerformanceRoute
+  '/projects/$id/reports/project-performance-dashboard': typeof LayoutProjectsIdReportsProjectPerformanceDashboardRoute
   '/projects/$id/reports/variance-analysis': typeof LayoutProjectsIdReportsVarianceAnalysisRoute
   '/projects/$id/wbes/$wbeId': typeof LayoutProjectsIdWbesWbeIdRouteWithChildren
   '/projects/$id/wbes/$wbeId/cost-elements/$costElementId': typeof LayoutProjectsIdWbesWbeIdCostElementsCostElementIdRoute
@@ -151,6 +160,7 @@ export interface FileRoutesById {
   '/_layout/projects/$id': typeof LayoutProjectsIdRouteWithChildren
   '/_layout/projects/$id/budget-timeline': typeof LayoutProjectsIdBudgetTimelineRoute
   '/_layout/projects/$id/reports/cost-performance': typeof LayoutProjectsIdReportsCostPerformanceRoute
+  '/_layout/projects/$id/reports/project-performance-dashboard': typeof LayoutProjectsIdReportsProjectPerformanceDashboardRoute
   '/_layout/projects/$id/reports/variance-analysis': typeof LayoutProjectsIdReportsVarianceAnalysisRoute
   '/_layout/projects/$id/wbes/$wbeId': typeof LayoutProjectsIdWbesWbeIdRouteWithChildren
   '/_layout/projects/$id/wbes/$wbeId/cost-elements/$costElementId': typeof LayoutProjectsIdWbesWbeIdCostElementsCostElementIdRoute
@@ -169,6 +179,7 @@ export interface FileRouteTypes {
     | '/projects/$id'
     | '/projects/$id/budget-timeline'
     | '/projects/$id/reports/cost-performance'
+    | '/projects/$id/reports/project-performance-dashboard'
     | '/projects/$id/reports/variance-analysis'
     | '/projects/$id/wbes/$wbeId'
     | '/projects/$id/wbes/$wbeId/cost-elements/$costElementId'
@@ -185,6 +196,7 @@ export interface FileRouteTypes {
     | '/projects/$id'
     | '/projects/$id/budget-timeline'
     | '/projects/$id/reports/cost-performance'
+    | '/projects/$id/reports/project-performance-dashboard'
     | '/projects/$id/reports/variance-analysis'
     | '/projects/$id/wbes/$wbeId'
     | '/projects/$id/wbes/$wbeId/cost-elements/$costElementId'
@@ -202,6 +214,7 @@ export interface FileRouteTypes {
     | '/_layout/projects/$id'
     | '/_layout/projects/$id/budget-timeline'
     | '/_layout/projects/$id/reports/cost-performance'
+    | '/_layout/projects/$id/reports/project-performance-dashboard'
     | '/_layout/projects/$id/reports/variance-analysis'
     | '/_layout/projects/$id/wbes/$wbeId'
     | '/_layout/projects/$id/wbes/$wbeId/cost-elements/$costElementId'
@@ -308,6 +321,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutProjectsIdReportsVarianceAnalysisRouteImport
       parentRoute: typeof LayoutProjectsIdRoute
     }
+    '/_layout/projects/$id/reports/project-performance-dashboard': {
+      id: '/_layout/projects/$id/reports/project-performance-dashboard'
+      path: '/reports/project-performance-dashboard'
+      fullPath: '/projects/$id/reports/project-performance-dashboard'
+      preLoaderRoute: typeof LayoutProjectsIdReportsProjectPerformanceDashboardRouteImport
+      parentRoute: typeof LayoutProjectsIdRoute
+    }
     '/_layout/projects/$id/reports/cost-performance': {
       id: '/_layout/projects/$id/reports/cost-performance'
       path: '/reports/cost-performance'
@@ -343,6 +363,7 @@ const LayoutProjectsIdWbesWbeIdRouteWithChildren =
 interface LayoutProjectsIdRouteChildren {
   LayoutProjectsIdBudgetTimelineRoute: typeof LayoutProjectsIdBudgetTimelineRoute
   LayoutProjectsIdReportsCostPerformanceRoute: typeof LayoutProjectsIdReportsCostPerformanceRoute
+  LayoutProjectsIdReportsProjectPerformanceDashboardRoute: typeof LayoutProjectsIdReportsProjectPerformanceDashboardRoute
   LayoutProjectsIdReportsVarianceAnalysisRoute: typeof LayoutProjectsIdReportsVarianceAnalysisRoute
   LayoutProjectsIdWbesWbeIdRoute: typeof LayoutProjectsIdWbesWbeIdRouteWithChildren
 }
@@ -351,6 +372,8 @@ const LayoutProjectsIdRouteChildren: LayoutProjectsIdRouteChildren = {
   LayoutProjectsIdBudgetTimelineRoute: LayoutProjectsIdBudgetTimelineRoute,
   LayoutProjectsIdReportsCostPerformanceRoute:
     LayoutProjectsIdReportsCostPerformanceRoute,
+  LayoutProjectsIdReportsProjectPerformanceDashboardRoute:
+    LayoutProjectsIdReportsProjectPerformanceDashboardRoute,
   LayoutProjectsIdReportsVarianceAnalysisRoute:
     LayoutProjectsIdReportsVarianceAnalysisRoute,
   LayoutProjectsIdWbesWbeIdRoute: LayoutProjectsIdWbesWbeIdRouteWithChildren,

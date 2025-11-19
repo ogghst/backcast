@@ -1,10 +1,19 @@
-import { Badge, Container, Flex, Heading, Table } from "@chakra-ui/react"
+import {
+  Badge,
+  Box,
+  Container,
+  Flex,
+  Heading,
+  Stack,
+  Table,
+} from "@chakra-ui/react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, useNavigate } from "@tanstack/react-router"
 import { z } from "zod"
 
 import { type UserPublic, UsersService } from "@/client"
 import AddUser from "@/components/Admin/AddUser"
+import VarianceThresholdsManager from "@/components/Admin/VarianceThresholdsManager"
 import { UserActionsMenu } from "@/components/Common/UserActionsMenu"
 import PendingUsers from "@/components/Pending/PendingUsers"
 import {
@@ -125,12 +134,19 @@ function UsersTable() {
 function Admin() {
   return (
     <Container maxW="full">
-      <Heading size="lg" pt={12}>
-        Users Management
-      </Heading>
+      <Stack gap={8} pt={12}>
+        <Box>
+          <Heading size="lg" mb={4}>
+            Users Management
+          </Heading>
+          <AddUser />
+          <UsersTable />
+        </Box>
 
-      <AddUser />
-      <UsersTable />
+        <Box>
+          <VarianceThresholdsManager />
+        </Box>
+      </Stack>
     </Container>
   )
 }

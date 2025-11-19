@@ -22,7 +22,7 @@ export function ColumnVisibilityMenu<TData>({
 }: ColumnVisibilityMenuProps<TData>) {
   return (
     <MenuRoot>
-      <MenuTrigger>
+      <MenuTrigger asChild>
         <IconButton aria-label="Column settings" variant="ghost" size="sm">
           <FiSettings />
         </IconButton>

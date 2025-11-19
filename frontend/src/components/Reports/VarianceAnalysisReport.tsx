@@ -1,6 +1,8 @@
 import {
   Badge,
   Box,
+  Button,
+  Collapsible,
   Flex,
   Heading,
   HStack,
@@ -12,18 +14,23 @@ import {
 } from "@chakra-ui/react"
 import { useQuery } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   FiAlertCircle,
+  FiChevronDown,
+  FiChevronUp,
   FiHelpCircle,
   FiMinus,
   FiTrendingDown,
   FiTrendingUp,
 } from "react-icons/fi"
 import {
+  type CostElementPublic,
+  CostElementsService,
   ReportsService,
   type VarianceAnalysisReportPublic,
   type VarianceAnalysisReportRowPublic,
+  WbesService,
 } from "@/client"
 import { DataTable } from "@/components/DataTable/DataTable"
 import type { ColumnDefExtended } from "@/components/DataTable/types"
@@ -477,6 +484,61 @@ export default function VarianceAnalysisReport({
   // Filter and sort state
   const [showOnlyProblems, setShowOnlyProblems] = useState(true)
   const [sortBy, setSortBy] = useState<"cv" | "sv">("cv")
+  const [selectedWbeIds, setSelectedWbeIds] = useState<string[]>([])
+  const [selectedCostElementIds, setSelectedCostElementIds] = useState<
+    string[]
+  >([])
+  const [isWbeSectionOpen, setIsWbeSectionOpen] = useState(false)
+  const [isCostElementSectionOpen, setIsCostElementSectionOpen] =
+    useState(false)
+
+  // Fetch WBEs for filtering
+  const { data: wbeResponse } = useQuery({
+    queryKey: ["report-wbes", projectId, controlDate],
+    queryFn: () =>
+      WbesService.readWbes({
+        projectId: projectId,
+        skip: 0,
+        limit: 1000,
+      }),
+    enabled: !!projectId,
+  })
+
+  const wbes = wbeResponse?.data ?? []
+
+  // Fetch cost elements for filtering (all cost elements from all WBEs in project)
+  const { data: costElements = [] } = useQuery<CostElementPublic[]>({
+    queryKey: [
+      "report-cost-elements",
+      projectId,
+      wbes.map((w) => w.wbe_id).join(","),
+      controlDate,
+    ],
+    enabled: !!projectId && wbes.length > 0,
+    queryFn: async () => {
+      const responses = await Promise.all(
+        wbes.map((wbe) =>
+          CostElementsService.readCostElements({
+            wbeId: wbe.wbe_id,
+          }),
+        ),
+      )
+      return responses.flatMap((resp) => resp.data ?? [])
+    },
+  })
+
+  const wbeLookup = useMemo(() => {
+    const lookup: Record<string, string> = {}
+    for (const wbe of wbes) {
+      lookup[wbe.wbe_id] = wbe.machine_type || `WBE ${wbe.wbe_id.slice(0, 4)}`
+    }
+    return lookup
+  }, [wbes])
+
+  const clearFilters = () => {
+    setSelectedWbeIds([])
+    setSelectedCostElementIds([])
+  }
 
   const queryKey = [
     "variance-analysis-report",
@@ -502,6 +564,54 @@ export default function VarianceAnalysisReport({
       }),
     enabled: !!projectId,
   })
+
+  // Normalize filter arrays for consistent filtering
+  const normalizedWbeIds = useMemo(() => {
+    return selectedWbeIds.length > 0 ? [...selectedWbeIds].sort() : undefined
+  }, [selectedWbeIds])
+
+  const normalizedCostElementIds = useMemo(() => {
+    return selectedCostElementIds.length > 0
+      ? [...selectedCostElementIds].sort()
+      : undefined
+  }, [selectedCostElementIds])
+
+  // Filter rows client-side based on selected WBE and/or cost element
+  const filteredRows = useMemo(() => {
+    if (!report?.rows) {
+      return []
+    }
+    let rows = report.rows
+
+    // Apply WBE filter if selected
+    if (normalizedWbeIds && normalizedWbeIds.length > 0) {
+      rows = rows.filter((row) => normalizedWbeIds.includes(row.wbe_id))
+    }
+
+    // Apply cost element filter if selected
+    if (normalizedCostElementIds && normalizedCostElementIds.length > 0) {
+      rows = rows.filter((row) =>
+        normalizedCostElementIds.includes(row.cost_element_id),
+      )
+    }
+
+    return rows
+  }, [report?.rows, normalizedWbeIds, normalizedCostElementIds])
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1)
+  }, [])
+
+  // Recalculate pagination for filtered rows
+  const paginatedRows = useMemo(() => {
+    const start = (page - 1) * pageSize
+    const end = start + pageSize
+    return filteredRows.slice(start, end)
+  }, [filteredRows, page])
+
+  const hasFiltersApplied =
+    selectedWbeIds.length > 0 || selectedCostElementIds.length > 0
 
   // Loading state
   if (isLoading) {
@@ -563,6 +673,186 @@ export default function VarianceAnalysisReport({
           </Box>
         </HStack>
 
+        {/* Filter Section */}
+        <Box borderWidth="1px" borderRadius="lg" p={4} bg={surfaceBg}>
+          <Heading size="sm" mb={3}>
+            Filters
+          </Heading>
+          <Stack gap={4}>
+            {/* Collapsible WBE Filter Section */}
+            <Box
+              borderWidth="1px"
+              borderRadius="md"
+              borderColor="border.subtle"
+            >
+              <Collapsible.Root
+                open={isWbeSectionOpen}
+                onOpenChange={(event) => setIsWbeSectionOpen(event.open)}
+              >
+                <Collapsible.Trigger asChild>
+                  <Button
+                    variant="ghost"
+                    justifyContent="space-between"
+                    width="100%"
+                    px={4}
+                    py={3}
+                  >
+                    <Flex justify="space-between" align="center" width="100%">
+                      <HStack gap={2} align="center">
+                        {isWbeSectionOpen ? <FiChevronUp /> : <FiChevronDown />}
+                        <Text fontWeight="medium">Work Breakdown Elements</Text>
+                      </HStack>
+                      <Text fontSize="sm" color={mutedText}>
+                        {selectedWbeIds.length > 0
+                          ? `${selectedWbeIds.length} selected`
+                          : "None selected"}
+                      </Text>
+                    </Flex>
+                  </Button>
+                </Collapsible.Trigger>
+                <Collapsible.Content>
+                  <Box px={4} pb={4}>
+                    {wbes.length === 0 ? (
+                      <Text color={mutedText}>
+                        No WBEs available for this project.
+                      </Text>
+                    ) : (
+                      <Stack gap={1}>
+                        {wbes.map((wbe) => {
+                          const isChecked = selectedWbeIds.includes(wbe.wbe_id)
+                          return (
+                            <Checkbox
+                              key={wbe.wbe_id}
+                              checked={isChecked}
+                              onCheckedChange={({ checked }) => {
+                                if (checked) {
+                                  setSelectedWbeIds([
+                                    ...selectedWbeIds,
+                                    wbe.wbe_id,
+                                  ])
+                                } else {
+                                  setSelectedWbeIds(
+                                    selectedWbeIds.filter(
+                                      (id) => id !== wbe.wbe_id,
+                                    ),
+                                  )
+                                }
+                              }}
+                            >
+                              {wbeLookup[wbe.wbe_id]}
+                            </Checkbox>
+                          )
+                        })}
+                      </Stack>
+                    )}
+                  </Box>
+                </Collapsible.Content>
+              </Collapsible.Root>
+            </Box>
+
+            {/* Collapsible Cost Element Filter Section */}
+            <Box
+              borderWidth="1px"
+              borderRadius="md"
+              borderColor="border.subtle"
+            >
+              <Collapsible.Root
+                open={isCostElementSectionOpen}
+                onOpenChange={(event) =>
+                  setIsCostElementSectionOpen(event.open)
+                }
+              >
+                <Collapsible.Trigger asChild>
+                  <Button
+                    variant="ghost"
+                    justifyContent="space-between"
+                    width="100%"
+                    px={4}
+                    py={3}
+                  >
+                    <Flex justify="space-between" align="center" width="100%">
+                      <HStack gap={2} align="center">
+                        {isCostElementSectionOpen ? (
+                          <FiChevronUp />
+                        ) : (
+                          <FiChevronDown />
+                        )}
+                        <Text fontWeight="medium">Cost Elements</Text>
+                      </HStack>
+                      <Text fontSize="sm" color={mutedText}>
+                        {selectedCostElementIds.length > 0
+                          ? `${selectedCostElementIds.length} selected`
+                          : "None selected"}
+                      </Text>
+                    </Flex>
+                  </Button>
+                </Collapsible.Trigger>
+                <Collapsible.Content>
+                  <Box px={4} pb={4}>
+                    {costElements.length === 0 ? (
+                      <Text color={mutedText}>
+                        No cost elements available for this project.
+                      </Text>
+                    ) : (
+                      <Stack gap={1} maxH="300px" overflowY="auto">
+                        {costElements.map((element) => {
+                          const isChecked = selectedCostElementIds.includes(
+                            element.cost_element_id,
+                          )
+                          return (
+                            <Checkbox
+                              key={element.cost_element_id}
+                              checked={isChecked}
+                              onCheckedChange={({ checked }) => {
+                                if (checked) {
+                                  setSelectedCostElementIds([
+                                    ...selectedCostElementIds,
+                                    element.cost_element_id,
+                                  ])
+                                } else {
+                                  setSelectedCostElementIds(
+                                    selectedCostElementIds.filter(
+                                      (id) => id !== element.cost_element_id,
+                                    ),
+                                  )
+                                }
+                              }}
+                            >
+                              {element.department_name ||
+                                element.department_code ||
+                                element.cost_element_id}
+                              {element.wbe_id ? (
+                                <Text
+                                  as="span"
+                                  ml={2}
+                                  fontSize="xs"
+                                  color={mutedText}
+                                >
+                                  ({wbeLookup[element.wbe_id] || element.wbe_id}
+                                  )
+                                </Text>
+                              ) : null}
+                            </Checkbox>
+                          )
+                        })}
+                      </Stack>
+                    )}
+                  </Box>
+                </Collapsible.Content>
+              </Collapsible.Root>
+            </Box>
+
+            <Button
+              variant="outline"
+              onClick={clearFilters}
+              disabled={!hasFiltersApplied}
+              alignSelf="flex-start"
+            >
+              Clear Filters
+            </Button>
+          </Stack>
+        </Box>
+
         {/* Summary Section */}
         <Flex gap={{ base: 2, md: 4 }} wrap="wrap">
           <Box
@@ -580,10 +870,12 @@ export default function VarianceAnalysisReport({
               {report.total_problem_areas}
             </Text>
             <Text fontSize="xs" color={mutedText}>
-              of{" "}
-              {report.rows.length +
-                (showOnlyProblems ? 0 : (report.total_problem_areas ?? 0))}{" "}
-              cost elements
+              {hasFiltersApplied
+                ? `Showing ${filteredRows.length} of ${report.rows.length} cost elements`
+                : `of ${
+                    report.rows.length +
+                    (showOnlyProblems ? 0 : (report.total_problem_areas ?? 0))
+                  } cost elements`}
             </Text>
           </Box>
           <Box
@@ -716,10 +1008,10 @@ export default function VarianceAnalysisReport({
         </HStack>
 
         <DataTable
-          data={report.rows || []}
+          data={paginatedRows}
           columns={reportColumns}
           tableId="variance-analysis-report"
-          count={report.rows?.length || 0}
+          count={filteredRows.length}
           page={page}
           onPageChange={setPage}
           pageSize={pageSize}

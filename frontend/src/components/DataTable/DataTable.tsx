@@ -1,4 +1,4 @@
-import { Box, Flex, Table } from "@chakra-ui/react"
+import { Flex, Table } from "@chakra-ui/react"
 import {
   flexRender,
   getCoreRowModel,
@@ -105,55 +105,49 @@ export function DataTable<TData>({
           {table.getHeaderGroups().map((headerGroup) => (
             <Table.Row key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
-                <Box
-                  as="th"
+                <Table.ColumnHeader
                   key={header.id}
                   position="relative"
                   w={`${header.getSize()}px`}
+                  cursor={header.column.getCanSort() ? "pointer" : "default"}
+                  userSelect="none"
+                  onClick={header.column.getToggleSortingHandler()}
+                  _hover={
+                    header.column.getCanSort() ? { bg: "bg.subtle" } : undefined
+                  }
                 >
-                  <Table.ColumnHeader
-                    cursor={header.column.getCanSort() ? "pointer" : "default"}
-                    userSelect="none"
-                    onClick={header.column.getToggleSortingHandler()}
-                    _hover={
-                      header.column.getCanSort()
-                        ? { bg: "bg.subtle" }
-                        : undefined
-                    }
-                  >
-                    <Flex alignItems="center" gap={2}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                      {header.column.getCanSort() && (
-                        <Flex direction="column" gap={0}>
-                          <FiChevronUp
-                            size={12}
-                            color={
-                              header.column.getIsSorted() === "asc"
-                                ? "currentColor"
-                                : "fg.muted"
-                            }
-                          />
-                          <FiChevronDown
-                            size={12}
-                            color={
-                              header.column.getIsSorted() === "desc"
-                                ? "currentColor"
-                                : "fg.muted"
-                            }
-                          />
-                        </Flex>
-                      )}
-                    </Flex>
-                  </Table.ColumnHeader>
+                  <Flex alignItems="center" gap={2}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
+                    {header.column.getCanSort() && (
+                      <Flex direction="column" gap={0}>
+                        <FiChevronUp
+                          size={12}
+                          color={
+                            header.column.getIsSorted() === "asc"
+                              ? "currentColor"
+                              : "fg.muted"
+                          }
+                        />
+                        <FiChevronDown
+                          size={12}
+                          color={
+                            header.column.getIsSorted() === "desc"
+                              ? "currentColor"
+                              : "fg.muted"
+                          }
+                        />
+                      </Flex>
+                    )}
+                  </Flex>
                   {header.column.getCanResize() && (
                     <ColumnResizer header={header} />
                   )}
-                </Box>
+                </Table.ColumnHeader>
               ))}
             </Table.Row>
           ))}

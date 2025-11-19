@@ -415,6 +415,19 @@ function ProjectDetail() {
                     View Cost Performance Report →
                   </Text>
                 </Link>
+                <Link
+                  to="/projects/$id/reports/project-performance-dashboard"
+                  params={{ id: project.project_id } as any}
+                  search={{} as any}
+                >
+                  <Text
+                    fontSize="sm"
+                    color="blue.500"
+                    _hover={{ textDecoration: "underline" }}
+                  >
+                    View Project Performance Dashboard →
+                  </Text>
+                </Link>
               </Flex>
             </Flex>
             <MetricsSummary level="project" projectId={project.project_id} />
