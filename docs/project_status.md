@@ -226,6 +226,7 @@ The MVP development is structured across six two-week sprints, each building on 
 - ✅ E4-009: Project Performance Dashboard (with enhancements: cost element type filtering and drilldown column)
 - E4-010: Report Export Functionality (CSV, Excel)
 - E4-011: Report Filtering and Date Range Selection
+- E4-012: AI Assisted evaluation
 
 **Deliverables:** Detailed reports for analysis and visual dashboards for quick status assessment, making performance information easily accessible and understandable.
 

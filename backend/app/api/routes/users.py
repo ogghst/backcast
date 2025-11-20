@@ -13,6 +13,7 @@ from app.api.deps import (
     get_time_machine_control_date,
 )
 from app.core.config import settings
+from app.core.encryption import encrypt_api_key
 from app.core.security import get_password_hash, verify_password
 from app.models import (
     Message,
@@ -94,11 +95,30 @@ def update_user_me(
                 status_code=409, detail="User with this email already exists"
             )
     user_data = user_in.model_dump(exclude_unset=True)
-    current_user.sqlmodel_update(user_data)
+
+    # Handle OpenAI API key encryption
+    plain_key = user_data.pop("openai_api_key", None)
+    if plain_key is not None:  # Explicitly check if key was provided
+        if plain_key:
+            # Encrypt API key before storage
+            user_data["openai_api_key_encrypted"] = encrypt_api_key(plain_key)
+        else:
+            # Empty string means clear the API key
+            user_data["openai_api_key_encrypted"] = None
+
+    # Update user with all fields (explicitly set each field)
+    for key, value in user_data.items():
+        if hasattr(current_user, key):
+            setattr(current_user, key, value)
     session.add(current_user)
     session.commit()
     session.refresh(current_user)
-    return current_user
+
+    # Return user (FastAPI will serialize according to response_model=UserPublic)
+    # Exclude encrypted API key from response
+    user_dict = current_user.model_dump()
+    user_dict.pop("openai_api_key_encrypted", None)
+    return UserPublic.model_validate(user_dict)
 
 
 @router.patch("/me/password", response_model=Message)
@@ -223,6 +243,7 @@ def update_user(
     session: SessionDep,
     user_id: uuid.UUID,
     user_in: UserUpdate,
+    _current_user: Annotated[User, Depends(get_current_active_admin)],
 ) -> Any:
     """
     Update a user.

@@ -29,6 +29,8 @@ class UserBase(SQLModel):
     department: str | None = Field(default=None, max_length=100)
     full_name: str | None = Field(default=None, max_length=200)
     time_machine_date: date | None = Field(default=None)
+    openai_base_url: str | None = Field(default=None, max_length=500)
+    openai_api_key_encrypted: str | None = Field(default=None)
 
 
 # Properties to receive via API on creation
@@ -53,6 +55,9 @@ class UserUpdate(UserBase):
     email: EmailStr | None = Field(default=None, max_length=200)  # type: ignore
     role: UserRole | None = None
     password: str | None = Field(default=None, min_length=8, max_length=128)
+    openai_api_key: str | None = Field(
+        default=None, description="Plain text API key (will be encrypted)"
+    )
 
 
 class UserUpdateMe(SQLModel):
@@ -60,6 +65,10 @@ class UserUpdateMe(SQLModel):
 
     full_name: str | None = Field(default=None, max_length=200)
     email: EmailStr | None = Field(default=None, max_length=200)
+    openai_base_url: str | None = Field(default=None, max_length=500)
+    openai_api_key: str | None = Field(
+        default=None, description="Plain text API key (will be encrypted)"
+    )
 
 
 class UpdatePassword(SQLModel):
@@ -78,6 +87,7 @@ class User(UserBase, table=True):
     time_machine_date: date | None = Field(
         default=None, sa_column=Column(Date, nullable=True)
     )
+    # Note: openai_base_url and openai_api_key_encrypted are inherited from UserBase
     created_at: datetime = Field(
         default_factory=datetime.utcnow,
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -93,6 +103,8 @@ class UserPublic(UserBase):
     """Public user schema for API responses."""
 
     id: uuid.UUID
+    # Override to exclude from response
+    openai_api_key_encrypted: None = Field(default=None, exclude=True)  # type: ignore
 
 
 class UsersPublic(SQLModel):

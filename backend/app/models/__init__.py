@@ -7,6 +7,14 @@ It imports all models to ensure SQLModel metadata is properly registered.
 
 from sqlmodel import Field, SQLModel
 
+from app.models.app_configuration import (
+    AppConfiguration,
+    AppConfigurationBase,
+    AppConfigurationCreate,
+    AppConfigurationPublic,
+    AppConfigurationsPublic,
+    AppConfigurationUpdate,
+)
 from app.models.audit_log import (
     AuditLog,
     AuditLogBase,
@@ -255,6 +263,13 @@ __all__ = [
     "DepartmentCreate",
     "DepartmentPublic",
     "DepartmentUpdate",
+    # App Configuration models
+    "AppConfiguration",
+    "AppConfigurationBase",
+    "AppConfigurationCreate",
+    "AppConfigurationPublic",
+    "AppConfigurationsPublic",
+    "AppConfigurationUpdate",
     # Cost Element Type models
     "CostElementType",
     "CostElementTypeBase",

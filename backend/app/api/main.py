@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    ai_chat,
+    app_configuration,
     baseline_logs,
     budget_summary,
     budget_timeline,
@@ -31,6 +33,8 @@ from app.core.config import settings
 api_router = APIRouter()
 api_router.include_router(login.router)
 api_router.include_router(users.router)
+api_router.include_router(ai_chat.router)
+api_router.include_router(app_configuration.router)
 api_router.include_router(utils.router)
 api_router.include_router(projects.router)
 api_router.include_router(wbes.router)
