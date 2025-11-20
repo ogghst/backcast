@@ -1,6 +1,6 @@
 EXPLORATION SESSION
 
-Goal: Understand [specific codebase area or problem space]
+Goal: Understand the task.
 This is discovery, not implementation.
 
 OBJECTIVES:
