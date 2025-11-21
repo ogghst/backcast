@@ -51,7 +51,7 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
     lastMessage,
     readyState,
   } = useWebSocket(
-    wsUrl || undefined,
+    wsUrl ?? null,
     wsUrl
       ? {
           shouldReconnect: () => true, // Auto-reconnect
@@ -215,7 +215,7 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
 
   return (
     <Box p={4} h="100%">
-      <VStack spacing={4} align="stretch" h="100%">
+      <VStack gap={4} align="stretch" h="100%">
         {/* Connection Status Indicator */}
         <Box display="flex" alignItems="center" gap={2}>
           <Box
@@ -247,7 +247,7 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
             colorScheme="blue"
             size="lg"
             disabled={connectionStatus !== "connected" || !wsUrl}
-            isLoading={connectionStatus === "connecting"}
+            loading={connectionStatus === "connecting"}
           >
             Start Analysis
           </Button>

@@ -399,7 +399,7 @@ describe("AIChat", () => {
       const input = screen.getByPlaceholderText(
         /type your message/i,
       ) as HTMLTextAreaElement
-      const _sendButton = screen.getByRole("button", { name: /send/i })
+      screen.getByRole("button", { name: /send/i })
 
       // Type a message
       fireEvent.change(input, { target: { value: "Test message" } })
@@ -440,7 +440,7 @@ describe("AIChat", () => {
       const input = screen.getByPlaceholderText(
         /type your message/i,
       ) as HTMLTextAreaElement
-      const _sendButton = screen.getByRole("button", { name: /send/i })
+      screen.getByRole("button", { name: /send/i })
 
       // Type message
       fireEvent.change(input, { target: { value: "What is the CPI?" } })
@@ -527,7 +527,7 @@ describe("AIChat", () => {
       const input = screen.getByPlaceholderText(
         /type your message/i,
       ) as HTMLTextAreaElement
-      const _clearButton = screen.getByRole("button", {
+      screen.getByRole("button", {
         name: /clear conversation/i,
       })
 

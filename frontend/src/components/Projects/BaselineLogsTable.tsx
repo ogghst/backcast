@@ -182,7 +182,20 @@ function BaselineLogsTable({ projectId }: BaselineLogsTableProps) {
                     id: projectId,
                     baselineId: baseline.baseline_id,
                   },
-                  search: { tab: "by-wbe" },
+                  search: (prev) => ({
+                    ...prev,
+                    page: prev.page ?? 1,
+                    tab: (prev.tab ?? "baselines") as
+                      | "baselines"
+                      | "info"
+                      | "summary"
+                      | "wbes"
+                      | "cost-summary"
+                      | "metrics"
+                      | "timeline"
+                      | "ai-assessment",
+                    baselineTab: "by-wbe" as const,
+                  }),
                 })
               }}
             >
@@ -220,7 +233,20 @@ function BaselineLogsTable({ projectId }: BaselineLogsTableProps) {
         id: projectId,
         baselineId: baseline.baseline_id,
       },
-      search: { tab: "by-wbe" },
+      search: (prev) => ({
+        ...prev,
+        page: prev.page ?? 1,
+        tab: (prev.tab ?? "baselines") as
+          | "baselines"
+          | "info"
+          | "summary"
+          | "wbes"
+          | "cost-summary"
+          | "metrics"
+          | "timeline"
+          | "ai-assessment",
+        baselineTab: "by-wbe" as const,
+      }),
     })
   }
 

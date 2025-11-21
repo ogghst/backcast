@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render, screen, waitFor } from "@testing-library/react"
 import type React from "react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import type { CostElementsReadCostElementsData } from "@/client"
 import * as client from "@/client"
 import { ColorModeProvider } from "@/components/ui/color-mode"
 import { TimeMachineProvider } from "@/context/TimeMachineContext"
@@ -103,28 +104,31 @@ describe("ProjectPerformanceDashboard", () => {
       ],
       count: 2,
     } as any)
-    vi.mocked(client.CostElementsService.readCostElements).mockImplementation(
-      async ({ wbeId }: { wbeId: string }) => {
-        const perWbe: Record<string, any[]> = {
-          "wbe-1": [
-            {
-              cost_element_id: "ce-1",
-              wbe_id: "wbe-1",
-              department_name: "Controls",
-            },
-          ],
-          "wbe-2": [
-            {
-              cost_element_id: "ce-2",
-              wbe_id: "wbe-2",
-              department_name: "Fabrication",
-            },
-          ],
-        }
-        const data = perWbe[wbeId] ?? []
-        return { data, count: data.length } as any
-      },
-    )
+    vi.mocked(client.CostElementsService.readCostElements).mockImplementation(((
+      params?: CostElementsReadCostElementsData,
+    ) => {
+      const wbeId = params?.wbeId ?? ""
+      const perWbe: Record<string, any[]> = {
+        "wbe-1": [
+          {
+            cost_element_id: "ce-1",
+            wbe_id: "wbe-1",
+            department_name: "Controls",
+          },
+        ],
+        "wbe-2": [
+          {
+            cost_element_id: "ce-2",
+            wbe_id: "wbe-2",
+            department_name: "Fabrication",
+          },
+        ],
+      }
+      const data = perWbe[wbeId] ?? []
+      return new client.CancelablePromise((resolve) =>
+        resolve({ data, count: data.length } as any),
+      )
+    }) as typeof client.CostElementsService.readCostElements)
     vi.mocked(
       client.CostElementTypesService.readCostElementTypes,
     ).mockResolvedValue({

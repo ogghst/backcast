@@ -53,8 +53,6 @@ const THRESHOLD_TYPES: Array<{ value: VarianceThresholdType; label: string }> =
   ]
 
 export default function VarianceThresholdsManager() {
-  const _queryClient = useQueryClient()
-
   const { data, isLoading } = useQuery({
     queryKey: ["variance-threshold-configs"],
     queryFn: () => AdminService.listVarianceThresholdConfigs(),

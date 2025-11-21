@@ -23,7 +23,7 @@ const BASELINE_TAB_OPTIONS = [
 type BaselineDetailTab = (typeof BASELINE_TAB_OPTIONS)[number]
 
 const baselineDetailSearchSchema = z.object({
-  tab: z.enum(BASELINE_TAB_OPTIONS).catch("by-wbe"),
+  baselineTab: z.enum(BASELINE_TAB_OPTIONS).catch("by-wbe"),
 })
 
 export const Route = createFileRoute(
@@ -67,7 +67,7 @@ function getBaselineQueryOptions({
 
 function BaselineDetail() {
   const { id: projectId, baselineId } = Route.useParams()
-  const { tab } = Route.useSearch()
+  const { baselineTab } = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
   const { controlDate } = useTimeMachine()
   const mutedText = useColorModeValue("fg.muted", "fg.muted")
@@ -76,7 +76,7 @@ function BaselineDetail() {
     navigate({
       search: (prev) => ({
         ...prev,
-        tab: value as BaselineDetailTab,
+        baselineTab: value as BaselineDetailTab,
       }),
     })
   }
@@ -168,7 +168,7 @@ function BaselineDetail() {
 
       {/* Tabbed Content */}
       <Tabs.Root
-        value={tab}
+        value={baselineTab}
         onValueChange={({ value }) => handleTabChange(value || "by-wbe")}
         variant="subtle"
         mt={4}

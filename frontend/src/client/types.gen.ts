@@ -875,6 +875,7 @@ export type UserPublic = {
     full_name?: (string | null);
     time_machine_date?: (string | null);
     openai_base_url?: (string | null);
+    openai_api_key_encrypted?: (string | null);
     openai_model?: (string | null);
     id: string;
 };

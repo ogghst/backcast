@@ -7,8 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import * as client from "@/client"
 import { ColorModeProvider } from "@/components/ui/color-mode"
 import { TimeMachineProvider } from "@/context/TimeMachineContext"
-import { system } from "../../../theme"
-import { Route } from "../projects.$id.wbes.$wbeId.cost-elements.$costElementId"
+import { Route } from "@/routes/_layout/projects.$id.wbes.$wbeId.cost-elements.$costElementId"
+import { system } from "@/theme"
 
 vi.mock("@/client", () => ({
   ProjectsService: {
