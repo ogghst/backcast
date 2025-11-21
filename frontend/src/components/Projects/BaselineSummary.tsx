@@ -9,6 +9,7 @@ import {
 import { useQuery } from "@tanstack/react-query"
 import type { BaselineSummaryPublic } from "@/client"
 import { BaselineLogsService } from "@/client"
+import { useColorModeValue } from "@/components/ui/color-mode"
 import { useTimeMachine } from "@/context/TimeMachineContext"
 
 interface BaselineSummaryProps {
@@ -21,6 +22,11 @@ export default function BaselineSummary({
   baselineId,
 }: BaselineSummaryProps) {
   const { controlDate } = useTimeMachine()
+  // Theme-aware colors (declare before early returns)
+  const cardBg = useColorModeValue("bg.surface", "bg.surface")
+  const borderCol = useColorModeValue("border", "border")
+  const mutedText = useColorModeValue("fg.muted", "fg.muted")
+
   const queryKey = [
     "baseline-snapshot-summary",
     projectId,
@@ -74,7 +80,8 @@ export default function BaselineSummary({
               p={4}
               borderWidth="1px"
               borderRadius="md"
-              borderColor="gray.200"
+              borderColor={borderCol}
+              bg={cardBg}
             >
               <SkeletonText noOfLines={2} />
             </Box>
@@ -120,17 +127,17 @@ export default function BaselineSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={1}>
-            <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
               Total Budget BAC
             </Text>
             <Text fontSize="xl" fontWeight="bold">
               {formatCurrency(totalBudgetBac)}
             </Text>
-            <Text fontSize="xs" color="gray.500" mt={1}>
+            <Text fontSize="xs" color={mutedText} mt={1}>
               Budget at Completion
             </Text>
           </VStack>
@@ -141,17 +148,17 @@ export default function BaselineSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={1}>
-            <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
               Total Revenue Plan
             </Text>
             <Text fontSize="xl" fontWeight="bold">
               {formatCurrency(totalRevenuePlan)}
             </Text>
-            <Text fontSize="xs" color="gray.500" mt={1}>
+            <Text fontSize="xs" color={mutedText} mt={1}>
               Planned Revenue
             </Text>
           </VStack>
@@ -162,17 +169,17 @@ export default function BaselineSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={1}>
-            <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
               Total Planned Value
             </Text>
             <Text fontSize="xl" fontWeight="bold">
               {formatCurrency(totalPlannedValue)}
             </Text>
-            <Text fontSize="xs" color="gray.500" mt={1}>
+            <Text fontSize="xs" color={mutedText} mt={1}>
               Planned Value
             </Text>
           </VStack>
@@ -183,17 +190,17 @@ export default function BaselineSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={1}>
-            <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
               Total Actual AC
             </Text>
             <Text fontSize="xl" fontWeight="bold">
               {formatCurrency(totalActualAc)}
             </Text>
-            <Text fontSize="xs" color="gray.500" mt={1}>
+            <Text fontSize="xs" color={mutedText} mt={1}>
               Actual Cost
             </Text>
           </VStack>
@@ -204,17 +211,17 @@ export default function BaselineSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={1}>
-            <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
               Total Forecast EAC
             </Text>
             <Text fontSize="xl" fontWeight="bold">
               {formatCurrency(totalForecastEac)}
             </Text>
-            <Text fontSize="xs" color="gray.500" mt={1}>
+            <Text fontSize="xs" color={mutedText} mt={1}>
               Estimate at Completion
             </Text>
           </VStack>
@@ -225,17 +232,17 @@ export default function BaselineSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={1}>
-            <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
               Total Earned EV
             </Text>
             <Text fontSize="xl" fontWeight="bold">
               {formatCurrency(totalEarnedEv)}
             </Text>
-            <Text fontSize="xs" color="gray.500" mt={1}>
+            <Text fontSize="xs" color={mutedText} mt={1}>
               Earned Value
             </Text>
           </VStack>
@@ -246,17 +253,17 @@ export default function BaselineSummary({
           p={4}
           borderWidth="1px"
           borderRadius="md"
-          borderColor="gray.200"
-          bg="white"
+          borderColor={borderCol}
+          bg={cardBg}
         >
           <VStack align="stretch" gap={1}>
-            <Text fontSize="sm" color="gray.600" fontWeight="medium">
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
               Cost Elements
             </Text>
             <Text fontSize="xl" fontWeight="bold">
               {costElementCount}
             </Text>
-            <Text fontSize="xs" color="gray.500" mt={1}>
+            <Text fontSize="xs" color={mutedText} mt={1}>
               Total cost elements in baseline
             </Text>
           </VStack>

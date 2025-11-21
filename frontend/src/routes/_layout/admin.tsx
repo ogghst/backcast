@@ -13,6 +13,8 @@ import { z } from "zod"
 
 import { type UserPublic, UsersService } from "@/client"
 import AddUser from "@/components/Admin/AddUser"
+import AppConfigurationManager from "@/components/Admin/AppConfigurationManager"
+import UserAIConfigurationManager from "@/components/Admin/UserAIConfigurationManager"
 import VarianceThresholdsManager from "@/components/Admin/VarianceThresholdsManager"
 import { UserActionsMenu } from "@/components/Common/UserActionsMenu"
 import PendingUsers from "@/components/Pending/PendingUsers"
@@ -145,6 +147,14 @@ function Admin() {
 
         <Box>
           <VarianceThresholdsManager />
+        </Box>
+
+        <Box>
+          <AppConfigurationManager />
+        </Box>
+
+        <Box>
+          <UserAIConfigurationManager />
         </Box>
       </Stack>
     </Container>

@@ -3,9 +3,108 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AdminListVarianceThresholdConfigsResponse, AdminCreateVarianceThresholdConfigData, AdminCreateVarianceThresholdConfigResponse, AdminGetVarianceThresholdConfigData, AdminGetVarianceThresholdConfigResponse, AdminUpdateVarianceThresholdConfigData, AdminUpdateVarianceThresholdConfigResponse, AdminDeleteVarianceThresholdConfigData, AdminDeleteVarianceThresholdConfigResponse, BaselineLogsListBaselineLogsData, BaselineLogsListBaselineLogsResponse, BaselineLogsCreateBaselineLogData, BaselineLogsCreateBaselineLogResponse, BaselineLogsReadBaselineLogData, BaselineLogsReadBaselineLogResponse, BaselineLogsUpdateBaselineLogData, BaselineLogsUpdateBaselineLogResponse, BaselineLogsCancelBaselineLogData, BaselineLogsCancelBaselineLogResponse, BaselineLogsGetBaselineSnapshotSummaryData, BaselineLogsGetBaselineSnapshotSummaryResponse, BaselineLogsGetBaselineCostElementsByWbeData, BaselineLogsGetBaselineCostElementsByWbeResponse, BaselineLogsGetBaselineCostElementsData, BaselineLogsGetBaselineCostElementsResponse, BaselineLogsGetBaselineEarnedValueEntriesData, BaselineLogsGetBaselineEarnedValueEntriesResponse, BudgetSummaryGetProjectBudgetSummaryData, BudgetSummaryGetProjectBudgetSummaryResponse, BudgetSummaryGetWbeBudgetSummaryData, BudgetSummaryGetWbeBudgetSummaryResponse, BudgetTimelineGetCostElementsWithSchedulesData, BudgetTimelineGetCostElementsWithSchedulesResponse, CostCategoriesReadCostCategoriesResponse, CostElementsReadCostElementsData, CostElementsReadCostElementsResponse, CostElementsCreateCostElementData, CostElementsCreateCostElementResponse, CostElementsReadCostElementData, CostElementsReadCostElementResponse, CostElementsUpdateCostElementData, CostElementsUpdateCostElementResponse, CostElementsDeleteCostElementData, CostElementsDeleteCostElementResponse, CostElementSchedulesReadScheduleByCostElementData, CostElementSchedulesReadScheduleByCostElementResponse, CostElementSchedulesCreateScheduleData, CostElementSchedulesCreateScheduleResponse, CostElementSchedulesReadScheduleHistoryByCostElementData, CostElementSchedulesReadScheduleHistoryByCostElementResponse, CostElementSchedulesUpdateScheduleData, CostElementSchedulesUpdateScheduleResponse, CostElementSchedulesDeleteScheduleData, CostElementSchedulesDeleteScheduleResponse, CostElementTypesReadCostElementTypesResponse, CostRegistrationsReadCostRegistrationsData, CostRegistrationsReadCostRegistrationsResponse, CostRegistrationsCreateCostRegistrationData, CostRegistrationsCreateCostRegistrationResponse, CostRegistrationsReadCostRegistrationData, CostRegistrationsReadCostRegistrationResponse, CostRegistrationsUpdateCostRegistrationData, CostRegistrationsUpdateCostRegistrationResponse, CostRegistrationsDeleteCostRegistrationData, CostRegistrationsDeleteCostRegistrationResponse, CostSummaryGetCostElementCostSummaryData, CostSummaryGetCostElementCostSummaryResponse, CostSummaryGetWbeCostSummaryData, CostSummaryGetWbeCostSummaryResponse, CostSummaryGetProjectCostSummaryData, CostSummaryGetProjectCostSummaryResponse, CostTimelineGetProjectCostTimelineData, CostTimelineGetProjectCostTimelineResponse, EarnedValueGetCostElementEarnedValueData, EarnedValueGetCostElementEarnedValueResponse, EarnedValueGetWbeEarnedValueData, EarnedValueGetWbeEarnedValueResponse, EarnedValueGetProjectEarnedValueData, EarnedValueGetProjectEarnedValueResponse, EarnedValueEntriesReadEarnedValueEntriesData, EarnedValueEntriesReadEarnedValueEntriesResponse, EarnedValueEntriesCreateEarnedValueEntryData, EarnedValueEntriesCreateEarnedValueEntryResponse, EarnedValueEntriesReadEarnedValueEntryData, EarnedValueEntriesReadEarnedValueEntryResponse, EarnedValueEntriesUpdateEarnedValueEntryData, EarnedValueEntriesUpdateEarnedValueEntryResponse, EarnedValueEntriesDeleteEarnedValueEntryData, EarnedValueEntriesDeleteEarnedValueEntryResponse, EvmIndicesGetWbeEvmIndicesData, EvmIndicesGetWbeEvmIndicesResponse, EvmIndicesGetProjectEvmIndicesData, EvmIndicesGetProjectEvmIndicesResponse, EvmMetricsGetCostElementEvmMetricsEndpointData, EvmMetricsGetCostElementEvmMetricsEndpointResponse, EvmMetricsGetWbeEvmMetricsEndpointData, EvmMetricsGetWbeEvmMetricsEndpointResponse, EvmMetricsGetProjectEvmMetricsEndpointData, EvmMetricsGetProjectEvmMetricsEndpointResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, PlannedValueGetCostElementPlannedValueData, PlannedValueGetCostElementPlannedValueResponse, PlannedValueGetWbePlannedValueData, PlannedValueGetWbePlannedValueResponse, PlannedValueGetProjectPlannedValueData, PlannedValueGetProjectPlannedValueResponse, PrivateCreateUserData, PrivateCreateUserResponse, ProjectsReadProjectsData, ProjectsReadProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsReadProjectData, ProjectsReadProjectResponse, ProjectsUpdateProjectData, ProjectsUpdateProjectResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsCreateProjectFromTemplateData, ProjectsCreateProjectFromTemplateResponse, ReportsGetProjectCostPerformanceReportEndpointData, ReportsGetProjectCostPerformanceReportEndpointResponse, ReportsGetProjectVarianceAnalysisReportEndpointData, ReportsGetProjectVarianceAnalysisReportEndpointResponse, ReportsGetVarianceTrendEndpointData, ReportsGetVarianceTrendEndpointResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersReadTimeMachinePreferenceResponse, UsersUpdateTimeMachinePreferenceData, UsersUpdateTimeMachinePreferenceResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse, WbesReadWbesData, WbesReadWbesResponse, WbesCreateWbeData, WbesCreateWbeResponse, WbesReadWbeData, WbesReadWbeResponse, WbesUpdateWbeData, WbesUpdateWbeResponse, WbesDeleteWbeData, WbesDeleteWbeResponse } from './types.gen';
+import type { AdminListAppConfigurationsResponse, AdminCreateAppConfigurationData, AdminCreateAppConfigurationResponse, AdminGetAppConfigurationData, AdminGetAppConfigurationResponse, AdminUpdateAppConfigurationData, AdminUpdateAppConfigurationResponse, AdminDeleteAppConfigurationData, AdminDeleteAppConfigurationResponse, AdminListVarianceThresholdConfigsResponse, AdminCreateVarianceThresholdConfigData, AdminCreateVarianceThresholdConfigResponse, AdminGetVarianceThresholdConfigData, AdminGetVarianceThresholdConfigResponse, AdminUpdateVarianceThresholdConfigData, AdminUpdateVarianceThresholdConfigResponse, AdminDeleteVarianceThresholdConfigData, AdminDeleteVarianceThresholdConfigResponse, BaselineLogsListBaselineLogsData, BaselineLogsListBaselineLogsResponse, BaselineLogsCreateBaselineLogData, BaselineLogsCreateBaselineLogResponse, BaselineLogsReadBaselineLogData, BaselineLogsReadBaselineLogResponse, BaselineLogsUpdateBaselineLogData, BaselineLogsUpdateBaselineLogResponse, BaselineLogsCancelBaselineLogData, BaselineLogsCancelBaselineLogResponse, BaselineLogsGetBaselineSnapshotSummaryData, BaselineLogsGetBaselineSnapshotSummaryResponse, BaselineLogsGetBaselineCostElementsByWbeData, BaselineLogsGetBaselineCostElementsByWbeResponse, BaselineLogsGetBaselineCostElementsData, BaselineLogsGetBaselineCostElementsResponse, BaselineLogsGetBaselineEarnedValueEntriesData, BaselineLogsGetBaselineEarnedValueEntriesResponse, BudgetSummaryGetProjectBudgetSummaryData, BudgetSummaryGetProjectBudgetSummaryResponse, BudgetSummaryGetWbeBudgetSummaryData, BudgetSummaryGetWbeBudgetSummaryResponse, BudgetTimelineGetCostElementsWithSchedulesData, BudgetTimelineGetCostElementsWithSchedulesResponse, CostCategoriesReadCostCategoriesResponse, CostElementsReadCostElementsData, CostElementsReadCostElementsResponse, CostElementsCreateCostElementData, CostElementsCreateCostElementResponse, CostElementsReadCostElementData, CostElementsReadCostElementResponse, CostElementsUpdateCostElementData, CostElementsUpdateCostElementResponse, CostElementsDeleteCostElementData, CostElementsDeleteCostElementResponse, CostElementSchedulesReadScheduleByCostElementData, CostElementSchedulesReadScheduleByCostElementResponse, CostElementSchedulesCreateScheduleData, CostElementSchedulesCreateScheduleResponse, CostElementSchedulesReadScheduleHistoryByCostElementData, CostElementSchedulesReadScheduleHistoryByCostElementResponse, CostElementSchedulesUpdateScheduleData, CostElementSchedulesUpdateScheduleResponse, CostElementSchedulesDeleteScheduleData, CostElementSchedulesDeleteScheduleResponse, CostElementTypesReadCostElementTypesResponse, CostRegistrationsReadCostRegistrationsData, CostRegistrationsReadCostRegistrationsResponse, CostRegistrationsCreateCostRegistrationData, CostRegistrationsCreateCostRegistrationResponse, CostRegistrationsReadCostRegistrationData, CostRegistrationsReadCostRegistrationResponse, CostRegistrationsUpdateCostRegistrationData, CostRegistrationsUpdateCostRegistrationResponse, CostRegistrationsDeleteCostRegistrationData, CostRegistrationsDeleteCostRegistrationResponse, CostSummaryGetCostElementCostSummaryData, CostSummaryGetCostElementCostSummaryResponse, CostSummaryGetWbeCostSummaryData, CostSummaryGetWbeCostSummaryResponse, CostSummaryGetProjectCostSummaryData, CostSummaryGetProjectCostSummaryResponse, CostTimelineGetProjectCostTimelineData, CostTimelineGetProjectCostTimelineResponse, EarnedValueGetCostElementEarnedValueData, EarnedValueGetCostElementEarnedValueResponse, EarnedValueGetWbeEarnedValueData, EarnedValueGetWbeEarnedValueResponse, EarnedValueGetProjectEarnedValueData, EarnedValueGetProjectEarnedValueResponse, EarnedValueEntriesReadEarnedValueEntriesData, EarnedValueEntriesReadEarnedValueEntriesResponse, EarnedValueEntriesCreateEarnedValueEntryData, EarnedValueEntriesCreateEarnedValueEntryResponse, EarnedValueEntriesReadEarnedValueEntryData, EarnedValueEntriesReadEarnedValueEntryResponse, EarnedValueEntriesUpdateEarnedValueEntryData, EarnedValueEntriesUpdateEarnedValueEntryResponse, EarnedValueEntriesDeleteEarnedValueEntryData, EarnedValueEntriesDeleteEarnedValueEntryResponse, EvmIndicesGetWbeEvmIndicesData, EvmIndicesGetWbeEvmIndicesResponse, EvmIndicesGetProjectEvmIndicesData, EvmIndicesGetProjectEvmIndicesResponse, EvmMetricsGetCostElementEvmMetricsEndpointData, EvmMetricsGetCostElementEvmMetricsEndpointResponse, EvmMetricsGetWbeEvmMetricsEndpointData, EvmMetricsGetWbeEvmMetricsEndpointResponse, EvmMetricsGetProjectEvmMetricsEndpointData, EvmMetricsGetProjectEvmMetricsEndpointResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, PlannedValueGetCostElementPlannedValueData, PlannedValueGetCostElementPlannedValueResponse, PlannedValueGetWbePlannedValueData, PlannedValueGetWbePlannedValueResponse, PlannedValueGetProjectPlannedValueData, PlannedValueGetProjectPlannedValueResponse, PrivateCreateUserData, PrivateCreateUserResponse, ProjectsReadProjectsData, ProjectsReadProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsReadProjectData, ProjectsReadProjectResponse, ProjectsUpdateProjectData, ProjectsUpdateProjectResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsCreateProjectFromTemplateData, ProjectsCreateProjectFromTemplateResponse, ReportsGetProjectCostPerformanceReportEndpointData, ReportsGetProjectCostPerformanceReportEndpointResponse, ReportsGetProjectVarianceAnalysisReportEndpointData, ReportsGetProjectVarianceAnalysisReportEndpointResponse, ReportsGetVarianceTrendEndpointData, ReportsGetVarianceTrendEndpointResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersReadTimeMachinePreferenceResponse, UsersUpdateTimeMachinePreferenceData, UsersUpdateTimeMachinePreferenceResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse, WbesReadWbesData, WbesReadWbesResponse, WbesCreateWbeData, WbesCreateWbeResponse, WbesReadWbeData, WbesReadWbeResponse, WbesUpdateWbeData, WbesUpdateWbeResponse, WbesDeleteWbeData, WbesDeleteWbeResponse } from './types.gen';
 
 export class AdminService {
+    /**
+     * List App Configurations
+     * List all app configurations (admin only).
+     * @returns AppConfigurationsPublic Successful Response
+     * @throws ApiError
+     */
+    public static listAppConfigurations(): CancelablePromise<AdminListAppConfigurationsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/app-configuration/'
+        });
+    }
+    
+    /**
+     * Create App Configuration
+     * Create a new app configuration (admin only).
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns AppConfigurationPublic Successful Response
+     * @throws ApiError
+     */
+    public static createAppConfiguration(data: AdminCreateAppConfigurationData): CancelablePromise<AdminCreateAppConfigurationResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/app-configuration/',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get App Configuration
+     * Get an app configuration by ID (admin only).
+     * @param data The data for the request.
+     * @param data.configId
+     * @returns AppConfigurationPublic Successful Response
+     * @throws ApiError
+     */
+    public static getAppConfiguration(data: AdminGetAppConfigurationData): CancelablePromise<AdminGetAppConfigurationResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/app-configuration/{config_id}',
+            path: {
+                config_id: data.configId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Update App Configuration
+     * Update an app configuration (admin only).
+     * @param data The data for the request.
+     * @param data.configId
+     * @param data.requestBody
+     * @returns AppConfigurationPublic Successful Response
+     * @throws ApiError
+     */
+    public static updateAppConfiguration(data: AdminUpdateAppConfigurationData): CancelablePromise<AdminUpdateAppConfigurationResponse> {
+        return __request(OpenAPI, {
+            method: 'PATCH',
+            url: '/api/v1/app-configuration/{config_id}',
+            path: {
+                config_id: data.configId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Delete App Configuration
+     * Delete an app configuration (admin only).
+     * @param data The data for the request.
+     * @param data.configId
+     * @returns Message Successful Response
+     * @throws ApiError
+     */
+    public static deleteAppConfiguration(data: AdminDeleteAppConfigurationData): CancelablePromise<AdminDeleteAppConfigurationResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/app-configuration/{config_id}',
+            path: {
+                config_id: data.configId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
     /**
      * List Variance Threshold Configs
      * List all variance threshold configurations (admin only).

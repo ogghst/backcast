@@ -1,5 +1,6 @@
 import { Badge, Box, Button, Flex, Heading, Text } from "@chakra-ui/react"
 import { useQuery } from "@tanstack/react-query"
+import { useNavigate } from "@tanstack/react-router"
 import { FiEye } from "react-icons/fi"
 import type { BaselineLogPublic } from "@/client"
 import { BaselineLogsService } from "@/client"
@@ -8,7 +9,7 @@ import type { ColumnDefExtended } from "@/components/DataTable/types"
 import AddBaselineLog from "@/components/Projects/AddBaselineLog"
 import CancelBaselineLog from "@/components/Projects/CancelBaselineLog"
 import EditBaselineLog from "@/components/Projects/EditBaselineLog"
-import ViewBaseline from "@/components/Projects/ViewBaseline"
+import { useColorModeValue } from "@/components/ui/color-mode"
 import { useTimeMachine } from "@/context/TimeMachineContext"
 
 interface BaselineLogsTableProps {
@@ -40,6 +41,10 @@ const MILESTONE_TYPE_LABELS: Record<string, string> = {
 
 function BaselineLogsTable({ projectId }: BaselineLogsTableProps) {
   const { controlDate } = useTimeMachine()
+  const navigate = useNavigate()
+  // Theme-aware colors
+  const mutedText = useColorModeValue("fg.muted", "fg.muted")
+
   // Column definitions for Baseline Logs table
   const baselineLogsColumns: ColumnDefExtended<BaselineLogPublic>[] = [
     {
@@ -114,7 +119,7 @@ function BaselineLogsTable({ projectId }: BaselineLogsTableProps) {
           <Text
             as={isCancelled ? "span" : undefined}
             textDecoration={isCancelled ? "line-through" : undefined}
-            color={isCancelled ? "gray.500" : undefined}
+            color={isCancelled ? mutedText : undefined}
           >
             {description}
           </Text>
@@ -166,15 +171,23 @@ function BaselineLogsTable({ projectId }: BaselineLogsTableProps) {
         const baseline = row.original
         return (
           <Flex gap={2}>
-            <ViewBaseline
-              baseline={baseline}
-              projectId={projectId}
-              trigger={
-                <Button variant="ghost" size="sm" aria-label="View baseline">
-                  <FiEye fontSize="16px" />
-                </Button>
-              }
-            />
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="View baseline"
+              onClick={() => {
+                navigate({
+                  to: "/projects/$id/baselines/$baselineId",
+                  params: {
+                    id: projectId,
+                    baselineId: baseline.baseline_id,
+                  },
+                  search: { tab: "by-wbe" },
+                })
+              }}
+            >
+              <FiEye fontSize="16px" />
+            </Button>
             <EditBaselineLog baseline={baseline} projectId={projectId} />
             {!baseline.is_cancelled && (
               <CancelBaselineLog
@@ -200,6 +213,17 @@ function BaselineLogsTable({ projectId }: BaselineLogsTableProps) {
 
   const baselineList = baselines ?? []
 
+  const handleRowClick = (baseline: BaselineLogPublic) => {
+    navigate({
+      to: "/projects/$id/baselines/$baselineId",
+      params: {
+        id: projectId,
+        baselineId: baseline.baseline_id,
+      },
+      search: { tab: "by-wbe" },
+    })
+  }
+
   return (
     <Box>
       <Flex alignItems="center" justifyContent="space-between" mb={4}>
@@ -207,7 +231,7 @@ function BaselineLogsTable({ projectId }: BaselineLogsTableProps) {
         <AddBaselineLog projectId={projectId} />
       </Flex>
       {baselineList.length === 0 && !isLoading ? (
-        <Text color="gray.500" textAlign="center" py={8}>
+        <Text color={mutedText} textAlign="center" py={8}>
           No baselines found. Create a baseline to get started.
         </Text>
       ) : (
@@ -215,6 +239,7 @@ function BaselineLogsTable({ projectId }: BaselineLogsTableProps) {
           data={baselineList}
           columns={baselineLogsColumns}
           tableId="baseline-logs-table"
+          onRowClick={handleRowClick}
           isLoading={isLoading}
           count={baselineList.length}
           page={1}

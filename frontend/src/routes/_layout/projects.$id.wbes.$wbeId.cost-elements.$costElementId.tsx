@@ -18,6 +18,7 @@ import {
   WbesService,
 } from "@/client"
 import PendingItems from "@/components/Pending/PendingItems"
+import AIChat from "@/components/Projects/AIChat"
 import BudgetTimeline from "@/components/Projects/BudgetTimeline"
 import CostElementSchedulesTable from "@/components/Projects/CostElementSchedulesTable"
 import CostRegistrationsTable from "@/components/Projects/CostRegistrationsTable"
@@ -33,6 +34,7 @@ const COST_ELEMENT_VIEW_OPTIONS = [
   "earned-value",
   "metrics",
   "timeline",
+  "ai-assessment",
 ] as const
 
 export type CostElementView = (typeof COST_ELEMENT_VIEW_OPTIONS)[number]
@@ -212,6 +214,7 @@ function CostElementDetail() {
           <Tabs.Trigger value="earned-value">Earned Value</Tabs.Trigger>
           <Tabs.Trigger value="metrics">Metrics</Tabs.Trigger>
           <Tabs.Trigger value="timeline">Timeline</Tabs.Trigger>
+          <Tabs.Trigger value="ai-assessment">AI Assessment</Tabs.Trigger>
         </Tabs.List>
 
         <Tabs.Content value="info">
@@ -313,6 +316,12 @@ function CostElementDetail() {
                 />
               </Box>
             )}
+          </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="ai-assessment">
+          <Box mt={4} h="calc(100vh - 300px)">
+            <AIChat contextType="cost-element" contextId={costElementId} />
           </Box>
         </Tabs.Content>
       </Tabs.Root>

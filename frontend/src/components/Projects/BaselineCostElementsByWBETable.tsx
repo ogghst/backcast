@@ -20,6 +20,7 @@ import type {
 import { BaselineLogsService } from "@/client"
 import { DataTable } from "@/components/DataTable/DataTable"
 import type { ColumnDefExtended } from "@/components/DataTable/types"
+import { useColorModeValue } from "@/components/ui/color-mode"
 import { useTimeMachine } from "@/context/TimeMachineContext"
 
 interface BaselineCostElementsByWBETableProps {
@@ -189,9 +190,19 @@ function WBEAccordionItem({
   }
 }) {
   const [isOpen, setIsOpen] = useState(false)
+  // Theme-aware colors
+  const cardBg = useColorModeValue("bg.surface", "bg.surface")
+  const borderCol = useColorModeValue("border", "border")
+  const mutedText = useColorModeValue("fg.muted", "fg.muted")
+  const subtleBg = useColorModeValue("bg.subtle", "bg.subtle")
 
   return (
-    <Box borderWidth="1px" borderRadius="md" borderColor="gray.200" bg="white">
+    <Box
+      borderWidth="1px"
+      borderRadius="md"
+      borderColor={borderCol}
+      bg={cardBg}
+    >
       <Collapsible.Root open={isOpen} onOpenChange={(e) => setIsOpen(e.open)}>
         <Collapsible.Trigger asChild>
           <Button
@@ -208,13 +219,13 @@ function WBEAccordionItem({
               <VStack align="start" gap={1}>
                 <Text fontWeight="bold">{wbe.machine_type}</Text>
                 {wbe.serial_number && (
-                  <Text fontSize="sm" color="gray.600">
+                  <Text fontSize="sm" color={mutedText}>
                     Serial: {wbe.serial_number}
                   </Text>
                 )}
               </VStack>
               <VStack align="end" gap={1}>
-                <Text fontSize="sm" color="gray.600">
+                <Text fontSize="sm" color={mutedText}>
                   {wbe.cost_elements?.length || 0} cost elements
                 </Text>
                 <Text fontSize="sm" fontWeight="medium">
@@ -239,15 +250,15 @@ function WBEAccordionItem({
               mb={4}
               borderWidth="1px"
               borderRadius="md"
-              borderColor="gray.200"
-              bg="gray.50"
+              borderColor={borderCol}
+              bg={subtleBg}
             >
               <Heading size="sm" mb={3}>
                 WBE Totals
               </Heading>
               <Flex gap={4} wrap="wrap">
                 <Box>
-                  <Text fontSize="xs" color="gray.600">
+                  <Text fontSize="xs" color={mutedText}>
                     Total Budget BAC
                   </Text>
                   <Text fontWeight="bold">
@@ -255,7 +266,7 @@ function WBEAccordionItem({
                   </Text>
                 </Box>
                 <Box>
-                  <Text fontSize="xs" color="gray.600">
+                  <Text fontSize="xs" color={mutedText}>
                     Total Planned Value
                   </Text>
                   <Text fontWeight="bold">
@@ -263,7 +274,7 @@ function WBEAccordionItem({
                   </Text>
                 </Box>
                 <Box>
-                  <Text fontSize="xs" color="gray.600">
+                  <Text fontSize="xs" color={mutedText}>
                     Total Revenue Plan
                   </Text>
                   <Text fontWeight="bold">
@@ -272,7 +283,7 @@ function WBEAccordionItem({
                 </Box>
                 {wbe.wbe_total_actual_ac && (
                   <Box>
-                    <Text fontSize="xs" color="gray.600">
+                    <Text fontSize="xs" color={mutedText}>
                       Total Actual AC
                     </Text>
                     <Text fontWeight="bold">
@@ -282,7 +293,7 @@ function WBEAccordionItem({
                 )}
                 {wbe.wbe_total_forecast_eac && (
                   <Box>
-                    <Text fontSize="xs" color="gray.600">
+                    <Text fontSize="xs" color={mutedText}>
                       Total Forecast EAC
                     </Text>
                     <Text fontWeight="bold">
@@ -292,7 +303,7 @@ function WBEAccordionItem({
                 )}
                 {wbe.wbe_total_earned_ev && (
                   <Box>
-                    <Text fontSize="xs" color="gray.600">
+                    <Text fontSize="xs" color={mutedText}>
                       Total Earned EV
                     </Text>
                     <Text fontWeight="bold">

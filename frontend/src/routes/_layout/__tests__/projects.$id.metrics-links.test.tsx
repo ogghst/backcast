@@ -42,6 +42,24 @@ vi.mock("@/components/Projects/BudgetTimelineFilter", () => ({
   default: () => <div data-testid="budget-timeline-filter" />,
 }))
 
+vi.mock("@/components/Projects/AIChat", () => ({
+  default: ({
+    contextType,
+    contextId,
+  }: {
+    contextType: string
+    contextId: string
+  }) => (
+    <div
+      data-testid="ai-chat"
+      data-context-type={contextType}
+      data-context-id={contextId}
+    >
+      AI Chat Component
+    </div>
+  ),
+}))
+
 vi.mock("@tanstack/react-router", async () => {
   const actual = await vi.importActual<typeof import("@tanstack/react-router")>(
     "@tanstack/react-router",
@@ -111,6 +129,77 @@ describe("Project detail metrics actions", () => {
       expect(
         screen.getByText(/View Project Performance Dashboard/i),
       ).toBeInTheDocument()
+    })
+  })
+
+  describe("AI Assessment Tab", () => {
+    it("renders AI Assessment tab in tabs list", async () => {
+      vi.spyOn(Route, "useParams").mockReturnValue({ id: "project-123" } as any)
+      vi.spyOn(Route, "useSearch").mockReturnValue({
+        tab: "wbes",
+        page: 1,
+      } as any)
+
+      vi.mocked(client.ProjectsService.readProject).mockResolvedValue({
+        project_id: "project-123",
+        project_name: "Test Project",
+      } as any)
+      vi.mocked(client.WbesService.readWbes).mockResolvedValue({
+        data: [],
+        count: 0,
+      })
+      vi.mocked(
+        client.BudgetTimelineService.getCostElementsWithSchedules,
+      ).mockResolvedValue([])
+      vi.mocked(
+        client.UsersService.readTimeMachinePreference,
+      ).mockResolvedValue({
+        time_machine_date: "2024-01-15",
+      } as any)
+
+      const Component = Route.options.component as React.ComponentType
+
+      renderWithProviders(<Component />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/AI Assessment/i)).toBeInTheDocument()
+      })
+    })
+
+    it("renders AIChat component when AI Assessment tab is selected", async () => {
+      vi.spyOn(Route, "useParams").mockReturnValue({ id: "project-123" } as any)
+      vi.spyOn(Route, "useSearch").mockReturnValue({
+        tab: "ai-assessment",
+        page: 1,
+      } as any)
+
+      vi.mocked(client.ProjectsService.readProject).mockResolvedValue({
+        project_id: "project-123",
+        project_name: "Test Project",
+      } as any)
+      vi.mocked(client.WbesService.readWbes).mockResolvedValue({
+        data: [],
+        count: 0,
+      })
+      vi.mocked(
+        client.BudgetTimelineService.getCostElementsWithSchedules,
+      ).mockResolvedValue([])
+      vi.mocked(
+        client.UsersService.readTimeMachinePreference,
+      ).mockResolvedValue({
+        time_machine_date: "2024-01-15",
+      } as any)
+
+      const Component = Route.options.component as React.ComponentType
+
+      renderWithProviders(<Component />)
+
+      await waitFor(() => {
+        const aiChat = screen.getByTestId("ai-chat")
+        expect(aiChat).toBeInTheDocument()
+        expect(aiChat).toHaveAttribute("data-context-type", "project")
+        expect(aiChat).toHaveAttribute("data-context-id", "project-123")
+      })
     })
   })
 })

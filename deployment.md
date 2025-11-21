@@ -143,6 +143,8 @@ You can set several variables, like:
 * `POSTGRES_USER`: The Postgres user, you can leave the default.
 * `POSTGRES_DB`: The database name to use for this application. You can leave the default of `app`.
 * `SENTRY_DSN`: The DSN for Sentry, if you are using it.
+* `FERNET_KEY`: The Fernet encryption key used to encrypt/decrypt OpenAI API keys. Required for AI chat features. Generate with: `python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'`
+* `AI_DEFAULT_OPENAI_BASE_URL`: Optional default OpenAI API base URL (e.g., `https://api.openai.com/v1`).
 
 ## GitHub Actions Environment Variables
 
@@ -162,6 +164,16 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
 Copy the content and use that as password / secret key. And run that again to generate another secure key.
+
+#### Generate FERNET_KEY
+
+The `FERNET_KEY` is required for AI chat features. To generate a Fernet encryption key, run:
+
+```bash
+python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
+```
+
+Copy the generated key and add it to your `.env` file as `FERNET_KEY=<generated_key>`.
 
 ### Deploy with Docker Compose
 

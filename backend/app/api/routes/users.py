@@ -13,6 +13,7 @@ from app.api.deps import (
     get_time_machine_control_date,
 )
 from app.core.config import settings
+from app.core.encryption import encrypt_api_key
 from app.core.security import get_password_hash, verify_password
 from app.models import (
     Message,
@@ -49,7 +50,14 @@ def read_users(session: SessionDep, skip: int = 0, limit: int = 100) -> Any:
     statement = select(User).offset(skip).limit(limit)
     users = session.exec(statement).all()
 
-    return UsersPublic(data=users, count=count)
+    # Convert User objects to UserPublic, excluding openai_api_key_encrypted
+    users_public = []
+    for user in users:
+        user_dict = user.model_dump()
+        user_dict.pop("openai_api_key_encrypted", None)
+        users_public.append(UserPublic.model_validate(user_dict))
+
+    return UsersPublic(data=users_public, count=count)
 
 
 @router.post(
@@ -76,7 +84,10 @@ def create_user(*, session: SessionDep, user_in: UserCreate) -> Any:
             subject=email_data.subject,
             html_content=email_data.html_content,
         )
-    return user
+    # Exclude encrypted API key from response
+    user_dict = user.model_dump()
+    user_dict.pop("openai_api_key_encrypted", None)
+    return UserPublic.model_validate(user_dict)
 
 
 @router.patch("/me", response_model=UserPublic)
@@ -94,11 +105,30 @@ def update_user_me(
                 status_code=409, detail="User with this email already exists"
             )
     user_data = user_in.model_dump(exclude_unset=True)
-    current_user.sqlmodel_update(user_data)
+
+    # Handle OpenAI API key encryption
+    plain_key = user_data.pop("openai_api_key", None)
+    if plain_key is not None:  # Explicitly check if key was provided
+        if plain_key:
+            # Encrypt API key before storage
+            user_data["openai_api_key_encrypted"] = encrypt_api_key(plain_key)
+        else:
+            # Empty string means clear the API key
+            user_data["openai_api_key_encrypted"] = None
+
+    # Update user with all fields (explicitly set each field)
+    for key, value in user_data.items():
+        if hasattr(current_user, key):
+            setattr(current_user, key, value)
     session.add(current_user)
     session.commit()
     session.refresh(current_user)
-    return current_user
+
+    # Return user (FastAPI will serialize according to response_model=UserPublic)
+    # Exclude encrypted API key from response
+    user_dict = current_user.model_dump()
+    user_dict.pop("openai_api_key_encrypted", None)
+    return UserPublic.model_validate(user_dict)
 
 
 @router.patch("/me/password", response_model=Message)
@@ -126,7 +156,10 @@ def read_user_me(current_user: CurrentUser) -> Any:
     """
     Get current user.
     """
-    return current_user
+    # Exclude encrypted API key from response
+    user_dict = current_user.model_dump()
+    user_dict.pop("openai_api_key_encrypted", None)
+    return UserPublic.model_validate(user_dict)
 
 
 @router.get("/me/time-machine", response_model=TimeMachinePreference)
@@ -192,7 +225,10 @@ def register_user(session: SessionDep, user_in: UserRegister) -> Any:
         )
     user_create = UserCreate.model_validate(user_in)
     user = crud.create_user(session=session, user_create=user_create)
-    return user
+    # Exclude encrypted API key from response
+    user_dict = user.model_dump()
+    user_dict.pop("openai_api_key_encrypted", None)
+    return UserPublic.model_validate(user_dict)
 
 
 @router.get("/{user_id}", response_model=UserPublic)
@@ -203,14 +239,20 @@ def read_user_by_id(
     Get a specific user by id.
     """
     user = session.get(User, user_id)
-    if user == current_user:
-        return user
-    if current_user.role != UserRole.admin:
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="The user with this id does not exist in the system",
+        )
+    if user != current_user and current_user.role != UserRole.admin:
         raise HTTPException(
             status_code=403,
             detail="The user doesn't have enough privileges",
         )
-    return user
+    # Exclude encrypted API key from response
+    user_dict = user.model_dump()
+    user_dict.pop("openai_api_key_encrypted", None)
+    return UserPublic.model_validate(user_dict)
 
 
 @router.patch(
@@ -223,6 +265,7 @@ def update_user(
     session: SessionDep,
     user_id: uuid.UUID,
     user_in: UserUpdate,
+    _current_user: Annotated[User, Depends(get_current_active_admin)],
 ) -> Any:
     """
     Update a user.
@@ -242,7 +285,13 @@ def update_user(
             )
 
     db_user = crud.update_user(session=session, db_user=db_user, user_in=user_in)
-    return db_user
+    session.refresh(db_user)
+
+    # Return user (FastAPI will serialize according to response_model=UserPublic)
+    # Exclude encrypted API key from response
+    user_dict = db_user.model_dump()
+    user_dict.pop("openai_api_key_encrypted", None)
+    return UserPublic.model_validate(user_dict)
 
 
 @router.delete("/{user_id}", dependencies=[Depends(get_current_active_admin)])

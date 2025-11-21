@@ -30,6 +30,7 @@ import { DataTable } from "@/components/DataTable/DataTable"
 import type { ColumnDefExtended } from "@/components/DataTable/types"
 import PendingItems from "@/components/Pending/PendingItems"
 import AddCostElement from "@/components/Projects/AddCostElement"
+import AIChat from "@/components/Projects/AIChat"
 import BudgetTimeline from "@/components/Projects/BudgetTimeline"
 import BudgetTimelineFilter from "@/components/Projects/BudgetTimelineFilter"
 import DeleteCostElement from "@/components/Projects/DeleteCostElement"
@@ -45,6 +46,7 @@ const WBE_TAB_OPTIONS = [
   "cost-summary",
   "metrics",
   "timeline",
+  "ai-assessment",
 ] as const
 
 type WbeDetailTab = (typeof WBE_TAB_OPTIONS)[number]
@@ -410,6 +412,7 @@ function WBEDetail() {
           <Tabs.Trigger value="cost-elements">Cost Elements</Tabs.Trigger>
           <Tabs.Trigger value="metrics">Metrics</Tabs.Trigger>
           <Tabs.Trigger value="timeline">Budget Timeline</Tabs.Trigger>
+          <Tabs.Trigger value="ai-assessment">AI Assessment</Tabs.Trigger>
         </Tabs.List>
 
         <Tabs.Content value="info">
@@ -482,6 +485,12 @@ function WBEDetail() {
                 />
               </Box>
             )}
+          </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="ai-assessment">
+          <Box mt={4} h="calc(100vh - 300px)">
+            <AIChat contextType="wbe" contextId={wbe.wbe_id} />
           </Box>
         </Tabs.Content>
       </Tabs.Root>

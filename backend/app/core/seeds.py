@@ -11,6 +11,8 @@ from sqlmodel import Session, select
 from app.core.config import settings
 from app.models import (
     WBE,
+    AppConfiguration,
+    AppConfigurationCreate,
     BaselineCostElement,
     BudgetAllocation,
     BudgetAllocationCreate,
@@ -584,6 +586,49 @@ def _seed_variance_threshold_configs(session: Session) -> None:
             # Create new configuration
             config_in = VarianceThresholdConfigCreate(**config_data)
             config = VarianceThresholdConfig.model_validate(config_in)
+            session.add(config)
+
+    session.commit()
+
+
+def _seed_ai_default_config(session: Session) -> None:
+    """Seed default AI configuration entries if they don't exist."""
+    # Get base URL from environment variable or use empty string
+    default_base_url = settings.AI_DEFAULT_OPENAI_BASE_URL or ""
+
+    default_configs = [
+        {
+            "config_key": "ai_default_openai_base_url",
+            "config_value": default_base_url,
+            "description": "Default OpenAI API base URL (e.g., https://api.openai.com/v1)",
+            "is_active": True,
+        },
+        {
+            "config_key": "ai_default_openai_api_key_encrypted",
+            "config_value": "",  # Empty by default - users must configure
+            "description": "Default OpenAI API key (encrypted). Users must configure this.",
+            "is_active": True,
+        },
+        {
+            "config_key": "ai_default_openai_model",
+            "config_value": "",  # Empty by default - users must configure
+            "description": "Default OpenAI model (e.g., gpt-4o-mini, deepseek-chat). Users must configure this.",
+            "is_active": True,
+        },
+    ]
+
+    for config_data in default_configs:
+        # Check if configuration with this key already exists
+        existing = session.exec(
+            select(AppConfiguration).where(
+                AppConfiguration.config_key == config_data["config_key"]
+            )
+        ).first()
+
+        if not existing:
+            # Create new configuration
+            config_in = AppConfigurationCreate(**config_data)
+            config = AppConfiguration.model_validate(config_in)
             session.add(config)
 
     session.commit()

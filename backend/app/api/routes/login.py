@@ -48,7 +48,10 @@ def test_token(current_user: CurrentUser) -> Any:
     """
     Test access token
     """
-    return current_user
+    # Exclude encrypted API key from response
+    user_dict = current_user.model_dump()
+    user_dict.pop("openai_api_key_encrypted", None)
+    return UserPublic.model_validate(user_dict)
 
 
 @router.post("/password-recovery/{email}")

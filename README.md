@@ -1,8 +1,10 @@
-# PESTA - Project Earned value Simulator, Time traveller and Analyzer
+# BackCast - Project Earned value Simulator, Time traveller and Analyzer
+
+![Favicon](frontend/public/assets/images/favicon.png)
 
 ## High-Level Goal
 
-PESTA is a comprehensive application designed for the Project Management Directorate to simulate, test, and validate financial management processes for end-of-line automation projects before implementing them in production environments.
+BackCast is a comprehensive application designed for the Project Management Directorate to simulate, test, and validate financial management processes for end-of-line automation projects before implementing them in production environments.
 
 The system enables organizations to:
 
@@ -69,10 +71,8 @@ The MVP will support:
 - **Change Order Management**: Process scope changes and contract modifications
 - **EVM Calculations**: Automatic calculation of CPI, SPI, variances, and performance indices
 - **Reporting & Dashboards**: Generate standard EVM reports and performance visualizations
+- **Automatic Assessment**: Generate an AI drive assessment with a chat-with-data interface
 
-## Development Status
-
-This project follows an agile development methodology with a planned 12-week MVP timeline organized into six two-week sprints. See [`docs/plan.md`](docs/plan.md) for detailed sprint breakdowns and [`docs/project_status.md`](docs/project_status.md) for current status.
 
 
 ## Technology Stack and Features
@@ -97,11 +97,6 @@ This project follows an agile development methodology with a planned 12-week MVP
 - 🚢 Deployment instructions using Docker Compose, including how to set up a frontend Traefik proxy to handle automatic HTTPS certificates.
 - 🏭 CI (continuous integration) and CD (continuous deployment) based on GitHub Actions.
 
-## How To Use It
-
-You can **just fork or clone** this repository and use it as is.
-
-✨ It just works. ✨
 
 ### Configure
 
@@ -112,6 +107,7 @@ Before deploying it, make sure you change at least the values for:
 - `SECRET_KEY`
 - `FIRST_SUPERUSER_PASSWORD`
 - `POSTGRES_PASSWORD`
+- `FERNET_KEY`
 
 You can (and should) pass these as environment variables from secrets.
 
@@ -127,7 +123,13 @@ You have to change them with a secret key, to generate secret keys you can run t
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-Copy the content and use that as password / secret key. And run that again to generate another secure key.
+The `FERNET_KEY` is required for AI chat features to encrypt and decrypt OpenAI API keys. To generate a Fernet encryption key, run:
+
+```bash
+python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
+```
+
+Copy the generated key and add it to your `.env` file as `FERNET_KEY=<generated_key>`.
 
 ## Backend Development
 
