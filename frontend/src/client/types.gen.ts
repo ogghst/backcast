@@ -860,6 +860,7 @@ export type UserCreate = {
     time_machine_date?: (string | null);
     openai_base_url?: (string | null);
     openai_api_key_encrypted?: (string | null);
+    openai_model?: (string | null);
     password: string;
 };
 
@@ -874,6 +875,7 @@ export type UserPublic = {
     full_name?: (string | null);
     time_machine_date?: (string | null);
     openai_base_url?: (string | null);
+    openai_model?: (string | null);
     id: string;
 };
 
@@ -911,6 +913,7 @@ export type UserUpdate = {
     time_machine_date?: (string | null);
     openai_base_url?: (string | null);
     openai_api_key_encrypted?: (string | null);
+    openai_model?: (string | null);
     password?: (string | null);
     /**
      * Plain text API key (will be encrypted)
@@ -929,6 +932,7 @@ export type UserUpdateMe = {
      * Plain text API key (will be encrypted)
      */
     openai_api_key?: (string | null);
+    openai_model?: (string | null);
 };
 
 export type ValidationError = {

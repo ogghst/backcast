@@ -31,6 +31,7 @@ class UserBase(SQLModel):
     time_machine_date: date | None = Field(default=None)
     openai_base_url: str | None = Field(default=None, max_length=500)
     openai_api_key_encrypted: str | None = Field(default=None)
+    openai_model: str | None = Field(default=None, max_length=100)
 
 
 # Properties to receive via API on creation
@@ -69,6 +70,7 @@ class UserUpdateMe(SQLModel):
     openai_api_key: str | None = Field(
         default=None, description="Plain text API key (will be encrypted)"
     )
+    openai_model: str | None = Field(default=None, max_length=100)
 
 
 class UpdatePassword(SQLModel):

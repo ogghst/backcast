@@ -1,8 +1,8 @@
 # Project Status: EVM Project Budget Management System
 
-**Last Updated:** 2025-11-19
+**Last Updated:** 2025-11-21
 **Current Phase:** Sprint 5 In Progress
-**Overall Progress:** 44% Complete - Sprint 1 Complete, Sprint 2 Complete, Sprint 3 Complete, Sprint 4 Complete, Sprint 5 In Progress (3/5 tasks complete)
+**Overall Progress:** 48% Complete - Sprint 1 Complete, Sprint 2 Complete, Sprint 3 Complete, Sprint 4 Complete, Sprint 5 In Progress (4/5 tasks complete)
 
 ---
 
@@ -88,7 +88,7 @@
 | E4-009 | Project Performance Dashboard | Visual dashboard with EV curves, trend charts, variance indicators | ✅ Done | Delivered a control-date-aware dashboard route combining PV/EV/AC overlay, KPI spark cards (CPI/SPI/TCPI/CV/SV), and a WBE focus heatmap with deep links to detail pages. Shares data contracts with the EVM aggregation service but introduces no duplicated chart logic—composes `BudgetTimeline`, `EarnedValueSummary`, and a new DrilldownDeck component with reusable status helpers. Enhanced 2025-11-19: Added Cost Element Type column to drilldown table and fixed timeline filtering to ensure all series (PV/EV/AC) are consistently filtered by WBE and cost element type selections. |
 | E4-010 | Report Export Functionality | Enable data export to CSV and Excel formats | ⏳ Todo | Sprint 5 deliverable. Supports additional analysis. |
 | E4-011 | Global Time Machine Control | Implement header date picker, user-level persistence, and backend filtering so every metric reflects the selected control date. | ✅ Done | Planned across Sprint 4 (backend storage, dependency, filtering) and Sprint 5 (UI control, React context, client query propagation). Detailed plan documented in `docs/plans/e4-011-time-machine-detailed_planning.md`. |
-| E4-012 | AI Assisted Project comments | Implement an AI generated project assessment, based on the project metrics. The configuration of the OpenAI base url and key shall be performed at user level in administration interface. | ⏳ Todo | Sprint 5 deliverable. AI-generated project assessment based on metrics. |
+| E4-012 | AI Assisted Project Assessment | Implement an AI generated project assessment, based on the project metrics. The configuration of the OpenAI base url and key shall be performed at user level in administration interface. | ✅ Done | Complete! Backend: WebSocket endpoint, LangChain/LangGraph integration, encryption, admin APIs. Frontend: AIChat component with streaming, markdown rendering, conversation management. Integration across project/WBE/cost-element/baseline contexts. Admin interfaces for default and user-specific config. 78+ tests passing. Completion report: `docs/completions/e4-012-ai-project-assessment-completion.md`. |
 
 ---
 

@@ -50,7 +50,14 @@ def read_users(session: SessionDep, skip: int = 0, limit: int = 100) -> Any:
     statement = select(User).offset(skip).limit(limit)
     users = session.exec(statement).all()
 
-    return UsersPublic(data=users, count=count)
+    # Convert User objects to UserPublic, excluding openai_api_key_encrypted
+    users_public = []
+    for user in users:
+        user_dict = user.model_dump()
+        user_dict.pop("openai_api_key_encrypted", None)
+        users_public.append(UserPublic.model_validate(user_dict))
+
+    return UsersPublic(data=users_public, count=count)
 
 
 @router.post(
@@ -77,7 +84,10 @@ def create_user(*, session: SessionDep, user_in: UserCreate) -> Any:
             subject=email_data.subject,
             html_content=email_data.html_content,
         )
-    return user
+    # Exclude encrypted API key from response
+    user_dict = user.model_dump()
+    user_dict.pop("openai_api_key_encrypted", None)
+    return UserPublic.model_validate(user_dict)
 
 
 @router.patch("/me", response_model=UserPublic)
@@ -146,7 +156,10 @@ def read_user_me(current_user: CurrentUser) -> Any:
     """
     Get current user.
     """
-    return current_user
+    # Exclude encrypted API key from response
+    user_dict = current_user.model_dump()
+    user_dict.pop("openai_api_key_encrypted", None)
+    return UserPublic.model_validate(user_dict)
 
 
 @router.get("/me/time-machine", response_model=TimeMachinePreference)
@@ -212,7 +225,10 @@ def register_user(session: SessionDep, user_in: UserRegister) -> Any:
         )
     user_create = UserCreate.model_validate(user_in)
     user = crud.create_user(session=session, user_create=user_create)
-    return user
+    # Exclude encrypted API key from response
+    user_dict = user.model_dump()
+    user_dict.pop("openai_api_key_encrypted", None)
+    return UserPublic.model_validate(user_dict)
 
 
 @router.get("/{user_id}", response_model=UserPublic)
@@ -223,14 +239,20 @@ def read_user_by_id(
     Get a specific user by id.
     """
     user = session.get(User, user_id)
-    if user == current_user:
-        return user
-    if current_user.role != UserRole.admin:
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="The user with this id does not exist in the system",
+        )
+    if user != current_user and current_user.role != UserRole.admin:
         raise HTTPException(
             status_code=403,
             detail="The user doesn't have enough privileges",
         )
-    return user
+    # Exclude encrypted API key from response
+    user_dict = user.model_dump()
+    user_dict.pop("openai_api_key_encrypted", None)
+    return UserPublic.model_validate(user_dict)
 
 
 @router.patch(
@@ -263,7 +285,13 @@ def update_user(
             )
 
     db_user = crud.update_user(session=session, db_user=db_user, user_in=user_in)
-    return db_user
+    session.refresh(db_user)
+
+    # Return user (FastAPI will serialize according to response_model=UserPublic)
+    # Exclude encrypted API key from response
+    user_dict = db_user.model_dump()
+    user_dict.pop("openai_api_key_encrypted", None)
+    return UserPublic.model_validate(user_dict)
 
 
 @router.delete("/{user_id}", dependencies=[Depends(get_current_active_admin)])

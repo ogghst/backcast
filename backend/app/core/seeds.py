@@ -609,6 +609,12 @@ def _seed_ai_default_config(session: Session) -> None:
             "description": "Default OpenAI API key (encrypted). Users must configure this.",
             "is_active": True,
         },
+        {
+            "config_key": "ai_default_openai_model",
+            "config_value": "",  # Empty by default - users must configure
+            "description": "Default OpenAI model (e.g., gpt-4o-mini, deepseek-chat). Users must configure this.",
+            "is_active": True,
+        },
     ]
 
     for config_data in default_configs:

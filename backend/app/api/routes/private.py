@@ -35,4 +35,7 @@ def create_user(user_in: PrivateUserCreate, session: SessionDep) -> Any:
     session.add(user)
     session.commit()
 
-    return user
+    # Exclude encrypted API key from response
+    user_dict = user.model_dump()
+    user_dict.pop("openai_api_key_encrypted", None)
+    return UserPublic.model_validate(user_dict)

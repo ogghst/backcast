@@ -112,6 +112,7 @@ Before deploying it, make sure you change at least the values for:
 - `SECRET_KEY`
 - `FIRST_SUPERUSER_PASSWORD`
 - `POSTGRES_PASSWORD`
+- `FERNET_KEY` (required for AI chat features - used to encrypt/decrypt OpenAI API keys)
 
 You can (and should) pass these as environment variables from secrets.
 
@@ -128,6 +129,16 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
 Copy the content and use that as password / secret key. And run that again to generate another secure key.
+
+#### Generate FERNET_KEY
+
+The `FERNET_KEY` is required for AI chat features to encrypt and decrypt OpenAI API keys. To generate a Fernet encryption key, run:
+
+```bash
+python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
+```
+
+Copy the generated key and add it to your `.env` file as `FERNET_KEY=<generated_key>`.
 
 ## Backend Development
 

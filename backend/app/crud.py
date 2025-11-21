@@ -18,11 +18,12 @@ def create_user(*, session: Session, user_create: UserCreate) -> User:
 
 def update_user(*, session: Session, db_user: User, user_in: UserUpdate) -> Any:
     user_data = user_in.model_dump(exclude_unset=True)
-    extra_data = {}
+
+    # Handle password hashing
     if "password" in user_data:
         password = user_data["password"]
         hashed_password = get_password_hash(password)
-        extra_data["hashed_password"] = hashed_password
+        user_data["hashed_password"] = hashed_password
         user_data.pop("password", None)
 
     # Handle OpenAI API key encryption
@@ -32,12 +33,16 @@ def update_user(*, session: Session, db_user: User, user_in: UserUpdate) -> Any:
     if plain_key is not None:  # Explicitly check if key was provided
         if plain_key:
             # Encrypt API key before storage
-            extra_data["openai_api_key_encrypted"] = encrypt_api_key(plain_key)
+            user_data["openai_api_key_encrypted"] = encrypt_api_key(plain_key)
         else:
             # Empty string means clear the API key
-            extra_data["openai_api_key_encrypted"] = None
+            user_data["openai_api_key_encrypted"] = None
 
-    db_user.sqlmodel_update(user_data, update=extra_data)
+    # Update user with all fields (explicitly set each field)
+    for key, value in user_data.items():
+        if hasattr(db_user, key):
+            setattr(db_user, key, value)
+
     session.add(db_user)
     session.commit()
     session.refresh(db_user)

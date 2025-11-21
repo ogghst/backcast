@@ -3512,6 +3512,18 @@ export const UserCreateSchema = {
             ],
             title: 'Openai Api Key Encrypted'
         },
+        openai_model: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 100
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Openai Model'
+        },
         password: {
             type: 'string',
             maxLength: 128,
@@ -3589,6 +3601,18 @@ export const UserPublicSchema = {
                 }
             ],
             title: 'Openai Base Url'
+        },
+        openai_model: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 100
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Openai Model'
         },
         id: {
             type: 'string',
@@ -3731,6 +3755,18 @@ export const UserUpdateSchema = {
             ],
             title: 'Openai Api Key Encrypted'
         },
+        openai_model: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 100
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Openai Model'
+        },
         password: {
             anyOf: [
                 {
@@ -3812,6 +3848,18 @@ export const UserUpdateMeSchema = {
             ],
             title: 'Openai Api Key',
             description: 'Plain text API key (will be encrypted)'
+        },
+        openai_model: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 100
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Openai Model'
         }
     },
     type: 'object',

@@ -169,3 +169,36 @@ def test_create_chat_model_configures_model_parameters(db: Session) -> None:
         assert chat_model.temperature == 0.7
         # Streaming should be enabled
         assert chat_model.streaming is True
+
+
+def test_create_chat_model_auto_detects_deepseek_model(db: Session) -> None:
+    """Test that ChatOpenAI model auto-detects DeepSeek model from base URL."""
+    # Generate a test Fernet key
+    test_key = Fernet.generate_key()
+
+    with patch.object(settings, "FERNET_KEY", test_key.decode()):
+        # Create user with DeepSeek config
+        email = f"user_{uuid.uuid4().hex[:8]}@example.com"
+        password = "testpassword123"
+
+        api_key = "sk-test123456789abcdef"
+        encrypted_key = encrypt_api_key(api_key)
+
+        user_in = UserCreate(
+            email=email,
+            password=password,
+            openai_base_url="https://api.deepseek.com/v1",
+            openai_api_key_encrypted=encrypted_key,
+        )
+        user = crud.create_user(session=db, user_create=user_in)
+
+        # Create chat model
+        chat_model = create_chat_model(session=db, user_id=user.id)
+
+        # Verify model is created and configured with DeepSeek model
+        assert chat_model is not None
+        assert hasattr(chat_model, "model_name")
+        assert chat_model.model_name == "deepseek-chat"  # Should auto-detect DeepSeek
+        assert str(chat_model.openai_api_base) == "https://api.deepseek.com/v1"
+        assert chat_model.openai_api_key is not None
+        assert chat_model.streaming is True

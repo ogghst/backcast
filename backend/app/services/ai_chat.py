@@ -465,6 +465,11 @@ def get_openai_config(session: Session, user_id: uuid.UUID) -> dict:
     2. Default app configuration (if set and active)
     3. Error if neither is available
 
+    Model configuration:
+    - User model (user.openai_model) takes precedence over default model
+    - Default model from AppConfiguration (ai_default_openai_model)
+    - No autodetection - model must be explicitly configured
+
     Args:
         session: Database session
         user_id: User ID to get configuration for
@@ -473,6 +478,7 @@ def get_openai_config(session: Session, user_id: uuid.UUID) -> dict:
         Dictionary with:
             - base_url: OpenAI API base URL
             - api_key: Decrypted OpenAI API key
+            - model: Model name (from user config or default app config)
             - source: "user", "default", or "mixed" (user base_url + default api_key, or vice versa)
 
     Raises:
@@ -485,6 +491,7 @@ def get_openai_config(session: Session, user_id: uuid.UUID) -> dict:
     # Get user config
     user_base_url = user.openai_base_url
     user_api_key_encrypted = user.openai_api_key_encrypted
+    user_model = user.openai_model
 
     # Get default app config
     default_base_url_config = session.exec(
@@ -501,12 +508,20 @@ def get_openai_config(session: Session, user_id: uuid.UUID) -> dict:
         )
     ).first()
 
+    default_model_config = session.exec(
+        select(AppConfiguration).where(
+            AppConfiguration.config_key == "ai_default_openai_model",
+            AppConfiguration.is_active,
+        )
+    ).first()
+
     default_base_url = (
         default_base_url_config.config_value if default_base_url_config else None
     )
     default_api_key_encrypted = (
         default_api_key_config.config_value if default_api_key_config else None
     )
+    default_model = default_model_config.config_value if default_model_config else None
 
     # Determine final base_url
     base_url = user_base_url if user_base_url else default_base_url
@@ -515,6 +530,9 @@ def get_openai_config(session: Session, user_id: uuid.UUID) -> dict:
     api_key_encrypted = (
         user_api_key_encrypted if user_api_key_encrypted else default_api_key_encrypted
     )
+
+    # Determine final model (user → default → error, NO autodetection)
+    model = user_model if user_model else default_model
 
     # Validate that we have both base_url and api_key
     if not base_url:
@@ -525,6 +543,12 @@ def get_openai_config(session: Session, user_id: uuid.UUID) -> dict:
     if not api_key_encrypted:
         raise ValueError(
             "OpenAI API key not found. Please configure API key in user settings or default app configuration."
+        )
+
+    # Validate that we have a model configured
+    if not model:
+        raise ValueError(
+            "OpenAI model not found. Please configure model in user settings or default app configuration."
         )
 
     # Decrypt API key
@@ -544,6 +568,7 @@ def get_openai_config(session: Session, user_id: uuid.UUID) -> dict:
     return {
         "base_url": base_url,
         "api_key": api_key,
+        "model": model,
         "source": source,
     }
 
@@ -572,7 +597,7 @@ def create_chat_model(session: Session, user_id: uuid.UUID) -> ChatOpenAI:
     chat_model = ChatOpenAI(
         base_url=config["base_url"],
         api_key=config["api_key"],
-        model="gpt-4o-mini",  # Default model (can be made configurable later)
+        model=config["model"],  # Auto-detected from base URL
         temperature=0.7,  # Default temperature for balanced responses
         streaming=True,  # Enable streaming for progressive response generation
         max_tokens=None,  # No limit on tokens by default

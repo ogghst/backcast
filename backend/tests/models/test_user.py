@@ -111,3 +111,48 @@ def test_user_base_includes_openai_config() -> None:
     user_base_none = UserBase(email="test2@example.com")
     assert user_base_none.openai_base_url is None
     assert user_base_none.openai_api_key_encrypted is None
+
+
+def test_user_model_includes_openai_model_field(db: Session) -> None:
+    """Test that User model includes openai_model field."""
+    email = f"user_{uuid.uuid4().hex[:8]}@example.com"
+    password = "testpassword123"
+
+    user_in = UserCreate(
+        email=email,
+        password=password,
+        openai_base_url="https://api.openai.com/v1",
+        openai_api_key_encrypted="encrypted_key_123",
+        openai_model="gpt-4o-mini",
+    )
+
+    user = crud.create_user(session=db, user_create=user_in)
+
+    # Verify user was created with model field
+    assert user.id is not None
+    assert user.email == email
+    assert user.openai_model == "gpt-4o-mini"
+
+
+def test_user_model_openai_model_is_optional(db: Session) -> None:
+    """Test that openai_model field is optional."""
+    email = f"user_{uuid.uuid4().hex[:8]}@example.com"
+    password = "testpassword123"
+
+    user_in = UserCreate(email=email, password=password)
+    user = crud.create_user(session=db, user_create=user_in)
+
+    # Verify model field is None when not provided
+    assert user.id is not None
+    assert user.openai_model is None
+
+
+def test_user_update_me_schema_includes_openai_model() -> None:
+    """Test that UserUpdateMe schema includes openai_model field."""
+    user_update_me = UserUpdateMe(
+        openai_base_url="https://api.openai.com/v1",
+        openai_api_key="test_key",
+        openai_model="deepseek-chat",
+    )
+
+    assert user_update_me.openai_model == "deepseek-chat"

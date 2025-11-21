@@ -33,11 +33,14 @@ import { Field } from "../ui/field"
 interface UserAIConfigFormData {
   openai_base_url?: string
   openai_api_key?: string
+  openai_model?: string
 }
 
 function hasAIConfig(user: UserPublic): boolean {
   return !!(
-    user.openai_base_url?.trim() || user.openai_api_key_encrypted?.trim()
+    user.openai_base_url?.trim() ||
+    user.openai_api_key_encrypted?.trim() ||
+    user.openai_model?.trim()
   )
 }
 
@@ -117,6 +120,7 @@ function EditUserAIConfigDialog({ user }: { user: UserPublic }) {
     defaultValues: {
       openai_base_url: user.openai_base_url || "",
       openai_api_key: "",
+      openai_model: user.openai_model || "",
     },
   })
 
@@ -142,6 +146,7 @@ function EditUserAIConfigDialog({ user }: { user: UserPublic }) {
     mutation.mutate({
       openai_base_url: data.openai_base_url || undefined,
       openai_api_key: data.openai_api_key || undefined,
+      openai_model: data.openai_model || undefined,
     })
   }
 
@@ -151,6 +156,7 @@ function EditUserAIConfigDialog({ user }: { user: UserPublic }) {
       reset({
         openai_base_url: user.openai_base_url || "",
         openai_api_key: "",
+        openai_model: user.openai_model || "",
       })
     }
   }
@@ -221,6 +227,23 @@ function EditUserAIConfigDialog({ user }: { user: UserPublic }) {
                         return "API key must be at least 10 characters"
                       }
                       return true
+                    },
+                  })}
+                />
+              </Field>
+
+              <Field
+                label="OpenAI Model"
+                invalid={!!errors.openai_model}
+                errorText={errors.openai_model?.message}
+              >
+                <Input
+                  type="text"
+                  placeholder="e.g., gpt-4o-mini, deepseek-chat, deepseek-reasoner"
+                  {...register("openai_model", {
+                    maxLength: {
+                      value: 100,
+                      message: "Model name must be 100 characters or less",
                     },
                   })}
                 />

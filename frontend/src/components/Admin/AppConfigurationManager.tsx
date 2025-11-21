@@ -45,6 +45,7 @@ interface ConfigFormData {
 const AI_CONFIG_KEYS = [
   "ai_default_openai_base_url",
   "ai_default_openai_api_key_encrypted",
+  "ai_default_openai_model",
 ] as const
 
 function isAIConfig(config: AppConfigurationPublic): boolean {
@@ -57,6 +58,8 @@ function getConfigLabel(configKey: string): string {
       return "OpenAI Base URL"
     case "ai_default_openai_api_key_encrypted":
       return "OpenAI API Key"
+    case "ai_default_openai_model":
+      return "OpenAI Model"
     default:
       return configKey
   }

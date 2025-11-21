@@ -33,6 +33,7 @@ def test_get_openai_config_user_has_config(db: Session) -> None:
             password=password,
             openai_base_url="https://api.openai.com/v1",
             openai_api_key_encrypted=encrypted_key,
+            openai_model="gpt-4o-mini",
         )
         user = crud.create_user(session=db, user_create=user_in)
 
@@ -42,6 +43,7 @@ def test_get_openai_config_user_has_config(db: Session) -> None:
         # Verify user's config is returned
         assert config["base_url"] == "https://api.openai.com/v1"
         assert config["api_key"] == api_key  # Should be decrypted
+        assert config["model"] == "gpt-4o-mini"
         assert config["source"] == "user"
 
 
@@ -95,6 +97,17 @@ def test_get_openai_config_user_has_only_base_url(db: Session) -> None:
         db.commit()
         db.refresh(default_api_key_obj)
 
+        default_model_config = AppConfigurationCreate(
+            config_key="ai_default_openai_model",
+            config_value="gpt-4o-mini",
+            description="Default OpenAI model",
+            is_active=True,
+        )
+        default_model_obj = AppConfiguration.model_validate(default_model_config)
+        db.add(default_model_obj)
+        db.commit()
+        db.refresh(default_model_obj)
+
         # Create user with only base URL
         email = f"user_{uuid.uuid4().hex[:8]}@example.com"
         password = "testpassword123"
@@ -108,9 +121,10 @@ def test_get_openai_config_user_has_only_base_url(db: Session) -> None:
         # Get config
         config = get_openai_config(session=db, user_id=user.id)
 
-        # Should use user's base URL but default API key
+        # Should use user's base URL but default API key and model
         assert config["base_url"] == "https://api.openai.com/v1/user"
         assert config["api_key"] == default_api_key
+        assert config["model"] == "gpt-4o-mini"
         assert config["source"] == "mixed"  # User base URL, default API key
 
 
@@ -120,7 +134,11 @@ def test_get_openai_config_user_has_only_api_key(db: Session) -> None:
     for config in db.exec(
         select(AppConfiguration).where(
             AppConfiguration.config_key.in_(
-                ["ai_default_openai_base_url", "ai_default_openai_api_key_encrypted"]
+                [
+                    "ai_default_openai_base_url",
+                    "ai_default_openai_api_key_encrypted",
+                    "ai_default_openai_model",
+                ]
             )
         )
     ).all():
@@ -143,6 +161,17 @@ def test_get_openai_config_user_has_only_api_key(db: Session) -> None:
         db.commit()
         db.refresh(default_base_url)
 
+        default_model_config = AppConfigurationCreate(
+            config_key="ai_default_openai_model",
+            config_value="gpt-4o-mini",
+            description="Default OpenAI model",
+            is_active=True,
+        )
+        default_model_obj = AppConfiguration.model_validate(default_model_config)
+        db.add(default_model_obj)
+        db.commit()
+        db.refresh(default_model_obj)
+
         # Create user with only API key
         email = f"user_{uuid.uuid4().hex[:8]}@example.com"
         password = "testpassword123"
@@ -160,9 +189,10 @@ def test_get_openai_config_user_has_only_api_key(db: Session) -> None:
         # Get config
         config = get_openai_config(session=db, user_id=user.id)
 
-        # Should use default base URL but user's API key
+        # Should use default base URL and model but user's API key
         assert config["base_url"] == "https://api.openai.com/v1/default"
         assert config["api_key"] == user_api_key
+        assert config["model"] == "gpt-4o-mini"
         assert config["source"] == "mixed"  # Default base URL, user API key
 
 
@@ -172,7 +202,11 @@ def test_get_openai_config_user_has_no_config_uses_defaults(db: Session) -> None
     for config in db.exec(
         select(AppConfiguration).where(
             AppConfiguration.config_key.in_(
-                ["ai_default_openai_base_url", "ai_default_openai_api_key_encrypted"]
+                [
+                    "ai_default_openai_base_url",
+                    "ai_default_openai_api_key_encrypted",
+                    "ai_default_openai_model",
+                ]
             )
         )
     ).all():
@@ -209,6 +243,17 @@ def test_get_openai_config_user_has_no_config_uses_defaults(db: Session) -> None
         db.commit()
         db.refresh(default_api_key_obj)
 
+        default_model_config = AppConfigurationCreate(
+            config_key="ai_default_openai_model",
+            config_value="gpt-4o-mini",
+            description="Default OpenAI model",
+            is_active=True,
+        )
+        default_model_obj = AppConfiguration.model_validate(default_model_config)
+        db.add(default_model_obj)
+        db.commit()
+        db.refresh(default_model_obj)
+
         # Create user without config
         email = f"user_{uuid.uuid4().hex[:8]}@example.com"
         password = "testpassword123"
@@ -221,6 +266,7 @@ def test_get_openai_config_user_has_no_config_uses_defaults(db: Session) -> None
         # Should use defaults
         assert config["base_url"] == "https://api.openai.com/v1/default"
         assert config["api_key"] == default_api_key
+        assert config["model"] == "gpt-4o-mini"
         assert config["source"] == "default"
 
 
@@ -230,7 +276,11 @@ def test_get_openai_config_no_defaults_raises_error(db: Session) -> None:
     for config in db.exec(
         select(AppConfiguration).where(
             AppConfiguration.config_key.in_(
-                ["ai_default_openai_base_url", "ai_default_openai_api_key_encrypted"]
+                [
+                    "ai_default_openai_base_url",
+                    "ai_default_openai_api_key_encrypted",
+                    "ai_default_openai_model",
+                ]
             )
         )
     ).all():
@@ -254,7 +304,11 @@ def test_get_openai_config_user_partial_and_incomplete_defaults(db: Session) -> 
     for config in db.exec(
         select(AppConfiguration).where(
             AppConfiguration.config_key.in_(
-                ["ai_default_openai_base_url", "ai_default_openai_api_key_encrypted"]
+                [
+                    "ai_default_openai_base_url",
+                    "ai_default_openai_api_key_encrypted",
+                    "ai_default_openai_model",
+                ]
             )
         )
     ).all():
@@ -277,6 +331,17 @@ def test_get_openai_config_user_partial_and_incomplete_defaults(db: Session) -> 
         db.commit()
         db.refresh(default_base_url)
 
+        default_model_config = AppConfigurationCreate(
+            config_key="ai_default_openai_model",
+            config_value="gpt-4o-mini",
+            description="Default OpenAI model",
+            is_active=True,
+        )
+        default_model_obj = AppConfiguration.model_validate(default_model_config)
+        db.add(default_model_obj)
+        db.commit()
+        db.refresh(default_model_obj)
+
         # Create user with only API key (no base URL)
         email = f"user_{uuid.uuid4().hex[:8]}@example.com"
         password = "testpassword123"
@@ -291,10 +356,11 @@ def test_get_openai_config_user_partial_and_incomplete_defaults(db: Session) -> 
         )
         user = crud.create_user(session=db, user_create=user_in)
 
-        # Should use default base URL and user API key
+        # Should use default base URL and model, but user API key
         config = get_openai_config(session=db, user_id=user.id)
         assert config["base_url"] == "https://api.openai.com/v1/default"
         assert config["api_key"] == user_api_key
+        assert config["model"] == "gpt-4o-mini"
         assert config["source"] == "mixed"
 
 
@@ -306,7 +372,11 @@ def test_get_openai_config_user_partial_missing_default_api_key_raises_error(
     for config in db.exec(
         select(AppConfiguration).where(
             AppConfiguration.config_key.in_(
-                ["ai_default_openai_base_url", "ai_default_openai_api_key_encrypted"]
+                [
+                    "ai_default_openai_base_url",
+                    "ai_default_openai_api_key_encrypted",
+                    "ai_default_openai_model",
+                ]
             )
         )
     ).all():
@@ -342,7 +412,11 @@ def test_get_openai_config_inactive_default_ignored(db: Session) -> None:
     for config in db.exec(
         select(AppConfiguration).where(
             AppConfiguration.config_key.in_(
-                ["ai_default_openai_base_url", "ai_default_openai_api_key_encrypted"]
+                [
+                    "ai_default_openai_base_url",
+                    "ai_default_openai_api_key_encrypted",
+                    "ai_default_openai_model",
+                ]
             )
         )
     ).all():
@@ -390,6 +464,7 @@ def test_get_openai_config_decrypts_encrypted_keys(db: Session) -> None:
             password=password,
             openai_base_url="https://api.openai.com/v1",
             openai_api_key_encrypted=encrypted_key,
+            openai_model="gpt-4o-mini",
         )
         user = crud.create_user(session=db, user_create=user_in)
 
@@ -399,3 +474,167 @@ def test_get_openai_config_decrypts_encrypted_keys(db: Session) -> None:
         # Verify decrypted key matches original
         assert config["api_key"] == api_key
         assert config["api_key"] != encrypted_key  # Should be decrypted
+        assert config["model"] == "gpt-4o-mini"
+
+
+def test_get_openai_config_returns_user_model(db: Session) -> None:
+    """Test that get_openai_config returns model from user configuration."""
+    # Generate a test Fernet key
+    test_key = Fernet.generate_key()
+
+    with patch.object(settings, "FERNET_KEY", test_key.decode()):
+        # Create user with model configured
+        email = f"user_{uuid.uuid4().hex[:8]}@example.com"
+        password = "testpassword123"
+
+        api_key = "sk-test123456789abcdef"
+        encrypted_key = encrypt_api_key(api_key)
+
+        user_in = UserCreate(
+            email=email,
+            password=password,
+            openai_base_url="https://api.deepseek.com/v1",
+            openai_api_key_encrypted=encrypted_key,
+            openai_model="deepseek-reasoner",
+        )
+        user = crud.create_user(session=db, user_create=user_in)
+
+        # Get config
+        config = get_openai_config(session=db, user_id=user.id)
+
+        # Verify model comes from user config
+        assert "model" in config
+        assert config["model"] == "deepseek-reasoner"
+        assert config["base_url"] == "https://api.deepseek.com/v1"
+
+
+def test_get_openai_config_returns_default_model_when_user_has_none(
+    db: Session,
+) -> None:
+    """Test that get_openai_config returns default model when user has no model configured."""
+    # Clean up existing configs
+    from sqlmodel import select
+
+    for config in db.exec(
+        select(AppConfiguration).where(
+            AppConfiguration.config_key.in_(
+                [
+                    "ai_default_openai_base_url",
+                    "ai_default_openai_api_key_encrypted",
+                    "ai_default_openai_model",
+                ]
+            )
+        )
+    ).all():
+        db.delete(config)
+    db.commit()
+
+    # Generate a test Fernet key
+    test_key = Fernet.generate_key()
+
+    with patch.object(settings, "FERNET_KEY", test_key.decode()):
+        # Create default configs
+        default_base_url_config = AppConfigurationCreate(
+            config_key="ai_default_openai_base_url",
+            config_value="https://api.openai.com/v1",
+            description="Default OpenAI API base URL",
+            is_active=True,
+        )
+        default_base_url = AppConfiguration.model_validate(default_base_url_config)
+        db.add(default_base_url)
+        db.commit()
+
+        default_api_key = "sk-default123456789"
+        encrypted_default_key = encrypt_api_key(default_api_key)
+
+        default_api_key_config = AppConfigurationCreate(
+            config_key="ai_default_openai_api_key_encrypted",
+            config_value=encrypted_default_key,
+            description="Default OpenAI API key (encrypted)",
+            is_active=True,
+        )
+        default_api_key_obj = AppConfiguration.model_validate(default_api_key_config)
+        db.add(default_api_key_obj)
+        db.commit()
+
+        default_model_config = AppConfigurationCreate(
+            config_key="ai_default_openai_model",
+            config_value="gpt-4o",
+            description="Default OpenAI model",
+            is_active=True,
+        )
+        default_model_obj = AppConfiguration.model_validate(default_model_config)
+        db.add(default_model_obj)
+        db.commit()
+
+        # Create user without model config
+        email = f"user_{uuid.uuid4().hex[:8]}@example.com"
+        password = "testpassword123"
+        user_in = UserCreate(email=email, password=password)
+        user = crud.create_user(session=db, user_create=user_in)
+
+        # Get config
+        config = get_openai_config(session=db, user_id=user.id)
+
+        # Verify model comes from default config
+        assert "model" in config
+        assert config["model"] == "gpt-4o"
+        assert config["base_url"] == "https://api.openai.com/v1"
+
+
+def test_get_openai_config_raises_error_when_no_model_configured(db: Session) -> None:
+    """Test that get_openai_config raises error when neither user nor default model is configured."""
+    # Clean up existing configs
+    from sqlmodel import select
+
+    for config in db.exec(
+        select(AppConfiguration).where(
+            AppConfiguration.config_key.in_(
+                [
+                    "ai_default_openai_base_url",
+                    "ai_default_openai_api_key_encrypted",
+                    "ai_default_openai_model",
+                ]
+            )
+        )
+    ).all():
+        db.delete(config)
+    db.commit()
+
+    # Generate a test Fernet key
+    test_key = Fernet.generate_key()
+
+    with patch.object(settings, "FERNET_KEY", test_key.decode()):
+        # Create default configs (base_url and api_key, but no model)
+        default_base_url_config = AppConfigurationCreate(
+            config_key="ai_default_openai_base_url",
+            config_value="https://api.openai.com/v1",
+            description="Default OpenAI API base URL",
+            is_active=True,
+        )
+        default_base_url = AppConfiguration.model_validate(default_base_url_config)
+        db.add(default_base_url)
+        db.commit()
+
+        default_api_key = "sk-default123456789"
+        encrypted_default_key = encrypt_api_key(default_api_key)
+
+        default_api_key_config = AppConfigurationCreate(
+            config_key="ai_default_openai_api_key_encrypted",
+            config_value=encrypted_default_key,
+            description="Default OpenAI API key (encrypted)",
+            is_active=True,
+        )
+        default_api_key_obj = AppConfiguration.model_validate(default_api_key_config)
+        db.add(default_api_key_obj)
+        db.commit()
+
+        # Create user without model config
+        email = f"user_{uuid.uuid4().hex[:8]}@example.com"
+        password = "testpassword123"
+        user_in = UserCreate(email=email, password=password)
+        user = crud.create_user(session=db, user_create=user_in)
+
+        # Should raise error since no model is configured
+        with pytest.raises(ValueError, match="OpenAI model not found"):
+            get_openai_config(session=db, user_id=user.id)
