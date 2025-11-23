@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import date, datetime, time, timezone
 from enum import Enum
+from typing import Any
 
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.sql.selectable import Select
@@ -29,7 +30,7 @@ def end_of_day(control_date: date) -> datetime:
 
 def _schedule_filters(control_date: date) -> tuple[ColumnElement[bool], ...]:
     cutoff = end_of_day(control_date)
-    return (
+    return (  # type: ignore[return-value]
         CostElementSchedule.registration_date <= control_date,
         CostElementSchedule.created_at <= cutoff,
     )
@@ -37,7 +38,7 @@ def _schedule_filters(control_date: date) -> tuple[ColumnElement[bool], ...]:
 
 def _earned_value_filters(control_date: date) -> tuple[ColumnElement[bool], ...]:
     cutoff = end_of_day(control_date)
-    return (
+    return (  # type: ignore[return-value]
         EarnedValueEntry.completion_date <= control_date,
         EarnedValueEntry.registration_date <= control_date,
         EarnedValueEntry.created_at <= cutoff,
@@ -46,7 +47,7 @@ def _earned_value_filters(control_date: date) -> tuple[ColumnElement[bool], ...]
 
 def _cost_registration_filters(control_date: date) -> tuple[ColumnElement[bool], ...]:
     cutoff = end_of_day(control_date)
-    return (
+    return (  # type: ignore[return-value]
         CostRegistration.registration_date <= control_date,
         CostRegistration.created_at <= cutoff,
     )
@@ -77,8 +78,8 @@ def get_visibility_filters(
 
 
 def apply_time_machine_filters(
-    statement: Select, event_type: TimeMachineEventType, control_date: date
-) -> Select:
+    statement: Select[Any], event_type: TimeMachineEventType, control_date: date
+) -> Select[Any]:
     """Apply the event-specific time-machine filters to a SQLAlchemy statement."""
     filters = get_visibility_filters(event_type, control_date)
     if not filters:

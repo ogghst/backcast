@@ -611,7 +611,7 @@ def create_chat_model(session: Session, user_id: uuid.UUID) -> ChatOpenAI:
 class AssessmentState(TypedDict):
     """State for assessment generation workflow."""
 
-    context_metrics: dict
+    context_metrics: dict[str, Any]
     prompt: str
     assessment: str
 
@@ -619,8 +619,8 @@ class AssessmentState(TypedDict):
 class ChatState(TypedDict):
     """State for chat message workflow."""
 
-    context_metrics: dict
-    conversation_history: list[dict]
+    context_metrics: dict[str, Any]
+    conversation_history: list[dict[str, Any]]
     user_message: str
     system_prompt: str
     response: str
@@ -650,7 +650,7 @@ def create_assessment_graph(
     # Get chat model for user
     chat_model = create_chat_model(session=session, user_id=user_id)
 
-    def format_prompt(state: AssessmentState) -> dict:
+    def format_prompt(state: AssessmentState) -> dict[str, Any]:
         """Format context metrics into a prompt for assessment generation."""
         metrics = state["context_metrics"]
         context_type = metrics.get("context_type", "unknown")
@@ -743,7 +743,7 @@ Provide a detailed assessment including performance analysis, risks, and recomme
 
         return {"prompt": prompt_text}
 
-    def generate_assessment(state: AssessmentState) -> dict:
+    def generate_assessment(state: AssessmentState) -> dict[str, Any]:
         """Generate assessment using chat model."""
         prompt_text = state["prompt"]
 
@@ -793,7 +793,9 @@ async def generate_initial_assessment(
     context_type: ContextType,
     context_id: uuid.UUID,
     control_date: date,
-    send_message: Callable[[dict], Awaitable[None]],  # WebSocket send function (async)
+    send_message: Callable[
+        [dict[str, Any]], Awaitable[None]
+    ],  # WebSocket send function (async)
 ) -> None:
     """
     Generate initial AI assessment with WebSocket streaming support.
@@ -919,7 +921,7 @@ def create_chat_graph(
     # Get chat model for user
     chat_model = create_chat_model(session=session, user_id=user_id)
 
-    def format_chat_prompt(state: ChatState) -> dict:
+    def format_chat_prompt(state: ChatState) -> dict[str, Any]:
         """Format conversation history and context metrics into a prompt."""
         context_metrics = state["context_metrics"]
         # conversation_history and user_message are used in generate_response, not here
@@ -988,7 +990,7 @@ Provide helpful, actionable answers based on the baseline snapshot. Always forma
 
         return {"system_prompt": system_prompt}
 
-    def generate_response(state: ChatState) -> dict:
+    def generate_response(state: ChatState) -> dict[str, Any]:
         """Generate response using chat model with conversation history."""
         conversation_history = state["conversation_history"]
         user_message = state["user_message"]
@@ -1047,8 +1049,10 @@ async def send_chat_message(
     context_id: uuid.UUID,
     control_date: date,
     message: str,
-    conversation_history: list[dict],
-    send_message: Callable[[dict], Awaitable[None]],  # WebSocket send function (async)
+    conversation_history: list[dict[str, Any]],
+    send_message: Callable[
+        [dict[str, Any]], Awaitable[None]
+    ],  # WebSocket send function (async)
 ) -> None:
     """
     Handle chat message with conversation history and WebSocket streaming support.

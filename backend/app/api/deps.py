@@ -1,4 +1,4 @@
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from datetime import date
 from typing import Annotated
 
@@ -68,7 +68,9 @@ def get_current_active_admin(current_user: CurrentUser) -> User:
     return current_user
 
 
-def get_current_user_with_role(required_role: UserRole):
+def get_current_user_with_role(
+    required_role: UserRole,
+) -> Callable[[CurrentUser], User]:
     """Dependency factory to check for a specific role."""
 
     def role_checker(current_user: CurrentUser) -> User:

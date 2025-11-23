@@ -69,8 +69,8 @@ def _select_entry_for_cost_element(
     statement = apply_time_machine_filters(
         statement, TimeMachineEventType.EARNED_VALUE, control_date
     ).order_by(
-        EarnedValueEntry.completion_date.desc(),
-        EarnedValueEntry.created_at.desc(),
+        EarnedValueEntry.completion_date.desc(),  # type: ignore[attr-defined]
+        EarnedValueEntry.created_at.desc(),  # type: ignore[attr-defined]
     )
     return session.exec(statement).first()
 
@@ -97,14 +97,14 @@ def _get_entry_map(
     # We'll need to use a window function or subquery to get the latest per cost element
     # For simplicity, we'll query all and filter in Python (acceptable for reasonable number of entries)
     statement = select(EarnedValueEntry).where(
-        EarnedValueEntry.cost_element_id.in_(cost_element_ids),
+        EarnedValueEntry.cost_element_id.in_(cost_element_ids),  # type: ignore[attr-defined]
     )
     statement = apply_time_machine_filters(
         statement, TimeMachineEventType.EARNED_VALUE, control_date
     ).order_by(
         EarnedValueEntry.cost_element_id,
-        EarnedValueEntry.completion_date.desc(),
-        EarnedValueEntry.created_at.desc(),
+        EarnedValueEntry.completion_date.desc(),  # type: ignore[attr-defined]
+        EarnedValueEntry.created_at.desc(),  # type: ignore[attr-defined]
     )
     entries = session.exec(statement).all()
 
@@ -148,8 +148,8 @@ def _get_forecast_eac_map(
     # Query current forecasts for the cost elements where forecast_date <= control_date
     statement = (
         select(Forecast)
-        .where(Forecast.cost_element_id.in_(cost_element_ids))
-        .where(Forecast.is_current.is_(True))
+        .where(Forecast.cost_element_id.in_(cost_element_ids))  # type: ignore[attr-defined]
+        .where(Forecast.is_current.is_(True))  # type: ignore[attr-defined]
         .where(Forecast.forecast_date <= control_date)
     )
     forecasts = session.exec(statement).all()
@@ -351,7 +351,7 @@ def get_project_earned_value(
     if wbe_ids:
         cost_elements = session.exec(
             select(CostElement).where(
-                CostElement.wbe_id.in_(wbe_ids),
+                CostElement.wbe_id.in_(wbe_ids),  # type: ignore[attr-defined]
                 CostElement.created_at <= cutoff,
             )
         ).all()

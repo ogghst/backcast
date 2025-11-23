@@ -104,7 +104,7 @@ def read_wbes(
             select(WBE)
             .where(WBE.project_id == project_id)
             .where(WBE.created_at <= cutoff)
-            .order_by(WBE.created_at.asc(), WBE.wbe_id.asc())
+            .order_by(WBE.created_at.asc(), WBE.wbe_id.asc())  # type: ignore[attr-defined]
             .offset(skip)
             .limit(limit)
         )
@@ -117,7 +117,7 @@ def read_wbes(
         statement = (
             select(WBE)
             .where(WBE.created_at <= cutoff)
-            .order_by(WBE.created_at.asc(), WBE.wbe_id.asc())
+            .order_by(WBE.created_at.asc(), WBE.wbe_id.asc())  # type: ignore[attr-defined]
             .offset(skip)
             .limit(limit)
         )

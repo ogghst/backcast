@@ -50,11 +50,18 @@ class UserRegister(SQLModel):
 
 
 # Properties to receive via API on update, all are optional
-class UserUpdate(UserBase):
+class UserUpdate(SQLModel):
     """Schema for updating a user."""
 
-    email: EmailStr | None = Field(default=None, max_length=200)  # type: ignore
+    email: EmailStr | None = Field(default=None, max_length=200)
     role: UserRole | None = None
+    department: str | None = Field(default=None, max_length=100)
+    full_name: str | None = Field(default=None, max_length=200)
+    time_machine_date: date | None = Field(default=None)
+    openai_base_url: str | None = Field(default=None, max_length=500)
+    openai_api_key_encrypted: str | None = Field(default=None)
+    openai_model: str | None = Field(default=None, max_length=100)
+    is_active: bool | None = None
     password: str | None = Field(default=None, min_length=8, max_length=128)
     openai_api_key: str | None = Field(
         default=None, description="Plain text API key (will be encrypted)"
@@ -106,7 +113,7 @@ class UserPublic(UserBase):
 
     id: uuid.UUID
     # Override to exclude from response
-    openai_api_key_encrypted: None = Field(default=None, exclude=True)  # type: ignore
+    openai_api_key_encrypted: None = Field(default=None, exclude=True)
 
 
 class UsersPublic(SQLModel):

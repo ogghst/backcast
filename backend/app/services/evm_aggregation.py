@@ -118,7 +118,7 @@ def get_cost_element_evm_metrics(
     )
 
     # Calculate AC from cost registrations
-    ac = sum(cr.amount for cr in cost_registrations)
+    ac = sum((cr.amount for cr in cost_registrations), Decimal("0.00"))
 
     # Get BAC from cost element
     bac = cost_element.budget_bac or Decimal("0.00")
@@ -183,10 +183,10 @@ def aggregate_cost_element_metrics(
         )
 
     # Aggregate PV, EV, AC, BAC
-    total_pv = sum(m.planned_value for m in metrics)
-    total_ev = sum(m.earned_value for m in metrics)
-    total_ac = sum(m.actual_cost for m in metrics)
-    total_bac = sum(m.budget_bac for m in metrics)
+    total_pv = sum((m.planned_value for m in metrics), Decimal("0.00"))
+    total_ev = sum((m.earned_value for m in metrics), Decimal("0.00"))
+    total_ac = sum((m.actual_cost for m in metrics), Decimal("0.00"))
+    total_bac = sum((m.budget_bac for m in metrics), Decimal("0.00"))
 
     # Aggregate EAC
     eac_values = [m.eac for m in metrics]
@@ -195,7 +195,8 @@ def aggregate_cost_element_metrics(
     # Calculate forecasted quality
     # Sum of EACs that come from forecasts (where forecasted_quality = 1.0000)
     forecast_eac_sum = sum(
-        m.eac for m in metrics if m.forecasted_quality == Decimal("1.0000")
+        (m.eac for m in metrics if m.forecasted_quality == Decimal("1.0000")),
+        Decimal("0.00"),
     )
     forecasted_quality = aggregate_forecasted_quality(
         forecast_eac_sum=forecast_eac_sum, total_eac=total_eac

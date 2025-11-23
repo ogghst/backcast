@@ -11,8 +11,10 @@ from sqlmodel import Session, select
 from app.models import (
     WBE,
     CostElement,
+    CostElementSchedule,
     CostElementType,
     CostRegistration,
+    EarnedValueEntry,
     Project,
     VarianceThresholdConfig,
 )
@@ -110,8 +112,8 @@ def calculate_variance_severity(
 
 
 def _get_schedule_map(
-    session: Session, cost_element_ids: list, control_date: date
-) -> dict:
+    session: Session, cost_element_ids: list[uuid.UUID], control_date: date
+) -> dict[uuid.UUID, CostElementSchedule | None]:
     """Get schedule map for cost elements (reused from evm_aggregation)."""
     from app.api.routes.evm_aggregation import _get_schedule_map as get_schedule_map
 
@@ -119,8 +121,8 @@ def _get_schedule_map(
 
 
 def _get_entry_map(
-    session: Session, cost_element_ids: list, control_date: date
-) -> dict:
+    session: Session, cost_element_ids: list[uuid.UUID], control_date: date
+) -> dict[uuid.UUID, EarnedValueEntry | None]:
     """Get earned value entry map for cost elements (reused from evm_aggregation)."""
     from app.api.routes.evm_aggregation import _get_entry_map as get_entry_map
 
@@ -228,7 +230,7 @@ def get_variance_analysis_report(
     all_cost_registrations = session.exec(statement).all()
 
     # Group cost registrations by cost element
-    cost_registrations_by_ce: dict = {}
+    cost_registrations_by_ce: dict[uuid.UUID, list[CostRegistration]] = {}
     for cr in all_cost_registrations:
         if cr.cost_element_id not in cost_registrations_by_ce:
             cost_registrations_by_ce[cr.cost_element_id] = []
@@ -532,7 +534,7 @@ def get_variance_trend(
             )
             all_cost_registrations = session.exec(statement).all()
 
-            cost_registrations_by_ce: dict = {}
+            cost_registrations_by_ce: dict[uuid.UUID, list[CostRegistration]] = {}
             for cr in all_cost_registrations:
                 if cr.cost_element_id not in cost_registrations_by_ce:
                     cost_registrations_by_ce[cr.cost_element_id] = []
@@ -585,7 +587,7 @@ def get_variance_trend(
             )
             all_cost_registrations = session.exec(statement).all()
 
-            cost_registrations_by_ce: dict = {}
+            cost_registrations_by_ce: dict[uuid.UUID, list[CostRegistration]] = {}
             for cr in all_cost_registrations:
                 if cr.cost_element_id not in cost_registrations_by_ce:
                     cost_registrations_by_ce[cr.cost_element_id] = []

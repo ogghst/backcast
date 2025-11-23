@@ -25,14 +25,14 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 class WBETemplateItem(SQLModel):
     """WBE with nested cost elements."""
 
-    wbe: dict
-    cost_elements: list[dict] = []
+    wbe: dict[str, Any]
+    cost_elements: list[dict[str, Any]] = []
 
 
 class ProjectTemplate(SQLModel):
     """Template for creating a complete project hierarchy."""
 
-    project: dict
+    project: dict[str, Any]
     wbes: list[WBETemplateItem] = []
 
 
