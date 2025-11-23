@@ -629,7 +629,6 @@ class ChatState(TypedDict):
 def create_assessment_graph(
     session: Session,
     user_id: uuid.UUID,
-    _context_metrics: dict,  # Passed through but extracted from state
 ) -> Any:  # Returns CompiledGraph from langgraph
     """
     Create LangGraph workflow for generating AI assessments with streaming support.
@@ -641,7 +640,6 @@ def create_assessment_graph(
     Args:
         session: Database session
         user_id: User ID to get OpenAI configuration for
-        context_metrics: Dictionary with context-specific metrics (project/WBE/cost-element/baseline)
 
     Returns:
         Compiled LangGraph graph ready for execution with streaming support
@@ -829,7 +827,6 @@ async def generate_initial_assessment(
         graph = create_assessment_graph(
             session=session,
             user_id=user_id,
-            context_metrics=context_metrics,
         )
 
         # Prepare initial state for graph execution
@@ -901,8 +898,6 @@ async def generate_initial_assessment(
 def create_chat_graph(
     session: Session,
     user_id: uuid.UUID,
-    _context_metrics: dict,  # Passed through but extracted from state
-    _conversation_history: list[dict],  # Passed through but extracted from state
 ) -> Any:  # Returns CompiledGraph from langgraph
     """
     Create LangGraph workflow for chat messages with conversation history.
@@ -914,8 +909,6 @@ def create_chat_graph(
     Args:
         session: Database session
         user_id: User ID to get OpenAI configuration for
-        context_metrics: Dictionary with context-specific metrics (project/WBE/cost-element/baseline)
-        conversation_history: List of conversation messages in format [{"role": "user|assistant", "content": "..."}]
 
     Returns:
         Compiled LangGraph graph ready for execution with streaming support
@@ -1094,8 +1087,6 @@ async def send_chat_message(
         graph = create_chat_graph(
             session=session,
             user_id=user_id,
-            context_metrics=context_metrics,
-            conversation_history=updated_history,
         )
 
         # Prepare initial state for graph execution

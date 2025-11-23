@@ -33,16 +33,14 @@ export default function MetricsSummary({
           costElementId={costElementId}
         />
       </Box>
-      {level !== "cost-element" && (
-        <Box mt={6}>
-          <EarnedValueSummary
-            level={level}
-            projectId={projectId}
-            wbeId={wbeId}
-            costElementId={costElementId}
-          />
-        </Box>
-      )}
+      <Box mt={6}>
+        <EarnedValueSummary
+          level={level}
+          projectId={projectId}
+          wbeId={wbeId}
+          costElementId={costElementId}
+        />
+      </Box>
     </Box>
   )
 }

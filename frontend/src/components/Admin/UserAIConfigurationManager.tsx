@@ -37,11 +37,7 @@ interface UserAIConfigFormData {
 }
 
 function hasAIConfig(user: UserPublic): boolean {
-  return !!(
-    user.openai_base_url?.trim() ||
-    user.openai_api_key_encrypted?.trim() ||
-    user.openai_model?.trim()
-  )
+  return !!(user.openai_base_url?.trim() || user.openai_model?.trim())
 }
 
 export default function UserAIConfigurationManager() {
@@ -210,14 +206,17 @@ function EditUserAIConfigDialog({ user }: { user: UserPublic }) {
                 <Input
                   type="password"
                   placeholder={
-                    user.openai_api_key_encrypted
+                    user.openai_base_url || user.openai_model
                       ? "Enter new API key (leave empty to keep current)"
                       : "Enter API key"
                   }
                   {...register("openai_api_key", {
                     validate: (value) => {
-                      // Allow empty if updating existing key (to keep current value)
-                      if (user.openai_api_key_encrypted && !value) {
+                      // Allow empty if user already has AI config (to keep current value)
+                      if (
+                        (user.openai_base_url || user.openai_model) &&
+                        !value
+                      ) {
                         return true
                       }
                       if (!value) {

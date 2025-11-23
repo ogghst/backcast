@@ -13,7 +13,7 @@ from app.api.deps import (
     SessionDep,
     get_time_machine_control_date,
 )
-from app.api.routes.earned_value import _get_entry_map
+from app.api.routes.earned_value import _get_entry_map, _get_forecast_eac_map
 from app.api.routes.planned_value import _get_schedule_map
 from app.models import (
     WBE,
@@ -107,6 +107,10 @@ def get_cost_element_evm_metrics_endpoint(
     )
     cost_registrations = session.exec(statement).all()
 
+    # Get current forecast EAC
+    forecast_map = _get_forecast_eac_map(session, [cost_element_id], control_date)
+    forecast_eac = forecast_map.get(cost_element_id)
+
     # Calculate metrics using unified service
     metrics = get_cost_element_evm_metrics(
         cost_element=cost_element,
@@ -114,6 +118,7 @@ def get_cost_element_evm_metrics_endpoint(
         entry=entry,
         cost_registrations=cost_registrations,
         control_date=control_date,
+        forecast_eac=forecast_eac,
     )
 
     return EVMIndicesCostElementPublic(
@@ -124,6 +129,8 @@ def get_cost_element_evm_metrics_endpoint(
         earned_value=metrics.earned_value,
         actual_cost=metrics.actual_cost,
         budget_bac=metrics.budget_bac,
+        eac=metrics.eac,
+        forecasted_quality=metrics.forecasted_quality,
         cpi=metrics.cpi,
         spi=metrics.spi,
         tcpi=metrics.tcpi,
@@ -170,6 +177,8 @@ def get_wbe_evm_metrics_endpoint(
             earned_value=Decimal("0.00"),
             actual_cost=Decimal("0.00"),
             budget_bac=Decimal("0.00"),
+            eac=Decimal("0.00"),
+            forecasted_quality=Decimal("0.0000"),
             cpi=None,
             spi=None,
             tcpi=None,
@@ -184,6 +193,9 @@ def get_wbe_evm_metrics_endpoint(
 
     # Get entries
     entry_map = _get_entry_map(session, cost_element_ids, control_date)
+
+    # Get forecast EAC map
+    forecast_map = _get_forecast_eac_map(session, cost_element_ids, control_date)
 
     # Get cost registrations
     statement = select(CostRegistration).where(
@@ -204,6 +216,7 @@ def get_wbe_evm_metrics_endpoint(
     # Calculate metrics for each cost element
     cost_element_metrics = []
     for cost_element in cost_elements:
+        forecast_eac = forecast_map.get(cost_element.cost_element_id)
         metrics = get_cost_element_evm_metrics(
             cost_element=cost_element,
             schedule=schedule_map.get(cost_element.cost_element_id),
@@ -212,6 +225,7 @@ def get_wbe_evm_metrics_endpoint(
                 cost_element.cost_element_id, []
             ),
             control_date=control_date,
+            forecast_eac=forecast_eac,
         )
         cost_element_metrics.append(metrics)
 
@@ -226,6 +240,8 @@ def get_wbe_evm_metrics_endpoint(
         earned_value=aggregated.earned_value,
         actual_cost=aggregated.actual_cost,
         budget_bac=aggregated.budget_bac,
+        eac=aggregated.eac,
+        forecasted_quality=aggregated.forecasted_quality,
         cpi=aggregated.cpi,
         spi=aggregated.spi,
         tcpi=aggregated.tcpi,
@@ -271,6 +287,8 @@ def get_project_evm_metrics_endpoint(
             earned_value=Decimal("0.00"),
             actual_cost=Decimal("0.00"),
             budget_bac=Decimal("0.00"),
+            eac=Decimal("0.00"),
+            forecasted_quality=Decimal("0.0000"),
             cpi=None,
             spi=None,
             tcpi=None,
@@ -298,6 +316,8 @@ def get_project_evm_metrics_endpoint(
             earned_value=Decimal("0.00"),
             actual_cost=Decimal("0.00"),
             budget_bac=Decimal("0.00"),
+            eac=Decimal("0.00"),
+            forecasted_quality=Decimal("0.0000"),
             cpi=None,
             spi=None,
             tcpi=None,
@@ -312,6 +332,9 @@ def get_project_evm_metrics_endpoint(
 
     # Get entries
     entry_map = _get_entry_map(session, cost_element_ids, control_date)
+
+    # Get forecast EAC map
+    forecast_map = _get_forecast_eac_map(session, cost_element_ids, control_date)
 
     # Get cost registrations
     statement = select(CostRegistration).where(
@@ -332,6 +355,7 @@ def get_project_evm_metrics_endpoint(
     # Calculate metrics for each cost element
     cost_element_metrics = []
     for cost_element in cost_elements:
+        forecast_eac = forecast_map.get(cost_element.cost_element_id)
         metrics = get_cost_element_evm_metrics(
             cost_element=cost_element,
             schedule=schedule_map.get(cost_element.cost_element_id),
@@ -340,6 +364,7 @@ def get_project_evm_metrics_endpoint(
                 cost_element.cost_element_id, []
             ),
             control_date=control_date,
+            forecast_eac=forecast_eac,
         )
         cost_element_metrics.append(metrics)
 
@@ -354,6 +379,8 @@ def get_project_evm_metrics_endpoint(
         earned_value=aggregated.earned_value,
         actual_cost=aggregated.actual_cost,
         budget_bac=aggregated.budget_bac,
+        eac=aggregated.eac,
+        forecasted_quality=aggregated.forecasted_quality,
         cpi=aggregated.cpi,
         spi=aggregated.spi,
         tcpi=aggregated.tcpi,

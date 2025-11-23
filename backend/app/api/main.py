@@ -18,6 +18,7 @@ from app.api.routes import (
     earned_value_entries,
     evm_aggregation,
     evm_indices,
+    forecasts,
     login,
     planned_value,
     private,
@@ -46,6 +47,7 @@ api_router.include_router(cost_registrations.router)
 api_router.include_router(cost_summary.router)
 api_router.include_router(cost_timeline.router)
 api_router.include_router(earned_value_entries.router)
+api_router.include_router(forecasts.router)
 api_router.include_router(budget_summary.router)
 api_router.include_router(budget_timeline.router)
 api_router.include_router(planned_value.router)

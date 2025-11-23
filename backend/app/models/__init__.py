@@ -138,6 +138,7 @@ from app.models.forecast import (
     ForecastBase,
     ForecastCreate,
     ForecastPublic,
+    ForecastType,
     ForecastUpdate,
 )
 from app.models.planned_value import (
@@ -420,6 +421,7 @@ __all__ = [
     "ForecastBase",
     "ForecastCreate",
     "ForecastPublic",
+    "ForecastType",
     "ForecastUpdate",
     # Shared models
     "Message",

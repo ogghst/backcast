@@ -80,9 +80,15 @@ Earned value entries may also capture specific deliverables achieved and descrip
 
 ### 7.1 Forecast Creation and Management
 
-The system shall support the creation and maintenance of cost forecasts at the cost element level. Users must be able to create new forecasts at any point during project execution, with each forecast representing the Estimate at Completion (EAC) for the cost element based on current performance and anticipated future conditions.
+The system shall support the creation and maintenance of cost forecasts at the cost element level through a CRUD interface with dialog forms. Users must be able to create new forecasts at any point during project execution, with each forecast representing the Estimate at Completion (EAC) for the cost element based on current performance and anticipated future conditions.
 
-Each forecast entry must include the forecast date, the revised estimate at completion, the estimate to complete (ETC) from the current point, assumptions underlying the forecast, and the responsible estimator. The system shall maintain a complete history of all forecasts to enable trend analysis and forecast accuracy assessment.
+Each forecast entry must include the forecast date (must be in the past, with alert if future), the revised estimate at completion (EAC - allows any positive value, shows warnings if EAC > BAC or EAC < AC), the estimate to complete (ETC - calculated as EAC - AC, not stored), forecast type (strict enum: bottom_up, performance_based, management_judgment), assumptions underlying the forecast, and the responsible estimator. The system shall maintain a complete history of all forecasts ordered by forecast_date descending to enable trend analysis and forecast accuracy assessment.
+
+The system shall enforce a maximum of three forecast dates per cost element. When deleting a forecast, if the deleted forecast was the current forecast, the system shall automatically promote the previous forecast (by forecast_date) to become the current forecast.
+
+### 7.1A Forecast Wizard Interface (Post-MVP Enhancement)
+
+The system may provide an enhanced multi-step forecast wizard interface as a future enhancement. The wizard shall guide users through forecast creation with multiple steps including forecast type selection, EAC entry with contextual information (BAC, AC, EV), assumptions documentation, and review/confirmation. This enhancement provides improved user experience for complex forecast scenarios while maintaining the core CRUD interface as the primary method for forecast management.
 
 ### 7.2 Forecast Updates and Versioning
 

@@ -13,6 +13,12 @@ from app.models import (
     CostRegistration,
     EarnedValueEntry,
 )
+from app.services.eac_calculation import (
+    aggregate_eac,
+    aggregate_forecasted_quality,
+    calculate_cost_element_eac,
+    calculate_forecasted_quality,
+)
 from app.services.earned_value import calculate_cost_element_earned_value
 from app.services.evm_indices import (
     calculate_cost_variance,
@@ -32,6 +38,8 @@ class WBEEVMMetrics:
     earned_value: Decimal
     actual_cost: Decimal
     budget_bac: Decimal
+    eac: Decimal
+    forecasted_quality: Decimal
     cpi: Decimal | None
     spi: Decimal | None
     tcpi: Decimal | Literal["overrun"] | None
@@ -47,6 +55,8 @@ class ProjectEVMMetrics:
     earned_value: Decimal
     actual_cost: Decimal
     budget_bac: Decimal
+    eac: Decimal
+    forecasted_quality: Decimal
     cpi: Decimal | None
     spi: Decimal | None
     tcpi: Decimal | Literal["overrun"] | None
@@ -62,6 +72,8 @@ class CostElementEVMMetrics:
     earned_value: Decimal
     actual_cost: Decimal
     budget_bac: Decimal
+    eac: Decimal
+    forecasted_quality: Decimal
     cpi: Decimal | None
     spi: Decimal | None
     tcpi: Decimal | Literal["overrun"] | None
@@ -76,6 +88,7 @@ def get_cost_element_evm_metrics(
     entry: EarnedValueEntry | None,
     cost_registrations: list[CostRegistration],
     control_date: date,
+    forecast_eac: Decimal | None = None,
 ) -> CostElementEVMMetrics:
     """Get all EVM metrics for a single cost element by reusing existing services.
 
@@ -85,9 +98,10 @@ def get_cost_element_evm_metrics(
         entry: Most recent earned value entry (None if no entry exists)
         cost_registrations: List of cost registrations for this cost element
         control_date: Control date for calculations
+        forecast_eac: Forecast EAC value, or None if no forecast exists
 
     Returns:
-        CostElementEVMMetrics with all EVM metrics (PV, EV, AC, BAC, CPI, SPI, TCPI, CV, SV)
+        CostElementEVMMetrics with all EVM metrics (PV, EV, AC, BAC, EAC, Forecasted Quality, CPI, SPI, TCPI, CV, SV)
     """
     # Calculate PV using existing service
     pv, _ = calculate_cost_element_planned_value(
@@ -109,6 +123,14 @@ def get_cost_element_evm_metrics(
     # Get BAC from cost element
     bac = cost_element.budget_bac or Decimal("0.00")
 
+    # Calculate EAC using forecast or BAC fallback
+    eac = calculate_cost_element_eac(forecast_eac=forecast_eac, budget_bac=bac)
+
+    # Calculate forecasted quality
+    forecasted_quality = calculate_forecasted_quality(
+        forecast_eac=forecast_eac, calculated_eac=eac
+    )
+
     # Calculate indices using existing service functions
     cpi = calculate_cpi(ev, ac)
     spi = calculate_spi(ev, pv)
@@ -123,6 +145,8 @@ def get_cost_element_evm_metrics(
         earned_value=ev,
         actual_cost=ac,
         budget_bac=bac,
+        eac=eac,
+        forecasted_quality=forecasted_quality,
         cpi=cpi,
         spi=spi,
         tcpi=tcpi,
@@ -149,6 +173,8 @@ def aggregate_cost_element_metrics(
             earned_value=Decimal("0.00"),
             actual_cost=Decimal("0.00"),
             budget_bac=Decimal("0.00"),
+            eac=Decimal("0.00"),
+            forecasted_quality=Decimal("0.0000"),
             cpi=None,
             spi=None,
             tcpi=None,
@@ -161,6 +187,19 @@ def aggregate_cost_element_metrics(
     total_ev = sum(m.earned_value for m in metrics)
     total_ac = sum(m.actual_cost for m in metrics)
     total_bac = sum(m.budget_bac for m in metrics)
+
+    # Aggregate EAC
+    eac_values = [m.eac for m in metrics]
+    total_eac = aggregate_eac(eac_values)
+
+    # Calculate forecasted quality
+    # Sum of EACs that come from forecasts (where forecasted_quality = 1.0000)
+    forecast_eac_sum = sum(
+        m.eac for m in metrics if m.forecasted_quality == Decimal("1.0000")
+    )
+    forecasted_quality = aggregate_forecasted_quality(
+        forecast_eac_sum=forecast_eac_sum, total_eac=total_eac
+    )
 
     # Calculate indices from aggregated values
     cpi = calculate_cpi(total_ev, total_ac)
@@ -176,6 +215,8 @@ def aggregate_cost_element_metrics(
         earned_value=total_ev,
         actual_cost=total_ac,
         budget_bac=total_bac,
+        eac=total_eac,
+        forecasted_quality=forecasted_quality,
         cpi=cpi,
         spi=spi,
         tcpi=tcpi,

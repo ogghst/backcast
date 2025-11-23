@@ -92,6 +92,49 @@ def _create_test_cost_registrations(
     return registrations
 
 
+def test_get_cost_element_evm_metrics_with_forecast_eac() -> None:
+    """Should calculate EAC from forecast when forecast exists."""
+    cost_element = _create_test_cost_element(budget_bac=Decimal("100000.00"))
+    schedule = _create_test_schedule()
+    entry = _create_test_entry(percent_complete=Decimal("50.00"))
+    cost_registrations = _create_test_cost_registrations([Decimal("50000.00")])
+    control_date = date(2024, 6, 15)
+    forecast_eac = Decimal("150000.00")
+
+    result = get_cost_element_evm_metrics(
+        cost_element=cost_element,
+        schedule=schedule,
+        entry=entry,
+        cost_registrations=cost_registrations,
+        control_date=control_date,
+        forecast_eac=forecast_eac,
+    )
+
+    assert result.eac == Decimal("150000.00")
+    assert result.forecasted_quality == Decimal("1.0000")
+
+
+def test_get_cost_element_evm_metrics_with_bac_fallback() -> None:
+    """Should calculate EAC from BAC when no forecast exists."""
+    cost_element = _create_test_cost_element(budget_bac=Decimal("100000.00"))
+    schedule = _create_test_schedule()
+    entry = _create_test_entry(percent_complete=Decimal("50.00"))
+    cost_registrations = _create_test_cost_registrations([Decimal("50000.00")])
+    control_date = date(2024, 6, 15)
+
+    result = get_cost_element_evm_metrics(
+        cost_element=cost_element,
+        schedule=schedule,
+        entry=entry,
+        cost_registrations=cost_registrations,
+        control_date=control_date,
+        forecast_eac=None,
+    )
+
+    assert result.eac == Decimal("100000.00")
+    assert result.forecasted_quality == Decimal("0.0000")
+
+
 def test_get_cost_element_evm_metrics_normal_case() -> None:
     """Should calculate all EVM metrics correctly for normal case."""
     cost_element = _create_test_cost_element(budget_bac=Decimal("100000.00"))
@@ -126,6 +169,7 @@ def test_get_cost_element_evm_metrics_normal_case() -> None:
         entry=entry,
         cost_registrations=cost_registrations,
         control_date=control_date,
+        forecast_eac=None,
     )
 
     assert result.planned_value > Decimal("45000.00")  # Approximate PV
@@ -133,6 +177,8 @@ def test_get_cost_element_evm_metrics_normal_case() -> None:
     assert result.earned_value == Decimal("50000.00")
     assert result.actual_cost == Decimal("50000.00")
     assert result.budget_bac == Decimal("100000.00")
+    assert result.eac == Decimal("100000.00")  # From BAC fallback
+    assert result.forecasted_quality == Decimal("0.0000")  # From BAC
     assert result.cpi == Decimal("1.0000")
     assert result.spi is not None
     assert result.spi > Decimal("1.09")  # Approximate SPI (actual: 1.0994)
@@ -158,17 +204,92 @@ def test_get_cost_element_evm_metrics_no_schedule() -> None:
         entry=entry,
         cost_registrations=cost_registrations,
         control_date=control_date,
+        forecast_eac=None,
     )
 
     assert result.planned_value == Decimal("0.00")
     assert result.earned_value == Decimal("50000.00")
     assert result.actual_cost == Decimal("50000.00")
     assert result.budget_bac == Decimal("100000.00")
+    assert result.eac == Decimal("100000.00")
+    assert result.forecasted_quality == Decimal("0.0000")
     assert result.cpi == Decimal("1.0000")
     assert result.spi is None  # SPI is None when PV = 0
     assert result.tcpi == Decimal("1.0000")
     assert result.cost_variance == Decimal("0.00")
     assert result.schedule_variance == Decimal("50000.00")  # EV - 0
+
+
+def test_cost_element_evm_metrics_includes_eac_field() -> None:
+    """CostElementEVMMetrics should include eac field."""
+    from app.services.evm_aggregation import CostElementEVMMetrics
+
+    metrics = CostElementEVMMetrics(
+        planned_value=Decimal("0.00"),
+        earned_value=Decimal("0.00"),
+        actual_cost=Decimal("0.00"),
+        budget_bac=Decimal("0.00"),
+        eac=Decimal("100000.00"),
+        forecasted_quality=Decimal("1.0000"),
+        cpi=None,
+        spi=None,
+        tcpi=None,
+        cost_variance=Decimal("0.00"),
+        schedule_variance=Decimal("0.00"),
+    )
+
+    assert hasattr(metrics, "eac")
+    assert hasattr(metrics, "forecasted_quality")
+    assert metrics.eac == Decimal("100000.00")
+    assert metrics.forecasted_quality == Decimal("1.0000")
+
+
+def test_wbe_evm_metrics_includes_eac_field() -> None:
+    """WBEEVMMetrics should include eac field."""
+    from app.services.evm_aggregation import WBEEVMMetrics
+
+    metrics = WBEEVMMetrics(
+        planned_value=Decimal("0.00"),
+        earned_value=Decimal("0.00"),
+        actual_cost=Decimal("0.00"),
+        budget_bac=Decimal("0.00"),
+        eac=Decimal("200000.00"),
+        forecasted_quality=Decimal("0.5000"),
+        cpi=None,
+        spi=None,
+        tcpi=None,
+        cost_variance=Decimal("0.00"),
+        schedule_variance=Decimal("0.00"),
+    )
+
+    assert hasattr(metrics, "eac")
+    assert hasattr(metrics, "forecasted_quality")
+    assert metrics.eac == Decimal("200000.00")
+    assert metrics.forecasted_quality == Decimal("0.5000")
+
+
+def test_project_evm_metrics_includes_eac_field() -> None:
+    """ProjectEVMMetrics should include eac field."""
+    from app.services.evm_aggregation import ProjectEVMMetrics
+
+    metrics = ProjectEVMMetrics(
+        planned_value=Decimal("0.00"),
+        earned_value=Decimal("0.00"),
+        actual_cost=Decimal("0.00"),
+        budget_bac=Decimal("0.00"),
+        eac=Decimal("300000.00"),
+        forecasted_quality=Decimal("0.7500"),
+        cpi=None,
+        spi=None,
+        tcpi=None,
+        cost_variance=Decimal("0.00"),
+        schedule_variance=Decimal("0.00"),
+    )
+
+    assert hasattr(metrics, "eac")
+    assert hasattr(metrics, "forecasted_quality")
+    assert metrics.eac == Decimal("300000.00")
+    assert metrics.forecasted_quality == Decimal("0.7500")
 
 
 def test_get_cost_element_evm_metrics_no_entry() -> None:
@@ -184,12 +305,15 @@ def test_get_cost_element_evm_metrics_no_entry() -> None:
         entry=None,
         cost_registrations=cost_registrations,
         control_date=control_date,
+        forecast_eac=None,
     )
 
     assert result.planned_value > Decimal("45000.00")  # PV calculated
     assert result.earned_value == Decimal("0.00")
     assert result.actual_cost == Decimal("30000.00")
     assert result.budget_bac == Decimal("100000.00")
+    assert result.eac == Decimal("100000.00")
+    assert result.forecasted_quality == Decimal("0.0000")
     # CPI = EV/AC = 0/30000 = 0.0000 (CPI is None only when AC = 0)
     assert result.cpi == Decimal("0.0000")
     assert result.spi == Decimal("0.0000")  # EV/PV = 0/PV = 0
@@ -213,12 +337,15 @@ def test_get_cost_element_evm_metrics_no_cost_registrations() -> None:
         entry=entry,
         cost_registrations=[],
         control_date=control_date,
+        forecast_eac=None,
     )
 
     assert result.planned_value > Decimal("45000.00")
     assert result.earned_value == Decimal("50000.00")
     assert result.actual_cost == Decimal("0.00")
     assert result.budget_bac == Decimal("100000.00")
+    assert result.eac == Decimal("100000.00")
+    assert result.forecasted_quality == Decimal("0.0000")
     assert result.cpi is None  # CPI is None when AC = 0
     assert result.spi is not None
     assert result.tcpi == Decimal(
@@ -247,10 +374,13 @@ def test_get_cost_element_evm_metrics_tcpi_overrun() -> None:
         entry=entry,
         cost_registrations=cost_registrations,
         control_date=control_date,
+        forecast_eac=None,
     )
 
     assert result.actual_cost == Decimal("110000.00")
     assert result.budget_bac == Decimal("100000.00")
+    assert result.eac == Decimal("100000.00")
+    assert result.forecasted_quality == Decimal("0.0000")
     assert result.tcpi == "overrun"  # BAC ≤ AC
 
 
@@ -265,12 +395,15 @@ def test_get_cost_element_evm_metrics_all_none() -> None:
         entry=None,
         cost_registrations=[],
         control_date=control_date,
+        forecast_eac=None,
     )
 
     assert result.planned_value == Decimal("0.00")
     assert result.earned_value == Decimal("0.00")
     assert result.actual_cost == Decimal("0.00")
     assert result.budget_bac == Decimal("100000.00")
+    assert result.eac == Decimal("100000.00")
+    assert result.forecasted_quality == Decimal("0.0000")
     assert result.cpi is None
     assert result.spi is None
     # TCPI = (BAC-EV)/(BAC-AC) = (100000-0)/(100000-0) = 100000/100000 = 1.0000
@@ -278,6 +411,37 @@ def test_get_cost_element_evm_metrics_all_none() -> None:
     assert result.tcpi == Decimal("1.0000")
     assert result.cost_variance == Decimal("0.00")
     assert result.schedule_variance == Decimal("0.00")
+
+
+def test_aggregate_cost_element_metrics_includes_eac() -> None:
+    """Should aggregate EAC and forecasted quality correctly."""
+    # Create metrics for two cost elements
+    # CE1: forecast EAC = 150000 (from forecast)
+    # CE2: EAC = 100000 (from BAC, no forecast)
+    ce1_metrics = get_cost_element_evm_metrics(
+        cost_element=_create_test_cost_element(budget_bac=Decimal("100000.00")),
+        schedule=_create_test_schedule(),
+        entry=_create_test_entry(percent_complete=Decimal("50.00")),
+        cost_registrations=_create_test_cost_registrations([Decimal("50000.00")]),
+        control_date=date(2024, 6, 15),
+        forecast_eac=Decimal("150000.00"),
+    )
+    ce2_metrics = get_cost_element_evm_metrics(
+        cost_element=_create_test_cost_element(budget_bac=Decimal("100000.00")),
+        schedule=_create_test_schedule(),
+        entry=_create_test_entry(percent_complete=Decimal("50.00")),
+        cost_registrations=_create_test_cost_registrations([Decimal("50000.00")]),
+        control_date=date(2024, 6, 15),
+        forecast_eac=None,
+    )
+
+    aggregated = aggregate_cost_element_metrics([ce1_metrics, ce2_metrics])
+
+    # Total EAC = 150000 + 100000 = 250000
+    # Forecast EAC sum = 150000 (only from CE1)
+    # Forecasted quality = 150000 / 250000 = 0.6000 = 60%
+    assert aggregated.eac == Decimal("250000.00")
+    assert aggregated.forecasted_quality == Decimal("0.6000")
 
 
 def test_aggregate_cost_element_metrics_multiple_elements() -> None:
@@ -289,6 +453,7 @@ def test_aggregate_cost_element_metrics_multiple_elements() -> None:
         entry=_create_test_entry(percent_complete=Decimal("50.00")),
         cost_registrations=_create_test_cost_registrations([Decimal("50000.00")]),
         control_date=date(2024, 6, 15),
+        forecast_eac=None,
     )
 
     ce2_metrics = get_cost_element_evm_metrics(
@@ -297,6 +462,7 @@ def test_aggregate_cost_element_metrics_multiple_elements() -> None:
         entry=_create_test_entry(percent_complete=Decimal("40.00")),
         cost_registrations=_create_test_cost_registrations([Decimal("35000.00")]),
         control_date=date(2024, 6, 15),
+        forecast_eac=None,
     )
 
     aggregated = aggregate_cost_element_metrics([ce1_metrics, ce2_metrics])
@@ -334,6 +500,8 @@ def test_aggregate_cost_element_metrics_empty() -> None:
     assert aggregated.earned_value == Decimal("0.00")
     assert aggregated.actual_cost == Decimal("0.00")
     assert aggregated.budget_bac == Decimal("0.00")
+    assert aggregated.eac == Decimal("0.00")
+    assert aggregated.forecasted_quality == Decimal("0.0000")
     assert aggregated.cpi is None
     assert aggregated.spi is None
     assert aggregated.tcpi is None
@@ -349,6 +517,7 @@ def test_aggregate_cost_element_metrics_single_element() -> None:
         entry=_create_test_entry(percent_complete=Decimal("50.00")),
         cost_registrations=_create_test_cost_registrations([Decimal("50000.00")]),
         control_date=date(2024, 6, 15),
+        forecast_eac=None,
     )
 
     aggregated = aggregate_cost_element_metrics([ce_metrics])
@@ -357,6 +526,8 @@ def test_aggregate_cost_element_metrics_single_element() -> None:
     assert aggregated.earned_value == ce_metrics.earned_value
     assert aggregated.actual_cost == ce_metrics.actual_cost
     assert aggregated.budget_bac == ce_metrics.budget_bac
+    assert aggregated.eac == ce_metrics.eac
+    assert aggregated.forecasted_quality == ce_metrics.forecasted_quality
     assert aggregated.cpi == ce_metrics.cpi
     assert aggregated.spi == ce_metrics.spi
     assert aggregated.tcpi == ce_metrics.tcpi

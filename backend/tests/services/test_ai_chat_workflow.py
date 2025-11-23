@@ -35,28 +35,10 @@ def test_create_assessment_graph_with_metrics(db: Session) -> None:
         )
         user = crud.create_user(session=db, user_create=user_in)
 
-        # Sample context metrics
-        context_metrics = {
-            "context_type": "project",
-            "project_id": str(uuid.uuid4()),
-            "project_name": "Test Project",
-            "control_date": "2024-06-15",
-            "planned_value": 100000.0,
-            "earned_value": 95000.0,
-            "actual_cost": 105000.0,
-            "budget_bac": 100000.0,
-            "cpi": 0.90,
-            "spi": 0.95,
-            "tcpi": 1.05,
-            "cost_variance": -10000.0,
-            "schedule_variance": -5000.0,
-        }
-
         # Create assessment graph
         graph = create_assessment_graph(
             session=db,
             user_id=user.id,
-            context_metrics=context_metrics,
         )
 
         # Verify graph is created
@@ -87,22 +69,10 @@ def test_create_assessment_graph_structure(db: Session) -> None:
         )
         user = crud.create_user(session=db, user_create=user_in)
 
-        # Sample context metrics
-        context_metrics = {
-            "context_type": "wbe",
-            "wbe_id": str(uuid.uuid4()),
-            "wbe_name": "Test WBE",
-            "control_date": "2024-06-15",
-            "planned_value": 50000.0,
-            "earned_value": 48000.0,
-            "actual_cost": 52000.0,
-        }
-
         # Create assessment graph
         graph = create_assessment_graph(
             session=db,
             user_id=user.id,
-            context_metrics=context_metrics,
         )
 
         # Verify graph structure
@@ -134,22 +104,10 @@ async def test_assessment_graph_execution_with_mocked_chat_model(db: Session) ->
         )
         user = crud.create_user(session=db, user_create=user_in)
 
-        # Sample context metrics
-        context_metrics = {
-            "context_type": "project",
-            "project_id": str(uuid.uuid4()),
-            "project_name": "Test Project",
-            "control_date": "2024-06-15",
-            "planned_value": 100000.0,
-            "earned_value": 95000.0,
-            "actual_cost": 105000.0,
-        }
-
         # Create assessment graph
         graph = create_assessment_graph(
             session=db,
             user_id=user.id,
-            context_metrics=context_metrics,
         )
 
         # Mock the chat model's invoke method to return a test response
@@ -182,21 +140,10 @@ async def test_assessment_graph_streaming(db: Session) -> None:
         )
         user = crud.create_user(session=db, user_create=user_in)
 
-        # Sample context metrics
-        context_metrics = {
-            "context_type": "cost-element",
-            "cost_element_id": str(uuid.uuid4()),
-            "control_date": "2024-06-15",
-            "planned_value": 10000.0,
-            "earned_value": 9500.0,
-            "actual_cost": 10200.0,
-        }
-
         # Create assessment graph
         graph = create_assessment_graph(
             session=db,
             user_id=user.id,
-            context_metrics=context_metrics,
         )
 
         # Verify streaming support
