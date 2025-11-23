@@ -611,7 +611,7 @@ def create_chat_model(session: Session, user_id: uuid.UUID) -> ChatOpenAI:
 class AssessmentState(TypedDict):
     """State for assessment generation workflow."""
 
-    context_metrics: dict
+    context_metrics: dict[str, Any]
     prompt: str
     assessment: str
 
@@ -619,8 +619,8 @@ class AssessmentState(TypedDict):
 class ChatState(TypedDict):
     """State for chat message workflow."""
 
-    context_metrics: dict
-    conversation_history: list[dict]
+    context_metrics: dict[str, Any]
+    conversation_history: list[dict[str, Any]]
     user_message: str
     system_prompt: str
     response: str
@@ -629,7 +629,6 @@ class ChatState(TypedDict):
 def create_assessment_graph(
     session: Session,
     user_id: uuid.UUID,
-    _context_metrics: dict,  # Passed through but extracted from state
 ) -> Any:  # Returns CompiledGraph from langgraph
     """
     Create LangGraph workflow for generating AI assessments with streaming support.
@@ -641,7 +640,6 @@ def create_assessment_graph(
     Args:
         session: Database session
         user_id: User ID to get OpenAI configuration for
-        context_metrics: Dictionary with context-specific metrics (project/WBE/cost-element/baseline)
 
     Returns:
         Compiled LangGraph graph ready for execution with streaming support
@@ -652,7 +650,7 @@ def create_assessment_graph(
     # Get chat model for user
     chat_model = create_chat_model(session=session, user_id=user_id)
 
-    def format_prompt(state: AssessmentState) -> dict:
+    def format_prompt(state: AssessmentState) -> dict[str, Any]:
         """Format context metrics into a prompt for assessment generation."""
         metrics = state["context_metrics"]
         context_type = metrics.get("context_type", "unknown")
@@ -745,7 +743,7 @@ Provide a detailed assessment including performance analysis, risks, and recomme
 
         return {"prompt": prompt_text}
 
-    def generate_assessment(state: AssessmentState) -> dict:
+    def generate_assessment(state: AssessmentState) -> dict[str, Any]:
         """Generate assessment using chat model."""
         prompt_text = state["prompt"]
 
@@ -795,13 +793,15 @@ async def generate_initial_assessment(
     context_type: ContextType,
     context_id: uuid.UUID,
     control_date: date,
-    send_message: Callable[[dict], Awaitable[None]],  # WebSocket send function (async)
+    send_message: Callable[
+        [dict[str, Any]], Awaitable[None]
+    ],  # WebSocket send function (async)
 ) -> None:
     """
     Generate initial AI assessment with WebSocket streaming support.
 
-    Collects context metrics, creates assessment graph, and streams the
-    assessment response progressively via WebSocket.
+    Collects context metrics, formats prompt, and streams the assessment
+    response token-by-token via WebSocket.
 
     Args:
         session: Database session
@@ -825,48 +825,121 @@ async def generate_initial_assessment(
             control_date=control_date,
         )
 
-        # Create assessment graph
-        graph = create_assessment_graph(
-            session=session,
-            user_id=user_id,
-            context_metrics=context_metrics,
+        # Format prompt using the prompt formatting logic from the graph
+        context_type_str = context_metrics.get("context_type", "unknown")
+        if context_type_str == "project":
+            prompt_text = f"""Generate a comprehensive project assessment report in markdown format based on the following project metrics:
+
+**Project Information:**
+- Project: {context_metrics.get('project_name', 'Unknown')}
+- Control Date: {context_metrics.get('control_date', 'N/A')}
+
+**EVM Metrics:**
+- Planned Value (PV): ${context_metrics.get('planned_value', 0):,.2f}
+- Earned Value (EV): ${context_metrics.get('earned_value', 0):,.2f}
+- Actual Cost (AC): ${context_metrics.get('actual_cost', 0):,.2f}
+- Budget at Completion (BAC): ${context_metrics.get('budget_bac', 0):,.2f}
+- Cost Performance Index (CPI): {context_metrics.get('cpi', 'N/A')}
+- Schedule Performance Index (SPI): {context_metrics.get('spi', 'N/A')}
+- To-Complete Performance Index (TCPI): {context_metrics.get('tcpi', 'N/A')}
+- Cost Variance (CV): ${context_metrics.get('cost_variance', 0):,.2f}
+- Schedule Variance (SV): ${context_metrics.get('schedule_variance', 0):,.2f}
+
+Provide a detailed assessment including:
+1. Overall project health status
+2. Performance analysis (cost and schedule)
+3. Key risks and issues
+4. Recommendations for improvement
+5. Forecast for project completion
+
+Format the response in markdown with clear sections and bullet points."""
+        elif context_type_str == "wbe":
+            prompt_text = f"""Generate a comprehensive WBE (Work Breakdown Element) assessment report in markdown format based on the following metrics:
+
+**WBE Information:**
+- WBE: {context_metrics.get('wbe_name', 'Unknown')}
+- Project: {context_metrics.get('project_name', 'Unknown')}
+- Control Date: {context_metrics.get('control_date', 'N/A')}
+
+**EVM Metrics:**
+- Planned Value (PV): ${context_metrics.get('planned_value', 0):,.2f}
+- Earned Value (EV): ${context_metrics.get('earned_value', 0):,.2f}
+- Actual Cost (AC): ${context_metrics.get('actual_cost', 0):,.2f}
+- Budget at Completion (BAC): ${context_metrics.get('budget_bac', 0):,.2f}
+- Cost Performance Index (CPI): {context_metrics.get('cpi', 'N/A')}
+- Schedule Performance Index (SPI): {context_metrics.get('spi', 'N/A')}
+
+Provide a detailed assessment including performance analysis, risks, and recommendations."""
+        elif context_type_str == "cost-element":
+            prompt_text = f"""Generate a cost element assessment report in markdown format based on the following metrics:
+
+**Cost Element Information:**
+- Project: {context_metrics.get('project_name', 'Unknown')}
+- WBE: {context_metrics.get('wbe_name', 'Unknown')}
+- Control Date: {context_metrics.get('control_date', 'N/A')}
+
+**EVM Metrics:**
+- Planned Value (PV): ${context_metrics.get('planned_value', 0):,.2f}
+- Earned Value (EV): ${context_metrics.get('earned_value', 0):,.2f}
+- Actual Cost (AC): ${context_metrics.get('actual_cost', 0):,.2f}
+- Budget at Completion (BAC): ${context_metrics.get('budget_bac', 0):,.2f}
+- Cost Performance Index (CPI): {context_metrics.get('cpi', 'N/A')}
+- Schedule Performance Index (SPI): {context_metrics.get('spi', 'N/A')}
+
+Provide a detailed assessment including performance analysis, risks, and recommendations."""
+        elif context_type_str == "baseline":
+            prompt_text = f"""Generate a baseline assessment report in markdown format based on the following baseline snapshot:
+
+**Baseline Information:**
+- Baseline Date: {context_metrics.get('baseline_date', 'N/A')}
+- Milestone: {context_metrics.get('milestone_type', 'Unknown')}
+- Project: {context_metrics.get('project_name', 'Unknown')}
+- Control Date: {context_metrics.get('control_date', 'N/A')}
+
+**Baseline Metrics:**
+- Planned Value: ${context_metrics.get('planned_value', 0):,.2f}
+- Earned Value: ${context_metrics.get('earned_value', 0):,.2f}
+- Actual Cost: ${context_metrics.get('actual_cost', 0):,.2f}
+- Budget at Completion (BAC): ${context_metrics.get('budget_bac', 0):,.2f}
+- Cost Performance Index (CPI): {context_metrics.get('cpi', 'N/A')}
+- Schedule Performance Index (SPI): {context_metrics.get('spi', 'N/A')}
+
+Provide a detailed assessment of the baseline snapshot."""
+        else:
+            prompt_text = f"""Generate an assessment report in markdown format based on the following metrics:
+
+{context_metrics}
+
+Provide a detailed assessment including performance analysis, risks, and recommendations."""
+
+        # Create chat model for streaming
+        chat_model = create_chat_model(session=session, user_id=user_id)
+
+        # Create prompt template
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    "You are an expert project management analyst. Provide detailed, actionable assessments based on EVM metrics. Always format your responses in markdown.",
+                ),
+                ("human", "{input}"),
+            ]
         )
 
-        # Prepare initial state for graph execution
-        initial_state = {
-            "context_metrics": context_metrics,
-            "prompt": "",
-            "assessment": "",
-        }
+        # Create chain with streaming support
+        chain = prompt | chat_model
 
-        # Stream assessment using LangGraph's astream method
-        # Use stream_mode="updates" to get state updates as nodes execute
-        async for chunk in graph.astream(
-            initial_state,
-            stream_mode="updates",
-        ):
-            # Extract assessment chunks from the stream
-            # The chunk structure is: {node_name: {state_updates}}
-            if "generate_assessment" in chunk:
-                assessment_update = chunk["generate_assessment"]
-                if "assessment" in assessment_update:
-                    # Send assessment chunk via WebSocket
+        # Stream tokens directly from the chain
+        async for chunk in chain.astream({"input": prompt_text}):
+            # Extract content from chunk (chunk is an AIMessageChunk)
+            if hasattr(chunk, "content"):
+                content = chunk.content
+                if content:
+                    # Send each token chunk via WebSocket
                     await send_message(
                         {
                             "type": "assessment_chunk",
-                            "content": assessment_update["assessment"],
-                        }
-                    )
-
-            # Also check for prompt formatting progress (optional)
-            if "format_prompt" in chunk:
-                prompt_update = chunk["format_prompt"]
-                if "prompt" in prompt_update:
-                    # Optionally send a status update
-                    await send_message(
-                        {
-                            "type": "status",
-                            "content": "Generating assessment...",
+                            "content": content,
                         }
                     )
 
@@ -901,8 +974,6 @@ async def generate_initial_assessment(
 def create_chat_graph(
     session: Session,
     user_id: uuid.UUID,
-    _context_metrics: dict,  # Passed through but extracted from state
-    _conversation_history: list[dict],  # Passed through but extracted from state
 ) -> Any:  # Returns CompiledGraph from langgraph
     """
     Create LangGraph workflow for chat messages with conversation history.
@@ -914,8 +985,6 @@ def create_chat_graph(
     Args:
         session: Database session
         user_id: User ID to get OpenAI configuration for
-        context_metrics: Dictionary with context-specific metrics (project/WBE/cost-element/baseline)
-        conversation_history: List of conversation messages in format [{"role": "user|assistant", "content": "..."}]
 
     Returns:
         Compiled LangGraph graph ready for execution with streaming support
@@ -926,7 +995,7 @@ def create_chat_graph(
     # Get chat model for user
     chat_model = create_chat_model(session=session, user_id=user_id)
 
-    def format_chat_prompt(state: ChatState) -> dict:
+    def format_chat_prompt(state: ChatState) -> dict[str, Any]:
         """Format conversation history and context metrics into a prompt."""
         context_metrics = state["context_metrics"]
         # conversation_history and user_message are used in generate_response, not here
@@ -995,7 +1064,7 @@ Provide helpful, actionable answers based on the baseline snapshot. Always forma
 
         return {"system_prompt": system_prompt}
 
-    def generate_response(state: ChatState) -> dict:
+    def generate_response(state: ChatState) -> dict[str, Any]:
         """Generate response using chat model with conversation history."""
         conversation_history = state["conversation_history"]
         user_message = state["user_message"]
@@ -1054,14 +1123,16 @@ async def send_chat_message(
     context_id: uuid.UUID,
     control_date: date,
     message: str,
-    conversation_history: list[dict],
-    send_message: Callable[[dict], Awaitable[None]],  # WebSocket send function (async)
+    conversation_history: list[dict[str, Any]],
+    send_message: Callable[
+        [dict[str, Any]], Awaitable[None]
+    ],  # WebSocket send function (async)
 ) -> None:
     """
     Handle chat message with conversation history and WebSocket streaming support.
 
-    Collects context metrics, creates chat graph with conversation history, and streams
-    the AI response progressively via WebSocket.
+    Collects context metrics, formats system prompt with conversation history, and streams
+    the AI response token-by-token via WebSocket.
 
     Args:
         session: Database session
@@ -1087,54 +1158,99 @@ async def send_chat_message(
             control_date=control_date,
         )
 
-        # Add user message to conversation history
-        updated_history = conversation_history + [{"role": "user", "content": message}]
+        # Format system prompt based on context type
+        context_type_str = context_metrics.get("context_type", "unknown")
+        if context_type_str == "project":
+            system_prompt = f"""You are an expert project management analyst. The user is asking about the following project:
 
-        # Create chat graph
-        graph = create_chat_graph(
-            session=session,
-            user_id=user_id,
-            context_metrics=context_metrics,
-            conversation_history=updated_history,
-        )
+**Project Information:**
+- Project: {context_metrics.get('project_name', 'Unknown')}
+- Control Date: {context_metrics.get('control_date', 'N/A')}
 
-        # Prepare initial state for graph execution
-        initial_state = {
-            "context_metrics": context_metrics,
-            "conversation_history": updated_history,
-            "user_message": message,
-            "system_prompt": "",
-            "response": "",
-        }
+**Current EVM Metrics:**
+- Planned Value (PV): ${context_metrics.get('planned_value', 0):,.2f}
+- Earned Value (EV): ${context_metrics.get('earned_value', 0):,.2f}
+- Actual Cost (AC): ${context_metrics.get('actual_cost', 0):,.2f}
+- Budget at Completion (BAC): ${context_metrics.get('budget_bac', 0):,.2f}
+- Cost Performance Index (CPI): {context_metrics.get('cpi', 'N/A')}
+- Schedule Performance Index (SPI): {context_metrics.get('spi', 'N/A')}
 
-        # Stream response using LangGraph's astream method
-        # Use stream_mode="updates" to get state updates as nodes execute
-        async for chunk in graph.astream(
-            initial_state,
-            stream_mode="updates",
-        ):
-            # Extract response chunks from the stream
-            # The chunk structure is: {node_name: {state_updates}}
-            if "generate_response" in chunk:
-                response_update = chunk["generate_response"]
-                if "response" in response_update:
-                    # Send response chunk via WebSocket
+Provide helpful, actionable answers based on these metrics. Always format your responses in markdown."""
+        elif context_type_str == "wbe":
+            system_prompt = f"""You are an expert project management analyst. The user is asking about the following WBE:
+
+**WBE Information:**
+- WBE: {context_metrics.get('wbe_name', 'Unknown')}
+- Project: {context_metrics.get('project_name', 'Unknown')}
+- Control Date: {context_metrics.get('control_date', 'N/A')}
+
+**Current EVM Metrics:**
+- Planned Value (PV): ${context_metrics.get('planned_value', 0):,.2f}
+- Earned Value (EV): ${context_metrics.get('earned_value', 0):,.2f}
+- Actual Cost (AC): ${context_metrics.get('actual_cost', 0):,.2f}
+
+Provide helpful, actionable answers based on these metrics. Always format your responses in markdown."""
+        elif context_type_str == "cost-element":
+            system_prompt = f"""You are an expert project management analyst. The user is asking about the following cost element:
+
+**Cost Element Information:**
+- Project: {context_metrics.get('project_name', 'Unknown')}
+- WBE: {context_metrics.get('wbe_name', 'Unknown')}
+- Control Date: {context_metrics.get('control_date', 'N/A')}
+
+**Current EVM Metrics:**
+- Planned Value (PV): ${context_metrics.get('planned_value', 0):,.2f}
+- Earned Value (EV): ${context_metrics.get('earned_value', 0):,.2f}
+- Actual Cost (AC): {context_metrics.get('actual_cost', 0):,.2f}
+
+Provide helpful, actionable answers based on these metrics. Always format your responses in markdown."""
+        elif context_type_str == "baseline":
+            system_prompt = f"""You are an expert project management analyst. The user is asking about the following baseline:
+
+**Baseline Information:**
+- Baseline Date: {context_metrics.get('baseline_date', 'N/A')}
+- Milestone: {context_metrics.get('milestone_type', 'Unknown')}
+- Project: {context_metrics.get('project_name', 'Unknown')}
+
+Provide helpful, actionable answers based on the baseline snapshot. Always format your responses in markdown."""
+        else:
+            system_prompt = "You are an expert project management analyst. Provide helpful, actionable answers. Always format your responses in markdown."
+
+        # Build messages for chat model
+        messages = [("system", system_prompt)]
+
+        # Add conversation history
+        for msg in conversation_history:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role == "user":
+                messages.append(("human", content))
+            elif role == "assistant":
+                messages.append(("ai", content))
+
+        # Add current user message
+        messages.append(("human", message))
+
+        # Create chat model for streaming
+        chat_model = create_chat_model(session=session, user_id=user_id)
+
+        # Create prompt template
+        prompt = ChatPromptTemplate.from_messages(messages)
+
+        # Create chain with streaming support
+        chain = prompt | chat_model
+
+        # Stream tokens directly from the chain
+        async for chunk in chain.astream({}):
+            # Extract content from chunk (chunk is an AIMessageChunk)
+            if hasattr(chunk, "content"):
+                content = chunk.content
+                if content:
+                    # Send each token chunk via WebSocket
                     await send_message(
                         {
                             "type": "response_chunk",
-                            "content": response_update["response"],
-                        }
-                    )
-
-            # Check for prompt formatting progress (optional)
-            if "format_chat_prompt" in chunk:
-                prompt_update = chunk["format_chat_prompt"]
-                if "system_prompt" in prompt_update:
-                    # Optionally send a status update
-                    await send_message(
-                        {
-                            "type": "status",
-                            "content": "Generating response...",
+                            "content": content,
                         }
                     )
 

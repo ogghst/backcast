@@ -20,7 +20,14 @@ from app.models import (
     EarnedValueEntry,
     EarnedValueProjectPublic,
     EarnedValueWBEPublic,
+    Forecast,
     Project,
+)
+from app.services.eac_calculation import (
+    aggregate_eac,
+    aggregate_forecasted_quality,
+    calculate_cost_element_eac,
+    calculate_forecasted_quality,
 )
 from app.services.earned_value import (
     aggregate_earned_value,
@@ -62,8 +69,8 @@ def _select_entry_for_cost_element(
     statement = apply_time_machine_filters(
         statement, TimeMachineEventType.EARNED_VALUE, control_date
     ).order_by(
-        EarnedValueEntry.completion_date.desc(),
-        EarnedValueEntry.created_at.desc(),
+        EarnedValueEntry.completion_date.desc(),  # type: ignore[attr-defined]
+        EarnedValueEntry.created_at.desc(),  # type: ignore[attr-defined]
     )
     return session.exec(statement).first()
 
@@ -90,14 +97,14 @@ def _get_entry_map(
     # We'll need to use a window function or subquery to get the latest per cost element
     # For simplicity, we'll query all and filter in Python (acceptable for reasonable number of entries)
     statement = select(EarnedValueEntry).where(
-        EarnedValueEntry.cost_element_id.in_(cost_element_ids),
+        EarnedValueEntry.cost_element_id.in_(cost_element_ids),  # type: ignore[attr-defined]
     )
     statement = apply_time_machine_filters(
         statement, TimeMachineEventType.EARNED_VALUE, control_date
     ).order_by(
         EarnedValueEntry.cost_element_id,
-        EarnedValueEntry.completion_date.desc(),
-        EarnedValueEntry.created_at.desc(),
+        EarnedValueEntry.completion_date.desc(),  # type: ignore[attr-defined]
+        EarnedValueEntry.created_at.desc(),  # type: ignore[attr-defined]
     )
     entries = session.exec(statement).all()
 
@@ -118,6 +125,46 @@ def _get_entry_map(
 def _quantize_decimal(value: Decimal) -> Decimal:
     """Helper to ensure Decimal values have two decimal places."""
     return value.quantize(Decimal("0.00"), rounding=ROUND_HALF_UP)
+
+
+def _get_forecast_eac_map(
+    session: SessionDep, cost_element_ids: list[uuid.UUID], control_date: date
+) -> dict[uuid.UUID, Decimal | None]:
+    """Get a map of cost_element_id -> current forecast EAC for multiple cost elements.
+
+    Args:
+        session: Database session
+        cost_element_ids: List of cost element IDs to query forecasts for
+        control_date: Control date for selection (forecast_date <= control_date)
+
+    Returns:
+        Dictionary mapping cost_element_id -> forecast EAC (Decimal) or None.
+        Returns empty dict if cost_element_ids is empty.
+        For each cost element, selects the current forecast (is_current=True) where forecast_date <= control_date.
+    """
+    if not cost_element_ids:
+        return {}
+
+    # Query current forecasts for the cost elements where forecast_date <= control_date
+    statement = (
+        select(Forecast)
+        .where(Forecast.cost_element_id.in_(cost_element_ids))  # type: ignore[attr-defined]
+        .where(Forecast.is_current.is_(True))  # type: ignore[attr-defined]
+        .where(Forecast.forecast_date <= control_date)
+    )
+    forecasts = session.exec(statement).all()
+
+    # Build map
+    forecast_map: dict[uuid.UUID, Decimal | None] = {}
+    for forecast in forecasts:
+        forecast_map[forecast.cost_element_id] = forecast.estimate_at_completion
+
+    # Ensure all cost_element_ids are in the map (with None if no current forecast)
+    for cost_element_id in cost_element_ids:
+        if cost_element_id not in forecast_map:
+            forecast_map[cost_element_id] = None
+
+    return forecast_map
 
 
 @router.get(
@@ -160,12 +207,28 @@ def get_cost_element_earned_value(
         cost_element=cost_element, entry=entry, control_date=control_date
     )
 
+    # Get current forecast EAC
+    forecast_map = _get_forecast_eac_map(
+        session, [cost_element.cost_element_id], control_date
+    )
+    forecast_eac = forecast_map.get(cost_element.cost_element_id)
+
+    budget_bac = _quantize_decimal(cost_element.budget_bac or Decimal("0.00"))
+
+    # Calculate EAC and forecasted quality
+    eac = calculate_cost_element_eac(forecast_eac=forecast_eac, budget_bac=budget_bac)
+    forecasted_quality = calculate_forecasted_quality(
+        forecast_eac=forecast_eac, calculated_eac=eac
+    )
+
     return EarnedValueCostElementPublic(
         level="cost-element",
         control_date=control_date,
         earned_value=earned_value,
         percent_complete=percent,
-        budget_bac=_quantize_decimal(cost_element.budget_bac or Decimal("0.00")),
+        budget_bac=budget_bac,
+        eac=str(eac) if eac > Decimal("0.00") else None,
+        forecasted_quality=str(forecasted_quality),
         cost_element_id=cost_element.cost_element_id,
     )
 
@@ -206,20 +269,46 @@ def get_wbe_earned_value(
     entry_map = _get_entry_map(
         session, [ce.cost_element_id for ce in cost_elements], control_date
     )
+    forecast_map = _get_forecast_eac_map(
+        session, [ce.cost_element_id for ce in cost_elements], control_date
+    )
 
     tuples: list[tuple[Decimal, Decimal]] = []
+    eac_values: list[Decimal] = []
+    forecast_eac_sum = Decimal("0.00")
+
     for cost_element in cost_elements:
         entry = entry_map.get(cost_element.cost_element_id)
-        if entry is None:
-            continue
-        earned_value, _percent = calculate_cost_element_earned_value(
-            cost_element=cost_element,
-            entry=entry,
-            control_date=control_date,
+        if entry is not None:
+            earned_value, _percent = calculate_cost_element_earned_value(
+                cost_element=cost_element,
+                entry=entry,
+                control_date=control_date,
+            )
+            tuples.append((earned_value, cost_element.budget_bac or Decimal("0.00")))
+
+        # Calculate EAC for ALL cost elements (not just those with entries)
+        budget_bac = cost_element.budget_bac or Decimal("0.00")
+        forecast_eac = forecast_map.get(cost_element.cost_element_id)
+        eac = calculate_cost_element_eac(
+            forecast_eac=forecast_eac, budget_bac=budget_bac
         )
-        tuples.append((earned_value, cost_element.budget_bac or Decimal("0.00")))
+        eac_values.append(eac)
+
+        # Track sum of EACs that come from forecasts
+        forecasted_quality = calculate_forecasted_quality(
+            forecast_eac=forecast_eac, calculated_eac=eac
+        )
+        if forecasted_quality == Decimal("1.0000"):
+            forecast_eac_sum += eac
 
     aggregates = aggregate_earned_value(tuples)
+
+    # Aggregate EAC and forecasted quality
+    total_eac = aggregate_eac(eac_values)
+    forecasted_quality = aggregate_forecasted_quality(
+        forecast_eac_sum=forecast_eac_sum, total_eac=total_eac
+    )
 
     return EarnedValueWBEPublic(
         level="wbe",
@@ -227,6 +316,8 @@ def get_wbe_earned_value(
         earned_value=aggregates.earned_value,
         percent_complete=aggregates.percent_complete,
         budget_bac=aggregates.budget_bac,
+        eac=str(total_eac) if total_eac > Decimal("0.00") else None,
+        forecasted_quality=str(forecasted_quality),
         wbe_id=wbe.wbe_id,
     )
 
@@ -260,7 +351,7 @@ def get_project_earned_value(
     if wbe_ids:
         cost_elements = session.exec(
             select(CostElement).where(
-                CostElement.wbe_id.in_(wbe_ids),
+                CostElement.wbe_id.in_(wbe_ids),  # type: ignore[attr-defined]
                 CostElement.created_at <= cutoff,
             )
         ).all()
@@ -270,20 +361,46 @@ def get_project_earned_value(
     entry_map = _get_entry_map(
         session, [ce.cost_element_id for ce in cost_elements], control_date
     )
+    forecast_map = _get_forecast_eac_map(
+        session, [ce.cost_element_id for ce in cost_elements], control_date
+    )
 
     tuples: list[tuple[Decimal, Decimal]] = []
+    eac_values: list[Decimal] = []
+    forecast_eac_sum = Decimal("0.00")
+
     for cost_element in cost_elements:
         entry = entry_map.get(cost_element.cost_element_id)
-        if entry is None:
-            continue
-        earned_value, _percent = calculate_cost_element_earned_value(
-            cost_element=cost_element,
-            entry=entry,
-            control_date=control_date,
+        if entry is not None:
+            earned_value, _percent = calculate_cost_element_earned_value(
+                cost_element=cost_element,
+                entry=entry,
+                control_date=control_date,
+            )
+            tuples.append((earned_value, cost_element.budget_bac or Decimal("0.00")))
+
+        # Calculate EAC for ALL cost elements (not just those with entries)
+        budget_bac = cost_element.budget_bac or Decimal("0.00")
+        forecast_eac = forecast_map.get(cost_element.cost_element_id)
+        eac = calculate_cost_element_eac(
+            forecast_eac=forecast_eac, budget_bac=budget_bac
         )
-        tuples.append((earned_value, cost_element.budget_bac or Decimal("0.00")))
+        eac_values.append(eac)
+
+        # Track sum of EACs that come from forecasts
+        forecasted_quality = calculate_forecasted_quality(
+            forecast_eac=forecast_eac, calculated_eac=eac
+        )
+        if forecasted_quality == Decimal("1.0000"):
+            forecast_eac_sum += eac
 
     aggregates = aggregate_earned_value(tuples)
+
+    # Aggregate EAC and forecasted quality
+    total_eac = aggregate_eac(eac_values)
+    forecasted_quality = aggregate_forecasted_quality(
+        forecast_eac_sum=forecast_eac_sum, total_eac=total_eac
+    )
 
     return EarnedValueProjectPublic(
         level="project",
@@ -291,5 +408,7 @@ def get_project_earned_value(
         earned_value=aggregates.earned_value,
         percent_complete=aggregates.percent_complete,
         budget_bac=aggregates.budget_bac,
+        eac=str(total_eac) if total_eac > Decimal("0.00") else None,
+        forecasted_quality=str(forecasted_quality),
         project_id=project.project_id,
     )

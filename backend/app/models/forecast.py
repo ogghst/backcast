@@ -3,6 +3,7 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from enum import Enum
 
 from sqlalchemy import DECIMAL, Column, Date, DateTime
 from sqlmodel import Field, Relationship, SQLModel
@@ -13,6 +14,14 @@ from app.models.cost_element import CostElement
 from app.models.user import User
 
 
+class ForecastType(str, Enum):
+    """Forecast type enumeration."""
+
+    bottom_up = "bottom_up"
+    performance_based = "performance_based"
+    management_judgment = "management_judgment"
+
+
 class ForecastBase(SQLModel):
     """Base forecast schema with common fields."""
 
@@ -20,9 +29,7 @@ class ForecastBase(SQLModel):
     estimate_at_completion: Decimal = Field(
         default=Decimal("0.00"), sa_column=Column(DECIMAL(15, 2), nullable=False)
     )
-    forecast_type: str = Field(
-        max_length=50
-    )  # Will be validated as enum in application logic
+    forecast_type: ForecastType
     assumptions: str | None = Field(default=None)
     is_current: bool = Field(default=False)
 
@@ -41,7 +48,7 @@ class ForecastUpdate(SQLModel):
     estimate_at_completion: Decimal | None = Field(
         default=None, sa_column=Column(DECIMAL(15, 2), nullable=True)
     )
-    forecast_type: str | None = Field(default=None, max_length=50)
+    forecast_type: ForecastType | None = None
     assumptions: str | None = None
     is_current: bool | None = None
 

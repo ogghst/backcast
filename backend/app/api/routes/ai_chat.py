@@ -3,7 +3,7 @@
 import json
 import uuid
 from datetime import date
-from typing import Literal
+from typing import Any, Literal
 
 import jwt
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
@@ -18,6 +18,7 @@ from app.models import WBE, CostElement, Project, TokenPayload, User
 from app.services.ai_chat import (
     ContextType,
     generate_initial_assessment,
+    get_openai_config,
     send_chat_message,
 )
 
@@ -143,16 +144,29 @@ async def ai_chat_websocket(
         user = await get_current_user_from_websocket(websocket, session, token)
 
         # Validate context access
-        _validate_context_access(session, context_type, context_id, user)
+        await _validate_context_access(session, context_type, context_id, user)
+
+        # Define async send_message function for streaming
+        async def send_message(message: dict[str, Any]) -> None:
+            """Send message via WebSocket."""
+            await websocket.send_json(message)
+
+        # Validate AI configuration before processing messages
+        try:
+            get_openai_config(session=session, user_id=user.id)
+        except ValueError as e:
+            await send_message(
+                {
+                    "type": "error",
+                    "content": f"AI Configuration Error: {str(e)}. Please configure your AI settings (base URL, API key, and model) in the admin panel before using the chat feature.",
+                }
+            )
+            await websocket.close(code=4005, reason="AI configuration missing")
+            return
 
         # Use control_date from query or user's time-machine date or today
         if control_date is None:
             control_date = user.time_machine_date or date.today()
-
-        # Define async send_message function for streaming
-        async def send_message(message: dict) -> None:
-            """Send message via WebSocket."""
-            await websocket.send_json(message)
 
         # Handle messages
         while True:
@@ -207,13 +221,54 @@ async def ai_chat_websocket(
                     }
                 )
 
+            except ValueError as e:
+                # Configuration or validation errors - provide user-friendly messages
+                error_msg = str(e)
+                if (
+                    "not found" in error_msg.lower()
+                    or "not configured" in error_msg.lower()
+                ):
+                    await send_message(
+                        {
+                            "type": "error",
+                            "content": f"Configuration Error: {error_msg}. Please check your AI settings in the admin panel.",
+                        }
+                    )
+                else:
+                    await send_message(
+                        {
+                            "type": "error",
+                            "content": f"Validation Error: {error_msg}",
+                        }
+                    )
             except Exception as e:
-                await send_message(
-                    {
-                        "type": "error",
-                        "content": f"Error processing message: {str(e)}",
-                    }
-                )
+                # Generic errors - provide more context
+                error_msg = str(e)
+
+                # Check for common error patterns and provide helpful messages
+                if "unexpected keyword argument" in error_msg:
+                    await send_message(
+                        {
+                            "type": "error",
+                            "content": "Internal Error: A configuration issue was detected. Please contact support if this persists.",
+                        }
+                    )
+                elif (
+                    "connection" in error_msg.lower() or "timeout" in error_msg.lower()
+                ):
+                    await send_message(
+                        {
+                            "type": "error",
+                            "content": "Connection Error: Unable to connect to the AI service. Please check your network connection and API configuration.",
+                        }
+                    )
+                else:
+                    await send_message(
+                        {
+                            "type": "error",
+                            "content": f"Error: {error_msg}. If this problem persists, please contact support.",
+                        }
+                    )
 
     except HTTPException:
         # HTTP exceptions are already handled with WebSocket close

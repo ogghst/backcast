@@ -508,6 +508,14 @@ export type EarnedValueCostElementPublic = {
     earned_value?: string;
     percent_complete?: string;
     budget_bac?: string;
+    /**
+     * Estimate at Completion (EAC) calculated from forecast or BAC fallback.
+     */
+    eac?: (string | null);
+    /**
+     * Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.
+     */
+    forecasted_quality?: (string | null);
     cost_element_id: string;
 };
 
@@ -572,6 +580,14 @@ export type EarnedValueProjectPublic = {
     earned_value?: string;
     percent_complete?: string;
     budget_bac?: string;
+    /**
+     * Estimate at Completion (EAC) calculated from forecast or BAC fallback.
+     */
+    eac?: (string | null);
+    /**
+     * Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.
+     */
+    forecasted_quality?: (string | null);
     project_id: string;
 };
 
@@ -584,6 +600,14 @@ export type EarnedValueWBEPublic = {
     earned_value?: string;
     percent_complete?: string;
     budget_bac?: string;
+    /**
+     * Estimate at Completion (EAC) calculated from forecast or BAC fallback.
+     */
+    eac?: (string | null);
+    /**
+     * Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.
+     */
+    forecasted_quality?: (string | null);
     wbe_id: string;
 };
 
@@ -609,6 +633,14 @@ export type EVMIndicesCostElementPublic = {
     earned_value?: string;
     actual_cost?: string;
     budget_bac?: string;
+    /**
+     * Estimate at Completion (EAC) calculated from forecast or BAC fallback.
+     */
+    eac?: (string | null);
+    /**
+     * Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.
+     */
+    forecasted_quality?: (string | null);
     /**
      * Cost Variance (CV) = EV - AC. Negative = over-budget, positive = under-budget, zero = on-budget.
      */
@@ -643,6 +675,14 @@ export type EVMIndicesProjectPublic = {
     actual_cost?: string;
     budget_bac?: string;
     /**
+     * Estimate at Completion (EAC) calculated from forecast or BAC fallback.
+     */
+    eac?: (string | null);
+    /**
+     * Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.
+     */
+    forecasted_quality?: (string | null);
+    /**
      * Cost Variance (CV) = EV - AC. Negative = over-budget, positive = under-budget, zero = on-budget.
      */
     cost_variance?: string;
@@ -676,6 +716,14 @@ export type EVMIndicesWBEPublic = {
     actual_cost?: string;
     budget_bac?: string;
     /**
+     * Estimate at Completion (EAC) calculated from forecast or BAC fallback.
+     */
+    eac?: (string | null);
+    /**
+     * Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.
+     */
+    forecasted_quality?: (string | null);
+    /**
      * Cost Variance (CV) = EV - AC. Negative = over-budget, positive = under-budget, zero = on-budget.
      */
     cost_variance?: string;
@@ -684,6 +732,51 @@ export type EVMIndicesWBEPublic = {
      */
     schedule_variance?: string;
     wbe_id: string;
+};
+
+/**
+ * Schema for creating a new forecast.
+ */
+export type ForecastCreate = {
+    forecast_date: string;
+    estimate_at_completion?: (number | string);
+    forecast_type: ForecastType;
+    assumptions?: (string | null);
+    is_current?: boolean;
+    cost_element_id: string;
+    estimator_id: string;
+};
+
+/**
+ * Public forecast schema for API responses.
+ */
+export type ForecastPublic = {
+    forecast_date: string;
+    estimate_at_completion?: string;
+    forecast_type: ForecastType;
+    assumptions?: (string | null);
+    is_current?: boolean;
+    forecast_id: string;
+    cost_element_id: string;
+    estimator_id: string;
+    created_at: string;
+    last_modified_at: string;
+};
+
+/**
+ * Forecast type enumeration.
+ */
+export type ForecastType = 'bottom_up' | 'performance_based' | 'management_judgment';
+
+/**
+ * Schema for updating a forecast.
+ */
+export type ForecastUpdate = {
+    forecast_date?: (string | null);
+    estimate_at_completion?: (number | string | null);
+    forecast_type?: (ForecastType | null);
+    assumptions?: (string | null);
+    is_current?: (boolean | null);
 };
 
 export type HTTPValidationError = {
@@ -875,7 +968,6 @@ export type UserPublic = {
     full_name?: (string | null);
     time_machine_date?: (string | null);
     openai_base_url?: (string | null);
-    openai_api_key_encrypted?: (string | null);
     openai_model?: (string | null);
     id: string;
 };
@@ -1631,6 +1723,40 @@ export type EvmMetricsGetProjectEvmMetricsEndpointData = {
 };
 
 export type EvmMetricsGetProjectEvmMetricsEndpointResponse = (EVMIndicesProjectPublic);
+
+export type ForecastsReadForecastsData = {
+    /**
+     * Filter by cost element ID
+     */
+    costElementId?: (string | null);
+};
+
+export type ForecastsReadForecastsResponse = (Array<ForecastPublic>);
+
+export type ForecastsCreateForecastData = {
+    requestBody: ForecastCreate;
+};
+
+export type ForecastsCreateForecastResponse = (ForecastPublic);
+
+export type ForecastsReadForecastData = {
+    forecastId: string;
+};
+
+export type ForecastsReadForecastResponse = (ForecastPublic);
+
+export type ForecastsUpdateForecastData = {
+    forecastId: string;
+    requestBody: ForecastUpdate;
+};
+
+export type ForecastsUpdateForecastResponse = (ForecastPublic);
+
+export type ForecastsDeleteForecastData = {
+    forecastId: string;
+};
+
+export type ForecastsDeleteForecastResponse = (Message);
 
 export type LoginLoginAccessTokenData = {
     formData: Body_login_login_access_token;

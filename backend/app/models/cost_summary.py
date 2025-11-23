@@ -22,7 +22,7 @@ class CostSummaryBase(SQLModel):
         default=0, ge=0
     )  # Number of cost registrations aggregated
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def cost_percentage_of_budget(self) -> float:
         """Calculate cost percentage of budget (total_cost / budget_bac) * 100."""

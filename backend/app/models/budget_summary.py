@@ -25,13 +25,13 @@ class BudgetSummaryBase(SQLModel):
         default=Decimal("0.00"), sa_column=Column(DECIMAL(15, 2), nullable=False)
     )  # sum of cost_element.revenue_plan
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def remaining_revenue(self) -> Decimal:
         """Calculate remaining revenue (revenue_limit - total_revenue_allocated)."""
         return self.revenue_limit - self.total_revenue_allocated
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def revenue_utilization_percent(self) -> float:
         """Calculate revenue utilization percentage."""

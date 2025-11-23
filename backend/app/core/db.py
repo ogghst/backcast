@@ -28,6 +28,12 @@ def init_db(session: Session) -> None:
     # This works because the models are already imported and registered from app.models
     # SQLModel.metadata.create_all(engine)
 
+    # Ensure session is in a good state before proceeding
+    try:
+        session.rollback()
+    except Exception:
+        pass  # Ignore if already rolled back or no transaction
+
     user = session.exec(
         select(User).where(User.email == settings.FIRST_SUPERUSER)
     ).first()

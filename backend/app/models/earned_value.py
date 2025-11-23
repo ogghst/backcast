@@ -22,6 +22,8 @@ class EarnedValueBase(SQLModel):
     budget_bac: Decimal = Field(
         default=Decimal("0.00"), sa_column=Column(DECIMAL(15, 2), nullable=False)
     )
+    eac: str | None = Field(default=None)
+    forecasted_quality: str | None = Field(default=None)
 
 
 class EarnedValueCostElementPublic(EarnedValueBase):

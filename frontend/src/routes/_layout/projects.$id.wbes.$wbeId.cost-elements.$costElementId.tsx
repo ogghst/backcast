@@ -14,6 +14,7 @@ import type { CostElementWithSchedulePublic } from "@/client"
 import {
   BudgetTimelineService,
   CostElementsService,
+  CostSummaryService,
   ProjectsService,
   WbesService,
 } from "@/client"
@@ -23,7 +24,7 @@ import BudgetTimeline from "@/components/Projects/BudgetTimeline"
 import CostElementSchedulesTable from "@/components/Projects/CostElementSchedulesTable"
 import CostRegistrationsTable from "@/components/Projects/CostRegistrationsTable"
 import EarnedValueEntriesTable from "@/components/Projects/EarnedValueEntriesTable"
-import EarnedValueSummary from "@/components/Projects/EarnedValueSummary"
+import ForecastsTable from "@/components/Projects/ForecastsTable"
 import MetricsSummary from "@/components/Projects/MetricsSummary"
 import { useTimeMachine } from "@/context/TimeMachineContext"
 
@@ -32,6 +33,7 @@ const COST_ELEMENT_VIEW_OPTIONS = [
   "cost-registrations",
   "schedule",
   "earned-value",
+  "forecasts",
   "metrics",
   "timeline",
   "ai-assessment",
@@ -134,6 +136,16 @@ function CostElementDetail() {
       enabled: !!projectId && !!costElementId,
     })
 
+  // Fetch cost summary for actual cost (AC)
+  const { data: costSummary } = useQuery({
+    queryFn: () =>
+      CostSummaryService.getCostElementCostSummary({
+        costElementId,
+      }),
+    queryKey: ["cost-summary", costElementId, controlDate],
+    enabled: !!costElementId,
+  })
+
   const handleTabChange = (value: CostElementView) => {
     navigate({
       search: (prev) => ({
@@ -212,6 +224,7 @@ function CostElementDetail() {
           </Tabs.Trigger>
           <Tabs.Trigger value="schedule">Schedule</Tabs.Trigger>
           <Tabs.Trigger value="earned-value">Earned Value</Tabs.Trigger>
+          <Tabs.Trigger value="forecasts">Forecasts</Tabs.Trigger>
           <Tabs.Trigger value="metrics">Metrics</Tabs.Trigger>
           <Tabs.Trigger value="timeline">Timeline</Tabs.Trigger>
           <Tabs.Trigger value="ai-assessment">AI Assessment</Tabs.Trigger>
@@ -255,17 +268,20 @@ function CostElementDetail() {
 
         <Tabs.Content value="earned-value">
           <Box mt={4}>
-            <EarnedValueSummary
-              level="cost-element"
-              projectId={projectId}
+            <EarnedValueEntriesTable
               costElementId={costElementId}
+              budgetBac={costElement.budget_bac ?? null}
             />
-            <Box mt={6}>
-              <EarnedValueEntriesTable
-                costElementId={costElementId}
-                budgetBac={costElement.budget_bac ?? null}
-              />
-            </Box>
+          </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="forecasts">
+          <Box mt={4}>
+            <ForecastsTable
+              costElementId={costElementId}
+              budgetBac={costElement.budget_bac ?? null}
+              actualCost={costSummary?.total_cost ?? null}
+            />
           </Box>
         </Tabs.Content>
 

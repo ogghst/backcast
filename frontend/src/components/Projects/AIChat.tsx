@@ -1,10 +1,24 @@
-import { Box, Button, Flex, Text, Textarea, VStack } from "@chakra-ui/react"
+import {
+  Box,
+  Button,
+  Flex,
+  Heading,
+  Text,
+  Textarea,
+  VStack,
+} from "@chakra-ui/react"
 import { useEffect, useMemo, useRef, useState } from "react"
+import type { Components } from "react-markdown"
 import Markdown from "react-markdown"
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+import {
+  oneLight,
+  vscDarkPlus,
+} from "react-syntax-highlighter/dist/esm/styles/prism"
 import { useWebSocket } from "react-use-websocket/dist/lib/use-websocket"
 import remarkGfm from "remark-gfm"
 import { OpenAPI } from "@/client"
-import { useColorModeValue } from "@/components/ui/color-mode"
+import { useColorMode, useColorModeValue } from "@/components/ui/color-mode"
 
 export type ContextType = "project" | "wbe" | "cost-element" | "baseline"
 
@@ -21,12 +35,326 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
   >([])
   const [inputValue, setInputValue] = useState("")
   const [isAnalysisStarted, setIsAnalysisStarted] = useState(false)
+  const [isAnalysisInProgress, setIsAnalysisInProgress] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Theme-aware colors
   const userMessageBg = useColorModeValue("blue.50", "blue.950")
   const assistantMessageBg = useColorModeValue("bg.subtle", "bg.subtle")
   const mutedTextColor = useColorModeValue("fg.muted", "fg.muted")
+  const inlineCodeBg = useColorModeValue("gray.100", "gray.800")
+  const inlineCodeColor = useColorModeValue("gray.800", "gray.100")
+  const headingColor = useColorModeValue("fg", "fg")
+  const linkColor = useColorModeValue("blue.600", "blue.400")
+  const blockquoteBg = useColorModeValue("gray.50", "gray.800")
+  const tableHeaderBg = useColorModeValue("gray.100", "gray.700")
+  const tableRowHoverBg = useColorModeValue("gray.50", "gray.800")
+  const { colorMode } = useColorMode()
+
+  // Custom markdown components with Chakra UI styling
+  const markdownComponents: Components = useMemo(
+    () => ({
+      // Headings
+      h1: ({ children, ...props }) => (
+        <Heading
+          as="h1"
+          size="xl"
+          mb={3}
+          mt={4}
+          color={headingColor}
+          {...props}
+        >
+          {children}
+        </Heading>
+      ),
+      h2: ({ children, ...props }) => (
+        <Heading
+          as="h2"
+          size="lg"
+          mb={2}
+          mt={3}
+          color={headingColor}
+          {...props}
+        >
+          {children}
+        </Heading>
+      ),
+      h3: ({ children, ...props }) => (
+        <Heading
+          as="h3"
+          size="md"
+          mb={2}
+          mt={3}
+          color={headingColor}
+          {...props}
+        >
+          {children}
+        </Heading>
+      ),
+      h4: ({ children, ...props }) => (
+        <Heading
+          as="h4"
+          size="sm"
+          mb={1}
+          mt={2}
+          color={headingColor}
+          {...props}
+        >
+          {children}
+        </Heading>
+      ),
+      h5: ({ children, ...props }) => (
+        <Heading
+          as="h5"
+          size="xs"
+          mb={1}
+          mt={2}
+          color={headingColor}
+          {...props}
+        >
+          {children}
+        </Heading>
+      ),
+      h6: ({ children, ...props }) => (
+        <Heading
+          as="h6"
+          size="xs"
+          mb={1}
+          mt={2}
+          color={headingColor}
+          {...props}
+        >
+          {children}
+        </Heading>
+      ),
+      // Paragraphs
+      p: ({ children, ...props }) => (
+        <Text as="p" mb={3} lineHeight="1.6" color="fg" {...props}>
+          {children}
+        </Text>
+      ),
+      // Lists
+      ul: ({ children, ...props }) => {
+        const { node, ref, ...restProps } = props as any
+        return (
+          <Box
+            as="ul"
+            pl={6}
+            mb={3}
+            listStyleType="disc"
+            color="fg"
+            {...restProps}
+          >
+            {children}
+          </Box>
+        )
+      },
+      ol: ({ children, ...props }) => {
+        const { node, ref, ...restProps } = props as any
+        return (
+          <Box
+            as="ol"
+            pl={6}
+            mb={3}
+            listStyleType="decimal"
+            color="fg"
+            {...restProps}
+          >
+            {children}
+          </Box>
+        )
+      },
+      li: ({ children, ...props }) => {
+        const { node, ref, ...restProps } = props as any
+        return (
+          <Box as="li" color="fg" mb={1} {...restProps}>
+            {children}
+          </Box>
+        )
+      },
+      // Links
+      a: ({ children, href, ...props }) => {
+        // Extract ref and node from props as they might cause type issues
+        const { node, ref, ...restProps } = props as any
+        return (
+          <Box
+            as="a"
+            href={href}
+            color={linkColor}
+            textDecoration="underline"
+            _hover={{ textDecoration: "underline", opacity: 0.8 }}
+            {...restProps}
+          >
+            {children}
+          </Box>
+        )
+      },
+      // Blockquotes
+      blockquote: ({ children, ...props }) => {
+        const { node, ref, ...restProps } = props as any
+        return (
+          <Box
+            as="blockquote"
+            borderLeftWidth="4px"
+            borderLeftColor="gray.300"
+            pl={4}
+            py={2}
+            my={3}
+            fontStyle="italic"
+            color={mutedTextColor}
+            bg={blockquoteBg}
+            borderRadius="md"
+            {...restProps}
+          >
+            {children}
+          </Box>
+        )
+      },
+      // Horizontal rule
+      hr: ({ ...props }) => (
+        <Box
+          as="hr"
+          borderTopWidth="1px"
+          borderColor="border"
+          my={4}
+          {...props}
+        />
+      ),
+      // Strong/Bold
+      strong: ({ children, ...props }) => {
+        const { node, ref, ...restProps } = props as any
+        return (
+          <Text as="strong" fontWeight="bold" color="fg" {...restProps}>
+            {children}
+          </Text>
+        )
+      },
+      // Emphasis/Italic
+      em: ({ children, ...props }) => {
+        const { node, ref, ...restProps } = props as any
+        return (
+          <Text as="em" fontStyle="italic" {...restProps}>
+            {children}
+          </Text>
+        )
+      },
+      // Code blocks and inline code
+      code: (props) => {
+        const { children, className, node, ref, ...rest } = props
+        const match = /language-(\w+)/.exec(className || "")
+        const language = match ? match[1] : ""
+        const codeString = String(children).replace(/\n$/, "")
+
+        // If it's a code block with language, use SyntaxHighlighter
+        if (match && language) {
+          return (
+            <Box my={3}>
+              <SyntaxHighlighter
+                PreTag="div"
+                style={colorMode === "dark" ? vscDarkPlus : oneLight}
+                language={language}
+                customStyle={{
+                  margin: 0,
+                  borderRadius: "0.375rem",
+                }}
+              >
+                {codeString}
+              </SyntaxHighlighter>
+            </Box>
+          )
+        }
+
+        // Inline code without language
+        return (
+          <Box
+            as="code"
+            display="inline"
+            px={1}
+            py={0.5}
+            borderRadius="sm"
+            bg={inlineCodeBg}
+            color={inlineCodeColor}
+            fontSize="0.9em"
+            fontFamily="mono"
+            className={className}
+            {...rest}
+          >
+            {children}
+          </Box>
+        )
+      },
+      // Tables (from remark-gfm)
+      table: ({ children, ...props }) => (
+        <Box
+          as="table"
+          width="100%"
+          my={3}
+          borderCollapse="collapse"
+          {...props}
+        >
+          {children}
+        </Box>
+      ),
+      thead: ({ children, ...props }) => (
+        <Box as="thead" bg={tableHeaderBg} {...props}>
+          {children}
+        </Box>
+      ),
+      tbody: ({ children, ...props }) => (
+        <Box as="tbody" {...props}>
+          {children}
+        </Box>
+      ),
+      tr: ({ children, ...props }) => (
+        <Box
+          as="tr"
+          borderBottomWidth="1px"
+          borderColor="border"
+          _hover={{ bg: tableRowHoverBg }}
+          {...props}
+        >
+          {children}
+        </Box>
+      ),
+      th: ({ children, ...props }) => (
+        <Box
+          as="th"
+          px={3}
+          py={2}
+          textAlign="left"
+          fontWeight="bold"
+          borderWidth="1px"
+          borderColor="border"
+          {...props}
+        >
+          {children}
+        </Box>
+      ),
+      td: ({ children, ...props }) => (
+        <Box
+          as="td"
+          px={3}
+          py={2}
+          borderWidth="1px"
+          borderColor="border"
+          {...props}
+        >
+          {children}
+        </Box>
+      ),
+    }),
+    [
+      colorMode,
+      inlineCodeBg,
+      inlineCodeColor,
+      headingColor,
+      linkColor,
+      mutedTextColor,
+      blockquoteBg,
+      tableHeaderBg,
+      tableRowHoverBg,
+    ],
+  )
 
   // Get JWT token from localStorage
   const token = useMemo(() => {
@@ -97,8 +425,7 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
 
       switch (data.type) {
         case "assessment_chunk":
-        case "response_chunk":
-          // Append chunk to last assistant message or create new one
+          // Stream assessment tokens: Append chunk to last assistant message or create new one
           setMessages((prev) => {
             const lastMsg = prev[prev.length - 1]
             if (lastMsg && lastMsg.role === "assistant") {
@@ -111,11 +438,33 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
             // Create new assistant message with chunk
             return [...prev, { role: "assistant", content: data.content || "" }]
           })
+          // Keep analysis in progress flag true while receiving assessment chunks
+          setIsAnalysisInProgress(true)
+          break
+        case "response_chunk":
+          // Stream response tokens: Append chunk to last assistant message or create new one
+          setMessages((prev) => {
+            const lastMsg = prev[prev.length - 1]
+            if (lastMsg && lastMsg.role === "assistant") {
+              // Update existing assistant message by appending chunk
+              return [
+                ...prev.slice(0, -1),
+                { ...lastMsg, content: lastMsg.content + (data.content || "") },
+              ]
+            }
+            // Create new assistant message with chunk
+            return [...prev, { role: "assistant", content: data.content || "" }]
+          })
+          // Response chunks don't affect analysis in progress state
           break
         case "assessment_complete":
-        case "response_complete":
-          // Mark analysis as started when complete
+          // Assessment complete - enable chat input, keep analysis started
+          setIsAnalysisInProgress(false)
           setIsAnalysisStarted(true)
+          break
+        case "response_complete":
+          // Response complete - analysis still active, just finished streaming response
+          setIsAnalysisInProgress(false)
           break
         case "error":
           // Display error message as assistant message
@@ -126,7 +475,8 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
               content: `Error: ${data.content || "Unknown error"}`,
             },
           ])
-          // Don't set isAnalysisStarted on error
+          // Reset analysis progress on error
+          setIsAnalysisInProgress(false)
           break
         case "status":
           // Status messages can be logged but not displayed
@@ -137,6 +487,7 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
       }
     } catch (error) {
       console.error("Failed to parse WebSocket message:", error)
+      setIsAnalysisInProgress(false)
     }
   }, [lastMessage])
 
@@ -144,28 +495,37 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
   useEffect(() => {
     setMessages([])
     setIsAnalysisStarted(false)
+    setIsAnalysisInProgress(false)
     setInputValue("")
   }, [])
 
-  // Auto-scroll to latest message when messages change
+  // Auto-scroll to latest message when messages change (for streaming)
   useEffect(() => {
     if (
       messagesEndRef.current &&
       typeof messagesEndRef.current.scrollIntoView === "function"
     ) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
+      // Use setTimeout to ensure DOM has updated
+      const timeoutId = setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+      }, 0)
+      return () => clearTimeout(timeoutId)
     }
   }, [])
 
   const handleStartAnalysis = () => {
-    if (connectionStatus !== "connected" || !wsUrl) {
-      console.error("WebSocket not connected")
+    if (connectionStatus !== "connected" || !wsUrl || isAnalysisInProgress) {
+      console.error("WebSocket not connected or analysis in progress")
       return
     }
+
+    // Mark analysis as in progress immediately
+    setIsAnalysisInProgress(true)
 
     // Send start_analysis message via WebSocket
     sendWebSocketMessage(JSON.stringify({ type: "start_analysis" }))
     // Note: isAnalysisStarted will be set when assessment_complete is received
+    // isAnalysisInProgress will be set to false when assessment_complete is received
   }
 
   const handleSendMessage = () => {
@@ -210,6 +570,7 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
   const handleClearConversation = () => {
     setMessages([])
     setIsAnalysisStarted(false)
+    setIsAnalysisInProgress(false)
     setInputValue("")
   }
 
@@ -246,10 +607,14 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
             onClick={handleStartAnalysis}
             colorScheme="blue"
             size="lg"
-            disabled={connectionStatus !== "connected" || !wsUrl}
-            loading={connectionStatus === "connecting"}
+            disabled={
+              connectionStatus !== "connected" || !wsUrl || isAnalysisInProgress
+            }
+            loading={connectionStatus === "connecting" || isAnalysisInProgress}
           >
-            Start Analysis
+            {isAnalysisInProgress
+              ? "Analysis in Progress..."
+              : "Start Analysis"}
           </Button>
         )}
 
@@ -284,7 +649,12 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
               </Box>
               {msg.role === "assistant" ? (
                 <Box color="fg">
-                  <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
+                  <Markdown
+                    remarkPlugins={[remarkGfm]}
+                    components={markdownComponents}
+                  >
+                    {msg.content}
+                  </Markdown>
                 </Box>
               ) : (
                 <Box color="fg">{msg.content}</Box>

@@ -5,6 +5,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 from sqlmodel import Session, select
 
@@ -335,7 +336,7 @@ def _seed_project_from_template(session: Session) -> None:
             session.flush()
 
         # Process earned value entries that are shared across the project
-        earned_value_entries_by_type: dict[str, list[dict]] = {}
+        earned_value_entries_by_type: dict[str, list[dict[str, Any]]] = {}
         for ev_entry in project_entry.get("earned_value_entries", []):
             cost_element_ref = ev_entry.get("cost_element_ref") or ev_entry.get(
                 "cost_element_id"
@@ -546,6 +547,14 @@ def _seed_project_from_template(session: Session) -> None:
 
 def _seed_variance_threshold_configs(session: Session) -> None:
     """Seed default variance threshold configurations if they don't exist."""
+    from sqlalchemy.exc import IntegrityError
+
+    # Ensure session is in a good state before proceeding
+    try:
+        session.rollback()
+    except Exception:
+        pass  # Ignore if already rolled back or no transaction
+
     default_configs = [
         {
             "threshold_type": VarianceThresholdType.critical_cv,
@@ -583,16 +592,34 @@ def _seed_variance_threshold_configs(session: Session) -> None:
         ).first()
 
         if not existing:
-            # Create new configuration
-            config_in = VarianceThresholdConfigCreate(**config_data)
-            config = VarianceThresholdConfig.model_validate(config_in)
-            session.add(config)
+            try:
+                # Create new configuration
+                config_in = VarianceThresholdConfigCreate(**config_data)
+                config = VarianceThresholdConfig.model_validate(config_in)
+                session.add(config)
+            except Exception:
+                # If error adding, rollback and continue
+                session.rollback()
+                continue
 
-    session.commit()
+    # Commit all at once, handling any integrity errors
+    try:
+        session.commit()
+    except IntegrityError:
+        # If unique constraint violation, rollback - configs already exist
+        session.rollback()
 
 
 def _seed_ai_default_config(session: Session) -> None:
     """Seed default AI configuration entries if they don't exist."""
+    from sqlalchemy.exc import IntegrityError
+
+    # Ensure session is in a good state before proceeding
+    try:
+        session.rollback()
+    except Exception:
+        pass  # Ignore if already rolled back or no transaction
+
     # Get base URL from environment variable or use empty string
     default_base_url = settings.AI_DEFAULT_OPENAI_BASE_URL or ""
 
@@ -626,9 +653,19 @@ def _seed_ai_default_config(session: Session) -> None:
         ).first()
 
         if not existing:
-            # Create new configuration
-            config_in = AppConfigurationCreate(**config_data)
-            config = AppConfiguration.model_validate(config_in)
-            session.add(config)
+            try:
+                # Create new configuration
+                config_in = AppConfigurationCreate(**config_data)
+                config = AppConfiguration.model_validate(config_in)
+                session.add(config)
+            except Exception:
+                # If error adding, rollback and continue
+                session.rollback()
+                continue
 
-    session.commit()
+    # Commit all at once, handling any integrity errors
+    try:
+        session.commit()
+    except IntegrityError:
+        # If unique constraint violation, rollback - configs already exist
+        session.rollback()

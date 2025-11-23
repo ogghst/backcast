@@ -39,6 +39,16 @@ class EVMIndicesBase(SQLModel):
     budget_bac: Decimal = Field(
         default=Decimal("0.00"), sa_column=Column(DECIMAL(15, 2), nullable=False)
     )
+    eac: Decimal | None = Field(
+        default=None,
+        sa_column=Column(DECIMAL(15, 2), nullable=True),
+        description="Estimate at Completion (EAC) calculated from forecast or BAC fallback.",
+    )
+    forecasted_quality: Decimal | None = Field(
+        default=None,
+        sa_column=Column(DECIMAL(7, 4), nullable=True),
+        description="Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.",
+    )
     cost_variance: Decimal = Field(
         default=Decimal("0.00"),
         sa_column=Column(DECIMAL(15, 2), nullable=False),

@@ -401,7 +401,7 @@ export default function EarnedValueSummary({
           }}
           gap={4}
         >
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
             <Box
               key={i}
               p={4}
@@ -425,6 +425,9 @@ export default function EarnedValueSummary({
   const earnedValueNum = Number(earnedValue.earned_value || 0)
   const budgetBacNum = Number(earnedValue.budget_bac || 0)
   const percentCompleteNum = Number(earnedValue.percent_complete || 0)
+  // Get EAC from evmMetrics (preferred) or earnedValue (fallback)
+  const forecastEac = evmMetrics?.eac ?? earnedValue?.eac
+  const forecastedQuality = earnedValue?.forecasted_quality
 
   // EVM metrics data (may be null/undefined)
   const cpi = evmMetrics?.cpi
@@ -505,7 +508,28 @@ export default function EarnedValueSummary({
           </VStack>
         </Box>
 
-        {/* Card 3: Percent Complete */}
+        {/* Card 3: Estimate at Completion (EAC) */}
+        <Box
+          p={4}
+          borderWidth="1px"
+          borderRadius="md"
+          borderColor={borderCol}
+          bg={cardBg}
+        >
+          <VStack align="stretch" gap={1}>
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
+              Estimate at Completion (EAC)
+            </Text>
+            <Text fontSize="xl" fontWeight="bold">
+              {formatCurrency(forecastEac)}
+            </Text>
+            <Text fontSize="xs" color={mutedText} mt={1}>
+              Current Forecast
+            </Text>
+          </VStack>
+        </Box>
+
+        {/* Card 4: Percent Complete */}
         <Box
           p={4}
           borderWidth="1px"
@@ -526,7 +550,7 @@ export default function EarnedValueSummary({
           </VStack>
         </Box>
 
-        {/* Card 4: Cost Performance Index (CPI) */}
+        {/* Card 5: Cost Performance Index (CPI) */}
         <Box
           p={4}
           borderWidth="1px"
@@ -548,7 +572,7 @@ export default function EarnedValueSummary({
           </VStack>
         </Box>
 
-        {/* Card 5: Schedule Performance Index (SPI) */}
+        {/* Card 6: Schedule Performance Index (SPI) */}
         <Box
           p={4}
           borderWidth="1px"
@@ -570,7 +594,7 @@ export default function EarnedValueSummary({
           </VStack>
         </Box>
 
-        {/* Card 6: To-Complete Performance Index (TCPI) */}
+        {/* Card 7: To-Complete Performance Index (TCPI) */}
         <Box
           p={4}
           borderWidth="1px"
@@ -592,7 +616,7 @@ export default function EarnedValueSummary({
           </VStack>
         </Box>
 
-        {/* Card 7: Cost Variance (CV) */}
+        {/* Card 8: Cost Variance (CV) */}
         <Box
           p={4}
           borderWidth="1px"
@@ -614,7 +638,7 @@ export default function EarnedValueSummary({
           </VStack>
         </Box>
 
-        {/* Card 8: Schedule Variance (SV) */}
+        {/* Card 9: Schedule Variance (SV) */}
         <Box
           p={4}
           borderWidth="1px"
@@ -632,6 +656,27 @@ export default function EarnedValueSummary({
             <Text fontSize="xs" color={svStatus.color} mt={1}>
               <SvIcon style={{ display: "inline", marginRight: "4px" }} />
               {svStatus.label}
+            </Text>
+          </VStack>
+        </Box>
+
+        {/* Card 10: Forecasted Quality */}
+        <Box
+          p={4}
+          borderWidth="1px"
+          borderRadius="md"
+          borderColor={borderCol}
+          bg={cardBg}
+        >
+          <VStack align="stretch" gap={1}>
+            <Text fontSize="sm" color={mutedText} fontWeight="medium">
+              Forecasted Quality
+            </Text>
+            <Text fontSize="xl" fontWeight="bold">
+              {formatPercent(forecastedQuality)}
+            </Text>
+            <Text fontSize="xs" color={mutedText} mt={1}>
+              Percentage of EAC from forecasts
             </Text>
           </VStack>
         </Box>

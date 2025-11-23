@@ -2160,6 +2160,32 @@ export const EVMIndicesCostElementPublicSchema = {
             title: 'Budget Bac',
             default: '0.00'
         },
+        eac: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Eac',
+            description: 'Estimate at Completion (EAC) calculated from forecast or BAC fallback.'
+        },
+        forecasted_quality: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Forecasted Quality',
+            description: 'Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.'
+        },
         cost_variance: {
             type: 'string',
             pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
@@ -2263,6 +2289,32 @@ export const EVMIndicesProjectPublicSchema = {
             pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
             title: 'Budget Bac',
             default: '0.00'
+        },
+        eac: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Eac',
+            description: 'Estimate at Completion (EAC) calculated from forecast or BAC fallback.'
+        },
+        forecasted_quality: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Forecasted Quality',
+            description: 'Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.'
         },
         cost_variance: {
             type: 'string',
@@ -2368,6 +2420,32 @@ export const EVMIndicesWBEPublicSchema = {
             title: 'Budget Bac',
             default: '0.00'
         },
+        eac: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Eac',
+            description: 'Estimate at Completion (EAC) calculated from forecast or BAC fallback.'
+        },
+        forecasted_quality: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Forecasted Quality',
+            description: 'Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.'
+        },
         cost_variance: {
             type: 'string',
             pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
@@ -2423,6 +2501,32 @@ export const EarnedValueCostElementPublicSchema = {
             pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
             title: 'Budget Bac',
             default: '0.00'
+        },
+        eac: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Eac',
+            description: 'Estimate at Completion (EAC) calculated from forecast or BAC fallback.'
+        },
+        forecasted_quality: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Forecasted Quality',
+            description: 'Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.'
         },
         cost_element_id: {
             type: 'string',
@@ -2730,6 +2834,32 @@ export const EarnedValueProjectPublicSchema = {
             title: 'Budget Bac',
             default: '0.00'
         },
+        eac: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Eac',
+            description: 'Estimate at Completion (EAC) calculated from forecast or BAC fallback.'
+        },
+        forecasted_quality: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Forecasted Quality',
+            description: 'Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.'
+        },
         project_id: {
             type: 'string',
             format: 'uuid',
@@ -2772,6 +2902,32 @@ export const EarnedValueWBEPublicSchema = {
             title: 'Budget Bac',
             default: '0.00'
         },
+        eac: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Eac',
+            description: 'Estimate at Completion (EAC) calculated from forecast or BAC fallback.'
+        },
+        forecasted_quality: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Forecasted Quality',
+            description: 'Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.'
+        },
         wbe_id: {
             type: 'string',
             format: 'uuid',
@@ -2782,6 +2938,200 @@ export const EarnedValueWBEPublicSchema = {
     required: ['level', 'control_date', 'wbe_id'],
     title: 'EarnedValueWBEPublic',
     description: 'Earned value response for WBEs.'
+} as const;
+
+export const ForecastCreateSchema = {
+    properties: {
+        forecast_date: {
+            type: 'string',
+            format: 'date',
+            title: 'Forecast Date'
+        },
+        estimate_at_completion: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                }
+            ],
+            title: 'Estimate At Completion',
+            default: '0.00'
+        },
+        forecast_type: {
+            '$ref': '#/components/schemas/ForecastType'
+        },
+        assumptions: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Assumptions'
+        },
+        is_current: {
+            type: 'boolean',
+            title: 'Is Current',
+            default: false
+        },
+        cost_element_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Cost Element Id'
+        },
+        estimator_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Estimator Id'
+        }
+    },
+    type: 'object',
+    required: ['forecast_date', 'forecast_type', 'cost_element_id', 'estimator_id'],
+    title: 'ForecastCreate',
+    description: 'Schema for creating a new forecast.'
+} as const;
+
+export const ForecastPublicSchema = {
+    properties: {
+        forecast_date: {
+            type: 'string',
+            format: 'date',
+            title: 'Forecast Date'
+        },
+        estimate_at_completion: {
+            type: 'string',
+            pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$',
+            title: 'Estimate At Completion',
+            default: '0.00'
+        },
+        forecast_type: {
+            '$ref': '#/components/schemas/ForecastType'
+        },
+        assumptions: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Assumptions'
+        },
+        is_current: {
+            type: 'boolean',
+            title: 'Is Current',
+            default: false
+        },
+        forecast_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Forecast Id'
+        },
+        cost_element_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Cost Element Id'
+        },
+        estimator_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Estimator Id'
+        },
+        created_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Created At'
+        },
+        last_modified_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Last Modified At'
+        }
+    },
+    type: 'object',
+    required: ['forecast_date', 'forecast_type', 'forecast_id', 'cost_element_id', 'estimator_id', 'created_at', 'last_modified_at'],
+    title: 'ForecastPublic',
+    description: 'Public forecast schema for API responses.'
+} as const;
+
+export const ForecastTypeSchema = {
+    type: 'string',
+    enum: ['bottom_up', 'performance_based', 'management_judgment'],
+    title: 'ForecastType',
+    description: 'Forecast type enumeration.'
+} as const;
+
+export const ForecastUpdateSchema = {
+    properties: {
+        forecast_date: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Forecast Date'
+        },
+        estimate_at_completion: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Estimate At Completion'
+        },
+        forecast_type: {
+            anyOf: [
+                {
+                    '$ref': '#/components/schemas/ForecastType'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        assumptions: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Assumptions'
+        },
+        is_current: {
+            anyOf: [
+                {
+                    type: 'boolean'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Is Current'
+        }
+    },
+    type: 'object',
+    title: 'ForecastUpdate',
+    description: 'Schema for updating a forecast.'
 } as const;
 
 export const HTTPValidationErrorSchema = {
