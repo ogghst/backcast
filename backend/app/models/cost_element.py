@@ -84,6 +84,9 @@ class CostElementPublic(CostElementBase):
     cost_element_id: uuid.UUID
     wbe_id: uuid.UUID
     cost_element_type_id: uuid.UUID
+    status: str  # Versioning status (from BranchVersionMixin)
+    version: int
+    branch: str
 
 
 class CostElementsPublic(SQLModel):

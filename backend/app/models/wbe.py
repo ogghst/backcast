@@ -75,6 +75,9 @@ class WBEPublic(WBEBase):
     entity_id: uuid.UUID
     wbe_id: uuid.UUID
     project_id: uuid.UUID
+    status: str  # Versioning status (from BranchVersionMixin)
+    version: int
+    branch: str
 
 
 class WBEsPublic(SQLModel):

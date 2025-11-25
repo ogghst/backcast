@@ -42,9 +42,12 @@ export type AppConfigurationPublic = {
      * Whether this configuration is active
      */
     is_active?: boolean;
+    entity_id: string;
     config_id: string;
     created_at: string;
     updated_at: string;
+    status: string;
+    version: number;
 };
 
 /**
@@ -96,6 +99,9 @@ export type BaselineCostElementWithCostElementPublic = {
     baseline_id: string;
     cost_element_id: string;
     created_at: string;
+    entity_id: string;
+    status: string;
+    version: number;
     department_code: string;
     department_name: string;
     cost_element_type_id: string;
@@ -137,6 +143,9 @@ export type BaselineLogPublic = {
     project_id: string;
     created_by_id: string;
     created_at: string;
+    entity_id: string;
+    status: string;
+    version: number;
 };
 
 /**
@@ -202,6 +211,88 @@ export type BudgetSummaryPublic = {
 };
 
 /**
+ * Schema for creating a new change order.
+ */
+export type ChangeOrderCreate = {
+    change_order_number?: (string | null);
+    title: string;
+    description: string;
+    requesting_party: string;
+    justification?: (string | null);
+    effective_date: string;
+    cost_impact?: (number | string | null);
+    revenue_impact?: (number | string | null);
+    workflow_status: string;
+    project_id: string;
+    created_by_id: string;
+};
+
+/**
+ * Public schema for change order line item.
+ */
+export type ChangeOrderLineItemPublic = {
+    operation_type: string;
+    target_type: string;
+    branch_target_id?: (string | null);
+    main_target_id?: (string | null);
+    budget_change?: (string | null);
+    revenue_change?: (string | null);
+    description?: (string | null);
+};
+
+/**
+ * Public change order schema for API responses.
+ */
+export type ChangeOrderPublic = {
+    change_order_number: string;
+    title: string;
+    description: string;
+    requesting_party: string;
+    justification?: (string | null);
+    effective_date: string;
+    cost_impact?: (string | null);
+    revenue_impact?: (string | null);
+    workflow_status: string;
+    change_order_id: string;
+    project_id: string;
+    wbe_id?: (string | null);
+    branch?: (string | null);
+    created_by_id: string;
+    approved_by_id?: (string | null);
+    approved_at?: (string | null);
+    implemented_by_id?: (string | null);
+    implemented_at?: (string | null);
+    created_at: string;
+    entity_id: string;
+    status: string;
+    version: number;
+};
+
+/**
+ * Request schema for change order status transition.
+ */
+export type ChangeOrderTransitionRequest = {
+    workflow_status: string;
+    approved_by_id?: (string | null);
+    implemented_by_id?: (string | null);
+};
+
+/**
+ * Schema for updating a change order.
+ */
+export type ChangeOrderUpdate = {
+    change_order_number?: (string | null);
+    title?: (string | null);
+    description?: (string | null);
+    requesting_party?: (string | null);
+    justification?: (string | null);
+    effective_date?: (string | null);
+    cost_impact?: (number | string | null);
+    revenue_impact?: (number | string | null);
+    workflow_status?: (string | null);
+};
+
+/**
  * Public cost categories list schema.
  */
 export type CostCategoriesPublic = {
@@ -225,7 +316,7 @@ export type CostElementCreate = {
     department_name: string;
     budget_bac?: (number | string);
     revenue_plan?: (number | string);
-    status?: string;
+    business_status?: string;
     notes?: (string | null);
     wbe_id: string;
     cost_element_type_id: string;
@@ -239,11 +330,15 @@ export type CostElementPublic = {
     department_name: string;
     budget_bac?: string;
     revenue_plan?: string;
-    status?: string;
+    business_status?: string;
     notes?: (string | null);
+    entity_id: string;
     cost_element_id: string;
     wbe_id: string;
     cost_element_type_id: string;
+    status: string;
+    version: number;
+    branch: string;
 };
 
 /**
@@ -274,6 +369,9 @@ export type CostElementSchedulePublic = {
     created_by_id: string;
     created_at: string;
     updated_at: string;
+    entity_id: string;
+    status: string;
+    version: number;
 };
 
 /**
@@ -307,12 +405,15 @@ export type CostElementTypePublic = {
     description?: (string | null);
     display_order?: number;
     is_active?: boolean;
+    entity_id: string;
     cost_element_type_id: string;
     department_id?: (string | null);
     department_code?: (string | null);
     department_name?: (string | null);
     created_at: string;
     updated_at: string;
+    status: string;
+    version: number;
 };
 
 /**
@@ -331,7 +432,7 @@ export type CostElementUpdate = {
     department_name?: (string | null);
     budget_bac?: (number | string | null);
     revenue_plan?: (number | string | null);
-    status?: (string | null);
+    business_status?: (string | null);
     notes?: (string | null);
 };
 
@@ -343,11 +444,15 @@ export type CostElementWithSchedulePublic = {
     department_name: string;
     budget_bac?: string;
     revenue_plan?: string;
-    status?: string;
+    business_status?: string;
     notes?: (string | null);
+    entity_id: string;
     cost_element_id: string;
     wbe_id: string;
     cost_element_type_id: string;
+    status: string;
+    version: number;
+    branch: string;
     schedule?: (CostElementSchedulePublic | null);
 };
 
@@ -442,6 +547,9 @@ export type CostRegistrationPublic = {
     created_by_id: string;
     created_at: string;
     last_modified_at: string;
+    entity_id: string;
+    status: string;
+    version: number;
 };
 
 /**
@@ -508,13 +616,7 @@ export type EarnedValueCostElementPublic = {
     earned_value?: string;
     percent_complete?: string;
     budget_bac?: string;
-    /**
-     * Estimate at Completion (EAC) calculated from forecast or BAC fallback.
-     */
     eac?: (string | null);
-    /**
-     * Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.
-     */
     forecasted_quality?: (string | null);
     cost_element_id: string;
 };
@@ -557,6 +659,9 @@ export type EarnedValueEntryPublic = {
     created_by_id: string;
     created_at: string;
     last_modified_at: string;
+    entity_id: string;
+    status: string;
+    version: number;
 };
 
 /**
@@ -580,13 +685,7 @@ export type EarnedValueProjectPublic = {
     earned_value?: string;
     percent_complete?: string;
     budget_bac?: string;
-    /**
-     * Estimate at Completion (EAC) calculated from forecast or BAC fallback.
-     */
     eac?: (string | null);
-    /**
-     * Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.
-     */
     forecasted_quality?: (string | null);
     project_id: string;
 };
@@ -600,13 +699,7 @@ export type EarnedValueWBEPublic = {
     earned_value?: string;
     percent_complete?: string;
     budget_bac?: string;
-    /**
-     * Estimate at Completion (EAC) calculated from forecast or BAC fallback.
-     */
     eac?: (string | null);
-    /**
-     * Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.
-     */
     forecasted_quality?: (string | null);
     wbe_id: string;
 };
@@ -756,11 +849,14 @@ export type ForecastPublic = {
     forecast_type: ForecastType;
     assumptions?: (string | null);
     is_current?: boolean;
+    entity_id: string;
     forecast_id: string;
     cost_element_id: string;
     estimator_id: string;
     created_at: string;
     last_modified_at: string;
+    status: string;
+    version: number;
 };
 
 /**
@@ -853,7 +949,7 @@ export type ProjectCreate = {
     start_date: string;
     planned_completion_date: string;
     actual_completion_date?: (string | null);
-    status?: string;
+    business_status?: string;
     notes?: (string | null);
     project_manager_id: string;
 };
@@ -870,10 +966,13 @@ export type ProjectPublic = {
     start_date: string;
     planned_completion_date: string;
     actual_completion_date?: (string | null);
-    status?: string;
+    business_status?: string;
     notes?: (string | null);
+    entity_id: string;
     project_id: string;
     project_manager_id: string;
+    status: string;
+    version: number;
 };
 
 /**
@@ -907,7 +1006,7 @@ export type ProjectUpdate = {
     planned_completion_date?: (string | null);
     actual_completion_date?: (string | null);
     project_manager_id?: (string | null);
-    status?: (string | null);
+    business_status?: (string | null);
     notes?: (string | null);
 };
 
@@ -969,7 +1068,10 @@ export type UserPublic = {
     time_machine_date?: (string | null);
     openai_base_url?: (string | null);
     openai_model?: (string | null);
+    entity_id: string;
     id: string;
+    status?: string;
+    version?: number;
 };
 
 /**
@@ -999,7 +1101,6 @@ export type UsersPublic = {
  */
 export type UserUpdate = {
     email?: (string | null);
-    is_active?: boolean;
     role?: (UserRole | null);
     department?: (string | null);
     full_name?: (string | null);
@@ -1007,6 +1108,7 @@ export type UserUpdate = {
     openai_base_url?: (string | null);
     openai_api_key_encrypted?: (string | null);
     openai_model?: (string | null);
+    is_active?: (boolean | null);
     password?: (string | null);
     /**
      * Plain text API key (will be encrypted)
@@ -1152,9 +1254,12 @@ export type VarianceThresholdConfigPublic = {
     threshold_percentage: string;
     description?: (string | null);
     is_active?: boolean;
+    entity_id: string;
     variance_threshold_config_id: string;
     created_at: string;
     updated_at: string;
+    status: string;
+    version: number;
 };
 
 /**
@@ -1240,7 +1345,7 @@ export type WBECreate = {
     serial_number?: (string | null);
     contracted_delivery_date?: (string | null);
     revenue_allocation?: (number | string);
-    status?: string;
+    business_status?: string;
     notes?: (string | null);
     project_id: string;
 };
@@ -1253,10 +1358,14 @@ export type WBEPublic = {
     serial_number?: (string | null);
     contracted_delivery_date?: (string | null);
     revenue_allocation?: string;
-    status?: string;
+    business_status?: string;
     notes?: (string | null);
+    entity_id: string;
     wbe_id: string;
     project_id: string;
+    status: string;
+    version: number;
+    branch: string;
 };
 
 /**
@@ -1287,7 +1396,7 @@ export type WBEUpdate = {
     serial_number?: (string | null);
     contracted_delivery_date?: (string | null);
     revenue_allocation?: (number | string | null);
-    status?: (string | null);
+    business_status?: (string | null);
     notes?: (string | null);
 };
 
@@ -1436,6 +1545,22 @@ export type BaselineLogsGetBaselineEarnedValueEntriesData = {
 
 export type BaselineLogsGetBaselineEarnedValueEntriesResponse = (EarnedValueEntriesPublic);
 
+export type BranchComparisonCompareBranchesData = {
+    /**
+     * Base branch to compare against
+     */
+    baseBranch?: string;
+    /**
+     * Branch name to compare
+     */
+    branch: string;
+    projectId: string;
+};
+
+export type BranchComparisonCompareBranchesResponse = ({
+    [key: string]: unknown;
+});
+
 export type BudgetSummaryGetProjectBudgetSummaryData = {
     projectId: string;
 };
@@ -1466,9 +1591,65 @@ export type BudgetTimelineGetCostElementsWithSchedulesData = {
 
 export type BudgetTimelineGetCostElementsWithSchedulesResponse = (Array<CostElementWithSchedulePublic>);
 
+export type ChangeOrderLineItemsListChangeOrderLineItemsData = {
+    changeOrderId: string;
+    projectId: string;
+};
+
+export type ChangeOrderLineItemsListChangeOrderLineItemsResponse = (Array<ChangeOrderLineItemPublic>);
+
+export type ChangeOrdersCreateChangeOrderData = {
+    projectId: string;
+    requestBody: ChangeOrderCreate;
+};
+
+export type ChangeOrdersCreateChangeOrderResponse = (ChangeOrderPublic);
+
+export type ChangeOrdersListChangeOrdersData = {
+    limit?: number;
+    projectId: string;
+    skip?: number;
+};
+
+export type ChangeOrdersListChangeOrdersResponse = (Array<ChangeOrderPublic>);
+
+export type ChangeOrdersReadChangeOrderData = {
+    changeOrderId: string;
+    projectId: string;
+};
+
+export type ChangeOrdersReadChangeOrderResponse = (ChangeOrderPublic);
+
+export type ChangeOrdersUpdateChangeOrderData = {
+    changeOrderId: string;
+    projectId: string;
+    requestBody: ChangeOrderUpdate;
+};
+
+export type ChangeOrdersUpdateChangeOrderResponse = (ChangeOrderPublic);
+
+export type ChangeOrdersDeleteChangeOrderData = {
+    changeOrderId: string;
+    projectId: string;
+};
+
+export type ChangeOrdersDeleteChangeOrderResponse = (unknown);
+
+export type ChangeOrdersTransitionChangeOrderStatusData = {
+    changeOrderId: string;
+    projectId: string;
+    requestBody: ChangeOrderTransitionRequest;
+};
+
+export type ChangeOrdersTransitionChangeOrderStatusResponse = (ChangeOrderPublic);
+
 export type CostCategoriesReadCostCategoriesResponse = (CostCategoriesPublic);
 
 export type CostElementsReadCostElementsData = {
+    /**
+     * Branch name (defaults to 'main')
+     */
+    branch?: (string | null);
     limit?: number;
     skip?: number;
     /**
@@ -1480,18 +1661,30 @@ export type CostElementsReadCostElementsData = {
 export type CostElementsReadCostElementsResponse = (CostElementsPublic);
 
 export type CostElementsCreateCostElementData = {
+    /**
+     * Branch name (defaults to 'main')
+     */
+    branch?: (string | null);
     requestBody: CostElementCreate;
 };
 
 export type CostElementsCreateCostElementResponse = (CostElementPublic);
 
 export type CostElementsReadCostElementData = {
+    /**
+     * Branch name (defaults to 'main')
+     */
+    branch?: (string | null);
     id: string;
 };
 
 export type CostElementsReadCostElementResponse = (CostElementPublic);
 
 export type CostElementsUpdateCostElementData = {
+    /**
+     * Branch name (defaults to 'main')
+     */
+    branch?: (string | null);
     id: string;
     requestBody: CostElementUpdate;
 };
@@ -1499,6 +1692,10 @@ export type CostElementsUpdateCostElementData = {
 export type CostElementsUpdateCostElementResponse = (CostElementPublic);
 
 export type CostElementsDeleteCostElementData = {
+    /**
+     * Branch name (defaults to 'main')
+     */
+    branch?: (string | null);
     id: string;
 };
 
@@ -1758,6 +1955,38 @@ export type ForecastsDeleteForecastData = {
 
 export type ForecastsDeleteForecastResponse = (Message);
 
+export type HardDeleteHardDeleteProjectData = {
+    projectId: string;
+};
+
+export type HardDeleteHardDeleteProjectResponse = ({
+    [key: string]: (string);
+});
+
+export type HardDeleteHardDeleteWbeData = {
+    /**
+     * Branch name (defaults to 'main')
+     */
+    branch?: (string | null);
+    wbeId: string;
+};
+
+export type HardDeleteHardDeleteWbeResponse = ({
+    [key: string]: (string);
+});
+
+export type HardDeleteHardDeleteCostElementData = {
+    /**
+     * Branch name (defaults to 'main')
+     */
+    branch?: (string | null);
+    costElementId: string;
+};
+
+export type HardDeleteHardDeleteCostElementResponse = ({
+    [key: string]: (string);
+});
+
 export type LoginLoginAccessTokenData = {
     formData: Body_login_login_access_token;
 };
@@ -1894,6 +2123,38 @@ export type ReportsGetVarianceTrendEndpointData = {
 
 export type ReportsGetVarianceTrendEndpointResponse = (VarianceTrendPublic);
 
+export type RestoreRestoreProjectData = {
+    projectId: string;
+};
+
+export type RestoreRestoreProjectResponse = (ProjectPublic);
+
+export type RestoreRestoreWbeData = {
+    /**
+     * Branch name (defaults to 'main')
+     */
+    branch?: (string | null);
+    wbeId: string;
+};
+
+export type RestoreRestoreWbeResponse = (WBEPublic);
+
+export type RestoreRestoreCostElementData = {
+    /**
+     * Branch name (defaults to 'main')
+     */
+    branch?: (string | null);
+    costElementId: string;
+};
+
+export type RestoreRestoreCostElementResponse = (CostElementPublic);
+
+export type RestoreRestoreChangeOrderData = {
+    changeOrderId: string;
+};
+
+export type RestoreRestoreChangeOrderResponse = (ChangeOrderPublic);
+
 export type UsersReadUsersData = {
     limit?: number;
     skip?: number;
@@ -1964,7 +2225,26 @@ export type UtilsTestEmailResponse = (Message);
 
 export type UtilsHealthCheckResponse = (boolean);
 
+export type VersionHistoryGetEntityVersionHistoryData = {
+    /**
+     * Branch name (required for branch-enabled entities)
+     */
+    branch?: (string | null);
+    entityId: string;
+    entityType: string;
+    limit?: number;
+    skip?: number;
+};
+
+export type VersionHistoryGetEntityVersionHistoryResponse = ({
+    [key: string]: unknown;
+});
+
 export type WbesReadWbesData = {
+    /**
+     * Branch name (defaults to 'main')
+     */
+    branch?: (string | null);
     limit?: number;
     /**
      * Filter by project ID
@@ -1976,18 +2256,30 @@ export type WbesReadWbesData = {
 export type WbesReadWbesResponse = (WBEsPublic);
 
 export type WbesCreateWbeData = {
+    /**
+     * Branch name (defaults to 'main')
+     */
+    branch?: (string | null);
     requestBody: WBECreate;
 };
 
 export type WbesCreateWbeResponse = (WBEPublic);
 
 export type WbesReadWbeData = {
+    /**
+     * Branch name (defaults to 'main')
+     */
+    branch?: (string | null);
     id: string;
 };
 
 export type WbesReadWbeResponse = (WBEPublic);
 
 export type WbesUpdateWbeData = {
+    /**
+     * Branch name (defaults to 'main')
+     */
+    branch?: (string | null);
     id: string;
     requestBody: WBEUpdate;
 };
@@ -1995,6 +2287,10 @@ export type WbesUpdateWbeData = {
 export type WbesUpdateWbeResponse = (WBEPublic);
 
 export type WbesDeleteWbeData = {
+    /**
+     * Branch name (defaults to 'main')
+     */
+    branch?: (string | null);
     id: string;
 };
 

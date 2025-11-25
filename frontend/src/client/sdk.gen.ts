@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AdminListAppConfigurationsResponse, AdminCreateAppConfigurationData, AdminCreateAppConfigurationResponse, AdminGetAppConfigurationData, AdminGetAppConfigurationResponse, AdminUpdateAppConfigurationData, AdminUpdateAppConfigurationResponse, AdminDeleteAppConfigurationData, AdminDeleteAppConfigurationResponse, AdminListVarianceThresholdConfigsResponse, AdminCreateVarianceThresholdConfigData, AdminCreateVarianceThresholdConfigResponse, AdminGetVarianceThresholdConfigData, AdminGetVarianceThresholdConfigResponse, AdminUpdateVarianceThresholdConfigData, AdminUpdateVarianceThresholdConfigResponse, AdminDeleteVarianceThresholdConfigData, AdminDeleteVarianceThresholdConfigResponse, BaselineLogsListBaselineLogsData, BaselineLogsListBaselineLogsResponse, BaselineLogsCreateBaselineLogData, BaselineLogsCreateBaselineLogResponse, BaselineLogsReadBaselineLogData, BaselineLogsReadBaselineLogResponse, BaselineLogsUpdateBaselineLogData, BaselineLogsUpdateBaselineLogResponse, BaselineLogsCancelBaselineLogData, BaselineLogsCancelBaselineLogResponse, BaselineLogsGetBaselineSnapshotSummaryData, BaselineLogsGetBaselineSnapshotSummaryResponse, BaselineLogsGetBaselineCostElementsByWbeData, BaselineLogsGetBaselineCostElementsByWbeResponse, BaselineLogsGetBaselineCostElementsData, BaselineLogsGetBaselineCostElementsResponse, BaselineLogsGetBaselineEarnedValueEntriesData, BaselineLogsGetBaselineEarnedValueEntriesResponse, BudgetSummaryGetProjectBudgetSummaryData, BudgetSummaryGetProjectBudgetSummaryResponse, BudgetSummaryGetWbeBudgetSummaryData, BudgetSummaryGetWbeBudgetSummaryResponse, BudgetTimelineGetCostElementsWithSchedulesData, BudgetTimelineGetCostElementsWithSchedulesResponse, CostCategoriesReadCostCategoriesResponse, CostElementsReadCostElementsData, CostElementsReadCostElementsResponse, CostElementsCreateCostElementData, CostElementsCreateCostElementResponse, CostElementsReadCostElementData, CostElementsReadCostElementResponse, CostElementsUpdateCostElementData, CostElementsUpdateCostElementResponse, CostElementsDeleteCostElementData, CostElementsDeleteCostElementResponse, CostElementSchedulesReadScheduleByCostElementData, CostElementSchedulesReadScheduleByCostElementResponse, CostElementSchedulesCreateScheduleData, CostElementSchedulesCreateScheduleResponse, CostElementSchedulesReadScheduleHistoryByCostElementData, CostElementSchedulesReadScheduleHistoryByCostElementResponse, CostElementSchedulesUpdateScheduleData, CostElementSchedulesUpdateScheduleResponse, CostElementSchedulesDeleteScheduleData, CostElementSchedulesDeleteScheduleResponse, CostElementTypesReadCostElementTypesResponse, CostRegistrationsReadCostRegistrationsData, CostRegistrationsReadCostRegistrationsResponse, CostRegistrationsCreateCostRegistrationData, CostRegistrationsCreateCostRegistrationResponse, CostRegistrationsReadCostRegistrationData, CostRegistrationsReadCostRegistrationResponse, CostRegistrationsUpdateCostRegistrationData, CostRegistrationsUpdateCostRegistrationResponse, CostRegistrationsDeleteCostRegistrationData, CostRegistrationsDeleteCostRegistrationResponse, CostSummaryGetCostElementCostSummaryData, CostSummaryGetCostElementCostSummaryResponse, CostSummaryGetWbeCostSummaryData, CostSummaryGetWbeCostSummaryResponse, CostSummaryGetProjectCostSummaryData, CostSummaryGetProjectCostSummaryResponse, CostTimelineGetProjectCostTimelineData, CostTimelineGetProjectCostTimelineResponse, EarnedValueGetCostElementEarnedValueData, EarnedValueGetCostElementEarnedValueResponse, EarnedValueGetWbeEarnedValueData, EarnedValueGetWbeEarnedValueResponse, EarnedValueGetProjectEarnedValueData, EarnedValueGetProjectEarnedValueResponse, EarnedValueEntriesReadEarnedValueEntriesData, EarnedValueEntriesReadEarnedValueEntriesResponse, EarnedValueEntriesCreateEarnedValueEntryData, EarnedValueEntriesCreateEarnedValueEntryResponse, EarnedValueEntriesReadEarnedValueEntryData, EarnedValueEntriesReadEarnedValueEntryResponse, EarnedValueEntriesUpdateEarnedValueEntryData, EarnedValueEntriesUpdateEarnedValueEntryResponse, EarnedValueEntriesDeleteEarnedValueEntryData, EarnedValueEntriesDeleteEarnedValueEntryResponse, EvmIndicesGetWbeEvmIndicesData, EvmIndicesGetWbeEvmIndicesResponse, EvmIndicesGetProjectEvmIndicesData, EvmIndicesGetProjectEvmIndicesResponse, EvmMetricsGetCostElementEvmMetricsEndpointData, EvmMetricsGetCostElementEvmMetricsEndpointResponse, EvmMetricsGetWbeEvmMetricsEndpointData, EvmMetricsGetWbeEvmMetricsEndpointResponse, EvmMetricsGetProjectEvmMetricsEndpointData, EvmMetricsGetProjectEvmMetricsEndpointResponse, ForecastsReadForecastsData, ForecastsReadForecastsResponse, ForecastsCreateForecastData, ForecastsCreateForecastResponse, ForecastsReadForecastData, ForecastsReadForecastResponse, ForecastsUpdateForecastData, ForecastsUpdateForecastResponse, ForecastsDeleteForecastData, ForecastsDeleteForecastResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, PlannedValueGetCostElementPlannedValueData, PlannedValueGetCostElementPlannedValueResponse, PlannedValueGetWbePlannedValueData, PlannedValueGetWbePlannedValueResponse, PlannedValueGetProjectPlannedValueData, PlannedValueGetProjectPlannedValueResponse, PrivateCreateUserData, PrivateCreateUserResponse, ProjectsReadProjectsData, ProjectsReadProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsReadProjectData, ProjectsReadProjectResponse, ProjectsUpdateProjectData, ProjectsUpdateProjectResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsCreateProjectFromTemplateData, ProjectsCreateProjectFromTemplateResponse, ReportsGetProjectCostPerformanceReportEndpointData, ReportsGetProjectCostPerformanceReportEndpointResponse, ReportsGetProjectVarianceAnalysisReportEndpointData, ReportsGetProjectVarianceAnalysisReportEndpointResponse, ReportsGetVarianceTrendEndpointData, ReportsGetVarianceTrendEndpointResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersReadTimeMachinePreferenceResponse, UsersUpdateTimeMachinePreferenceData, UsersUpdateTimeMachinePreferenceResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse, WbesReadWbesData, WbesReadWbesResponse, WbesCreateWbeData, WbesCreateWbeResponse, WbesReadWbeData, WbesReadWbeResponse, WbesUpdateWbeData, WbesUpdateWbeResponse, WbesDeleteWbeData, WbesDeleteWbeResponse } from './types.gen';
+import type { AdminListAppConfigurationsResponse, AdminCreateAppConfigurationData, AdminCreateAppConfigurationResponse, AdminGetAppConfigurationData, AdminGetAppConfigurationResponse, AdminUpdateAppConfigurationData, AdminUpdateAppConfigurationResponse, AdminDeleteAppConfigurationData, AdminDeleteAppConfigurationResponse, AdminListVarianceThresholdConfigsResponse, AdminCreateVarianceThresholdConfigData, AdminCreateVarianceThresholdConfigResponse, AdminGetVarianceThresholdConfigData, AdminGetVarianceThresholdConfigResponse, AdminUpdateVarianceThresholdConfigData, AdminUpdateVarianceThresholdConfigResponse, AdminDeleteVarianceThresholdConfigData, AdminDeleteVarianceThresholdConfigResponse, BaselineLogsListBaselineLogsData, BaselineLogsListBaselineLogsResponse, BaselineLogsCreateBaselineLogData, BaselineLogsCreateBaselineLogResponse, BaselineLogsReadBaselineLogData, BaselineLogsReadBaselineLogResponse, BaselineLogsUpdateBaselineLogData, BaselineLogsUpdateBaselineLogResponse, BaselineLogsCancelBaselineLogData, BaselineLogsCancelBaselineLogResponse, BaselineLogsGetBaselineSnapshotSummaryData, BaselineLogsGetBaselineSnapshotSummaryResponse, BaselineLogsGetBaselineCostElementsByWbeData, BaselineLogsGetBaselineCostElementsByWbeResponse, BaselineLogsGetBaselineCostElementsData, BaselineLogsGetBaselineCostElementsResponse, BaselineLogsGetBaselineEarnedValueEntriesData, BaselineLogsGetBaselineEarnedValueEntriesResponse, BranchComparisonCompareBranchesData, BranchComparisonCompareBranchesResponse, BudgetSummaryGetProjectBudgetSummaryData, BudgetSummaryGetProjectBudgetSummaryResponse, BudgetSummaryGetWbeBudgetSummaryData, BudgetSummaryGetWbeBudgetSummaryResponse, BudgetTimelineGetCostElementsWithSchedulesData, BudgetTimelineGetCostElementsWithSchedulesResponse, ChangeOrderLineItemsListChangeOrderLineItemsData, ChangeOrderLineItemsListChangeOrderLineItemsResponse, ChangeOrdersCreateChangeOrderData, ChangeOrdersCreateChangeOrderResponse, ChangeOrdersListChangeOrdersData, ChangeOrdersListChangeOrdersResponse, ChangeOrdersReadChangeOrderData, ChangeOrdersReadChangeOrderResponse, ChangeOrdersUpdateChangeOrderData, ChangeOrdersUpdateChangeOrderResponse, ChangeOrdersDeleteChangeOrderData, ChangeOrdersDeleteChangeOrderResponse, ChangeOrdersTransitionChangeOrderStatusData, ChangeOrdersTransitionChangeOrderStatusResponse, CostCategoriesReadCostCategoriesResponse, CostElementsReadCostElementsData, CostElementsReadCostElementsResponse, CostElementsCreateCostElementData, CostElementsCreateCostElementResponse, CostElementsReadCostElementData, CostElementsReadCostElementResponse, CostElementsUpdateCostElementData, CostElementsUpdateCostElementResponse, CostElementsDeleteCostElementData, CostElementsDeleteCostElementResponse, CostElementSchedulesReadScheduleByCostElementData, CostElementSchedulesReadScheduleByCostElementResponse, CostElementSchedulesCreateScheduleData, CostElementSchedulesCreateScheduleResponse, CostElementSchedulesReadScheduleHistoryByCostElementData, CostElementSchedulesReadScheduleHistoryByCostElementResponse, CostElementSchedulesUpdateScheduleData, CostElementSchedulesUpdateScheduleResponse, CostElementSchedulesDeleteScheduleData, CostElementSchedulesDeleteScheduleResponse, CostElementTypesReadCostElementTypesResponse, CostRegistrationsReadCostRegistrationsData, CostRegistrationsReadCostRegistrationsResponse, CostRegistrationsCreateCostRegistrationData, CostRegistrationsCreateCostRegistrationResponse, CostRegistrationsReadCostRegistrationData, CostRegistrationsReadCostRegistrationResponse, CostRegistrationsUpdateCostRegistrationData, CostRegistrationsUpdateCostRegistrationResponse, CostRegistrationsDeleteCostRegistrationData, CostRegistrationsDeleteCostRegistrationResponse, CostSummaryGetCostElementCostSummaryData, CostSummaryGetCostElementCostSummaryResponse, CostSummaryGetWbeCostSummaryData, CostSummaryGetWbeCostSummaryResponse, CostSummaryGetProjectCostSummaryData, CostSummaryGetProjectCostSummaryResponse, CostTimelineGetProjectCostTimelineData, CostTimelineGetProjectCostTimelineResponse, EarnedValueGetCostElementEarnedValueData, EarnedValueGetCostElementEarnedValueResponse, EarnedValueGetWbeEarnedValueData, EarnedValueGetWbeEarnedValueResponse, EarnedValueGetProjectEarnedValueData, EarnedValueGetProjectEarnedValueResponse, EarnedValueEntriesReadEarnedValueEntriesData, EarnedValueEntriesReadEarnedValueEntriesResponse, EarnedValueEntriesCreateEarnedValueEntryData, EarnedValueEntriesCreateEarnedValueEntryResponse, EarnedValueEntriesReadEarnedValueEntryData, EarnedValueEntriesReadEarnedValueEntryResponse, EarnedValueEntriesUpdateEarnedValueEntryData, EarnedValueEntriesUpdateEarnedValueEntryResponse, EarnedValueEntriesDeleteEarnedValueEntryData, EarnedValueEntriesDeleteEarnedValueEntryResponse, EvmIndicesGetWbeEvmIndicesData, EvmIndicesGetWbeEvmIndicesResponse, EvmIndicesGetProjectEvmIndicesData, EvmIndicesGetProjectEvmIndicesResponse, EvmMetricsGetCostElementEvmMetricsEndpointData, EvmMetricsGetCostElementEvmMetricsEndpointResponse, EvmMetricsGetWbeEvmMetricsEndpointData, EvmMetricsGetWbeEvmMetricsEndpointResponse, EvmMetricsGetProjectEvmMetricsEndpointData, EvmMetricsGetProjectEvmMetricsEndpointResponse, ForecastsReadForecastsData, ForecastsReadForecastsResponse, ForecastsCreateForecastData, ForecastsCreateForecastResponse, ForecastsReadForecastData, ForecastsReadForecastResponse, ForecastsUpdateForecastData, ForecastsUpdateForecastResponse, ForecastsDeleteForecastData, ForecastsDeleteForecastResponse, HardDeleteHardDeleteProjectData, HardDeleteHardDeleteProjectResponse, HardDeleteHardDeleteWbeData, HardDeleteHardDeleteWbeResponse, HardDeleteHardDeleteCostElementData, HardDeleteHardDeleteCostElementResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, LoginTestTokenResponse, LoginRecoverPasswordData, LoginRecoverPasswordResponse, LoginResetPasswordData, LoginResetPasswordResponse, LoginRecoverPasswordHtmlContentData, LoginRecoverPasswordHtmlContentResponse, PlannedValueGetCostElementPlannedValueData, PlannedValueGetCostElementPlannedValueResponse, PlannedValueGetWbePlannedValueData, PlannedValueGetWbePlannedValueResponse, PlannedValueGetProjectPlannedValueData, PlannedValueGetProjectPlannedValueResponse, PrivateCreateUserData, PrivateCreateUserResponse, ProjectsReadProjectsData, ProjectsReadProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsReadProjectData, ProjectsReadProjectResponse, ProjectsUpdateProjectData, ProjectsUpdateProjectResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsCreateProjectFromTemplateData, ProjectsCreateProjectFromTemplateResponse, ReportsGetProjectCostPerformanceReportEndpointData, ReportsGetProjectCostPerformanceReportEndpointResponse, ReportsGetProjectVarianceAnalysisReportEndpointData, ReportsGetProjectVarianceAnalysisReportEndpointResponse, ReportsGetVarianceTrendEndpointData, ReportsGetVarianceTrendEndpointResponse, RestoreRestoreProjectData, RestoreRestoreProjectResponse, RestoreRestoreWbeData, RestoreRestoreWbeResponse, RestoreRestoreCostElementData, RestoreRestoreCostElementResponse, RestoreRestoreChangeOrderData, RestoreRestoreChangeOrderResponse, UsersReadUsersData, UsersReadUsersResponse, UsersCreateUserData, UsersCreateUserResponse, UsersReadUserMeResponse, UsersDeleteUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersUpdatePasswordMeData, UsersUpdatePasswordMeResponse, UsersReadTimeMachinePreferenceResponse, UsersUpdateTimeMachinePreferenceData, UsersUpdateTimeMachinePreferenceResponse, UsersRegisterUserData, UsersRegisterUserResponse, UsersReadUserByIdData, UsersReadUserByIdResponse, UsersUpdateUserData, UsersUpdateUserResponse, UsersDeleteUserData, UsersDeleteUserResponse, UtilsTestEmailData, UtilsTestEmailResponse, UtilsHealthCheckResponse, VersionHistoryGetEntityVersionHistoryData, VersionHistoryGetEntityVersionHistoryResponse, WbesReadWbesData, WbesReadWbesResponse, WbesCreateWbeData, WbesCreateWbeResponse, WbesReadWbeData, WbesReadWbeResponse, WbesUpdateWbeData, WbesUpdateWbeResponse, WbesDeleteWbeData, WbesDeleteWbeResponse } from './types.gen';
 
 export class AdminService {
     /**
@@ -528,6 +528,41 @@ export class BaselineLogsService {
     }
 }
 
+export class BranchComparisonService {
+    /**
+     * Compare Branches
+     * Compare a branch with the base branch (default: main).
+     *
+     * Returns detailed comparison including:
+     * - Creates: New entities in branch
+     * - Updates: Modified entities
+     * - Deletes: Entities deleted in branch
+     * - Financial impact summary
+     * @param data The data for the request.
+     * @param data.projectId
+     * @param data.branch Branch name to compare
+     * @param data.baseBranch Base branch to compare against
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static compareBranches(data: BranchComparisonCompareBranchesData): CancelablePromise<BranchComparisonCompareBranchesResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/branch-comparison/{project_id}/compare',
+            path: {
+                project_id: data.projectId
+            },
+            query: {
+                branch: data.branch,
+                base_branch: data.baseBranch
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+}
+
 export class BudgetSummaryService {
     /**
      * Get Project Budget Summary
@@ -618,6 +653,194 @@ export class BudgetTimelineService {
     }
 }
 
+export class ChangeOrderLineItemsService {
+    /**
+     * List Change Order Line Items
+     * List all line items for a change order.
+     *
+     * Line items are auto-generated from comparing the change order's branch
+     * with the main branch. This endpoint dynamically generates line items
+     * based on the current state of the branch.
+     * @param data The data for the request.
+     * @param data.projectId
+     * @param data.changeOrderId
+     * @returns ChangeOrderLineItemPublic Successful Response
+     * @throws ApiError
+     */
+    public static listChangeOrderLineItems(data: ChangeOrderLineItemsListChangeOrderLineItemsData): CancelablePromise<ChangeOrderLineItemsListChangeOrderLineItemsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/projects/{project_id}/change-orders/{change_order_id}/line-items/',
+            path: {
+                project_id: data.projectId,
+                change_order_id: data.changeOrderId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+}
+
+export class ChangeOrdersService {
+    /**
+     * Create Change Order
+     * Create a new change order and automatically create a branch for it.
+     * @param data The data for the request.
+     * @param data.projectId
+     * @param data.requestBody
+     * @returns ChangeOrderPublic Successful Response
+     * @throws ApiError
+     */
+    public static createChangeOrder(data: ChangeOrdersCreateChangeOrderData): CancelablePromise<ChangeOrdersCreateChangeOrderResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/projects/{project_id}/change-orders/',
+            path: {
+                project_id: data.projectId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * List Change Orders
+     * List all change orders for a project (active only).
+     * @param data The data for the request.
+     * @param data.projectId
+     * @param data.skip
+     * @param data.limit
+     * @returns ChangeOrderPublic Successful Response
+     * @throws ApiError
+     */
+    public static listChangeOrders(data: ChangeOrdersListChangeOrdersData): CancelablePromise<ChangeOrdersListChangeOrdersResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/projects/{project_id}/change-orders/',
+            path: {
+                project_id: data.projectId
+            },
+            query: {
+                skip: data.skip,
+                limit: data.limit
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Read Change Order
+     * Get change order by ID (active only).
+     * @param data The data for the request.
+     * @param data.projectId
+     * @param data.changeOrderId
+     * @returns ChangeOrderPublic Successful Response
+     * @throws ApiError
+     */
+    public static readChangeOrder(data: ChangeOrdersReadChangeOrderData): CancelablePromise<ChangeOrdersReadChangeOrderResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/projects/{project_id}/change-orders/{change_order_id}',
+            path: {
+                project_id: data.projectId,
+                change_order_id: data.changeOrderId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Update Change Order
+     * Update a change order. Only allowed when workflow_status is 'design'.
+     * Creates a new version.
+     * @param data The data for the request.
+     * @param data.projectId
+     * @param data.changeOrderId
+     * @param data.requestBody
+     * @returns ChangeOrderPublic Successful Response
+     * @throws ApiError
+     */
+    public static updateChangeOrder(data: ChangeOrdersUpdateChangeOrderData): CancelablePromise<ChangeOrdersUpdateChangeOrderResponse> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/projects/{project_id}/change-orders/{change_order_id}',
+            path: {
+                project_id: data.projectId,
+                change_order_id: data.changeOrderId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Delete Change Order
+     * Soft delete a change order and its associated branch.
+     * @param data The data for the request.
+     * @param data.projectId
+     * @param data.changeOrderId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static deleteChangeOrder(data: ChangeOrdersDeleteChangeOrderData): CancelablePromise<ChangeOrdersDeleteChangeOrderResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/projects/{project_id}/change-orders/{change_order_id}',
+            path: {
+                project_id: data.projectId,
+                change_order_id: data.changeOrderId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Transition Change Order Status
+     * Transition change order workflow status.
+     *
+     * Valid transitions:
+     * - design → approve: Creates 'before' baseline and locks branch
+     * - approve → execute: Merges branch into main and creates 'after' baseline
+     *
+     * Args:
+     * transition_request: Transition request with workflow_status and user IDs
+     * @param data The data for the request.
+     * @param data.projectId
+     * @param data.changeOrderId
+     * @param data.requestBody
+     * @returns ChangeOrderPublic Successful Response
+     * @throws ApiError
+     */
+    public static transitionChangeOrderStatus(data: ChangeOrdersTransitionChangeOrderStatusData): CancelablePromise<ChangeOrdersTransitionChangeOrderStatusResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/projects/{project_id}/change-orders/{change_order_id}/transition',
+            path: {
+                project_id: data.projectId,
+                change_order_id: data.changeOrderId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+}
+
 export class CostCategoriesService {
     /**
      * Read Cost Categories
@@ -642,6 +865,7 @@ export class CostElementsService {
      * @param data.skip
      * @param data.limit
      * @param data.wbeId Filter by WBE ID
+     * @param data.branch Branch name (defaults to 'main')
      * @returns CostElementsPublic Successful Response
      * @throws ApiError
      */
@@ -652,7 +876,8 @@ export class CostElementsService {
             query: {
                 skip: data.skip,
                 limit: data.limit,
-                wbe_id: data.wbeId
+                wbe_id: data.wbeId,
+                branch: data.branch
             },
             errors: {
                 422: 'Validation Error'
@@ -665,6 +890,7 @@ export class CostElementsService {
      * Create new cost element.
      * @param data The data for the request.
      * @param data.requestBody
+     * @param data.branch Branch name (defaults to 'main')
      * @returns CostElementPublic Successful Response
      * @throws ApiError
      */
@@ -672,6 +898,9 @@ export class CostElementsService {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/cost-elements/',
+            query: {
+                branch: data.branch
+            },
             body: data.requestBody,
             mediaType: 'application/json',
             errors: {
@@ -685,6 +914,7 @@ export class CostElementsService {
      * Get cost element by ID.
      * @param data The data for the request.
      * @param data.id
+     * @param data.branch Branch name (defaults to 'main')
      * @returns CostElementPublic Successful Response
      * @throws ApiError
      */
@@ -695,6 +925,9 @@ export class CostElementsService {
             path: {
                 id: data.id
             },
+            query: {
+                branch: data.branch
+            },
             errors: {
                 422: 'Validation Error'
             }
@@ -703,10 +936,11 @@ export class CostElementsService {
     
     /**
      * Update Cost Element
-     * Update a cost element.
+     * Update a cost element. Creates a new version in the specified branch.
      * @param data The data for the request.
      * @param data.id
      * @param data.requestBody
+     * @param data.branch Branch name (defaults to 'main')
      * @returns CostElementPublic Successful Response
      * @throws ApiError
      */
@@ -716,6 +950,9 @@ export class CostElementsService {
             url: '/api/v1/cost-elements/{id}',
             path: {
                 id: data.id
+            },
+            query: {
+                branch: data.branch
             },
             body: data.requestBody,
             mediaType: 'application/json',
@@ -727,9 +964,10 @@ export class CostElementsService {
     
     /**
      * Delete Cost Element
-     * Delete a cost element.
+     * Delete a cost element (soft delete: sets status='deleted').
      * @param data The data for the request.
      * @param data.id
+     * @param data.branch Branch name (defaults to 'main')
      * @returns Message Successful Response
      * @throws ApiError
      */
@@ -739,6 +977,9 @@ export class CostElementsService {
             url: '/api/v1/cost-elements/{id}',
             path: {
                 id: data.id
+            },
+            query: {
+                branch: data.branch
             },
             errors: {
                 422: 'Validation Error'
@@ -1561,6 +1802,79 @@ export class ForecastsService {
     }
 }
 
+export class HardDeleteService {
+    /**
+     * Hard Delete Project
+     * Permanently delete a soft-deleted project (admin only).
+     * @param data The data for the request.
+     * @param data.projectId
+     * @returns string Successful Response
+     * @throws ApiError
+     */
+    public static hardDeleteProject(data: HardDeleteHardDeleteProjectData): CancelablePromise<HardDeleteHardDeleteProjectResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/hard-delete/projects/{project_id}',
+            path: {
+                project_id: data.projectId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Hard Delete Wbe
+     * Permanently delete a soft-deleted WBE (admin only).
+     * @param data The data for the request.
+     * @param data.wbeId
+     * @param data.branch Branch name (defaults to 'main')
+     * @returns string Successful Response
+     * @throws ApiError
+     */
+    public static hardDeleteWbe(data: HardDeleteHardDeleteWbeData): CancelablePromise<HardDeleteHardDeleteWbeResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/hard-delete/wbes/{wbe_id}',
+            path: {
+                wbe_id: data.wbeId
+            },
+            query: {
+                branch: data.branch
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Hard Delete Cost Element
+     * Permanently delete a soft-deleted cost element (admin only).
+     * @param data The data for the request.
+     * @param data.costElementId
+     * @param data.branch Branch name (defaults to 'main')
+     * @returns string Successful Response
+     * @throws ApiError
+     */
+    public static hardDeleteCostElement(data: HardDeleteHardDeleteCostElementData): CancelablePromise<HardDeleteHardDeleteCostElementResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/hard-delete/cost-elements/{cost_element_id}',
+            path: {
+                cost_element_id: data.costElementId
+            },
+            query: {
+                branch: data.branch
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+}
+
 export class LoginService {
     /**
      * Login Access Token
@@ -1767,7 +2081,7 @@ export class PrivateService {
 export class ProjectsService {
     /**
      * Read Projects
-     * Retrieve projects.
+     * Retrieve projects (active only).
      * @param data The data for the request.
      * @param data.skip
      * @param data.limit
@@ -1810,7 +2124,7 @@ export class ProjectsService {
     
     /**
      * Read Project
-     * Get project by ID.
+     * Get project by ID (active only).
      * @param data The data for the request.
      * @param data.id
      * @returns ProjectPublic Successful Response
@@ -1831,7 +2145,7 @@ export class ProjectsService {
     
     /**
      * Update Project
-     * Update a project.
+     * Update a project. Creates a new version.
      * @param data The data for the request.
      * @param data.id
      * @param data.requestBody
@@ -1855,7 +2169,7 @@ export class ProjectsService {
     
     /**
      * Delete Project
-     * Delete a project.
+     * Delete a project (soft delete: sets status='deleted').
      * @param data The data for the request.
      * @param data.id
      * @returns Message Successful Response
@@ -1982,6 +2296,100 @@ export class ReportsService {
             query: {
                 wbe_id: data.wbeId,
                 cost_element_id: data.costElementId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+}
+
+export class RestoreService {
+    /**
+     * Restore Project
+     * Restore a soft-deleted project.
+     * @param data The data for the request.
+     * @param data.projectId
+     * @returns ProjectPublic Successful Response
+     * @throws ApiError
+     */
+    public static restoreProject(data: RestoreRestoreProjectData): CancelablePromise<RestoreRestoreProjectResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/restore/projects/{project_id}',
+            path: {
+                project_id: data.projectId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Restore Wbe
+     * Restore a soft-deleted WBE.
+     * @param data The data for the request.
+     * @param data.wbeId
+     * @param data.branch Branch name (defaults to 'main')
+     * @returns WBEPublic Successful Response
+     * @throws ApiError
+     */
+    public static restoreWbe(data: RestoreRestoreWbeData): CancelablePromise<RestoreRestoreWbeResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/restore/wbes/{wbe_id}',
+            path: {
+                wbe_id: data.wbeId
+            },
+            query: {
+                branch: data.branch
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Restore Cost Element
+     * Restore a soft-deleted cost element.
+     * @param data The data for the request.
+     * @param data.costElementId
+     * @param data.branch Branch name (defaults to 'main')
+     * @returns CostElementPublic Successful Response
+     * @throws ApiError
+     */
+    public static restoreCostElement(data: RestoreRestoreCostElementData): CancelablePromise<RestoreRestoreCostElementResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/restore/cost-elements/{cost_element_id}',
+            path: {
+                cost_element_id: data.costElementId
+            },
+            query: {
+                branch: data.branch
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Restore Change Order
+     * Restore a soft-deleted change order.
+     * @param data The data for the request.
+     * @param data.changeOrderId
+     * @returns ChangeOrderPublic Successful Response
+     * @throws ApiError
+     */
+    public static restoreChangeOrder(data: RestoreRestoreChangeOrderData): CancelablePromise<RestoreRestoreChangeOrderResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/restore/change-orders/{change_order_id}',
+            path: {
+                change_order_id: data.changeOrderId
             },
             errors: {
                 422: 'Validation Error'
@@ -2255,6 +2663,42 @@ export class UtilsService {
     }
 }
 
+export class VersionHistoryService {
+    /**
+     * Get Entity Version History
+     * Get version history for an entity.
+     *
+     * Returns all versions of the entity ordered by version number (newest first).
+     * For branch-enabled entities (WBE, CostElement), branch parameter is required.
+     * @param data The data for the request.
+     * @param data.entityType
+     * @param data.entityId
+     * @param data.branch Branch name (required for branch-enabled entities)
+     * @param data.skip
+     * @param data.limit
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getEntityVersionHistory(data: VersionHistoryGetEntityVersionHistoryData): CancelablePromise<VersionHistoryGetEntityVersionHistoryResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/version-history/{entity_type}/{entity_id}',
+            path: {
+                entity_type: data.entityType,
+                entity_id: data.entityId
+            },
+            query: {
+                branch: data.branch,
+                skip: data.skip,
+                limit: data.limit
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+}
+
 export class WbesService {
     /**
      * Read Wbes
@@ -2263,6 +2707,7 @@ export class WbesService {
      * @param data.skip
      * @param data.limit
      * @param data.projectId Filter by project ID
+     * @param data.branch Branch name (defaults to 'main')
      * @returns WBEsPublic Successful Response
      * @throws ApiError
      */
@@ -2273,7 +2718,8 @@ export class WbesService {
             query: {
                 skip: data.skip,
                 limit: data.limit,
-                project_id: data.projectId
+                project_id: data.projectId,
+                branch: data.branch
             },
             errors: {
                 422: 'Validation Error'
@@ -2286,6 +2732,7 @@ export class WbesService {
      * Create new WBE.
      * @param data The data for the request.
      * @param data.requestBody
+     * @param data.branch Branch name (defaults to 'main')
      * @returns WBEPublic Successful Response
      * @throws ApiError
      */
@@ -2293,6 +2740,9 @@ export class WbesService {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/wbes/',
+            query: {
+                branch: data.branch
+            },
             body: data.requestBody,
             mediaType: 'application/json',
             errors: {
@@ -2306,6 +2756,7 @@ export class WbesService {
      * Get WBE by ID.
      * @param data The data for the request.
      * @param data.id
+     * @param data.branch Branch name (defaults to 'main')
      * @returns WBEPublic Successful Response
      * @throws ApiError
      */
@@ -2316,6 +2767,9 @@ export class WbesService {
             path: {
                 id: data.id
             },
+            query: {
+                branch: data.branch
+            },
             errors: {
                 422: 'Validation Error'
             }
@@ -2324,10 +2778,11 @@ export class WbesService {
     
     /**
      * Update Wbe
-     * Update a WBE.
+     * Update a WBE. Creates a new version in the specified branch.
      * @param data The data for the request.
      * @param data.id
      * @param data.requestBody
+     * @param data.branch Branch name (defaults to 'main')
      * @returns WBEPublic Successful Response
      * @throws ApiError
      */
@@ -2337,6 +2792,9 @@ export class WbesService {
             url: '/api/v1/wbes/{id}',
             path: {
                 id: data.id
+            },
+            query: {
+                branch: data.branch
             },
             body: data.requestBody,
             mediaType: 'application/json',
@@ -2348,9 +2806,10 @@ export class WbesService {
     
     /**
      * Delete Wbe
-     * Delete a WBE.
+     * Delete a WBE (soft delete: sets status='deleted').
      * @param data The data for the request.
      * @param data.id
+     * @param data.branch Branch name (defaults to 'main')
      * @returns Message Successful Response
      * @throws ApiError
      */
@@ -2360,6 +2819,9 @@ export class WbesService {
             url: '/api/v1/wbes/{id}',
             path: {
                 id: data.id
+            },
+            query: {
+                branch: data.branch
             },
             errors: {
                 422: 'Validation Error'

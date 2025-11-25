@@ -71,6 +71,11 @@ export const AppConfigurationPublicSchema = {
             description: 'Whether this configuration is active',
             default: true
         },
+        entity_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Entity Id'
+        },
         config_id: {
             type: 'string',
             format: 'uuid',
@@ -85,10 +90,18 @@ export const AppConfigurationPublicSchema = {
             type: 'string',
             format: 'date-time',
             title: 'Updated At'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        version: {
+            type: 'integer',
+            title: 'Version'
         }
     },
     type: 'object',
-    required: ['config_key', 'config_value', 'config_id', 'created_at', 'updated_at'],
+    required: ['config_key', 'config_value', 'entity_id', 'config_id', 'created_at', 'updated_at', 'status', 'version'],
     title: 'AppConfigurationPublic',
     description: 'Public app configuration schema for API responses.'
 } as const;
@@ -255,6 +268,19 @@ export const BaselineCostElementWithCostElementPublicSchema = {
             format: 'date-time',
             title: 'Created At'
         },
+        entity_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Entity Id'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        version: {
+            type: 'integer',
+            title: 'Version'
+        },
         department_code: {
             type: 'string',
             maxLength: 50,
@@ -351,7 +377,7 @@ export const BaselineCostElementWithCostElementPublicSchema = {
         }
     },
     type: 'object',
-    required: ['baseline_cost_element_id', 'baseline_id', 'cost_element_id', 'created_at', 'department_code', 'department_name', 'cost_element_type_id', 'wbe_id', 'wbe_machine_type'],
+    required: ['baseline_cost_element_id', 'baseline_id', 'cost_element_id', 'created_at', 'entity_id', 'status', 'version', 'department_code', 'department_name', 'cost_element_type_id', 'wbe_id', 'wbe_machine_type'],
     title: 'BaselineCostElementWithCostElementPublic',
     description: 'Public baseline cost element schema with CostElement fields for API responses.'
 } as const;
@@ -524,10 +550,23 @@ export const BaselineLogPublicSchema = {
             type: 'string',
             format: 'date-time',
             title: 'Created At'
+        },
+        entity_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Entity Id'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        version: {
+            type: 'integer',
+            title: 'Version'
         }
     },
     type: 'object',
-    required: ['baseline_type', 'baseline_date', 'milestone_type', 'baseline_id', 'project_id', 'created_by_id', 'created_at'],
+    required: ['baseline_type', 'baseline_date', 'milestone_type', 'baseline_id', 'project_id', 'created_by_id', 'created_at', 'entity_id', 'status', 'version'],
     title: 'BaselineLogPublic',
     description: 'Public baseline log schema for API responses.'
 } as const;
@@ -849,6 +888,512 @@ export const BudgetSummaryPublicSchema = {
     description: 'Public schema for budget summary response.'
 } as const;
 
+export const ChangeOrderCreateSchema = {
+    properties: {
+        change_order_number: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 50
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Change Order Number'
+        },
+        title: {
+            type: 'string',
+            maxLength: 200,
+            title: 'Title'
+        },
+        description: {
+            type: 'string',
+            title: 'Description'
+        },
+        requesting_party: {
+            type: 'string',
+            maxLength: 100,
+            title: 'Requesting Party'
+        },
+        justification: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Justification'
+        },
+        effective_date: {
+            type: 'string',
+            format: 'date',
+            title: 'Effective Date'
+        },
+        cost_impact: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Cost Impact'
+        },
+        revenue_impact: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Revenue Impact'
+        },
+        workflow_status: {
+            type: 'string',
+            maxLength: 50,
+            title: 'Workflow Status'
+        },
+        project_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Project Id'
+        },
+        created_by_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Created By Id'
+        }
+    },
+    type: 'object',
+    required: ['title', 'description', 'requesting_party', 'effective_date', 'workflow_status', 'project_id', 'created_by_id'],
+    title: 'ChangeOrderCreate',
+    description: 'Schema for creating a new change order.'
+} as const;
+
+export const ChangeOrderLineItemPublicSchema = {
+    properties: {
+        operation_type: {
+            type: 'string',
+            title: 'Operation Type'
+        },
+        target_type: {
+            type: 'string',
+            title: 'Target Type'
+        },
+        branch_target_id: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'uuid'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Branch Target Id'
+        },
+        main_target_id: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'uuid'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Main Target Id'
+        },
+        budget_change: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Budget Change'
+        },
+        revenue_change: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Revenue Change'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        }
+    },
+    type: 'object',
+    required: ['operation_type', 'target_type'],
+    title: 'ChangeOrderLineItemPublic',
+    description: 'Public schema for change order line item.'
+} as const;
+
+export const ChangeOrderPublicSchema = {
+    properties: {
+        change_order_number: {
+            type: 'string',
+            maxLength: 50,
+            title: 'Change Order Number'
+        },
+        title: {
+            type: 'string',
+            maxLength: 200,
+            title: 'Title'
+        },
+        description: {
+            type: 'string',
+            title: 'Description'
+        },
+        requesting_party: {
+            type: 'string',
+            maxLength: 100,
+            title: 'Requesting Party'
+        },
+        justification: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Justification'
+        },
+        effective_date: {
+            type: 'string',
+            format: 'date',
+            title: 'Effective Date'
+        },
+        cost_impact: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Cost Impact'
+        },
+        revenue_impact: {
+            anyOf: [
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Revenue Impact'
+        },
+        workflow_status: {
+            type: 'string',
+            maxLength: 50,
+            title: 'Workflow Status'
+        },
+        change_order_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Change Order Id'
+        },
+        project_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Project Id'
+        },
+        wbe_id: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'uuid'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Wbe Id'
+        },
+        branch: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Branch'
+        },
+        created_by_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Created By Id'
+        },
+        approved_by_id: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'uuid'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Approved By Id'
+        },
+        approved_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Approved At'
+        },
+        implemented_by_id: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'uuid'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Implemented By Id'
+        },
+        implemented_at: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Implemented At'
+        },
+        created_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Created At'
+        },
+        entity_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Entity Id'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        version: {
+            type: 'integer',
+            title: 'Version'
+        }
+    },
+    type: 'object',
+    required: ['change_order_number', 'title', 'description', 'requesting_party', 'effective_date', 'workflow_status', 'change_order_id', 'project_id', 'created_by_id', 'created_at', 'entity_id', 'status', 'version'],
+    title: 'ChangeOrderPublic',
+    description: 'Public change order schema for API responses.'
+} as const;
+
+export const ChangeOrderTransitionRequestSchema = {
+    properties: {
+        workflow_status: {
+            type: 'string',
+            title: 'Workflow Status'
+        },
+        approved_by_id: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'uuid'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Approved By Id'
+        },
+        implemented_by_id: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'uuid'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Implemented By Id'
+        }
+    },
+    type: 'object',
+    required: ['workflow_status'],
+    title: 'ChangeOrderTransitionRequest',
+    description: 'Request schema for change order status transition.'
+} as const;
+
+export const ChangeOrderUpdateSchema = {
+    properties: {
+        change_order_number: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 50
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Change Order Number'
+        },
+        title: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 200
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Title'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        },
+        requesting_party: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 100
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Requesting Party'
+        },
+        justification: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Justification'
+        },
+        effective_date: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Effective Date'
+        },
+        cost_impact: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Cost Impact'
+        },
+        revenue_impact: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'string',
+                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Revenue Impact'
+        },
+        workflow_status: {
+            anyOf: [
+                {
+                    type: 'string',
+                    maxLength: 50
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Workflow Status'
+        }
+    },
+    type: 'object',
+    title: 'ChangeOrderUpdate',
+    description: 'Schema for updating a change order.'
+} as const;
+
 export const CostCategoriesPublicSchema = {
     properties: {
         data: {
@@ -924,10 +1469,10 @@ export const CostElementCreateSchema = {
             title: 'Revenue Plan',
             default: '0.00'
         },
-        status: {
+        business_status: {
             type: 'string',
             maxLength: 50,
-            title: 'Status',
+            title: 'Business Status',
             default: 'planned'
         },
         notes: {
@@ -982,10 +1527,10 @@ export const CostElementPublicSchema = {
             title: 'Revenue Plan',
             default: '0.00'
         },
-        status: {
+        business_status: {
             type: 'string',
             maxLength: 50,
-            title: 'Status',
+            title: 'Business Status',
             default: 'planned'
         },
         notes: {
@@ -998,6 +1543,11 @@ export const CostElementPublicSchema = {
                 }
             ],
             title: 'Notes'
+        },
+        entity_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Entity Id'
         },
         cost_element_id: {
             type: 'string',
@@ -1013,10 +1563,22 @@ export const CostElementPublicSchema = {
             type: 'string',
             format: 'uuid',
             title: 'Cost Element Type Id'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        version: {
+            type: 'integer',
+            title: 'Version'
+        },
+        branch: {
+            type: 'string',
+            title: 'Branch'
         }
     },
     type: 'object',
-    required: ['department_code', 'department_name', 'cost_element_id', 'wbe_id', 'cost_element_type_id'],
+    required: ['department_code', 'department_name', 'entity_id', 'cost_element_id', 'wbe_id', 'cost_element_type_id', 'status', 'version', 'branch'],
     title: 'CostElementPublic',
     description: 'Public cost element schema for API responses.'
 } as const;
@@ -1152,10 +1714,23 @@ export const CostElementSchedulePublicSchema = {
             type: 'string',
             format: 'date-time',
             title: 'Updated At'
+        },
+        entity_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Entity Id'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        version: {
+            type: 'integer',
+            title: 'Version'
         }
     },
     type: 'object',
-    required: ['start_date', 'end_date', 'progression_type', 'schedule_id', 'cost_element_id', 'created_by_id', 'created_at', 'updated_at'],
+    required: ['start_date', 'end_date', 'progression_type', 'schedule_id', 'cost_element_id', 'created_by_id', 'created_at', 'updated_at', 'entity_id', 'status', 'version'],
     title: 'CostElementSchedulePublic',
     description: 'Public cost element schedule schema for API responses.'
 } as const;
@@ -1281,6 +1856,11 @@ export const CostElementTypePublicSchema = {
             title: 'Is Active',
             default: true
         },
+        entity_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Entity Id'
+        },
         cost_element_type_id: {
             type: 'string',
             format: 'uuid',
@@ -1329,10 +1909,18 @@ export const CostElementTypePublicSchema = {
             type: 'string',
             format: 'date-time',
             title: 'Updated At'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        version: {
+            type: 'integer',
+            title: 'Version'
         }
     },
     type: 'object',
-    required: ['type_code', 'type_name', 'category_type', 'cost_element_type_id', 'created_at', 'updated_at'],
+    required: ['type_code', 'type_name', 'category_type', 'entity_id', 'cost_element_type_id', 'created_at', 'updated_at', 'status', 'version'],
     title: 'CostElementTypePublic',
     description: 'Public cost element type schema for API responses.'
 } as const;
@@ -1413,7 +2001,7 @@ export const CostElementUpdateSchema = {
             ],
             title: 'Revenue Plan'
         },
-        status: {
+        business_status: {
             anyOf: [
                 {
                     type: 'string',
@@ -1423,7 +2011,7 @@ export const CostElementUpdateSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Status'
+            title: 'Business Status'
         },
         notes: {
             anyOf: [
@@ -1466,10 +2054,10 @@ export const CostElementWithSchedulePublicSchema = {
             title: 'Revenue Plan',
             default: '0.00'
         },
-        status: {
+        business_status: {
             type: 'string',
             maxLength: 50,
-            title: 'Status',
+            title: 'Business Status',
             default: 'planned'
         },
         notes: {
@@ -1482,6 +2070,11 @@ export const CostElementWithSchedulePublicSchema = {
                 }
             ],
             title: 'Notes'
+        },
+        entity_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Entity Id'
         },
         cost_element_id: {
             type: 'string',
@@ -1498,6 +2091,18 @@ export const CostElementWithSchedulePublicSchema = {
             format: 'uuid',
             title: 'Cost Element Type Id'
         },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        version: {
+            type: 'integer',
+            title: 'Version'
+        },
+        branch: {
+            type: 'string',
+            title: 'Branch'
+        },
         schedule: {
             anyOf: [
                 {
@@ -1510,7 +2115,7 @@ export const CostElementWithSchedulePublicSchema = {
         }
     },
     type: 'object',
-    required: ['department_code', 'department_name', 'cost_element_id', 'wbe_id', 'cost_element_type_id'],
+    required: ['department_code', 'department_name', 'entity_id', 'cost_element_id', 'wbe_id', 'cost_element_type_id', 'status', 'version', 'branch'],
     title: 'CostElementWithSchedulePublic',
     description: 'Public cost element schema with nested schedule for API responses.'
 } as const;
@@ -1846,10 +2451,23 @@ export const CostRegistrationPublicSchema = {
             type: 'string',
             format: 'date-time',
             title: 'Last Modified At'
+        },
+        entity_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Entity Id'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        version: {
+            type: 'integer',
+            title: 'Version'
         }
     },
     type: 'object',
-    required: ['registration_date', 'cost_category', 'description', 'cost_registration_id', 'cost_element_id', 'created_by_id', 'created_at', 'last_modified_at'],
+    required: ['registration_date', 'cost_category', 'description', 'cost_registration_id', 'cost_element_id', 'created_by_id', 'created_at', 'last_modified_at', 'entity_id', 'status', 'version'],
     title: 'CostRegistrationPublic',
     description: 'Public cost registration schema for API responses.'
 } as const;
@@ -2505,28 +3123,24 @@ export const EarnedValueCostElementPublicSchema = {
         eac: {
             anyOf: [
                 {
-                    type: 'string',
-                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                    type: 'string'
                 },
                 {
                     type: 'null'
                 }
             ],
-            title: 'Eac',
-            description: 'Estimate at Completion (EAC) calculated from forecast or BAC fallback.'
+            title: 'Eac'
         },
         forecasted_quality: {
             anyOf: [
                 {
-                    type: 'string',
-                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                    type: 'string'
                 },
                 {
                     type: 'null'
                 }
             ],
-            title: 'Forecasted Quality',
-            description: 'Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.'
+            title: 'Forecasted Quality'
         },
         cost_element_id: {
             type: 'string',
@@ -2712,10 +3326,23 @@ export const EarnedValueEntryPublicSchema = {
             type: 'string',
             format: 'date-time',
             title: 'Last Modified At'
+        },
+        entity_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Entity Id'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        version: {
+            type: 'integer',
+            title: 'Version'
         }
     },
     type: 'object',
-    required: ['completion_date', 'earned_value_id', 'cost_element_id', 'created_by_id', 'created_at', 'last_modified_at'],
+    required: ['completion_date', 'earned_value_id', 'cost_element_id', 'created_by_id', 'created_at', 'last_modified_at', 'entity_id', 'status', 'version'],
     title: 'EarnedValueEntryPublic',
     description: 'Public earned value entry schema for API responses.'
 } as const;
@@ -2837,28 +3464,24 @@ export const EarnedValueProjectPublicSchema = {
         eac: {
             anyOf: [
                 {
-                    type: 'string',
-                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                    type: 'string'
                 },
                 {
                     type: 'null'
                 }
             ],
-            title: 'Eac',
-            description: 'Estimate at Completion (EAC) calculated from forecast or BAC fallback.'
+            title: 'Eac'
         },
         forecasted_quality: {
             anyOf: [
                 {
-                    type: 'string',
-                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                    type: 'string'
                 },
                 {
                     type: 'null'
                 }
             ],
-            title: 'Forecasted Quality',
-            description: 'Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.'
+            title: 'Forecasted Quality'
         },
         project_id: {
             type: 'string',
@@ -2905,28 +3528,24 @@ export const EarnedValueWBEPublicSchema = {
         eac: {
             anyOf: [
                 {
-                    type: 'string',
-                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                    type: 'string'
                 },
                 {
                     type: 'null'
                 }
             ],
-            title: 'Eac',
-            description: 'Estimate at Completion (EAC) calculated from forecast or BAC fallback.'
+            title: 'Eac'
         },
         forecasted_quality: {
             anyOf: [
                 {
-                    type: 'string',
-                    pattern: '^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$'
+                    type: 'string'
                 },
                 {
                     type: 'null'
                 }
             ],
-            title: 'Forecasted Quality',
-            description: 'Forecasted quality percentage (0.0000 to 1.0000). Percentage of EAC that comes from forecasts vs BAC fallback.'
+            title: 'Forecasted Quality'
         },
         wbe_id: {
             type: 'string',
@@ -3028,6 +3647,11 @@ export const ForecastPublicSchema = {
             title: 'Is Current',
             default: false
         },
+        entity_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Entity Id'
+        },
         forecast_id: {
             type: 'string',
             format: 'uuid',
@@ -3052,10 +3676,18 @@ export const ForecastPublicSchema = {
             type: 'string',
             format: 'date-time',
             title: 'Last Modified At'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        version: {
+            type: 'integer',
+            title: 'Version'
         }
     },
     type: 'object',
-    required: ['forecast_date', 'forecast_type', 'forecast_id', 'cost_element_id', 'estimator_id', 'created_at', 'last_modified_at'],
+    required: ['forecast_date', 'forecast_type', 'entity_id', 'forecast_id', 'cost_element_id', 'estimator_id', 'created_at', 'last_modified_at', 'status', 'version'],
     title: 'ForecastPublic',
     description: 'Public forecast schema for API responses.'
 } as const;
@@ -3402,10 +4034,10 @@ export const ProjectCreateSchema = {
             ],
             title: 'Actual Completion Date'
         },
-        status: {
+        business_status: {
             type: 'string',
             maxLength: 50,
-            title: 'Status',
+            title: 'Business Status',
             default: 'active'
         },
         notes: {
@@ -3495,10 +4127,10 @@ export const ProjectPublicSchema = {
             ],
             title: 'Actual Completion Date'
         },
-        status: {
+        business_status: {
             type: 'string',
             maxLength: 50,
-            title: 'Status',
+            title: 'Business Status',
             default: 'active'
         },
         notes: {
@@ -3512,6 +4144,11 @@ export const ProjectPublicSchema = {
             ],
             title: 'Notes'
         },
+        entity_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Entity Id'
+        },
         project_id: {
             type: 'string',
             format: 'uuid',
@@ -3521,10 +4158,18 @@ export const ProjectPublicSchema = {
             type: 'string',
             format: 'uuid',
             title: 'Project Manager Id'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        version: {
+            type: 'integer',
+            title: 'Version'
         }
     },
     type: 'object',
-    required: ['project_name', 'customer_name', 'start_date', 'planned_completion_date', 'project_id', 'project_manager_id'],
+    required: ['project_name', 'customer_name', 'start_date', 'planned_completion_date', 'entity_id', 'project_id', 'project_manager_id', 'status', 'version'],
     title: 'ProjectPublic',
     description: 'Public project schema for API responses.'
 } as const;
@@ -3664,7 +4309,7 @@ export const ProjectUpdateSchema = {
             ],
             title: 'Project Manager Id'
         },
-        status: {
+        business_status: {
             anyOf: [
                 {
                     type: 'string',
@@ -3674,7 +4319,7 @@ export const ProjectUpdateSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Status'
+            title: 'Business Status'
         },
         notes: {
             anyOf: [
@@ -3964,14 +4609,30 @@ export const UserPublicSchema = {
             ],
             title: 'Openai Model'
         },
+        entity_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Entity Id'
+        },
         id: {
             type: 'string',
             format: 'uuid',
             title: 'Id'
+        },
+        status: {
+            type: 'string',
+            maxLength: 20,
+            title: 'Status',
+            default: 'active'
+        },
+        version: {
+            type: 'integer',
+            title: 'Version',
+            default: 1
         }
     },
     type: 'object',
-    required: ['email', 'id'],
+    required: ['email', 'entity_id', 'id'],
     title: 'UserPublic',
     description: 'Public user schema for API responses.'
 } as const;
@@ -4030,11 +4691,6 @@ export const UserUpdateSchema = {
                 }
             ],
             title: 'Email'
-        },
-        is_active: {
-            type: 'boolean',
-            title: 'Is Active',
-            default: true
         },
         role: {
             anyOf: [
@@ -4116,6 +4772,17 @@ export const UserUpdateSchema = {
                 }
             ],
             title: 'Openai Model'
+        },
+        is_active: {
+            anyOf: [
+                {
+                    type: 'boolean'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Is Active'
         },
         password: {
             anyOf: [
@@ -4591,6 +5258,11 @@ export const VarianceThresholdConfigPublicSchema = {
             title: 'Is Active',
             default: true
         },
+        entity_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Entity Id'
+        },
         variance_threshold_config_id: {
             type: 'string',
             format: 'uuid',
@@ -4605,10 +5277,18 @@ export const VarianceThresholdConfigPublicSchema = {
             type: 'string',
             format: 'date-time',
             title: 'Updated At'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        version: {
+            type: 'integer',
+            title: 'Version'
         }
     },
     type: 'object',
-    required: ['threshold_type', 'threshold_percentage', 'variance_threshold_config_id', 'created_at', 'updated_at'],
+    required: ['threshold_type', 'threshold_percentage', 'entity_id', 'variance_threshold_config_id', 'created_at', 'updated_at', 'status', 'version'],
     title: 'VarianceThresholdConfigPublic',
     description: 'Public variance threshold configuration schema for API responses.'
 } as const;
@@ -4850,10 +5530,10 @@ export const WBECreateSchema = {
             title: 'Revenue Allocation',
             default: '0.00'
         },
-        status: {
+        business_status: {
             type: 'string',
             maxLength: 50,
-            title: 'Status',
+            title: 'Business Status',
             default: 'designing'
         },
         notes: {
@@ -4916,10 +5596,10 @@ export const WBEPublicSchema = {
             title: 'Revenue Allocation',
             default: '0.00'
         },
-        status: {
+        business_status: {
             type: 'string',
             maxLength: 50,
-            title: 'Status',
+            title: 'Business Status',
             default: 'designing'
         },
         notes: {
@@ -4933,6 +5613,11 @@ export const WBEPublicSchema = {
             ],
             title: 'Notes'
         },
+        entity_id: {
+            type: 'string',
+            format: 'uuid',
+            title: 'Entity Id'
+        },
         wbe_id: {
             type: 'string',
             format: 'uuid',
@@ -4942,10 +5627,22 @@ export const WBEPublicSchema = {
             type: 'string',
             format: 'uuid',
             title: 'Project Id'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        version: {
+            type: 'integer',
+            title: 'Version'
+        },
+        branch: {
+            type: 'string',
+            title: 'Branch'
         }
     },
     type: 'object',
-    required: ['machine_type', 'wbe_id', 'project_id'],
+    required: ['machine_type', 'entity_id', 'wbe_id', 'project_id', 'status', 'version', 'branch'],
     title: 'WBEPublic',
     description: 'Public WBE schema for API responses.'
 } as const;
@@ -5026,7 +5723,7 @@ export const WBEUpdateSchema = {
             ],
             title: 'Revenue Allocation'
         },
-        status: {
+        business_status: {
             anyOf: [
                 {
                     type: 'string',
@@ -5036,7 +5733,7 @@ export const WBEUpdateSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Status'
+            title: 'Business Status'
         },
         notes: {
             anyOf: [
