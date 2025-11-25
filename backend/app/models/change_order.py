@@ -40,6 +40,9 @@ class ChangeOrderCreate(ChangeOrderBase):
 
     project_id: uuid.UUID
     created_by_id: uuid.UUID
+    change_order_number: str | None = Field(
+        default=None, max_length=50
+    )  # Optional - will be auto-generated if not provided
 
 
 class ChangeOrderUpdate(SQLModel):
@@ -68,6 +71,9 @@ class ChangeOrder(ChangeOrderBase, VersionStatusMixin, table=True):
     wbe_id: uuid.UUID | None = Field(
         default=None, foreign_key="wbe.wbe_id", nullable=True
     )
+    branch: str | None = Field(
+        default=None, max_length=50, nullable=True
+    )  # Branch name associated with this change order (e.g., 'co-001')
     created_by_id: uuid.UUID = Field(foreign_key="user.id", nullable=False)
     approved_by_id: uuid.UUID | None = Field(
         default=None, foreign_key="user.id", nullable=True
@@ -107,8 +113,13 @@ class ChangeOrderPublic(ChangeOrderBase):
     change_order_id: uuid.UUID
     project_id: uuid.UUID
     wbe_id: uuid.UUID | None = Field(default=None)
+    branch: str | None = Field(default=None)
     created_by_id: uuid.UUID
+    approved_by_id: uuid.UUID | None = Field(default=None)
+    approved_at: datetime | None = Field(default=None)
+    implemented_by_id: uuid.UUID | None = Field(default=None)
+    implemented_at: datetime | None = Field(default=None)
     created_at: datetime
     entity_id: uuid.UUID
-    status: str
+    status: str  # Versioning status (from VersionStatusMixin)
     version: int

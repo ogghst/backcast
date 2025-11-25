@@ -6,6 +6,8 @@ from app.api.routes import (
     baseline_logs,
     budget_summary,
     budget_timeline,
+    change_order_line_items,
+    change_orders,
     cost_categories,
     cost_element_schedules,
     cost_element_types,
@@ -38,6 +40,8 @@ api_router.include_router(ai_chat.router)
 api_router.include_router(app_configuration.router)
 api_router.include_router(utils.router)
 api_router.include_router(projects.router)
+api_router.include_router(change_orders.router)
+api_router.include_router(change_order_line_items.router)
 api_router.include_router(wbes.router)
 api_router.include_router(cost_elements.router)
 api_router.include_router(cost_element_schedules.router)
