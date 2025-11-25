@@ -17,6 +17,7 @@ import {
   CostElementTypesService,
 } from "@/client"
 import type { ApiError } from "@/client/core/ApiError"
+import { useBranch } from "@/context/BranchContext"
 import useCustomToast from "@/hooks/useCustomToast"
 import { useRevenuePlanValidation } from "@/hooks/useRevenuePlanValidation"
 import { handleError } from "@/utils"
@@ -39,6 +40,7 @@ const AddCostElement = ({ wbeId }: AddCostElementProps) => {
   const [isOpen, setIsOpen] = useState(false)
   const queryClient = useQueryClient()
   const { showSuccessToast } = useCustomToast()
+  const { currentBranch } = useBranch()
 
   // Fetch cost element types for dropdown
   const { data: typesData } = useQuery({
@@ -159,7 +161,10 @@ const AddCostElement = ({ wbeId }: AddCostElementProps) => {
   })
 
   const onSubmit: SubmitHandler<CostElementCreate> = (data) => {
-    mutation.mutate(data)
+    mutation.mutate({
+      ...data,
+      branch: currentBranch || "main",
+    })
   }
 
   return (

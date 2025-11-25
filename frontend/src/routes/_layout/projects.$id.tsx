@@ -27,11 +27,14 @@ import PendingItems from "@/components/Pending/PendingItems"
 import AddWBE from "@/components/Projects/AddWBE"
 import AIChat from "@/components/Projects/AIChat"
 import BaselineLogsTable from "@/components/Projects/BaselineLogsTable"
+import BranchSelector from "@/components/Projects/BranchSelector"
 import BudgetTimeline from "@/components/Projects/BudgetTimeline"
 import BudgetTimelineFilter from "@/components/Projects/BudgetTimelineFilter"
+import ChangeOrdersTable from "@/components/Projects/ChangeOrdersTable"
 import DeleteWBE from "@/components/Projects/DeleteWBE"
 import EditWBE from "@/components/Projects/EditWBE"
 import MetricsSummary from "@/components/Projects/MetricsSummary"
+import { BranchProvider } from "@/context/BranchContext"
 import { useTimeMachine } from "@/context/TimeMachineContext"
 
 const projectDetailSearchSchema = z.object({
@@ -46,6 +49,7 @@ const projectDetailSearchSchema = z.object({
       "timeline",
       "baselines",
       "ai-assessment",
+      "change-orders",
     ])
     .catch("wbes"),
 })
@@ -312,7 +316,8 @@ function ProjectDetail() {
           | "metrics"
           | "timeline"
           | "baselines"
-          | "ai-assessment",
+          | "ai-assessment"
+          | "change-orders",
       }),
     })
   }
@@ -348,64 +353,115 @@ function ProjectDetail() {
   }
 
   return (
-    <Container maxW="full">
-      <Flex alignItems="center" gap={2} pt={12} mb={2}>
-        <Link to="/projects" search={{ page: 1 }}>
-          <Text
-            fontSize="sm"
-            color="blue.500"
-            _hover={{ textDecoration: "underline" }}
-          >
-            Projects
-          </Text>
-        </Link>
-        <FiChevronRight />
-        <Text fontSize="sm" color="gray.600">
-          {project.project_name}
-        </Text>
-      </Flex>
-      <Heading size="lg">{project.project_name}</Heading>
-
-      <Tabs.Root
-        value={mappedTab}
-        onValueChange={({ value }) => handleTabChange(value)}
-        variant="subtle"
-        mt={4}
-      >
-        <Tabs.List>
-          <Tabs.Trigger value="info">Project Information</Tabs.Trigger>
-          <Tabs.Trigger value="wbes">Work Breakdown Elements</Tabs.Trigger>
-          <Tabs.Trigger value="metrics">Metrics</Tabs.Trigger>
-          <Tabs.Trigger value="timeline">Budget Timeline</Tabs.Trigger>
-          <Tabs.Trigger value="baselines">Baselines</Tabs.Trigger>
-          <Tabs.Trigger value="ai-assessment">AI Assessment</Tabs.Trigger>
-        </Tabs.List>
-
-        <Tabs.Content value="info">
-          <Box mt={4}>
-            <Text color="fg.muted">
-              Project information content will be added here.
+    <BranchProvider projectId={project.project_id}>
+      <Container maxW="full">
+        <Flex alignItems="center" gap={2} pt={12} mb={2}>
+          <Link to="/projects" search={{ page: 1 }}>
+            <Text
+              fontSize="sm"
+              color="blue.500"
+              _hover={{ textDecoration: "underline" }}
+            >
+              Projects
             </Text>
-          </Box>
-        </Tabs.Content>
+          </Link>
+          <FiChevronRight />
+          <Text fontSize="sm" color="gray.600">
+            {project.project_name}
+          </Text>
+        </Flex>
+        <Heading size="lg">{project.project_name}</Heading>
 
-        <Tabs.Content value="wbes">
-          <Box mt={4}>
-            <Flex alignItems="center" justifyContent="space-between" mb={4}>
-              <Heading size="md">Work Breakdown Elements</Heading>
-              <AddWBE projectId={project.project_id} />
-            </Flex>
-            <WBEsTable projectId={project.project_id} />
-          </Box>
-        </Tabs.Content>
+        <Tabs.Root
+          value={mappedTab}
+          onValueChange={({ value }) => handleTabChange(value)}
+          variant="subtle"
+          mt={4}
+        >
+          <Tabs.List>
+            <Tabs.Trigger value="info">Project Information</Tabs.Trigger>
+            <Tabs.Trigger value="wbes">Work Breakdown Elements</Tabs.Trigger>
+            <Tabs.Trigger value="metrics">Metrics</Tabs.Trigger>
+            <Tabs.Trigger value="timeline">Budget Timeline</Tabs.Trigger>
+            <Tabs.Trigger value="baselines">Baselines</Tabs.Trigger>
+            <Tabs.Trigger value="change-orders">Change Orders</Tabs.Trigger>
+            <Tabs.Trigger value="ai-assessment">AI Assessment</Tabs.Trigger>
+          </Tabs.List>
 
-        <Tabs.Content value="metrics">
-          <Box mt={4}>
-            <Flex alignItems="center" justifyContent="space-between" mb={4}>
-              <Heading size="md">Project Metrics</Heading>
-              <Flex gap={4} alignItems="center">
+          <Tabs.Content value="info">
+            <Box mt={4}>
+              <Text color="fg.muted">
+                Project information content will be added here.
+              </Text>
+            </Box>
+          </Tabs.Content>
+
+          <Tabs.Content value="wbes">
+            <Box mt={4}>
+              <Flex alignItems="center" justifyContent="space-between" mb={4}>
+                <Heading size="md">Work Breakdown Elements</Heading>
+                <AddWBE projectId={project.project_id} />
+              </Flex>
+              <WBEsTable projectId={project.project_id} />
+            </Box>
+          </Tabs.Content>
+
+          <Tabs.Content value="metrics">
+            <Box mt={4}>
+              <Flex alignItems="center" justifyContent="space-between" mb={4}>
+                <Heading size="md">Project Metrics</Heading>
+                <Flex gap={4} alignItems="center">
+                  <Link
+                    to="/projects/$id/reports/variance-analysis"
+                    params={{ id: project.project_id } as any}
+                    search={{} as any}
+                  >
+                    <Text
+                      fontSize="sm"
+                      color="blue.500"
+                      _hover={{ textDecoration: "underline" }}
+                    >
+                      View Variance Analysis Report →
+                    </Text>
+                  </Link>
+                  <Link
+                    to="/projects/$id/reports/cost-performance"
+                    params={{ id: project.project_id } as any}
+                    search={{} as any}
+                  >
+                    <Text
+                      fontSize="sm"
+                      color="blue.500"
+                      _hover={{ textDecoration: "underline" }}
+                    >
+                      View Cost Performance Report →
+                    </Text>
+                  </Link>
+                  <Link
+                    to="/projects/$id/reports/project-performance-dashboard"
+                    params={{ id: project.project_id } as any}
+                    search={{} as any}
+                  >
+                    <Text
+                      fontSize="sm"
+                      color="blue.500"
+                      _hover={{ textDecoration: "underline" }}
+                    >
+                      View Project Performance Dashboard →
+                    </Text>
+                  </Link>
+                </Flex>
+              </Flex>
+              <MetricsSummary level="project" projectId={project.project_id} />
+            </Box>
+          </Tabs.Content>
+
+          <Tabs.Content value="timeline">
+            <Box mt={4}>
+              <Flex alignItems="center" justifyContent="space-between" mb={4}>
+                <Heading size="md">Budget Timeline</Heading>
                 <Link
-                  to="/projects/$id/reports/variance-analysis"
+                  to="/projects/$id/budget-timeline"
                   params={{ id: project.project_id } as any}
                   search={{} as any}
                 >
@@ -414,112 +470,74 @@ function ProjectDetail() {
                     color="blue.500"
                     _hover={{ textDecoration: "underline" }}
                   >
-                    View Variance Analysis Report →
-                  </Text>
-                </Link>
-                <Link
-                  to="/projects/$id/reports/cost-performance"
-                  params={{ id: project.project_id } as any}
-                  search={{} as any}
-                >
-                  <Text
-                    fontSize="sm"
-                    color="blue.500"
-                    _hover={{ textDecoration: "underline" }}
-                  >
-                    View Cost Performance Report →
-                  </Text>
-                </Link>
-                <Link
-                  to="/projects/$id/reports/project-performance-dashboard"
-                  params={{ id: project.project_id } as any}
-                  search={{} as any}
-                >
-                  <Text
-                    fontSize="sm"
-                    color="blue.500"
-                    _hover={{ textDecoration: "underline" }}
-                  >
-                    View Project Performance Dashboard →
+                    View Full Timeline →
                   </Text>
                 </Link>
               </Flex>
-            </Flex>
-            <MetricsSummary level="project" projectId={project.project_id} />
-          </Box>
-        </Tabs.Content>
-
-        <Tabs.Content value="timeline">
-          <Box mt={4}>
-            <Flex alignItems="center" justifyContent="space-between" mb={4}>
-              <Heading size="md">Budget Timeline</Heading>
-              <Link
-                to="/projects/$id/budget-timeline"
-                params={{ id: project.project_id } as any}
-                search={{} as any}
-              >
-                <Text
-                  fontSize="sm"
-                  color="blue.500"
-                  _hover={{ textDecoration: "underline" }}
+              <BudgetTimelineFilter
+                projectId={project.project_id}
+                context="project"
+                onFilterChange={handleFilterChange}
+              />
+              {isLoadingCostElements ? (
+                <Box
+                  p={4}
+                  borderWidth="1px"
+                  borderRadius="lg"
+                  bg="bg.surface"
+                  mt={4}
                 >
-                  View Full Timeline →
-                </Text>
-              </Link>
-            </Flex>
-            <BudgetTimelineFilter
-              projectId={project.project_id}
-              context="project"
-              onFilterChange={handleFilterChange}
-            />
-            {isLoadingCostElements ? (
-              <Box
-                p={4}
-                borderWidth="1px"
-                borderRadius="lg"
-                bg="bg.surface"
-                mt={4}
-              >
-                <Text>Loading cost elements...</Text>
-              </Box>
-            ) : costElements && costElements.length === 0 ? (
-              <Box
-                p={4}
-                borderWidth="1px"
-                borderRadius="lg"
-                bg="bg.surface"
-                mt={4}
-              >
-                <Text color="fg.muted">
-                  No cost elements found matching the selected filters.
-                </Text>
-              </Box>
-            ) : (
-              <Box mt={4}>
-                <BudgetTimeline
-                  costElements={costElements || []}
-                  viewMode="aggregated"
-                  projectId={project.project_id}
-                  wbeIds={normalizedFilter.wbeIds}
-                  costElementIds={normalizedFilter.costElementIds}
-                />
-              </Box>
-            )}
-          </Box>
-        </Tabs.Content>
+                  <Text>Loading cost elements...</Text>
+                </Box>
+              ) : costElements && costElements.length === 0 ? (
+                <Box
+                  p={4}
+                  borderWidth="1px"
+                  borderRadius="lg"
+                  bg="bg.surface"
+                  mt={4}
+                >
+                  <Text color="fg.muted">
+                    No cost elements found matching the selected filters.
+                  </Text>
+                </Box>
+              ) : (
+                <Box mt={4}>
+                  <BudgetTimeline
+                    costElements={costElements || []}
+                    viewMode="aggregated"
+                    projectId={project.project_id}
+                    wbeIds={normalizedFilter.wbeIds}
+                    costElementIds={normalizedFilter.costElementIds}
+                  />
+                </Box>
+              )}
+            </Box>
+          </Tabs.Content>
 
-        <Tabs.Content value="baselines">
-          <Box mt={4}>
-            <BaselineLogsTable projectId={project.project_id} />
-          </Box>
-        </Tabs.Content>
+          <Tabs.Content value="baselines">
+            <Box mt={4}>
+              <BaselineLogsTable projectId={project.project_id} />
+            </Box>
+          </Tabs.Content>
 
-        <Tabs.Content value="ai-assessment">
-          <Box mt={4} h="calc(100vh - 300px)">
-            <AIChat contextType="project" contextId={project.project_id} />
-          </Box>
-        </Tabs.Content>
-      </Tabs.Root>
-    </Container>
+          <Tabs.Content value="change-orders">
+            <Box mt={4}>
+              <Flex alignItems="center" justifyContent="space-between" mb={4}>
+                <Heading size="md">Change Orders</Heading>
+                <BranchSelector />
+              </Flex>
+              <ChangeOrdersTable projectId={project.project_id} />
+            </Box>
+          </Tabs.Content>
+
+          <Tabs.Content value="ai-assessment">
+            <Box mt={4} h="calc(100vh - 300px)">
+              <AIChat contextType="project" contextId={project.project_id} />
+            </Box>
+          </Tabs.Content>
+        </Tabs.Root>
+      </Container>
+    </BranchProvider>
   )
 }

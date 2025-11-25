@@ -13,6 +13,7 @@ import { Controller, type SubmitHandler, useForm } from "react-hook-form"
 import { FaPlus } from "react-icons/fa"
 import { type WBECreate, WbesService } from "@/client"
 import type { ApiError } from "@/client/core/ApiError"
+import { useBranch } from "@/context/BranchContext"
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
 import {
@@ -34,6 +35,7 @@ const AddWBE = ({ projectId }: AddWBEProps) => {
   const [isOpen, setIsOpen] = useState(false)
   const queryClient = useQueryClient()
   const { showSuccessToast } = useCustomToast()
+  const { currentBranch } = useBranch()
   const {
     control,
     register,
@@ -71,7 +73,10 @@ const AddWBE = ({ projectId }: AddWBEProps) => {
   })
 
   const onSubmit: SubmitHandler<WBECreate> = (data) => {
-    mutation.mutate(data)
+    mutation.mutate({
+      ...data,
+      branch: currentBranch || "main",
+    })
   }
 
   return (

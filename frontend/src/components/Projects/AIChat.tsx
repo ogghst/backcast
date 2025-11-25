@@ -135,7 +135,7 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
       ),
       // Lists
       ul: ({ children, ...props }) => {
-        const { node, ref, ...restProps } = props as any
+        const restProps = props as any
         return (
           <Box
             as="ul"
@@ -150,7 +150,7 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
         )
       },
       ol: ({ children, ...props }) => {
-        const { node, ref, ...restProps } = props as any
+        const restProps = props as any
         return (
           <Box
             as="ol"
@@ -165,7 +165,7 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
         )
       },
       li: ({ children, ...props }) => {
-        const { node, ref, ...restProps } = props as any
+        const restProps = props as any
         return (
           <Box as="li" color="fg" mb={1} {...restProps}>
             {children}
@@ -174,8 +174,8 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
       },
       // Links
       a: ({ children, href, ...props }) => {
-        // Extract ref and node from props as they might cause type issues
-        const { node, ref, ...restProps } = props as any
+        // Extract remaining props to avoid ref/node warnings
+        const restProps = props as any
         return (
           <Box
             as="a"
@@ -191,7 +191,7 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
       },
       // Blockquotes
       blockquote: ({ children, ...props }) => {
-        const { node, ref, ...restProps } = props as any
+        const restProps = props as any
         return (
           <Box
             as="blockquote"
@@ -222,7 +222,7 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
       ),
       // Strong/Bold
       strong: ({ children, ...props }) => {
-        const { node, ref, ...restProps } = props as any
+        const restProps = props as any
         return (
           <Text as="strong" fontWeight="bold" color="fg" {...restProps}>
             {children}
@@ -231,7 +231,7 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
       },
       // Emphasis/Italic
       em: ({ children, ...props }) => {
-        const { node, ref, ...restProps } = props as any
+        const restProps = props as any
         return (
           <Text as="em" fontStyle="italic" {...restProps}>
             {children}
@@ -240,7 +240,7 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
       },
       // Code blocks and inline code
       code: (props) => {
-        const { children, className, node, ref, ...rest } = props
+        const { children, className, ...rest } = props
         const match = /language-(\w+)/.exec(className || "")
         const language = match ? match[1] : ""
         const codeString = String(children).replace(/\n$/, "")
