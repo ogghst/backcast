@@ -3,6 +3,7 @@ import type { ChangeOrderPublic } from "@/client"
 import type { ColumnDefExtended } from "@/components/DataTable/types"
 import DeleteChangeOrder from "./DeleteChangeOrder"
 import EditChangeOrder from "./EditChangeOrder"
+import ViewChangeOrder from "./ViewChangeOrder"
 
 export const formatDate = (value: string | undefined) =>
   value ? new Date(value).toLocaleDateString() : "N/A"
@@ -101,6 +102,7 @@ export function buildChangeOrderColumns(): ColumnDefExtended<ChangeOrderPublic>[
       defaultVisible: true,
       cell: ({ row }) => (
         <Flex gap={2}>
+          <ViewChangeOrder changeOrder={row.original} />
           <EditChangeOrder changeOrder={row.original} />
           <DeleteChangeOrder
             changeOrderId={row.original.change_order_id}

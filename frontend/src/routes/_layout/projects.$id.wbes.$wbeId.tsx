@@ -31,12 +31,13 @@ import type { ColumnDefExtended } from "@/components/DataTable/types"
 import PendingItems from "@/components/Pending/PendingItems"
 import AddCostElement from "@/components/Projects/AddCostElement"
 import AIChat from "@/components/Projects/AIChat"
+import BranchSelector from "@/components/Projects/BranchSelector"
 import BudgetTimeline from "@/components/Projects/BudgetTimeline"
 import BudgetTimelineFilter from "@/components/Projects/BudgetTimelineFilter"
 import DeleteCostElement from "@/components/Projects/DeleteCostElement"
 import EditCostElement from "@/components/Projects/EditCostElement"
 import MetricsSummary from "@/components/Projects/MetricsSummary"
-import { BranchProvider } from "@/context/BranchContext"
+import { BranchProvider, useBranch } from "@/context/BranchContext"
 import { useTimeMachine } from "@/context/TimeMachineContext"
 import type { CostElementView } from "./projects.$id.wbes.$wbeId.cost-elements.$costElementId"
 
@@ -76,13 +77,15 @@ function getProjectQueryOptions({
 function getWBEQueryOptions({
   id,
   controlDate,
+  branch,
 }: {
   id: string
   controlDate: string
+  branch: string
 }) {
   return {
-    queryFn: () => WbesService.readWbe({ id }),
-    queryKey: ["wbes", id, controlDate],
+    queryFn: () => WbesService.readWbe({ id, branch: branch || "main" }),
+    queryKey: ["wbes", id, controlDate, branch],
   }
 }
 
@@ -90,10 +93,12 @@ function getCostElementsQueryOptions({
   wbeId,
   page,
   controlDate,
+  branch,
 }: {
   wbeId: string
   page: number
   controlDate: string
+  branch: string
 }) {
   return {
     queryFn: () =>
@@ -101,8 +106,9 @@ function getCostElementsQueryOptions({
         wbeId: wbeId,
         skip: (page - 1) * PER_PAGE,
         limit: PER_PAGE,
+        branch: branch || "main",
       }),
-    queryKey: ["cost-elements", { wbeId: wbeId, page }, controlDate],
+    queryKey: ["cost-elements", { wbeId: wbeId, page }, controlDate, branch],
   }
 }
 
@@ -194,9 +200,15 @@ function CostElementsTable({ wbeId }: { wbeId: string }) {
   const navigate = useNavigate({ from: Route.fullPath })
   const { page } = Route.useSearch()
   const { controlDate } = useTimeMachine()
+  const { currentBranch } = useBranch()
 
   const { data, isLoading } = useQuery({
-    ...getCostElementsQueryOptions({ wbeId, page, controlDate }),
+    ...getCostElementsQueryOptions({
+      wbeId,
+      page,
+      controlDate,
+      branch: currentBranch,
+    }),
     placeholderData: (prevData) => prevData,
   })
 
@@ -259,27 +271,26 @@ function CostElementsTable({ wbeId }: { wbeId: string }) {
   )
 }
 
-function WBEDetail() {
-  const { id: projectId, wbeId } = Route.useParams()
+function WBEDetailContent({
+  projectId,
+  wbeId,
+}: {
+  projectId: string
+  wbeId: string
+}) {
   const navigate = useNavigate({ from: Route.fullPath })
-  const location = useRouterState({
-    select: (state) => state.location.pathname,
-  })
-
-  // Check if we're on a cost element detail route (child route)
-  const isCostElementRoute = location.includes("/cost-elements/")
-
   const { tab } = Route.useSearch()
   const { controlDate } = useTimeMachine()
   const mappedTab =
     tab === "summary" || tab === "cost-summary" ? "metrics" : tab
 
-  const { data: project, isLoading: isLoadingProject } = useQuery({
+  const { data: project } = useQuery({
     ...getProjectQueryOptions({ id: projectId, controlDate }),
   })
 
-  const { data: wbe, isLoading: isLoadingWBE } = useQuery({
-    ...getWBEQueryOptions({ id: wbeId, controlDate }),
+  const { currentBranch } = useBranch()
+  const { data: wbe } = useQuery({
+    ...getWBEQueryOptions({ id: wbeId, controlDate, branch: currentBranch }),
   })
 
   // Budget Timeline state - persists across tab switches
@@ -342,7 +353,168 @@ function WBEDetail() {
     })
   }
 
-  if (isLoadingProject || isLoadingWBE) {
+  if (!project || !wbe) {
+    return (
+      <Container maxW="full">
+        <EmptyState.Root>
+          <EmptyState.Content>
+            <EmptyState.Title>Project or WBE not found</EmptyState.Title>
+          </EmptyState.Content>
+        </EmptyState.Root>
+      </Container>
+    )
+  }
+
+  return (
+    <Container maxW="full">
+      <Flex alignItems="center" gap={2} pt={12} mb={2}>
+        <Link to="/projects" search={{ page: 1 }}>
+          <Text
+            fontSize="sm"
+            color="blue.500"
+            _hover={{ textDecoration: "underline" }}
+          >
+            Projects
+          </Text>
+        </Link>
+        <FiChevronRight />
+        <Link
+          to="/projects/$id"
+          params={{ id: project.project_id }}
+          search={{ page: 1, tab: "wbes" } as any}
+        >
+          <Text
+            fontSize="sm"
+            color="blue.500"
+            _hover={{ textDecoration: "underline" }}
+          >
+            {project.project_name}
+          </Text>
+        </Link>
+        <FiChevronRight />
+        <Text fontSize="sm" color="gray.600">
+          {wbe.machine_type}
+        </Text>
+      </Flex>
+      <Flex alignItems="center" justifyContent="space-between" mb={4}>
+        <Heading size="lg">
+          {project.project_name} - {wbe.machine_type}
+        </Heading>
+        <BranchSelector />
+      </Flex>
+
+      <Tabs.Root
+        value={mappedTab}
+        onValueChange={({ value }) => handleTabChange(value as WbeDetailTab)}
+        variant="subtle"
+        mt={4}
+      >
+        <Tabs.List>
+          <Tabs.Trigger value="info">WBE Information</Tabs.Trigger>
+          <Tabs.Trigger value="cost-elements">Cost Elements</Tabs.Trigger>
+          <Tabs.Trigger value="metrics">Metrics</Tabs.Trigger>
+          <Tabs.Trigger value="timeline">Budget Timeline</Tabs.Trigger>
+          <Tabs.Trigger value="ai-assessment">AI Assessment</Tabs.Trigger>
+        </Tabs.List>
+
+        <Tabs.Content value="info">
+          <Box mt={4}>
+            <Text color="fg.muted">
+              WBE information content will be added here.
+            </Text>
+          </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="cost-elements">
+          <Box mt={4}>
+            <Flex alignItems="center" justifyContent="space-between" mb={4}>
+              <Heading size="md">Cost Elements</Heading>
+              <AddCostElement wbeId={wbe.wbe_id} />
+            </Flex>
+            <CostElementsTable wbeId={wbe.wbe_id} />
+          </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="metrics">
+          <MetricsSummary
+            level="wbe"
+            projectId={projectId}
+            wbeId={wbe.wbe_id}
+          />
+        </Tabs.Content>
+
+        <Tabs.Content value="timeline">
+          <Box mt={4}>
+            <Heading size="md" mb={4}>
+              Budget Timeline
+            </Heading>
+            <BudgetTimelineFilter
+              projectId={projectId}
+              context="wbe"
+              initialFilters={{ wbeIds: [wbeId] }}
+              onFilterChange={handleFilterChange}
+            />
+            {isLoadingCostElements ? (
+              <Box
+                p={4}
+                borderWidth="1px"
+                borderRadius="lg"
+                bg="bg.surface"
+                mt={4}
+              >
+                <Text>Loading cost elements...</Text>
+              </Box>
+            ) : costElements && costElements.length === 0 ? (
+              <Box
+                p={4}
+                borderWidth="1px"
+                borderRadius="lg"
+                bg="bg.surface"
+                mt={4}
+              >
+                <Text color="fg.muted">
+                  No cost elements found matching the selected filters.
+                </Text>
+              </Box>
+            ) : (
+              <Box mt={4}>
+                <BudgetTimeline
+                  costElements={costElements || []}
+                  viewMode="aggregated"
+                  projectId={projectId}
+                  wbeIds={normalizedFilter.wbeIds}
+                  costElementIds={normalizedFilter.costElementIds}
+                />
+              </Box>
+            )}
+          </Box>
+        </Tabs.Content>
+
+        <Tabs.Content value="ai-assessment">
+          <Box mt={4} h="calc(100vh - 300px)">
+            <AIChat contextType="wbe" contextId={wbe.wbe_id} />
+          </Box>
+        </Tabs.Content>
+      </Tabs.Root>
+    </Container>
+  )
+}
+
+function WBEDetail() {
+  const { id: projectId, wbeId } = Route.useParams()
+  const location = useRouterState({
+    select: (state) => state.location.pathname,
+  })
+  const { controlDate } = useTimeMachine()
+
+  // Check if we're on a cost element detail route (child route)
+  const isCostElementRoute = location.includes("/cost-elements/")
+
+  const { data: project, isLoading: isLoadingProject } = useQuery({
+    ...getProjectQueryOptions({ id: projectId, controlDate }),
+  })
+
+  if (isLoadingProject) {
     return (
       <Container maxW="full">
         <PendingItems />
@@ -350,12 +522,12 @@ function WBEDetail() {
     )
   }
 
-  if (!project || !wbe) {
+  if (!project) {
     return (
       <Container maxW="full">
         <EmptyState.Root>
           <EmptyState.Content>
-            <EmptyState.Title>Project or WBE not found</EmptyState.Title>
+            <EmptyState.Title>Project not found</EmptyState.Title>
           </EmptyState.Content>
         </EmptyState.Root>
       </Container>
@@ -373,134 +545,7 @@ function WBEDetail() {
 
   return (
     <BranchProvider projectId={projectId}>
-      <Container maxW="full">
-        <Flex alignItems="center" gap={2} pt={12} mb={2}>
-          <Link to="/projects" search={{ page: 1 }}>
-            <Text
-              fontSize="sm"
-              color="blue.500"
-              _hover={{ textDecoration: "underline" }}
-            >
-              Projects
-            </Text>
-          </Link>
-          <FiChevronRight />
-          <Link
-            to="/projects/$id"
-            params={{ id: project.project_id }}
-            search={{ page: 1, tab: "wbes" } as any}
-          >
-            <Text
-              fontSize="sm"
-              color="blue.500"
-              _hover={{ textDecoration: "underline" }}
-            >
-              {project.project_name}
-            </Text>
-          </Link>
-          <FiChevronRight />
-          <Text fontSize="sm" color="gray.600">
-            {wbe.machine_type}
-          </Text>
-        </Flex>
-        <Heading size="lg">
-          {project.project_name} - {wbe.machine_type}
-        </Heading>
-
-        <Tabs.Root
-          value={mappedTab}
-          onValueChange={({ value }) => handleTabChange(value as WbeDetailTab)}
-          variant="subtle"
-          mt={4}
-        >
-          <Tabs.List>
-            <Tabs.Trigger value="info">WBE Information</Tabs.Trigger>
-            <Tabs.Trigger value="cost-elements">Cost Elements</Tabs.Trigger>
-            <Tabs.Trigger value="metrics">Metrics</Tabs.Trigger>
-            <Tabs.Trigger value="timeline">Budget Timeline</Tabs.Trigger>
-            <Tabs.Trigger value="ai-assessment">AI Assessment</Tabs.Trigger>
-          </Tabs.List>
-
-          <Tabs.Content value="info">
-            <Box mt={4}>
-              <Text color="fg.muted">
-                WBE information content will be added here.
-              </Text>
-            </Box>
-          </Tabs.Content>
-
-          <Tabs.Content value="cost-elements">
-            <Box mt={4}>
-              <Flex alignItems="center" justifyContent="space-between" mb={4}>
-                <Heading size="md">Cost Elements</Heading>
-                <AddCostElement wbeId={wbe.wbe_id} />
-              </Flex>
-              <CostElementsTable wbeId={wbe.wbe_id} />
-            </Box>
-          </Tabs.Content>
-
-          <Tabs.Content value="metrics">
-            <MetricsSummary
-              level="wbe"
-              projectId={projectId}
-              wbeId={wbe.wbe_id}
-            />
-          </Tabs.Content>
-
-          <Tabs.Content value="timeline">
-            <Box mt={4}>
-              <Heading size="md" mb={4}>
-                Budget Timeline
-              </Heading>
-              <BudgetTimelineFilter
-                projectId={projectId}
-                context="wbe"
-                initialFilters={{ wbeIds: [wbeId] }}
-                onFilterChange={handleFilterChange}
-              />
-              {isLoadingCostElements ? (
-                <Box
-                  p={4}
-                  borderWidth="1px"
-                  borderRadius="lg"
-                  bg="bg.surface"
-                  mt={4}
-                >
-                  <Text>Loading cost elements...</Text>
-                </Box>
-              ) : costElements && costElements.length === 0 ? (
-                <Box
-                  p={4}
-                  borderWidth="1px"
-                  borderRadius="lg"
-                  bg="bg.surface"
-                  mt={4}
-                >
-                  <Text color="fg.muted">
-                    No cost elements found matching the selected filters.
-                  </Text>
-                </Box>
-              ) : (
-                <Box mt={4}>
-                  <BudgetTimeline
-                    costElements={costElements || []}
-                    viewMode="aggregated"
-                    projectId={projectId}
-                    wbeIds={normalizedFilter.wbeIds}
-                    costElementIds={normalizedFilter.costElementIds}
-                  />
-                </Box>
-              )}
-            </Box>
-          </Tabs.Content>
-
-          <Tabs.Content value="ai-assessment">
-            <Box mt={4} h="calc(100vh - 300px)">
-              <AIChat contextType="wbe" contextId={wbe.wbe_id} />
-            </Box>
-          </Tabs.Content>
-        </Tabs.Root>
-      </Container>
+      <WBEDetailContent projectId={projectId} wbeId={wbeId} />
     </BranchProvider>
   )
 }

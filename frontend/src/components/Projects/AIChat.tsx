@@ -641,7 +641,7 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
           )}
           {messages.map((msg, idx) => (
             <Box
-              key={idx}
+              key={`msg-${idx}-${msg.role}`}
               mb={2}
               p={2}
               bg={msg.role === "user" ? userMessageBg : assistantMessageBg}
@@ -651,7 +651,7 @@ export default function AIChat({ contextType, contextId }: AIChatProps) {
                 {msg.role === "user" ? "You" : "Assistant"}
               </Box>
               {msg.role === "assistant" ? (
-                <Box color="fg">
+                <Box color="fg" key={`markdown-wrapper-${idx}`}>
                   <Markdown
                     remarkPlugins={[remarkGfm]}
                     components={markdownComponents}

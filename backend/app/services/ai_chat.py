@@ -698,7 +698,9 @@ Format the response in markdown with clear sections and bullet points."""
 - Cost Performance Index (CPI): {metrics.get('cpi', 'N/A')}
 - Schedule Performance Index (SPI): {metrics.get('spi', 'N/A')}
 
-Provide a detailed assessment including performance analysis, risks, and recommendations."""
+Provide a detailed assessment including performance analysis, risks, and recommendations.
+
+Format the response in markdown with clear sections and bullet points."""
         elif context_type == "cost-element":
             prompt_text = f"""Generate a cost element assessment report in markdown format based on the following metrics:
 
@@ -715,7 +717,9 @@ Provide a detailed assessment including performance analysis, risks, and recomme
 - Cost Performance Index (CPI): {metrics.get('cpi', 'N/A')}
 - Schedule Performance Index (SPI): {metrics.get('spi', 'N/A')}
 
-Provide a detailed assessment including performance analysis, risks, and recommendations."""
+Provide a detailed assessment including performance analysis, risks, and recommendations.
+
+Format the response in markdown with clear sections and bullet points."""
         elif context_type == "baseline":
             prompt_text = f"""Generate a baseline assessment report in markdown format based on the following baseline snapshot:
 
@@ -733,13 +737,17 @@ Provide a detailed assessment including performance analysis, risks, and recomme
 - Cost Performance Index (CPI): {metrics.get('cpi', 'N/A')}
 - Schedule Performance Index (SPI): {metrics.get('spi', 'N/A')}
 
-Provide a detailed assessment of the baseline snapshot."""
+Provide a detailed assessment of the baseline snapshot.
+
+Format the response in markdown with clear sections and bullet points."""
         else:
             prompt_text = f"""Generate an assessment report in markdown format based on the following metrics:
 
 {metrics}
 
-Provide a detailed assessment including performance analysis, risks, and recommendations."""
+Provide a detailed assessment including performance analysis, risks, and recommendations.
+
+Format the response in markdown with clear sections and bullet points."""
 
         return {"prompt": prompt_text}
 
@@ -869,7 +877,9 @@ Format the response in markdown with clear sections and bullet points."""
 - Cost Performance Index (CPI): {context_metrics.get('cpi', 'N/A')}
 - Schedule Performance Index (SPI): {context_metrics.get('spi', 'N/A')}
 
-Provide a detailed assessment including performance analysis, risks, and recommendations."""
+Provide a detailed assessment including performance analysis, risks, and recommendations.
+
+Format the response in markdown with clear sections and bullet points."""
         elif context_type_str == "cost-element":
             prompt_text = f"""Generate a cost element assessment report in markdown format based on the following metrics:
 
@@ -886,7 +896,9 @@ Provide a detailed assessment including performance analysis, risks, and recomme
 - Cost Performance Index (CPI): {context_metrics.get('cpi', 'N/A')}
 - Schedule Performance Index (SPI): {context_metrics.get('spi', 'N/A')}
 
-Provide a detailed assessment including performance analysis, risks, and recommendations."""
+Provide a detailed assessment including performance analysis, risks, and recommendations.
+
+Format the response in markdown with clear sections and bullet points."""
         elif context_type_str == "baseline":
             prompt_text = f"""Generate a baseline assessment report in markdown format based on the following baseline snapshot:
 
@@ -904,13 +916,17 @@ Provide a detailed assessment including performance analysis, risks, and recomme
 - Cost Performance Index (CPI): {context_metrics.get('cpi', 'N/A')}
 - Schedule Performance Index (SPI): {context_metrics.get('spi', 'N/A')}
 
-Provide a detailed assessment of the baseline snapshot."""
+Provide a detailed assessment of the baseline snapshot.
+
+Format the response in markdown with clear sections and bullet points."""
         else:
             prompt_text = f"""Generate an assessment report in markdown format based on the following metrics:
 
 {context_metrics}
 
-Provide a detailed assessment including performance analysis, risks, and recommendations."""
+Provide a detailed assessment including performance analysis, risks, and recommendations.
+
+Format the response in markdown with clear sections and bullet points."""
 
         # Create chat model for streaming
         chat_model = create_chat_model(session=session, user_id=user_id)

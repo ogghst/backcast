@@ -10,6 +10,7 @@ import {
 import { useQuery } from "@tanstack/react-query"
 import type { ChangeOrderLineItemPublic, ChangeOrderPublic } from "@/client"
 import { ChangeOrderLineItemsService, ChangeOrdersService } from "@/client"
+import BranchComparisonView from "./BranchComparisonView"
 import { formatCurrency, formatDate } from "./changeOrderColumns"
 
 interface ChangeOrderDetailViewProps {
@@ -171,6 +172,17 @@ const ChangeOrderDetailView = ({
             </VStack>
           )}
         </Box>
+
+        {/* Branch Comparison View */}
+        {co.branch && co.branch !== "main" && (
+          <Box borderWidth="1px" borderRadius="md" p={4}>
+            <BranchComparisonView
+              projectId={projectId}
+              branch={co.branch}
+              baseBranch="main"
+            />
+          </Box>
+        )}
       </VStack>
     </Box>
   )

@@ -20,12 +20,14 @@ import {
 } from "@/client"
 import PendingItems from "@/components/Pending/PendingItems"
 import AIChat from "@/components/Projects/AIChat"
+import BranchSelector from "@/components/Projects/BranchSelector"
 import BudgetTimeline from "@/components/Projects/BudgetTimeline"
 import CostElementSchedulesTable from "@/components/Projects/CostElementSchedulesTable"
 import CostRegistrationsTable from "@/components/Projects/CostRegistrationsTable"
 import EarnedValueEntriesTable from "@/components/Projects/EarnedValueEntriesTable"
 import ForecastsTable from "@/components/Projects/ForecastsTable"
 import MetricsSummary from "@/components/Projects/MetricsSummary"
+import { BranchProvider, useBranch } from "@/context/BranchContext"
 import { useTimeMachine } from "@/context/TimeMachineContext"
 
 const COST_ELEMENT_VIEW_OPTIONS = [
@@ -63,26 +65,31 @@ function getProjectQueryOptions({
 function getWBEQueryOptions({
   id,
   controlDate,
+  branch,
 }: {
   id: string
   controlDate: string
+  branch: string
 }) {
   return {
-    queryFn: () => WbesService.readWbe({ id }),
-    queryKey: ["wbes", id, controlDate],
+    queryFn: () => WbesService.readWbe({ id, branch: branch || "main" }),
+    queryKey: ["wbes", id, controlDate, branch],
   }
 }
 
 function getCostElementQueryOptions({
   id,
   controlDate,
+  branch,
 }: {
   id: string
   controlDate: string
+  branch: string
 }) {
   return {
-    queryFn: () => CostElementsService.readCostElement({ id }),
-    queryKey: ["cost-elements", id, controlDate],
+    queryFn: () =>
+      CostElementsService.readCostElement({ id, branch: branch || "main" }),
+    queryKey: ["cost-elements", id, controlDate, branch],
   }
 }
 
@@ -101,22 +108,34 @@ export const Route = createFileRoute(
     }),
 })
 
-function CostElementDetail() {
-  const { id: projectId, wbeId, costElementId } = Route.useParams()
+function CostElementDetailContent({
+  projectId,
+  wbeId,
+  costElementId,
+}: {
+  projectId: string
+  wbeId: string
+  costElementId: string
+}) {
   const navigate = useNavigate({ from: Route.fullPath })
   const { view } = Route.useSearch()
   const { controlDate } = useTimeMachine()
 
-  const { data: project, isLoading: isLoadingProject } = useQuery({
+  const { data: project } = useQuery({
     ...getProjectQueryOptions({ id: projectId, controlDate }),
   })
 
-  const { data: wbe, isLoading: isLoadingWBE } = useQuery({
-    ...getWBEQueryOptions({ id: wbeId, controlDate }),
+  const { currentBranch } = useBranch()
+  const { data: wbe } = useQuery({
+    ...getWBEQueryOptions({ id: wbeId, controlDate, branch: currentBranch }),
   })
 
-  const { data: costElement, isLoading: isLoadingCostElement } = useQuery({
-    ...getCostElementQueryOptions({ id: costElementId, controlDate }),
+  const { data: costElement } = useQuery({
+    ...getCostElementQueryOptions({
+      id: costElementId,
+      controlDate,
+      branch: currentBranch,
+    }),
   })
 
   // Fetch cost element with schedule for timeline
@@ -153,14 +172,6 @@ function CostElementDetail() {
         view: value,
       }),
     })
-  }
-
-  if (isLoadingProject || isLoadingWBE || isLoadingCostElement) {
-    return (
-      <Container maxW="full">
-        <PendingItems />
-      </Container>
-    )
   }
 
   if (!project || !wbe || !costElement) {
@@ -204,12 +215,22 @@ function CostElementDetail() {
         <Text color="fg.muted">{costElement.department_name}</Text>
       </Flex>
 
-      <Heading size="lg" mb={1}>
-        {costElement.department_name} ({costElement.department_code})
-      </Heading>
-      <Text color="fg.muted" mb={4}>
-        Budget BAC: {costElement.budget_bac ?? "0.00"}
-      </Text>
+      <Flex
+        alignItems="flex-start"
+        justifyContent="space-between"
+        mb={4}
+        gap={4}
+      >
+        <Box>
+          <Heading size="lg" mb={1}>
+            {costElement.department_name} ({costElement.department_code})
+          </Heading>
+          <Text color="fg.muted">
+            Budget BAC: {costElement.budget_bac ?? "0.00"}
+          </Text>
+        </Box>
+        <BranchSelector />
+      </Flex>
 
       <Tabs.Root
         value={view}
@@ -342,5 +363,44 @@ function CostElementDetail() {
         </Tabs.Content>
       </Tabs.Root>
     </Container>
+  )
+}
+
+function CostElementDetail() {
+  const { id: projectId, wbeId, costElementId } = Route.useParams()
+  const { controlDate } = useTimeMachine()
+
+  const { data: project, isLoading: isLoadingProject } = useQuery({
+    ...getProjectQueryOptions({ id: projectId, controlDate }),
+  })
+
+  if (isLoadingProject) {
+    return (
+      <Container maxW="full">
+        <PendingItems />
+      </Container>
+    )
+  }
+
+  if (!project) {
+    return (
+      <Container maxW="full">
+        <EmptyState.Root>
+          <EmptyState.Content>
+            <EmptyState.Title>Project not found</EmptyState.Title>
+          </EmptyState.Content>
+        </EmptyState.Root>
+      </Container>
+    )
+  }
+
+  return (
+    <BranchProvider projectId={projectId}>
+      <CostElementDetailContent
+        projectId={projectId}
+        wbeId={wbeId}
+        costElementId={costElementId}
+      />
+    </BranchProvider>
   )
 }

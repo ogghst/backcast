@@ -4,6 +4,7 @@ import {
   type PropsWithChildren,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from "react"
@@ -24,7 +25,38 @@ export function BranchProvider({
   projectId,
 }: PropsWithChildren<{ projectId: string }>) {
   const queryClient = useQueryClient()
-  const [currentBranch, setCurrentBranchState] = useState<string>("main")
+  const storageKey = `current-branch-${projectId}`
+
+  // Initialize branch from localStorage or default to "main"
+  const [currentBranch, setCurrentBranchState] = useState<string>(() => {
+    if (typeof window !== "undefined" && projectId) {
+      try {
+        const key = `current-branch-${projectId}`
+        const stored = localStorage.getItem(key)
+        return stored || "main"
+      } catch {
+        return "main"
+      }
+    }
+    return "main"
+  })
+
+  // Sync branch when projectId changes
+  useEffect(() => {
+    if (typeof window !== "undefined" && projectId) {
+      try {
+        const key = `current-branch-${projectId}`
+        const stored = localStorage.getItem(key)
+        if (stored) {
+          setCurrentBranchState(stored)
+        }
+      } catch {
+        // Ignore errors
+      }
+    }
+    // Only run when projectId changes, not when currentBranch changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId])
 
   // Fetch change orders to get available branches
   const { data: changeOrdersData, isLoading } = useQuery({
@@ -53,6 +85,14 @@ export function BranchProvider({
   const setCurrentBranch = useCallback(
     (branch: string) => {
       setCurrentBranchState(branch)
+      // Persist branch selection to localStorage
+      if (typeof window !== "undefined" && projectId) {
+        try {
+          localStorage.setItem(storageKey, branch)
+        } catch (error) {
+          console.warn("Failed to save branch selection", error)
+        }
+      }
       // Invalidate queries that depend on branch
       queryClient.invalidateQueries({
         predicate: (query) => {
@@ -67,7 +107,7 @@ export function BranchProvider({
         refetchType: "active",
       })
     },
-    [queryClient],
+    [queryClient, projectId, storageKey],
   )
 
   const value = useMemo<BranchContextValue>(

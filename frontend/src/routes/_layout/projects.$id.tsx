@@ -34,7 +34,7 @@ import ChangeOrdersTable from "@/components/Projects/ChangeOrdersTable"
 import DeleteWBE from "@/components/Projects/DeleteWBE"
 import EditWBE from "@/components/Projects/EditWBE"
 import MetricsSummary from "@/components/Projects/MetricsSummary"
-import { BranchProvider } from "@/context/BranchContext"
+import { BranchProvider, useBranch } from "@/context/BranchContext"
 import { useTimeMachine } from "@/context/TimeMachineContext"
 
 const projectDetailSearchSchema = z.object({
@@ -73,10 +73,12 @@ function getWBEsQueryOptions({
   projectId,
   page,
   controlDate,
+  branch,
 }: {
   projectId: string
   page: number
   controlDate: string
+  branch: string
 }) {
   return {
     queryFn: () =>
@@ -84,8 +86,9 @@ function getWBEsQueryOptions({
         projectId: projectId,
         skip: (page - 1) * PER_PAGE,
         limit: PER_PAGE,
+        branch: branch || "main",
       }),
-    queryKey: ["wbes", { projectId: projectId, page }, controlDate],
+    queryKey: ["wbes", { projectId: projectId, page }, controlDate, branch],
   }
 }
 
@@ -182,9 +185,15 @@ function WBEsTable({ projectId }: { projectId: string }) {
   const navigate = useNavigate({ from: Route.fullPath })
   const { page } = Route.useSearch()
   const { controlDate } = useTimeMachine()
+  const { currentBranch } = useBranch()
 
   const { data, isLoading } = useQuery({
-    ...getWBEsQueryOptions({ projectId, page, controlDate }),
+    ...getWBEsQueryOptions({
+      projectId,
+      page,
+      controlDate,
+      branch: currentBranch,
+    }),
     placeholderData: (prevData) => prevData,
   })
 
@@ -370,7 +379,10 @@ function ProjectDetail() {
             {project.project_name}
           </Text>
         </Flex>
-        <Heading size="lg">{project.project_name}</Heading>
+        <Flex alignItems="center" justifyContent="space-between" mb={4}>
+          <Heading size="lg">{project.project_name}</Heading>
+          <BranchSelector />
+        </Flex>
 
         <Tabs.Root
           value={mappedTab}
@@ -523,10 +535,9 @@ function ProjectDetail() {
 
           <Tabs.Content value="change-orders">
             <Box mt={4}>
-              <Flex alignItems="center" justifyContent="space-between" mb={4}>
-                <Heading size="md">Change Orders</Heading>
-                <BranchSelector />
-              </Flex>
+              <Heading size="md" mb={4}>
+                Change Orders
+              </Heading>
               <ChangeOrdersTable projectId={project.project_id} />
             </Box>
           </Tabs.Content>
