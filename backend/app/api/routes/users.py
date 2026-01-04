@@ -4,7 +4,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.api.dependencies.auth import get_current_active_user, get_user_service
+from app.api.dependencies.auth import (
+    RoleChecker,
+    get_current_active_user,
+    get_user_service,
+)
 from app.models.domain.user import User
 from app.models.schemas.preference import (
     UserPreferenceResponse,
@@ -16,23 +20,21 @@ from app.services.user import UserService
 router = APIRouter()
 
 
-@router.get("", response_model=list[UserPublic], operation_id="get_users")
+@router.get(
+    "",
+    response_model=list[UserPublic],
+    operation_id="get_users",
+    dependencies=[Depends(RoleChecker(["admin"]))],
+)
 async def read_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
-    current_user: User = Depends(get_current_active_user),
     service: UserService = Depends(get_user_service),
 ) -> Sequence[User]:
     """
     Retrieve users.
     Only Admins can list all users.
     """
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="The user doesn't have enough privileges",
-        )
-
     return await service.get_users(skip=skip, limit=limit)
 
 
@@ -41,6 +43,7 @@ async def read_users(
     response_model=UserPublic,
     status_code=status.HTTP_201_CREATED,
     operation_id="create_user",
+    dependencies=[Depends(RoleChecker(required_permission="user-create"))],
 )
 async def create_user(
     user_in: UserRegister,
@@ -51,14 +54,7 @@ async def create_user(
     Create a new user.
     Admin only.
     """
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="The user doesn't have enough privileges",
-        )
-
     try:
-
         # Pass Pydantic model directly to service
         # Service handles hashing and dictionary conversion
         user = await service.create_user(user_in=user_in, actor_id=current_user.id)
@@ -70,13 +66,19 @@ async def create_user(
         ) from e
 
 
-@router.get("/me/preferences", response_model=UserPreferenceResponse, operation_id="get_my_preferences")
+@router.get(
+    "/me/preferences",
+    response_model=UserPreferenceResponse,
+    operation_id="get_my_preferences",
+    dependencies=[Depends(RoleChecker(required_permission="user-read"))],
+)
 async def get_my_preferences(
     current_user: User = Depends(get_current_active_user),
     service: UserService = Depends(get_user_service),
 ) -> Any:
     """
     Get current user's preferences.
+    Requires read permission.
     """
     try:
         prefs = await service.get_user_preferences(current_user.id)
@@ -86,7 +88,12 @@ async def get_my_preferences(
         return UserPreferenceResponse()
 
 
-@router.put("/me/preferences", response_model=UserPreferenceResponse, operation_id="update_my_preferences")
+@router.put(
+    "/me/preferences",
+    response_model=UserPreferenceResponse,
+    operation_id="update_my_preferences",
+    dependencies=[Depends(RoleChecker(required_permission="user-update"))],
+)
 async def update_my_preferences(
     pref_in: UserPreferenceUpdate,
     current_user: User = Depends(get_current_active_user),
@@ -94,6 +101,7 @@ async def update_my_preferences(
 ) -> Any:
     """
     Update current user's preferences.
+    Requires update permission.
     """
     try:
         # Use exclude_unset to only include fields that were actually provided
@@ -108,7 +116,12 @@ async def update_my_preferences(
         ) from e
 
 
-@router.get("/{user_id}", response_model=UserPublic, operation_id="get_user")
+@router.get(
+    "/{user_id}",
+    response_model=UserPublic,
+    operation_id="get_user",
+    dependencies=[Depends(RoleChecker(required_permission="user-read"))],
+)
 async def read_user(
     user_id: UUID,  # This fetches by version ID (PK)
     current_user: User = Depends(get_current_active_user),
@@ -117,11 +130,13 @@ async def read_user(
     """
     Get a specific user by id.
     Admin can get any user. Users can only get themselves.
+    Requires read permission.
     """
+    # Additional authorization: non-admins can only read themselves
     if current_user.role != "admin" and current_user.id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="The user doesn't have enough privileges",
+            detail="Not authorized to view this user",
         )
 
     user = await service.get_user(user_id)
@@ -133,7 +148,12 @@ async def read_user(
     return user
 
 
-@router.put("/{user_id}", response_model=UserPublic, operation_id="update_user")
+@router.put(
+    "/{user_id}",
+    response_model=UserPublic,
+    operation_id="update_user",
+    dependencies=[Depends(RoleChecker(required_permission="user-update"))],
+)
 async def update_user(
     user_id: UUID,
     user_in: UserUpdate,
@@ -143,11 +163,13 @@ async def update_user(
     """
     Update a user.
     Admin can update any user. Users can only update themselves.
+    Requires update permission.
     """
+    # Additional authorization: non-admins can only update themselves
     if current_user.role != "admin" and current_user.id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="The user doesn't have enough privileges",
+            detail="Not authorized to update this user",
         )
 
     try:
@@ -162,7 +184,12 @@ async def update_user(
         ) from e
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, operation_id="delete_user")
+@router.delete(
+    "/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    operation_id="delete_user",
+    dependencies=[Depends(RoleChecker(required_permission="user-delete"))],
+)
 async def delete_user(
     user_id: UUID,
     current_user: User = Depends(get_current_active_user),
@@ -172,16 +199,15 @@ async def delete_user(
     Soft delete a user.
     Admin only.
     """
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="The user doesn't have enough privileges",
-        )
-
     await service.delete_user(user_id=user_id, actor_id=current_user.id)
 
 
-@router.get("/{user_id}/history", response_model=list[UserHistory], operation_id="get_user_history")
+@router.get(
+    "/{user_id}/history",
+    response_model=list[UserHistory],
+    operation_id="get_user_history",
+    dependencies=[Depends(RoleChecker(required_permission="user-read"))],
+)
 async def get_user_history(
     user_id: UUID,
     current_user: User = Depends(get_current_active_user),
@@ -190,11 +216,13 @@ async def get_user_history(
     """
     Get version history for a user.
     Admin can view any user's history. Users can only view their own.
+    Requires read permission.
     """
+    # Additional authorization: non-admins can only view their own history
     if current_user.role != "admin" and current_user.user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="The user doesn't have enough privileges",
+            detail="Not authorized to view this user's history",
         )
 
     return await service.get_user_history(user_id)

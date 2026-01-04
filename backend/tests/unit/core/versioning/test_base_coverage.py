@@ -6,13 +6,13 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.versioning.commands import UpdateVersionCommand
 from app.core.branching.commands import (
     CreateBranchCommand,
     MergeBranchCommand,
     RevertCommand,
     UpdateCommand,
 )
+from app.core.versioning.commands import UpdateVersionCommand
 from app.core.versioning.service import TemporalService
 from app.models.domain.project import Project
 
@@ -121,8 +121,8 @@ async def test_temporal_service_base_methods(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_temporal_service_not_implemented_methods(db_session: AsyncSession):
     """Verify NotImplementedError for placeholder methods."""
-    service = TemporalService(Project, db_session)
-    uid = uuid4()
+    TemporalService(Project, db_session)
+    uuid4()
 
 
     pass

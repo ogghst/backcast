@@ -57,7 +57,7 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
         # CRITICAL FIX: PostgreSQL creates EMPTY range if lower >= upper
         # Solution: Ensure upper is always > lower using GREATEST
         # Use SQLAlchemy ORM with PostgreSQL-specific functions
-        
+
         stmt = (
             update(self.entity_class)
             .where(cast(Any, self.entity_class).id == version.id)
@@ -72,12 +72,12 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
                 )
             )
         )
-        
+
         result = await session.execute(stmt)
-        
+
         if result.rowcount == 0:
             raise RuntimeError(f"Concurrency Error: Failed to close version {version.id}. Row not updated.")
-        
+
         await session.flush()
         session.expire(version)
 

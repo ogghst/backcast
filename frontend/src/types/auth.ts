@@ -2,13 +2,29 @@
 
 export interface UserPublic {
   id: string;
+  user_id: string;
   email: string;
   full_name: string;
-  department: string | null;
   role: string;
   is_active: boolean;
-  created_at: string | null;
+  permissions: string[]; // List of permission strings (e.g., 'user-read', 'department-delete')
+  created_at?: string | null;
+  department?: string | null;
 }
+
+// Type alias for permission strings
+export type Permission =
+  | "user-read"
+  | "user-create"
+  | "user-update"
+  | "user-delete"
+  | "department-read"
+  | "department-create"
+  | "department-update"
+  | "department-delete";
+
+// Type alias for role strings
+export type Role = "admin" | "manager" | "viewer";
 
 export interface Token {
   access_token: string;

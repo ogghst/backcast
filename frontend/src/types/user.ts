@@ -10,6 +10,10 @@ export type UserRole =
   | "department_manager"
   | "viewer";
 
+export interface PermissionResponse {
+  data: unknown; // Flexible payload structure
+}
+
 // Base User Interface (matching backend UserPublic/UserHistory)
 export interface User {
   id: string; // Version ID (UUID)
@@ -21,7 +25,7 @@ export interface User {
   is_active: boolean;
   created_at?: string | null; // ISO timestamp
   password_changed_at?: string | null; // ISO timestamp
-  preferences?: Record<string, any> | null; // User preferences JSON
+  preferences?: Record<string, unknown> | null; // User preferences JSON
   // Temporal fields (only present in history endpoints)
   valid_time?: [string, string | null]; // [start, end] ISO timestamps
   transaction_time?: [string, string | null]; // [start, end] ISO timestamps

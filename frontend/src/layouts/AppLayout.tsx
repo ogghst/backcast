@@ -9,6 +9,9 @@ import {
 
 import { UserProfile } from "@/components/UserProfile";
 
+import { usePermission } from "@/hooks/usePermission";
+import type { ItemType } from "antd/es/menu/hooks/useItems";
+
 const { Header, Content, Footer, Sider } = Layout;
 
 const AppLayout: React.FC = () => {
@@ -18,30 +21,48 @@ const AppLayout: React.FC = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
-  // const { isAuthenticated } = useAuth(); // Unused currently
+  const { can } = usePermission();
 
   const [collapsed, setCollapsed] = React.useState(false);
 
-  const menuItems = [
-    {
-      key: "/",
-      icon: <DashboardOutlined />,
-      label: "Dashboard",
-    },
-    {
+  const getMenuItems = (): ItemType[] => {
+    const items: ItemType[] = [
+      {
+        key: "/",
+        icon: <DashboardOutlined />,
+        label: "Dashboard",
+      },
+    ];
+
+    // Projects: No specific permission mentioned yet, assume accessible or check generic project-read if it existed
+    items.push({
       key: "/projects",
       icon: <ProjectOutlined />,
       label: "Projects",
-    },
-    {
-      key: "/users",
-      icon: <UserOutlined />,
-      label: "Users",
-    },
-  ];
+    });
+
+    if (can("user-read")) {
+      items.push({
+        key: "/users",
+        icon: <UserOutlined />,
+        label: "Users",
+      });
+    }
+
+    if (can("department-read")) {
+      items.push({
+        key: "/departments",
+        icon: <ProjectOutlined />, // Using ProjectOutlined as placeholder if DepartmentOutlined not imported
+        label: "Departments",
+      });
+    }
+
+    return items;
+  };
+
+  const menuItems = getMenuItems();
 
   /* Logout logic moved to UserProfile component */
-
 
   return (
     <Layout style={{ minHeight: "100vh" }}>

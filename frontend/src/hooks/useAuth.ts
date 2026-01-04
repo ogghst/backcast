@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { getCurrentUser, loginUser } from "@/api/auth";
 import type { UserLogin, UserPublic } from "@/types/auth";
@@ -9,7 +10,14 @@ import type { UserLogin, UserPublic } from "@/types/auth";
  */
 export const useAuth = () => {
   const queryClient = useQueryClient();
-  const { token, isAuthenticated, login: setToken, logout: clearToken } = useAuthStore();
+  const {
+    user: storedUser,
+    token,
+    isAuthenticated,
+    setToken,
+    logout: clearToken,
+    setUser,
+  } = useAuthStore();
 
   // Fetch current user data (only when authenticated)
   const {
@@ -23,6 +31,13 @@ export const useAuth = () => {
     retry: false, // Don't retry on 401
     staleTime: 5 * 60 * 1000, // Consider fresh for 5 minutes
   });
+
+  // Sync user to store when fetched
+  useEffect(() => {
+    if (user) {
+      setUser(user);
+    }
+  }, [user, setUser]);
 
   // Login mutation
   const loginMutation = useMutation({
@@ -47,23 +62,23 @@ export const useAuth = () => {
   };
 
   return {
-    // User data
-    user,
+    // User data - prefer fresh query data, fallback to stored data
+    user: user || storedUser,
     isAuthenticated,
-    
+
     // Loading states
     isLoading: isLoadingUser || loginMutation.isPending,
     isLoadingUser,
     isLoggingIn: loginMutation.isPending,
-    
+
     // Error states
     error: userError || loginMutation.error,
     loginError: loginMutation.error,
-    
+
     // Actions
     login,
     logout,
-    
+
     // Token (for debugging, avoid using directly)
     token,
   };

@@ -85,8 +85,14 @@ async def login(
 @router.get("/me", response_model=UserPublic, operation_id="get_current_user")
 async def read_users_me(
     current_user: Annotated[User, Depends(get_current_active_user)],
-) -> Any:
+) -> UserPublic:
     """
-    Get current user.
+    Get current user profile with RBAC permissions.
+
+    Returns user data including their role-based permissions for use
+    in frontend authorization checks.
     """
-    return current_user
+    from app.core.rbac import get_rbac_service
+
+    rbac_service = get_rbac_service()
+    return UserPublic.from_user(current_user, rbac_service)

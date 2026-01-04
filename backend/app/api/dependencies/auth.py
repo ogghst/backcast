@@ -1,6 +1,6 @@
 """Authentication dependencies for FastAPI routes.
 
-Provides dependency injection for current user authentication.
+Provides dependency injection for current user authentication and authorization.
 """
 
 from typing import Annotated
@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.db.session import get_db
 from app.models.domain.user import User
 from app.models.schemas.user import TokenPayload
@@ -61,3 +62,71 @@ async def get_current_active_user(
         raise HTTPException(status_code=400, detail="Inactive user")
 
     return current_user
+
+
+class RoleChecker:
+    """FastAPI dependency for role-based and permission-based authorization.
+
+    Can be used in three modes:
+    1. Role-only: RoleChecker(["admin", "manager"])
+    2. Permission-only: RoleChecker(required_permission="delete")
+    3. Combined (OR logic): RoleChecker(["admin"], "delete")
+
+    Example usage:
+        @app.post("/users/", dependencies=[Depends(RoleChecker(["admin"]))])
+        async def create_user(): ...
+
+        @app.delete("/items/{id}", dependencies=[Depends(RoleChecker(required_permission="delete"))])
+        async def delete_item(): ...
+    """
+
+    def __init__(
+        self,
+        allowed_roles: list[str] | None = None,
+        required_permission: str | None = None,
+    ) -> None:
+        """Initialize RoleChecker dependency.
+
+        Args:
+            allowed_roles: List of roles that are allowed access
+            required_permission: Permission string that is required for access
+
+        Note:
+            At least one of allowed_roles or required_permission must be provided.
+            If both are provided, access is granted if EITHER condition is met (OR logic).
+        """
+        self.allowed_roles = allowed_roles
+        self.required_permission = required_permission
+
+    async def __call__(
+        self,
+        current_user: Annotated[User, Depends(get_current_user)],
+        rbac_service: Annotated[RBACServiceABC, Depends(get_rbac_service)],
+    ) -> User:
+        """Check if current user has required role or permission.
+
+        Args:
+            current_user: The authenticated user from JWT token
+            rbac_service: The RBAC service for authorization checks
+
+        Returns:
+            The current user if authorized
+
+        Raises:
+            HTTPException: 403 Forbidden if user lacks required role/permission
+        """
+        # Check role-based authorization
+        if self.allowed_roles is not None:
+            if rbac_service.has_role(current_user.role, self.allowed_roles):
+                return current_user
+
+        # Check permission-based authorization
+        if self.required_permission is not None:
+            if rbac_service.has_permission(current_user.role, self.required_permission):
+                return current_user
+
+        # If we reach here, neither role nor permission matched
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions",
+        )

@@ -1,0 +1,28 @@
+{
+  "roles": {
+    "admin": {
+      "permissions": [
+        "user-read",
+        "user-create",
+        "user-update",
+        "user-delete",
+        "department-read",
+        "department-create",
+        "department-update",
+        "department-delete"
+      ]
+    },
+    "manager": {
+      "permissions": [
+        "user-read",
+        "user-update",
+        "department-read",
+        "department-create",
+        "department-update"
+      ]
+    },
+    "viewer": {
+      "permissions": ["department-read"]
+    }
+  }
+}

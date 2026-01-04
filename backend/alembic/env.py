@@ -8,8 +8,8 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
-from app.core.config import settings
 from app.core.base.base import Base
+from app.core.config import settings
 
 # Import all models to ensure they are attached to Base.metadata
 from app.models.domain import department, project, user  # noqa: F401

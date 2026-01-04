@@ -16,6 +16,7 @@ import { UserService } from "../api/userService";
 import { UsersService } from "@/api/generated";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
+import { Can } from "@/components/auth/Can";
 
 // Create hooks instance
 // We use the generated service directly, but mapping parameters might be needed if signatures differ.
@@ -145,18 +146,24 @@ export const UserList = () => {
             }}
             title="View History"
           />
-          <Button
-            icon={<EditOutlined />}
-            onClick={() => {
-              setSelectedUser(record);
-              setModalOpen(true);
-            }}
-          />
-          <Button
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => handleDelete(record.user_id)}
-          />
+          <Can permission="user-update">
+            <Button
+              icon={<EditOutlined />}
+              onClick={() => {
+                setSelectedUser(record);
+                setModalOpen(true);
+              }}
+              title="Edit User"
+            />
+          </Can>
+          <Can permission="user-delete">
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDelete(record.user_id)}
+              title="Delete User"
+            />
+          </Can>
         </Space>
       ),
     },
@@ -182,16 +189,18 @@ export const UserList = () => {
             <div style={{ fontSize: "16px", fontWeight: "bold" }}>
               User Management
             </div>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                setSelectedUser(null);
-                setModalOpen(true);
-              }}
-            >
-              Add User
-            </Button>
+            <Can permission="user-create">
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setSelectedUser(null);
+                  setModalOpen(true);
+                }}
+              >
+                Add User
+              </Button>
+            </Can>
           </div>
         }
       />

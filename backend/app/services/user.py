@@ -112,7 +112,7 @@ class UserService(TemporalService[User]):  # type: ignore[type-var]
     async def get_user_history(self, user_id: UUID) -> list[User]:
         """Get all versions of a user by root user_id (for version history)."""
         from typing import Any, cast
-        
+
         stmt = (
             select(User)
             .where(

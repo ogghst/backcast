@@ -23,7 +23,7 @@ def upgrade() -> None:
     """Upgrade schema: Add preferences JSONB column and drop user_preferences table."""
     # Add preferences JSONB column to users table
     op.add_column('users', sa.Column('preferences', postgresql.JSONB(astext_type=sa.Text()), nullable=True))
-    
+
     # Drop the old user_preferences table (data will be lost as per user confirmation)
     op.drop_table('user_preferences')
 
@@ -42,6 +42,6 @@ def downgrade() -> None:
         sa.PrimaryKeyConstraint('id'),
         sa.UniqueConstraint('user_id')
     )
-    
+
     # Remove preferences column from users
     op.drop_column('users', 'preferences')

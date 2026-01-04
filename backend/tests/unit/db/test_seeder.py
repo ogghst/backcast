@@ -2,17 +2,12 @@
 
 import json
 from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, mock_open, patch
-from uuid import uuid4
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.seeder import DataSeeder
-from app.models.schemas.department import DepartmentCreate
-from app.models.schemas.user import UserRegister
 
 
 class TestDataSeederInit:
@@ -280,9 +275,9 @@ class TestSeedAll:
         """Test seed_all rolls back transaction on error."""
         seeder = DataSeeder(seed_dir=tmp_path)
 
-        with patch.object(seeder, "seed_departments", side_effect=Exception("Test error")):
+        with patch.object(seeder, "seed_departments", side_effect=ValueError("Test error")):
             with patch.object(db_session, "rollback") as mock_rollback:
-                with pytest.raises(Exception):
+                with pytest.raises(ValueError):
                     await seeder.seed_all(db_session)
 
                 # Verify rollback was called

@@ -24,7 +24,7 @@ describe("VersionHistoryDrawer", () => {
   ];
 
   it("renders list of versions", () => {
-    // @ts-ignore
+    // @ts-expect-error - Testing invalid date
     render(
       <VersionHistoryDrawer
         open={true}
@@ -40,7 +40,7 @@ describe("VersionHistoryDrawer", () => {
   });
 
   it("calls onRestore when button clicked", () => {
-    // @ts-ignore
+    // @ts-expect-error - Testing missing prop
     render(
       <VersionHistoryDrawer
         open={true}

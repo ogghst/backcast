@@ -47,3 +47,4 @@ old/
 *.log
 coverage.xml
 .coverage
+frontend/playwright-report/index.html

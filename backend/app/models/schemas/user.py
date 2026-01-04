@@ -5,7 +5,8 @@ from uuid import UUID
 from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, Field
 
 if TYPE_CHECKING:
-    pass
+    from app.core.rbac import RBACServiceABC
+    from app.models.domain.user import User
 
 
 def convert_range_to_list(v: Any) -> list[datetime | None] | None:
@@ -67,8 +68,44 @@ class UserRead(UserBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-# Alias for backward compatibility with routes
-UserPublic = UserRead
+# Public user schema with RBAC permissions
+class UserPublic(BaseModel):
+    """User public data with RBAC permissions for frontend."""
+
+    id: UUID
+    user_id: UUID  # For compatibility with versioning
+    email: str
+    full_name: str
+    role: str
+    is_active: bool
+    permissions: list[str] = Field(
+        default_factory=list,
+        description="List of permission strings (e.g., 'user-read', 'department-delete')",
+    )
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def from_user(cls, user: "User", rbac_service: "RBACServiceABC") -> "UserPublic":
+        """Create UserPublic from User domain object with RBAC permissions.
+
+        Args:
+            user: User domain object
+            rbac_service: RBAC service to fetch permissions
+
+        Returns:
+            UserPublic instance with permissions populated
+        """
+        permissions = rbac_service.get_user_permissions(user.role)
+        return cls(
+            id=user.id,
+            user_id=user.user_id,
+            email=user.email,
+            full_name=user.full_name,
+            role=user.role,
+            is_active=user.is_active,
+            permissions=permissions,
+        )
 
 
 # Schema for version history - includes temporal fields

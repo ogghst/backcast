@@ -1,11 +1,12 @@
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+from app.core.versioning.branch_service import BranchableService
 from sqlalchemy import Column, String
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.branching.service import BranchableService
 from app.models.domain.base import Base
 from app.models.mixins import BranchableMixin, VersionableMixin
 
@@ -17,8 +18,6 @@ class MockBranchableEntity(Base, VersionableMixin, BranchableMixin):
     name = Column(String)
     mockbranchableentity_id = Column(PG_UUID) # root id field
 
-
-from unittest.mock import AsyncMock, MagicMock
 
 @pytest.fixture
 def mock_session():

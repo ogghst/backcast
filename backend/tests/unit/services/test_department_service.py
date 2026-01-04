@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.schemas.department import DepartmentCreate, DepartmentUpdate
 from app.services.department import DepartmentService
 
+
 class TestDepartmentServiceCreate:
     """Test DepartmentService.create_department() method."""
 

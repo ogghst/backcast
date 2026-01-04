@@ -221,7 +221,7 @@ class TestUserServicePreferences:
 
         # Assert
         assert result == {"theme": "dark"}
-        
+
         # Verify persistence
         fetched_prefs = await service.get_user_preferences(user.id)
         assert fetched_prefs == {"theme": "dark"}
@@ -240,7 +240,7 @@ class TestUserServicePreferences:
             role="user",
         )
         user = await service.create_user(user_in, actor_id=uuid4())
-        
+
         # Set initial preferences
         await service.update_user_preferences(user.id, {"theme": "light", "locale": "en"})
         await db_session.commit()
@@ -251,7 +251,7 @@ class TestUserServicePreferences:
 
         # Assert - theme updated, locale preserved
         assert result == {"theme": "dark", "locale": "en"}
-        
+
         # Verify persistence
         fetched_prefs = await service.get_user_preferences(user.id)
         assert fetched_prefs == {"theme": "dark", "locale": "en"}
@@ -287,10 +287,10 @@ class TestUserServicePreferences:
         # Act & Assert - valid themes should work
         result = await service.update_user_preferences(user.id, {"theme": "dark"})
         assert result["theme"] == "dark"
-        
+
         result = await service.update_user_preferences(user.id, {"theme": "light"})
         assert result["theme"] == "light"
-        
+
         # Extra fields should be allowed
         result = await service.update_user_preferences(
             user.id, {"theme": "dark", "locale": "en-US", "timezone": "UTC"}

@@ -1,4 +1,5 @@
 import { AuthenticationService, Body_login } from "@/api/generated";
+import { apiClient } from "@/api/client";
 import type { Token, UserLogin, UserPublic } from "@/types/auth";
 
 /**
@@ -16,12 +17,11 @@ export const loginUser = async (credentials: UserLogin): Promise<Token> => {
 };
 
 /**
- * Get current authenticated user
+ * Get current authenticated user with permissions
  */
 export const getCurrentUser = async (): Promise<UserPublic> => {
-  const user = await AuthenticationService.getCurrentUser();
-  // Cast or map if necessary. UserRead should be compatible with UserPublic
-  return user as unknown as UserPublic;
+  const response = await apiClient.get<UserPublic>("/api/v1/auth/me");
+  return response.data;
 };
 
 /**

@@ -9,6 +9,7 @@ from collections.abc import AsyncGenerator
 import pytest
 import pytest_asyncio
 from alembic.config import Config
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -18,8 +19,6 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.pool import NullPool
 
 from alembic import command
-from httpx import ASGITransport, AsyncClient
-
 from app.core.config import settings
 from app.main import app
 

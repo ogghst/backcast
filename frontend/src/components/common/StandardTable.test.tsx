@@ -24,13 +24,13 @@ describe("StandardTable", () => {
   };
 
   it("renders table with data", () => {
-    // @ts-ignore
+    // @ts-expect-error - Testing missing prop
     render(<StandardTable {...defaultProps} />);
     expect(screen.getByText("Item 1")).toBeInTheDocument();
   });
 
   it("calls onChange when pagination changes", () => {
-    // @ts-ignore
+    // @ts-expect-error - Testing missing prop
     render(<StandardTable {...defaultProps} />);
 
     // Find the pagination "next" button or page 2
@@ -44,7 +44,7 @@ describe("StandardTable", () => {
   });
 
   it("shows loading state", () => {
-    // @ts-ignore
+    // @ts-expect-error - Testing missing prop
     render(<StandardTable {...defaultProps} loading={true} />);
     // AntD table spinner usually has class or aria
     // For simplicity, we just check if rows are replaced by loading or spinner exists
