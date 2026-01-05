@@ -10,6 +10,7 @@ import pytest
 import pytest_asyncio
 from alembic.config import Config
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -85,6 +86,18 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
         )
 
         async with async_session_maker() as session:
+            # Clean up all test data before the test (if tables exist)
+            try:
+                await session.execute(
+                    text(
+                        "TRUNCATE TABLE wbes, projects, departments, users RESTART IDENTITY CASCADE"
+                    )
+                )
+                await session.commit()
+            except Exception:
+                # Tables might not exist yet (first test run), that's okay
+                await session.rollback()
+
             yield session
 
         # Rollback the transaction after the test completes

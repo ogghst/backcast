@@ -46,14 +46,14 @@ describe("ProtectedRoute", () => {
             }
           />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     // Should redirect to login
     expect(screen.getByTestId("pathname")).toHaveTextContent("/login");
     // Should preserve the original location in state
     expect(screen.getByTestId("state-from")).toHaveTextContent(
-      "/testing-protected"
+      "/testing-protected",
     );
     // Should not show protected content
     expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
@@ -77,7 +77,7 @@ describe("ProtectedRoute", () => {
             }
           />
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     // Should show protected content

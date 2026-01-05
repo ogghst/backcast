@@ -1,13 +1,16 @@
-"""Project domain model.
+"""Project domain model - branchable versioned entity.
 
-A Branchable Entity used for demonstrating and testing EVCS branching capabilities.
-Satisfies BranchableProtocol.
+Projects support branching for change order workflows.
+Satisfies BranchableProtocol via structural subtyping.
 """
 
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import Numeric, String, Text
+from sqlalchemy import DECIMAL, Numeric, String, Text
+from sqlalchemy.dialects.postgresql import TIMESTAMP
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base.base import EntityBase
@@ -20,23 +23,49 @@ class Project(EntityBase, VersionableMixin, BranchableMixin):
     Attributes:
         project_id: Root ID for the project aggregation.
         name: Project name.
+        code: Unique project code.
         description: Optional description.
         budget: Project budget.
+        contract_value: Contract value (if different from budget).
+        start_date: Project start date.
+        end_date: Project end date.
     """
 
     __tablename__ = "projects"
 
-    # Root ID is required for versioning/branching aggregations
-    from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-
+    # Root ID (stable identity across versions and branches)
     project_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
 
+    # Identity
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+
+    # Financial
     budget: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=0)
+    contract_value: Mapped[Decimal | None] = mapped_column(
+        DECIMAL(15, 2), nullable=True
+    )
+
+    # Schedule
+    start_date: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    end_date: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Temporal and branching fields inherited from mixins:
+    # - valid_time: TSTZRANGE (from VersionableMixin)
+    # - transaction_time: TSTZRANGE (from VersionableMixin)
+    # - deleted_at: datetime | None (from VersionableMixin)
+    # - branch: str (from BranchableMixin, default 'main')
+    # - parent_id: UUID | None (from BranchableMixin)
+    # - merge_from_branch: str | None (from BranchableMixin)
 
     def __repr__(self) -> str:
         return (
-            f"<Project(id={self.id}, root={self.project_id}, "
-            f"branch={self.branch}, name={self.name})>"
+            f"<Project(id={self.id}, project_id={self.project_id}, "
+            f"branch={self.branch}, name={self.name}, code={self.code})>"
         )

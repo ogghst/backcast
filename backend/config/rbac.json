@@ -9,7 +9,15 @@
         "department-read",
         "department-create",
         "department-update",
-        "department-delete"
+        "department-delete",
+        "project-read",
+        "project-create",
+        "project-update",
+        "project-delete",
+        "wbe-read",
+        "wbe-create",
+        "wbe-update",
+        "wbe-delete"
       ]
     },
     "manager": {

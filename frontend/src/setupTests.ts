@@ -35,3 +35,10 @@ const ResizeObserverMock = class ResizeObserver {
 
 window.ResizeObserver = ResizeObserverMock;
 global.ResizeObserver = ResizeObserverMock;
+
+// Mock getComputedStyle for AntD Table
+Object.defineProperty(window, "getComputedStyle", {
+  value: () => ({
+    getPropertyValue: () => "",
+  }),
+});

@@ -24,7 +24,7 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
     updateUser?: (id: string, data: TUpdate) => Promise<T>;
     deleteUser?: (id: string) => Promise<void>;
   },
-  options?: CrudOptions
+  options?: CrudOptions,
 ) => {
   // Normalize invalidation arrays
   const getInvalidationKeys = (type: "create" | "update" | "delete") => {
@@ -34,7 +34,7 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
 
   const useList = (
     filters?: Record<string, unknown>,
-    queryOptions?: Omit<UseQueryOptions<T[], Error>, "queryKey">
+    queryOptions?: Omit<UseQueryOptions<T[], Error>, "queryKey">,
   ) => {
     return useQuery({
       queryKey: [queryKey, "list", filters],
@@ -48,7 +48,7 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
 
   const useDetail = (
     id: string,
-    queryOptions?: Omit<UseQueryOptions<T, Error>, "queryKey">
+    queryOptions?: Omit<UseQueryOptions<T, Error>, "queryKey">,
   ) => {
     return useQuery({
       queryKey: [queryKey, "detail", id],
@@ -62,7 +62,7 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
   };
 
   const useCreate = (
-    mutationOptions?: Omit<UseMutationOptions<T, Error, TCreate>, "mutationFn">
+    mutationOptions?: Omit<UseMutationOptions<T, Error, TCreate>, "mutationFn">,
   ) => {
     const queryClient = useQueryClient();
     return useMutation({
@@ -73,7 +73,7 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
       onSuccess: (...args) => {
         const keys = getInvalidationKeys("create");
         keys.forEach((key) =>
-          queryClient.invalidateQueries({ queryKey: [key] })
+          queryClient.invalidateQueries({ queryKey: [key] }),
         );
         toast.success(`Created successfully`);
         mutationOptions?.onSuccess?.(...args);
@@ -90,7 +90,7 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
     mutationOptions?: Omit<
       UseMutationOptions<T, Error, { id: string; data: TUpdate }>,
       "mutationFn"
-    >
+    >,
   ) => {
     const queryClient = useQueryClient();
     return useMutation({
@@ -101,7 +101,7 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
       onSuccess: (...args) => {
         const keys = getInvalidationKeys("update");
         keys.forEach((key) =>
-          queryClient.invalidateQueries({ queryKey: [key] })
+          queryClient.invalidateQueries({ queryKey: [key] }),
         );
         toast.success(`Updated successfully`);
         mutationOptions?.onSuccess?.(...args);
@@ -118,7 +118,7 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
     mutationOptions?: Omit<
       UseMutationOptions<void, Error, string>,
       "mutationFn"
-    >
+    >,
   ) => {
     const queryClient = useQueryClient();
     return useMutation({
@@ -129,7 +129,7 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
       onSuccess: (...args) => {
         const keys = getInvalidationKeys("delete");
         keys.forEach((key) =>
-          queryClient.invalidateQueries({ queryKey: [key] })
+          queryClient.invalidateQueries({ queryKey: [key] }),
         );
         toast.success(`Deleted successfully`);
         mutationOptions?.onSuccess?.(...args);

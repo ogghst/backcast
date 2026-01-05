@@ -77,6 +77,6 @@ export const useAuthStore = create<AuthState>()(
           state.isAuthenticated = true;
         }
       },
-    }
-  )
+    },
+  ),
 );

@@ -5,11 +5,12 @@ Revises: de146576a3d2
 Create Date: 2026-01-02 12:38:27.908294
 
 """
+
 from collections.abc import Sequence
 
 # revision identifiers, used by Alembic.
-revision: str = '1cd31119301f'
-down_revision: str | Sequence[str] | None = 'de146576a3d2'
+revision: str = "1cd31119301f"
+down_revision: str | Sequence[str] | None = "de146576a3d2"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

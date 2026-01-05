@@ -39,7 +39,7 @@ describe("Auth Adapter", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const mockUser = { id: "1", email: "test@example.com" } as any;
       vi.mocked(AuthenticationService.getCurrentUser).mockResolvedValue(
-        mockUser
+        mockUser,
       );
 
       const result = await getCurrentUser();

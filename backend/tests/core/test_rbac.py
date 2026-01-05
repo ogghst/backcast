@@ -160,7 +160,9 @@ class TestJsonRBACService:
         assert result == expected_permissions
 
     # 🔴 RED: Test 8 - get_user_permissions unknown role
-    def test_get_user_permissions_unknown_role(self, rbac_service: JsonRBACService) -> None:
+    def test_get_user_permissions_unknown_role(
+        self, rbac_service: JsonRBACService
+    ) -> None:
         """Test that unknown role returns empty permissions list."""
         # Arrange
         user_role = "unknown_role"

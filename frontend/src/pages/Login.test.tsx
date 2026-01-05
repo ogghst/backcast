@@ -31,7 +31,7 @@ describe("Login Page", () => {
     render(
       <MemoryRouter>
         <Login />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByRole("button", { name: /log in/i })).toBeInTheDocument();
@@ -43,7 +43,7 @@ describe("Login Page", () => {
     render(
       <MemoryRouter>
         <Login />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const submitBtn = screen.getByRole("button", { name: /log in/i });
@@ -52,7 +52,7 @@ describe("Login Page", () => {
     await waitFor(() => {
       expect(screen.getByText(/please enter your email/i)).toBeInTheDocument();
       expect(
-        screen.getByText(/please enter your password/i)
+        screen.getByText(/please enter your password/i),
       ).toBeInTheDocument();
     });
 
@@ -63,7 +63,7 @@ describe("Login Page", () => {
     render(
       <MemoryRouter>
         <Login />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const emailInput = screen.getByLabelText(/email/i);
@@ -74,7 +74,7 @@ describe("Login Page", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/please enter a valid email/i)
+        screen.getByText(/please enter a valid email/i),
       ).toBeInTheDocument();
     });
   });
@@ -83,7 +83,7 @@ describe("Login Page", () => {
     render(
       <MemoryRouter>
         <Login />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const emailInput = screen.getByLabelText(/email/i);
@@ -116,7 +116,7 @@ describe("Login Page", () => {
     render(
       <MemoryRouter>
         <Login />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const emailInput = screen.getByLabelText(/email/i);
@@ -142,7 +142,7 @@ describe("Login Page", () => {
     render(
       <MemoryRouter>
         <Login />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const inputs = screen.getAllByRole("textbox"); // Email is textbox, password isn't

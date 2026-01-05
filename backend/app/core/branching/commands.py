@@ -32,7 +32,9 @@ class BranchCommandABC(VersionedCommandABC[TBranchable]):
             .where(
                 getattr(self.entity_class, self._root_field_name()) == self.root_id,
                 cast(Any, self.entity_class).branch == branch,
-                cast(Any, self.entity_class).valid_time.op("@>")(func.current_timestamp()),
+                cast(Any, self.entity_class).valid_time.op("@>")(
+                    func.current_timestamp()
+                ),
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .order_by(cast(Any, self.entity_class).valid_time.desc())
@@ -67,7 +69,9 @@ class CreateBranchCommand(BranchCommandABC[TBranchable]):
             )
 
         # Clone to new branch
-        branched = cast(TBranchable, source.clone(branch=self.new_branch, parent_id=source.id))
+        branched = cast(
+            TBranchable, source.clone(branch=self.new_branch, parent_id=source.id)
+        )
         session.add(branched)
         await session.flush()
         return branched
@@ -191,7 +195,9 @@ class RevertCommand(BranchCommandABC[TBranchable]):
             target_version = await session.get(self.entity_class, current.parent_id)
 
         if not target_version:
-            raise ValueError("Cannot revert: No target version specified or no parent found.")
+            raise ValueError(
+                "Cannot revert: No target version specified or no parent found."
+            )
 
         # 3. Clone Target -> New Head
         # Logic: Content from Target, but parent is Current (linear history)

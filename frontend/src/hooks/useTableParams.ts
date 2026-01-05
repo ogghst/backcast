@@ -9,7 +9,9 @@ interface TableParams {
   filters?: Record<string, FilterValue | null>;
 }
 
-export const useTableParams = () => {
+export const useTableParams = <
+  T extends object = Record<string, unknown>,
+>() => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Parse initial state from URL
@@ -26,9 +28,7 @@ export const useTableParams = () => {
   const handleTableChange = (
     pagination: TablePaginationConfig,
     filters: Record<string, FilterValue | null>,
-    sorter:
-      | SorterResult<Record<string, unknown>>
-      | SorterResult<Record<string, unknown>>[]
+    sorter: SorterResult<T> | SorterResult<T>[],
   ) => {
     const newParams = new URLSearchParams(searchParams);
 

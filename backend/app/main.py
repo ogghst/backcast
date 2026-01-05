@@ -1,4 +1,5 @@
 """Main application entry point."""
+
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -6,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Include routers
-from app.api.routes import auth, departments, users
+from app.api.routes import auth, departments, projects, users, wbes
 from app.core.config import settings
 from app.core.logging import setup_logging
 
@@ -60,4 +61,14 @@ app.include_router(
     departments.router,
     prefix=f"{settings.API_V1_STR}/departments",
     tags=["Departments"],
+)
+app.include_router(
+    projects.router,
+    prefix=f"{settings.API_V1_STR}/projects",
+    tags=["Projects"],
+)
+app.include_router(
+    wbes.router,
+    prefix=f"{settings.API_V1_STR}/wbes",
+    tags=["WBEs"],
 )

@@ -7,12 +7,12 @@ import {
 } from "@ant-design/icons";
 import { useState } from "react";
 import { CreateUserPayload, UpdateUserPayload, User } from "@/types/user";
-import { UserModal } from "./UserModal";
+import { UserModal } from "@/features/users/components/UserModal";
 import type { ColumnType } from "antd/es/table";
 import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
 import { createResourceHooks } from "@/hooks/useCrud";
-import { UserService } from "../api/userService";
+import { UserService } from "@/features/users/api/userService";
 import { UsersService } from "@/api/generated";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
@@ -56,7 +56,7 @@ const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<
 >("users", userApi);
 
 export const UserList = () => {
-  const { tableParams, handleTableChange } = useTableParams();
+  const { tableParams, handleTableChange } = useTableParams<User>();
   const { data: users, isLoading, refetch } = useList(tableParams);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -70,7 +70,7 @@ export const UserList = () => {
       entityId: selectedUser?.user_id,
       fetchFn: UserService.getUserHistory,
       enabled: historyOpen,
-    }
+    },
   );
 
   const { mutateAsync: createUser } = useCreate({

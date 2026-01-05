@@ -27,13 +27,16 @@ class MockEntity(VersionableProtocol):
     def soft_delete(self):
         pass
 
+
 @pytest.fixture
 def mock_session():
     return AsyncMock(spec=AsyncSession)
 
+
 @pytest.fixture
 def service(mock_session):
     return TemporalService(MockEntity, mock_session)
+
 
 @pytest.mark.asyncio
 async def test_create_delegates_to_command(service, mock_session):
@@ -51,6 +54,7 @@ async def test_create_delegates_to_command(service, mock_session):
     assert result.name == "test"
     mock_session.add.assert_called_once()
     mock_session.flush.assert_called_once()
+
 
 @pytest.mark.asyncio
 async def test_update_delegates_to_command(service, mock_session):

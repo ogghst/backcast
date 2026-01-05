@@ -149,5 +149,3 @@ class UserService(TemporalService[User]):  # type: ignore[type-var]
         await self.session.commit()  # Commit immediately to persist changes
 
         return updated_prefs
-
-

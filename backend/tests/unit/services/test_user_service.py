@@ -62,7 +62,6 @@ class TestUserServiceGetUser:
         assert result.full_name == "Test User"
 
 
-
 class TestUserServiceCreate:
     """Test UserService.create_user() method."""
 
@@ -153,7 +152,7 @@ class TestUserServiceDelete:
         assert deleted_user is not None
         assert deleted_user.is_deleted is True
         assert deleted_user.deleted_at is not None
-        
+
         # Verify persistence
         fetched = await service.get_user(v1.id)
         assert fetched is not None
@@ -174,7 +173,9 @@ class TestUserServiceDelete:
         non_existent_id = uuid4()
 
         # Act & Assert
-        with pytest.raises(ValueError, match=f"No active version found for {non_existent_id}"):
+        with pytest.raises(
+            ValueError, match=f"No active version found for {non_existent_id}"
+        ):
             await service.delete_user(non_existent_id, actor_id=uuid4())
 
 
@@ -258,7 +259,9 @@ class TestUserServicePreferences:
         user = await service.create_user(user_in, actor_id=uuid4())
 
         # Set initial preferences
-        await service.update_user_preferences(user.id, {"theme": "light", "locale": "en"})
+        await service.update_user_preferences(
+            user.id, {"theme": "light", "locale": "en"}
+        )
         await db_session.commit()
 
         # Act - update only theme
@@ -314,5 +317,3 @@ class TestUserServicePreferences:
         assert result["theme"] == "dark"
         assert result["locale"] == "en-US"
         assert result["timezone"] == "UTC"
-
-

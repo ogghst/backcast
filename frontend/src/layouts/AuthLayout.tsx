@@ -38,9 +38,7 @@ export const AuthLayout = ({ children }: AuthLayoutProps) => {
             <Title level={2} style={{ marginBottom: "8px" }}>
               Backcast
             </Title>
-            <Typography.Text type="secondary">
-              Backcast
-            </Typography.Text>
+            <Typography.Text type="secondary">Backcast</Typography.Text>
           </div>
           {children}
         </div>

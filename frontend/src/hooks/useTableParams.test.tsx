@@ -31,7 +31,7 @@ describe("useTableParams", () => {
         { current: 2, pageSize: 20 },
         {},
         {},
-        { currentDataSource: [], action: "paginate" }
+        { currentDataSource: [], action: "paginate" },
       );
     });
 

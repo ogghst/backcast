@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 
@@ -11,6 +10,7 @@ from app.core.config import settings
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 async def create_test_database():
     """Create the test database if it doesn't exist."""
     # Get the default database URL (usually postgres)
@@ -19,7 +19,7 @@ async def create_test_database():
 
     # Simple parsing to replace dbname
     # Assuming format: postgresql+asyncpg://user:pass@host:port/dbname
-    base_url = db_url.rsplit('/', 1)[0]
+    base_url = db_url.rsplit("/", 1)[0]
     postgres_url = f"{base_url}/postgres"
 
     test_db_name = "backcast_evs_test"
@@ -43,6 +43,7 @@ async def create_test_database():
             logger.info(f"Database {test_db_name} already exists.")
 
     await engine.dispose()
+
 
 if __name__ == "__main__":
     asyncio.run(create_test_database())

@@ -15,5 +15,5 @@ export const useAppStore = create<AppState>()(
       set((state) => {
         state.isSidebarOpen = !state.isSidebarOpen;
       }),
-  }))
+  })),
 );

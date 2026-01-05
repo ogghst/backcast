@@ -1,4 +1,3 @@
-
 import json
 from pathlib import Path
 
@@ -16,6 +15,7 @@ def generate_openapi():
         json.dump(openapi_schema, f, indent=2)
 
     print(f"OpenAPI spec generated at {output_path}")
+
 
 if __name__ == "__main__":
     generate_openapi()

@@ -1,4 +1,3 @@
-
 from uuid import uuid4
 
 import pytest
@@ -16,10 +15,7 @@ class TestDepartmentServiceCreate:
         """RED: Test successfully creating a department."""
         service = DepartmentService(db_session)
         dept_in = DepartmentCreate(
-            name="Engineering",
-            code="ENG",
-            is_active=True,
-            manager_id=None
+            name="Engineering", code="ENG", is_active=True, manager_id=None
         )
 
         # Act
@@ -53,11 +49,13 @@ class TestDepartmentServiceUpdate:
 
         # Act
         update_in = DepartmentUpdate(name="Updated Name")
-        v2 = await service.update_department(v1.department_id, update_in, actor_id=uuid4())
+        v2 = await service.update_department(
+            v1.department_id, update_in, actor_id=uuid4()
+        )
 
         # Assert
         assert v2.id != v1.id  # New version ID
-        assert v2.department_id == dept_id # Same root ID
+        assert v2.department_id == dept_id  # Same root ID
         assert v2.name == "Updated Name"
 
         # Verify persistence
@@ -70,7 +68,9 @@ class TestDepartmentServiceDelete:
     """Test DepartmentService.delete_department() method."""
 
     @pytest.mark.asyncio
-    async def test_delete_department_soft_deletes(self, db_session: AsyncSession) -> None:
+    async def test_delete_department_soft_deletes(
+        self, db_session: AsyncSession
+    ) -> None:
         """Test deleting a department soft-deletes current version."""
         service = DepartmentService(db_session)
         dept_in = DepartmentCreate(

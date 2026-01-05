@@ -18,7 +18,7 @@ interface StandardTableProps<T> extends Omit<
   onChange: (
     pagination: TablePaginationConfig,
     filters: Record<string, FilterValue | null>,
-    sorter: SorterResult<T> | SorterResult<T>[]
+    sorter: SorterResult<T> | SorterResult<T>[],
   ) => void;
   // Optional toolbar slot
   toolbar?: React.ReactNode;

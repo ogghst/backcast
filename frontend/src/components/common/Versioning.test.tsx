@@ -32,7 +32,7 @@ describe("VersionHistoryDrawer", () => {
         versions={mockVersions}
         entityName="User"
         onRestore={mockOnRestore}
-      />
+      />,
     );
 
     expect(screen.getByText(/Alice/)).toBeInTheDocument();
@@ -48,7 +48,7 @@ describe("VersionHistoryDrawer", () => {
         versions={mockVersions}
         entityName="User"
         onRestore={mockOnRestore}
-      />
+      />,
     );
 
     // Find restore button for v1 (older version)

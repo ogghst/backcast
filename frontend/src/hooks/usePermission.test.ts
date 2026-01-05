@@ -31,7 +31,7 @@ describe("usePermission Hook", () => {
           hasRole: mockHasRole,
         };
         return selector(state);
-      }
+      },
     );
   });
 

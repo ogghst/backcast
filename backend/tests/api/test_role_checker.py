@@ -27,7 +27,9 @@ class TestRoleChecker:
         def has_role_side_effect(user_role: str, required_roles: list[str]) -> bool:
             return user_role in required_roles
 
-        def has_permission_side_effect(user_role: str, required_permission: str) -> bool:
+        def has_permission_side_effect(
+            user_role: str, required_permission: str
+        ) -> bool:
             role_permissions = {
                 "admin": [
                     "user-read",
@@ -74,28 +76,30 @@ class TestRoleChecker:
         # Route 1: Role-only protection (admin only)
         @app.get("/admin-only")
         async def admin_only_route(
-            user: Annotated[User, Depends(RoleChecker(["admin"]))]
+            user: Annotated[User, Depends(RoleChecker(["admin"]))],
         ) -> dict:
             return {"message": "Admin access granted"}
 
         # Route 2: Role-only protection (admin or manager)
         @app.get("/admin-or-manager")
         async def admin_or_manager_route(
-            user: Annotated[User, Depends(RoleChecker(["admin", "manager"]))]
+            user: Annotated[User, Depends(RoleChecker(["admin", "manager"]))],
         ) -> dict:
             return {"message": "Admin or manager access granted"}
 
         # Route 3: Permission-only protection (user-delete permission)
         @app.get("/delete-permission")
         async def delete_permission_route(
-            user: Annotated[User, Depends(RoleChecker(required_permission="user-delete"))]
+            user: Annotated[
+                User, Depends(RoleChecker(required_permission="user-delete"))
+            ],
         ) -> dict:
             return {"message": "Delete permission granted"}
 
         # Route 4: Combined protection (admin role OR user-delete permission)
         @app.get("/admin-or-delete")
         async def admin_or_delete_route(
-            user: Annotated[User, Depends(RoleChecker(["admin"], "user-delete"))]
+            user: Annotated[User, Depends(RoleChecker(["admin"], "user-delete"))],
         ) -> dict:
             return {"message": "Admin or delete permission granted"}
 
@@ -113,6 +117,7 @@ class TestRoleChecker:
 
         # Import and override after the routes are defined
         from app.api.dependencies.auth import get_current_user
+
         app.dependency_overrides[get_current_user] = override_get_current_user
 
         return app
@@ -155,7 +160,9 @@ class TestRoleChecker:
 
     # 🔴 RED: Integration Test 3 - Manager accesses admin-or-manager route
     @pytest.mark.asyncio
-    async def test_manager_accesses_admin_or_manager_route(self, test_app: FastAPI) -> None:
+    async def test_manager_accesses_admin_or_manager_route(
+        self, test_app: FastAPI
+    ) -> None:
         """Test that manager user can access admin-or-manager route."""
         # Arrange
         async with AsyncClient(

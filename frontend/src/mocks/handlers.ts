@@ -90,4 +90,103 @@ export const handlers = [
       },
     ]);
   }),
+
+  // Projects Handlers
+  http.get("*/api/v1/projects", async () => {
+    await delay(100);
+    return HttpResponse.json([
+      {
+        id: "proj-1",
+        code: "PRJ-001",
+        name: "Alpha Project",
+        budget: 100000,
+        contract_value: 120000,
+        start_date: "2024-01-01",
+        end_date: "2024-12-31",
+        branch: "main",
+      },
+      {
+        id: "proj-2",
+        code: "PRJ-002",
+        name: "Beta Project",
+        budget: 50000,
+        contract_value: 60000,
+        start_date: "2024-02-01",
+        branch: "draft",
+      },
+    ]);
+  }),
+
+  http.post("*/api/v1/projects", async ({ request }) => {
+    const body = await request.json();
+    return HttpResponse.json({
+      id: "proj-new",
+      ...(body as object),
+      branch: "main",
+    });
+  }),
+
+  http.put("*/api/v1/projects/:id", async ({ request, params }) => {
+    const body = await request.json();
+    return HttpResponse.json({
+      id: params.id,
+      ...(body as object),
+    });
+  }),
+
+  http.delete("*/api/v1/projects/:id", async () => {
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // WBE Handlers
+  http.get("*/api/v1/wbes", async ({ request }) => {
+    const url = new URL(request.url);
+    const projectId = url.searchParams.get("project_id");
+
+    // Filter logic simulation if needed, but for now return static list
+    // In real tests we might check if projectId is passed
+    return HttpResponse.json([
+      {
+        id: "wbe-1",
+        code: "1.0",
+        name: "Phase 1",
+        level: 1,
+        budget_allocation: 50000,
+        parent_wbe_id: null,
+        project_id: projectId || "proj-1",
+        branch: "main",
+      },
+      {
+        id: "wbe-2",
+        code: "1.1",
+        name: "Design",
+        level: 2,
+        budget_allocation: 20000,
+        parent_wbe_id: "wbe-1",
+        project_id: projectId || "proj-1",
+        branch: "main",
+      },
+    ]);
+  }),
+
+  http.post("*/api/v1/wbes", async ({ request }) => {
+    const body = await request.json();
+    return HttpResponse.json({
+      id: "wbe-new",
+      ...(body as object),
+      branch: "main",
+    });
+  }),
+
+  http.put("*/api/v1/wbes/:id", async ({ request, params }) => {
+    const body = await request.json();
+    return HttpResponse.json({
+      id: params.id,
+      ...(body as object),
+    });
+  }),
+
+  http.delete("*/api/v1/wbes/:id", async () => {
+    return new HttpResponse(null, { status: 204 });
+  }),
 ];

@@ -1,6 +1,19 @@
 import React, { useEffect } from "react";
-import { Avatar, Dropdown, Space, Typography, theme, MenuProps, Switch } from "antd";
-import { UserOutlined, LogoutOutlined, DownOutlined, BulbOutlined } from "@ant-design/icons";
+import {
+  Avatar,
+  Dropdown,
+  Space,
+  Typography,
+  theme,
+  MenuProps,
+  Switch,
+} from "antd";
+import {
+  UserOutlined,
+  LogoutOutlined,
+  DownOutlined,
+  BulbOutlined,
+} from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserPreferencesStore } from "@/stores/useUserPreferencesStore";
@@ -13,8 +26,9 @@ export const UserProfile: React.FC = () => {
   } = theme.useToken();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { themeMode, toggleTheme, fetchPreferences } = useUserPreferencesStore();
-  
+  const { themeMode, toggleTheme, fetchPreferences } =
+    useUserPreferencesStore();
+
   useEffect(() => {
     if (user) {
       fetchPreferences();
@@ -82,9 +96,15 @@ export const UserProfile: React.FC = () => {
     <Dropdown menu={{ items }} trigger={["click"]}>
       <Space style={{ cursor: "pointer" }} align="center">
         <Avatar icon={<UserOutlined />} />
-        <Space size={4} style={{ display: "none", alignItems: "center" }} className="md:flex">
+        <Space
+          size={4}
+          style={{ display: "none", alignItems: "center" }}
+          className="md:flex"
+        >
           <Text strong>{user?.full_name || "User"}</Text>
-          <DownOutlined style={{ fontSize: "12px", color: colorTextSecondary }} />
+          <DownOutlined
+            style={{ fontSize: "12px", color: colorTextSecondary }}
+          />
         </Space>
       </Space>
     </Dropdown>

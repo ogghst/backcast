@@ -7,5 +7,4 @@ export const theme: ThemeConfig = {
     fontFamily:
       'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   },
-
 };

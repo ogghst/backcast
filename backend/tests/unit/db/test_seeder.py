@@ -190,7 +190,12 @@ class TestSeedDepartments:
         # Create seed file
         seed_file = tmp_path / "departments.json"
         dept_data = [
-            {"code": "ENG", "name": "Engineering", "is_active": True, "manager_id": None}
+            {
+                "code": "ENG",
+                "name": "Engineering",
+                "is_active": True,
+                "manager_id": None,
+            }
         ]
         seed_file.write_text(json.dumps(dept_data))
 
@@ -275,7 +280,9 @@ class TestSeedAll:
         """Test seed_all rolls back transaction on error."""
         seeder = DataSeeder(seed_dir=tmp_path)
 
-        with patch.object(seeder, "seed_departments", side_effect=ValueError("Test error")):
+        with patch.object(
+            seeder, "seed_departments", side_effect=ValueError("Test error")
+        ):
             with patch.object(db_session, "rollback") as mock_rollback:
                 with pytest.raises(ValueError):
                     await seeder.seed_all(db_session)

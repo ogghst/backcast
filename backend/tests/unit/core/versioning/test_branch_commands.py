@@ -28,7 +28,7 @@ class TestBranchCommands:
             root_id=root_id,
             project_id=str(root_id),
             name="Main Project",
-            branch="main"
+            branch="main",
         )
         v1 = await create_cmd.execute(db_session)
         assert v1.branch == "main"
@@ -38,7 +38,7 @@ class TestBranchCommands:
             entity_class=Project,
             root_id=root_id,
             new_branch="feature/redesign",
-            from_branch="main"
+            from_branch="main",
         )
         v2 = await branch_cmd.execute(db_session)
 
@@ -52,7 +52,7 @@ class TestBranchCommands:
             Project.project_id == str(root_id),
             Project.branch == "main",
             Project.deleted_at.is_(None),
-            func.upper(Project.valid_time).is_(None) # type: ignore
+            func.upper(Project.valid_time).is_(None),  # type: ignore
         )
         main_current = (await db_session.execute(stmt)).scalar_one()
         assert main_current.id == v1.id
@@ -68,7 +68,7 @@ class TestBranchCommands:
             root_id=root_id,
             project_id=root_id,
             name="Initial",
-            branch="feature/x"
+            branch="feature/x",
         )
         v1 = await create_cmd.execute(db_session)
 
@@ -78,7 +78,7 @@ class TestBranchCommands:
             entity_class=Project,
             root_id=root_id,
             updates={"name": "Updated"},
-            branch="feature/x"
+            branch="feature/x",
         )
         v2 = await update_cmd.execute(db_session)
 
@@ -104,7 +104,7 @@ class TestBranchCommands:
             root_id=root_id,
             project_id=root_id,
             name="Main V1",
-            branch="main"
+            branch="main",
         )
         v1 = await create_cmd.execute(db_session)
         v1_id = v1.id
@@ -114,7 +114,7 @@ class TestBranchCommands:
             entity_class=Project,
             root_id=root_id,
             new_branch="feature/merge",
-            from_branch="main"
+            from_branch="main",
         )
         await branch_cmd.execute(db_session)
 
@@ -123,7 +123,7 @@ class TestBranchCommands:
             entity_class=Project,
             root_id=root_id,
             updates={"name": "Feature Updated"},
-            branch="feature/merge"
+            branch="feature/merge",
         )
         v3 = await update_cmd.execute(db_session)
         v3_id = v3.id
@@ -134,16 +134,16 @@ class TestBranchCommands:
             entity_class=Project,
             root_id=root_id,
             source_branch="feature/merge",
-            target_branch="main"
+            target_branch="main",
         )
         merged = await merge_cmd.execute(db_session)
 
         # Assertions
         assert merged.branch == "main"
-        assert merged.name == "Feature Updated" # Content from source
-        assert merged.parent_id == v1_id # Linked to Main's previous tip
-        assert merged.merge_from_branch == "feature/merge" # Audit trail
-        assert merged.id != v3_id # New version created
+        assert merged.name == "Feature Updated"  # Content from source
+        assert merged.parent_id == v1_id  # Linked to Main's previous tip
+        assert merged.merge_from_branch == "feature/merge"  # Audit trail
+        assert merged.id != v3_id  # New version created
 
     @pytest.mark.asyncio
     async def test_revert_command(self, db_session: AsyncSession):
@@ -156,31 +156,24 @@ class TestBranchCommands:
             root_id=root_id,
             project_id=root_id,
             name="V1",
-            branch="main"
+            branch="main",
         )
         v1 = await create_cmd.execute(db_session)
         v1_id = v1.id
 
         update_cmd = UpdateCommand(
-            entity_class=Project,
-            root_id=root_id,
-            updates={"name": "V2"},
-            branch="main"
+            entity_class=Project, root_id=root_id, updates={"name": "V2"}, branch="main"
         )
         v2 = await update_cmd.execute(db_session)
         v2_id = v2.id
 
         # 2. Revert v2 -> v1 (implicit parent)
-        revert_cmd = RevertCommand(
-            entity_class=Project,
-            root_id=root_id,
-            branch="main"
-        )
+        revert_cmd = RevertCommand(entity_class=Project, root_id=root_id, branch="main")
         reverted = await revert_cmd.execute(db_session)
 
         assert reverted.name == "V1"
-        assert reverted.parent_id == v2_id # Linear history
-        assert reverted.id != v1_id # New version
+        assert reverted.parent_id == v2_id  # Linear history
+        assert reverted.id != v1_id  # New version
 
     @pytest.mark.asyncio
     async def test_revert_to_specific_version(self, db_session: AsyncSession):
@@ -189,7 +182,11 @@ class TestBranchCommands:
 
         # v1 -> v2 -> v3
         create_cmd = CreateVersionCommand(
-            entity_class=Project, root_id=root_id, project_id=root_id, name="V1", branch="main"
+            entity_class=Project,
+            root_id=root_id,
+            project_id=root_id,
+            name="V1",
+            branch="main",
         )
         v1 = await create_cmd.execute(db_session)
         v1_id = v1.id
@@ -207,13 +204,10 @@ class TestBranchCommands:
 
         # Revert V3 -> V1 explicitly
         revert_cmd = RevertCommand(
-            entity_class=Project,
-            root_id=root_id,
-            branch="main",
-            to_version_id=v1_id
+            entity_class=Project, root_id=root_id, branch="main", to_version_id=v1_id
         )
         reverted = await revert_cmd.execute(db_session)
 
         assert reverted.name == "V1"
-        assert reverted.parent_id == v3_id # History continues from V3
+        assert reverted.parent_id == v3_id  # History continues from V3
         assert reverted.branch == "main"

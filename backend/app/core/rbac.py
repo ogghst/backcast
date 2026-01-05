@@ -108,7 +108,9 @@ class JsonRBACService(RBACServiceABC):
             json.JSONDecodeError: If config file is invalid JSON
         """
         if not self.config_path.exists():
-            raise FileNotFoundError(f"RBAC configuration file not found: {self.config_path}")
+            raise FileNotFoundError(
+                f"RBAC configuration file not found: {self.config_path}"
+            )
 
         with open(self.config_path) as f:
             config: dict[str, Any] = json.load(f)

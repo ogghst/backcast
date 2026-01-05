@@ -5,6 +5,8 @@ import {
   DashboardOutlined,
   UserOutlined,
   ProjectOutlined,
+  SettingOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 
 import { UserProfile } from "@/components/UserProfile";
@@ -21,7 +23,7 @@ const AppLayout: React.FC = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const { can } = usePermission();
+  const { can, hasRole } = usePermission();
 
   const [collapsed, setCollapsed] = React.useState(false);
 
@@ -34,27 +36,41 @@ const AppLayout: React.FC = () => {
       },
     ];
 
-    // Projects: No specific permission mentioned yet, assume accessible or check generic project-read if it existed
+    // Projects
     items.push({
       key: "/projects",
       icon: <ProjectOutlined />,
       label: "Projects",
     });
 
-    if (can("user-read")) {
-      items.push({
-        key: "/users",
-        icon: <UserOutlined />,
-        label: "Users",
-      });
-    }
+    // Admin submenu - only visible to admins
+    if (hasRole("admin")) {
+      const adminItems: ItemType[] = [];
 
-    if (can("department-read")) {
-      items.push({
-        key: "/departments",
-        icon: <ProjectOutlined />, // Using ProjectOutlined as placeholder if DepartmentOutlined not imported
-        label: "Departments",
-      });
+      if (can("user-read")) {
+        adminItems.push({
+          key: "/admin/users",
+          icon: <UserOutlined />,
+          label: "User Management",
+        });
+      }
+
+      if (can("department-read")) {
+        adminItems.push({
+          key: "/admin/departments",
+          icon: <TeamOutlined />,
+          label: "Department Management",
+        });
+      }
+
+      if (adminItems.length > 0) {
+        items.push({
+          key: "/admin",
+          icon: <SettingOutlined />,
+          label: "Admin",
+          children: adminItems,
+        });
+      }
     }
 
     return items;

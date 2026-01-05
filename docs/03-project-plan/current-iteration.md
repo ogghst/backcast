@@ -91,6 +91,16 @@ _None_
   - Verified fix with unit tests and E2E (Playwright).
   - Completed CHECK phase and documented findings.
 
+### 2026-01-05 (PM)
+
+- **Frontend Project/WBE Implementation (Do Phase)**
+  - Generated TypeScript API client from updated OpenAPI spec.
+  - Implemented `ProjectList` and `WBEList` components with StandardTable pattern.
+  - Integrated navigation and routing (`/projects`, `/admin/projects`).
+  - Added RBAC protection and basic version history drawer.
+  - Verified with manual browser testing and linting.
+  - Documented in `02-do.md` and walkthrough.
+
 ### 2026-01-03
 
 - **Frontend History Testing (Completed)**

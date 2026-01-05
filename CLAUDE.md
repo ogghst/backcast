@@ -161,6 +161,7 @@ See `docs/02-architecture/01-bounded-contexts.md` for details.
 
 ## Documentation
 
+- [Documentation Guide](docs/00-meta/documentation-guide.m)
 - [System Architecture](docs/02-architecture/00-system-map.md)
 - [Coding Standards](docs/00-meta/coding_standards.md)
 - [ADR Index](docs/02-architecture/decisions/adr-index.md) - Architecture Decision Records

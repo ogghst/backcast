@@ -52,7 +52,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
                 # The @> operator can match recently-closed versions if query runs
                 # at the exact same microsecond as the close operation
                 func.upper(cast(Any, self.entity_class).valid_time).is_(None),
-                cast(Any, self.entity_class).deleted_at.is_(None)
+                cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .offset(skip)
             .limit(limit)
@@ -84,7 +84,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
 
         root_field = f"{self.entity_class.__name__.lower()}_id"
         if self.entity_class.__name__.lower().endswith("version"):
-             root_field = f"{self.entity_class.__name__.lower()[:-7]}_id"
+            root_field = f"{self.entity_class.__name__.lower()[:-7]}_id"
 
         # Verify field exists, else fallback to 'id'? No, that would be wrong for versioning.
         if not hasattr(self.entity_class, root_field):
@@ -98,7 +98,9 @@ class TemporalService[TVersionable: VersionableProtocol]:
             .where(
                 getattr(self.entity_class, root_field) == entity_id,
                 cast(Any, self.entity_class).valid_time.op("@>")(as_of),
-                cast(Any, self.entity_class).deleted_at.is_(None) # Usually we want to see if it existed then?
+                cast(Any, self.entity_class).deleted_at.is_(
+                    None
+                ),  # Usually we want to see if it existed then?
                 # If we want "as of", we want the version valid at that time.
                 # If it was deleted at that time, we might return None or the deleted version?
                 # Usually "deleted_at" is metadata. If valid_time covers 'as_of', it returns the record.
@@ -124,7 +126,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
         # Introspection to find root field again
         root_field = f"{self.entity_class.__name__.lower()}_id"
         if self.entity_class.__name__.lower().endswith("version"):
-             root_field = f"{self.entity_class.__name__.lower()[:-7]}_id"
+            root_field = f"{self.entity_class.__name__.lower()[:-7]}_id"
 
         # If root_id not explicitly passed, try to find it in fields (using domain name)
         if root_id is None:
@@ -161,16 +163,12 @@ class TemporalService[TVersionable: VersionableProtocol]:
             del fields["root_id"]
 
         cmd = CreateVersionCommand(
-            entity_class=self.entity_class,
-            root_id=root_id,
-            **fields
+            entity_class=self.entity_class, root_id=root_id, **fields
         )
         return await cmd.execute(self.session)
 
         cmd = CreateVersionCommand(
-            entity_class=self.entity_class,
-            root_id=root_id,
-            **fields
+            entity_class=self.entity_class, root_id=root_id, **fields
         )
         return await cmd.execute(self.session)
 
@@ -179,9 +177,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
         from app.core.versioning.commands import UpdateVersionCommand
 
         cmd = UpdateVersionCommand(
-            entity_class=self.entity_class,
-            root_id=entity_id,
-            **updates
+            entity_class=self.entity_class, root_id=entity_id, **updates
         )
         return await cmd.execute(self.session)
 

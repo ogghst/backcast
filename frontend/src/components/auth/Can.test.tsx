@@ -30,7 +30,7 @@ describe("Can Component", () => {
           hasRole: mockHasRole,
         };
         return selector(state);
-      }
+      },
     );
   });
 
@@ -57,7 +57,7 @@ describe("Can Component", () => {
     render(
       <Can permission="user-delete" fallback={<div>Fallback</div>}>
         Protected Content
-      </Can>
+      </Can>,
     );
     expect(screen.getByText("Fallback")).toBeInTheDocument();
   });
@@ -76,7 +76,7 @@ describe("Can Component", () => {
     render(
       <Can role="admin" permission="user-delete">
         Protected Content
-      </Can>
+      </Can>,
     );
     expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
 
@@ -84,7 +84,7 @@ describe("Can Component", () => {
     render(
       <Can role="admin" permission="user-delete">
         Allowed Content
-      </Can>
+      </Can>,
     );
     expect(screen.getByText("Allowed Content")).toBeInTheDocument();
   });
@@ -92,7 +92,7 @@ describe("Can Component", () => {
   it("handles array of permissions (ANY logic by default)", () => {
     mockHasAnyPermission.mockReturnValue(true);
     render(
-      <Can permission={["user-read", "user-create"]}>Allowed Content</Can>
+      <Can permission={["user-read", "user-create"]}>Allowed Content</Can>,
     );
     expect(screen.getByText("Allowed Content")).toBeInTheDocument();
     expect(mockHasAnyPermission).toHaveBeenCalledWith([
@@ -106,7 +106,7 @@ describe("Can Component", () => {
     render(
       <Can permission={["user-read", "user-create"]} requireAll>
         Allowed Content
-      </Can>
+      </Can>,
     );
     expect(screen.getByText("Allowed Content")).toBeInTheDocument();
     expect(mockHasAllPermissions).toHaveBeenCalledWith([

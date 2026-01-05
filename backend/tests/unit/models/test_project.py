@@ -10,10 +10,7 @@ class TestProjectModel:
         """Test basic initialization and mixin defaults."""
         root_id = uuid4()
         project = Project(
-            project_id=root_id,
-            name="Test Project",
-            budget=1000.00,
-            branch="main"
+            project_id=root_id, name="Test Project", budget=1000.00, branch="main"
         )
 
         assert project.project_id == root_id
@@ -26,11 +23,7 @@ class TestProjectModel:
     def test_project_clone(self):
         """Test cloning behavior from BranchableMixin."""
         root_id = uuid4()
-        original = Project(
-            project_id=root_id,
-            name="Original",
-            branch="main"
-        )
+        original = Project(project_id=root_id, name="Original", branch="main")
 
         # Simulate saved state
         original.id = uuid4()
@@ -41,5 +34,7 @@ class TestProjectModel:
         assert cloned.project_id == root_id
         assert cloned.branch == "feature/new"
         assert cloned.name == "Cloned"
-        assert cloned.id != original.id  # Should stay None until saved or new ID generated
+        assert (
+            cloned.id != original.id
+        )  # Should stay None until saved or new ID generated
         # Note: clone() pops ID, so it relies on DB or default factory to generate new one on insert

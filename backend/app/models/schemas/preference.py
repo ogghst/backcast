@@ -12,8 +12,7 @@ class UserPreferenceBase(BaseModel):
 
     # Known, validated fields (optional to support partial updates)
     theme: Literal["light", "dark"] | None = Field(
-        default="light",
-        description="UI theme preference"
+        default="light", description="UI theme preference"
     )
 
     # Allow additional preference fields for future extensibility
@@ -22,10 +21,10 @@ class UserPreferenceBase(BaseModel):
 
 class UserPreferenceCreate(UserPreferenceBase):
     """Schema for creating user preferences."""
+
     # Override to make theme required on creation
     theme: Literal["light", "dark"] = Field(
-        default="light",
-        description="UI theme preference"
+        default="light", description="UI theme preference"
     )
 
 
@@ -34,15 +33,14 @@ class UserPreferenceUpdate(UserPreferenceBase):
 
     All fields are optional to support partial updates.
     """
+
     pass
 
 
 class UserPreferenceResponse(UserPreferenceBase):
     """Schema for preference API responses."""
+
     # Override to make theme required in responses
     theme: Literal["light", "dark"] = Field(
-        default="light",
-        description="UI theme preference"
+        default="light", description="UI theme preference"
     )
-
-

@@ -46,5 +46,5 @@ export const useUserPreferencesStore = create<UserPreferencesState>()(
         console.error("Failed to fetch preferences", error);
       }
     },
-  }))
+  })),
 );

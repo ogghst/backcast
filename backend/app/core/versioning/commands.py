@@ -65,10 +65,11 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
                 valid_time=func.tstzrange(
                     func.lower(cast(Any, self.entity_class).valid_time),
                     func.greatest(
-                        func.lower(cast(Any, self.entity_class).valid_time) + text("interval '1 microsecond'"),
-                        func.current_timestamp()
+                        func.lower(cast(Any, self.entity_class).valid_time)
+                        + text("interval '1 microsecond'"),
+                        func.current_timestamp(),
                     ),
-                    "[)"
+                    "[)",
                 )
             )
         )
@@ -76,7 +77,9 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
         result = await session.execute(stmt)
 
         if result.rowcount == 0:
-            raise RuntimeError(f"Concurrency Error: Failed to close version {version.id}. Row not updated.")
+            raise RuntimeError(
+                f"Concurrency Error: Failed to close version {version.id}. Row not updated."
+            )
 
         await session.flush()
         session.expire(version)
@@ -140,7 +143,9 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
                     self._root_field_name(),
                 )
                 == self.root_id,
-                cast(Any, self.entity_class).valid_time.op("@>")(func.current_timestamp()),
+                cast(Any, self.entity_class).valid_time.op("@>")(
+                    func.current_timestamp()
+                ),
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .order_by(cast(Any, self.entity_class).valid_time.desc())
@@ -148,8 +153,6 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
         )
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
-
-
 
 
 class SoftDeleteCommand(VersionedCommandABC[TVersionable]):

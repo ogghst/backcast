@@ -22,6 +22,7 @@ class AuthService:
     async def authenticate_user(self, email: str, password: str) -> User | None:
         """Authenticate user by email and password."""
         from app.services.user import UserService
+
         user_service = UserService(self.session)
         user = await user_service.get_by_email(email)
 

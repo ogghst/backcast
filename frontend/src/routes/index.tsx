@@ -3,7 +3,10 @@ import AppLayout from "@/layouts/AppLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Home from "@/pages/Home";
 import Login from "@/pages/Login";
-import { UserList } from "@/features/users/components/UserList";
+import { UserList } from "@/pages/admin/UserList";
+import { DepartmentManagement } from "@/pages/admin/DepartmentManagement";
+import { ProjectList } from "@/pages/projects/ProjectList";
+import { WBEList } from "@/pages/wbes/WBEList";
 
 export const router = createBrowserRouter([
   {
@@ -24,11 +27,27 @@ export const router = createBrowserRouter([
       },
       {
         path: "/projects",
-        element: <div>Projects Placeholder</div>,
+        element: <ProjectList />,
+      },
+      {
+        path: "/admin/projects",
+        element: <ProjectList />,
+      },
+      {
+        path: "/admin/wbes",
+        element: <WBEList />,
       },
       {
         path: "/users",
         element: <UserList />,
+      },
+      {
+        path: "/admin/users",
+        element: <UserList />,
+      },
+      {
+        path: "/admin/departments",
+        element: <DepartmentManagement />,
       },
     ],
   },

@@ -24,9 +24,6 @@ def get_department_service(
     return DepartmentService(session)
 
 
-
-
-
 @router.get(
     "",
     response_model=list[DepartmentPublic],
@@ -40,6 +37,7 @@ async def read_departments(
 ) -> Sequence[Department]:
     """Retrieve departments. Requires read permission."""
     return await service.get_departments(skip=skip, limit=limit)
+
 
 @router.post(
     "",
