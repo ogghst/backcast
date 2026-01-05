@@ -82,6 +82,15 @@ _None_
 
 ## Daily Log
 
+### 2026-01-05
+
+- **User Deletion Fix (Completed)**
+  - Backend: Updated `SoftDeleteCommand` to use robust temporal filtering.
+  - Backend: Added unit tests for deletion failure paths.
+  - Frontend: Fixed API initialization and added AntD `App` wrapper.
+  - Verified fix with unit tests and E2E (Playwright).
+  - Completed CHECK phase and documented findings.
+
 ### 2026-01-03
 
 - **Frontend History Testing (Completed)**

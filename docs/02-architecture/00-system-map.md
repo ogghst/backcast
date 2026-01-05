@@ -85,9 +85,12 @@ The system is partitioned into the following bounded contexts. See [01-bounded-c
 
 ## Key Design Decisions
 
-- **ADR-001:** FastAPI + SQLAlchemy 2.0 for async performance.
-- **ADR-005:** Bitemporal versioning with PostgreSQL TSTZRANGE (supersedes ADR-002).
-- **ADR-004:** Strict MyPy + 80% test coverage minimum.
+- **[ADR-001](decisions/ADR-001-technology-stack.md)** - Technology Stack (FastAPI, SQLAlchemy 2.0, React)
+- **[ADR-003](decisions/ADR-003-command-pattern.md)** - Command Pattern for state changes
+- **[ADR-004](decisions/ADR-004-quality-standards.md)** - Quality Standards (MyPy strict, 80% coverage)
+- **[ADR-005](decisions/ADR-005-bitemporal-versioning.md)** - Bitemporal Versioning (supersedes ADR-002)
+- **[ADR-006](decisions/ADR-006-protocol-based-type-system.md)** - Protocol-based Type System
+- **[ADR-007](decisions/ADR-007-rbac-service.md)** - RBAC Service Design
 
 **Detailed Architecture:**
 
