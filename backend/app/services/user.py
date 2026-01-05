@@ -101,13 +101,13 @@ class UserService(TemporalService[User]):  # type: ignore[type-var]
         )
         return await cmd.execute(self.session)
 
-    async def delete_user(self, user_id: UUID, actor_id: UUID) -> None:
+    async def delete_user(self, user_id: UUID, actor_id: UUID) -> User:
         """Soft delete user using SoftDeleteCommand."""
         cmd = SoftDeleteCommand(
             entity_class=User,  # type: ignore[type-var]
             root_id=user_id,
         )
-        await cmd.execute(self.session)
+        return await cmd.execute(self.session)
 
     async def get_user_history(self, user_id: UUID) -> list[User]:
         """Get all versions of a user by root user_id (for version history)."""

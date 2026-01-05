@@ -147,19 +147,35 @@ class TestUserServiceDelete:
         user_id = v1.user_id
 
         # Act
-        await service.delete_user(user_id, actor_id=uuid4())
+        deleted_user = await service.delete_user(user_id, actor_id=uuid4())
 
         # Assert
-        # 1. Fetching by ID should show it as deleted (if I check is_deleted)
-        # OR fetch invalidates it?
-        deleted_user = await service.get_user(v1.id)
         assert deleted_user is not None
         assert deleted_user.is_deleted is True
         assert deleted_user.deleted_at is not None
+        
+        # Verify persistence
+        fetched = await service.get_user(v1.id)
+        assert fetched is not None
+        assert fetched.is_deleted is True
+        assert fetched.deleted_at is not None
 
-        # 2. get_by_email should return None
+        # get_by_email should return None for deleted users
         result = await service.get_by_email("delete_test@example.com")
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_delete_user_raises_when_not_found(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Test that delete_user raises ValueError when user doesn't exist."""
+        # Arrange
+        service = UserService(db_session)
+        non_existent_id = uuid4()
+
+        # Act & Assert
+        with pytest.raises(ValueError, match=f"No active version found for {non_existent_id}"):
+            await service.delete_user(non_existent_id, actor_id=uuid4())
 
 
 class TestUserServicePreferences:

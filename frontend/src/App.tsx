@@ -1,5 +1,4 @@
-import React from "react";
-import { ConfigProvider, theme as antTheme } from "antd";
+import { App as AntApp, ConfigProvider, theme as antTheme } from "antd";
 import { RouterProvider } from "react-router-dom";
 import { router } from "@/routes";
 import { theme } from "@/config/theme";
@@ -18,7 +17,9 @@ export const App = () => {
             : antTheme.defaultAlgorithm,
       }}
     >
-      <RouterProvider router={router} />
+      <AntApp>
+        <RouterProvider router={router} />
+      </AntApp>
     </ConfigProvider>
   );
 };

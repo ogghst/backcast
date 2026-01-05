@@ -199,7 +199,13 @@ async def delete_user(
     Soft delete a user.
     Admin only.
     """
-    await service.delete_user(user_id=user_id, actor_id=current_user.id)
+    try:
+        await service.delete_user(user_id=user_id, actor_id=current_user.id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
 
 
 @router.get(

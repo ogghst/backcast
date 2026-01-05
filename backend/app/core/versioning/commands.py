@@ -155,16 +155,20 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
 class SoftDeleteCommand(VersionedCommandABC[TVersionable]):
     """Soft delete a versioned entity."""
 
-    async def execute(self, session: AsyncSession) -> TVersionable | None:
+    async def execute(self, session: AsyncSession) -> TVersionable:
         """Mark current version as deleted."""
         current = await self._get_current(session)
-        if current:
-            current.soft_delete()
-            await session.flush()
+        if not current:
+            raise ValueError(f"No active version found for {self.root_id}")
+
+        current.soft_delete()
+        await session.flush()
         return current
 
     async def _get_current(self, session: AsyncSession) -> TVersionable | None:
         """Get current active version."""
+        # Use more robust check for current version (open-ended valid_time)
+        # Consistent with TemporalService.get_all
         stmt = (
             select(self.entity_class)
             .where(
@@ -173,7 +177,7 @@ class SoftDeleteCommand(VersionedCommandABC[TVersionable]):
                     self._root_field_name(),
                 )
                 == self.root_id,
-                cast(Any, self.entity_class).valid_time.op("@>")(func.current_timestamp()),
+                func.upper(cast(Any, self.entity_class).valid_time).is_(None),
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .order_by(cast(Any, self.entity_class).valid_time.desc())
