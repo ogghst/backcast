@@ -43,6 +43,11 @@
 - **E03-U06:** Generic VersionedRepository for reusability
 - **E03-U07:** Automatic filtering to active/latest versions
 
+**Dependencies:**
+- E03-U01 must be complete before E03-U02
+- E03-U02 must be complete before E03-U04, E03-U05
+- E03-U03 must be complete before E03-U06, E03-U07
+
 ---
 
 ## Epic 4: Project Structure Management (E004)
@@ -58,6 +63,11 @@
 - **E04-U06:** Maintain project-WBE-cost element hierarchy integrity
 - **E04-U07:** Tree view of project structure
 
+**Dependencies:**
+- E04-U01 must be complete before E04-U02, E04-U04
+- E04-U02 must be complete before E04-U03, E04-U05, E04-U06, E04-U07
+- E04-U03 must be complete before E04-U05, E04-U06, E04-U07
+
 ---
 
 ## Epic 5: Financial Data Management (E005)
@@ -72,6 +82,10 @@
 - **E05-U05:** Validate cost registrations against budgets
 - **E05-U06:** View cost history and trends
 - **E05-U07:** Manage quality events (track rework costs)
+
+**Dependencies:**
+- E04-U03 must be complete before E05-U01, E05-U02, E05-U03, E05-U04, E05-U07
+- E05-U01 must be complete before E05-U05, E05-U06
 
 ---
 
@@ -89,6 +103,14 @@
 - **E06-U07:** Merged view showing main + branch changes
 - **E06-U08:** Delete/archive branches
 
+**Dependencies:**
+- E04-U02 must be complete before E06-U01
+- E06-U01 must be complete before E06-U02, E06-U04, E06-U05
+- E06-U02 must be complete before E06-U03, E06-U06, E06-U07
+- E03-U04 must be complete before E06-U04
+- E06-U03 must be complete before E06-U07
+- E06-U05 must be complete before E06-U08
+
 ---
 
 ## Epic 7: Baseline Management (E007)
@@ -102,6 +124,11 @@
 - **E07-U04:** Mark baselines as PMB (Performance Measurement Baseline)
 - **E07-U05:** Cancel baselines (corrections)
 - **E07-U06:** Preserve baseline schedule registrations
+
+**Dependencies:**
+- E04-U03 must be complete before E07-U01, E07-U02
+- E05-U04 must be complete before E07-U01, E07-U06
+- E07-U01 must be complete before E07-U02, E07-U03, E07-U04, E07-U05, E07-U06
 
 ---
 
@@ -118,3 +145,10 @@
 - **E08-U06:** Generate cost performance reports
 - **E08-U07:** Generate variance analysis reports
 - **E08-U08:** Time machine control for historical metrics
+
+**Dependencies:**
+- E05-U04 must be complete before E08-U01
+- E05-U03 must be complete before E08-U02
+- E05-U01 must be complete before E08-U03
+- E08-U01, E08-U02, E08-U03 must be complete before E08-U04, E08-U05
+- E03-U05 must be complete before E08-U08

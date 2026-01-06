@@ -1,6 +1,7 @@
 # ACT Phase: Standardization and Continuous Improvement
 
 ## Purpose
+
 Decide actions based on learnings, standardize successful patterns, and implement improvements.
 
 ---
@@ -10,18 +11,22 @@ Decide actions based on learnings, standardize successful patterns, and implemen
 Based on CHECK phase decisions, execute improvements:
 
 ### Critical Issues (Implement Immediately)
+
 Security vulnerabilities, data integrity issues, production blockers
 
 **For each improvement:**
+
 - Maintain test coverage throughout changes
 - Run full test suite after each modification
 - Document rationale for future maintainers
 - Create follow-up tasks if needed
 
 ### High-Value Refactoring
+
 Approved design improvements that enhance maintainability
 
 ### Technical Debt Items
+
 Address or document for future sprints
 
 ---
@@ -30,15 +35,14 @@ Address or document for future sprints
 
 Identify patterns from this implementation that should be adopted codebase-wide:
 
-| Pattern | Description | Benefits | Risks | Standardize? |
-|---------|-------------|----------|-------|--------------|
-| Error handling approach | Details | Benefits | Risks | Yes/No/Pilot |
-| Testing pattern | Details | Benefits | Risks | Yes/No/Pilot |
-| Service structure | Details | Benefits | Risks | Yes/No/Pilot |
-| Data access pattern | Details | Benefits | Risks | Yes/No/Pilot |
+| Pattern                 | Description | Benefits | Risks | Standardize? |
+| ----------------------- | ----------- | -------- | ----- | ------------ |
+| Error handling approach | Details     | Benefits | Risks | Yes/No/Pilot |
+| Testing pattern         | Details     | Benefits | Risks | Yes/No/Pilot |
+| Service structure       | Details     | Benefits | Risks | Yes/No/Pilot |
+| Data access pattern     | Details     | Benefits | Risks | Yes/No/Pilot |
 
-> [!IMPORTANT]
-> **Human Decision Point**: For patterns marked for standardization:
+> [!IMPORTANT] > **Human Decision Point**: For patterns marked for standardization:
 >
 > **Option A**: Adopt immediately, update coding standards documentation  
 > **Option B**: Pilot in one more feature before standardizing  
@@ -47,6 +51,7 @@ Identify patterns from this implementation that should be adopted codebase-wide:
 > **Ask**: "Which patterns should we standardize, and at what pace?"
 
 ### Actions if Standardizing
+
 - [ ] Update `docs/02-architecture/cross-cutting/` with new pattern
 - [ ] Update coding standards
 - [ ] Create examples/templates
@@ -59,13 +64,14 @@ Identify patterns from this implementation that should be adopted codebase-wide:
 
 Track what documentation needs updating:
 
-| Document | Update Needed | Priority | Assigned To | Completion Date |
-|----------|---------------|----------|-------------|-----------------|
-| Architecture doc X | Add pattern Y | High/Med/Low | Name | YYYY-MM-DD |
-| ADR-NNN | Create new | High/Med/Low | Name | YYYY-MM-DD |
-| API Contracts | Update endpoint Z | High/Med/Low | Name | YYYY-MM-DD |
+| Document           | Update Needed     | Priority     | Assigned To | Completion Date |
+| ------------------ | ----------------- | ------------ | ----------- | --------------- |
+| Architecture doc X | Add pattern Y     | High/Med/Low | Name        | YYYY-MM-DD      |
+| ADR-NNN            | Create new        | High/Med/Low | Name        | YYYY-MM-DD      |
+| API Contracts      | Update endpoint Z | High/Med/Low | Name        | YYYY-MM-DD      |
 
 **Specific Actions:**
+
 - [ ] Update `docs/02-architecture/contexts/{name}/architecture.md`
 - [ ] Create new ADR for decision X
 - [ ] Update cross-cutting concern doc Y
@@ -76,18 +82,20 @@ Track what documentation needs updating:
 ## 4. Technical Debt Ledger
 
 ### Debt Created This Iteration
-| Item | Description | Impact | Estimated Effort to Fix | Target Date |
-|------|-------------|--------|------------------------|-------------|
-| TD-XXX | Description | High/Med/Low | X days | YYYY-MM-DD |
+
+| Item   | Description | Impact       | Estimated Effort to Fix | Target Date |
+| ------ | ----------- | ------------ | ----------------------- | ----------- |
+| TD-XXX | Description | High/Med/Low | X days                  | YYYY-MM-DD  |
 
 ### Debt Resolved This Iteration
-| Item | Resolution | Time Spent |
-|------|------------|------------|
-| TD-YYY | How resolved | X hours |
+
+| Item   | Resolution   | Time Spent |
+| ------ | ------------ | ---------- |
+| TD-YYY | How resolved | X hours    |
 
 **Net Debt Change:** +/- X items, +/- Y effort days
 
-**Action:** Update `docs/02-architecture/technical-debt.md`
+**Action:** Update `docs/02-architecture/02-technical-debt.md`
 
 ---
 
@@ -96,26 +104,30 @@ Track what documentation needs updating:
 ### Process Retrospective
 
 **What Worked Well:**
+
 - Effective TDD practices (specific examples)
 - Successful design decisions
 - Smooth integration points
 - Helpful tools/workflows
 
 **What Could Improve:**
+
 - Testing gaps discovered late
 - Design decisions requiring revision
 - Tooling or process friction
 - Communication breakdowns
 
 **Prompt Engineering Refinements:**
+
 - Which prompts yielded best results?
 - Where did AI need more context/constraints?
 - What architectural context was missing/unclear?
 
 ### Proposed Process Changes
-| Change | Rationale | Implementation | Owner |
-|--------|-----------|----------------|-------|
-| Change X | Why needed | How to implement | Who |
+
+| Change   | Rationale  | Implementation   | Owner |
+| -------- | ---------- | ---------------- | ----- |
+| Change X | Why needed | How to implement | Who   |
 
 **Action:** Update project plan or team practices
 
@@ -124,12 +136,14 @@ Track what documentation needs updating:
 ## 6. Knowledge Gaps Identified
 
 ### Team Learning Needs
+
 - What did team struggle with?
 - What documentation is missing?
 - What training might help?
 - What expertise should we develop?
 
 **Actions:**
+
 - [ ] Create knowledge-sharing session on topic X
 - [ ] Document pattern Y in architecture docs
 - [ ] Schedule training on technology Z
@@ -141,27 +155,30 @@ Track what documentation needs updating:
 
 Define success metrics for monitoring:
 
-| Metric | Baseline (Pre-Change) | Target | Actual | Measurement Method |
-|--------|----------------------|--------|--------|-------------------|
-| Bug rate in area | X | Y | Z | Issue tracking |
-| Test coverage | X% | Y% | Z% | Coverage tool |
-| Build time | X min | Y min | Z min | CI metrics |
-| Response time (p95) | X ms | Y ms | Z ms | APM tool |
+| Metric              | Baseline (Pre-Change) | Target | Actual | Measurement Method |
+| ------------------- | --------------------- | ------ | ------ | ------------------ |
+| Bug rate in area    | X                     | Y      | Z      | Issue tracking     |
+| Test coverage       | X%                    | Y%     | Z%     | Coverage tool      |
+| Build time          | X min                 | Y min  | Z min  | CI metrics         |
+| Response time (p95) | X ms                  | Y ms   | Z ms   | APM tool           |
 
 ---
 
 ## 8. Next Iteration Implications
 
 **What This Iteration Unlocked:**
+
 - New capabilities enabled
 - Dependencies removed
 - Risks mitigated
 
 **New Priorities Emerged:**
+
 - Unexpected opportunities
 - Newly discovered requirements
 
 **Assumptions Invalidated:**
+
 - What we learned that changes plans
 - Course corrections needed
 
@@ -172,6 +189,7 @@ Define success metrics for monitoring:
 ## 9. Knowledge Transfer Artifacts
 
 Create assets for team learning:
+
 - [ ] Code walkthrough document or video
 - [ ] Key decision rationale summary
 - [ ] Common pitfalls and how to avoid them
@@ -195,15 +213,14 @@ Specific, assignable tasks with owners and deadlines:
 
 Based on industry research:
 
-| Metric | Industry Average | Our Target with PDCA+TDD | Actual This Iteration |
-|--------|-----------------|-------------------------|----------------------|
-| Defect Rate Reduction | - | 40-60% improvement | X% |
-| Code Review Cycles | 3-4 | 1-2 | X |
-| Rework Rate | 15-25% | < 10% | X% |
-| Time-to-Production | Variable | 20-30% faster | X days |
+| Metric                | Industry Average | Our Target with PDCA+TDD | Actual This Iteration |
+| --------------------- | ---------------- | ------------------------ | --------------------- |
+| Defect Rate Reduction | -                | 40-60% improvement       | X%                    |
+| Code Review Cycles    | 3-4              | 1-2                      | X                     |
+| Rework Rate           | 15-25%           | < 10%                    | X%                    |
+| Time-to-Production    | Variable         | 20-30% faster            | X days                |
 
-> [!NOTE]
-> **Success Story Reference**: Studies show PDCA-driven development reduces software defects by up to 61% when combined with TDD practices.
+> [!NOTE] > **Success Story Reference**: Studies show PDCA-driven development reduces software defects by up to 61% when combined with TDD practices.
 
 ---
 
@@ -212,6 +229,7 @@ Based on industry research:
 Create: `docs/03-project-plan/iterations/YYYY-MM-name/04-act.md`
 
 Include:
+
 - All sections above with decisions recorded
 - Action item tracking with owners
 - Metrics baseline and targets

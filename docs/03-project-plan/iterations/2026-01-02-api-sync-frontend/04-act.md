@@ -32,7 +32,7 @@ Based on the CHECK phase decision (Option B), we proceeded to address **all lega
 
 ## Documentation Updates
 
-- Updated `current-iteration.md` status.
+- Updated `sprint-backlog.md` status.
 - Finalized iteration logs (`01-plan` to `04-act`).
 
 ## Next Steps

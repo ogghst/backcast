@@ -293,7 +293,7 @@ alembic upgrade head
 - [ADR-006: Protocol-Based Type System](file:///home/nicola/dev/backcast_evs/docs/02-architecture/decisions/ADR-006-protocol-evcs-types.md)
 - [EVCS Core Architecture](file:///home/nicola/dev/backcast_evs/docs/02-architecture/backend/contexts/evcs-core/architecture.md)
 - [Functional Requirements](file:///home/nicola/dev/backcast_evs/docs/01-product-scope/functional-requirements.md)
-- [Current Iteration Status](file:///home/nicola/dev/backcast_evs/docs/03-project-plan/current-iteration.md)
+- [Sprint Backlog](file:///home/nicola/dev/backcast_evs/docs/03-project-plan/sprint-backlog.md)
 
 ---
 
