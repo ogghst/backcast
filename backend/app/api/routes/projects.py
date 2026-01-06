@@ -65,7 +65,7 @@ async def create_project(
             )
 
         project = await service.create_project(
-            project_in=project_in, actor_id=current_user.id
+            project_in=project_in, actor_id=current_user.user_id
         )
         return project
     except ValueError as e:
@@ -112,7 +112,7 @@ async def update_project(
         updated_project = await service.update_project(
             project_id=project_id,
             project_in=project_in,
-            actor_id=current_user.id,
+            actor_id=current_user.user_id,
         )
         return updated_project
     except ValueError as e:
@@ -132,7 +132,7 @@ async def delete_project(
 ) -> None:
     """Soft delete a project. Requires delete permission."""
     try:
-        await service.delete_project(project_id=project_id, actor_id=current_user.id)
+        await service.delete_project(project_id=project_id, actor_id=current_user.user_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 

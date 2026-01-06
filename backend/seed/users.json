@@ -5,5 +5,12 @@
     "full_name": "System Administrator",
     "role": "admin",
     "department": null
+  },
+  {
+    "email": "viewer@backcast.org",
+    "password": "backcast",
+    "full_name": "viewer",
+    "role": "viewer",
+    "department": null
   }
 ]

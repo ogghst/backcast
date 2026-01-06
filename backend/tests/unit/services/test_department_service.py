@@ -1,8 +1,10 @@
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.domain.department import Department
 from app.models.schemas.department import DepartmentCreate, DepartmentUpdate
 from app.services.department import DepartmentService
 
@@ -54,6 +56,7 @@ class TestDepartmentServiceUpdate:
         )
 
         # Assert
+        await db_session.refresh(v1)
         assert v2.id != v1.id  # New version ID
         assert v2.department_id == dept_id  # Same root ID
         assert v2.name == "Updated Name"
@@ -62,6 +65,44 @@ class TestDepartmentServiceUpdate:
         fetched = await service.get_department(v2.id)
         assert fetched is not None
         assert fetched.name == "Updated Name"
+
+    @pytest.mark.asyncio
+    async def test_update_department_code_and_description(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Test updating department code and description (new fields)."""
+        service = DepartmentService(db_session)
+        dept_in = DepartmentCreate(
+            name="Alpha",
+            code="ALPHA",
+            is_active=True,
+            description="Initial description",
+        )
+        # Create initial
+        v1 = await service.create_department(dept_in, actor_id=uuid4())
+
+        # Act
+        update_in = DepartmentUpdate(
+            code="BETA", description="Updated description", name="Beta"
+        )
+        v2 = await service.update_department(
+            v1.department_id, update_in, actor_id=uuid4()
+        )
+
+        # Assert
+        assert v2.code == "BETA"
+        assert v2.description == "Updated description"
+        assert v2.name == "Beta"
+
+        # Verify old version still has old code
+        await db_session.refresh(v1)
+        stmt = (
+            select(Department)
+            .where(Department.id == v1.id)
+        )
+        old_v = (await db_session.execute(stmt)).scalar_one()
+        assert old_v.code == "ALPHA"
+        assert old_v.description == "Initial description"
 
 
 class TestDepartmentServiceDelete:

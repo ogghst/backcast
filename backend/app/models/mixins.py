@@ -42,6 +42,10 @@ class VersionableMixin:
         DateTime(timezone=True), nullable=True
     )
 
+    # Audit Trail
+    created_by: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
+    deleted_by: Mapped[UUID | None] = mapped_column(PG_UUID, nullable=True)
+
     @property
     def is_deleted(self) -> bool:
         """Check if this version is soft-deleted."""

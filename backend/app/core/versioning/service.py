@@ -33,8 +33,42 @@ class TemporalService[TVersionable: VersionableProtocol]:
         self.session = session
 
     async def get_by_id(self, entity_id: UUID) -> TVersionable | None:
-        """Get entity by ID (returns current version as of now)."""
+        """Get entity by ID (returns specific version by PK)."""
         return await self.session.get(self.entity_class, entity_id)
+
+    async def get_current_version(
+        self, root_id: UUID, branch: str = "main"
+    ) -> TVersionable | None:
+        """Get current active version of entity by its root ID.
+
+        Filters by:
+        - Root ID (e.g., project_id, wbe_id)
+        - Branch (default: main)
+        - Validity (valid_time unclosed)
+        - Not deleted
+        """
+        from typing import Any, cast
+
+        from sqlalchemy import func
+
+        # Introspect root field name (e.g. project_id, wbe_id)
+        root_field = f"{self.entity_class.__name__.lower()}_id"
+        if self.entity_class.__name__.lower().endswith("version"):
+            root_field = f"{self.entity_class.__name__.lower()[:-7]}_id"
+
+        stmt = (
+            select(self.entity_class)
+            .where(
+                getattr(self.entity_class, root_field) == root_id,
+                self.entity_class.branch == branch,
+                func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+                cast(Any, self.entity_class).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, self.entity_class).valid_time.desc())
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_all(self, skip: int = 0, limit: int = 100) -> list[TVersionable]:
         """Get all entities (current versions) with pagination.
@@ -116,7 +150,9 @@ class TemporalService[TVersionable: VersionableProtocol]:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def create(self, root_id: UUID | None = None, **fields: Any) -> TVersionable:
+    async def create(
+        self, actor_id: UUID, root_id: UUID | None = None, **fields: Any
+    ) -> TVersionable:
         """Create new versioned entity."""
         from uuid import uuid4
 
@@ -163,30 +199,78 @@ class TemporalService[TVersionable: VersionableProtocol]:
             del fields["root_id"]
 
         cmd = CreateVersionCommand(
-            entity_class=self.entity_class, root_id=root_id, **fields
+            entity_class=self.entity_class, root_id=root_id, actor_id=actor_id, **fields
         )
         return await cmd.execute(self.session)
 
-        cmd = CreateVersionCommand(
-            entity_class=self.entity_class, root_id=root_id, **fields
-        )
-        return await cmd.execute(self.session)
 
-    async def update(self, entity_id: UUID, **updates: Any) -> TVersionable:
+
+    async def update(
+        self, entity_id: UUID, actor_id: UUID, **updates: Any
+    ) -> TVersionable:
         """Update entity (creates new version)."""
         from app.core.versioning.commands import UpdateVersionCommand
 
         cmd = UpdateVersionCommand(
-            entity_class=self.entity_class, root_id=entity_id, **updates
+            entity_class=self.entity_class,
+            root_id=entity_id,
+            actor_id=actor_id,
+            **updates,
         )
         return await cmd.execute(self.session)
 
-    async def soft_delete(self, entity_id: UUID) -> None:
+    async def soft_delete(self, entity_id: UUID, actor_id: UUID) -> None:
         """Soft delete entity."""
         from app.core.versioning.commands import SoftDeleteCommand
 
         cmd = SoftDeleteCommand(
             entity_class=self.entity_class,
             root_id=entity_id,
+            actor_id=actor_id,
         )
         await cmd.execute(self.session)
+
+    async def get_history(self, root_id: UUID) -> list[TVersionable]:
+        """Get all versions of an entity with joined creator name."""
+        from typing import Any, cast
+
+        from app.models.domain.user import User
+
+        # Introspect root field name (e.g. project_id, wbe_id, user_id, department_id)
+        root_field = f"{self.entity_class.__name__.lower()}_id"
+        if self.entity_class.__name__.lower().endswith("version"):
+            root_field = f"{self.entity_class.__name__.lower()[:-7]}_id"
+
+        # Create a subquery to get a unique (latest) name for each user_id
+        # ensuring we don't multiply rows if the user entity itself has multiple versions.
+        # We assume the most recent version (by transaction_time) has the correct name.
+        User = cast(Any, User)  # Cast for type checker to allow table access if needed
+        creator_subq = (
+            select(User.user_id, User.full_name)
+            .distinct(User.user_id)
+            .order_by(User.user_id, User.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+
+        stmt = (
+            select(self.entity_class, creator_subq.c.full_name.label("created_by_name"))
+            .outerjoin(
+                creator_subq,
+                cast(Any, self.entity_class).created_by == creator_subq.c.user_id,
+            )
+            .where(
+                getattr(self.entity_class, root_field) == root_id,
+                cast(Any, self.entity_class).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, self.entity_class).transaction_time.desc())
+        )
+
+        result = await self.session.execute(stmt)
+        history = []
+        for row in result.all():
+            entity = row[0]
+            # Attach the joined name to the entity object
+            entity.created_by_name = row[1]
+            history.append(entity)
+
+        return history

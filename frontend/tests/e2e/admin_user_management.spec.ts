@@ -4,25 +4,33 @@ test.describe("Admin User Management", () => {
   test.beforeEach(async ({ page }) => {
     // Login as admin
     await page.goto("/login");
-    await page.fill('input[type="email"]', "admin@example.com");
-    await page.fill('input[type="password"]', "admin123");
+    await page.fill('input[id="login_email"]', "admin@backcast.org");
+    await page.fill('input[id="login_password"]', "adminadmin");
     await page.click('button[type="submit"]');
 
     // Wait for redirect to home
     await page.waitForURL("/");
+    await page.waitForLoadState("networkidle");
 
     // Navigate to Admin > User Management
-    await page.click("text=Admin");
-    await page.click("text=User Management");
-    await page.waitForURL("/admin/users");
+    const adminMenu = page.locator("aside").getByText("Admin", { exact: true });
+    await adminMenu.click();
+    await page.locator("aside").getByText("User Management").click();
+    await page.waitForURL(/\/admin\/users/);
+    await page.goto("/admin/users?per_page=100");
+    await page.waitForLoadState("networkidle");
+    await page.goto("/admin/users?per_page=100");
+    await page.waitForLoadState("networkidle");
   });
 
   test("should display user management page with table", async ({ page }) => {
-    // Check page title
-    await expect(page.locator("text=User Management")).toBeVisible();
+    // Check page title (specific to content area)
+    await expect(
+      page.locator("main").getByText("User Management", { exact: true })
+    ).toBeVisible();
 
     // Check table is visible
-    await expect(page.locator('[role="table"]')).toBeVisible();
+    await expect(page.locator(".ant-table-wrapper")).toBeVisible();
 
     // Check Add User button
     await expect(page.locator('button:has-text("Add User")')).toBeVisible();
@@ -35,45 +43,73 @@ test.describe("Admin User Management", () => {
     // Wait for modal
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
+    const timestamp = Date.now();
+    const testName = `Test E2E User ${timestamp}`;
+    const testEmail = `e2e_${timestamp}@test.com`;
+
     // Fill in user form
-    await page.fill('input[placeholder="John Doe"]', "Test E2E User");
-    await page.fill('input[placeholder="john@example.com"]', "e2e@test.com");
+    await page.fill('input[placeholder="John Doe"]', testName);
+    await page.fill('input[placeholder="john@example.com"]', testEmail);
     await page.fill('input[placeholder="Password"]', "password123");
 
     // Select role
-    await page.click("text=Select a role");
-    await page.click("text=Viewer");
+    await page.locator("#user_form_role").click();
+    await page.click(".ant-select-item-option-content:has-text('Viewer')");
 
     // Submit form
     await page.click('button:has-text("Create")');
 
-    // Wait for success message
-    await expect(page.locator("text=Created successfully")).toBeVisible({
-      timeout: 10000,
+    // Wait for modal to close instead of toast
+    await expect(page.locator('[role="dialog"]')).not.toBeVisible({
+      timeout: 15000,
     });
 
     // Verify user appears in table
-    await expect(page.locator("text=Test E2E User")).toBeVisible();
+    await expect(page.locator(`text=${testName}`).first()).toBeVisible({
+      timeout: 15000,
+    });
   });
 
   test("should edit an existing user", async ({ page }) => {
-    // Find and click edit button for the first user
-    const firstEditButton = page.locator('button[title="Edit User"]').first();
-    await firstEditButton.click();
+    // 1. Create a user to edit
+    const timestamp = Date.now();
+    const testName = `Edit Target ${timestamp}`;
+    const testEmail = `edit_${timestamp}@test.com`;
+
+    await page.click('button:has-text("Add User")');
+    await page.fill('input[placeholder="John Doe"]', testName);
+    await page.fill('input[placeholder="john@example.com"]', testEmail);
+    await page.fill('input[placeholder="Password"]', "password123");
+    await page.locator("#user_form_role").click();
+    await page.click(".ant-select-item-option-content:has-text('Viewer')");
+    await page.click('button:has-text("Create")');
+    await expect(page.locator('[role="dialog"]')).not.toBeVisible();
+    await expect(page.locator(`text=${testName}`).first()).toBeVisible({
+      timeout: 10000,
+    });
+
+    // 2. Find and click edit button for our user
+    const row = page.locator(`tr:has-text("${testEmail}")`).first();
+    const editButton = row.locator('button[title="Edit User"]');
+    await editButton.click();
 
     // Wait for modal
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     // Modify the name
-    const nameInput = page.locator('input[value*=""]').first();
+    const updatedName = `Updated ${testName}`;
+    const nameInput = page.locator('input[placeholder="John Doe"]');
     await nameInput.clear();
-    await nameInput.fill("Updated Name");
+    await nameInput.fill(updatedName);
 
     // Submit form
     await page.click('button:has-text("Save")');
 
-    // Wait for success message
-    await expect(page.locator("text=Updated successfully")).toBeVisible({
+    // Wait for modal to close
+    await expect(page.locator('[role="dialog"]')).not.toBeVisible();
+
+    // Verify update reflected in table
+    await expect(page.locator(`text=${updatedName}`).first()).toBeVisible({
       timeout: 10000,
     });
   });
@@ -81,28 +117,51 @@ test.describe("Admin User Management", () => {
   test("should show history drawer when clicking history button", async ({
     page,
   }) => {
-    // Click history button for first user
-    const historyButton = page.locator('button[title="View History"]').first();
+    // 1. Create a user to have history for
+    const timestamp = Date.now();
+    const testName = `History User ${timestamp}`;
+    const testEmail = `history_${timestamp}@test.com`;
+
+    await page.click('button:has-text("Add User")');
+    await page.fill('input[placeholder="John Doe"]', testName);
+    await page.fill('input[placeholder="john@example.com"]', testEmail);
+    await page.fill('input[placeholder="Password"]', "password123");
+    await page.locator("#user_form_role").click();
+    await page.click(".ant-select-item-option-content:has-text('Viewer')");
+    await page.click('button:has-text("Create")');
+    await expect(page.locator('[role="dialog"]')).not.toBeVisible();
+    await expect(page.locator(`text=${testName}`).first()).toBeVisible({
+      timeout: 10000,
+    });
+
+    // 2. Click history button for our user
+    const row = page.locator(`tr:has-text("${testEmail}")`).first();
+    const historyButton = row.locator('button[title="View History"]');
     await historyButton.click();
 
     // Wait for drawer
-    await expect(
-      page.locator("text=Version History").or(page.locator("text=User:"))
-    ).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(`text=User: ${testName}`)).toBeVisible({
+      timeout: 5000,
+    });
   });
 
   test("should enforce RBAC - admin menu visible", async ({ page }) => {
     // Navigate to home
     await page.goto("/");
 
-    // Admin menu should be visible
-    await expect(page.locator("text=Admin")).toBeVisible();
+    // Admin menu should be visible in sidebar
+    const adminMenu = page.locator("aside").getByText("Admin", { exact: true });
+    await expect(adminMenu).toBeVisible();
 
     // Click to expand submenu
-    await page.click("text=Admin");
+    await adminMenu.click();
 
     // Admin submenu items should be visible
-    await expect(page.locator("text=User Management")).toBeVisible();
-    await expect(page.locator("text=Department Management")).toBeVisible();
+    await expect(
+      page.locator("aside").getByText("User Management", { exact: true })
+    ).toBeVisible();
+    await expect(
+      page.locator("aside").getByText("Department Management", { exact: true })
+    ).toBeVisible();
   });
 });

@@ -58,7 +58,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
         return result.scalar_one_or_none()
 
     async def create_root(
-        self, root_id: UUID, branch: str = "main", **data: Any
+        self, root_id: UUID, actor_id: UUID, branch: str = "main", **data: Any
     ) -> TBranchable:
         """Create the initial version of an entity (new root)."""
         # Ensure root_id field is in data
@@ -70,51 +70,55 @@ class BranchableService[TBranchable: BranchableProtocol]:
         data[root_field] = root_id
 
         cmd = CreateVersionCommand(
-            entity_class=self.entity_class, root_id=root_id, branch=branch, **data
+            entity_class=self.entity_class, root_id=root_id, actor_id=actor_id, branch=branch, **data
         )
         return await cmd.execute(self.session)
 
-    async def update(self, root_id: UUID, branch: str, **updates: Any) -> TBranchable:
+    async def update(self, root_id: UUID, actor_id: UUID, branch: str, **updates: Any) -> TBranchable:
         """Update entity on a specific branch (creates new version)."""
         cmd = UpdateCommand(
             entity_class=self.entity_class,
             root_id=root_id,
+            actor_id=actor_id,
             branch=branch,
             updates=updates,
         )
         return await cmd.execute(self.session)
 
     async def create_branch(
-        self, root_id: UUID, new_branch: str, from_branch: str = "main"
+        self, root_id: UUID, actor_id: UUID, new_branch: str, from_branch: str = "main"
     ) -> TBranchable:
         """Create a new branch from an existing branch."""
         cmd = CreateBranchCommand(
             entity_class=self.entity_class,
             root_id=root_id,
+            actor_id=actor_id,
             new_branch=new_branch,
             from_branch=from_branch,
         )
         return await cmd.execute(self.session)
 
     async def merge_branch(
-        self, root_id: UUID, source_branch: str, target_branch: str
+        self, root_id: UUID, actor_id: UUID, source_branch: str, target_branch: str
     ) -> TBranchable:
         """Merge source branch into target branch."""
         cmd = MergeBranchCommand(
             entity_class=self.entity_class,
             root_id=root_id,
+            actor_id=actor_id,
             source_branch=source_branch,
             target_branch=target_branch,
         )
         return await cmd.execute(self.session)
 
     async def revert(
-        self, root_id: UUID, branch: str, to_version_id: UUID | None = None
+        self, root_id: UUID, actor_id: UUID, branch: str, to_version_id: UUID | None = None
     ) -> TBranchable:
         """Revert branch to a previous state."""
         cmd = RevertCommand(
             entity_class=self.entity_class,
             root_id=root_id,
+            actor_id=actor_id,
             branch=branch,
             to_version_id=to_version_id,
         )

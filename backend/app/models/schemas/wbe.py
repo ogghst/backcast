@@ -42,6 +42,9 @@ class WBERead(WBEBase):
     wbe_id: UUID
     branch: str
     created_at: datetime | None = None
+    created_by: UUID
+    created_by_name: str | None = None
+    deleted_by: UUID | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

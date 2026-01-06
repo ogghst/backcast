@@ -118,6 +118,9 @@ class UserHistory(UserRead):
     transaction_time: RangeToList = Field(
         None, description="Transaction time range for this version"
     )
+    created_by: UUID
+    created_by_name: str | None = None
+    deleted_by: UUID | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -21,12 +21,10 @@ from sqlalchemy.pool import NullPool
 
 from alembic import command
 from app.core.config import settings
+from app.db.session import get_db
 from app.main import app
 
-# Test database URL
-# Replace database name with backend_evs_test
-# We assume the default URL points to the main DB
-TEST_DATABASE_URL = str(settings.DATABASE_URL).rsplit("/", 1)[0] + "/backcast_evs_test"
+TEST_DATABASE_URL = str(settings.DATABASE_URL) #.rsplit("/", 1)[0] + "/backcast_evs_test"
 
 
 @pytest.fixture(scope="session")
@@ -42,24 +40,44 @@ def apply_migrations() -> None:
     original_url = settings.DATABASE_URL
     settings.DATABASE_URL = TEST_DATABASE_URL
     os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+    # Ensure ASYNC_DATABASE_URI is recomputed or patches env.py's source
+    # But env.py imports settings. If settings is already imported, we need to ensure the property reflects the change.
+    # If ASYNC_DATABASE_URI is a property, it should work. If it's a field, it won't.
 
     alembic_cfg = Config("alembic.ini")
+
+    # Ensure clean slate - Nuclear option via subprocess to avoid loop/driver issues
+    import subprocess
+    import sys
+
+    wipe_script = os.path.join(os.path.dirname(__file__), "wipe_db.py")
+
+    env = os.environ.copy()
+    env["WIPE_DATABASE_URL"] = TEST_DATABASE_URL
+
+    try:
+        subprocess.run([sys.executable, wipe_script], env=env, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        print(f"DB Wipe Failed: {e.stdout} {e.stderr}")
+        raise
 
     # Run migrations
     command.upgrade(alembic_cfg, "head")
 
+
+
     yield
 
     # Clean up (downgrade)
-    try:
-        command.downgrade(alembic_cfg, "base")
-    except Exception:
-        pass
-    finally:
-        settings.DATABASE_URL = original_url
+    # try:
+    #     command.downgrade(alembic_cfg, "base")
+    # except Exception:
+    #     pass
+    # finally:
+    settings.DATABASE_URL = original_url
 
 
-@pytest_asyncio.fixture(scope="session", loop_scope="session")
+@pytest_asyncio.fixture(scope="function")
 async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
     """Create async engine for tests."""
     engine = create_async_engine(
@@ -105,9 +123,11 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client() -> AsyncGenerator[AsyncClient, None]:
+async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """Create async client for tests."""
+    app.dependency_overrides[get_db] = lambda: db_session
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         yield ac
+    app.dependency_overrides = {}

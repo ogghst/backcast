@@ -45,6 +45,7 @@ class Department(EntityBase, VersionableMixin):
         PG_UUID, ForeignKey("users.id"), nullable=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(String(5000), nullable=True)
 
     # Temporal fields inherited from VersionableMixin:
     # - valid_time: TSTZRANGE

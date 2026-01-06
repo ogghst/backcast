@@ -30,7 +30,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var]
 
     async def get_project(self, project_id: UUID) -> Project | None:
         """Get project by root project_id (current version in main branch)."""
-        return await self.get_by_id(project_id)
+        return await self.get_current_version(project_id)
 
     async def get_projects(
         self, skip: int = 0, limit: int = 100, branch: str = "main"
@@ -47,6 +47,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var]
                 func.upper(cast(Any, Project).valid_time).is_(None),
                 cast(Any, Project).deleted_at.is_(None),
             )
+            .order_by(cast(Any, Project).valid_time.desc())
             .offset(skip)
             .limit(limit)
         )
@@ -86,6 +87,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var]
         cmd = CreateVersionCommand(
             entity_class=Project,  # type: ignore[type-var]
             root_id=root_id,
+            actor_id=actor_id,
             **project_data,
         )
         return await cmd.execute(self.session)
@@ -100,6 +102,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var]
         cmd = UpdateVersionCommand(
             entity_class=Project,  # type: ignore[type-var]
             root_id=project_id,
+            actor_id=actor_id,
             **update_data,
         )
         return await cmd.execute(self.session)
@@ -109,20 +112,11 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var]
         cmd = SoftDeleteCommand(
             entity_class=Project,  # type: ignore[type-var]
             root_id=project_id,
+            actor_id=actor_id,
         )
         return await cmd.execute(self.session)
 
     async def get_project_history(self, project_id: UUID) -> list[Project]:
-        """Get all versions of a project by root project_id."""
-        from typing import Any, cast
+        """Get all versions of a project by root project_id (with creator name)."""
+        return await self.get_history(project_id)
 
-        stmt = (
-            select(Project)
-            .where(
-                Project.project_id == project_id,
-                cast(Any, Project).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, Project).transaction_time.desc())
-        )
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())

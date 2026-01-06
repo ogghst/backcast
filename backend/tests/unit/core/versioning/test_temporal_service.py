@@ -47,7 +47,7 @@ async def test_create_delegates_to_command(service, mock_session):
     mock_session.refresh = AsyncMock()
 
     # Act
-    result = await service.create(root_id=uuid4(), **data)
+    result = await service.create(root_id=uuid4(), actor_id=uuid4(), **data)
 
     # Assert
     assert isinstance(result, MockEntity)

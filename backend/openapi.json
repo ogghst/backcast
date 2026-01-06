@@ -777,6 +777,59 @@
         }
       }
     },
+    "/api/v1/departments/{department_id}/history": {
+      "get": {
+        "tags": [
+          "Departments"
+        ],
+        "summary": "Get Department History",
+        "description": "Get version history for a department. Requires read permission.",
+        "operationId": "get_department_history",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "department_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Department Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DepartmentRead"
+                  },
+                  "title": "Response Get Department History"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects": {
       "get": {
         "tags": [
@@ -1594,6 +1647,34 @@
               }
             ],
             "title": "Created At"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "deleted_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted By"
           }
         },
         "type": "object",
@@ -1602,7 +1683,8 @@
           "is_active",
           "id",
           "department_id",
-          "code"
+          "code",
+          "created_by"
         ],
         "title": "DepartmentRead",
         "description": "Schema for reading department data."
@@ -1706,6 +1788,13 @@
             "title": "Contract Value",
             "description": "Contract value"
           },
+          "status": {
+            "type": "string",
+            "maxLength": 50,
+            "title": "Status",
+            "description": "Project status",
+            "default": "Draft"
+          },
           "start_date": {
             "anyOf": [
               {
@@ -1788,6 +1877,13 @@
             "title": "Contract Value",
             "description": "Contract value"
           },
+          "status": {
+            "type": "string",
+            "maxLength": 50,
+            "title": "Status",
+            "description": "Project status",
+            "default": "Draft"
+          },
           "start_date": {
             "anyOf": [
               {
@@ -1852,6 +1948,41 @@
               }
             ],
             "title": "Created At"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "deleted_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted By"
           }
         },
         "type": "object",
@@ -2094,6 +2225,34 @@
             ],
             "title": "Transaction Time",
             "description": "Transaction time range for this version"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "deleted_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted By"
           }
         },
         "type": "object",
@@ -2102,7 +2261,8 @@
           "full_name",
           "id",
           "user_id",
-          "is_active"
+          "is_active",
+          "created_by"
         ],
         "title": "UserHistory",
         "description": "Schema for reading user version history (includes temporal fields)."
@@ -2500,6 +2660,34 @@
               }
             ],
             "title": "Created At"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
+          "deleted_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted By"
           }
         },
         "type": "object",
@@ -2509,7 +2697,8 @@
           "name",
           "id",
           "wbe_id",
-          "branch"
+          "branch",
+          "created_by"
         ],
         "title": "WBERead",
         "description": "Schema for reading WBE data."

@@ -21,12 +21,15 @@ class TestBranchCommands:
     async def test_create_branch_command(self, db_session: AsyncSession):
         """Test creating a new branch from main."""
         root_id = uuid4()
+        actor_id = uuid4()
 
         # 1. Create initial version on main
         create_cmd = CreateVersionCommand(
             entity_class=Project,
             root_id=root_id,
+            actor_id=actor_id,
             project_id=str(root_id),
+            code="PROJ-001",
             name="Main Project",
             branch="main",
         )
@@ -37,6 +40,7 @@ class TestBranchCommands:
         branch_cmd = CreateBranchCommand(
             entity_class=Project,
             root_id=root_id,
+            actor_id=actor_id,
             new_branch="feature/redesign",
             from_branch="main",
         )
@@ -61,12 +65,15 @@ class TestBranchCommands:
     async def test_update_command_on_branch(self, db_session: AsyncSession):
         """Test updating an entity on a specific branch."""
         root_id = uuid4()
+        actor_id = uuid4()
 
         # 1. Create v1 on feature branch
         create_cmd = CreateVersionCommand(
             entity_class=Project,
             root_id=root_id,
+            actor_id=actor_id,
             project_id=root_id,
+            code="PROJ-002",
             name="Initial",
             branch="feature/x",
         )
@@ -77,6 +84,7 @@ class TestBranchCommands:
         update_cmd = UpdateCommand(
             entity_class=Project,
             root_id=root_id,
+            actor_id=actor_id,
             updates={"name": "Updated"},
             branch="feature/x",
         )
@@ -96,13 +104,16 @@ class TestBranchCommands:
     async def test_merge_branch_command(self, db_session: AsyncSession):
         """Test merging feature branch into main."""
         root_id = uuid4()
+        actor_id = uuid4()
 
         # 1. Setup: Main v1 -> Feature v2 (Updated)
         # Main v1
         create_cmd = CreateVersionCommand(
             entity_class=Project,
             root_id=root_id,
+            actor_id=actor_id,
             project_id=root_id,
+            code="PROJ-003",
             name="Main V1",
             branch="main",
         )
@@ -113,6 +124,7 @@ class TestBranchCommands:
         branch_cmd = CreateBranchCommand(
             entity_class=Project,
             root_id=root_id,
+            actor_id=actor_id,
             new_branch="feature/merge",
             from_branch="main",
         )
@@ -122,6 +134,7 @@ class TestBranchCommands:
         update_cmd = UpdateCommand(
             entity_class=Project,
             root_id=root_id,
+            actor_id=actor_id,
             updates={"name": "Feature Updated"},
             branch="feature/merge",
         )
@@ -133,6 +146,7 @@ class TestBranchCommands:
         merge_cmd = MergeBranchCommand(
             entity_class=Project,
             root_id=root_id,
+            actor_id=actor_id,
             source_branch="feature/merge",
             target_branch="main",
         )
@@ -149,12 +163,15 @@ class TestBranchCommands:
     async def test_revert_command(self, db_session: AsyncSession):
         """Test reverting changes."""
         root_id = uuid4()
+        actor_id = uuid4()
 
         # 1. Setup: v1 -> v2 -> v3 (on main)
         create_cmd = CreateVersionCommand(
             entity_class=Project,
             root_id=root_id,
+            actor_id=actor_id,
             project_id=root_id,
+            code="PROJ-004",
             name="V1",
             branch="main",
         )
@@ -162,13 +179,13 @@ class TestBranchCommands:
         v1_id = v1.id
 
         update_cmd = UpdateCommand(
-            entity_class=Project, root_id=root_id, updates={"name": "V2"}, branch="main"
+            entity_class=Project, root_id=root_id, actor_id=actor_id, updates={"name": "V2"}, branch="main"
         )
         v2 = await update_cmd.execute(db_session)
         v2_id = v2.id
 
         # 2. Revert v2 -> v1 (implicit parent)
-        revert_cmd = RevertCommand(entity_class=Project, root_id=root_id, branch="main")
+        revert_cmd = RevertCommand(entity_class=Project, root_id=root_id, actor_id=actor_id, branch="main")
         reverted = await revert_cmd.execute(db_session)
 
         assert reverted.name == "V1"
@@ -179,12 +196,15 @@ class TestBranchCommands:
     async def test_revert_to_specific_version(self, db_session: AsyncSession):
         """Test reverting to a specific historic version."""
         root_id = uuid4()
+        actor_id = uuid4()
 
         # v1 -> v2 -> v3
         create_cmd = CreateVersionCommand(
             entity_class=Project,
             root_id=root_id,
+            actor_id=actor_id,
             project_id=root_id,
+            code="PROJ-005",
             name="V1",
             branch="main",
         )
@@ -192,19 +212,19 @@ class TestBranchCommands:
         v1_id = v1.id
 
         update_cmd = UpdateCommand(
-            entity_class=Project, root_id=root_id, updates={"name": "V2"}, branch="main"
+            entity_class=Project, root_id=root_id, actor_id=actor_id, updates={"name": "V2"}, branch="main"
         )
         await update_cmd.execute(db_session)
 
         update_cmd_2 = UpdateCommand(
-            entity_class=Project, root_id=root_id, updates={"name": "V3"}, branch="main"
+            entity_class=Project, root_id=root_id, actor_id=actor_id, updates={"name": "V3"}, branch="main"
         )
         v3 = await update_cmd_2.execute(db_session)
         v3_id = v3.id
 
         # Revert V3 -> V1 explicitly
         revert_cmd = RevertCommand(
-            entity_class=Project, root_id=root_id, branch="main", to_version_id=v1_id
+            entity_class=Project, root_id=root_id, actor_id=actor_id, branch="main", to_version_id=v1_id
         )
         reverted = await revert_cmd.execute(db_session)
 

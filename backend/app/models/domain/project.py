@@ -46,6 +46,9 @@ class Project(EntityBase, VersionableMixin, BranchableMixin):
         DECIMAL(15, 2), nullable=True
     )
 
+    # Status
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="Draft")
+
     # Schedule
     start_date: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True

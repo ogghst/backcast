@@ -54,7 +54,7 @@ async def create_department(
     """Create a new department. Admin only."""
     try:
         dept = await service.create_department(
-            dept_in=dept_in, actor_id=current_user.id
+            dept_in=dept_in, actor_id=current_user.user_id
         )
         return dept
     except ValueError as e:
@@ -101,7 +101,7 @@ async def update_department(
         updated_dept = await service.update_department(
             department_id=department_id,
             dept_in=dept_in,
-            actor_id=current_user.id,
+            actor_id=current_user.user_id,
         )
         return updated_dept
     except ValueError as e:
@@ -122,7 +122,21 @@ async def delete_department(
     """Soft delete a department. Admin only."""
     try:
         await service.delete_department(
-            department_id=department_id, actor_id=current_user.id
+            department_id=department_id, actor_id=current_user.user_id
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.get(
+    "/{department_id}/history",
+    response_model=list[DepartmentPublic],
+    operation_id="get_department_history",
+    dependencies=[Depends(RoleChecker(required_permission="department-read"))],
+)
+async def get_department_history(
+    department_id: UUID,
+    service: DepartmentService = Depends(get_department_service),
+) -> Sequence[Department]:
+    """Get version history for a department. Requires read permission."""
+    return await service.get_department_history(department_id)

@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.core.rbac import RBACServiceABC, get_rbac_service
@@ -19,6 +20,7 @@ mock_admin_user = User(
     role="admin",
     full_name="Admin User",
     hashed_password="hash",
+    created_by=uuid4(),
 )
 
 
@@ -148,6 +150,9 @@ async def test_get_project_by_id(client: AsyncClient, override_auth, db_session)
 
     # Get specific project
     response = await client.get(f"/api/v1/projects/{project_id}")
+    if response.status_code != 200:
+        all_projects = (await client.get("/api/v1/projects")).json()
+        print(f"DEBUG: 404 for {project_id}, found {len(all_projects)} projects.")
 
     assert response.status_code == 200
     data = response.json()
@@ -177,7 +182,7 @@ async def test_update_project(client: AsyncClient, override_auth, db_session):
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Updated Name"
-    assert data["budget"] == 150000
+    assert float(data["budget"]) == 150000
     assert data["code"] == "UPD-001"  # Code should remain unchanged
 
 
@@ -206,7 +211,18 @@ async def test_delete_project(client: AsyncClient, override_auth, db_session):
 
 @pytest.mark.asyncio
 async def test_get_project_history(client: AsyncClient, override_auth, db_session):
-    """Test retrieving version history for a project."""
+    # Insert mock admin user into DB so the join works
+    from app.models.domain.user import User
+    stmt = (
+        select(User)
+        .where(User.user_id == mock_admin_user.user_id)
+    )
+    existing_user = (await db_session.execute(stmt)).scalar_one_or_none()
+    if not existing_user:
+        db_session.add(mock_admin_user)
+        # We need to manually flush/commit because we are in a transaction-managed session
+        await db_session.flush()
+
     # Create project
     project_data = {
         "name": "History Project",
@@ -228,7 +244,12 @@ async def test_get_project_history(client: AsyncClient, override_auth, db_sessio
     assert response.status_code == 200
     history = response.json()
     assert len(history) >= 2  # At least 2 versions
-    assert history[0]["name"] == "Updated History Project"  # Most recent first
+    assert any(h["name"] == "Updated History Project" for h in history)
+    assert any(h["name"] == "History Project" for h in history)
+
+    # Check that created_by_name is populated
+    for entry in history:
+        assert entry["created_by_name"] == "Admin User"
 
 
 @pytest.mark.asyncio

@@ -4,27 +4,32 @@ test.describe("Admin Department Management", () => {
   test.beforeEach(async ({ page }) => {
     // Login as admin
     await page.goto("/login");
-    await page.fill('input[type="email"]', "admin@example.com");
-    await page.fill('input[type="password"]', "admin123");
+    await page.fill('input[id="login_email"]', "admin@backcast.org");
+    await page.fill('input[id="login_password"]', "adminadmin");
     await page.click('button[type="submit"]');
 
     // Wait for redirect to home
     await page.waitForURL("/");
 
     // Navigate to Admin > Department Management
-    await page.click("text=Admin");
-    await page.click("text=Department Management");
-    await page.waitForURL("/admin/departments");
+    const adminMenu = page.locator("aside").getByText("Admin", { exact: true });
+    await adminMenu.click();
+    await page.locator("aside").getByText("Department Management").click();
+    await page.waitForURL(/\/admin\/departments/);
+    await page.goto("/admin/departments?per_page=100");
+    await page.waitForLoadState("networkidle");
   });
 
   test("should display department management page with table", async ({
     page,
   }) => {
     // Check page title
-    await expect(page.locator("text=Department Management")).toBeVisible();
+    await expect(
+      page.locator("main").getByText("Department Management", { exact: true })
+    ).toBeVisible();
 
     // Check table is visible
-    await expect(page.locator('[role="table"]')).toBeVisible();
+    await expect(page.locator(".ant-table-wrapper")).toBeVisible();
 
     // Check Add Department button
     await expect(
@@ -39,9 +44,13 @@ test.describe("Admin Department Management", () => {
     // Wait for modal
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
+    const timestamp = Date.now();
+    const testName = `Test Dept ${timestamp}`;
+    const testCode = `TD${timestamp}`.substring(0, 10);
+
     // Fill in department form
-    await page.fill('input[placeholder="Engineering"]', "Test Department");
-    await page.fill('input[placeholder="ENG"]', "TEST");
+    await page.fill('input[placeholder="Engineering"]', testName);
+    await page.fill('input[placeholder="ENG"]', testCode);
 
     // Optionally fill description
     const descriptionField = page.locator(
@@ -54,66 +63,91 @@ test.describe("Admin Department Management", () => {
     // Submit form
     await page.click('button:has-text("Create")');
 
-    // Wait for success message
-    await expect(page.locator("text=Created successfully")).toBeVisible({
-      timeout: 10000,
-    });
+    // Wait for modal to close
+    await expect(page.locator('[role="dialog"]')).not.toBeVisible();
 
     // Verify department appears in table
-    await expect(page.locator("text=Test Department")).toBeVisible();
-    await expect(page.locator("text=TEST")).toBeVisible();
+    await expect(page.locator(`text=${testName}`).first()).toBeVisible({
+      timeout: 15000,
+    });
+    await expect(page.locator(`text=${testCode}`).first()).toBeVisible();
   });
 
   test("should edit an existing department", async ({ page }) => {
-    // Find and click edit button for the first department
-    const firstEditButton = page
-      .locator('button[title="Edit Department"]')
-      .first();
-    await firstEditButton.click();
+    // 1. Create a department to edit
+    const timestamp = Date.now();
+    const testName = `Edit Dept ${timestamp}`;
+    const testCode = `ED${timestamp}`.substring(0, 10);
+
+    await page.click('button:has-text("Add Department")');
+    await page.fill('input[placeholder="Engineering"]', testName);
+    await page.fill('input[placeholder="ENG"]', testCode);
+    await page.click('button:has-text("Create")');
+    await expect(page.locator('[role="dialog"]')).not.toBeVisible();
+    await expect(page.locator(`text=${testCode}`).first()).toBeVisible({
+      timeout: 10000,
+    });
+
+    // 2. Find and click edit button for our department
+    const row = page.locator(`tr:has-text("${testCode}")`);
+    const editButton = row.locator('button[title="Edit Department"]');
+    await editButton.click();
 
     // Wait for modal
     await expect(page.locator('[role="dialog"]')).toBeVisible();
 
     // Modify the name
-    const nameInput = page.locator('input[value*=""]').first();
+    const updatedName = `Updated ${testName}`;
+    const nameInput = page.locator('input[placeholder="Engineering"]');
     await nameInput.clear();
-    await nameInput.fill("Updated Department Name");
+    await nameInput.fill(updatedName);
 
     // Submit form
     await page.click('button:has-text("Save")');
 
-    // Wait for success message
-    await expect(page.locator("text=Updated successfully")).toBeVisible({
+    // Wait for modal to close
+    await expect(page.locator('[role="dialog"]')).not.toBeVisible();
+
+    // Verify update
+    await expect(page.locator(`text=${updatedName}`).first()).toBeVisible({
       timeout: 10000,
     });
   });
 
   test("should delete a department with confirmation", async ({ page }) => {
-    // Get initial count of rows
-    const initialRowCount = await page.locator('[role="row"]').count();
+    // 1. Create a department to delete
+    const timestamp = Date.now();
+    const testName = `Delete Dept ${timestamp}`;
+    const testCode = `DL${timestamp}`.substring(0, 10);
 
-    // Click delete button for first department
-    const firstDeleteButton = page
-      .locator('button[title="Delete Department"]')
-      .first();
-    await firstDeleteButton.click();
-
-    // Wait for confirmation dialog
-    await expect(
-      page.locator("text=Are you sure you want to delete this department?")
-    ).toBeVisible();
-
-    // Confirm deletion
-    await page.click('button:has-text("Yes, Delete")');
-
-    // Wait for success message
-    await expect(page.locator("text=Deleted successfully")).toBeVisible({
+    await page.click('button:has-text("Add Department")');
+    await page.fill('input[placeholder="Engineering"]', testName);
+    await page.fill('input[placeholder="ENG"]', testCode);
+    await page.click('button:has-text("Create")');
+    await expect(page.locator('[role="dialog"]')).not.toBeVisible();
+    await expect(page.locator(`text=${testCode}`).first()).toBeVisible({
       timeout: 10000,
     });
 
-    // Verify row count decreased
-    const newRowCount = await page.locator('[role="row"]').count();
-    expect(newRowCount).toBeLessThan(initialRowCount);
+    // 2. Click delete button for our department
+    const row = page.locator(`tr:has-text("${testCode}")`).first();
+    const deleteButton = row.locator('button[title="Delete Department"]');
+    await deleteButton.click();
+
+    // Wait for confirmation modal (Ant Design uses .ant-modal-confirm)
+    const confirmModal = page.locator(".ant-modal-confirm");
+    await expect(confirmModal).toBeVisible();
+
+    // Confirm deletion - the okText from modal.confirm is "Yes, Delete"
+    await page.click('button:has-text("Yes, Delete")');
+
+    // Wait for modal to disappear
+    await expect(confirmModal).not.toBeVisible();
+
+    // Verify gone
+    await expect(page.locator(`text=${testCode}`).first()).not.toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test("should show correct columns in department table", async ({ page }) => {

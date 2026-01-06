@@ -3,13 +3,18 @@ import { loginUser, getCurrentUser, registerUser } from "./auth";
 import { AuthenticationService } from "@/api/generated";
 
 // Mock generated service
-vi.mock("@/api/generated", () => ({
-  AuthenticationService: {
-    login: vi.fn(),
-    getCurrentUser: vi.fn(),
-    register: vi.fn(),
-  },
-}));
+// Mock generated service
+vi.mock("@/api/generated", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/api/generated")>();
+  return {
+    ...actual,
+    AuthenticationService: {
+      login: vi.fn(),
+      getCurrentUser: vi.fn(),
+      register: vi.fn(),
+    },
+  };
+});
 
 describe("Auth Adapter", () => {
   beforeEach(() => {
@@ -39,7 +44,7 @@ describe("Auth Adapter", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const mockUser = { id: "1", email: "test@example.com" } as any;
       vi.mocked(AuthenticationService.getCurrentUser).mockResolvedValue(
-        mockUser,
+        mockUser
       );
 
       const result = await getCurrentUser();

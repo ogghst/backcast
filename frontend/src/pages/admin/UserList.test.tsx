@@ -4,11 +4,25 @@ import { UserList } from "./UserList";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConfigProvider } from "antd";
 
+// Mock useAuthStore to allow all permissions
+// Mock useAuthStore to allow all permissions
+vi.mock("@/stores/useAuthStore", () => ({
+  useAuthStore: (selector: any) => {
+    const state = {
+      hasPermission: () => true,
+      hasAnyPermission: () => true,
+      hasAllPermissions: () => true,
+      hasRole: () => true,
+    };
+    return selector ? selector(state) : state;
+  },
+}));
+
 // We DO NOT mock useUserStore here, so it hits the real API layer
 // MSW handlers in setupTests.ts will intercept the requests
 
 // Mock UserModal to avoid complex rendering
-vi.mock("./UserModal", () => ({
+vi.mock("@/features/users/components/UserModal", () => ({
   UserModal: ({
     open,
     onCancel,
@@ -84,7 +98,7 @@ const renderWithProviders = (ui: React.ReactNode) => {
       <MemoryRouter>
         <ConfigProvider>{ui}</ConfigProvider>
       </MemoryRouter>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
 };
 

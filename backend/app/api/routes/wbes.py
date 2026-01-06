@@ -69,7 +69,7 @@ async def create_wbe(
                 detail=f"WBE with code '{wbe_in.code}' already exists in this project",
             )
 
-        wbe = await service.create_wbe(wbe_in=wbe_in, actor_id=current_user.id)
+        wbe = await service.create_wbe(wbe_in=wbe_in, actor_id=current_user.user_id)
         return wbe
     except ValueError as e:
         raise HTTPException(
@@ -115,7 +115,7 @@ async def update_wbe(
         updated_wbe = await service.update_wbe(
             wbe_id=wbe_id,
             wbe_in=wbe_in,
-            actor_id=current_user.id,
+            actor_id=current_user.user_id,
         )
         return updated_wbe
     except ValueError as e:
@@ -135,7 +135,7 @@ async def delete_wbe(
 ) -> None:
     """Soft delete a WBE. Requires delete permission."""
     try:
-        await service.delete_wbe(wbe_id=wbe_id, actor_id=current_user.id)
+        await service.delete_wbe(wbe_id=wbe_id, actor_id=current_user.user_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 

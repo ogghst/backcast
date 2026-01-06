@@ -14,6 +14,7 @@ class ProjectBase(BaseModel):
     code: str = Field(..., max_length=50, description="Unique project code")
     budget: Decimal = Field(..., ge=0, description="Project budget")
     contract_value: Decimal | None = Field(None, ge=0, description="Contract value")
+    status: str = Field("Draft", max_length=50, description="Project status")
     start_date: datetime | None = Field(None, description="Project start date")
     end_date: datetime | None = Field(None, description="Project end date")
     description: str | None = Field(None, max_length=5000, description="Description")
@@ -43,6 +44,9 @@ class ProjectRead(ProjectBase):
     project_id: UUID
     branch: str
     created_at: datetime | None = None
+    created_by: UUID | None = None
+    created_by_name: str | None = None
+    deleted_by: UUID | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

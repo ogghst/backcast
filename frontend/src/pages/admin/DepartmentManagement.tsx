@@ -1,5 +1,10 @@
 import { App, Button, Space } from "antd";
-import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  EditOutlined,
+  PlusOutlined,
+  HistoryOutlined,
+} from "@ant-design/icons";
 import { useState } from "react";
 import type { ColumnType } from "antd/es/table";
 import { createResourceHooks } from "@/hooks/useCrud";
@@ -13,6 +18,8 @@ import type {
 import { DepartmentModal } from "@/features/departments/components/DepartmentModal";
 import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
+import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
+import { useEntityHistory } from "@/hooks/useEntityHistory";
 
 // Create CRUD hooks using the generated API service
 const departmentApi = {
@@ -49,6 +56,17 @@ export const DepartmentManagement = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedDepartment, setSelectedDepartment] =
     useState<DepartmentRead | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  // Fetch version history
+  const { data: historyVersions, isLoading: historyLoading } = useEntityHistory(
+    {
+      resource: "departments",
+      entityId: selectedDepartment?.department_id,
+      fetchFn: (id) => DepartmentsService.getDepartmentHistory(id),
+      enabled: historyOpen,
+    }
+  );
 
   const { mutateAsync: createDepartment } = useCreate({
     onSuccess: () => {
@@ -102,6 +120,16 @@ export const DepartmentManagement = () => {
       key: "actions",
       render: (_, record) => (
         <Space>
+          <Can permission="department-read">
+            <Button
+              icon={<HistoryOutlined />}
+              onClick={() => {
+                setSelectedDepartment(record);
+                setHistoryOpen(true);
+              }}
+              title="View History"
+            />
+          </Can>
           <Can permission="department-update">
             <Button
               icon={<EditOutlined />}
@@ -133,7 +161,7 @@ export const DepartmentManagement = () => {
         loading={isLoading}
         dataSource={departments || []}
         columns={columns}
-        rowKey="id"
+        rowKey="department_id"
         toolbar={
           <div
             style={{
@@ -176,6 +204,20 @@ export const DepartmentManagement = () => {
         }}
         confirmLoading={isLoading}
         initialValues={selectedDepartment}
+      />
+
+      <VersionHistoryDrawer
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        versions={(historyVersions || []).map((version, idx, arr) => ({
+          id: `v${arr.length - idx}`,
+          valid_from: version.created_at || new Date().toISOString(), // Use created_at as fallback for valid_from
+          transaction_time: new Date().toISOString(), // Transaction time not currently in DepartmentRead
+          changed_by: version.created_by_name || "System",
+          changes: idx === 0 ? { created: "initial" } : { updated: "changed" },
+        }))}
+        entityName={`Department: ${selectedDepartment?.name || ""}`}
+        isLoading={historyLoading}
       />
     </div>
   );

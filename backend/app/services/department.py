@@ -61,6 +61,7 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var]
         cmd = CreateVersionCommand(
             entity_class=Department,  # type: ignore[type-var]
             root_id=root_id,
+            actor_id=actor_id,
             **dept_data,
         )
         return await cmd.execute(self.session)
@@ -73,6 +74,7 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var]
         cmd = UpdateVersionCommand(
             entity_class=Department,  # type: ignore[type-var]
             root_id=department_id,
+            actor_id=actor_id,
             **update_data,
         )
         return await cmd.execute(self.session)
@@ -82,5 +84,10 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var]
         cmd = SoftDeleteCommand(
             entity_class=Department,  # type: ignore[type-var]
             root_id=department_id,
+            actor_id=actor_id,
         )
         await cmd.execute(self.session)
+
+    async def get_department_history(self, department_id: UUID) -> list[Department]:
+        """Get all versions of a department by root department_id (with creator name)."""
+        return await self.get_history(department_id)

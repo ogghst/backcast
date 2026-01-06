@@ -70,7 +70,7 @@ export const UserList = () => {
       entityId: selectedUser?.user_id,
       fetchFn: UserService.getUserHistory,
       enabled: historyOpen,
-    },
+    }
   );
 
   const { mutateAsync: createUser } = useCreate({
@@ -177,7 +177,7 @@ export const UserList = () => {
         loading={isLoading}
         dataSource={users || []}
         columns={columns}
-        rowKey="id"
+        rowKey="user_id"
         toolbar={
           <div
             style={{
@@ -228,7 +228,7 @@ export const UserList = () => {
           valid_from: version.valid_time?.[0] || new Date().toISOString(),
           transaction_time:
             version.transaction_time?.[0] || new Date().toISOString(),
-          changed_by: "System", // TODO: Track actual actor when backend supports it
+          changed_by: version.created_by_name || "System",
           changes: idx === 0 ? { created: "initial" } : { updated: "changed" },
         }))}
         entityName={`User: ${selectedUser?.full_name || ""}`}

@@ -108,6 +108,7 @@ The core feature is a **bitemporal versioning system** implemented with PostgreS
 - **Generic Framework**: `TemporalBase`, `TemporalService[T]`, generic commands (Create/Update/Delete)
 
 **Key Files:**
+
 - `backend/app/core/versioning/` - Core versioning logic
 - `backend/app/core/versioning/temporal.py` - `TemporalBase`, `TemporalService[T]`
 - `backend/app/core/versioning/commands.py` - Generic commands for versioned entities
@@ -132,6 +133,7 @@ The core feature is a **bitemporal versioning system** implemented with PostgreS
 ## Quality Standards
 
 **Required for all commits:**
+
 - **Backend**: MyPy strict mode (zero errors), Ruff (zero errors), 80%+ test coverage
 - **Frontend**: TypeScript strict mode, ESLint clean, 80%+ test coverage
 - **Testing**: `pytest-asyncio` strict mode for async tests
@@ -149,6 +151,7 @@ The core feature is a **bitemporal versioning system** implemented with PostgreS
 ## Bounded Contexts
 
 The system is partitioned into:
+
 1. Authentication & Authorization
 2. User Management
 3. Department Management
@@ -161,7 +164,7 @@ See `docs/02-architecture/01-bounded-contexts.md` for details.
 
 ## Documentation
 
-- [Documentation Guide](docs/00-meta/documentation-guide.m)
+- [Documentation Guide](docs/00-meta/README.md)
 - [System Architecture](docs/02-architecture/00-system-map.md)
 - [Coding Standards](docs/00-meta/coding_standards.md)
 - [ADR Index](docs/02-architecture/decisions/adr-index.md) - Architecture Decision Records

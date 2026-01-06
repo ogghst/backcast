@@ -25,6 +25,7 @@ class MockEntity(VersionableProtocol):
 async def test_soft_delete_command_success():
     # Arrange
     root_id = uuid4()
+    actor_id = uuid4()
     mock_entity = MockEntity(
         id=uuid4(), mock_id=root_id, valid_time=MagicMock(), deleted_at=None
     )
@@ -34,7 +35,7 @@ async def test_soft_delete_command_success():
     # We need to patch the internal _get_current or let it run
     # Let's patch it for the unit test
 
-    cmd = SoftDeleteCommand(MockEntity, root_id)
+    cmd = SoftDeleteCommand(MockEntity, root_id, actor_id)
     cmd._get_current = AsyncMock(return_value=mock_entity)
 
     # Act
@@ -49,9 +50,10 @@ async def test_soft_delete_command_success():
 async def test_soft_delete_command_no_active_version():
     # Arrange
     root_id = uuid4()
+    actor_id = uuid4()
     session = AsyncMock()
 
-    cmd = SoftDeleteCommand(MockEntity, root_id)
+    cmd = SoftDeleteCommand(MockEntity, root_id, actor_id)
     cmd._get_current = AsyncMock(return_value=None)
 
     # Act & Assert

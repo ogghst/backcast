@@ -20,8 +20,7 @@ export const loginUser = async (credentials: UserLogin): Promise<Token> => {
  * Get current authenticated user with permissions
  */
 export const getCurrentUser = async (): Promise<UserPublic> => {
-  const response = await apiClient.get<UserPublic>("/api/v1/auth/me");
-  return response.data;
+  return await AuthenticationService.getCurrentUser();
 };
 
 /**

@@ -33,9 +33,12 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
     entity_class: type[TVersionable]
     root_id: UUID
 
-    def __init__(self, entity_class: type[TVersionable], root_id: UUID) -> None:
+    actor_id: UUID
+
+    def __init__(self, entity_class: type[TVersionable], root_id: UUID, actor_id: UUID) -> None:
         self.entity_class = entity_class
         self.root_id = root_id
+        self.actor_id = actor_id
 
     @abstractmethod
     async def execute(self, session: AsyncSession) -> TVersionable | None:
@@ -89,15 +92,19 @@ class CreateVersionCommand(VersionedCommandABC[TVersionable]):
     """Create initial version of a versioned entity."""
 
     def __init__(
-        self, entity_class: type[TVersionable], root_id: UUID, **fields: Any
+        self,
+        entity_class: type[TVersionable],
+        root_id: UUID,
+        actor_id: UUID,
+        **fields: Any,
     ) -> None:
-        self.entity_class = entity_class
-        self.root_id = root_id
+        super().__init__(entity_class, root_id, actor_id)
         self.fields = fields
 
     async def execute(self, session: AsyncSession) -> TVersionable:
         """Create new version with open-ended valid_time."""
         version = self.entity_class(
+            created_by=self.actor_id,
             **self.fields
         )  # Model should handle TSTZRANGE defaults
         session.add(version)
@@ -110,10 +117,13 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
     """Update versioned entity - closes current, creates new."""
 
     def __init__(
-        self, entity_class: type[TVersionable], root_id: UUID, **updates: Any
+        self,
+        entity_class: type[TVersionable],
+        root_id: UUID,
+        actor_id: UUID,
+        **updates: Any,
     ) -> None:
-        self.entity_class = entity_class
-        self.root_id = root_id
+        super().__init__(entity_class, root_id, actor_id)
         self.updates = updates
 
     async def execute(self, session: AsyncSession) -> TVersionable:
@@ -124,7 +134,10 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
             raise ValueError(f"No active version found for {self.root_id}")
 
         # Clone and apply updates (must happen before close due to expire)
-        new_version = cast(TVersionable, current.clone(**self.updates))
+        new_version = cast(
+            TVersionable,
+            current.clone(created_by=self.actor_id, **self.updates),
+        )
 
         # Close current
         await self._close_version(session, current)
@@ -165,6 +178,7 @@ class SoftDeleteCommand(VersionedCommandABC[TVersionable]):
             raise ValueError(f"No active version found for {self.root_id}")
 
         current.soft_delete()
+        current.deleted_by = self.actor_id  # type: ignore[attr-defined]
         await session.flush()
         return current
 

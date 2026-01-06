@@ -63,20 +63,16 @@ uv run mypy app/
 
 ## Documentation
 
-**Start Here:** [Documentation Guide](docs/00-meta/documentation-guide.md)
+**Start Here:** [Documentation Guide](docs/00-meta/README.md)
 
 **Quick Links:**
+
 - [Product Vision](docs/01-product-scope/vision.md) - Business goals
 - [System Map](docs/02-architecture/00-system-map.md) - Architecture overview
 - [Current Work](docs/03-project-plan/current-iteration.md) - Sprint status
 - [PDCA Prompts](docs/04-pdca-prompts/) - AI collaboration templates
 
 ## Project Status
-
-**Current Sprint:** Sprint 2 - User Management & Quality  
-**Progress:** 🟢 On Track  
-**Test Coverage:** 81.57%  
-**Quality:** Zero linting/type errors
 
 See [Current Iteration](docs/03-project-plan/current-iteration.md) for details.
 
@@ -101,6 +97,7 @@ See [Current Iteration](docs/03-project-plan/current-iteration.md) for details.
 ## Contributing
 
 This project follows strict quality standards:
+
 - **Type Safety:** MyPy strict mode (100% coverage)
 - **Testing:** 80% minimum coverage
 - **Linting:** Zero Ruff errors

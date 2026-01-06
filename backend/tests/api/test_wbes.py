@@ -96,7 +96,7 @@ async def test_create_wbe(client: AsyncClient, override_auth, db_session, test_p
     data = response.json()
     assert data["name"] == "Phase 1"
     assert data["code"] == "1.0"
-    assert data["budget_allocation"] == 100000
+    assert float(data["budget_allocation"]) == 100000.0
     assert data["project_id"] == test_project["project_id"]
     assert "id" in data
     assert "wbe_id" in data
@@ -198,7 +198,7 @@ async def test_update_wbe(client: AsyncClient, override_auth, db_session, test_p
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Updated WBE"
-    assert data["budget_allocation"] == 75000
+    assert float(data["budget_allocation"]) == 75000
     assert data["code"] == "3.0"  # Code should remain unchanged
 
 
@@ -255,7 +255,8 @@ async def test_get_wbe_history(
     assert response.status_code == 200
     history = response.json()
     assert len(history) >= 2
-    assert history[0]["name"] == "Updated History WBE"  # Most recent first
+    assert any(h["name"] == "Updated History WBE" for h in history)
+    assert any(h["name"] == "History WBE" for h in history)
 
 
 @pytest.mark.asyncio

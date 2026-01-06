@@ -18,6 +18,7 @@ import {
   type WBEUpdate,
 } from "@/api/generated";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
+import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { Can } from "@/components/auth/Can";
 import { WBEModal } from "@/features/wbes/components/WBEModal";
 
@@ -65,6 +66,16 @@ export const WBEList = ({ projectId }: WBEListProps) => {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedWBE, setSelectedWBE] = useState<WBERead | null>(null);
+
+  // Fetch version history for selected WBE
+  const { data: historyVersions, isLoading: historyLoading } = useEntityHistory(
+    {
+      resource: "wbes",
+      entityId: selectedWBE?.wbe_id,
+      fetchFn: (id) => WbEsService.getWbeHistory(id),
+      enabled: historyOpen,
+    }
+  );
 
   const { modal } = App.useApp();
 
@@ -174,7 +185,7 @@ export const WBEList = ({ projectId }: WBEListProps) => {
             <Button
               danger
               icon={<DeleteOutlined />}
-              onClick={() => handleDelete(record.id)}
+              onClick={() => handleDelete(record.wbe_id)}
               title="Delete WBE"
             />
           </Can>
@@ -235,7 +246,7 @@ export const WBEList = ({ projectId }: WBEListProps) => {
         onOk={async (values) => {
           if (selectedWBE) {
             await updateWBE({
-              id: selectedWBE.id,
+              id: selectedWBE.wbe_id,
               data: values as WBEUpdate,
             });
           } else {
@@ -250,9 +261,16 @@ export const WBEList = ({ projectId }: WBEListProps) => {
       <VersionHistoryDrawer
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
-        versions={[]} // TODO: Implement history fetching when needed
+        versions={(historyVersions || []).map((version, idx, arr) => ({
+          id: `v${arr.length - idx}`,
+          valid_from: version.valid_time?.[0] || new Date().toISOString(),
+          transaction_time:
+            version.transaction_time?.[0] || new Date().toISOString(),
+          changed_by: version.created_by_name || "System",
+          changes: idx === 0 ? { created: "initial" } : { updated: "changed" },
+        }))}
         entityName={`WBE: ${selectedWBE?.name || ""}`}
-        isLoading={false}
+        isLoading={historyLoading}
       />
     </div>
   );

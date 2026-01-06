@@ -8,42 +8,56 @@ test.describe("User Deletion", () => {
     await page.fill('input[id="login_password"]', "adminadmin");
     await page.click('button[type="submit"]');
     await page.waitForURL("/");
-    await page.click('text="Users"');
-    await page.waitForURL("/users");
+    const adminMenu = page.locator("aside").getByText("Admin", { exact: true });
+    await adminMenu.click();
+    await page.locator("aside").getByText("User Management").click();
+    await page.waitForURL(/\/admin\/users/);
+    await page.goto("/admin/users?per_page=100");
+    await page.waitForLoadState("networkidle");
   });
 
   test("should delete an existing user and reflect in UI", async ({ page }) => {
-    // 1. Wait for user list to load
-    await expect(page.locator("tr").first()).toBeVisible({ timeout: 10000 });
+    // 1. Create a user to delete
+    const timestamp = Date.now();
+    const deleteEmail = `delete_${timestamp}@test.com`;
+    const deleteName = `Delete Candidate ${timestamp}`;
 
-    // 2. Find any user in the table that is NOT the admin (to avoid deleting ourselves if possible)
-    // Actually, for the test we can just delete the first one that has a delete button.
-    const deleteButton = page.locator('button[title="Delete User"]').first();
-    await expect(deleteButton).toBeVisible();
+    await page.click('button:has-text("Add User")');
+    await expect(page.locator('[role="dialog"]')).toBeVisible();
 
-    // Get the email or ID of the user we are about to delete for verification
-    const row = page.locator("tr", { has: deleteButton });
-    const userEmail = await row.locator("td").nth(1).innerText();
-    console.log(`Deleting user: ${userEmail}`);
+    await page.fill('input[placeholder="John Doe"]', deleteName);
+    await page.fill('input[placeholder="john@example.com"]', deleteEmail);
+    await page.fill('input[placeholder="Password"]', "password123");
 
-    // 3. Click delete button
+    // Select role
+    await page.locator("#user_form_role").click();
+    await page.click(".ant-select-item-option-content:has-text('Viewer')");
+
+    // Submit
+    await page.click('button:has-text("Create")');
+    await expect(page.locator('[role="dialog"]')).not.toBeVisible();
+    await expect(page.locator(`text=${deleteName}`).first()).toBeVisible({
+      timeout: 10000,
+    });
+
+    // 2. Find the row for this specific user
+    const row = page.locator(`tr:has-text("${deleteEmail}")`).first();
+    const deleteButton = row.locator('button[title="Delete User"]');
+
+    // 3. Delete
     await deleteButton.click();
 
-    // 4. Confirm in the modal
-    // Ant Design's modal.confirm/modal.info/etc all use .ant-modal
+    // 4. Confirm
     const confirmModal = page.locator(".ant-modal").last();
-    await expect(confirmModal).toBeVisible({ timeout: 10000 });
+    await expect(confirmModal).toBeVisible();
 
-    // Find any button that looks like a confirmation (often has 'ant-btn-primary' or 'ant-btn-dangerous')
     const okButton = confirmModal
-      .locator(
-        'button:has-text("Delete"), button:has-text("Yes"), button:has-text("OK")'
-      )
+      .locator('button:has-text("Yes, Delete"), button:has-text("OK")') // Adjust based on actual button text "Yes, Delete"
       .first();
     await okButton.click();
 
-    // 5. Verify user is gone from UI
-    await expect(page.locator(`text=${userEmail}`)).not.toBeVisible({
+    // 5. Verify gone
+    await expect(page.locator(`text=${deleteEmail}`).first()).not.toBeVisible({
       timeout: 10000,
     });
   });

@@ -42,6 +42,7 @@ def test_user_history_serialization():
     start = datetime(2023, 1, 1, 12, 0, 0, tzinfo=UTC)
     range_obj = MockRange(start, None)
     id_val = uuid4()
+    actor_id = uuid4()
 
     user_data = {
         "id": id_val,
@@ -52,6 +53,7 @@ def test_user_history_serialization():
         "role": "viewer",
         "valid_time": range_obj,
         "transaction_time": range_obj,
+        "created_by": actor_id,
     }
 
     history_item = UserHistory.model_validate(user_data)

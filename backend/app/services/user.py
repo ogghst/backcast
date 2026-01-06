@@ -73,6 +73,7 @@ class UserService(TemporalService[User]):  # type: ignore[type-var]
         cmd = CreateVersionCommand(
             entity_class=User,  # type: ignore[type-var]
             root_id=root_id,
+            actor_id=actor_id,
             **user_data,
         )
         return await cmd.execute(self.session)
@@ -97,6 +98,7 @@ class UserService(TemporalService[User]):  # type: ignore[type-var]
         cmd = UpdateVersionCommand(
             entity_class=User,  # type: ignore[type-var]
             root_id=user_id,
+            actor_id=actor_id,
             **update_data,
         )
         return await cmd.execute(self.session)
@@ -106,24 +108,13 @@ class UserService(TemporalService[User]):  # type: ignore[type-var]
         cmd = SoftDeleteCommand(
             entity_class=User,  # type: ignore[type-var]
             root_id=user_id,
+            actor_id=actor_id,
         )
         return await cmd.execute(self.session)
 
     async def get_user_history(self, user_id: UUID) -> list[User]:
-        """Get all versions of a user by root user_id (for version history)."""
-        from typing import Any, cast
-
-        stmt = (
-            select(User)
-            .where(
-                User.user_id == user_id,
-                # Include all versions (both open and closed) but exclude deleted
-                cast(Any, User).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, User).transaction_time.desc())
-        )
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        """Get all versions of a user by root user_id (with creator name)."""
+        return await self.get_history(user_id)
 
     async def get_user_preferences(self, user_id: UUID) -> dict[str, Any]:
         """Get user preferences from JSON column."""

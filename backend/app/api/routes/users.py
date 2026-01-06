@@ -57,7 +57,7 @@ async def create_user(
     try:
         # Pass Pydantic model directly to service
         # Service handles hashing and dictionary conversion
-        user = await service.create_user(user_in=user_in, actor_id=current_user.id)
+        user = await service.create_user(user_in=user_in, actor_id=current_user.user_id)
         return user
     except ValueError as e:
         raise HTTPException(
@@ -174,7 +174,7 @@ async def update_user(
 
     try:
         updated_user = await service.update_user(
-            user_id=user_id, user_in=user_in, actor_id=current_user.id
+            user_id=user_id, user_in=user_in, actor_id=current_user.user_id
         )
         return updated_user
     except ValueError as e:  # Entity not found or version conflict
@@ -200,7 +200,7 @@ async def delete_user(
     Admin only.
     """
     try:
-        await service.delete_user(user_id=user_id, actor_id=current_user.id)
+        await service.delete_user(user_id=user_id, actor_id=current_user.user_id)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -51,11 +51,11 @@ class CreateBranchCommand(BranchCommandABC[TBranchable]):
         self,
         entity_class: type[TBranchable],
         root_id: UUID,
+        actor_id: UUID,
         new_branch: str,
         from_branch: str = "main",
     ) -> None:
-        self.entity_class = entity_class
-        self.root_id = root_id
+        super().__init__(entity_class, root_id, actor_id)
         self.new_branch = new_branch
         self.from_branch = from_branch
 
@@ -84,11 +84,11 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         self,
         entity_class: type[TBranchable],
         root_id: UUID,
+        actor_id: UUID,
         updates: dict[str, Any],
         branch: str = "main",
     ) -> None:
-        self.entity_class = entity_class
-        self.root_id = root_id
+        super().__init__(entity_class, root_id, actor_id)
         self.updates = updates
         self.branch = branch
 
@@ -121,11 +121,11 @@ class MergeBranchCommand(BranchCommandABC[TBranchable]):
         self,
         entity_class: type[TBranchable],
         root_id: UUID,
+        actor_id: UUID,
         source_branch: str,
         target_branch: str = "main",
     ) -> None:
-        self.entity_class = entity_class
-        self.root_id = root_id
+        super().__init__(entity_class, root_id, actor_id)
         self.source_branch = source_branch
         self.target_branch = target_branch
 
@@ -172,11 +172,11 @@ class RevertCommand(BranchCommandABC[TBranchable]):
         self,
         entity_class: type[TBranchable],
         root_id: UUID,
+        actor_id: UUID,
         branch: str = "main",
         to_version_id: UUID | None = None,
     ) -> None:
-        self.entity_class = entity_class
-        self.root_id = root_id
+        super().__init__(entity_class, root_id, actor_id)
         self.branch = branch
         self.to_version_id = to_version_id
 

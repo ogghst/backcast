@@ -7,6 +7,7 @@ import { UserList } from "@/pages/admin/UserList";
 import { DepartmentManagement } from "@/pages/admin/DepartmentManagement";
 import { ProjectList } from "@/pages/projects/ProjectList";
 import { WBEList } from "@/pages/wbes/WBEList";
+import { Profile } from "@/pages/Profile";
 
 export const router = createBrowserRouter([
   {
@@ -48,6 +49,10 @@ export const router = createBrowserRouter([
       {
         path: "/admin/departments",
         element: <DepartmentManagement />,
+      },
+      {
+        path: "/profile",
+        element: <Profile />,
       },
     ],
   },

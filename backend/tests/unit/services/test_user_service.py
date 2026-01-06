@@ -38,6 +38,7 @@ class TestUserServiceGetUser:
         """RED: Test that get_user returns User when found."""
         # Arrange
         service = UserService(db_session)
+        actor_id = uuid4()
 
         # Create a user directly in DB for testing
         user = User(
@@ -47,6 +48,7 @@ class TestUserServiceGetUser:
             full_name="Test User",
             role="viewer",
             is_active=True,
+            created_by=actor_id,
         )
         db_session.add(user)
         await db_session.commit()
@@ -109,6 +111,7 @@ class TestUserServiceUpdate:
         # Create initial version
         v1 = await service.create_user(user_in, actor_id=uuid4())
         user_id = v1.user_id
+        v1_id = v1.id  # Capture ID before update may expire the instance
 
         # Act
         update_in = UserUpdate(full_name="Updated Name")
@@ -116,7 +119,7 @@ class TestUserServiceUpdate:
 
         # Assert
         assert v2 is not None
-        assert v2.id != v1.id  # Different version IDs
+        assert v2.id != v1_id  # Different version IDs
         assert v2.user_id == user_id  # Same user ID
         assert v2.full_name == "Updated Name"
 

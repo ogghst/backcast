@@ -30,7 +30,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
 
     async def get_wbe(self, wbe_id: UUID) -> WBE | None:
         """Get WBE by root wbe_id (current version in main branch)."""
-        return await self.get_by_id(wbe_id)
+        return await self.get_current_version(wbe_id)
 
     async def get_wbes(
         self, skip: int = 0, limit: int = 100, branch: str = "main"
@@ -47,6 +47,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
                 func.upper(cast(Any, WBE).valid_time).is_(None),
                 cast(Any, WBE).deleted_at.is_(None),
             )
+            .order_by(cast(Any, WBE).valid_time.desc())
             .offset(skip)
             .limit(limit)
         )
@@ -105,6 +106,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
         cmd = CreateVersionCommand(
             entity_class=WBE,  # type: ignore[type-var]
             root_id=root_id,
+            actor_id=actor_id,
             **wbe_data,
         )
         return await cmd.execute(self.session)
@@ -116,6 +118,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
         cmd = UpdateVersionCommand(
             entity_class=WBE,  # type: ignore[type-var]
             root_id=wbe_id,
+            actor_id=actor_id,
             **update_data,
         )
         return await cmd.execute(self.session)
@@ -125,20 +128,10 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
         cmd = SoftDeleteCommand(
             entity_class=WBE,  # type: ignore[type-var]
             root_id=wbe_id,
+            actor_id=actor_id,
         )
         return await cmd.execute(self.session)
 
     async def get_wbe_history(self, wbe_id: UUID) -> list[WBE]:
-        """Get all versions of a WBE by root wbe_id."""
-        from typing import Any, cast
-
-        stmt = (
-            select(WBE)
-            .where(
-                WBE.wbe_id == wbe_id,
-                cast(Any, WBE).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, WBE).transaction_time.desc())
-        )
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        """Get all versions of a WBE by root wbe_id (with creator name)."""
+        return await self.get_history(wbe_id)

@@ -21,9 +21,10 @@ from app.models.domain.project import Project
 async def test_update_version_command_no_active_version(db_session: AsyncSession):
     """Test UpdateVersionCommand raises ValueError when no active version exists."""
     root_id = uuid4()
+    actor_id = uuid4()
     # Don't create any version
 
-    cmd = UpdateVersionCommand(Project, root_id, name="Update")
+    cmd = UpdateVersionCommand(Project, root_id, actor_id, name="Update")
     with pytest.raises(ValueError, match="No active version found"):
         await cmd.execute(db_session)
 
@@ -32,8 +33,9 @@ async def test_update_version_command_no_active_version(db_session: AsyncSession
 async def test_create_branch_command_no_active_version(db_session: AsyncSession):
     """Test CreateBranchCommand raises ValueError when source branch has no active version."""
     root_id = uuid4()
+    actor_id = uuid4()
 
-    cmd = CreateBranchCommand(Project, root_id, new_branch="feat/x", from_branch="main")
+    cmd = CreateBranchCommand(Project, root_id, actor_id, new_branch="feat/x", from_branch="main")
     with pytest.raises(ValueError, match="No active version on branch"):
         await cmd.execute(db_session)
 
@@ -42,8 +44,9 @@ async def test_create_branch_command_no_active_version(db_session: AsyncSession)
 async def test_update_command_no_active_version(db_session: AsyncSession):
     """Test UpdateCommand (Branch) raises ValueError when branch has no active version."""
     root_id = uuid4()
+    actor_id = uuid4()
 
-    cmd = UpdateCommand(Project, root_id, updates={"name": "Update"}, branch="main")
+    cmd = UpdateCommand(Project, root_id, actor_id, updates={"name": "Update"}, branch="main")
     with pytest.raises(ValueError, match="No active version on branch"):
         await cmd.execute(db_session)
 
@@ -52,9 +55,10 @@ async def test_update_command_no_active_version(db_session: AsyncSession):
 async def test_merge_branch_command_missing_source(db_session: AsyncSession):
     """Test MergeBranchCommand raises ValueError when source branch missing."""
     root_id = uuid4()
+    actor_id = uuid4()
 
     cmd = MergeBranchCommand(
-        Project, root_id, source_branch="feature/missing", target_branch="main"
+        Project, root_id, actor_id, source_branch="feature/missing", target_branch="main"
     )
     with pytest.raises(ValueError, match="Source branch .* not found"):
         await cmd.execute(db_session)
@@ -64,14 +68,15 @@ async def test_merge_branch_command_missing_source(db_session: AsyncSession):
 async def test_merge_branch_command_missing_target(db_session: AsyncSession):
     """Test MergeBranchCommand raises ValueError when target branch missing."""
     root_id = uuid4()
+    actor_id = uuid4()
 
     # Create source manually so it passes first check
-    project = Project(project_id=root_id, name="Src", branch="feature/exists")
+    project = Project(project_id=root_id, code="PROJ-MERGE-SRC", name="Src", branch="feature/exists", created_by=actor_id)
     db_session.add(project)
     await db_session.flush()
 
     cmd = MergeBranchCommand(
-        Project, root_id, source_branch="feature/exists", target_branch="main"
+        Project, root_id, actor_id, source_branch="feature/exists", target_branch="main"
     )
     with pytest.raises(ValueError, match="Target branch .* not found"):
         await cmd.execute(db_session)
@@ -81,8 +86,9 @@ async def test_merge_branch_command_missing_target(db_session: AsyncSession):
 async def test_revert_command_no_active_version(db_session: AsyncSession):
     """Test RevertCommand raises ValueError when current branch is empty."""
     root_id = uuid4()
+    actor_id = uuid4()
 
-    cmd = RevertCommand(Project, root_id, branch="main")
+    cmd = RevertCommand(Project, root_id, actor_id, branch="main")
     with pytest.raises(ValueError, match="No active version on"):
         await cmd.execute(db_session)
 
@@ -91,13 +97,14 @@ async def test_revert_command_no_active_version(db_session: AsyncSession):
 async def test_revert_command_no_target_version(db_session: AsyncSession):
     """Test RevertCommand raises ValueError when no parent/target specified."""
     root_id = uuid4()
+    actor_id = uuid4()
 
     # Create orphan version (no parent)
-    project = Project(project_id=root_id, name="Orphan", branch="main")
+    project = Project(project_id=root_id, code="PROJ-ORPHAN", name="Orphan", branch="main", created_by=actor_id)
     db_session.add(project)
     await db_session.flush()
 
-    cmd = RevertCommand(Project, root_id, branch="main")
+    cmd = RevertCommand(Project, root_id, actor_id, branch="main")
     with pytest.raises(ValueError, match="Cannot revert: No target version specified"):
         await cmd.execute(db_session)
 
@@ -107,9 +114,10 @@ async def test_temporal_service_base_methods(db_session: AsyncSession):
     """Test standard methods of TemporalService."""
     service = TemporalService(Project, db_session)
     root_id = uuid4()
+    actor_id = uuid4()
 
     # 1. Create dummy data directly (service.create is not implemented)
-    p1 = Project(project_id=root_id, name="Test Service", branch="main")
+    p1 = Project(project_id=root_id, code="PROJ-SERVICE", name="Test Service", branch="main", created_by=actor_id)
     db_session.add(p1)
     await db_session.flush()
     await db_session.refresh(p1)

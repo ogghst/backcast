@@ -48,15 +48,37 @@ test.describe("Admin Login & Profile Verification", () => {
     ).toBeVisible();
 
     // "Users" menu item should be visible for admin (from AppLayout.tsx logic)
-    await expect(page.getByRole("menuitem", { name: "Users" })).toBeVisible();
+    // Admin menu item should be visible in sidebar for admin
+    const adminMenu = page.locator("aside").getByText("Admin", { exact: true });
+    await expect(adminMenu).toBeVisible();
+
+    // Verify Role inside dropdown
+    await expect(
+      dropdownMenu.getByText("admin", { exact: true })
+    ).toBeVisible();
+
+    // Expand Admin menu to see User Management
+    await adminMenu.click();
+    await expect(
+      page.locator("aside").getByText("User Management")
+    ).toBeVisible();
 
     // --- PHASE 2: Logout and Login as Viewer ---
 
     // 8. Logout
-    // Open profile dropdown again if closed (it stays open unless clicked outside, but safe to click trigger again if needed?
-    // Actually, user action usually closes it? Playwright might not close it.
-    // The previous steps asserted visibility inside dropdown, so it's open.
-    await page.getByText("Logout").click();
+    // Click somewhere else to close any open menus, then reopen profile dropdown
+    await page.mouse.click(0, 0);
+    await page.waitForTimeout(500);
+
+    // Reopen the profile dropdown
+    await profileTrigger.click();
+    await expect(dropdownMenu).toBeVisible();
+
+    const logoutBtn = dropdownMenu
+      .locator(".ant-dropdown-menu-item")
+      .filter({ hasText: "Logout" });
+    await expect(logoutBtn).toBeVisible();
+    await logoutBtn.click();
 
     // 9. Wait for login page
     await page.waitForURL("/login");
@@ -92,8 +114,9 @@ test.describe("Admin Login & Profile Verification", () => {
     await page.mouse.click(0, 0);
 
     // 13. Verify "Users" menu item is NOT visible
+    // Verify "Admin" menu item is NOT visible in sidebar
     await expect(
-      page.getByRole("menuitem", { name: "Users" })
+      page.locator("aside").getByText("Admin", { exact: true })
     ).not.toBeVisible();
 
     // --- PHASE 3: Logout and Login as Admin Again ---
@@ -101,7 +124,11 @@ test.describe("Admin Login & Profile Verification", () => {
     // 14. Logout
     await profileTriggerViewer.click(); // Open dropdown
     await expect(dropdownMenuViewer).toBeVisible();
-    await dropdownMenuViewer.getByText("Logout").click();
+    const logoutBtnViewer = dropdownMenuViewer
+      .locator(".ant-dropdown-menu-item")
+      .filter({ hasText: "Logout" });
+    await expect(logoutBtnViewer).toBeVisible();
+    await logoutBtnViewer.click();
 
     await page.waitForURL("/login");
 
@@ -133,6 +160,13 @@ test.describe("Admin Login & Profile Verification", () => {
     await expect(
       page.getByRole("menuitem", { name: "Dashboard" })
     ).toBeVisible();
-    await expect(page.getByRole("menuitem", { name: "Users" })).toBeVisible();
+    const adminMenuAgain = page
+      .locator("aside")
+      .getByText("Admin", { exact: true });
+    await expect(adminMenuAgain).toBeVisible();
+    await adminMenuAgain.click();
+    await expect(
+      page.locator("aside").getByText("User Management")
+    ).toBeVisible();
   });
 });
