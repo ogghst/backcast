@@ -9,6 +9,8 @@ interface WBEModalProps {
   confirmLoading: boolean;
   initialValues?: WBERead | null;
   projectId?: string;
+  parentWbeId?: string | null;
+  parentName?: string | null;
 }
 
 export const WBEModal = ({
@@ -18,6 +20,8 @@ export const WBEModal = ({
   confirmLoading,
   initialValues,
   projectId,
+  parentWbeId,
+  parentName,
 }: WBEModalProps) => {
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
@@ -31,9 +35,21 @@ export const WBEModal = ({
         if (projectId) {
           form.setFieldValue("project_id", projectId);
         }
+        // Set parent context for creation
+        if (parentWbeId !== undefined) {
+          form.setFieldValue("parent_wbe_id", parentWbeId);
+        }
       }
     }
-  }, [open, initialValues, projectId, form]);
+  }, [open, initialValues, projectId, parentWbeId, form]);
+
+  const displayParentName = isEdit
+    ? initialValues?.parent_wbe_id
+      ? (initialValues as any).parent_name || initialValues.parent_wbe_id
+      : "Project Root"
+    : parentWbeId
+      ? parentName || parentWbeId
+      : "Project Root";
 
   const handleSubmit = async () => {
     try {
@@ -105,12 +121,15 @@ export const WBEModal = ({
           <InputNumber style={{ width: "100%" }} min={1} />
         </Form.Item>
 
+        <Form.Item name="parent_wbe_id" hidden>
+          <Input />
+        </Form.Item>
+
         <Form.Item
-          name="parent_wbe_id"
-          label="Parent WBE ID"
-          tooltip="ID of the parent WBE if applicable"
+          label="Parent WBE"
+          tooltip="Context inherited from current page"
         >
-          <Input placeholder="Parent WBE ID (Optional)" />
+          <Input value={displayParentName} disabled />
         </Form.Item>
 
         <Form.Item name="description" label="Description">

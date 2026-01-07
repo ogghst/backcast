@@ -92,12 +92,13 @@ const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<
 >("cost_elements", costElementApi);
 
 interface CostElementManagementProps {
-  /** When provided, filters cost elements to this WBE and hides WBE column */
   wbeId?: string;
+  wbeName?: string;
 }
 
 export const CostElementManagement = ({
   wbeId,
+  wbeName,
 }: CostElementManagementProps) => {
   const { tableParams, handleTableChange } = useTableParams();
   const [currentBranch, setCurrentBranch] = useState("main");
@@ -222,7 +223,8 @@ export const CostElementManagement = ({
       title: "Type",
       dataIndex: "cost_element_type_id",
       key: "cost_element_type_id",
-      render: (id) => typeMap[id] || id,
+      render: (id, record) =>
+        record.cost_element_type_name || typeMap[id] || id,
       filters: types.map((t) => ({
         text: t.name,
         value: t.cost_element_type_id,
@@ -232,7 +234,7 @@ export const CostElementManagement = ({
       title: "WBE",
       dataIndex: "wbe_id",
       key: "wbe_id",
-      render: (id) => wbeMap[id] || id,
+      render: (id, record) => (record as any).wbe_name || wbeMap[id] || id,
       // Hide WBE filter when wbeId prop is provided (already filtered)
       filters: wbeId
         ? undefined
@@ -359,6 +361,8 @@ export const CostElementManagement = ({
         confirmLoading={isLoading}
         initialValues={selectedElement}
         currentBranch={currentBranch}
+        wbeId={wbeId}
+        wbeName={wbeName || (selectedElement as any)?.wbe_name}
       />
 
       <VersionHistoryDrawer

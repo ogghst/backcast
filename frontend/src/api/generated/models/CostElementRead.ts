@@ -13,7 +13,10 @@ export type CostElementRead = {
     id: string;
     cost_element_id: string;
     wbe_id: string;
+    wbe_name?: (string | null);
     cost_element_type_id: string;
+    cost_element_type_name?: (string | null);
+    cost_element_type_code?: (string | null);
     branch: string;
     created_by: string;
     valid_time?: (string | null);

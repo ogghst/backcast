@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-01-06
-**Total Debt Items:** 5
-**Total Estimated Effort:** 18 hours
+**Last Updated:** 2026-01-07
+**Total Debt Items:** 4
+**Total Estimated Effort:** 9 hours
 
 ---
 
@@ -10,25 +10,15 @@
 
 | Severity | Items | Effort | % of Total |
 | -------- | ----- | ------ | ---------- |
-| High     | 2     | 10h    | 56%        |
-| Medium   | 3     | 8h     | 44%        |
-| Low      | 0     | 0h     | 0%         |
+| High     | 1     | 4h     | 31%        |
+| Medium   | 3     | 8h     | 62%        |
+| Low      | 1     | 1h     | 7%         |
 
 ---
 
 ## Debt Items
 
 ### High Severity
-
-#### [TD-001] Generic TemporalService get_by_root_id
-
-- **Source:** Hybrid Sprint 2/3 ACT phase
-- **Description:** Duplication in ProjectService and WBEService for root ID querying logic. Each service implements its own `get_by_root_id` instead of using a generic method.
-- **Impact:** DRY violation, maintenance burden, inconsistent behavior across services
-- **Estimated Effort:** 6 hours
-- **Target Date:** 2026-01-10
-- **Status:** 🔴 Open
-- **Owner:** Backend Developer
 
 #### [TD-002] Remaining Unit Test Failures
 
@@ -37,7 +27,7 @@
 - **Impact:** Reduced confidence in complex branching features, potential undetected bugs
 - **Estimated Effort:** 4 hours
 - **Target Date:** 2026-01-10
-- **Status:** 🔴 Open
+- **Status:** ✅ Closed
 - **Owner:** Backend Developer
 
 ### Medium Severity
@@ -76,7 +66,15 @@
 
 ### Low Severity
 
-_No low severity debt items._
+#### [TD-007] Remaining Page-Level API Adapters
+
+- **Source:** Frontend Architecture Cleanup ACT phase
+- **Description:** 5 page-level files still use legacy adapter pattern (UserList, DepartmentManagement, CostElementTypeManagement, CostElementManagement, WBEList). These work fine due to backward compatibility but could be migrated to named methods pattern.
+- **Impact:** Minor code duplication, inconsistent patterns
+- **Estimated Effort:** 1 hour
+- **Target Date:** 2026-01-15
+- **Status:** 🟡 Open
+- **Owner:** Frontend Developer
 
 ---
 
@@ -84,8 +82,8 @@ _No low severity debt items._
 
 | Age Bucket | Items | Effort | % of Total |
 | ---------- | ----- | ------ | ---------- |
-| < 1 week   | 2     | 10h    | 100%       |
-| 1-2 weeks  | 0     | 0h     | 0%         |
+| < 1 week   | 3     | 11h    | 58%        |
+| 1-2 weeks  | 3     | 8h     | 42%        |
 | 2-4 weeks  | 0     | 0h     | 0%         |
 | > 1 month  | 0     | 0h     | 0%         |
 
@@ -95,10 +93,11 @@ _No low severity debt items._
 
 | Category         | Items | Effort |
 | ---------------- | ----- | ------ |
-| Code Duplication | 1     | 6h     |
+| Code Duplication | 2     | 7h     |
 | Test Coverage    | 1     | 4h     |
-| Performance      | 0     | 0h     |
-| Documentation    | 0     | 0h     |
+| Performance      | 1     | 3h     |
+| UI/UX            | 1     | 2h     |
+| Architecture     | 1     | 1h     |
 
 ---
 
@@ -119,16 +118,23 @@ _No low severity debt items._
 
 ## Retired Debt
 
-| ID  | Item                                   | Retired Date | Resolution                       |
-| --- | -------------------------------------- | ------------ | -------------------------------- |
-| N/A | Backend test environment loop mismatch | 2026-01-06   | Fixed conftest.py fixture scopes |
+| ID     | Item                                   | Retired Date | Resolution                                                                 |
+| ------ | -------------------------------------- | ------------ | -------------------------------------------------------------------------- |
+| N/A    | Backend test environment loop mismatch | 2026-01-06   | Fixed conftest.py fixture scopes                                           |
+| TD-001 | Generic TemporalService get_by_root_id | 2026-01-07   | Added `get_by_root_id` to `TemporalService[T]`, removed duplicate wrappers |
+| TD-006 | `useUserStore` server state violation  | 2026-01-07   | Deleted store; verified unused in production code                          |
+| TD-008 | Inconsistent Zustand middleware        | 2026-01-07   | Refactored all stores to use `immer` middleware                            |
+| TD-009 | Duplicate history hooks                | 2026-01-07   | Standardized on generic `useEntityHistory` hook                            |
+| TD-010 | API adapter duplication                | 2026-01-07   | Added named methods support to `createResourceHooks` (backward compatible) |
+| TD-011 | Hardcoded pagination values            | 2026-01-07   | Centralized in `constants/pagination.ts`                                   |
+| TD-002 | Remaining Unit Test Failures           | 2026-01-07   | Fixed field naming mismatch in tests; verified integration stability       |
 
 ---
 
 ## Maintenance Notes
 
-**Last Reviewed:** 2026-01-06
-**Next Review:** 2026-01-13
+**Last Reviewed:** 2026-01-07
+**Next Review:** 2026-01-14
 
 **Process:**
 

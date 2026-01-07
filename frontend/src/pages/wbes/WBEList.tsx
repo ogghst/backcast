@@ -256,6 +256,14 @@ export const WBEList = ({ projectId }: WBEListProps) => {
         confirmLoading={isLoading}
         initialValues={selectedWBE}
         projectId={projectId}
+        parentWbeId={selectedWBE ? selectedWBE.parent_wbe_id : null}
+        parentName={
+          selectedWBE
+            ? (selectedWBE as any).parent_name
+            : projectId
+              ? "Project Root"
+              : null
+        }
       />
 
       <VersionHistoryDrawer

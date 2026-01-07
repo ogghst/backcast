@@ -44,6 +44,7 @@ class WBERead(WBEBase):
     created_at: datetime | None = None
     created_by: UUID
     created_by_name: str | None = None
+    parent_name: str | None = None
     deleted_by: UUID | None = None
     valid_time: str | None = None
     transaction_time: str | None = None

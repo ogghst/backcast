@@ -1,11 +1,11 @@
 import { createResourceHooks } from "@/hooks/useCrud";
+import { useQuery } from "@tanstack/react-query";
 import {
   WbEsService,
   type WBERead,
   type WBECreate,
   type WBEUpdate,
 } from "@/api/generated";
-import { useQuery } from "@tanstack/react-query";
 
 interface WBEListParams {
   pagination?: { current?: number; pageSize?: number };
@@ -14,8 +14,15 @@ interface WBEListParams {
   branch?: string;
 }
 
-const wbeApi = {
-  getUsers: async (params?: WBEListParams) => {
+// Direct usage of WbEsService with named methods (no adapter needed)
+export const {
+  useList: useWBEs,
+  useDetail: useWBE,
+  useCreate: useCreateWBE,
+  useUpdate: useUpdateWBE,
+  useDelete: useDeleteWBE,
+} = createResourceHooks<WBERead, WBECreate, WBEUpdate>("wbes", {
+  list: async (params?: WBEListParams) => {
     const { pagination, ...filters } = params || {};
     const current = pagination?.current || 1;
     const pageSize = pagination?.pageSize || 100;
@@ -29,19 +36,11 @@ const wbeApi = {
       filters.branch
     );
   },
-  getUser: (id: string) => WbEsService.getWbe(id),
-  createUser: (data: WBECreate) => WbEsService.createWbe(data),
-  updateUser: (id: string, data: WBEUpdate) => WbEsService.updateWbe(id, data),
-  deleteUser: (id: string) => WbEsService.deleteWbe(id),
-};
-
-export const {
-  useList: useWBEs,
-  useDetail: useWBE,
-  useCreate: useCreateWBE,
-  useUpdate: useUpdateWBE,
-  useDelete: useDeleteWBE,
-} = createResourceHooks<WBERead, WBECreate, WBEUpdate>("wbes", wbeApi);
+  detail: WbEsService.getWbe,
+  create: WbEsService.createWbe,
+  update: WbEsService.updateWbe,
+  delete: WbEsService.deleteWbe,
+});
 
 // Breadcrumb hook
 export const useWBEBreadcrumb = (wbeId: string | undefined) => {
@@ -49,17 +48,5 @@ export const useWBEBreadcrumb = (wbeId: string | undefined) => {
     queryKey: ["wbes", wbeId, "breadcrumb"],
     queryFn: () => WbEsService.getWbeBreadcrumb(wbeId!),
     enabled: !!wbeId,
-  });
-};
-
-// History hook
-export const useWBEHistory = (
-  wbeId: string | undefined,
-  enabled: boolean = true
-) => {
-  return useQuery({
-    queryKey: ["wbes", wbeId, "history"],
-    queryFn: () => WbEsService.getWbeHistory(wbeId!),
-    enabled: !!wbeId && enabled,
   });
 };

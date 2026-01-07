@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { immer } from "zustand/middleware/immer";
 import type { UserPublic, Permission, Role } from "../types/auth";
 
 interface AuthState {
@@ -21,8 +22,9 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>()(
-  persist(
-    (set, get) => ({
+  immer(
+    persist(
+      (set, get) => ({
       user: null,
       permissions: [],
       token: null,
@@ -66,17 +68,18 @@ export const useAuthStore = create<AuthState>()(
           token: null,
           isAuthenticated: false,
         }),
-    }),
-    {
-      name: "auth-storage", // localStorage key
-      partialize: (state) => ({ token: state.token, user: state.user }), // Persist token and user
-      onRehydrateStorage: () => (state) => {
-        // After rehydration, update permissions from user
-        if (state?.user) {
-          state.permissions = state.user.permissions || [];
-          state.isAuthenticated = true;
-        }
+      }),
+      {
+        name: "auth-storage", // localStorage key
+        partialize: (state) => ({ token: state.token, user: state.user }), // Persist token and user
+        onRehydrateStorage: () => (state) => {
+          // After rehydration, update permissions from user
+          if (state?.user) {
+            state.permissions = state.user.permissions || [];
+            state.isAuthenticated = true;
+          }
+        },
       },
-    },
+    ),
   ),
 );

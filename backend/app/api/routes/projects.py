@@ -86,7 +86,7 @@ async def read_project(
     service: ProjectService = Depends(get_project_service),
 ) -> Project:
     """Get a specific project by id. Requires read permission."""
-    project = await service.get_project(project_id)
+    project = await service.get_by_root_id(project_id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

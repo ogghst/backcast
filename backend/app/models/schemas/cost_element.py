@@ -40,7 +40,10 @@ class CostElementRead(CostElementBase):
     id: UUID
     cost_element_id: UUID
     wbe_id: UUID
+    wbe_name: str | None = None
     cost_element_type_id: UUID
+    cost_element_type_name: str | None = None
+    cost_element_type_code: str | None = None
     branch: str
     created_by: UUID
     valid_time: str | None = None

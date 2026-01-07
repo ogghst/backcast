@@ -28,10 +28,6 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var]
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(Project, session)
 
-    async def get_project(self, project_id: UUID) -> Project | None:
-        """Get project by root project_id (current version in main branch)."""
-        return await self.get_current_version(project_id)
-
     async def get_projects(
         self, skip: int = 0, limit: int = 100, branch: str = "main"
     ) -> list[Project]:

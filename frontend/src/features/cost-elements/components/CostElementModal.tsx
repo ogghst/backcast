@@ -16,6 +16,8 @@ interface CostElementModalProps {
   confirmLoading: boolean;
   initialValues?: CostElementRead | null;
   currentBranch: string; // Used for "Create in Branch" context if needed
+  wbeId?: string;
+  wbeName?: string;
 }
 
 export const CostElementModal = ({
@@ -25,6 +27,8 @@ export const CostElementModal = ({
   confirmLoading,
   initialValues,
   currentBranch,
+  wbeId,
+  wbeName,
 }: CostElementModalProps) => {
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
@@ -39,6 +43,9 @@ export const CostElementModal = ({
         form.setFieldsValue(initialValues);
       } else {
         form.resetFields();
+        if (wbeId) {
+          form.setFieldValue("wbe_id", wbeId);
+        }
       }
 
       // Fetch options
@@ -46,20 +53,33 @@ export const CostElementModal = ({
         try {
           setLoadingOpts(true);
           const [wbeRes, typeRes] = await Promise.all([
-            WbEsService.getWbes(0, 1000), // TODO: pagination/filter
+            WbEsService.getWbes(0, 1000),
             CostElementTypesService.getCostElementTypes(0, 1000),
           ]);
           setWbes(wbeRes);
           setTypes(typeRes);
         } catch (e) {
-          console.error(e);
+          console.error("Error fetching options:", e);
         } finally {
           setLoadingOpts(false);
         }
       };
       fetchOptions();
     }
-  }, [open, initialValues, form]);
+  }, [open, initialValues, form, wbeId]);
+
+  const displayWbeName = isEdit
+    ? (initialValues as any).wbe_name || initialValues?.wbe_id
+    : wbeName || "Unknown WBE";
+
+  // Generate display value for cost element type
+  const displayTypeName =
+    isEdit && initialValues
+      ? (initialValues as any).cost_element_type_code &&
+        (initialValues as any).cost_element_type_name
+        ? `${(initialValues as any).cost_element_type_code} - ${(initialValues as any).cost_element_type_name}`
+        : initialValues.cost_element_type_id
+      : undefined;
 
   const handleSubmit = async () => {
     try {
@@ -137,25 +157,12 @@ export const CostElementModal = ({
             gap: "16px",
           }}
         >
-          <Form.Item
-            name="wbe_id"
-            label="WBE"
-            rules={[{ required: true, message: "Select WBE" }]}
-          >
-            <Select
-              placeholder="Select WBE"
-              loading={loadingOpts}
-              options={wbes.map((w) => ({
-                label: `${w.code} - ${w.name}`,
-                value: w.wbe_id,
-              }))}
-              showSearch
-              filterOption={(input, option) =>
-                (option?.label ?? "")
-                  .toLowerCase()
-                  .includes(input.toLowerCase())
-              }
-            />
+          <Form.Item name="wbe_id" hidden>
+            <Input />
+          </Form.Item>
+
+          <Form.Item label="WBE" tooltip="Context inherited from parent WBE">
+            <Input value={displayWbeName} disabled />
           </Form.Item>
 
           <Form.Item

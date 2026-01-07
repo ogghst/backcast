@@ -46,6 +46,32 @@ export const useStore = create<State>()(
 );
 ```
 
+**Combining Immer with Persist Middleware:**
+
+When using both `immer` and `persist` middleware, the correct order is `immer(persist(...))`:
+
+```typescript
+import { create } from "zustand";
+import { immer } from "zustand/middleware/immer";
+import { persist } from "zustand/middleware";
+
+export const useAuthStore = create<State>()(
+  immer(
+    persist(
+      (set, get) => ({
+        // ... store implementation
+      }),
+      {
+        name: "auth-storage",
+        partialize: (state) => ({ token: state.token }),
+      }
+    )
+  )
+);
+```
+
+**Important:** Always wrap `persist` with `immer`, not the other way around. This ensures immer's draft state API works correctly with persisted state.
+
 **Benefits:**
 
 - Cleaner, more readable code (no spread operators)
@@ -61,6 +87,52 @@ export const useStore = create<State>()(
   - Global error handling (401 redirects).
 - **Standardization**: All API calls must return typed responses matching Backend Pydantic schemas.
 
+### 3.4 CRUD Hook Factory
+
+The `createResourceHooks` factory in `src/hooks/useCrud.ts` provides a consistent pattern for CRUD operations. It supports two patterns:
+
+**Named Methods Pattern (Recommended):**
+
+Direct usage of service methods without adapters:
+
+```typescript
+import { createResourceHooks } from "@/hooks/useCrud";
+import { ProjectsService } from "@/api/generated";
+
+export const {
+  useList: useProjects,
+  useDetail: useProject,
+  useCreate: useCreateProject,
+  useUpdate: useUpdateProject,
+  useDelete: useDeleteProject,
+} = createResourceHooks("projects", {
+  list: ProjectsService.getProjects,
+  detail: ProjectsService.getProject,
+  create: ProjectsService.createProject,
+  update: ProjectsService.updateProject,
+  delete: ProjectsService.deleteProject,
+});
+```
+
+**Legacy Adapter Pattern (Backward Compatible):**
+
+For existing code using adapters:
+
+```typescript
+const adapter = {
+  getUsers: (params) => ProjectsService.getProjects(...),
+  getUser: (id) => ProjectsService.getProject(id),
+  createUser: (data) => ProjectsService.createProject(data),
+  updateUser: (id, data) => ProjectsService.updateProject(id, data),
+  deleteUser: (id) => ProjectsService.deleteProject(id),
+};
+const { useList } = createResourceHooks("projects", adapter);
+```
+
+The factory automatically detects which pattern you're using and routes accordingly.
+
+---
+
 ## 4. Implementation Guidelines
 
 - **Do not** store API data in Zustand. Use `useQuery`.
@@ -68,3 +140,5 @@ export const useStore = create<State>()(
 - **Do** type all API responses.
 - **Do** use immer middleware for all Zustand stores.
 - **Do** use draft mutations (direct assignments) within immer `set` callbacks.
+- **Do** use named methods pattern with `createResourceHooks` for new code.
+- **Do** wrap `persist` middleware with `immer` when combining them.

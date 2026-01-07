@@ -3,17 +3,20 @@
 Provides WBE-specific operations with parent-child project relationship.
 """
 
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy.orm import aliased
 from app.core.versioning.commands import (
     CreateVersionCommand,
     SoftDeleteCommand,
     UpdateVersionCommand,
 )
 from app.core.versioning.service import TemporalService
+from app.models.domain.user import User
 from app.models.domain.wbe import WBE
 from app.models.schemas.wbe import WBECreate, WBEUpdate
 
@@ -28,9 +31,56 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(WBE, session)
 
-    async def get_wbe(self, wbe_id: UUID) -> WBE | None:
-        """Get WBE by root wbe_id (current version in main branch)."""
-        return await self.get_current_version(wbe_id)
+    async def _resolve_parent_names(self, query_results: list[Any]) -> list[WBE]:
+        """Helper to resolve parent names for a list of WBE results.
+        
+        Args:
+            query_results: List of Row objects (WBE, parent_name) or WBE objects
+            
+        Returns:
+            List of WBE objects with parent_name attached
+        """
+        resolved = []
+        for item in query_results:
+            # SQLAlchemy Row objects behave like tuples but may not be instances of tuple type
+            # They also have a __composite_values__ or other ways to check, but checking
+            # for length and attribute access is safer.
+            if hasattr(item, "__iter__") and not isinstance(item, (str, bytes)):
+                # Convert to list to ensure we can unpack if it's a Row
+                item_list = list(item)
+                if len(item_list) >= 2:
+                    wbe, parent_name = item_list[0], item_list[1]
+                    wbe.parent_name = parent_name
+                    resolved.append(wbe)
+                elif len(item_list) == 1:
+                    resolved.append(item_list[0])
+                else:
+                    resolved.append(item)
+            else:
+                resolved.append(item)
+        return resolved
+
+    def _get_base_stmt(self) -> Any:
+        """Get base select statement with parent name join."""
+        from typing import Any, cast
+        from sqlalchemy import func
+
+        Parent = aliased(WBE, name="parent_wbe")
+        
+        # Subquery for current parent versions to avoid multiple rows
+        parent_subq = (
+            select(Parent.wbe_id, Parent.name)
+            .where(
+                func.upper(cast(Any, Parent).valid_time).is_(None),
+                cast(Any, Parent).deleted_at.is_(None)
+            )
+            .subquery("parent_lookup")
+        )
+
+        return (
+            select(WBE, parent_subq.c.name.label("parent_name"))
+            .outerjoin(parent_subq, WBE.parent_wbe_id == parent_subq.c.wbe_id)
+        )
 
     async def get_wbes(
         self, skip: int = 0, limit: int = 100, branch: str = "main"
@@ -41,7 +91,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
         from sqlalchemy import func
 
         stmt = (
-            select(WBE)
+            self._get_base_stmt()
             .where(
                 WBE.branch == branch,
                 func.upper(cast(Any, WBE).valid_time).is_(None),
@@ -52,7 +102,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
             .limit(limit)
         )
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        return await self._resolve_parent_names(result.all())
 
     async def get_by_project(self, project_id: UUID, branch: str = "main") -> list[WBE]:
         """Get all WBEs for a specific project (current versions)."""
@@ -61,7 +111,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
         from sqlalchemy import func
 
         stmt = (
-            select(WBE)
+            self._get_base_stmt()
             .where(
                 WBE.project_id == project_id,
                 WBE.branch == branch,
@@ -71,7 +121,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
             .order_by(WBE.code)
         )
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        return await self._resolve_parent_names(result.all())
 
     async def get_by_parent(
         self,
@@ -112,9 +162,9 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
             # Query for children of specific parent
             conditions.append(WBE.parent_wbe_id == parent_wbe_id)
 
-        stmt = select(WBE).where(*conditions).order_by(WBE.code)
+        stmt = self._get_base_stmt().where(*conditions).order_by(WBE.code)
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        return await self._resolve_parent_names(result.all())
 
     async def get_by_code(
         self, code: str, project_id: UUID, branch: str = "main"
@@ -125,7 +175,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
         from sqlalchemy import func
 
         stmt = (
-            select(WBE)
+            self._get_base_stmt()
             .where(
                 WBE.code == code,
                 WBE.project_id == project_id,
@@ -136,7 +186,8 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
             .limit(1)
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        resolved = await self._resolve_parent_names(result.all())
+        return resolved[0] if resolved else None
 
     async def create_wbe(self, wbe_in: WBECreate, actor_id: UUID) -> WBE:
         """Create new WBE using CreateVersionCommand."""
@@ -187,7 +238,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
         from sqlalchemy import func
 
         # First, check if WBE exists and get current children count
-        wbe = await self.get_wbe(wbe_id)
+        wbe = await self.get_by_root_id(wbe_id)
         if not wbe:
             raise ValueError(f"WBE with id {wbe_id} not found")
 
@@ -274,7 +325,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
         # Fetch full WBE objects for each descendant
         descendant_list = []
         for row in descendant_rows:
-            descendant = await self.get_wbe(row.wbe_id)
+            descendant = await self.get_by_root_id(row.wbe_id)
             if descendant:
                 descendant_list.append(descendant)
                 
@@ -332,7 +383,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
         from app.models.domain.project import Project
 
         # First, get the current WBE
-        current_wbe = await self.get_wbe(wbe_id)
+        current_wbe = await self.get_by_root_id(wbe_id)
         if not current_wbe:
             raise ValueError(f"WBE with id {wbe_id} not found")
 
@@ -415,6 +466,73 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
             ],
         }
 
+    async def get_by_root_id(self, root_id: UUID, branch: str = "main") -> WBE | None:
+        """Override to include parent_name."""
+        from typing import Any, cast
+        from sqlalchemy import func
+
+        stmt = (
+            self._get_base_stmt()
+            .where(
+                WBE.wbe_id == root_id,
+                WBE.branch == branch,
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        row = result.first()
+        if not row:
+            return None
+        
+        wbe, parent_name = row
+        wbe.parent_name = parent_name
+        return wbe
+
     async def get_wbe_history(self, wbe_id: UUID) -> list[WBE]:
-        """Get all versions of a WBE by root wbe_id (with creator name)."""
-        return await self.get_history(wbe_id)
+        """Get all versions of a WBE by root wbe_id (with creator and parent name)."""
+        from typing import Any, cast
+        from sqlalchemy import func
+        from sqlalchemy.orm import aliased
+        from app.models.domain.user import User
+
+        # User lookup subquery
+        creator_subq = (
+            select(User.user_id, User.full_name)
+            .distinct(User.user_id)
+            .order_by(User.user_id, User.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+
+        # Parent lookup subquery
+        Parent = aliased(WBE, name="parent_wbe")
+        parent_subq = (
+            select(Parent.wbe_id, Parent.name)
+            .where(
+                func.upper(cast(Any, Parent).valid_time).is_(None),
+                cast(Any, Parent).deleted_at.is_(None)
+            )
+            .subquery("parent_lookup")
+        )
+
+        stmt = (
+            select(WBE, creator_subq.c.full_name.label("created_by_name"), parent_subq.c.name.label("parent_name"))
+            .outerjoin(creator_subq, WBE.created_by == creator_subq.c.user_id)
+            .outerjoin(parent_subq, WBE.parent_wbe_id == parent_subq.c.wbe_id)
+            .where(
+                WBE.wbe_id == wbe_id,
+                cast(Any, WBE).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, WBE).transaction_time.desc())
+        )
+
+        result = await self.session.execute(stmt)
+        history = []
+        for row in result.all():
+            wbe, creator_name, parent_name = row
+            wbe.created_by_name = creator_name
+            wbe.parent_name = parent_name
+            history.append(wbe)
+
+        return history

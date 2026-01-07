@@ -24,8 +24,9 @@ import {
   useCreateProject,
   useUpdateProject,
   useDeleteProject,
-  useProjectHistory,
 } from "../api/useProjects";
+import { useEntityHistory } from "@/hooks/useEntityHistory";
+import { ProjectsService } from "@/api/generated";
 
 export const ProjectList = () => {
   const navigate = useNavigate();
@@ -261,10 +262,12 @@ const HistoryDrawerWrapper = ({
   onClose: () => void;
   project: ProjectRead | null;
 }) => {
-  const { data: history, isLoading } = useProjectHistory(
-    project?.project_id,
-    open
-  );
+  const { data: history, isLoading } = useEntityHistory({
+    resource: "projects",
+    entityId: project?.project_id,
+    fetchFn: (id) => ProjectsService.getProjectHistory(id),
+    enabled: open,
+  });
 
   return (
     <VersionHistoryDrawer

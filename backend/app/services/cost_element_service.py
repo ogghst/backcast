@@ -1,7 +1,7 @@
 """Cost Element Service - branchable entity management."""
 
 from uuid import UUID, uuid4
-from typing import Any, cast
+from typing import Any, cast, List
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,8 @@ from app.core.versioning.commands import (
 )
 from app.core.versioning.service import TemporalService
 from app.models.domain.cost_element import CostElement
+from app.models.domain.cost_element_type import CostElementType
+from app.models.domain.wbe import WBE
 from app.models.schemas.cost_element import CostElementCreate, CostElementUpdate
 
 
@@ -26,6 +28,67 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             db: Async database session
         """
         super().__init__(CostElement, db)
+
+    def _get_base_stmt(self) -> Any:
+        """Get base select statement with WBE name and CostElementType joins."""
+        from sqlalchemy.orm import aliased
+        
+        WBEAlias = aliased(WBE, name="wbe_lookup")
+        TypeAlias = aliased(CostElementType, name="type_lookup")
+        
+        # Subquery for current WBE versions
+        wbe_subq = (
+            select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
+            .where(
+                func.upper(cast(Any, WBEAlias).valid_time).is_(None),
+                cast(Any, WBEAlias).deleted_at.is_(None)
+            )
+            .subquery("wbe_lookup_subq")
+        )
+        
+        # Subquery for current CostElementType versions
+        type_subq = (
+            select(
+                TypeAlias.cost_element_type_id,
+                TypeAlias.name.label("type_name"),
+                TypeAlias.code.label("type_code")
+            )
+            .where(
+                func.upper(cast(Any, TypeAlias).valid_time).is_(None),
+                cast(Any, TypeAlias).deleted_at.is_(None)
+            )
+            .subquery("type_lookup_subq")
+        )
+
+        return (
+            select(CostElement, wbe_subq.c.wbe_name, type_subq.c.type_name, type_subq.c.type_code)
+            .outerjoin(wbe_subq, CostElement.wbe_id == wbe_subq.c.wbe_id)
+            .outerjoin(type_subq, CostElement.cost_element_type_id == type_subq.c.cost_element_type_id)
+        )
+
+    async def _resolve_relations(self, query_results: List[Any]) -> List[CostElement]:
+        """Helper to resolve related names for a list of results."""
+        resolved = []
+        for item in query_results:
+            if hasattr(item, "__iter__") and not isinstance(item, (str, bytes)):
+                item_list = list(item)
+                if len(item_list) >= 4:
+                    # entity, wbe_name, type_name, type_code
+                    entity = item_list[0]
+                    entity.wbe_name = item_list[1]
+                    entity.cost_element_type_name = item_list[2]
+                    entity.cost_element_type_code = item_list[3]
+                    resolved.append(entity)
+                elif len(item_list) >= 2:
+                    # Fallback for backwards compatibility
+                    entity, wbe_name = item_list[0], item_list[1]
+                    entity.wbe_name = wbe_name
+                    resolved.append(entity)
+                else:
+                    resolved.append(item_list[0])
+            else:
+                resolved.append(item)
+        return resolved
 
     async def create(
         self,
@@ -180,10 +243,9 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
     async def get_by_id(
         self, cost_element_id: UUID, branch: str = "main"
     ) -> CostElement | None:
-        """Get cost element by root ID and branch."""
-        # Manual query to avoid 'costelement_id' inference issue in TemporalService
+        """Get cost element by root ID and branch with WBE name."""
         stmt = (
-            select(CostElement)
+            self._get_base_stmt()
             .where(
                 CostElement.cost_element_id == cost_element_id,
                 CostElement.branch == branch,
@@ -194,15 +256,16 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             .limit(1)
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        resolved = await self._resolve_relations(result.all())
+        return resolved[0] if resolved else None
 
-    async def list(
+    async def get_cost_elements(
         self, filters: dict | None = None, branch: str = "main", skip: int = 0, limit: int = 100
-    ) -> list[CostElement]:
-        """Get all cost elements with optional filtering."""
+    ) -> List[CostElement]:
+        """Get all cost elements with optional filtering and WBE name."""
         
         stmt = (
-            select(CostElement)
+            self._get_base_stmt()
             .where(
                 CostElement.branch == branch,
                 func.upper(cast(Any, CostElement).valid_time).is_(None),
@@ -216,7 +279,83 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             if "cost_element_type_id" in filters:
                 stmt = stmt.where(CostElement.cost_element_type_id == filters["cost_element_type_id"])
                 
-        stmt = stmt.order_by(CostElement.valid_time.desc()).offset(skip).limit(limit)
+        stmt = stmt.order_by(cast(Any, CostElement).valid_time.desc()).offset(skip).limit(limit)
         
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        return await self._resolve_relations(result.all())
+    
+    async def list(
+        self, filters: dict | None = None, branch: str = "main", skip: int = 0, limit: int = 100
+    ) -> List[CostElement]:
+        """Alias for get_cost_elements() to maintain backward compatibility."""
+        return await self.get_cost_elements(filters=filters, branch=branch, skip=skip, limit=limit)
+
+    async def get_history(self, root_id: UUID) -> List[CostElement]:
+        """Get all versions of a cost element with creator, WBE name, and type info."""
+        from app.models.domain.user import User
+        from sqlalchemy.orm import aliased
+
+        # User lookup subquery
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+
+        # WBE lookup subquery
+        WBEAlias = aliased(WBE, name="wbe_history_lookup")
+        wbe_subq = (
+            select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
+            .where(
+                func.upper(cast(Any, WBEAlias).valid_time).is_(None),
+                cast(Any, WBEAlias).deleted_at.is_(None)
+            )
+            .subquery("wbe_history_lookup_subq")
+        )
+        
+        # CostElementType lookup subquery
+        TypeAlias = aliased(CostElementType, name="type_history_lookup")
+        type_subq = (
+            select(
+                TypeAlias.cost_element_type_id,
+                TypeAlias.name.label("type_name"),
+                TypeAlias.code.label("type_code")
+            )
+            .where(
+                func.upper(cast(Any, TypeAlias).valid_time).is_(None),
+                cast(Any, TypeAlias).deleted_at.is_(None)
+            )
+            .subquery("type_history_lookup_subq")
+        )
+
+        stmt = (
+            select(
+                CostElement, 
+                creator_subq.c.full_name.label("created_by_name"),
+                wbe_subq.c.wbe_name,
+                type_subq.c.type_name,
+                type_subq.c.type_code
+            )
+            .outerjoin(creator_subq, CostElement.created_by == creator_subq.c.user_id)
+            .outerjoin(wbe_subq, CostElement.wbe_id == wbe_subq.c.wbe_id)
+            .outerjoin(type_subq, CostElement.cost_element_type_id == type_subq.c.cost_element_type_id)
+            .where(
+                CostElement.cost_element_id == root_id,
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, CostElement).transaction_time.desc())
+        )
+
+        result = await self.session.execute(stmt)
+        history = []
+        for row in result.all():
+            entity, creator_name, wbe_name, type_name, type_code = row
+            entity.created_by_name = creator_name
+            entity.wbe_name = wbe_name
+            entity.cost_element_type_name = type_name
+            entity.cost_element_type_code = type_code
+            history.append(entity)
+
+        return history

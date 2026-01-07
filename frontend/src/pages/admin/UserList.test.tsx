@@ -18,7 +18,7 @@ vi.mock("@/stores/useAuthStore", () => ({
   },
 }));
 
-// We DO NOT mock useUserStore here, so it hits the real API layer
+// UserList uses createResourceHooks with TanStack Query directly
 // MSW handlers in setupTests.ts will intercept the requests
 
 // Mock UserModal to avoid complex rendering

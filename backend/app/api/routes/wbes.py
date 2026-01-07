@@ -35,7 +35,7 @@ def get_wbe_service(
 )
 async def read_wbes(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
+    limit: int = Query(100, ge=1, le=1000),
     project_id: UUID | None = Query(None, description="Filter by project ID"),
     parent_wbe_id: str | None = Query(None, description="Filter by parent WBE ID (use 'null' string for root WBEs)"),
     branch: str = Query("main", description="Branch name"),
@@ -124,7 +124,7 @@ async def read_wbe(
     service: WBEService = Depends(get_wbe_service),
 ) -> WBE:
     """Get a specific WBE by id. Requires read permission."""
-    wbe = await service.get_wbe(wbe_id)
+    wbe = await service.get_by_root_id(wbe_id)
     if not wbe:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

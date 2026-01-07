@@ -206,18 +206,19 @@ export const ProjectDetailPage = () => {
               data: values as WBEUpdate,
             });
           } else {
-            // For root WBEs, parent_wbe_id is null
+            // For root WBEs, parent context is passed via props and set in form
             await createWBE({
               ...values,
               project_id: projectId!,
               level: 1, // Default level 1 for roots
-              parent_wbe_id: null,
             } as WBECreate);
           }
         }}
         confirmLoading={false}
         initialValues={selectedWBE}
         projectId={projectId}
+        parentWbeId={null}
+        parentName="Project Root"
       />
     </div>
   );

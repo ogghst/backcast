@@ -45,7 +45,7 @@ async def read_cost_elements(
     if cost_element_type_id:
         filters["cost_element_type_id"] = cost_element_type_id
         
-    return await service.list(filters=filters, branch=branch, skip=skip, limit=limit)
+    return await service.get_cost_elements(filters=filters, branch=branch, skip=skip, limit=limit)
 
 
 @router.post(

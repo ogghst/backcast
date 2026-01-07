@@ -15,15 +15,65 @@ export interface CrudOptions {
   };
 }
 
+/**
+ * API methods using generic names (legacy adapter pattern).
+ * This interface allows the old adapter pattern to continue working.
+ */
+export interface LegacyApiMethods<T, TCreate, TUpdate> {
+  getUsers?: (filters?: Record<string, unknown>) => Promise<T[]>;
+  getUser?: (id: string) => Promise<T>;
+  createUser?: (data: TCreate) => Promise<T>;
+  updateUser?: (id: string, data: TUpdate) => Promise<T>;
+  deleteUser?: (id: string) => Promise<void>;
+}
+
+/**
+ * API methods using semantic names (new direct pattern).
+ * This interface allows direct usage of service methods without adapters.
+ */
+export interface NamedApiMethods<T, TCreate, TUpdate> {
+  list?: (filters?: Record<string, unknown>) => Promise<T[]>;
+  detail?: (id: string) => Promise<T>;
+  create?: (data: TCreate) => Promise<T>;
+  update?: (id: string, data: TUpdate) => Promise<T>;
+  delete?: (id: string) => Promise<void>;
+}
+
+export type ApiMethods<T, TCreate, TUpdate> =
+  | LegacyApiMethods<T, TCreate, TUpdate>
+  | NamedApiMethods<T, TCreate, TUpdate>;
+
+/**
+ * Creates a set of React Query hooks for CRUD operations on a resource.
+ *
+ * Supports two patterns:
+ *
+ * 1. Legacy adapter pattern (backward compatible):
+ *    ```ts
+ *    const adapter = {
+ *      getUsers: (params) => ProjectsService.getProjects(...),
+ *      getUser: (id) => ProjectsService.getProject(id),
+ *      createUser: (data) => ProjectsService.createProject(data),
+ *      updateUser: (id, data) => ProjectsService.updateProject(id, data),
+ *      deleteUser: (id) => ProjectsService.deleteProject(id),
+ *    };
+ *    const { useList } = createResourceHooks("projects", adapter);
+ *    ```
+ *
+ * 2. New direct pattern (recommended):
+ *    ```ts
+ *    const { useList } = createResourceHooks("projects", {
+ *      list: ProjectsService.getProjects,
+ *      detail: ProjectsService.getProject,
+ *      create: ProjectsService.createProject,
+ *      update: ProjectsService.updateProject,
+ *      delete: ProjectsService.deleteProject,
+ *    });
+ *    ```
+ */
 export const createResourceHooks = <T, TCreate, TUpdate>(
   queryKey: string,
-  api: {
-    getUsers?: (filters?: Record<string, unknown>) => Promise<T[]>;
-    getUser?: (id: string) => Promise<T>;
-    createUser?: (data: TCreate) => Promise<T>;
-    updateUser?: (id: string, data: TUpdate) => Promise<T>;
-    deleteUser?: (id: string) => Promise<void>;
-  },
+  api: ApiMethods<T, TCreate, TUpdate>,
   options?: CrudOptions,
 ) => {
   // Normalize invalidation arrays
@@ -32,6 +82,9 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
     return [queryKey, ...keys];
   };
 
+  // Detect which API pattern is being used
+  const isLegacy = "getUsers" in api || "getUser" in api;
+
   const useList = (
     filters?: Record<string, unknown>,
     queryOptions?: Omit<UseQueryOptions<T[], Error>, "queryKey">,
@@ -39,8 +92,11 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
     return useQuery({
       queryKey: [queryKey, "list", filters],
       queryFn: () => {
-        if (!api.getUsers) throw new Error("getUsers not implemented");
-        return api.getUsers(filters);
+        const listFn = isLegacy
+          ? (api as LegacyApiMethods<T, TCreate, TUpdate>).getUsers
+          : (api as NamedApiMethods<T, TCreate, TUpdate>).list;
+        if (!listFn) throw new Error("list method not implemented");
+        return listFn(filters);
       },
       ...queryOptions,
     });
@@ -53,8 +109,11 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
     return useQuery({
       queryKey: [queryKey, "detail", id],
       queryFn: () => {
-        if (!api.getUser) throw new Error("getUser not implemented");
-        return api.getUser(id);
+        const detailFn = isLegacy
+          ? (api as LegacyApiMethods<T, TCreate, TUpdate>).getUser
+          : (api as NamedApiMethods<T, TCreate, TUpdate>).detail;
+        if (!detailFn) throw new Error("detail method not implemented");
+        return detailFn(id);
       },
       enabled: !!id,
       ...queryOptions,
@@ -67,8 +126,11 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
     const queryClient = useQueryClient();
     return useMutation({
       mutationFn: (data: TCreate) => {
-        if (!api.createUser) throw new Error("createUser not implemented");
-        return api.createUser(data);
+        const createFn = isLegacy
+          ? (api as LegacyApiMethods<T, TCreate, TUpdate>).createUser
+          : (api as NamedApiMethods<T, TCreate, TUpdate>).create;
+        if (!createFn) throw new Error("create method not implemented");
+        return createFn(data);
       },
       onSuccess: (...args) => {
         const keys = getInvalidationKeys("create");
@@ -95,8 +157,11 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
     const queryClient = useQueryClient();
     return useMutation({
       mutationFn: ({ id, data }: { id: string; data: TUpdate }) => {
-        if (!api.updateUser) throw new Error("updateUser not implemented");
-        return api.updateUser(id, data);
+        const updateFn = isLegacy
+          ? (api as LegacyApiMethods<T, TCreate, TUpdate>).updateUser
+          : (api as NamedApiMethods<T, TCreate, TUpdate>).update;
+        if (!updateFn) throw new Error("update method not implemented");
+        return updateFn(id, data);
       },
       onSuccess: (...args) => {
         const keys = getInvalidationKeys("update");
@@ -123,8 +188,11 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
     const queryClient = useQueryClient();
     return useMutation({
       mutationFn: (id: string) => {
-        if (!api.deleteUser) throw new Error("deleteUser not implemented");
-        return api.deleteUser(id);
+        const deleteFn = isLegacy
+          ? (api as LegacyApiMethods<T, TCreate, TUpdate>).deleteUser
+          : (api as NamedApiMethods<T, TCreate, TUpdate>).delete;
+        if (!deleteFn) throw new Error("delete method not implemented");
+        return deleteFn(id);
       },
       onSuccess: (...args) => {
         const keys = getInvalidationKeys("delete");

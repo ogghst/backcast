@@ -56,6 +56,23 @@ class TemporalService[TVersionable: VersionableProtocol]:
         """Get entity by ID (returns specific version by PK)."""
         return await self.session.get(self.entity_class, entity_id)
 
+    async def get_by_root_id(
+        self, root_id: UUID, branch: str = "main"
+    ) -> TVersionable | None:
+        """Get current version by root ID.
+
+        Semantic alias for get_current_version that provides clearer intent
+        when called from service methods.
+
+        Args:
+            root_id: The root entity ID (e.g., project_id, wbe_id)
+            branch: Branch name (default: "main")
+
+        Returns:
+            Current version of the entity or None if not found
+        """
+        return await self.get_current_version(root_id, branch)
+
     async def get_current_version(
         self, root_id: UUID, branch: str = "main"
     ) -> TVersionable | None:

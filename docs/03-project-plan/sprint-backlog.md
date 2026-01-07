@@ -1,44 +1,50 @@
 # Current Iteration
 
-**Iteration:** Cost Elements & Cost Element Types Implementation
+**Iteration:** Fix Unit Test Failures (TD-002)
 
-**Start Date:** 2026-01-06
-**Target End:** 2026-01-09
+**Start Date:** 2026-01-07
+**Target End:** 2026-01-07
 **Status:** 🟢 Complete
 
 ---
 
 ## Goal
 
-Complete the vertical slice of the Project hierarchy by implementing **Cost Element Types** (organizational cost categories) and **Cost Elements** (project-specific budget allocations). This enables cost standardization across projects, cross-project comparability, and unlocks Epic 5 (Financial Data Management) and Epic 8 (EVM Calculations).
+Resolve critical unit and integration test failures in the backend to restore confidence in the versioning and branching logic. Specifically address TD-002 from the Technical Debt Register.
+
+**Key Focus Areas:**
+
+1. Fix `tests/unit/core/versioning/test_audit.py`
+2. Stabilize `tests/integration/test_integration_branch_service.py`
+3. Ensure 100% pass rate in core test modules
 
 ---
 
 ## Team
 
-- **Backend Developer:** Primary implementer
-- **Frontend Developer:** UI implementation
-- **AI Assistant:** Pair programming, quality verification
+- **Backend Developer:** Implementation
+- **AI Assistant:** Code review, quality verification
 
 ---
 
 ## Sprint Capacity
 
-- **Planned Story Points:** 13
+- **Planned Story Points:** 5
 - **Available Capacity:** 20-25 points/sprint
-- **Buffer:** 3 points (23%)
-- **Velocity Context:** Last sprint: 23 points (Hybrid Sprint 2/3), Average: 22 points
+- **Buffer:** N/A (single-day iteration)
+- **Velocity Context:** Last sprint: 21 points, Average: 22 points
 
 ---
 
 ## Stories in Scope
 
-| Story                                               | Points | Priority | Status      | Dependencies       |
-| --------------------------------------------------- | ------ | -------- | ----------- | ------------------ |
-| [E04-U03] Create Cost Element Types & Cost Elements | 13     | High     | 🟢 Complete | E04-U02 (Complete) |
-| [E04-U04] Hierarchical Navigation & UI              | 8      | High     | 🟢 Complete | E04-U03 (Complete) |
+| Story                           | Points | Priority | Status         | Dependencies |
+| ------------------------------- | ------ | -------- | -------------- | ------------ |
+| [TD-002] Fix Unit Test Failures | 3      | High     | 🔵 In Progress | None         |
 
-**Total Points:** 21
+**Total Points:** 3
+
+**Completed Points:** 0/3 (0%)
 
 ---
 
@@ -46,76 +52,70 @@ Complete the vertical slice of the Project hierarchy by implementing **Cost Elem
 
 ### Functional
 
-- [ ] Cost Element entity supports full CRUD operations
-- [ ] Cost Elements are branchable (inherit from WBE)
-- [ ] Audit tracking (`created_by`/`deleted_by`) works
-- [ ] Foreign key constraints enforce WBE and Department relationships
-- [ ] Frontend displays Cost Elements in WBE context
+- [ ] `tests/unit/core/versioning/test_audit.py` passes
+- [ ] `tests/integration/test_integration_branch_service.py` passes
+- [ ] All tests in `tests/unit/core` pass
 
 ### Technical
 
-- [ ] Unit test coverage ≥80% for `CostElementService`
-- [ ] Integration tests verify repository operations
-- [ ] API tests cover all CRUD endpoints with RBAC
-- [ ] MyPy strict mode passes
-- [ ] Ruff linting passes
-- [ ] Alembic migration applies cleanly (up/down)
-- [x] E2E tests verify complete user workflow (hierarchical_navigation.spec.ts)
-- [x] CRUD robustness verified (projects_crud, wbe_crud, cost_elements_crud)
+- [ ] MyPy strict mode passes on modified files
+- [ ] Ruff linting passes on modified files
+- [ ] Database isolation maintained in integration tests
+
+### Business
+
+- [ ] Restored confidence in bitemporal/branching core
+- [ ] Technical Debt Register (TD-002) closed
 
 ---
 
 ## Active Risks
 
-| Risk                                             | Mitigation                                       | Status        |
-| ------------------------------------------------ | ------------------------------------------------ | ------------- |
-| FK constraint failures if WBE/Department deleted | Add cascade rules; frontend validation           | 🟡 Monitoring |
-| Migration constraint creation failure            | Test migration on dev DB first; defensive DDL    | 🟢 Low Risk   |
-| Branch inheritance complexity                    | Extensive unit tests; follow WBE pattern exactly | 🟢 Low Risk   |
+| Risk                                         | Mitigation                 | Status        |
+| -------------------------------------------- | -------------------------- | ------------- |
+| Integration tests environmental dependencies | Use clean DB for each run  | 🟡 Monitoring |
+| Core logic changes cause regressions         | Full suite run after fixes | 🟢 Low        |
 
 ---
 
-## Current Status (2026-01-06)
+## Current Status (2026-01-07)
 
 ### Progress Summary
 
-- **Completed Points:** 13/13 (100%)
-- **Tests Written:** 4 (Unit x2, Integration x2, E2E x1)
-- **Files Modified:** 30+
-- **Coverage Change:** +High (New features 100%)
+- **Completed Points:** 0/3 (0%)
+- **Tests:** 19/22 passing (core/integration subset)
+- **Files Modified:** 0
 
 ### Key Activities
 
 - **Planning:** ✅ PLAN phase document created
-- **Implementation:** ✅ Backend & Frontend Complete
-- **Verification:** ✅ Verified (Unit, Integration, E2E)
+- **Implementation:** 🔄 Starting investigation of failures
 
 ---
 
 ## Daily Standup Notes
 
-### 2026-01-06
+### 2026-01-07
 
 **Yesterday:**
 
-- Completed Backend Audit Gap Fix iteration (ACT phase)
-- Analyzed next iteration options
+- Completed Cost Elements features.
+- Completed Frontend Architecture cleanup.
 
 **Today:**
 
-- Created PLAN phase for Cost Elements
-- Awaiting approval for implementation approach
-- Ready to begin domain model implementation
+- Started TD-002 fix iteration.
+- Identified field naming mismatch in `MockAuditEntity`.
 
 **Blockers:**
 
-- Need human approval for Option A (Branchable Cost Elements)
+- None
 
 ---
 
 ## Iteration Links
 
-- **PLAN Phase:** [iterations/2026-01-cost-elements/01-plan.md](iterations/2026-01-cost-elements/01-plan.md)
-- **DO Phase:** [iterations/2026-01-cost-elements/02-do.md](iterations/2026-01-cost-elements/02-do.md)
-- **CHECK Phase:** [iterations/2026-01-cost-elements/03-check.md](iterations/2026-01-cost-elements/03-check.md)
-- **ACT Phase:** [iterations/2026-01-cost-elements/04-act.md](iterations/2026-01-cost-elements/04-act.md)
+- **PLAN Phase:** [iterations/2026-01-07-fix-unit-tests-td-002/01-plan.md](iterations/2026-01-07-fix-unit-tests-td-002/01-plan.md)
+- **DO Phase:** [iterations/2026-01-07-fix-unit-tests-td-002/02-do.md](iterations/2026-01-07-fix-unit-tests-td-002/02-do.md)
+- **CHECK Phase:** [iterations/2026-01-07-fix-unit-tests-td-002/03-check.md](iterations/2026-01-07-fix-unit-tests-td-002/03-check.md)
+- **ACT Phase:** [iterations/2026-01-07-fix-unit-tests-td-002/04-act.md](iterations/2026-01-07-fix-unit-tests-td-002/04-act.md)

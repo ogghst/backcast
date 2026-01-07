@@ -10,7 +10,6 @@ import {
   useCreateWBE,
   useUpdateWBE,
   useDeleteWBE,
-  useWBEHistory,
 } from "@/features/wbes/api/useWBEs";
 import { WBECreate, WBERead, WBEUpdate } from "@/api/generated";
 import { WBESummaryCard } from "@/components/hierarchy/WBESummaryCard";
@@ -21,6 +20,8 @@ import { CostElementManagement } from "@/pages/financials/CostElementManagement"
 import { DeleteWBEModal } from "@/components/hierarchy/DeleteWBEModal";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { Can } from "@/components/auth/Can";
+import { useEntityHistory } from "@/hooks/useEntityHistory";
+import { WbEsService } from "@/api/generated";
 
 export const WBEDetailPage = () => {
   const { projectId, wbeId } = useParams<{
@@ -58,9 +59,13 @@ export const WBEDetailPage = () => {
 
   // History State
   const [historyOpen, setHistoryOpen] = useState(false);
-  const { data: historyVersions, isLoading: historyLoading } = useWBEHistory(
-    wbeId,
-    historyOpen
+  const { data: historyVersions, isLoading: historyLoading } = useEntityHistory(
+    {
+      resource: "wbes",
+      entityId: wbeId,
+      fetchFn: (id) => WbEsService.getWbeHistory(id),
+      enabled: historyOpen,
+    }
   );
 
   // Mutations
@@ -189,7 +194,7 @@ export const WBEDetailPage = () => {
 
       {/* Cost Elements Section */}
       <Card title="Cost Elements" style={{ marginBottom: 16 }}>
-        {wbeId && <CostElementManagement wbeId={wbeId} />}
+        {wbeId && <CostElementManagement wbeId={wbeId} wbeName={wbe?.name} />}
       </Card>
 
       {deleteModalOpen && (
@@ -267,11 +272,10 @@ export const WBEDetailPage = () => {
               data: values as WBEUpdate,
             });
           } else if (isCreatingChild && wbe) {
-            // Create child of current WBE
+            // Create child of current WBE - context inherited from props/effect
             await createWBE({
               ...values,
               project_id: projectId!,
-              parent_wbe_id: wbe.wbe_id,
               level: (wbe.level || 1) + 1,
             } as WBECreate);
           }
@@ -279,6 +283,10 @@ export const WBEDetailPage = () => {
         confirmLoading={false}
         initialValues={selectedWBE}
         projectId={projectId}
+        parentWbeId={isCreatingChild ? wbe?.wbe_id : selectedWBE?.parent_wbe_id}
+        parentName={
+          isCreatingChild ? wbe?.name : (selectedWBE as any)?.parent_name
+        }
       />
     </div>
   );

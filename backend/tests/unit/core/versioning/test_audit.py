@@ -18,7 +18,7 @@ from app.models.mixins import VersionableMixin
 class MockAuditEntity(EntityBase, VersionableMixin):
     __tablename__ = "mock_audit_entities"
 
-    mockauditentity_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
+    mock_audit_entity_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
     description: Mapped[str] = mapped_column(nullable=False)
 
 # -----------------------------------------------------------------------------
@@ -113,7 +113,7 @@ async def test_audit_soft_delete_persistence(db_session):
     # Command usually returns cached instance.
 
     # Let's fetch raw to check deleted_by
-    stmt = select(MockAuditEntity).where(MockAuditEntity.mockauditentity_id == root_id).order_by(MockAuditEntity.valid_time.desc())
+    stmt = select(MockAuditEntity).where(MockAuditEntity.mock_audit_entity_id == root_id).order_by(MockAuditEntity.valid_time.desc())
     result = await session.execute(stmt)
     deleted_entity = result.scalars().first()
 
