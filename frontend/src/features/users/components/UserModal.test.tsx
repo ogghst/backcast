@@ -93,7 +93,7 @@ describe("UserModal", () => {
           full_name: "New User",
           email: "new@test.com",
           role: "viewer",
-        })
+        }),
       );
     });
   });

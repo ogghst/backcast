@@ -25,7 +25,7 @@ describe("Profile Page", () => {
     render(
       <MemoryRouter>
         <Profile />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(screen.getByText("My Profile")).toBeInTheDocument();
   });
@@ -34,7 +34,7 @@ describe("Profile Page", () => {
     render(
       <MemoryRouter>
         <Profile />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
     expect(screen.getByText("Test User")).toBeInTheDocument();
     expect(screen.getByText("test@example.com")).toBeInTheDocument();

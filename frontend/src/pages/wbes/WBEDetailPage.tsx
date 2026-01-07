@@ -65,7 +65,7 @@ export const WBEDetailPage = () => {
       entityId: wbeId,
       fetchFn: (id) => WbEsService.getWbeHistory(id),
       enabled: historyOpen,
-    }
+    },
   );
 
   // Mutations
@@ -215,7 +215,7 @@ export const WBEDetailPage = () => {
                 // Navigate back to parent
                 if (wbeToDelete.parent_wbe_id) {
                   navigate(
-                    `/projects/${projectId}/wbes/${wbeToDelete.parent_wbe_id}`
+                    `/projects/${projectId}/wbes/${wbeToDelete.parent_wbe_id}`,
                   );
                 } else {
                   navigate(`/projects/${projectId}`);

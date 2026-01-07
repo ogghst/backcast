@@ -64,7 +64,7 @@ const costElementApi = {
       pageSize,
       branch,
       wbe_id,
-      type_id
+      type_id,
     );
     // Handle both array (Sequence) and paginated response
     return Array.isArray(res) ? res : (res as any).items;
@@ -172,7 +172,7 @@ export const CostElementManagement = ({
       entityId: selectedElement?.cost_element_id,
       fetchFn: (id) => CostElementsService.getCostElementHistory(id),
       enabled: historyOpen,
-    }
+    },
   );
 
   const { mutateAsync: createCostElement } = useCreate({

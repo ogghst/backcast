@@ -50,7 +50,7 @@ export const ProjectDetailPage = () => {
       entityId: projectId,
       fetchFn: (id) => ProjectsService.getProjectHistory(id),
       enabled: historyOpen,
-    }
+    },
   );
 
   const { mutateAsync: createWBE } = useCreateWBE({

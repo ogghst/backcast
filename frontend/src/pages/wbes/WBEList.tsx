@@ -74,7 +74,7 @@ export const WBEList = ({ projectId }: WBEListProps) => {
       entityId: selectedWBE?.wbe_id,
       fetchFn: (id) => WbEsService.getWbeHistory(id),
       enabled: historyOpen,
-    }
+    },
   );
 
   const { modal } = App.useApp();

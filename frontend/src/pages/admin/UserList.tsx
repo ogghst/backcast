@@ -70,7 +70,7 @@ export const UserList = () => {
       entityId: selectedUser?.user_id,
       fetchFn: UserService.getUserHistory,
       enabled: historyOpen,
-    }
+    },
   );
 
   const { mutateAsync: createUser } = useCreate({

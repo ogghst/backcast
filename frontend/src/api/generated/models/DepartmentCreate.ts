@@ -3,25 +3,24 @@
 /* tslint:disable */
 /* eslint-disable */
 export type DepartmentCreate = {
-    /**
-     * Department display name
-     */
-    name: string;
-    /**
-     * UUID of the department manager
-     */
-    manager_id?: (string | null);
-    /**
-     * Whether the department is active
-     */
-    is_active?: boolean;
-    /**
-     * Department description
-     */
-    description?: (string | null);
-    /**
-     * Unique department code (immutable)
-     */
-    code: string;
+  /**
+   * Department display name
+   */
+  name: string;
+  /**
+   * UUID of the department manager
+   */
+  manager_id?: string | null;
+  /**
+   * Whether the department is active
+   */
+  is_active?: boolean;
+  /**
+   * Department description
+   */
+  description?: string | null;
+  /**
+   * Unique department code (immutable)
+   */
+  code: string;
 };
-

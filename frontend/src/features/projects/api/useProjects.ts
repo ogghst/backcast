@@ -10,7 +10,7 @@ import {
  * Helper to unwrap paginated response from API.
  * Backend may return either an array or { items: [...] } wrapper.
  */
-const unwrapResponse = <T,>(res: T[] | { items: T[] }): T[] => {
+const unwrapResponse = <T>(res: T[] | { items: T[] }): T[] => {
   return Array.isArray(res) ? res : (res as { items: T[] }).items;
 };
 

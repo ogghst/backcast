@@ -98,7 +98,7 @@ const renderWithProviders = (ui: React.ReactNode) => {
       <MemoryRouter>
         <ConfigProvider>{ui}</ConfigProvider>
       </MemoryRouter>
-    </QueryClientProvider>
+    </QueryClientProvider>,
   );
 };
 

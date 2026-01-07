@@ -6,7 +6,6 @@
  * Schema for authentication token.
  */
 export type Token = {
-    access_token: string;
-    token_type?: string;
+  access_token: string;
+  token_type?: string;
 };
-

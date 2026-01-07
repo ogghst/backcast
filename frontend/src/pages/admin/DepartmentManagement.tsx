@@ -65,7 +65,7 @@ export const DepartmentManagement = () => {
       entityId: selectedDepartment?.department_id,
       fetchFn: (id) => DepartmentsService.getDepartmentHistory(id),
       enabled: historyOpen,
-    }
+    },
   );
 
   const { mutateAsync: createDepartment } = useCreate({

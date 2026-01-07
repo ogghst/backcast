@@ -33,7 +33,7 @@ export const {
       pageSize,
       filters.projectId,
       filters.parentWbeId,
-      filters.branch
+      filters.branch,
     );
   },
   detail: WbEsService.getWbe,

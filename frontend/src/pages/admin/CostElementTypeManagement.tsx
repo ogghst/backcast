@@ -33,7 +33,7 @@ const costElementTypeApi = {
     // Note: API supports department_id filtering, could be added to params later
     const res = await CostElementTypesService.getCostElementTypes(
       skip,
-      pageSize
+      pageSize,
     );
     return Array.isArray(res)
       ? res
@@ -41,16 +41,16 @@ const costElementTypeApi = {
   },
   getUser: (id: string) =>
     CostElementTypesService.getCostElementType(
-      id
+      id,
     ) as Promise<CostElementTypeRead>,
   createUser: (data: CostElementTypeCreate) =>
     CostElementTypesService.createCostElementType(
-      data
+      data,
     ) as Promise<CostElementTypeRead>,
   updateUser: (id: string, data: CostElementTypeUpdate) =>
     CostElementTypesService.updateCostElementType(
       id,
-      data
+      data,
     ) as Promise<CostElementTypeRead>,
   deleteUser: (id: string) => CostElementTypesService.deleteCostElementType(id),
 };
@@ -67,7 +67,7 @@ export const CostElementTypeManagement = () => {
 
   // Department map for display
   const [departmentMap, setDepartmentMap] = useState<Record<string, string>>(
-    {}
+    {},
   );
 
   useEffect(() => {
@@ -76,13 +76,13 @@ export const CostElementTypeManagement = () => {
         const map: Record<string, string> = {};
         depts.forEach((d) => (map[d.department_id] = d.name));
         setDepartmentMap(map);
-      }
+      },
     );
   }, []);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<CostElementTypeRead | null>(
-    null
+    null,
   );
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -93,7 +93,7 @@ export const CostElementTypeManagement = () => {
       entityId: selectedType?.cost_element_type_id,
       fetchFn: (id) => CostElementTypesService.getCostElementTypeHistory(id),
       enabled: historyOpen,
-    }
+    },
   );
 
   const { mutateAsync: createType } = useCreate({
@@ -252,7 +252,7 @@ export const CostElementTypeManagement = () => {
             changed_by: version.created_by_name || "System",
             changes:
               idx === 0 ? { created: "initial" } : { updated: "changed" },
-          })
+          }),
         )}
         entityName={`Type: ${selectedType?.name || ""}`}
         isLoading={historyLoading}

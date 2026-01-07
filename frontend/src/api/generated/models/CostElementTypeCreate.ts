@@ -6,9 +6,8 @@
  * Properties required for creating a Cost Element Type.
  */
 export type CostElementTypeCreate = {
-    code: string;
-    name: string;
-    description?: (string | null);
-    department_id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  department_id: string;
 };
-

@@ -25,49 +25,49 @@ export const useAuthStore = create<AuthState>()(
   immer(
     persist(
       (set, get) => ({
-      user: null,
-      permissions: [],
-      token: null,
-      isAuthenticated: false,
+        user: null,
+        permissions: [],
+        token: null,
+        isAuthenticated: false,
 
-      hasPermission: (permission: Permission | string): boolean => {
-        const { permissions } = get();
-        return permissions.includes(permission);
-      },
+        hasPermission: (permission: Permission | string): boolean => {
+          const { permissions } = get();
+          return permissions.includes(permission);
+        },
 
-      hasAnyPermission: (perms: (Permission | string)[]): boolean => {
-        const { permissions } = get();
-        return perms.some((p) => permissions.includes(p));
-      },
+        hasAnyPermission: (perms: (Permission | string)[]): boolean => {
+          const { permissions } = get();
+          return perms.some((p) => permissions.includes(p));
+        },
 
-      hasAllPermissions: (perms: (Permission | string)[]): boolean => {
-        const { permissions } = get();
-        return perms.every((p) => permissions.includes(p));
-      },
+        hasAllPermissions: (perms: (Permission | string)[]): boolean => {
+          const { permissions } = get();
+          return perms.every((p) => permissions.includes(p));
+        },
 
-      hasRole: (role: Role | Role[]): boolean => {
-        const { user } = get();
-        if (!user) return false;
-        const roles = Array.isArray(role) ? role : [role];
-        return roles.includes(user.role as Role);
-      },
+        hasRole: (role: Role | Role[]): boolean => {
+          const { user } = get();
+          if (!user) return false;
+          const roles = Array.isArray(role) ? role : [role];
+          return roles.includes(user.role as Role);
+        },
 
-      setUser: (user) =>
-        set({
-          user,
-          permissions: user?.permissions || [],
-          isAuthenticated: !!user,
-        }),
+        setUser: (user) =>
+          set({
+            user,
+            permissions: user?.permissions || [],
+            isAuthenticated: !!user,
+          }),
 
-      setToken: (token) => set({ token, isAuthenticated: !!token }),
+        setToken: (token) => set({ token, isAuthenticated: !!token }),
 
-      logout: () =>
-        set({
-          user: null,
-          permissions: [],
-          token: null,
-          isAuthenticated: false,
-        }),
+        logout: () =>
+          set({
+            user: null,
+            permissions: [],
+            token: null,
+            isAuthenticated: false,
+          }),
       }),
       {
         name: "auth-storage", // localStorage key

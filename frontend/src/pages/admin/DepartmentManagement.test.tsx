@@ -73,7 +73,7 @@ describe("DepartmentManagement", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(DepartmentsService.getDepartments).mockResolvedValue(
-      mockDepartments as never
+      mockDepartments as never,
     );
   });
 
@@ -104,7 +104,7 @@ describe("DepartmentManagement", () => {
 
     // Assert
     expect(
-      screen.getByRole("button", { name: /Add Department/i })
+      screen.getByRole("button", { name: /Add Department/i }),
     ).toBeInTheDocument();
   });
 
@@ -154,7 +154,7 @@ describe("DepartmentManagement", () => {
     };
 
     vi.mocked(DepartmentsService.createDepartment).mockResolvedValue(
-      newDepartment as never
+      newDepartment as never,
     );
 
     render(<DepartmentManagement />, { wrapper: createWrapper() });

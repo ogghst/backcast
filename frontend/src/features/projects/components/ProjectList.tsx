@@ -36,7 +36,7 @@ export const ProjectList = () => {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<ProjectRead | null>(
-    null
+    null,
   );
 
   const { modal } = App.useApp();
