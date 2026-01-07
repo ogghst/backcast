@@ -74,7 +74,7 @@ export const WBESummaryCard = ({
           {wbe.budget_allocation
             ? new Intl.NumberFormat("en-US", {
                 style: "currency",
-                currency: "USD",
+                currency: "EUR",
               }).format(Number(wbe.budget_allocation))
             : "-"}
         </Descriptions.Item>

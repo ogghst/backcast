@@ -49,7 +49,7 @@ export const ProjectSummaryCard = ({
           {project.budget
             ? new Intl.NumberFormat("en-US", {
                 style: "currency",
-                currency: "USD",
+                currency: "EUR",
               }).format(Number(project.budget))
             : "-"}
         </Descriptions.Item>
@@ -57,7 +57,7 @@ export const ProjectSummaryCard = ({
           {project.contract_value
             ? new Intl.NumberFormat("en-US", {
                 style: "currency",
-                currency: "USD",
+                currency: "EUR",
               }).format(Number(project.contract_value))
             : "-"}
         </Descriptions.Item>

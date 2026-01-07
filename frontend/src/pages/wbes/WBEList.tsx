@@ -132,7 +132,7 @@ export const WBEList = ({ projectId }: WBEListProps) => {
         budget
           ? new Intl.NumberFormat("en-US", {
               style: "currency",
-              currency: "USD",
+              currency: "EUR",
             }).format(budget)
           : "-",
       width: 150,

@@ -83,15 +83,6 @@ const AppLayout: React.FC = () => {
       }
     }
 
-    // Financials
-    if (can("cost-element-read")) {
-      items.push({
-        key: "/financials/cost-elements",
-        icon: <DollarOutlined />,
-        label: "Cost Elements",
-      });
-    }
-
     return items;
   };
 

@@ -88,7 +88,7 @@ export const ProjectList = () => {
         budget
           ? new Intl.NumberFormat("en-US", {
               style: "currency",
-              currency: "USD",
+              currency: "EUR",
             }).format(budget)
           : "-",
       width: 150,
@@ -101,7 +101,7 @@ export const ProjectList = () => {
         value
           ? new Intl.NumberFormat("en-US", {
               style: "currency",
-              currency: "USD",
+              currency: "EUR",
             }).format(value)
           : "-",
       width: 150,

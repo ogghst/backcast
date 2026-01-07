@@ -101,10 +101,10 @@ export const ProjectModal = ({
             <InputNumber
               style={{ width: "100%" }}
               formatter={(value) =>
-                `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+                `€ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
               }
               parser={(value) =>
-                value?.replace(/\$\s?|(,*)/g, "") as unknown as number
+                value?.replace(/€\s?|(,*)/g, "") as unknown as number
               }
               placeholder="0.00"
             />
@@ -118,10 +118,10 @@ export const ProjectModal = ({
             <InputNumber
               style={{ width: "100%" }}
               formatter={(value) =>
-                `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+                `€ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
               }
               parser={(value) =>
-                value?.replace(/\$\s?|(,*)/g, "") as unknown as number
+                value?.replace(/€\s?|(,*)/g, "") as unknown as number
               }
               placeholder="0.00"
             />

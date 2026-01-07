@@ -72,11 +72,18 @@ test.describe("Cost Element CRUD", () => {
     const wbeName = `CE WBE ${timestamp}`;
     const wbeCode = `CW${timestamp}`.substring(0, 10);
     await page.goto("/admin/wbes");
+    const wbeCreatePromise = page.waitForResponse(
+      (r) =>
+        r.url().includes("/wbes") && r.method() === "POST" && r.status() === 201
+    );
     await page.click('button:has-text("Add WBE")');
     await page.fill('input[id="wbe_form_project_id"]', projectId);
     await page.fill('input[id="wbe_form_name"]', wbeName);
     await page.fill('input[id="wbe_form_code"]', wbeCode);
     await page.click('button:has-text("Create")');
+    const wbeRes = await wbeCreatePromise;
+    const wbeJson = await wbeRes.json();
+    const wbeId = wbeJson.wbe_id;
     await expect(page.locator(`text=${wbeCode}`)).toBeVisible();
 
     // 2. Create Cost Element
@@ -84,7 +91,7 @@ test.describe("Cost Element CRUD", () => {
     const elementCode = `CE${timestamp}`.substring(0, 10);
     const budget = "5000";
 
-    await page.goto("/financials/cost-elements");
+    await page.goto(`/projects/${projectId}/wbes/${wbeId}`);
     await page.click('button:has-text("Add Cost Element")');
     await page.fill('input[id="cost_element_form_name"]', elementName);
     await page.fill('input[id="cost_element_form_code"]', elementCode);

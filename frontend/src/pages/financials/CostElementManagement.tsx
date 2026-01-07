@@ -245,7 +245,7 @@ export const CostElementManagement = ({
       dataIndex: "budget_amount",
       key: "budget_amount",
       align: "right",
-      render: (val) => (val ? `$${Number(val).toLocaleString()}` : "-"),
+      render: (val) => (val ? `€${Number(val).toLocaleString()}` : "-"),
     },
     {
       title: "Actions",

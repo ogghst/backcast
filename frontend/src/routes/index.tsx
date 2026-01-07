@@ -10,7 +10,7 @@ import { ProjectList } from "@/pages/projects/ProjectList";
 import { ProjectDetailPage } from "@/pages/projects/ProjectDetailPage";
 import { WBEList } from "@/pages/wbes/WBEList";
 import { WBEDetailPage } from "@/pages/wbes/WBEDetailPage";
-import { CostElementManagement } from "@/pages/financials/CostElementManagement";
+
 import { Profile } from "@/pages/Profile";
 
 export const router = createBrowserRouter([
@@ -62,10 +62,7 @@ export const router = createBrowserRouter([
         path: "/profile",
         element: <Profile />,
       },
-      {
-        path: "/financials/cost-elements",
-        element: <CostElementManagement />,
-      },
+
       {
         path: "/projects/:projectId",
         element: <ProjectDetailPage />,
