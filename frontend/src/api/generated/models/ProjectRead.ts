@@ -45,5 +45,7 @@ export type ProjectRead = {
     created_by?: (string | null);
     created_by_name?: (string | null);
     deleted_by?: (string | null);
+    valid_time?: (string | null);
+    transaction_time?: (string | null);
 };
 

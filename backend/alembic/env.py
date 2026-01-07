@@ -12,7 +12,14 @@ from app.core.base.base import Base
 from app.core.config import settings
 
 # Import all models to ensure they are attached to Base.metadata
-from app.models.domain import department, project, user, wbe  # noqa: F401
+from app.models.domain import (  # noqa: F401
+    cost_element,
+    cost_element_type,
+    department,
+    project,
+    user,
+    wbe,
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

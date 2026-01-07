@@ -7,23 +7,23 @@
 
 ## Velocity Summary
 
-| Metric                                | Value        |
-| ------------------------------------- | ------------ |
-| **Average Velocity (Last 3 Sprints)** | 22.0 points  |
-| **Average Velocity (All Time)**       | 22.0 points  |
-| **Velocity Trend**                    | ➡️ Stable    |
-| **Target Velocity**                   | 25 ± 3 points |
+| Metric                                | Value               |
+| ------------------------------------- | ------------------- |
+| **Average Velocity (Last 3 Sprints)** | 22.0 points         |
+| **Average Velocity (All Time)**       | 22.0 points         |
+| **Velocity Trend**                    | ➡️ Stable           |
+| **Target Velocity**                   | 25 ± 3 points       |
 | **Current Capacity**                  | 20-25 points/sprint |
 
 ---
 
 ## Sprint History
 
-| Sprint             | Dates               | Planned | Completed | Velocity | Status | Notes                              |
-| ------------------ | ------------------- | ------- | --------- | -------- | ------ | ---------------------------------- |
-| Sprint 1           | 2025-12-20 to 2025-12-27 | 21      | 21        | 21       | ✅     | Infrastructure setup                |
-| Sprint 2           | 2025-12-27 to 2026-01-05 | 23      | 23        | 23       | ✅     | User management, Epic 4 foundation  |
-| Hybrid 2/3         | 2026-01-05 to 2026-01-06 | TBD     | TBD       | TBD      | 🔄     | Project/WBE cleanup, audit gap fix  |
+| Sprint     | Dates                    | Planned | Completed | Velocity | Status | Notes                              |
+| ---------- | ------------------------ | ------- | --------- | -------- | ------ | ---------------------------------- |
+| Sprint 1   | 2025-12-20 to 2025-12-27 | 21      | 21        | 21       | ✅     | Infrastructure setup               |
+| Sprint 2   | 2025-12-27 to 2026-01-05 | 23      | 23        | 23       | ✅     | User management, Epic 4 foundation |
+| Hybrid 2/3 | 2026-01-05 to 2026-01-07 | 13      | 13        | 13       | ✅     | Cost Elements & Hierarchical Nav   |
 
 ---
 
@@ -33,11 +33,11 @@
 30 ┤
 25 ┤     ████
 20 ┤  ████ ████
-15 ┤
+15 ┤           ██
 10 ┤
  5 ┤
  0 └─────────────
-    S1  S2  S3  ...
+    S1  S2  H2/3
 ```
 
 ---
@@ -62,11 +62,10 @@
 
 **Next 3 Sprints (Projected):**
 
-| Sprint       | Forecast | Range     | Confidence |
-| ------------ | -------- | --------- | ---------- |
-| Current      | TBD      | TBD-TBD   | Medium     |
-| Next         | 23       | 20-26     | High       |
-| Following    | 25       | 22-28     | High       |
+| Sprint    | Forecast | Range | Confidence |
+| --------- | -------- | ----- | ---------- |
+| Next (S3) | 23       | 20-26 | High       |
+| Following | 25       | 22-28 | High       |
 
 **Rationale:**
 
@@ -78,9 +77,9 @@
 
 ## Velocity Anomalies
 
-| Date       | Sprint       | Expected | Actual | Delta | Root Cause                      | Resolution            |
-| ---------- | ------------ | -------- | ------ | ----- | ------------------------------- | --------------------- |
-| 2026-01-05 | Hybrid 2/3   | 25       | TBD    | TBD   | Test environment issues         | Fixed in ACT phase    |
+| Date       | Sprint     | Expected | Actual | Delta | Root Cause                   | Resolution        |
+| ---------- | ---------- | -------- | ------ | ----- | ---------------------------- | ----------------- |
+| 2026-01-05 | Hybrid 2/3 | 25       | 13     | -12   | Short sprint / Stabilization | Expected variance |
 
 ---
 
@@ -112,17 +111,18 @@
 
 ### Hybrid Sprint 2/3 (2026-01-05)
 
-- **Planned:** TBD points
-- **Completed:** TBD points
+- **Planned:** 13 points
+- **Completed:** 13 points
 - **Breakdown by Story:**
-  - [Tech Debt] Audit Gap Fix: TBD points - in progress
+  - E04-U03: Cost Elements (5 points) ✅
+  - E04-U04: Hierarchical Navigation & UI (8 points) ✅
 
 ---
 
 ## Maintenance Notes
 
-**Last Reviewed:** 2026-01-06
-**Next Review:** 2026-01-13
+**Last Reviewed:** 2026-01-07
+**Next Review:** 2026-01-14
 
 **Update Process:**
 

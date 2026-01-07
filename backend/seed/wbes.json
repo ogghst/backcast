@@ -1,0 +1,182 @@
+[
+  {
+    "project_code": "PRJ-DEMO-001",
+    "code": "PRJ-DEMO-001-L1-1",
+    "name": "L1 WBE 1",
+    "budget_allocation": 100000.0,
+    "level": 1,
+    "parent_wbe_code": null,
+    "description": "Level 1 Parent WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-001",
+    "code": "PRJ-DEMO-001-L1-1-L2-1",
+    "name": "L2 WBE 1.1",
+    "budget_allocation": 50000.0,
+    "level": 2,
+    "parent_wbe_code": "PRJ-DEMO-001-L1-1",
+    "description": "Level 2 Child WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-001",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1",
+    "name": "L3 WBE 1.1.1",
+    "budget_allocation": 25000.0,
+    "level": 3,
+    "parent_wbe_code": "PRJ-DEMO-001-L1-1-L2-1",
+    "description": "Level 3 Leaf WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-001",
+    "code": "PRJ-DEMO-001-L1-1-L2-2",
+    "name": "L2 WBE 1.2",
+    "budget_allocation": 50000.0,
+    "level": 2,
+    "parent_wbe_code": "PRJ-DEMO-001-L1-1",
+    "description": "Level 2 Child WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-001",
+    "code": "PRJ-DEMO-001-L1-1-L2-2-L3-1",
+    "name": "L3 WBE 1.2.1",
+    "budget_allocation": 25000.0,
+    "level": 3,
+    "parent_wbe_code": "PRJ-DEMO-001-L1-1-L2-2",
+    "description": "Level 3 Leaf WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-001",
+    "code": "PRJ-DEMO-001-L1-2",
+    "name": "L1 WBE 2",
+    "budget_allocation": 100000.0,
+    "level": 1,
+    "parent_wbe_code": null,
+    "description": "Level 1 Parent WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-001",
+    "code": "PRJ-DEMO-001-L1-2-L2-1",
+    "name": "L2 WBE 2.1",
+    "budget_allocation": 50000.0,
+    "level": 2,
+    "parent_wbe_code": "PRJ-DEMO-001-L1-2",
+    "description": "Level 2 Child WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-001",
+    "code": "PRJ-DEMO-001-L1-2-L2-1-L3-1",
+    "name": "L3 WBE 2.1.1",
+    "budget_allocation": 25000.0,
+    "level": 3,
+    "parent_wbe_code": "PRJ-DEMO-001-L1-2-L2-1",
+    "description": "Level 3 Leaf WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-001",
+    "code": "PRJ-DEMO-001-L1-2-L2-2",
+    "name": "L2 WBE 2.2",
+    "budget_allocation": 50000.0,
+    "level": 2,
+    "parent_wbe_code": "PRJ-DEMO-001-L1-2",
+    "description": "Level 2 Child WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-001",
+    "code": "PRJ-DEMO-001-L1-2-L2-2-L3-1",
+    "name": "L3 WBE 2.2.1",
+    "budget_allocation": 25000.0,
+    "level": 3,
+    "parent_wbe_code": "PRJ-DEMO-001-L1-2-L2-2",
+    "description": "Level 3 Leaf WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-002",
+    "code": "PRJ-DEMO-002-L1-1",
+    "name": "L1 WBE 1",
+    "budget_allocation": 100000.0,
+    "level": 1,
+    "parent_wbe_code": null,
+    "description": "Level 1 Parent WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-002",
+    "code": "PRJ-DEMO-002-L1-1-L2-1",
+    "name": "L2 WBE 1.1",
+    "budget_allocation": 50000.0,
+    "level": 2,
+    "parent_wbe_code": "PRJ-DEMO-002-L1-1",
+    "description": "Level 2 Child WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-002",
+    "code": "PRJ-DEMO-002-L1-1-L2-1-L3-1",
+    "name": "L3 WBE 1.1.1",
+    "budget_allocation": 25000.0,
+    "level": 3,
+    "parent_wbe_code": "PRJ-DEMO-002-L1-1-L2-1",
+    "description": "Level 3 Leaf WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-002",
+    "code": "PRJ-DEMO-002-L1-1-L2-2",
+    "name": "L2 WBE 1.2",
+    "budget_allocation": 50000.0,
+    "level": 2,
+    "parent_wbe_code": "PRJ-DEMO-002-L1-1",
+    "description": "Level 2 Child WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-002",
+    "code": "PRJ-DEMO-002-L1-1-L2-2-L3-1",
+    "name": "L3 WBE 1.2.1",
+    "budget_allocation": 25000.0,
+    "level": 3,
+    "parent_wbe_code": "PRJ-DEMO-002-L1-1-L2-2",
+    "description": "Level 3 Leaf WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-002",
+    "code": "PRJ-DEMO-002-L1-2",
+    "name": "L1 WBE 2",
+    "budget_allocation": 100000.0,
+    "level": 1,
+    "parent_wbe_code": null,
+    "description": "Level 1 Parent WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-002",
+    "code": "PRJ-DEMO-002-L1-2-L2-1",
+    "name": "L2 WBE 2.1",
+    "budget_allocation": 50000.0,
+    "level": 2,
+    "parent_wbe_code": "PRJ-DEMO-002-L1-2",
+    "description": "Level 2 Child WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-002",
+    "code": "PRJ-DEMO-002-L1-2-L2-1-L3-1",
+    "name": "L3 WBE 2.1.1",
+    "budget_allocation": 25000.0,
+    "level": 3,
+    "parent_wbe_code": "PRJ-DEMO-002-L1-2-L2-1",
+    "description": "Level 3 Leaf WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-002",
+    "code": "PRJ-DEMO-002-L1-2-L2-2",
+    "name": "L2 WBE 2.2",
+    "budget_allocation": 50000.0,
+    "level": 2,
+    "parent_wbe_code": "PRJ-DEMO-002-L1-2",
+    "description": "Level 2 Child WBE"
+  },
+  {
+    "project_code": "PRJ-DEMO-002",
+    "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1",
+    "name": "L3 WBE 2.2.1",
+    "budget_allocation": 25000.0,
+    "level": 3,
+    "parent_wbe_code": "PRJ-DEMO-002-L1-2-L2-2",
+    "description": "Level 3 Leaf WBE"
+  }
+]

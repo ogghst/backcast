@@ -1,4 +1,5 @@
 import { App, Button, Space, Tag } from "antd";
+import { useNavigate } from "react-router-dom";
 import {
   HistoryOutlined,
   ProjectOutlined,
@@ -27,6 +28,7 @@ import {
 } from "../api/useProjects";
 
 export const ProjectList = () => {
+  const navigate = useNavigate();
   const { tableParams, handleTableChange } = useTableParams<ProjectRead>();
   const { data: projects, isLoading, refetch } = useProjects(tableParams);
 
@@ -140,7 +142,8 @@ export const ProjectList = () => {
           <Can permission="project-read">
             <Button
               icon={<HistoryOutlined />}
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setSelectedProject(record);
                 setHistoryOpen(true);
               }}
@@ -150,7 +153,8 @@ export const ProjectList = () => {
           <Can permission="project-update">
             <Button
               icon={<EditOutlined />}
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setSelectedProject(record);
                 setModalOpen(true);
               }}
@@ -161,7 +165,10 @@ export const ProjectList = () => {
             <Button
               danger
               icon={<DeleteOutlined />}
-              onClick={() => handleDelete(record.project_id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(record.project_id);
+              }}
               title="Delete Project"
             />
           </Can>
@@ -179,6 +186,10 @@ export const ProjectList = () => {
         dataSource={projects || []}
         columns={columns}
         rowKey="id"
+        onRow={(record) => ({
+          onClick: () => navigate(`/projects/${record.project_id}`),
+          style: { cursor: "pointer" },
+        })}
         toolbar={
           <div
             style={{

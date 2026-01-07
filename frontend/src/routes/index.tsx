@@ -5,8 +5,12 @@ import Home from "@/pages/Home";
 import Login from "@/pages/Login";
 import { UserList } from "@/pages/admin/UserList";
 import { DepartmentManagement } from "@/pages/admin/DepartmentManagement";
+import { CostElementTypeManagement } from "@/pages/admin/CostElementTypeManagement";
 import { ProjectList } from "@/pages/projects/ProjectList";
+import { ProjectDetailPage } from "@/pages/projects/ProjectDetailPage";
 import { WBEList } from "@/pages/wbes/WBEList";
+import { WBEDetailPage } from "@/pages/wbes/WBEDetailPage";
+import { CostElementManagement } from "@/pages/financials/CostElementManagement";
 import { Profile } from "@/pages/Profile";
 
 export const router = createBrowserRouter([
@@ -51,8 +55,24 @@ export const router = createBrowserRouter([
         element: <DepartmentManagement />,
       },
       {
+        path: "/admin/cost-element-types",
+        element: <CostElementTypeManagement />,
+      },
+      {
         path: "/profile",
         element: <Profile />,
+      },
+      {
+        path: "/financials/cost-elements",
+        element: <CostElementManagement />,
+      },
+      {
+        path: "/projects/:projectId",
+        element: <ProjectDetailPage />,
+      },
+      {
+        path: "/projects/:projectId/wbes/:wbeId",
+        element: <WBEDetailPage />,
       },
     ],
   },

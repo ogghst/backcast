@@ -15,6 +15,10 @@ export type DepartmentRead = {
      */
     manager_id?: (string | null);
     is_active: boolean;
+    /**
+     * Department description
+     */
+    description?: (string | null);
     id: string;
     department_id: string;
     code: string;

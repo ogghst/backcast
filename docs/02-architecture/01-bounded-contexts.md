@@ -41,7 +41,21 @@ This document defines the bounded contexts used to partition the Backcast EVS sy
 
 ---
 
-### 2. User Management
+### 2. Department Management
+
+**Responsibility:** Department CRUD operations for budget tracking
+**Owner:** Backend Team
+**Status:** ✅ Implemented
+**Versioning:** Not versioned (standard CRUD)
+**Key Files:**
+
+- `app/models/domain/department.py` - Department model
+- `app/services/department_service.py` - DepartmentService
+- `app/api/routes/departments.py` - Department endpoints
+
+---
+
+### 3. User Management
 
 **Responsibility:** User CRUD operations, profile management, admin user creation, user history
 **Owner:** Backend Team
@@ -56,36 +70,116 @@ This document defines the bounded contexts used to partition the Backcast EVS sy
 
 ---
 
-### Planned (Not Yet Documented)
+### 4. Cost Element Type Management
 
-The following contexts are planned but do not yet have dedicated documentation:
-
-#### 3. Department Management
-
-**Responsibility:** Department CRUD operations for budget tracking
+**Responsibility:** Standardized cost categorization owned by departments
 **Owner:** Backend Team
+**Status:** ✅ Implemented
+**Versioning:** Versionable (no branching) - organizational reference data
 
-#### 4. Project & WBE Management
+**Description:**
+Cost Element Types are organizational reference data that enable:
+- Consistent cost categorization across projects
+- Cross-project cost comparability
+- Department ownership of cost types
+
+**Key Entities:**
+- `CostElementType` - Standardized cost category (code, name, description, department_id)
+- Satisfies: `VersionableProtocol` (NOT branchable)
+
+**Key Files:**
+
+- `app/models/domain/cost_element_type.py` - CostElementType model
+- `app/services/cost_element_type_service.py` - CostElementTypeService
+- `app/api/routes/cost_element_types.py` - Cost element type endpoints
+
+---
+
+### 5. Project & WBE Management
 
 **Responsibility:** Project hierarchy, Work Breakdown Elements (machines), revenue allocation
 **Owner:** Backend Team
+**Status:** ✅ Implemented
 **Versioning:** Bitemporal with branching (via EVCS Core)
 
-#### 5. Cost Element & Financial Tracking
+**Key Entities:**
 
-**Responsibility:** Departmental budgets, cost registration, forecasts, earned value tracking
+- `Project` - Top-level container for financial data
+- `WBE` (Work Breakdown Element) - Individual machines/deliverables within projects
+
+**Key Files:**
+
+- `app/models/domain/project.py` - Project model
+- `app/models/domain/wbe.py` - WBE model
+- `app/services/project_service.py` - ProjectService with EVCS support
+- `app/services/wbe_service.py` - WBEService with EVCS support
+- `app/api/routes/projects.py` - Project endpoints
+- `app/api/routes/wbes.py` - WBE endpoints
+
+---
+
+### 6. Cost Element & Financial Tracking
+
+**Responsibility:** Departmental budgets, cost registration, forecasts, earned value tracking, schedule registrations
 **Owner:** Backend Team
+**Status:** ✅ Partially Implemented
 **Versioning:** Bitemporal with branching (via EVCS Core)
 
-#### 6. Change Order Processing
+**Description:**
+Cost Elements are the leaf level of the project hierarchy where budgets are allocated and costs are tracked.
+
+**Key Entities:**
+
+- `CostElement` - Project-specific instance of a Cost Element Type
+  - Branchable (supports change orders)
+  - Satisfies: `BranchableProtocol`
+
+- `ScheduleRegistration` - Versioned schedule baseline defining planned work progression
+  - Attributes: start_date, end_date, progression_type (linear/gaussian/logarithmic), registration_date
+  - Used for Planned Value (PV) calculations
+  - Full CRUD with history retention
+
+**Key Files:**
+
+- `app/models/domain/cost_element.py` - CostElement model (branchable)
+- `app/services/cost_element_service.py` - CostElementService with branching
+- `app/api/routes/cost_elements.py` - Cost element endpoints
+
+---
+
+### 7. Change Order Processing
 
 **Responsibility:** Branch creation, modification, comparison, merging
 **Owner:** Backend Team
+**Status:** Planned
+**Versioning:** Uses EVCS Core branching capabilities
 
-#### 7. EVM Calculations & Reporting
+**Key Operations:**
+
+- Automatic branch creation for change orders (`co-{id}`)
+- Branch isolation for modifications
+- Branch comparison for impact analysis
+- Branch merge for approved change orders
+- Branch locking/unlocking
+
+**Documentation:** [Branching Requirements](../../01-product-scope/branching-requirements.md)
+
+---
+
+### 8. EVM Calculations & Reporting
 
 **Responsibility:** Planned Value, Earned Value, Actual Cost, performance indices, variance analysis
 **Owner:** Backend Team
+**Status:** Planned
+
+**Key Calculations:**
+
+- PV = BAC × % Planned Completion (using schedule registrations)
+- EV = BAC × % Physical Completion
+- AC = Sum of cost registrations
+- CPI, SPI, TCPI, CV, SV, VAC
+
+**Documentation:** [EVM Requirements](../../01-product-scope/evm-requirements.md)
 
 ---
 
@@ -225,10 +319,11 @@ The following contexts are planned but do not yet have dedicated documentation:
 1. **EVCS Core** provides the versioning framework used by all versioned entities
 2. **Authentication** is used by all contexts for identifying current user
 3. **User Management** provides user data for audit trails in all versioned entities
-4. **Project/WBE** hierarchy contains **Cost Elements** (planned)
-5. **Financial Tracking** operates on **Cost Elements** (planned)
-6. **Change Orders** create branches via EVCS Core affecting **Project/WBE/Cost Elements** (planned)
-7. **EVM Calculations** read from **Financial Tracking** data with time-travel support (planned)
+4. **Departments** own **Cost Element Types** for organizational cost categorization
+5. **Cost Element Types** are referenced by **Cost Elements** for standardized categorization
+6. **Project/WBE** hierarchy contains **Cost Elements** (implemented)
+7. **Financial Tracking** operates on **Cost Elements** with **Schedule Registrations** for PV calculations
+8. **Change Orders** create branches via EVCS Core affecting **Project/WBE/Cost Elements** (planned)
 
 ### Frontend Interactions
 

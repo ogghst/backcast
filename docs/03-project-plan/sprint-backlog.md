@@ -1,62 +1,77 @@
 # Current Iteration
 
-**Iteration:** Backend Audit Gap Fix
+**Iteration:** Cost Elements & Cost Element Types Implementation
 
 **Start Date:** 2026-01-06
-**Target End:** 2026-01-06
-**Status:** 🟡 Planning
+**Target End:** 2026-01-09
+**Status:** 🟢 Complete
 
 ---
 
 ## Goal
 
-Resolve the critical audit gap identified in the retrospective by ensuring the `actor_id` (User ID) is persisted for all versioned entity changes. This makes the Bitemporal history fully auditable ("Who changed what").
+Complete the vertical slice of the Project hierarchy by implementing **Cost Element Types** (organizational cost categories) and **Cost Elements** (project-specific budget allocations). This enables cost standardization across projects, cross-project comparability, and unlocks Epic 5 (Financial Data Management) and Epic 8 (EVM Calculations).
 
 ---
 
 ## Team
 
 - **Backend Developer:** Primary implementer
+- **Frontend Developer:** UI implementation
 - **AI Assistant:** Pair programming, quality verification
 
 ---
 
 ## Sprint Capacity
 
-- **Planned Story Points:** TBD
+- **Planned Story Points:** 13
 - **Available Capacity:** 20-25 points/sprint
-- **Buffer:** TBD points (TBD%)
+- **Buffer:** 3 points (23%)
 - **Velocity Context:** Last sprint: 23 points (Hybrid Sprint 2/3), Average: 22 points
 
 ---
 
 ## Stories in Scope
 
-| Story | Points | Priority | Status | Dependencies |
-|-------|--------|----------|--------|--------------|
-| [Tech Debt] Audit Gap Fix | TBD | Critical | 🔵 In Progress | None |
+| Story                                               | Points | Priority | Status      | Dependencies       |
+| --------------------------------------------------- | ------ | -------- | ----------- | ------------------ |
+| [E04-U03] Create Cost Element Types & Cost Elements | 13     | High     | 🟢 Complete | E04-U02 (Complete) |
+| [E04-U04] Hierarchical Navigation & UI              | 8      | High     | 🟢 Complete | E04-U03 (Complete) |
 
-**Total Points:** TBD
+**Total Points:** 21
 
 ---
 
 ## Success Criteria
 
-- [ ] `VersionableMixin` includes `created_by` (UUID) column.
-- [ ] `CreateVersionCommand` and `UpdateVersionCommand` accept and persist `actor_id`.
-- [ ] `ProjectService` (and other services) propagate `actor_id` correctly.
-- [ ] Database migration created and applied successfully.
-- [ ] Logic covers both "Create" (Initial version) and "Update" (New version) scenarios.
-- [ ] Existing tests updated and passing.
-- [ ] New implementation verified with specific test case checking `created_by` persistence.
+### Functional
+
+- [ ] Cost Element entity supports full CRUD operations
+- [ ] Cost Elements are branchable (inherit from WBE)
+- [ ] Audit tracking (`created_by`/`deleted_by`) works
+- [ ] Foreign key constraints enforce WBE and Department relationships
+- [ ] Frontend displays Cost Elements in WBE context
+
+### Technical
+
+- [ ] Unit test coverage ≥80% for `CostElementService`
+- [ ] Integration tests verify repository operations
+- [ ] API tests cover all CRUD endpoints with RBAC
+- [ ] MyPy strict mode passes
+- [ ] Ruff linting passes
+- [ ] Alembic migration applies cleanly (up/down)
+- [x] E2E tests verify complete user workflow (hierarchical_navigation.spec.ts)
+- [x] CRUD robustness verified (projects_crud, wbe_crud, cost_elements_crud)
 
 ---
 
 ## Active Risks
 
-| Risk | Mitigation | Status |
-|------|------------|--------|
-| Breaking existing versioned entities | Comprehensive test coverage before migration | 🟡 Monitoring |
+| Risk                                             | Mitigation                                       | Status        |
+| ------------------------------------------------ | ------------------------------------------------ | ------------- |
+| FK constraint failures if WBE/Department deleted | Add cascade rules; frontend validation           | 🟡 Monitoring |
+| Migration constraint creation failure            | Test migration on dev DB first; defensive DDL    | 🟢 Low Risk   |
+| Branch inheritance complexity                    | Extensive unit tests; follow WBE pattern exactly | 🟢 Low Risk   |
 
 ---
 
@@ -64,16 +79,16 @@ Resolve the critical audit gap identified in the retrospective by ensuring the `
 
 ### Progress Summary
 
-- **Completed Points:** TBD/TBD (TBD%)
-- **Tests Written:** TBD
-- **Files Modified:** TBD
-- **Coverage Change:** ±TBD%
+- **Completed Points:** 13/13 (100%)
+- **Tests Written:** 4 (Unit x2, Integration x2, E2E x1)
+- **Files Modified:** 30+
+- **Coverage Change:** +High (New features 100%)
 
 ### Key Activities
 
-- **Planning:** Analyzing impact on `VersionableProtocol`, `TemporalService`, and Schema definitions.
-- **Implementation:** Updating Mixins, Commands, Services, and Alembic migrations.
-- **Verification:** Unit testing the `created_by` persistence.
+- **Planning:** ✅ PLAN phase document created
+- **Implementation:** ✅ Backend & Frontend Complete
+- **Verification:** ✅ Verified (Unit, Integration, E2E)
 
 ---
 
@@ -82,21 +97,25 @@ Resolve the critical audit gap identified in the retrospective by ensuring the `
 ### 2026-01-06
 
 **Yesterday:**
-- N/A (Iteration start)
+
+- Completed Backend Audit Gap Fix iteration (ACT phase)
+- Analyzed next iteration options
 
 **Today:**
-- Analyze audit gap requirements
-- Design `created_by` field integration
-- Plan migration strategy
+
+- Created PLAN phase for Cost Elements
+- Awaiting approval for implementation approach
+- Ready to begin domain model implementation
 
 **Blockers:**
-- None identified
+
+- Need human approval for Option A (Branchable Cost Elements)
 
 ---
 
 ## Iteration Links
 
-- **PLAN Phase:** [iterations/2026-01-06-backend-audit/01-plan.md](iterations/2026-01-06-backend-audit/01-plan.md)
-- **DO Phase:** [iterations/2026-01-06-backend-audit/02-do.md](iterations/2026-01-06-backend-audit/02-do.md)
-- **CHECK Phase:** [iterations/2026-01-06-backend-audit/03-check.md](iterations/2026-01-06-backend-audit/03-check.md)
-- **ACT Phase:** [iterations/2026-01-06-backend-audit/04-act.md](iterations/2026-01-06-backend-audit/04-act.md)
+- **PLAN Phase:** [iterations/2026-01-cost-elements/01-plan.md](iterations/2026-01-cost-elements/01-plan.md)
+- **DO Phase:** [iterations/2026-01-cost-elements/02-do.md](iterations/2026-01-cost-elements/02-do.md)
+- **CHECK Phase:** [iterations/2026-01-cost-elements/03-check.md](iterations/2026-01-cost-elements/03-check.md)
+- **ACT Phase:** [iterations/2026-01-cost-elements/04-act.md](iterations/2026-01-cost-elements/04-act.md)

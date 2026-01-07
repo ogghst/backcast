@@ -1,0 +1,20 @@
+[
+  {
+    "code": "PRJ-DEMO-001",
+    "name": "Demo Project 1",
+    "budget": 1000000.0,
+    "contract_value": 1200000.0,
+    "description": "Auto-generated demo project 1",
+    "start_date": "2026-01-07T05:49:36.993776",
+    "end_date": "2027-01-07T05:49:36.993839"
+  },
+  {
+    "code": "PRJ-DEMO-002",
+    "name": "Demo Project 2",
+    "budget": 1000000.0,
+    "contract_value": 1200000.0,
+    "description": "Auto-generated demo project 2",
+    "start_date": "2026-01-07T05:49:36.993851",
+    "end_date": "2027-01-07T05:49:36.993853"
+  }
+]

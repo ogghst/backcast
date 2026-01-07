@@ -7,7 +7,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Include routers
-from app.api.routes import auth, departments, projects, users, wbes
+from app.api.routes import (
+    auth,
+    cost_element_types,
+    cost_elements,
+    departments,
+    projects,
+    users,
+    wbes,
+)
 from app.core.config import settings
 from app.core.logging import setup_logging
 
@@ -71,4 +79,14 @@ app.include_router(
     wbes.router,
     prefix=f"{settings.API_V1_STR}/wbes",
     tags=["WBEs"],
+)
+app.include_router(
+    cost_element_types.router,
+    prefix=f"{settings.API_V1_STR}/cost-element-types",
+    tags=["Cost Element Types"],
+)
+app.include_router(
+    cost_elements.router,
+    prefix=f"{settings.API_V1_STR}/cost-elements",
+    tags=["Cost Elements"],
 )

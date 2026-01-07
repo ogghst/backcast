@@ -87,6 +87,21 @@ test.describe("Project CRUD", () => {
       timeout: 10000,
     });
 
+    // Check History
+    const updatedRow = page.locator(`tr:has-text("${projectCode}")`);
+    await updatedRow.locator('button[title="View History"]').click();
+
+    // Verify Drawer
+    await expect(
+      page.locator(".ant-drawer-title").filter({ hasText: "History" })
+    ).toBeVisible();
+    // Should have at least 2 versions (Initial + Update)
+    await expect(page.locator(".ant-list-item")).toHaveCount(2);
+
+    // Close drawer
+    await page.locator(".ant-drawer-close").click();
+    await expect(page.locator(".ant-drawer-content")).not.toBeVisible();
+
     // Delete Project
     // Find row with projectCode, then click delete button
     // AntD table row structure makes this tricky without row-specific test ids

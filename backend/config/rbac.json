@@ -17,7 +17,15 @@
         "wbe-read",
         "wbe-create",
         "wbe-update",
-        "wbe-delete"
+        "wbe-delete",
+        "cost-element-type-read",
+        "cost-element-type-create",
+        "cost-element-type-update",
+        "cost-element-type-delete",
+        "cost-element-read",
+        "cost-element-create",
+        "cost-element-update",
+        "cost-element-delete"
       ]
     },
     "manager": {

@@ -4,5 +4,23 @@
     "name": "Administration",
     "manager_id": null,
     "is_active": true
+  },
+  {
+    "code": "PM",
+    "name": "Project Management",
+    "manager_id": null,
+    "is_active": true
+  },
+  {
+    "code": "ENG",
+    "name": "Engineering",
+    "manager_id": null,
+    "is_active": true
+  },
+  {
+    "code": "CONST",
+    "name": "Construction",
+    "manager_id": null,
+    "is_active": true
   }
 ]

@@ -7,6 +7,8 @@ import {
   ProjectOutlined,
   SettingOutlined,
   TeamOutlined,
+  DollarOutlined,
+  TagsOutlined,
 } from "@ant-design/icons";
 
 import { UserProfile } from "@/components/UserProfile";
@@ -63,6 +65,14 @@ const AppLayout: React.FC = () => {
         });
       }
 
+      if (can("cost-element-type-read")) {
+        adminItems.push({
+          key: "/admin/cost-element-types",
+          icon: <TagsOutlined />,
+          label: "Cost Element Types",
+        });
+      }
+
       if (adminItems.length > 0) {
         items.push({
           key: "/admin",
@@ -71,6 +81,15 @@ const AppLayout: React.FC = () => {
           children: adminItems,
         });
       }
+    }
+
+    // Financials
+    if (can("cost-element-read")) {
+      items.push({
+        key: "/financials/cost-elements",
+        icon: <DollarOutlined />,
+        label: "Cost Elements",
+      });
     }
 
     return items;

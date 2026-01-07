@@ -41,5 +41,7 @@ export type WBERead = {
     created_by: string;
     created_by_name?: (string | null);
     deleted_by?: (string | null);
+    valid_time?: (string | null);
+    transaction_time?: (string | null);
 };
 

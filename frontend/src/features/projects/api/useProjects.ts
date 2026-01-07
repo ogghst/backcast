@@ -27,6 +27,7 @@ const projectApi = {
 
 export const {
   useList: useProjects,
+  useDetail: useProject,
   useCreate: useCreateProject,
   useUpdate: useUpdateProject,
   useDelete: useDeleteProject,

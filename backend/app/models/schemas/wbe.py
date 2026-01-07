@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class WBEBase(BaseModel):
@@ -45,8 +45,46 @@ class WBERead(WBEBase):
     created_by: UUID
     created_by_name: str | None = None
     deleted_by: UUID | None = None
+    valid_time: str | None = None
+    transaction_time: str | None = None
+
+    @field_validator("valid_time", "transaction_time", mode="before")
+    @classmethod
+    def convert_range_to_str(cls, v: object) -> str | None:
+        if v and not isinstance(v, str):
+            return str(v)
+        return v  # type: ignore
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# Breadcrumb schemas for hierarchical navigation
+class ProjectBreadcrumbItem(BaseModel):
+    """Minimal project info for breadcrumb."""
+    
+    id: UUID
+    project_id: UUID
+    code: str
+    name: str
+
+
+class WBEBreadcrumbItem(BaseModel):
+    """Minimal WBE info for breadcrumb."""
+    
+    id: UUID
+    wbe_id: UUID
+    code: str
+    name: str
+
+
+class WBEBreadcrumb(BaseModel):
+    """Breadcrumb trail for a WBE showing project and ancestor path."""
+    
+    project: ProjectBreadcrumbItem
+    wbe_path: list[WBEBreadcrumbItem] = Field(
+        ..., 
+        description="Ordered list of WBEs from root to current (last item is the current WBE)"
+    )
 
 
 # Alias for backward compatibility

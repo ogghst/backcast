@@ -11,6 +11,7 @@ from app.db.session import get_db
 from app.models.domain.user import User
 from app.models.domain.wbe import WBE
 from app.models.schemas.wbe import (
+    WBEBreadcrumb,
     WBECreate,
     WBEPublic,
     WBEUpdate,
@@ -36,12 +37,46 @@ async def read_wbes(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),
     project_id: UUID | None = Query(None, description="Filter by project ID"),
+    parent_wbe_id: str | None = Query(None, description="Filter by parent WBE ID (use 'null' string for root WBEs)"),
     branch: str = Query("main", description="Branch name"),
     service: WBEService = Depends(get_wbe_service),
 ) -> Sequence[WBE]:
-    """Retrieve WBEs. Requires read permission."""
+    """Retrieve WBEs. Requires read permission.
+    
+    Filtering:
+    - project_id only: All WBEs in project
+    - project_id + parent_wbe_id: Child WBEs of specified parent
+    - parent_wbe_id='null': Root WBEs (parent_wbe_id IS NULL)
+    """
+    # Parse parent_wbe_id
+    parsed_parent_id: UUID | None = None
+    is_root_query = False
+
+    if parent_wbe_id:
+        if parent_wbe_id.lower() == "null":
+            is_root_query = True
+            parsed_parent_id = None
+        else:
+            try:
+                parsed_parent_id = UUID(parent_wbe_id)
+            except ValueError as e:
+                raise HTTPException(status_code=422, detail="Invalid parent_wbe_id format") from e
+
+    # Handle hierarchical filtering
+    # Case 1: Specific parent (parsed_parent_id is set)
+    # Case 2: Root query (is_root_query is True)
+    if parsed_parent_id or is_root_query:
+        return await service.get_by_parent(
+            project_id=project_id,
+            parent_wbe_id=parsed_parent_id,
+            branch=branch,
+        )
+    
+    # Project filtering only
     if project_id:
         return await service.get_by_project(project_id=project_id, branch=branch)
+    
+    # No filters - return all
     return await service.get_wbes(skip=skip, limit=limit, branch=branch)
 
 
@@ -138,6 +173,26 @@ async def delete_wbe(
         await service.delete_wbe(wbe_id=wbe_id, actor_id=current_user.user_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.get(
+    "/{wbe_id}/breadcrumb",
+    response_model=WBEBreadcrumb,
+    operation_id="get_wbe_breadcrumb",
+    dependencies=[Depends(RoleChecker(required_permission="wbe-read"))],
+)
+async def read_wbe_breadcrumb(
+    wbe_id: UUID,
+    service: WBEService = Depends(get_wbe_service),
+) -> dict:
+    """Get breadcrumb trail for a WBE (project + ancestor path). Requires read permission."""
+    try:
+        return await service.get_breadcrumb(wbe_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
 
 
 @router.get(

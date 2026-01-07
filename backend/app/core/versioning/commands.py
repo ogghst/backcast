@@ -48,10 +48,17 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
     def _root_field_name(self) -> str:
         """Derive root field name from entity class name."""
         # e.g., UserVersion -> user_id
-        class_name = self.entity_class.__name__.lower()
-        if class_name.endswith("version"):
+        import re
+
+        class_name = self.entity_class.__name__
+        if class_name.endswith("Version"):
             class_name = class_name[:-7]  # Remove "version" suffix
-        return f"{class_name}_id"
+        
+        # CamelCase to snake_case
+        s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", class_name)
+        snake_name = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
+        
+        return f"{snake_name}_id"
 
     async def _close_version(
         self, session: AsyncSession, version: TVersionable

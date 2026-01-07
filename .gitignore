@@ -48,3 +48,4 @@ old/
 coverage.xml
 .coverage
 frontend/playwright-report/index.html
+test-results

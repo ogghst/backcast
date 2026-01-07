@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ProjectBase(BaseModel):
@@ -47,6 +47,15 @@ class ProjectRead(ProjectBase):
     created_by: UUID | None = None
     created_by_name: str | None = None
     deleted_by: UUID | None = None
+    valid_time: str | None = None
+    transaction_time: str | None = None
+
+    @field_validator("valid_time", "transaction_time", mode="before")
+    @classmethod
+    def convert_range_to_str(cls, v: object) -> str | None:
+        if v and not isinstance(v, str):
+            return str(v)
+        return v  # type: ignore
 
     model_config = ConfigDict(from_attributes=True)
 

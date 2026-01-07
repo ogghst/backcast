@@ -1,19 +1,19 @@
 # Backlog
 
-**Last Updated:** 2026-01-06
-**Total Items:** 36
-**Total Estimated Points:** 219
+**Last Updated:** 2026-01-07
+**Total Items:** 34
+**Total Estimated Points:** 206
 
 ---
 
 ## Quick Stats
 
 | Priority | Items | Points | % of Backlog |
-|----------|-------|--------|--------------|
-| Critical |   7   |   55   |      25%     |
-| High     |   13  |   92   |      42%     |
-| Medium   |   12  |   56   |      26%     |
-| Low      |   4   |   16   |      7%      |
+| -------- | ----- | ------ | ------------ |
+| Critical | 7     | 55     | 25%          |
+| High     | 13    | 92     | 42%          |
+| Medium   | 12    | 56     | 26%          |
+| Low      | 4     | 16     | 7%           |
 
 ---
 
@@ -22,6 +22,7 @@
 ### Critical Priority
 
 #### [E06-U01] Create Change Orders
+
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 5
 - **Business Value:** CRITICAL - Core differentiator, enables isolated development
@@ -35,6 +36,7 @@
 - **Ready for Iteration:** Yes (E04-U02 complete)
 
 #### [E06-U02] Automatic Branch Creation for Change Orders
+
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 5
 - **Business Value:** CRITICAL - Automates branch workflow
@@ -47,6 +49,7 @@
 - **Ready for Iteration:** No (blocked by E06-U01)
 
 #### [E06-U05] Merge Approved Change Orders
+
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 13
 - **Business Value:** CRITICAL - Completes change order lifecycle
@@ -60,6 +63,7 @@
 - **Ready for Iteration:** No (blocked by E06-U01, E06-U04)
 
 #### [E03-U06] Generic VersionedRepository for Reusability
+
 - **Epic:** E003 (Entity Versioning System)
 - **Story Points:** 13
 - **Business Value:** CRITICAL - Reduces duplication, enforces consistency
@@ -73,6 +77,7 @@
 - **Ready for Iteration:** No (blocked by E03-U03)
 
 #### [E03-U07] Automatic Filtering to Active/Latest Versions
+
 - **Epic:** E003 (Entity Versioning System)
 - **Story Points:** 8
 - **Business Value:** CRITICAL - Default UX expectation
@@ -85,6 +90,7 @@
 - **Ready for Iteration:** No (blocked by E03-U03)
 
 #### [E03-U05] Time-Travel Queries (Query State at Any Past Date)
+
 - **Epic:** E003 (Entity Versioning System)
 - **Story Points:** 8
 - **Business Value:** CRITICAL - Core audit capability
@@ -97,6 +103,7 @@
 - **Ready for Iteration:** No (blocked by E03-U02)
 
 #### [E06-U08] Delete/Archive Branches
+
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 3
 - **Business Value:** CRITICAL - Cleanup after merge
@@ -112,20 +119,8 @@
 
 ### High Priority
 
-#### [E04-U03] Create Cost Elements within WBEs
-- **Epic:** E004 (Project Structure Management)
-- **Story Points:** 8
-- **Business Value:** HIGH - Completes data hierarchy for EVM
-- **Dependencies:** E04-U02
-- **Acceptance Criteria:**
-  - Cost element entity with department, budget_code, amount
-  - Versioning support (all changes tracked)
-  - CRUD operations with RBAC
-  - Validation: Cost element must belong to WBE
-- **Estimated Complexity:** Medium
-- **Ready for Iteration:** Yes (E04-U02 complete)
-
 #### [E04-U06] Maintain Project-WBE-Cost Element Hierarchy Integrity
+
 - **Epic:** E004 (Project Structure Management)
 - **Story Points:** 8
 - **Business Value:** HIGH - Data consistency
@@ -138,6 +133,7 @@
 - **Ready for Iteration:** No (blocked by E04-U03)
 
 #### [E06-U04] Compare Branch to Main (Impact Analysis)
+
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 8
 - **Business Value:** HIGH - Change order approval decision support
@@ -151,6 +147,7 @@
 - **Ready for Iteration:** No (blocked by E06-U01, E03-U04)
 
 #### [E06-U03] Modify Entities in Branch (Isolated from Main)
+
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 8
 - **Business Value:** HIGH - Core isolation feature
@@ -163,6 +160,7 @@
 - **Ready for Iteration:** No (blocked by E06-U02)
 
 #### [E05-U01] Register Actual Costs against Cost Elements
+
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 5
 - **Business Value:** HIGH - Core EVM data
@@ -176,6 +174,7 @@
 - **Ready for Iteration:** No (blocked by E04-U03)
 
 #### [E05-U02] Create/Update Forecasts (EAC)
+
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 5
 - **Business Value:** HIGH - Forecasting for proactive management
@@ -188,6 +187,7 @@
 - **Ready for Iteration:** No (blocked by E04-U03)
 
 #### [E05-U03] Record Earned Value (% Complete)
+
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 5
 - **Business Value:** HIGH - Core EVM metric
@@ -200,6 +200,7 @@
 - **Ready for Iteration:** No (blocked by E04-U03)
 
 #### [E05-U05] Validate Cost Registrations against Budgets
+
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 8
 - **Business Value:** HIGH - Budget control
@@ -212,6 +213,7 @@
 - **Ready for Iteration:** No (blocked by E04-U03, E05-U01)
 
 #### [E05-U06] View Cost History and Trends
+
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 5
 - **Business Value:** HIGH - Historical analysis
@@ -224,6 +226,7 @@
 - **Ready for Iteration:** No (blocked by E03-U04, E05-U01)
 
 #### [E08-U01] Calculate PV using Schedule Baselines
+
 - **Epic:** E008 (EVM Calculations & Reporting)
 - **Story Points:** 8
 - **Business Value:** HIGH - Core EVM calculation
@@ -236,6 +239,7 @@
 - **Ready for Iteration:** No (blocked by E05-U04)
 
 #### [E08-U02] Calculate EV from % Complete
+
 - **Epic:** E008 (EVM Calculations & Reporting)
 - **Story Points:** 5
 - **Business Value:** HIGH - Core EVM calculation
@@ -247,6 +251,7 @@
 - **Ready for Iteration:** No (blocked by E05-U03)
 
 #### [E08-U03] Calculate AC from Cost Registrations
+
 - **Epic:** E008 (EVM Calculations & Reporting)
 - **Story Points:** 5
 - **Business Value:** HIGH - Core EVM calculation
@@ -258,6 +263,7 @@
 - **Ready for Iteration:** No (blocked by E05-U01)
 
 #### [E08-U04] View Performance Indices (CPI/SPI/TCPI)
+
 - **Epic:** E008 (EVM Calculations & Reporting)
 - **Story Points:** 8
 - **Business Value:** HIGH - Performance metrics
@@ -274,20 +280,8 @@
 
 ### Medium Priority
 
-#### [E03-U04] Entity History Viewing
-- **Epic:** E003 (Entity Versioning System)
-- **Story Points:** 5
-- **Business Value:** MEDIUM - Audit capability
-- **Dependencies:** E03-U02
-- **Acceptance Criteria:**
-  - UI showing version history for any entity
-  - Display who changed what, when
-  - Highlight changed fields
-  - Filter by date range
-- **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E03-U02)
-
 #### [E04-U04] Allocate Revenue across WBEs
+
 - **Epic:** E004 (Project Structure Management)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Revenue tracking
@@ -300,6 +294,7 @@
 - **Ready for Iteration:** Yes (E04-U02 complete)
 
 #### [E04-U05] Allocate Budgets to Cost Elements
+
 - **Epic:** E004 (Project Structure Management)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Budget distribution
@@ -312,6 +307,7 @@
 - **Ready for Iteration:** No (blocked by E04-U03)
 
 #### [E04-U07] Tree View of Project Structure
+
 - **Epic:** E004 (Project Structure Management)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Visual hierarchy
@@ -324,6 +320,7 @@
 - **Ready for Iteration:** No (blocked by E04-U03)
 
 #### [E05-U04] Define Schedule Baselines with Progression Types
+
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 8
 - **Business Value:** MEDIUM - Schedule management
@@ -336,6 +333,7 @@
 - **Ready for Iteration:** No (blocked by E04-U03)
 
 #### [E05-U07] Manage Quality Events (Track Rework Costs)
+
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Quality tracking
@@ -348,6 +346,7 @@
 - **Ready for Iteration:** No (blocked by E05-U01)
 
 #### [E06-U06] Lock/Unlock Branches
+
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 3
 - **Business Value:** MEDIUM - Access control
@@ -360,6 +359,7 @@
 - **Ready for Iteration:** No (blocked by E06-U02)
 
 #### [E06-U07] Merged View Showing Main + Branch Changes
+
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Preview before merge
@@ -372,6 +372,7 @@
 - **Ready for Iteration:** No (blocked by E06-U03)
 
 #### [E07-U01] Create Baselines at Milestones
+
 - **Epic:** E007 (Baseline Management)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Milestone tracking
@@ -384,6 +385,7 @@
 - **Ready for Iteration:** No (blocked by E04-U03, E05-U04)
 
 #### [E07-U03] Compare Current State to Any Baseline
+
 - **Epic:** E007 (Baseline Management)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Variance analysis
@@ -396,6 +398,7 @@
 - **Ready for Iteration:** No (blocked by E07-U01)
 
 #### [E07-U04] Mark Baselines as PMB (Performance Measurement Baseline)
+
 - **Epic:** E007 (Baseline Management)
 - **Story Points:** 3
 - **Business Value:** MEDIUM - EVM reference point
@@ -408,6 +411,7 @@
 - **Ready for Iteration:** No (blocked by E07-U01)
 
 #### [E08-U05] View Variances (CV/SV/VAC)
+
 - **Epic:** E008 (EVM Calculations & Reporting)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Variance analysis
@@ -425,6 +429,7 @@
 ### Low Priority
 
 #### [E07-U02] Snapshot All Cost Element Data Immutably
+
 - **Epic:** E007 (Baseline Management)
 - **Story Points:** 3
 - **Business Value:** LOW - Baseline detail
@@ -436,6 +441,7 @@
 - **Ready for Iteration:** No (blocked by E07-U01)
 
 #### [E07-U05] Cancel Baselines (Corrections)
+
 - **Epic:** E007 (Baseline Management)
 - **Story Points:** 3
 - **Business Value:** LOW - Correction handling
@@ -447,6 +453,7 @@
 - **Ready for Iteration:** No (blocked by E07-U01)
 
 #### [E07-U06] Preserve Baseline Schedule Registrations
+
 - **Epic:** E007 (Baseline Management)
 - **Story Points:** 3
 - **Business Value:** LOW - Historical reference
@@ -458,6 +465,7 @@
 - **Ready for Iteration:** No (blocked by E07-U01)
 
 #### [E08-U08] Time Machine Control for Historical Metrics
+
 - **Epic:** E008 (EVM Calculations & Reporting)
 - **Story Points:** 5
 - **Business Value:** LOW - Historical reporting
@@ -472,24 +480,26 @@
 
 ## Backlog Health Metrics
 
-- **Items with Estimates:** 36/36 (100%)
-- **Items with Dependencies Defined:** 36/36 (100%)
-- **Items Ready for Sprint:** 3/36 (8%)
+- **Items with Estimates:** 34/34 (100%)
+- **Items with Dependencies Defined:** 34/34 (100%)
+- **Items Ready for Sprint:** 2/34 (6%)
 - **Average Item Size:** 6.1 points
-- **Items Requiring Splitting (>13 points):** 0/36 (0%)
+- **Items Requiring Splitting (>13 points):** 0/34 (0%)
 
 ---
 
 ## Recently Completed (Moved from Backlog)
 
-| Date | Item | Points | Iteration | Notes |
-|------|------|--------|-----------|-------|
-| 2026-01-05 | E04-U01: Create projects with metadata | 5 | Hybrid Sprint 2/3 | Completed early |
-| 2026-01-05 | E04-U02: Create WBEs within projects | 5 | Hybrid Sprint 2/3 | Completed early |
-| 2025-12-27 | E02-U01: User CRUD | 8 | Sprint 2 | Complete with tests |
-| 2025-12-27 | E02-U02: Department CRUD | 5 | Sprint 2 | Complete with tests |
-| 2025-12-27 | E02-U03: User roles and permissions | 5 | Sprint 2 | RBAC implemented |
-| 2025-12-27 | E02-U04: Test coverage | 3 | Sprint 2 | 80%+ achieved |
+| Date       | Item                                      | Points | Iteration         | Notes                              |
+| ---------- | ----------------------------------------- | ------ | ----------------- | ---------------------------------- |
+| 2026-01-07 | E04-U03: Create Cost Elements within WBEs | 8      | Hybrid Sprint 2/3 | Backend & Frontend Complete        |
+| 2026-01-07 | E03-U04: Entity History Viewing           | 5      | Hybrid Sprint 2/3 | Integrated for Projects, WBEs, CEs |
+| 2026-01-05 | E04-U01: Create projects with metadata    | 5      | Hybrid Sprint 2/3 | Completed early                    |
+| 2026-01-05 | E04-U02: Create WBEs within projects      | 5      | Hybrid Sprint 2/3 | Completed early                    |
+| 2025-12-27 | E02-U01: User CRUD                        | 8      | Sprint 2          | Complete with tests                |
+| 2025-12-27 | E02-U02: Department CRUD                  | 5      | Sprint 2          | Complete with tests                |
+| 2025-12-27 | E02-U03: User roles and permissions       | 5      | Sprint 2          | RBAC implemented                   |
+| 2025-12-27 | E02-U04: Test coverage                    | 3      | Sprint 2          | 80%+ achieved                      |
 
 ---
 
@@ -499,6 +509,7 @@
 **Next Grooming:** 2026-01-13
 
 **Grooming Checklist:**
+
 - [x] All items have story point estimates
 - [x] Dependencies are documented
 - [x] Priorities are current

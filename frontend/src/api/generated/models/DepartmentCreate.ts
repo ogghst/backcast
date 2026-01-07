@@ -16,6 +16,10 @@ export type DepartmentCreate = {
      */
     is_active?: boolean;
     /**
+     * Department description
+     */
+    description?: (string | null);
+    /**
      * Unique department code (immutable)
      */
     code: string;

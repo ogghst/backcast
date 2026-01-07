@@ -1,0 +1,802 @@
+[
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1",
+    "code": "PRJ-DEMO-001-L1-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1",
+    "code": "PRJ-DEMO-001-L1-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1",
+    "code": "PRJ-DEMO-001-L1-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1",
+    "code": "PRJ-DEMO-001-L1-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1",
+    "code": "PRJ-DEMO-001-L1-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1-L3-1",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1-L3-1",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1-L3-1",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1-L3-1",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1-L3-1",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2",
+    "code": "PRJ-DEMO-001-L1-1-L2-2-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2",
+    "code": "PRJ-DEMO-001-L1-1-L2-2-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2",
+    "code": "PRJ-DEMO-001-L1-1-L2-2-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2",
+    "code": "PRJ-DEMO-001-L1-1-L2-2-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2",
+    "code": "PRJ-DEMO-001-L1-1-L2-2-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2-L3-1",
+    "code": "PRJ-DEMO-001-L1-1-L2-2-L3-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2-L3-1",
+    "code": "PRJ-DEMO-001-L1-1-L2-2-L3-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2-L3-1",
+    "code": "PRJ-DEMO-001-L1-1-L2-2-L3-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2-L3-1",
+    "code": "PRJ-DEMO-001-L1-1-L2-2-L3-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2-L3-1",
+    "code": "PRJ-DEMO-001-L1-1-L2-2-L3-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2",
+    "code": "PRJ-DEMO-001-L1-2-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2",
+    "code": "PRJ-DEMO-001-L1-2-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2",
+    "code": "PRJ-DEMO-001-L1-2-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2",
+    "code": "PRJ-DEMO-001-L1-2-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2",
+    "code": "PRJ-DEMO-001-L1-2-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1",
+    "code": "PRJ-DEMO-001-L1-2-L2-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1",
+    "code": "PRJ-DEMO-001-L1-2-L2-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1",
+    "code": "PRJ-DEMO-001-L1-2-L2-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1",
+    "code": "PRJ-DEMO-001-L1-2-L2-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1",
+    "code": "PRJ-DEMO-001-L1-2-L2-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1-L3-1",
+    "code": "PRJ-DEMO-001-L1-2-L2-1-L3-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1-L3-1",
+    "code": "PRJ-DEMO-001-L1-2-L2-1-L3-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1-L3-1",
+    "code": "PRJ-DEMO-001-L1-2-L2-1-L3-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1-L3-1",
+    "code": "PRJ-DEMO-001-L1-2-L2-1-L3-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1-L3-1",
+    "code": "PRJ-DEMO-001-L1-2-L2-1-L3-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2",
+    "code": "PRJ-DEMO-001-L1-2-L2-2-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2",
+    "code": "PRJ-DEMO-001-L1-2-L2-2-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2",
+    "code": "PRJ-DEMO-001-L1-2-L2-2-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2",
+    "code": "PRJ-DEMO-001-L1-2-L2-2-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2",
+    "code": "PRJ-DEMO-001-L1-2-L2-2-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2-L3-1",
+    "code": "PRJ-DEMO-001-L1-2-L2-2-L3-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2-L3-1",
+    "code": "PRJ-DEMO-001-L1-2-L2-2-L3-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2-L3-1",
+    "code": "PRJ-DEMO-001-L1-2-L2-2-L3-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2-L3-1",
+    "code": "PRJ-DEMO-001-L1-2-L2-2-L3-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2-L3-1",
+    "code": "PRJ-DEMO-001-L1-2-L2-2-L3-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1",
+    "code": "PRJ-DEMO-002-L1-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1",
+    "code": "PRJ-DEMO-002-L1-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1",
+    "code": "PRJ-DEMO-002-L1-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1",
+    "code": "PRJ-DEMO-002-L1-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1",
+    "code": "PRJ-DEMO-002-L1-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1",
+    "code": "PRJ-DEMO-002-L1-1-L2-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1",
+    "code": "PRJ-DEMO-002-L1-1-L2-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1",
+    "code": "PRJ-DEMO-002-L1-1-L2-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1",
+    "code": "PRJ-DEMO-002-L1-1-L2-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1",
+    "code": "PRJ-DEMO-002-L1-1-L2-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1-L3-1",
+    "code": "PRJ-DEMO-002-L1-1-L2-1-L3-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1-L3-1",
+    "code": "PRJ-DEMO-002-L1-1-L2-1-L3-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1-L3-1",
+    "code": "PRJ-DEMO-002-L1-1-L2-1-L3-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1-L3-1",
+    "code": "PRJ-DEMO-002-L1-1-L2-1-L3-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1-L3-1",
+    "code": "PRJ-DEMO-002-L1-1-L2-1-L3-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2",
+    "code": "PRJ-DEMO-002-L1-1-L2-2-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2",
+    "code": "PRJ-DEMO-002-L1-1-L2-2-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2",
+    "code": "PRJ-DEMO-002-L1-1-L2-2-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2",
+    "code": "PRJ-DEMO-002-L1-1-L2-2-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2",
+    "code": "PRJ-DEMO-002-L1-1-L2-2-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2-L3-1",
+    "code": "PRJ-DEMO-002-L1-1-L2-2-L3-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2-L3-1",
+    "code": "PRJ-DEMO-002-L1-1-L2-2-L3-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2-L3-1",
+    "code": "PRJ-DEMO-002-L1-1-L2-2-L3-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2-L3-1",
+    "code": "PRJ-DEMO-002-L1-1-L2-2-L3-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2-L3-1",
+    "code": "PRJ-DEMO-002-L1-1-L2-2-L3-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2",
+    "code": "PRJ-DEMO-002-L1-2-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2",
+    "code": "PRJ-DEMO-002-L1-2-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2",
+    "code": "PRJ-DEMO-002-L1-2-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2",
+    "code": "PRJ-DEMO-002-L1-2-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2",
+    "code": "PRJ-DEMO-002-L1-2-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1",
+    "code": "PRJ-DEMO-002-L1-2-L2-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1",
+    "code": "PRJ-DEMO-002-L1-2-L2-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1",
+    "code": "PRJ-DEMO-002-L1-2-L2-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1",
+    "code": "PRJ-DEMO-002-L1-2-L2-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1",
+    "code": "PRJ-DEMO-002-L1-2-L2-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1-L3-1",
+    "code": "PRJ-DEMO-002-L1-2-L2-1-L3-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1-L3-1",
+    "code": "PRJ-DEMO-002-L1-2-L2-1-L3-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1-L3-1",
+    "code": "PRJ-DEMO-002-L1-2-L2-1-L3-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1-L3-1",
+    "code": "PRJ-DEMO-002-L1-2-L2-1-L3-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1-L3-1",
+    "code": "PRJ-DEMO-002-L1-2-L2-1-L3-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2",
+    "code": "PRJ-DEMO-002-L1-2-L2-2-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2",
+    "code": "PRJ-DEMO-002-L1-2-L2-2-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2",
+    "code": "PRJ-DEMO-002-L1-2-L2-2-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2",
+    "code": "PRJ-DEMO-002-L1-2-L2-2-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2",
+    "code": "PRJ-DEMO-002-L1-2-L2-2-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2-L3-1",
+    "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "LAB",
+    "description": "Cost element of type LAB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2-L3-1",
+    "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "MAT",
+    "description": "Cost element of type MAT"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2-L3-1",
+    "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "EQP",
+    "description": "Cost element of type EQP"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2-L3-1",
+    "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "SUB",
+    "description": "Cost element of type SUB"
+  },
+  {
+    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2-L3-1",
+    "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 1000.0,
+    "cost_element_type_code": "TRV",
+    "description": "Cost element of type TRV"
+  }
+]

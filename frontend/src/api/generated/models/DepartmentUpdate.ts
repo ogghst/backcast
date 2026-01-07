@@ -4,7 +4,9 @@
 /* eslint-disable */
 export type DepartmentUpdate = {
     name?: (string | null);
+    code?: (string | null);
     manager_id?: (string | null);
     is_active?: (boolean | null);
+    description?: (string | null);
 };
 

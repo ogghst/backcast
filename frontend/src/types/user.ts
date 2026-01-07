@@ -20,7 +20,7 @@ export interface User {
   user_id: string; // Root Entity ID (UUID)
   email: string;
   full_name: string;
-  role: UserRole;
+  role: string;
   department?: string | null; // Department Name/Code
   is_active: boolean;
   created_at?: string | null; // ISO timestamp

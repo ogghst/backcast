@@ -1,0 +1,32 @@
+[
+  {
+    "code": "LAB",
+    "name": "Labor",
+    "description": "Internal staff labor costs",
+    "department_code": "ENG"
+  },
+  {
+    "code": "MAT",
+    "name": "Material",
+    "description": "Raw materials and consumables",
+    "department_code": "CONST"
+  },
+  {
+    "code": "EQP",
+    "name": "Equipment",
+    "description": "Machinery and equipment usage",
+    "department_code": "CONST"
+  },
+  {
+    "code": "SUB",
+    "name": "Subcontract",
+    "description": "External subcontractor services",
+    "department_code": "PM"
+  },
+  {
+    "code": "TRV",
+    "name": "Travel",
+    "description": "Business travel and accommodation",
+    "department_code": "ADMIN"
+  }
+]
