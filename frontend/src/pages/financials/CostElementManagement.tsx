@@ -1,9 +1,10 @@
-import { App, Button, Space, Select, Tag } from "antd";
+import { App, Button, Space, Select, Tag, Input } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
   HistoryOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
 import { useState, useEffect, useMemo } from "react";
 import type { ColumnType } from "antd/es/table";
@@ -42,31 +43,54 @@ type CostElementApiParams = {
 // Custom API wrapper to handle branch and filtering
 const costElementApi = {
   getUsers: async (params?: CostElementApiParams) => {
-    // Using generic params to match useCrud expectations
-    const { branch = "main", pagination, filters } = params || {};
-    const current = pagination?.current || 1;
-    const pageSize = pagination?.pageSize || 10;
-    const skip = (current - 1) * pageSize;
+    // Current Ant Design table params
+    const {
+      branch = "main",
+      pagination,
+      filters,
+      search,
+      sortField,
+      sortOrder,
+    } = params || {};
+    const page = pagination?.current || 1;
+    const perPage = pagination?.pageSize || 20;
 
-    // Extract filters
-    // AntD filters are arrays of values
-    const wbe_id =
-      filters?.wbe_id && filters.wbe_id.length > 0
-        ? (filters.wbe_id[0] as string)
-        : undefined;
-    const type_id =
-      filters?.cost_element_type_id && filters.cost_element_type_id.length > 0
-        ? (filters.cost_element_type_id[0] as string)
-        : undefined;
+    // Convert Ant Design table filters to server format
+    let filterString: string | undefined;
+    if (filters) {
+      const filterParts: string[] = [];
+      Object.entries(filters).forEach(([key, value]) => {
+        // Skip wbe_id and cost_element_type_id as they are handled as explicit params by backend
+        if (key === "wbe_id" || key === "cost_element_type_id") return;
+
+        if (
+          value &&
+          (Array.isArray(value) ? value.length > 0 : value !== undefined)
+        ) {
+          const values = Array.isArray(value) ? value : [value];
+          filterParts.push(`${key}:${values.join(",")}`);
+        }
+      });
+      filterString = filterParts.length > 0 ? filterParts.join(";") : undefined;
+    }
+
+    const wbeId = filters?.wbe_id?.[0] as string | undefined;
+    const typeId = filters?.cost_element_type_id?.[0] as string | undefined;
+    const serverSortOrder = sortOrder === "descend" ? "desc" : "asc";
 
     const res = await CostElementsService.getCostElements(
-      skip,
-      pageSize,
+      page,
+      perPage,
       branch,
-      wbe_id,
-      type_id,
+      wbeId,
+      typeId,
+      search,
+      filterString,
+      sortField,
+      serverSortOrder
     );
-    // Handle both array (Sequence) and paginated response
+
+    // Handle both array (Legacy) and paginated response
     return Array.isArray(res) ? res : (res as any).items;
   },
   getUser: (id: string) => CostElementsService.getCostElement(id, "main"),
@@ -100,7 +124,7 @@ export const CostElementManagement = ({
   wbeId,
   wbeName,
 }: CostElementManagementProps) => {
-  const { tableParams, handleTableChange } = useTableParams();
+  const { tableParams, handleTableChange, handleSearch } = useTableParams();
   const [currentBranch, setCurrentBranch] = useState("main");
 
   // Build query params, including wbeId filter if provided
@@ -139,10 +163,17 @@ export const CostElementManagement = ({
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [w, t] = await Promise.all([
+        const [wbesRes, typesRes] = await Promise.all([
           WbEsService.getWbes(0, 1000),
           CostElementTypesService.getCostElementTypes(0, 1000),
         ]);
+        // Unwrap paginated responses
+        const w = Array.isArray(wbesRes)
+          ? wbesRes
+          : (wbesRes as any).items || [];
+        const t = Array.isArray(typesRes)
+          ? typesRes
+          : (typesRes as any).items || [];
         setWbes(w);
         setTypes(t);
       } catch (e) {
@@ -172,7 +203,7 @@ export const CostElementManagement = ({
       entityId: selectedElement?.cost_element_id,
       fetchFn: (id) => CostElementsService.getCostElementHistory(id),
       enabled: historyOpen,
-    },
+    }
   );
 
   const { mutateAsync: createCostElement } = useCreate({
@@ -205,19 +236,74 @@ export const CostElementManagement = ({
     });
   };
 
+  const getColumnSearchProps = (
+    dataIndex: keyof CostElementRead
+  ): ColumnType<CostElementRead> => ({
+    filterDropdown: ({
+      setSelectedKeys,
+      selectedKeys,
+      confirm,
+      clearFilters,
+    }) => (
+      <div style={{ padding: 8 }}>
+        <Input
+          placeholder={`Search ${dataIndex}`}
+          value={selectedKeys[0]}
+          onChange={(e) =>
+            setSelectedKeys(e.target.value ? [e.target.value] : [])
+          }
+          onPressEnter={() => confirm()}
+          style={{ width: 188, marginBottom: 8, display: "block" }}
+        />
+        <Space>
+          <Button
+            type="primary"
+            onClick={() => confirm()}
+            icon={<SearchOutlined />}
+            size="small"
+            style={{ width: 90 }}
+          >
+            Search
+          </Button>
+          <Button
+            onClick={() => clearFilters && clearFilters()}
+            size="small"
+            style={{ width: 90 }}
+          >
+            Reset
+          </Button>
+        </Space>
+      </div>
+    ),
+    filterIcon: (filtered: boolean) => (
+      <SearchOutlined style={{ color: filtered ? "#1890ff" : undefined }} />
+    ),
+    onFilter: (value, record) => {
+      const fieldVal = record[dataIndex];
+      return fieldVal
+        ? fieldVal
+            .toString()
+            .toLowerCase()
+            .includes((value as string).toLowerCase())
+        : false;
+    },
+  });
+
   const columns: ColumnType<CostElementRead>[] = [
     {
       title: "Code",
       dataIndex: "code",
       key: "code",
-      sorter: true,
+      sorter: true, // Enable server-side sorting
       render: (code) => <Tag>{code}</Tag>,
+      ...getColumnSearchProps("code"),
     },
     {
       title: "Name",
       dataIndex: "name",
       key: "name",
-      sorter: true,
+      sorter: true, // Enable server-side sorting
+      ...getColumnSearchProps("name"),
     },
     {
       title: "Type",
@@ -229,6 +315,7 @@ export const CostElementManagement = ({
         text: t.name,
         value: t.cost_element_type_id,
       })),
+      // Remove onFilter - server-side filtering will handle this
     },
     {
       title: "WBE",
@@ -239,6 +326,7 @@ export const CostElementManagement = ({
       filters: wbeId
         ? undefined
         : wbes.map((w) => ({ text: w.code, value: w.wbe_id })),
+      // Remove onFilter - server-side filtering will handle this
       // Optionally hide column entirely when wbeId is provided
       hidden: !!wbeId,
     },
@@ -248,6 +336,7 @@ export const CostElementManagement = ({
       key: "budget_amount",
       align: "right",
       render: (val) => (val ? `€${Number(val).toLocaleString()}` : "-"),
+      sorter: true, // Enable server-side sorting
     },
     {
       title: "Actions",
@@ -293,9 +382,12 @@ export const CostElementManagement = ({
         tableParams={tableParams}
         onChange={handleTableChange}
         loading={isLoading}
-        dataSource={costElements || []}
+        dataSource={costElements || []} // Use raw data - server handles filtering
         columns={columns}
         rowKey="cost_element_id"
+        searchable={true}
+        searchPlaceholder="Search cost elements..."
+        onSearch={handleSearch}
         toolbar={
           <div
             style={{

@@ -5,6 +5,52 @@ import {
   type ProjectCreate,
   type ProjectUpdate,
 } from "@/api/generated";
+import { OpenAPI } from "@/api/generated/core/OpenAPI";
+import { request as __request } from "@/api/generated/core/request";
+
+/**
+ * Paginated response from server-side filtering API.
+ */
+interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+/**
+ * Parameters for server-side filtering, search, and sorting.
+ */
+interface ServerSideParams {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  filters?: string;
+  sort_field?: string;
+  sort_order?: "asc" | "desc";
+  branch?: string;
+}
+
+/**
+ * Call the new paginated projects API with server-side filtering.
+ */
+const getProjectsPaginated = async (
+  params?: ServerSideParams
+): Promise<PaginatedResponse<ProjectRead>> => {
+  return __request(OpenAPI, {
+    method: "GET",
+    url: "/api/v1/projects",
+    query: {
+      page: params?.page || 1,
+      per_page: params?.per_page || 20,
+      branch: params?.branch || "main",
+      search: params?.search,
+      filters: params?.filters,
+      sort_field: params?.sort_field,
+      sort_order: params?.sort_order,
+    },
+  });
+};
 
 /**
  * Helper to unwrap paginated response from API.
@@ -17,13 +63,39 @@ const unwrapResponse = <T>(res: T[] | { items: T[] }): T[] => {
 /**
  * Helper to extract pagination params from filters object.
  */
-const getPaginationParams = (params?: {
-  pagination?: { current?: number; pageSize?: number };
-}) => {
+const getPaginationParams = (params?: any) => {
   const current = params?.pagination?.current || 1;
-  const pageSize = params?.pagination?.pageSize || 10;
-  const skip = (current - 1) * pageSize;
-  return { skip, pageSize };
+  const pageSize = params?.pagination?.pageSize || 20;
+
+  // Convert Ant Design table filters to server format
+  let filterString: string | undefined;
+  if (params?.filters) {
+    const filterParts: string[] = [];
+    Object.entries(params.filters).forEach(([key, value]) => {
+      if (
+        value &&
+        (Array.isArray(value) ? value.length > 0 : value !== undefined)
+      ) {
+        const values = Array.isArray(value) ? value : [value];
+        filterParts.push(`${key}:${values.join(",")}`);
+      }
+    });
+    filterString = filterParts.length > 0 ? filterParts.join(";") : undefined;
+  }
+
+  // Support both AntD sorter object and flat params from useTableParams
+  const sortField = params?.sorter?.field || params?.sortField;
+  const sortOrderRaw = params?.sorter?.order || params?.sortOrder;
+  const sortOrder = sortOrderRaw === "descend" ? "desc" : "asc";
+
+  return {
+    page: current,
+    per_page: pageSize,
+    search: params?.search,
+    filters: filterString,
+    sort_field: sortField,
+    sort_order: sortOrder,
+  };
 };
 
 // Direct usage of ProjectsService with named methods (no adapter needed)
@@ -35,8 +107,8 @@ export const {
   useDelete: useDeleteProject,
 } = createResourceHooks<ProjectRead, ProjectCreate, ProjectUpdate>("projects", {
   list: async (params) => {
-    const { skip, pageSize } = getPaginationParams(params);
-    const res = await ProjectsService.getProjects(skip, pageSize);
+    const serverParams = getPaginationParams(params);
+    const res = await getProjectsPaginated(serverParams);
     return unwrapResponse(res);
   },
   detail: ProjectsService.getProject,

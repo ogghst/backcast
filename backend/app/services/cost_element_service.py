@@ -1,9 +1,10 @@
 """Cost Element Service - branchable entity management."""
 
+import builtins
+from typing import Any, cast
 from uuid import UUID, uuid4
-from typing import Any, cast, List
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.commands import (
@@ -32,10 +33,10 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
     def _get_base_stmt(self) -> Any:
         """Get base select statement with WBE name and CostElementType joins."""
         from sqlalchemy.orm import aliased
-        
+
         WBEAlias = aliased(WBE, name="wbe_lookup")
         TypeAlias = aliased(CostElementType, name="type_lookup")
-        
+
         # Subquery for current WBE versions
         wbe_subq = (
             select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
@@ -45,7 +46,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             )
             .subquery("wbe_lookup_subq")
         )
-        
+
         # Subquery for current CostElementType versions
         type_subq = (
             select(
@@ -66,7 +67,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             .outerjoin(type_subq, CostElement.cost_element_type_id == type_subq.c.cost_element_type_id)
         )
 
-    async def _resolve_relations(self, query_results: List[Any]) -> List[CostElement]:
+    async def _resolve_relations(self, query_results: list[Any]) -> list[CostElement]:
         """Helper to resolve related names for a list of results."""
         resolved = []
         for item in query_results:
@@ -126,10 +127,10 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         # Check if version exists in target branch
         # We need to manage the query manually to avoid TemporalService issues and handle branching
         current = await self.get_by_id(cost_element_id, branch=branch)
-        
+
         if current:
             # Linear update in same branch: Close old, Open new
-            
+
             # Custom command class to handle multi-word entity name AND branch filtering
             class CostElementUpdateCommand(UpdateVersionCommand):  # type: ignore[type-var]
                 def __init__(self, entity_class, root_id, actor_id, branch="main", **updates):
@@ -138,7 +139,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
 
                 def _root_field_name(self) -> str:
                     return "cost_element_id"
-                
+
                 async def _get_current(self, session: AsyncSession) -> Any | None:
                     stmt = (
                         select(self.entity_class)
@@ -162,37 +163,37 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                 **update_data,
             )
             return await cmd.execute(self.session)
-            
+
         else:
             # Version not found in target branch -> Fork from main (or parent)
             # This handles "Create Branch" scenario implicitly on update
-            
+
             # Try to find source in 'main' to fork from
             # Note: In a real system we might want to let the caller specify the source branch
             source_version = await self.get_by_id(cost_element_id, branch="main")
             if not source_version:
                  # If not found in main either, we can't update a non-existent entity
                  raise ValueError(f"Cost Element {cost_element_id} not found in {branch} or main.")
-            
+
             # Clone data from source
             data = {c.name: getattr(source_version, c.name) for c in source_version.__table__.columns}
-            
+
             # Remove system/audit fields to let DB/Command handle them
             system_fields = [
-                'valid_time', 'transaction_time', 
-                'created_by', 'deleted_by', 'deleted_at', 
+                'valid_time', 'transaction_time',
+                'created_by', 'deleted_by', 'deleted_at',
                 'id'  # New version needs new ID
             ]
             for field in system_fields:
                 data.pop(field, None)
-                
+
             # Apply updates
             data.update(update_data)
-            
+
             # Set branching metadata
             data['branch'] = branch
             data['parent_id'] = source_version.id  # Link to parent version
-            
+
             # Create new version (Insert only, do not close parent)
             cmd = CreateVersionCommand(
                 entity_class=CostElement,  # type: ignore[type-var]
@@ -206,7 +207,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         self, cost_element_id: UUID, actor_id: UUID, branch: str = "main"
     ) -> None:
         """Soft delete cost element using SoftDeleteCommand."""
-        
+
         # Custom command class
         class CostElementSoftDeleteCommand(SoftDeleteCommand):  # type: ignore[type-var]
             def __init__(self, entity_class, root_id, actor_id, branch="main"):
@@ -215,7 +216,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
 
             def _root_field_name(self) -> str:
                 return "cost_element_id"
-            
+
             async def _get_current(self, session: AsyncSession) -> Any | None:
                 """Get current active version filtering by branch."""
                 stmt = (
@@ -260,40 +261,130 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         return resolved[0] if resolved else None
 
     async def get_cost_elements(
-        self, filters: dict | None = None, branch: str = "main", skip: int = 0, limit: int = 100
-    ) -> List[CostElement]:
-        """Get all cost elements with optional filtering and WBE name."""
-        
-        stmt = (
-            self._get_base_stmt()
-            .where(
-                CostElement.branch == branch,
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
-            )
+        self,
+        filters: dict | None = None,
+        branch: str = "main",
+        skip: int = 0,
+        limit: int = 100,
+        search: str | None = None,
+        filter_string: str | None = None,
+        sort_field: str | None = None,
+        sort_order: str = "asc",
+    ) -> tuple[list[CostElement], int]:
+        """Get all cost elements with search, filtering, and sorting.
+
+        Args:
+            filters: Legacy dict filters (for backward compatibility)
+            branch: Branch name to filter by (default: "main")
+            skip: Number of records to skip (for pagination)
+            limit: Maximum number of records to return
+            search: Search term to match against code and name (case-insensitive)
+            filter_string: Filter string in format "column:value;column:value1,value2"
+                          Example: "code:LAB;name:Phase"
+            sort_field: Field name to sort by (e.g., "name", "code", "budget_amount")
+            sort_order: Sort order, either "asc" or "desc" (default: "asc")
+
+        Returns:
+            Tuple of (list of cost elements with relations, total count matching filters)
+
+        Raises:
+            ValueError: If invalid filter field or sort field is provided
+
+        Examples:
+            >>> # Get cost elements for a specific WBE
+            >>> elements, total = await service.get_cost_elements(
+            ...     filters={"wbe_id": wbe_id},
+            ...     search="Mechanical",
+            ...     sort_field="budget_amount",
+            ...     sort_order="desc"
+            ... )
+        """
+        from sqlalchemy import and_, or_
+
+        from app.core.filtering import FilterParser
+
+        # Base query with WBE name and type joins
+        stmt = self._get_base_stmt().where(
+            CostElement.branch == branch,
+            func.upper(cast(Any, CostElement).valid_time).is_(None),
+            cast(Any, CostElement).deleted_at.is_(None),
         )
-        
+
+        # Apply legacy dict filters (for backward compatibility)
         if filters:
             if "wbe_id" in filters:
                 stmt = stmt.where(CostElement.wbe_id == filters["wbe_id"])
             if "cost_element_type_id" in filters:
-                stmt = stmt.where(CostElement.cost_element_type_id == filters["cost_element_type_id"])
-                
-        stmt = stmt.order_by(cast(Any, CostElement).valid_time.desc()).offset(skip).limit(limit)
-        
+                stmt = stmt.where(
+                    CostElement.cost_element_type_id == filters["cost_element_type_id"]
+                )
+
+        # Apply search (across code and name)
+        if search:
+            search_term = f"%{search}%"
+            stmt = stmt.where(
+                or_(
+                    CostElement.code.ilike(search_term),
+                    CostElement.name.ilike(search_term),
+                )
+            )
+
+        # Apply new filter string format
+        if filter_string:
+            # Define allowed filterable fields for security
+            allowed_fields = ["code", "name"]
+
+            parsed_filters = FilterParser.parse_filters(filter_string)
+            filter_expressions = FilterParser.build_sqlalchemy_filters(
+                CostElement, parsed_filters, allowed_fields=allowed_fields
+            )
+            if filter_expressions:
+                stmt = stmt.where(and_(*filter_expressions))
+
+        # Get total count (before pagination)
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total_result = await self.session.execute(count_stmt)
+        total = total_result.scalar_one()
+
+        # Apply sorting
+        if sort_field:
+            # Validate sort field exists on model
+            if not hasattr(CostElement, sort_field):
+                raise ValueError(f"Invalid sort field: {sort_field}")
+
+            column = getattr(CostElement, sort_field)
+            if sort_order.lower() == "desc":
+                stmt = stmt.order_by(column.desc())
+            else:
+                stmt = stmt.order_by(column.asc())
+        else:
+            # Default sort by valid_time descending
+            stmt = stmt.order_by(cast(Any, CostElement).valid_time.desc())
+
+        # Apply pagination
+        stmt = stmt.offset(skip).limit(limit)
+
+        # Execute query
         result = await self.session.execute(stmt)
-        return await self._resolve_relations(result.all())
-    
+        cost_elements = await self._resolve_relations(result.all())
+
+        return cost_elements, total
+
     async def list(
         self, filters: dict | None = None, branch: str = "main", skip: int = 0, limit: int = 100
-    ) -> List[CostElement]:
-        """Alias for get_cost_elements() to maintain backward compatibility."""
-        return await self.get_cost_elements(filters=filters, branch=branch, skip=skip, limit=limit)
+    ) -> list[CostElement]:
+        """Alias for get_cost_elements() to maintain backward compatibility.
+        
+        Note: Returns only items, not total count. Use get_cost_elements() for pagination.
+        """
+        items, _ = await self.get_cost_elements(filters=filters, branch=branch, skip=skip, limit=limit)
+        return items
 
-    async def get_history(self, root_id: UUID) -> List[CostElement]:
+    async def get_history(self, root_id: UUID) -> builtins.list[CostElement]:
         """Get all versions of a cost element with creator, WBE name, and type info."""
-        from app.models.domain.user import User
         from sqlalchemy.orm import aliased
+
+        from app.models.domain.user import User
 
         # User lookup subquery
         UserAlias = cast(Any, User)
@@ -314,7 +405,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             )
             .subquery("wbe_history_lookup_subq")
         )
-        
+
         # CostElementType lookup subquery
         TypeAlias = aliased(CostElementType, name="type_history_lookup")
         type_subq = (
@@ -332,7 +423,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
 
         stmt = (
             select(
-                CostElement, 
+                CostElement,
                 creator_subq.c.full_name.label("created_by_name"),
                 wbe_subq.c.wbe_name,
                 type_subq.c.type_name,

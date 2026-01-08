@@ -26,17 +26,48 @@ def get_department_service(
 
 @router.get(
     "",
-    response_model=list[DepartmentPublic],
+    response_model=None,  # Will be PaginatedResponse[DepartmentPublic]
     operation_id="get_departments",
     dependencies=[Depends(RoleChecker(required_permission="department-read"))],
 )
 async def read_departments(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    search: str | None = Query(None, description="Search term (code, name)"),
+    filters: str | None = Query(
+        None,
+        description="Filters in format 'column:value;column:value1,value2'",
+    ),
+    sort_field: str | None = Query(None, description="Field to sort by"),
+    sort_order: str = Query(
+        "asc",
+        pattern="^(asc|desc)$",
+        description="Sort order (asc or desc)",
+    ),
     service: DepartmentService = Depends(get_department_service),
-) -> Sequence[Department]:
-    """Retrieve departments. Requires read permission."""
-    return await service.get_departments(skip=skip, limit=limit)
+) -> dict:
+    """Retrieve departments with server-side features. Requires read permission."""
+    from app.models.schemas.common import PaginatedResponse
+
+    skip = (page - 1) * per_page
+    
+    items, total = await service.get_departments(
+        skip=skip,
+        limit=per_page,
+        search=search,
+        filter_string=filters,
+        sort_field=sort_field,
+        sort_order=sort_order,
+    )
+
+    items_out = [DepartmentPublic.model_validate(i) for i in items]
+
+    return PaginatedResponse[DepartmentPublic](
+        items=items_out,
+        total=total,
+        page=page,
+        per_page=per_page,
+    ).model_dump()
 
 
 @router.post(

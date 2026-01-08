@@ -6,8 +6,9 @@
  * Minimal WBE info for breadcrumb.
  */
 export type WBEBreadcrumbItem = {
-  id: string;
-  wbe_id: string;
-  code: string;
-  name: string;
+    id: string;
+    wbe_id: string;
+    code: string;
+    name: string;
 };
+

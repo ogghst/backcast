@@ -1,4 +1,4 @@
-import { App, Button, Space, Tag } from "antd";
+import { App, Button, Input, Space, Tag } from "antd";
 import { useNavigate } from "react-router-dom";
 import {
   HistoryOutlined,
@@ -6,8 +6,9 @@ import {
   EditOutlined,
   DeleteOutlined,
   PlusOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ColumnType } from "antd/es/table";
 import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
@@ -30,13 +31,14 @@ import { ProjectsService } from "@/api/generated";
 
 export const ProjectList = () => {
   const navigate = useNavigate();
-  const { tableParams, handleTableChange } = useTableParams<ProjectRead>();
+  const { tableParams, handleTableChange, handleSearch } =
+    useTableParams<ProjectRead>();
   const { data: projects, isLoading, refetch } = useProjects(tableParams);
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<ProjectRead | null>(
-    null,
+    null
   );
 
   const { modal } = App.useApp();
@@ -69,17 +71,93 @@ export const ProjectList = () => {
     });
   };
 
+  const getColumnSearchProps = (
+    dataIndex: keyof ProjectRead
+  ): ColumnType<ProjectRead> => ({
+    filterDropdown: ({
+      setSelectedKeys,
+      selectedKeys,
+      confirm,
+      clearFilters,
+    }) => (
+      <div style={{ padding: 8 }}>
+        <Input
+          placeholder={`Search ${dataIndex}`}
+          value={selectedKeys[0]}
+          onChange={(e) =>
+            setSelectedKeys(e.target.value ? [e.target.value] : [])
+          }
+          onPressEnter={() => confirm()}
+          style={{ width: 188, marginBottom: 8, display: "block" }}
+        />
+        <Space>
+          <Button
+            type="primary"
+            onClick={() => confirm()}
+            icon={<SearchOutlined />}
+            size="small"
+            style={{ width: 90 }}
+          >
+            Search
+          </Button>
+          <Button
+            onClick={() => clearFilters && clearFilters()}
+            size="small"
+            style={{ width: 90 }}
+          >
+            Reset
+          </Button>
+        </Space>
+      </div>
+    ),
+    filterIcon: (filtered: boolean) => (
+      <SearchOutlined style={{ color: filtered ? "#1890ff" : undefined }} />
+    ),
+    onFilter: (value, record) => {
+      const fieldVal = record[dataIndex];
+      return fieldVal
+        ? fieldVal
+            .toString()
+            .toLowerCase()
+            .includes((value as string).toLowerCase())
+        : false;
+    },
+  });
+
+  // Extract unique status values for filter dropdown
+  const statusFilters = useMemo(() => {
+    // Common project statuses - could be fetched from API in the future
+    return [
+      { text: "Draft", value: "Draft" },
+      { text: "Active", value: "Active" },
+      { text: "Completed", value: "Completed" },
+      { text: "On Hold", value: "On Hold" },
+    ];
+  }, []);
+
   const columns: ColumnType<ProjectRead>[] = [
     {
       title: "Code",
       dataIndex: "code",
       key: "code",
       width: 120,
+      sorter: true, // Enable server-side sorting
+      ...getColumnSearchProps("code"),
     },
     {
       title: "Name",
       dataIndex: "name",
       key: "name",
+      sorter: true, // Enable server-side sorting
+      ...getColumnSearchProps("name"),
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      width: 120,
+      filters: statusFilters,
+      // Remove onFilter - server-side filtering will handle this
     },
     {
       title: "Budget",
@@ -93,6 +171,7 @@ export const ProjectList = () => {
             }).format(budget)
           : "-",
       width: 150,
+      sorter: true, // Enable server-side sorting
     },
     {
       title: "Contract Value",
@@ -106,6 +185,7 @@ export const ProjectList = () => {
             }).format(value)
           : "-",
       width: 150,
+      sorter: true, // Enable server-side sorting
     },
     {
       title: "Start Date",
@@ -114,6 +194,7 @@ export const ProjectList = () => {
       render: (date: string) =>
         date ? new Date(date).toLocaleDateString() : "-",
       width: 120,
+      sorter: true, // Enable server-side sorting
     },
     {
       title: "End Date",
@@ -122,18 +203,9 @@ export const ProjectList = () => {
       render: (date: string) =>
         date ? new Date(date).toLocaleDateString() : "-",
       width: 120,
+      sorter: true, // Enable server-side sorting
     },
-    {
-      title: "Branch",
-      dataIndex: "branch",
-      key: "branch",
-      render: (branch: string) => (
-        <Tag color={branch === "main" ? "blue" : "orange"}>
-          {branch || "main"}
-        </Tag>
-      ),
-      width: 100,
-    },
+
     {
       title: "Actions",
       key: "actions",
@@ -184,9 +256,12 @@ export const ProjectList = () => {
         tableParams={tableParams}
         onChange={handleTableChange}
         loading={isLoading}
-        dataSource={projects || []}
+        dataSource={projects || []} // Use raw data - server handles filtering
         columns={columns}
-        rowKey="id"
+        rowKey="project_id"
+        searchable={true}
+        searchPlaceholder="Search projects..."
+        onSearch={handleSearch}
         onRow={(record) => ({
           onClick: () => navigate(`/projects/${record.project_id}`),
           style: { cursor: "pointer" },

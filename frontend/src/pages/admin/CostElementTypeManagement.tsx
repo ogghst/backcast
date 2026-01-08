@@ -24,33 +24,55 @@ import { useEntityHistory } from "@/hooks/useEntityHistory";
 
 // Create CRUD hooks
 const costElementTypeApi = {
-  getUsers: async (params?: {
-    pagination?: { current?: number; pageSize?: number };
-  }) => {
-    const current = params?.pagination?.current || 1;
-    const pageSize = params?.pagination?.pageSize || 10;
-    const skip = (current - 1) * pageSize;
-    // Note: API supports department_id filtering, could be added to params later
+  getUsers: async (params?: any) => {
+    const { pagination, search, filters, sortField, sortOrder } = params || {};
+    const page = pagination?.current || 1;
+    const perPage = pagination?.pageSize || 20;
+
+    // Convert Ant Design table filters to server format
+    let filterString: string | undefined;
+    if (filters) {
+      const filterParts: string[] = [];
+      Object.entries(filters).forEach(([key, value]) => {
+        if (key === "department_id") return; // Handled as explicit param
+        if (
+          value &&
+          (Array.isArray(value) ? value.length > 0 : value !== undefined)
+        ) {
+          const values = Array.isArray(value) ? value : [value];
+          filterParts.push(`${key}:${values.join(",")}`);
+        }
+      });
+      filterString = filterParts.length > 0 ? filterParts.join(";") : undefined;
+    }
+
+    const deptId = filters?.department_id?.[0] as string | undefined;
+    const serverSortOrder = sortOrder === "descend" ? "desc" : "asc";
+
     const res = await CostElementTypesService.getCostElementTypes(
-      skip,
-      pageSize,
+      page,
+      perPage,
+      deptId,
+      search,
+      filterString,
+      sortField,
+      serverSortOrder
     );
-    return Array.isArray(res)
-      ? res
-      : (res as { items: CostElementTypeRead[] }).items;
+
+    return Array.isArray(res) ? res : (res as any).items;
   },
   getUser: (id: string) =>
     CostElementTypesService.getCostElementType(
-      id,
+      id
     ) as Promise<CostElementTypeRead>,
   createUser: (data: CostElementTypeCreate) =>
     CostElementTypesService.createCostElementType(
-      data,
+      data
     ) as Promise<CostElementTypeRead>,
   updateUser: (id: string, data: CostElementTypeUpdate) =>
     CostElementTypesService.updateCostElementType(
       id,
-      data,
+      data
     ) as Promise<CostElementTypeRead>,
   deleteUser: (id: string) => CostElementTypesService.deleteCostElementType(id),
 };
@@ -62,27 +84,26 @@ const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<
 >("cost_element_types", costElementTypeApi);
 
 export const CostElementTypeManagement = () => {
-  const { tableParams, handleTableChange } = useTableParams();
+  const { tableParams, handleTableChange, handleSearch } = useTableParams();
   const { data: types, isLoading, refetch } = useList(tableParams);
 
   // Department map for display
   const [departmentMap, setDepartmentMap] = useState<Record<string, string>>(
-    {},
+    {}
   );
 
   useEffect(() => {
-    DepartmentsService.getDepartments(0, 1000).then(
-      (depts: DepartmentRead[]) => {
-        const map: Record<string, string> = {};
-        depts.forEach((d) => (map[d.department_id] = d.name));
-        setDepartmentMap(map);
-      },
-    );
+    DepartmentsService.getDepartments(1, 1000).then((res: any) => {
+      const depts = Array.isArray(res) ? res : res.items || [];
+      const map: Record<string, string> = {};
+      depts.forEach((d: any) => (map[d.department_id] = d.name));
+      setDepartmentMap(map);
+    });
   }, []);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<CostElementTypeRead | null>(
-    null,
+    null
   );
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -93,7 +114,7 @@ export const CostElementTypeManagement = () => {
       entityId: selectedType?.cost_element_type_id,
       fetchFn: (id) => CostElementTypesService.getCostElementTypeHistory(id),
       enabled: historyOpen,
-    },
+    }
   );
 
   const { mutateAsync: createType } = useCreate({
@@ -197,6 +218,8 @@ export const CostElementTypeManagement = () => {
         dataSource={types || []}
         columns={columns}
         rowKey="cost_element_type_id"
+        searchable={true}
+        onSearch={handleSearch}
         toolbar={
           <div
             style={{
@@ -252,7 +275,7 @@ export const CostElementTypeManagement = () => {
             changed_by: version.created_by_name || "System",
             changes:
               idx === 0 ? { created: "initial" } : { updated: "changed" },
-          }),
+          })
         )}
         entityName={`Type: ${selectedType?.name || ""}`}
         isLoading={historyLoading}

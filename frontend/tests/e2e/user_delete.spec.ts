@@ -35,7 +35,7 @@ test.describe("User Deletion", () => {
 
     // Submit
     await page.click('button:has-text("Create")');
-    await expect(page.locator('[role="dialog"]')).not.toBeVisible();
+    await expect(page.locator(".ant-modal-content")).not.toBeVisible();
     await expect(page.locator(`text=${deleteName}`).first()).toBeVisible({
       timeout: 10000,
     });

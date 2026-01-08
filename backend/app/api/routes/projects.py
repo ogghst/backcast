@@ -28,18 +28,75 @@ def get_project_service(
 
 @router.get(
     "",
-    response_model=list[ProjectPublic],
+    response_model=None,  # Will be PaginatedResponse[ProjectPublic] but FastAPI needs explicit type
     operation_id="get_projects",
     dependencies=[Depends(RoleChecker(required_permission="project-read"))],
 )
 async def read_projects(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     branch: str = Query("main", description="Branch name"),
+    search: str | None = Query(None, description="Search term (code, name)"),
+    filters: str | None = Query(
+        None,
+        description="Filters in format 'column:value;column:value1,value2'",
+        example="status:Active;code:PROJ",
+    ),
+    sort_field: str | None = Query(None, description="Field to sort by"),
+    sort_order: str = Query(
+        "asc",
+        regex="^(asc|desc)$",
+        description="Sort order (asc or desc)",
+    ),
     service: ProjectService = Depends(get_project_service),
-) -> Sequence[Project]:
-    """Retrieve projects. Requires read permission."""
-    return await service.get_projects(skip=skip, limit=limit, branch=branch)
+) -> dict:
+    """Retrieve projects with server-side search, filtering, and sorting.
+
+    Supports:
+    - **Search**: Case-insensitive search across code and name
+    - **Filters**: Filter by status, code, name (format: "column:value;column:value1,value2")
+    - **Sorting**: Sort by any field (asc/desc)
+    - **Pagination**: Returns total count for proper pagination UI
+
+    Requires read permission.
+    """
+    from app.models.schemas.common import PaginatedResponse
+
+    # Calculate skip from page number
+    skip = (page - 1) * per_page
+
+    try:
+        # Get projects with filters
+        projects, total = await service.get_projects(
+            skip=skip,
+            limit=per_page,
+            branch=branch,
+            search=search,
+            filters=filters,
+            sort_field=sort_field,
+            sort_order=sort_order,
+        )
+
+        # Convert to Pydantic models
+        from app.models.schemas.project import ProjectPublic
+
+        items = [ProjectPublic.model_validate(p) for p in projects]
+
+        # Return paginated response
+        response = PaginatedResponse[ProjectPublic](
+            items=items,
+            total=total,
+            page=page,
+            per_page=per_page,
+        )
+
+        return response.model_dump()
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
 
 
 @router.post(

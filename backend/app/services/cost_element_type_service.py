@@ -91,32 +91,81 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
             select(CostElementType)
             .where(
                 CostElementType.cost_element_type_id == cost_element_type_id,
-                func.upper(cast(Any, CostElementType).valid_time).is_(None),
-                cast(Any, CostElementType).deleted_at.is_(None),
+                func.upper(CostElementType.valid_time).is_(None),
+                CostElementType.deleted_at.is_(None),
             )
-            .order_by(cast(Any, CostElementType).valid_time.desc())
+            .order_by(CostElementType.valid_time.desc())
             .limit(1)
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def list(
-        self, filters: dict | None = None, skip: int = 0, limit: int = 100
-    ) -> list[CostElementType]:
-        """Get all cost element types with optional filtering."""
-        stmt = (
-            select(CostElementType)
-            .where(
-                func.upper(cast(Any, CostElementType).valid_time).is_(None),
-                cast(Any, CostElementType).deleted_at.is_(None),
-            )
+    async def get_cost_element_types(
+        self,
+        filters: dict | None = None,
+        skip: int = 0,
+        limit: int = 100,
+        search: str | None = None,
+        filter_string: str | None = None,
+        sort_field: str | None = None,
+        sort_order: str = "asc",
+    ) -> tuple[list[CostElementType], int]:
+        """Get cost element types with server-side features."""
+        from sqlalchemy import and_, func, or_
+        from typing import Any, cast
+
+        from app.core.filtering import FilterParser
+
+        stmt = select(CostElementType).where(
+            func.upper(CostElementType.valid_time).is_(None),
+            CostElementType.deleted_at.is_(None),
         )
 
         if filters:
             if "department_id" in filters:
                 stmt = stmt.where(CostElementType.department_id == filters["department_id"])
 
-        stmt = stmt.order_by(CostElementType.valid_time.desc()).offset(skip).limit(limit)
+        if search:
+            search_term = f"%{search}%"
+            stmt = stmt.where(
+                or_(
+                    CostElementType.code.ilike(search_term),
+                    CostElementType.name.ilike(search_term),
+                )
+            )
+
+        if filter_string:
+            allowed_fields = ["code", "name"]
+            parsed_filters = FilterParser.parse_filters(filter_string)
+            filter_expressions = FilterParser.build_sqlalchemy_filters(
+                CostElementType, parsed_filters, allowed_fields=allowed_fields
+            )
+            if filter_expressions:
+                stmt = stmt.where(and_(*filter_expressions))
+
+        # Get total count
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total_result = await self.session.execute(count_stmt)
+        total = total_result.scalar_one()
+
+        # Apply sorting
+        if sort_field and hasattr(CostElementType, sort_field):
+            column = getattr(CostElementType, sort_field)
+            if sort_order.lower() == "desc":
+                stmt = stmt.order_by(column.desc())
+            else:
+                stmt = stmt.order_by(column.asc())
+        else:
+            stmt = stmt.order_by(CostElementType.name.asc())
+
+        stmt = stmt.offset(skip).limit(limit)
         
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        return list(result.scalars().all()), total
+
+    async def list(
+        self, filters: dict | None = None, skip: int = 0, limit: int = 100
+    ) -> list[CostElementType]:
+        """Legacy list method (backward compatibility)."""
+        items, _ = await self.get_cost_element_types(filters=filters, skip=skip, limit=limit)
+        return items

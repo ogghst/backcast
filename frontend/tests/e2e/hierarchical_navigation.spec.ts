@@ -34,7 +34,7 @@ test.describe("Hierarchical Navigation E2E", () => {
     await page.click('button:has-text("Add Project")');
     await page.getByLabel("Project Code").fill(projCode);
     await page.getByLabel("Project Name").fill(projName);
-    await page.getByLabel("Budget").fill("100000");
+    await page.getByRole("dialog").getByLabel("Budget").fill("100000");
     await page.click('button:has-text("Create")');
 
     // Wait for API success and modal close
@@ -71,7 +71,8 @@ test.describe("Hierarchical Navigation E2E", () => {
     await expect(
       page.getByRole("heading", { name: "WBE Details" })
     ).toBeVisible();
-    await expect(page.getByText("Level 1")).toBeVisible();
+    await expect(page.getByText("Level", { exact: true })).toBeVisible();
+    await expect(page.getByText("1", { exact: true })).toBeVisible();
     // Check Breadcrumb
     const breadcrumb = page.locator(".ant-breadcrumb");
     await expect(breadcrumb).toContainText(projCode);
@@ -93,7 +94,8 @@ test.describe("Hierarchical Navigation E2E", () => {
     await page.locator("tr", { hasText: "1.1" }).click();
 
     // Verify WBE Detail Page (Level 2)
-    await expect(page.getByText("Level 2")).toBeVisible();
+    await expect(page.getByText("Level", { exact: true })).toBeVisible();
+    await expect(page.getByText("2", { exact: true })).toBeVisible();
     // Check Breadcrumb path: Proj > 1.0 > 1.1
     await expect(breadcrumb).toContainText("1.0");
     await expect(breadcrumb).toContainText("1.1 Grading");
@@ -130,7 +132,8 @@ test.describe("Hierarchical Navigation E2E", () => {
     await page.locator(".ant-breadcrumb-link", { hasText: "1.0" }).click();
 
     // Verify we are back at Level 1
-    await expect(page.getByText("Level 1")).toBeVisible();
+    await expect(page.getByText("Level", { exact: true })).toBeVisible();
+    await expect(page.getByText("1", { exact: true })).toBeVisible();
     await expect(page.locator(`text=1.1`)).toBeVisible(); // Child 1.1 should be in the table
 
     // Navigation back to Project

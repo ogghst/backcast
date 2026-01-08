@@ -526,7 +526,7 @@
           "Departments"
         ],
         "summary": "Read Departments",
-        "description": "Retrieve departments. Requires read permission.",
+        "description": "Retrieve departments with server-side features. Requires read permission.",
         "operationId": "get_departments",
         "security": [
           {
@@ -535,27 +535,98 @@
         ],
         "parameters": [
           {
-            "name": "skip",
+            "name": "page",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "Skip"
-            }
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
           },
           {
-            "name": "limit",
+            "name": "per_page",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
               "maximum": 100,
               "minimum": 1,
-              "default": 100,
-              "title": "Limit"
-            }
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search term (code, name)",
+              "title": "Search"
+            },
+            "description": "Search term (code, name)"
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filters in format 'column:value;column:value1,value2'",
+              "title": "Filters"
+            },
+            "description": "Filters in format 'column:value;column:value1,value2'"
+          },
+          {
+            "name": "sort_field",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Field to sort by",
+              "title": "Sort Field"
+            },
+            "description": "Field to sort by"
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(asc|desc)$",
+              "description": "Sort order (asc or desc)",
+              "default": "asc",
+              "title": "Sort Order"
+            },
+            "description": "Sort order (asc or desc)"
           }
         ],
         "responses": {
@@ -563,13 +634,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/DepartmentRead"
-                  },
-                  "title": "Response Get Departments"
-                }
+                "schema": {}
               }
             }
           },
@@ -836,7 +901,7 @@
           "Projects"
         ],
         "summary": "Read Projects",
-        "description": "Retrieve projects. Requires read permission.",
+        "description": "Retrieve projects with server-side search, filtering, and sorting.\n\nSupports:\n- **Search**: Case-insensitive search across code and name\n- **Filters**: Filter by status, code, name (format: \"column:value;column:value1,value2\")\n- **Sorting**: Sort by any field (asc/desc)\n- **Pagination**: Returns total count for proper pagination UI\n\nRequires read permission.",
         "operationId": "get_projects",
         "security": [
           {
@@ -845,27 +910,31 @@
         ],
         "parameters": [
           {
-            "name": "skip",
+            "name": "page",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "Skip"
-            }
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
           },
           {
-            "name": "limit",
+            "name": "per_page",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
               "maximum": 100,
               "minimum": 1,
-              "default": 100,
-              "title": "Limit"
-            }
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
           },
           {
             "name": "branch",
@@ -878,6 +947,74 @@
               "title": "Branch"
             },
             "description": "Branch name"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search term (code, name)",
+              "title": "Search"
+            },
+            "description": "Search term (code, name)"
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filters in format 'column:value;column:value1,value2'",
+              "title": "Filters"
+            },
+            "description": "Filters in format 'column:value;column:value1,value2'",
+            "example": "status:Active;code:PROJ"
+          },
+          {
+            "name": "sort_field",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Field to sort by",
+              "title": "Sort Field"
+            },
+            "description": "Field to sort by"
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(asc|desc)$",
+              "description": "Sort order (asc or desc)",
+              "default": "asc",
+              "title": "Sort Order"
+            },
+            "description": "Sort order (asc or desc)"
           }
         ],
         "responses": {
@@ -885,13 +1022,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/ProjectRead"
-                  },
-                  "title": "Response Get Projects"
-                }
+                "schema": {}
               }
             }
           },
@@ -1158,7 +1289,7 @@
           "WBEs"
         ],
         "summary": "Read Wbes",
-        "description": "Retrieve WBEs. Requires read permission.\n\nFiltering:\n- project_id only: All WBEs in project\n- project_id + parent_wbe_id: Child WBEs of specified parent\n- parent_wbe_id='null': Root WBEs (parent_wbe_id IS NULL)",
+        "description": "Retrieve WBEs with server-side search, filtering, and sorting.\n\nSupports two modes:\n1. **Hierarchical filtering** (project_id/parent_wbe_id): Returns list without pagination\n2. **General listing** (no hierarchical filters): Returns paginated response with search/filter/sort\n\nHierarchical Filtering:\n- project_id only: All WBEs in project\n- project_id + parent_wbe_id: Child WBEs of specified parent\n- parent_wbe_id='null': Root WBEs (parent_wbe_id IS NULL)\n\nGeneral Listing (when no hierarchical filters):\n- **Search**: Case-insensitive search across code and name\n- **Filters**: Filter by level, code, name (format: \"column:value;column:value1,value2\")\n- **Sorting**: Sort by any field (asc/desc)\n- **Pagination**: Returns total count for proper pagination UI\n\nRequires read permission.",
         "operationId": "get_wbes",
         "security": [
           {
@@ -1167,27 +1298,31 @@
         ],
         "parameters": [
           {
-            "name": "skip",
+            "name": "page",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "Skip"
-            }
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
           },
           {
-            "name": "limit",
+            "name": "per_page",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
               "maximum": 100,
               "minimum": 1,
-              "default": 100,
-              "title": "Limit"
-            }
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
           },
           {
             "name": "project_id",
@@ -1237,6 +1372,74 @@
               "title": "Branch"
             },
             "description": "Branch name"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search term (code, name)",
+              "title": "Search"
+            },
+            "description": "Search term (code, name)"
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filters in format 'column:value;column:value1,value2'",
+              "title": "Filters"
+            },
+            "description": "Filters in format 'column:value;column:value1,value2'",
+            "example": "level:1,2;code:1.1"
+          },
+          {
+            "name": "sort_field",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Field to sort by",
+              "title": "Sort Field"
+            },
+            "description": "Field to sort by"
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(asc|desc)$",
+              "description": "Sort order (asc or desc)",
+              "default": "asc",
+              "title": "Sort Order"
+            },
+            "description": "Sort order (asc or desc)"
           }
         ],
         "responses": {
@@ -1244,13 +1447,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WBERead"
-                  },
-                  "title": "Response Get Wbes"
-                }
+                "schema": {}
               }
             }
           },
@@ -1566,7 +1763,7 @@
           "Cost Element Types"
         ],
         "summary": "Read Cost Element Types",
-        "description": "Retrieve cost element types.",
+        "description": "Retrieve cost element types with server-side features.",
         "operationId": "get_cost_element_types",
         "security": [
           {
@@ -1575,27 +1772,31 @@
         ],
         "parameters": [
           {
-            "name": "skip",
+            "name": "page",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "Skip"
-            }
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
           },
           {
-            "name": "limit",
+            "name": "per_page",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
               "maximum": 100,
               "minimum": 1,
-              "default": 100,
-              "title": "Limit"
-            }
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
           },
           {
             "name": "department_id",
@@ -1611,8 +1812,77 @@
                   "type": "null"
                 }
               ],
+              "description": "Filter by Department ID",
               "title": "Department Id"
-            }
+            },
+            "description": "Filter by Department ID"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search term (code, name)",
+              "title": "Search"
+            },
+            "description": "Search term (code, name)"
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filters in format 'column:value;column:value1,value2'",
+              "title": "Filters"
+            },
+            "description": "Filters in format 'column:value;column:value1,value2'"
+          },
+          {
+            "name": "sort_field",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Field to sort by",
+              "title": "Sort Field"
+            },
+            "description": "Field to sort by"
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(asc|desc)$",
+              "description": "Sort order (asc or desc)",
+              "default": "asc",
+              "title": "Sort Order"
+            },
+            "description": "Sort order (asc or desc)"
           }
         ],
         "responses": {
@@ -1620,13 +1890,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CostElementTypeRead"
-                  },
-                  "title": "Response Get Cost Element Types"
-                }
+                "schema": {}
               }
             }
           },
@@ -1893,7 +2157,7 @@
           "Cost Elements"
         ],
         "summary": "Read Cost Elements",
-        "description": "Retrieve cost elements for a specific branch.",
+        "description": "Retrieve cost elements with server-side search, filtering, and sorting.",
         "operationId": "get_cost_elements",
         "security": [
           {
@@ -1902,27 +2166,31 @@
         ],
         "parameters": [
           {
-            "name": "skip",
+            "name": "page",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "Skip"
-            }
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
           },
           {
-            "name": "limit",
+            "name": "per_page",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
               "maximum": 100,
               "minimum": 1,
-              "default": 100,
-              "title": "Limit"
-            }
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
           },
           {
             "name": "branch",
@@ -1950,8 +2218,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Filter by WBE ID",
               "title": "Wbe Id"
-            }
+            },
+            "description": "Filter by WBE ID"
           },
           {
             "name": "cost_element_type_id",
@@ -1967,8 +2237,77 @@
                   "type": "null"
                 }
               ],
+              "description": "Filter by Cost Element Type ID",
               "title": "Cost Element Type Id"
-            }
+            },
+            "description": "Filter by Cost Element Type ID"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search term (code, name)",
+              "title": "Search"
+            },
+            "description": "Search term (code, name)"
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filters in format 'column:value;column:value1,value2'",
+              "title": "Filters"
+            },
+            "description": "Filters in format 'column:value;column:value1,value2'"
+          },
+          {
+            "name": "sort_field",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Field to sort by",
+              "title": "Sort Field"
+            },
+            "description": "Field to sort by"
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(asc|desc)$",
+              "description": "Sort order (asc or desc)",
+              "default": "asc",
+              "title": "Sort Order"
+            },
+            "description": "Sort order (asc or desc)"
           }
         ],
         "responses": {
@@ -1976,13 +2315,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CostElementRead"
-                  },
-                  "title": "Response Get Cost Elements"
-                }
+                "schema": {}
               }
             }
           },

@@ -8,8 +8,8 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from sqlalchemy.orm import aliased
+
 from app.core.versioning.commands import (
     CreateVersionCommand,
     SoftDeleteCommand,
@@ -63,10 +63,11 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
     def _get_base_stmt(self) -> Any:
         """Get base select statement with parent name join."""
         from typing import Any, cast
+
         from sqlalchemy import func
 
         Parent = aliased(WBE, name="parent_wbe")
-        
+
         # Subquery for current parent versions to avoid multiple rows
         parent_subq = (
             select(Parent.wbe_id, Parent.name)
@@ -83,26 +84,96 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
         )
 
     async def get_wbes(
-        self, skip: int = 0, limit: int = 100, branch: str = "main"
-    ) -> list[WBE]:
-        """Get all WBEs with pagination (filtered by branch)."""
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        branch: str = "main",
+        search: str | None = None,
+        filters: str | None = None,
+        sort_field: str | None = None,
+        sort_order: str = "asc",
+    ) -> tuple[list[WBE], int]:
+        """Get all WBEs with pagination, search, and filters.
+
+        Args:
+            skip: Number of records to skip (for pagination)
+            limit: Maximum number of records to return
+            branch: Branch name to filter by (default: "main")
+            search: Search term to match against code and name (case-insensitive)
+            filters: Filter string in format "column:value;column:value1,value2"
+                     Example: "level:1,2;code:1.1"
+            sort_field: Field name to sort by (e.g., "name", "code", "level")
+            sort_order: Sort order, either "asc" or "desc" (default: "asc")
+
+        Returns:
+            Tuple of (list of WBEs with parent_name, total count matching filters)
+
+        Raises:
+            ValueError: If invalid filter field or sort field is provided
+        """
         from typing import Any, cast
 
-        from sqlalchemy import func
+        from sqlalchemy import and_, func, or_
 
-        stmt = (
-            self._get_base_stmt()
-            .where(
-                WBE.branch == branch,
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, WBE).valid_time.desc())
-            .offset(skip)
-            .limit(limit)
+        from app.core.filtering import FilterParser
+
+        # Base query with parent name join
+        stmt = self._get_base_stmt().where(
+            WBE.branch == branch,
+            func.upper(cast(Any, WBE).valid_time).is_(None),
+            cast(Any, WBE).deleted_at.is_(None),
         )
+
+        # Apply search (across code and name)
+        if search:
+            search_term = f"%{search}%"
+            stmt = stmt.where(
+                or_(
+                    WBE.code.ilike(search_term),
+                    WBE.name.ilike(search_term),
+                )
+            )
+
+        # Apply filters
+        if filters:
+            # Define allowed filterable fields for security
+            allowed_fields = ["level", "code", "name"]
+
+            parsed_filters = FilterParser.parse_filters(filters)
+            filter_expressions = FilterParser.build_sqlalchemy_filters(
+                WBE, parsed_filters, allowed_fields=allowed_fields
+            )
+            if filter_expressions:
+                stmt = stmt.where(and_(*filter_expressions))
+
+        # Get total count (before pagination)
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total_result = await self.session.execute(count_stmt)
+        total = total_result.scalar_one()
+
+        # Apply sorting
+        if sort_field:
+            # Validate sort field exists on model
+            if not hasattr(WBE, sort_field):
+                raise ValueError(f"Invalid sort field: {sort_field}")
+
+            column = getattr(WBE, sort_field)
+            if sort_order.lower() == "desc":
+                stmt = stmt.order_by(column.desc())
+            else:
+                stmt = stmt.order_by(column.asc())
+        else:
+            # Default sort by valid_time descending
+            stmt = stmt.order_by(cast(Any, WBE).valid_time.desc())
+
+        # Apply pagination
+        stmt = stmt.offset(skip).limit(limit)
+
+        # Execute query
         result = await self.session.execute(stmt)
-        return await self._resolve_parent_names(result.all())
+        wbes = await self._resolve_parent_names(result.all())
+
+        return wbes, total
 
     async def get_by_project(self, project_id: UUID, branch: str = "main") -> list[WBE]:
         """Get all WBEs for a specific project (current versions)."""
@@ -233,9 +304,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
         Raises:
             ValueError: If WBE not found
         """
-        from typing import Any, cast
 
-        from sqlalchemy import func
 
         # First, check if WBE exists and get current children count
         wbe = await self.get_by_root_id(wbe_id)
@@ -244,7 +313,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
 
         # Get all descendants (direct children + nested)
         descendants = await self._get_all_descendants(wbe_id, wbe.branch)
-        
+
         # Soft-delete all descendants first (bottom-up to avoid FK issues)
         for descendant in reversed(descendants):  # Reverse to delete deepest first
             cmd = SoftDeleteCommand(
@@ -253,7 +322,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
                 actor_id=actor_id,
             )
             await cmd.execute(self.session)
-        
+
         # Finally, soft-delete the root WBE itself
         cmd = SoftDeleteCommand(
             entity_class=WBE,  # type: ignore[type-var]
@@ -328,9 +397,9 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
             descendant = await self.get_by_root_id(row.wbe_id)
             if descendant:
                 descendant_list.append(descendant)
-                
+
         return descendant_list
-    
+
     async def get_children_count(self, wbe_id: UUID, branch: str = "main") -> int:
         """Get count of direct children for a WBE.
         
@@ -377,7 +446,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
         """
         from typing import Any, cast
 
-        from sqlalchemy import func, literal_column, select, union_all
+        from sqlalchemy import func, literal_column, select
         from sqlalchemy.orm import aliased
 
         from app.models.domain.project import Project
@@ -400,7 +469,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
         )
         project_result = await self.session.execute(project_stmt)
         project = project_result.scalar_one_or_none()
-        
+
         if not project:
             raise ValueError(f"Project {current_wbe.project_id} not found")
 
@@ -469,6 +538,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
     async def get_by_root_id(self, root_id: UUID, branch: str = "main") -> WBE | None:
         """Override to include parent_name."""
         from typing import Any, cast
+
         from sqlalchemy import func
 
         stmt = (
@@ -485,7 +555,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
         row = result.first()
         if not row:
             return None
-        
+
         wbe, parent_name = row
         wbe.parent_name = parent_name
         return wbe
@@ -493,9 +563,9 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
     async def get_wbe_history(self, wbe_id: UUID) -> list[WBE]:
         """Get all versions of a WBE by root wbe_id (with creator and parent name)."""
         from typing import Any, cast
+
         from sqlalchemy import func
         from sqlalchemy.orm import aliased
-        from app.models.domain.user import User
 
         # User lookup subquery
         creator_subq = (

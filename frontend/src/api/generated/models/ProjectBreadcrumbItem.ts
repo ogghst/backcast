@@ -6,8 +6,9 @@
  * Minimal project info for breadcrumb.
  */
 export type ProjectBreadcrumbItem = {
-  id: string;
-  project_id: string;
-  code: string;
-  name: string;
+    id: string;
+    project_id: string;
+    code: string;
+    name: string;
 };
+

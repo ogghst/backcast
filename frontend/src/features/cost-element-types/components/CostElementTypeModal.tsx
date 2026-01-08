@@ -40,9 +40,10 @@ export const CostElementTypeModal = ({
       const fetchDepts = async () => {
         try {
           setLoadingDepts(true);
-          // Fetch all departments (limit 1000 for dropdown)
-          const res = await DepartmentsService.getDepartments(0, 1000);
-          setDepartments(res);
+          // Fetch all departments (limit 100 for dropdown)
+          const res = await DepartmentsService.getDepartments(1, 100);
+          const items = Array.isArray(res) ? res : (res as any).items || [];
+          setDepartments(items);
         } catch (err) {
           console.error("Failed to fetch departments", err);
         } finally {

@@ -1,12 +1,13 @@
-import { App, Button, Space, Tag } from "antd";
+import { App, Button, Input, Space, Tag } from "antd";
 import {
   HistoryOutlined,
   NodeIndexOutlined,
   EditOutlined,
   DeleteOutlined,
   PlusOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ColumnType } from "antd/es/table";
 import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
@@ -22,43 +23,25 @@ import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { Can } from "@/components/auth/Can";
 import { WBEModal } from "@/features/wbes/components/WBEModal";
 
-// Adapter for WBEs API
-const wbeApi = {
-  getUsers: async (params?: {
-    pagination?: { current?: number; pageSize?: number };
-    projectId?: string;
-  }) => {
-    const current = params?.pagination?.current || 1;
-    const pageSize = params?.pagination?.pageSize || 10;
-    const skip = (current - 1) * pageSize;
-    const projectId = params?.projectId;
-
-    const res = await WbEsService.getWbes(skip, pageSize, projectId);
-    return Array.isArray(res) ? res : (res as { items: WBERead[] }).items;
-  },
-  getUser: (id: string) => WbEsService.getWbe(id),
-  createUser: (data: WBECreate) => WbEsService.createWbe(data),
-  updateUser: (id: string, data: WBEUpdate) => WbEsService.updateWbe(id, data),
-  deleteUser: (id: string) => WbEsService.deleteWbe(id),
-};
-
-const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<
-  WBERead,
-  WBECreate,
-  WBEUpdate
->("wbes", wbeApi);
+import {
+  useWBEs,
+  useCreateWBE,
+  useUpdateWBE,
+  useDeleteWBE,
+} from "@/features/wbes/api/useWBEs";
 
 interface WBEListProps {
   projectId?: string;
 }
 
 export const WBEList = ({ projectId }: WBEListProps) => {
-  const { tableParams, handleTableChange } = useTableParams<WBERead>();
+  const { tableParams, handleTableChange, handleSearch } =
+    useTableParams<WBERead>();
   const {
     data: wbes,
     isLoading,
     refetch,
-  } = useList({
+  } = useWBEs({
     ...tableParams,
     projectId,
   });
@@ -74,26 +57,26 @@ export const WBEList = ({ projectId }: WBEListProps) => {
       entityId: selectedWBE?.wbe_id,
       fetchFn: (id) => WbEsService.getWbeHistory(id),
       enabled: historyOpen,
-    },
+    }
   );
 
   const { modal } = App.useApp();
 
-  const { mutateAsync: createWBE } = useCreate({
+  const { mutateAsync: createWBE } = useCreateWBE({
     onSuccess: () => {
       refetch();
       setModalOpen(false);
     },
   });
 
-  const { mutateAsync: updateWBE } = useUpdate({
+  const { mutateAsync: updateWBE } = useUpdateWBE({
     onSuccess: () => {
       refetch();
       setModalOpen(false);
     },
   });
 
-  const { mutate: deleteWBE } = useDelete({ onSuccess: () => refetch() });
+  const { mutate: deleteWBE } = useDeleteWBE({ onSuccess: () => refetch() });
 
   const handleDelete = (id: string) => {
     modal.confirm({
@@ -105,17 +88,86 @@ export const WBEList = ({ projectId }: WBEListProps) => {
     });
   };
 
+  const getColumnSearchProps = (
+    dataIndex: keyof WBERead
+  ): ColumnType<WBERead> => ({
+    filterDropdown: ({
+      setSelectedKeys,
+      selectedKeys,
+      confirm,
+      clearFilters,
+    }) => (
+      <div style={{ padding: 8 }}>
+        <Input
+          placeholder={`Search ${dataIndex}`}
+          value={selectedKeys[0]}
+          onChange={(e) =>
+            setSelectedKeys(e.target.value ? [e.target.value] : [])
+          }
+          onPressEnter={() => confirm()}
+          style={{ width: 188, marginBottom: 8, display: "block" }}
+        />
+        <Space>
+          <Button
+            type="primary"
+            onClick={() => confirm()}
+            icon={<SearchOutlined />}
+            size="small"
+            style={{ width: 90 }}
+          >
+            Search
+          </Button>
+          <Button
+            onClick={() => clearFilters && clearFilters()}
+            size="small"
+            style={{ width: 90 }}
+          >
+            Reset
+          </Button>
+        </Space>
+      </div>
+    ),
+    filterIcon: (filtered: boolean) => (
+      <SearchOutlined style={{ color: filtered ? "#1890ff" : undefined }} />
+    ),
+    onFilter: (value, record) => {
+      const fieldVal = record[dataIndex];
+      return fieldVal
+        ? fieldVal
+            .toString()
+            .toLowerCase()
+            .includes((value as string).toLowerCase())
+        : false;
+    },
+  });
+
+  // Extract unique levels for filters (static list)
+  const levelFilters = useMemo(() => {
+    // Common WBE levels - could be fetched from API in the future
+    return [
+      { text: "L1", value: 1 },
+      { text: "L2", value: 2 },
+      { text: "L3", value: 3 },
+      { text: "L4", value: 4 },
+      { text: "L5", value: 5 },
+    ];
+  }, []);
+
   const columns: ColumnType<WBERead>[] = [
     {
       title: "Code",
       dataIndex: "code",
       key: "code",
       width: 120,
+      sorter: true, // Enable server-side sorting
+      ...getColumnSearchProps("code"),
     },
     {
       title: "Name",
       dataIndex: "name",
       key: "name",
+      sorter: true, // Enable server-side sorting
+      ...getColumnSearchProps("name"),
     },
     {
       title: "Level",
@@ -123,6 +175,9 @@ export const WBEList = ({ projectId }: WBEListProps) => {
       key: "level",
       render: (level: number) => <Tag color="cyan">L{level}</Tag>,
       width: 80,
+      filters: levelFilters,
+      // Remove onFilter - server-side filtering will handle this
+      sorter: true, // Enable server-side sorting
     },
     {
       title: "Budget Allocation",
@@ -136,6 +191,7 @@ export const WBEList = ({ projectId }: WBEListProps) => {
             }).format(budget)
           : "-",
       width: 150,
+      sorter: true, // Enable server-side sorting
     },
     {
       title: "Parent WBE",
@@ -143,17 +199,7 @@ export const WBEList = ({ projectId }: WBEListProps) => {
       key: "parent_wbe_id",
       render: (parentId: string) => (parentId ? parentId : "Root"),
       width: 150,
-    },
-    {
-      title: "Branch",
-      dataIndex: "branch",
-      key: "branch",
-      render: (branch: string) => (
-        <Tag color={branch === "main" ? "blue" : "orange"}>
-          {branch || "main"}
-        </Tag>
-      ),
-      width: 100,
+      sorter: true, // Enable server-side sorting
     },
     {
       title: "Actions",
@@ -200,9 +246,12 @@ export const WBEList = ({ projectId }: WBEListProps) => {
         tableParams={tableParams}
         onChange={handleTableChange}
         loading={isLoading}
-        dataSource={wbes || []}
+        dataSource={wbes || []} // Use raw data - hierarchical queries return arrays
         columns={columns}
-        rowKey="id"
+        rowKey="wbe_id"
+        searchable={true}
+        searchPlaceholder="Search WBEs..."
+        onSearch={handleSearch}
         toolbar={
           <div
             style={{

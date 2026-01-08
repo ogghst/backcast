@@ -32,10 +32,70 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var]
         return await self.get_by_id(department_id)
 
     async def get_departments(
-        self, skip: int = 0, limit: int = 100
-    ) -> list[Department]:
-        """Get all departments with pagination."""
-        return await self.get_all(skip, limit)
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        search: str | None = None,
+        filter_string: str | None = None,
+        sort_field: str | None = None,
+        sort_order: str = "asc",
+    ) -> tuple[list[Department], int]:
+        """Get departments with server-side search, filtering, and sorting.
+        
+        Returns:
+            Tuple of (list of departments, total count)
+        """
+        from sqlalchemy import and_, func, or_
+        from typing import Any, cast
+
+        from app.core.filtering import FilterParser
+
+        # Base statement
+        stmt = select(Department).where(
+            func.upper(Department.valid_time).is_(None),
+            Department.deleted_at.is_(None),
+        )
+
+        # Apply search
+        if search:
+            search_term = f"%{search}%"
+            stmt = stmt.where(
+                or_(
+                    Department.code.ilike(search_term),
+                    Department.name.ilike(search_term),
+                )
+            )
+
+        # Apply filters
+        if filter_string:
+            allowed_fields = ["code", "name"]
+            parsed_filters = FilterParser.parse_filters(filter_string)
+            filter_expressions = FilterParser.build_sqlalchemy_filters(
+                Department, parsed_filters, allowed_fields=allowed_fields
+            )
+            if filter_expressions:
+                stmt = stmt.where(and_(*filter_expressions))
+
+        # Get total count
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total_result = await self.session.execute(count_stmt)
+        total = total_result.scalar_one()
+
+        # Apply sorting
+        if sort_field and hasattr(Department, sort_field):
+            column = getattr(Department, sort_field)
+            if sort_order.lower() == "desc":
+                stmt = stmt.order_by(column.desc())
+            else:
+                stmt = stmt.order_by(column.asc())
+        else:
+            stmt = stmt.order_by(Department.name.asc())
+
+        # Apply pagination
+        stmt = stmt.offset(skip).limit(limit)
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all()), total
 
     async def get_by_code(self, code: str) -> Department | None:
         """Get department by code (current active version)."""
