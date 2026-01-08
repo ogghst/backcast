@@ -20,7 +20,7 @@ from app.models.domain.user import User
 from app.models.schemas.user import UserRegister, UserUpdate
 
 
-class UserService(TemporalService[User]):  # type: ignore[type-var]
+class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore]
     """Service for User entity operations.
 
     Extends TemporalService with user-specific methods like get_by_email.
@@ -71,7 +71,7 @@ class UserService(TemporalService[User]):  # type: ignore[type-var]
         user_data["user_id"] = root_id
 
         cmd = CreateVersionCommand(
-            entity_class=User,  # type: ignore[type-var]
+            entity_class=User,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
             **user_data,
@@ -96,7 +96,7 @@ class UserService(TemporalService[User]):  # type: ignore[type-var]
         # and let the command decide or just do it.
 
         cmd = UpdateVersionCommand(
-            entity_class=User,  # type: ignore[type-var]
+            entity_class=User,  # type: ignore[type-var,unused-ignore]
             root_id=user_id,
             actor_id=actor_id,
             **update_data,
@@ -106,7 +106,7 @@ class UserService(TemporalService[User]):  # type: ignore[type-var]
     async def delete_user(self, user_id: UUID, actor_id: UUID) -> User:
         """Soft delete user using SoftDeleteCommand."""
         cmd = SoftDeleteCommand(
-            entity_class=User,  # type: ignore[type-var]
+            entity_class=User,  # type: ignore[type-var,unused-ignore]
             root_id=user_id,
             actor_id=actor_id,
         )

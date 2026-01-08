@@ -19,6 +19,7 @@ Security:
     - SQL injection is prevented through SQLAlchemy ORM
 """
 
+from typing import Any
 
 from sqlalchemy import BinaryExpression
 from sqlalchemy.orm import DeclarativeMeta
@@ -83,7 +84,7 @@ class FilterParser:
         model: type[DeclarativeMeta],
         filters: dict[str, list[str]],
         allowed_fields: list[str] | None = None,
-    ) -> list[BinaryExpression]:
+    ) -> list[BinaryExpression[Any]]:
         """Build SQLAlchemy filter expressions from parsed filters.
 
         Args:
@@ -111,7 +112,7 @@ class FilterParser:
             - Only whitelisted fields (if provided) can be filtered
             - SQL injection is prevented through SQLAlchemy ORM
         """
-        expressions: list[BinaryExpression] = []
+        expressions: list[BinaryExpression[Any]] = []
 
         for field_name, values in filters.items():
             # Validate field exists on model

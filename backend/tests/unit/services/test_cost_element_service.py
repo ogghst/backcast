@@ -9,10 +9,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain.cost_element import CostElement
-from app.models.domain.cost_element_type import CostElementType
-from app.models.domain.department import Department
-from app.models.domain.project import Project
-from app.models.domain.wbe import WBE
 from app.models.schemas.cost_element import CostElementCreate, CostElementUpdate
 from app.models.schemas.cost_element_type import CostElementTypeCreate
 from app.models.schemas.department import DepartmentCreate
@@ -51,9 +47,7 @@ async def setup_hierarchy(db_session: AsyncSession):
         budget=Decimal("1000000.00"),
         status="Draft",
     )
-    project = await project_service.create_project(
-        project_in, actor_id=uuid4()
-    )
+    project = await project_service.create_project(project_in, actor_id=uuid4())
 
     # Create WBE
     wbe_service = WBEService(db_session)
@@ -106,13 +100,18 @@ class TestCostElementServiceCreate:
         assert created_element.name == "Mechanical Work Phase 1"
         assert created_element.budget_amount == Decimal("50000.00")
         assert created_element.wbe_id == hierarchy["wbe"].wbe_id
-        assert created_element.cost_element_type_id == hierarchy["cost_type"].cost_element_type_id
+        assert (
+            created_element.cost_element_type_id
+            == hierarchy["cost_type"].cost_element_type_id
+        )
         assert created_element.cost_element_id is not None
         assert created_element.branch == "main"
         assert created_element.created_by == actor_id
 
         # Verify persistence
-        fetched = await service.get_by_id(created_element.cost_element_id, branch="main")
+        fetched = await service.get_by_id(
+            created_element.cost_element_id, branch="main"
+        )
         assert fetched is not None
         assert fetched.code == "CE-001"
 
@@ -142,9 +141,7 @@ class TestCostElementServiceCreate:
         assert created_element.created_by == actor_id
 
         # Verify at database level
-        stmt = select(CostElement).where(
-            CostElement.id == created_element.id
-        )
+        stmt = select(CostElement).where(CostElement.id == created_element.id)
         db_record = (await db_session.execute(stmt)).scalar_one()
         assert db_record.created_by == actor_id
 
@@ -223,9 +220,7 @@ class TestCostElementServiceDelete:
 
         # Act
         actor_id_delete = uuid4()
-        await service.soft_delete(
-            element_id, actor_id=actor_id_delete, branch="main"
-        )
+        await service.soft_delete(element_id, actor_id=actor_id_delete, branch="main")
 
         # Assert
         stmt = (
@@ -236,7 +231,7 @@ class TestCostElementServiceDelete:
             .limit(1)
         )
         deleted = (await db_session.execute(stmt)).scalar_one()
-        
+
         assert deleted is not None
         assert deleted.is_deleted is True
         assert deleted.deleted_by == actor_id_delete
@@ -318,7 +313,7 @@ class TestCostElementServiceList:
         await service.create(element_in, actor_id=uuid4(), branch="main")
 
         # Act - Filter by type 1
-        type1_elements = await service.list(
+        await service.list(
             filters={
                 "cost_element_type_id": hierarchy["cost_type"].cost_element_type_id
             },
@@ -333,6 +328,7 @@ class TestCostElementServiceList:
         # But let's see if we can update the service implementation first.
         # I'll update the test first, then fix the service list method.
         pass
+
 
 class TestCostElementServiceBranching:
     """Test Cost Element branching capabilities."""
@@ -354,16 +350,14 @@ class TestCostElementServiceBranching:
             cost_element_type_id=hierarchy["cost_type"].cost_element_type_id,
             budget_amount=Decimal("10000.00"),
         )
-        main_element = await service.create(
-            element_in, actor_id=uuid4(), branch="main"
-        )
+        main_element = await service.create(element_in, actor_id=uuid4(), branch="main")
         element_id = main_element.cost_element_id
 
         # Act - Update in a different branch (co-123)
         update_in = CostElementUpdate(
             budget_amount=Decimal("20000.00"),
         )
-        branch_element = await service.update(
+        await service.update(
             element_id, update_in, actor_id=uuid4(), branch="co-123"
         )
 
@@ -400,9 +394,7 @@ class TestCostElementServiceBranching:
             cost_element_type_id=hierarchy["cost_type"].cost_element_type_id,
             budget_amount=Decimal("5000.00"),
         )
-        main_element = await service.create(
-            element_in, actor_id=uuid4(), branch="main"
-        )
+        main_element = await service.create(element_in, actor_id=uuid4(), branch="main")
 
         # Create element in branch co-999
         element_in2 = CostElementCreate(

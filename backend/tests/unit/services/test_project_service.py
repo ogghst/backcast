@@ -6,7 +6,6 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.domain.project import Project
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
 from app.services.project import ProjectService
 
@@ -77,9 +76,7 @@ class TestProjectServiceGetProjects:
             actor_id=uuid4(),
         )
         await service.create_project(
-            ProjectCreate(
-                name="Beta Project", code="BETA", budget=Decimal("20000.00")
-            ),
+            ProjectCreate(name="Beta Project", code="BETA", budget=Decimal("20000.00")),
             actor_id=uuid4(),
         )
         await service.create_project(
@@ -280,7 +277,9 @@ class TestProjectServiceGetProjects:
         )
 
         # Act: Sort by name ascending
-        projects, total = await service.get_projects(sort_field="name", sort_order="asc")
+        projects, total = await service.get_projects(
+            sort_field="name", sort_order="asc"
+        )
 
         # Assert
         assert len(projects) == 3
@@ -295,7 +294,9 @@ class TestProjectServiceGetProjects:
         assert [p.name for p in projects] == ["Charlie", "Beta", "Alpha"]
 
         # Act: Sort by code ascending
-        projects, total = await service.get_projects(sort_field="code", sort_order="asc")
+        projects, total = await service.get_projects(
+            sort_field="code", sort_order="asc"
+        )
 
         # Assert
         assert [p.code for p in projects] == ["A", "B", "C"]

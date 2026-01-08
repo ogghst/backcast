@@ -96,10 +96,7 @@ class TestDepartmentServiceUpdate:
 
         # Verify old version still has old code
         await db_session.refresh(v1)
-        stmt = (
-            select(Department)
-            .where(Department.id == v1.id)
-        )
+        stmt = select(Department).where(Department.id == v1.id)
         old_v = (await db_session.execute(stmt)).scalar_one()
         assert old_v.code == "ALPHA"
         assert old_v.description == "Initial description"

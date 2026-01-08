@@ -38,7 +38,9 @@ async def read_wbes(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
     project_id: UUID | None = Query(None, description="Filter by project ID"),
-    parent_wbe_id: str | None = Query(None, description="Filter by parent WBE ID (use 'null' string for root WBEs)"),
+    parent_wbe_id: str | None = Query(
+        None, description="Filter by parent WBE ID (use 'null' string for root WBEs)"
+    ),
     branch: str = Query("main", description="Branch name"),
     search: str | None = Query(None, description="Search term (code, name)"),
     filters: str | None = Query(
@@ -55,22 +57,22 @@ async def read_wbes(
     service: WBEService = Depends(get_wbe_service),
 ) -> dict[str, Any] | Sequence[WBE]:
     """Retrieve WBEs with server-side search, filtering, and sorting.
-    
+
     Supports two modes:
     1. **Hierarchical filtering** (project_id/parent_wbe_id): Returns list without pagination
     2. **General listing** (no hierarchical filters): Returns paginated response with search/filter/sort
-    
+
     Hierarchical Filtering:
     - project_id only: All WBEs in project
     - project_id + parent_wbe_id: Child WBEs of specified parent
     - parent_wbe_id='null': Root WBEs (parent_wbe_id IS NULL)
-    
+
     General Listing (when no hierarchical filters):
     - **Search**: Case-insensitive search across code and name
     - **Filters**: Filter by level, code, name (format: "column:value;column:value1,value2")
     - **Sorting**: Sort by any field (asc/desc)
     - **Pagination**: Returns total count for proper pagination UI
-    
+
     Requires read permission.
     """
     from app.models.schemas.common import PaginatedResponse
@@ -88,7 +90,9 @@ async def read_wbes(
             try:
                 parsed_parent_id = UUID(parent_wbe_id)
             except ValueError as e:
-                raise HTTPException(status_code=422, detail="Invalid parent_wbe_id format") from e
+                raise HTTPException(
+                    status_code=422, detail="Invalid parent_wbe_id format"
+                ) from e
 
     # Handle hierarchical filtering (returns list, not paginated)
     # Case 1: Specific parent (parsed_parent_id is set)

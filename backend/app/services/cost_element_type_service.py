@@ -3,7 +3,7 @@
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.commands import (
@@ -19,7 +19,7 @@ from app.models.schemas.cost_element_type import (
 )
 
 
-class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[type-var]
+class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[type-var,unused-ignore]
     """Service for Cost Element Type management (versionable, not branchable)."""
 
     def __init__(self, db: AsyncSession):
@@ -30,9 +30,9 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         """
         super().__init__(CostElementType, db)
 
-    async def create(
+    async def create(  # type: ignore[override]
         self, type_in: CostElementTypeCreate, actor_id: UUID
-    ) -> CostElementType:  # type: ignore[override]
+    ) -> CostElementType:
         """Create new cost element type using CreateVersionCommand."""
         type_data = type_in.model_dump()
 
@@ -41,45 +41,44 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         type_data["cost_element_type_id"] = root_id
 
         cmd = CreateVersionCommand(
-            entity_class=CostElementType,  # type: ignore[type-var]
+            entity_class=CostElementType,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
             **type_data,
         )
         return await cmd.execute(self.session)
 
-    async def update(
+    async def update(  # type: ignore[override]
         self,
         cost_element_type_id: UUID,
         type_in: CostElementTypeUpdate,
         actor_id: UUID,
-    ) -> CostElementType:  # type: ignore[override]
+    ) -> CostElementType:
         """Update cost element type using UpdateVersionCommand."""
         update_data = type_in.model_dump(exclude_unset=True)
-        
+
         # Custom command class to handle multi-word entity name
-        class CostElementTypeUpdateCommand(UpdateVersionCommand[CostElementType]):
+        class CostElementTypeUpdateCommand(UpdateVersionCommand[CostElementType]):  # type: ignore[type-var,unused-ignore]
             def _root_field_name(self) -> str:
                 return "cost_element_type_id"
-        
+
         cmd = CostElementTypeUpdateCommand(
-            entity_class=CostElementType,
+            entity_class=CostElementType,  # type: ignore[type-var,unused-ignore]
             root_id=cost_element_type_id,
             actor_id=actor_id,
             **update_data,
         )
         return await cmd.execute(self.session)
 
-    async def soft_delete(
-        self, cost_element_type_id: UUID, actor_id: UUID
-    ) -> None:
+    async def soft_delete(self, cost_element_type_id: UUID, actor_id: UUID) -> None:
         """Soft delete cost element type using SoftDeleteCommand."""
-        class CostElementTypeSoftDeleteCommand(SoftDeleteCommand[CostElementType]):
+
+        class CostElementTypeSoftDeleteCommand(SoftDeleteCommand[CostElementType]):  # type: ignore[type-var,unused-ignore]
             def _root_field_name(self) -> str:
                 return "cost_element_type_id"
-        
+
         cmd = CostElementTypeSoftDeleteCommand(
-            entity_class=CostElementType,
+            entity_class=CostElementType,  # type: ignore[type-var,unused-ignore]
             root_id=cost_element_type_id,
             actor_id=actor_id,
         )
@@ -102,7 +101,7 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
 
     async def get_cost_element_types(
         self,
-        filters: dict | None = None,
+        filters: dict[str, Any] | None = None,
         skip: int = 0,
         limit: int = 100000,
         search: str | None = None,
@@ -111,8 +110,9 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         sort_order: str = "asc",
     ) -> tuple[list[CostElementType], int]:
         """Get cost element types with server-side features."""
+        from typing import Any
+
         from sqlalchemy import and_, func, or_
-        from typing import Any, cast
 
         from app.core.filtering import FilterParser
 
@@ -123,7 +123,9 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
 
         if filters:
             if "department_id" in filters:
-                stmt = stmt.where(CostElementType.department_id == filters["department_id"])
+                stmt = stmt.where(
+                    CostElementType.department_id == filters["department_id"]
+                )
 
         if search:
             search_term = f"%{search}%"
@@ -138,7 +140,9 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
             allowed_fields = ["code", "name"]
             parsed_filters = FilterParser.parse_filters(filter_string)
             filter_expressions = FilterParser.build_sqlalchemy_filters(
-                cast(Any, CostElementType), parsed_filters, allowed_fields=allowed_fields
+                cast(Any, CostElementType),
+                parsed_filters,
+                allowed_fields=allowed_fields,
             )
             if filter_expressions:
                 stmt = stmt.where(and_(*filter_expressions))
@@ -159,7 +163,7 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
             stmt = stmt.order_by(CostElementType.name.asc())
 
         stmt = stmt.offset(skip).limit(limit)
-        
+
         result = await self.session.execute(stmt)
         return list(result.scalars().all()), total
 
@@ -167,5 +171,7 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         self, filters: dict[str, Any] | None = None, skip: int = 0, limit: int = 100000
     ) -> list[CostElementType]:
         """Legacy list method (backward compatibility)."""
-        items, _ = await self.get_cost_element_types(filters=filters, skip=skip, limit=limit)
+        items, _ = await self.get_cost_element_types(
+            filters=filters, skip=skip, limit=limit
+        )
         return items

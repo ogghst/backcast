@@ -18,7 +18,7 @@ from app.models.domain.project import Project
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
 
 
-class ProjectService(TemporalService[Project]):  # type: ignore[type-var]
+class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-ignore]
     """Service for Project entity operations.
 
     Extends TemporalService with project-specific methods.
@@ -100,7 +100,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var]
 
             parsed_filters = FilterParser.parse_filters(filters)
             filter_expressions = FilterParser.build_sqlalchemy_filters(
-                Project, parsed_filters, allowed_fields=allowed_fields
+                cast(Any, Project), parsed_filters, allowed_fields=allowed_fields
             )
             if filter_expressions:
                 stmt = stmt.where(and_(*filter_expressions))
@@ -165,7 +165,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var]
         project_data["project_id"] = root_id
 
         cmd = CreateVersionCommand(
-            entity_class=Project,  # type: ignore[type-var]
+            entity_class=Project,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
             **project_data,
@@ -180,7 +180,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var]
         update_data = project_in.model_dump(exclude_unset=True)
 
         cmd = UpdateVersionCommand(
-            entity_class=Project,  # type: ignore[type-var]
+            entity_class=Project,  # type: ignore[type-var,unused-ignore]
             root_id=project_id,
             actor_id=actor_id,
             **update_data,
@@ -190,7 +190,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var]
     async def delete_project(self, project_id: UUID, actor_id: UUID) -> Project:
         """Soft delete project using SoftDeleteCommand."""
         cmd = SoftDeleteCommand(
-            entity_class=Project,  # type: ignore[type-var]
+            entity_class=Project,  # type: ignore[type-var,unused-ignore]
             root_id=project_id,
             actor_id=actor_id,
         )
@@ -199,4 +199,3 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var]
     async def get_project_history(self, project_id: UUID) -> list[Project]:
         """Get all versions of a project by root project_id (with creator name)."""
         return await self.get_history(project_id)
-

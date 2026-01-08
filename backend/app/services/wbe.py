@@ -3,7 +3,8 @@
 Provides WBE-specific operations with parent-child project relationship.
 """
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -21,7 +22,7 @@ from app.models.domain.wbe import WBE
 from app.models.schemas.wbe import WBECreate, WBEUpdate
 
 
-class WBEService(TemporalService[WBE]):
+class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
     """Service for WBE entity operations.
 
     Extends TemporalService with WBE-specific methods including
@@ -33,10 +34,10 @@ class WBEService(TemporalService[WBE]):
 
     async def _resolve_parent_names(self, query_results: Sequence[Any]) -> list[WBE]:
         """Helper to resolve parent names for a list of WBE results.
-        
+
         Args:
             query_results: List of Row objects (WBE, parent_name) or WBE objects
-            
+
         Returns:
             List of WBE objects with parent_name attached
         """
@@ -73,14 +74,13 @@ class WBEService(TemporalService[WBE]):
             select(Parent.wbe_id, Parent.name)
             .where(
                 func.upper(cast(Any, Parent).valid_time).is_(None),
-                cast(Any, Parent).deleted_at.is_(None)
+                cast(Any, Parent).deleted_at.is_(None),
             )
             .subquery("parent_lookup")
         )
 
-        return (
-            select(WBE, parent_subq.c.name.label("parent_name"))
-            .outerjoin(parent_subq, WBE.parent_wbe_id == parent_subq.c.wbe_id)
+        return select(WBE, parent_subq.c.name.label("parent_name")).outerjoin(
+            parent_subq, WBE.parent_wbe_id == parent_subq.c.wbe_id
         )
 
     async def get_wbes(
@@ -201,12 +201,12 @@ class WBEService(TemporalService[WBE]):
         branch: str = "main",
     ) -> list[WBE]:
         """Get WBEs filtered by parent_wbe_id.
-        
+
         Args:
             project_id: Optional project filter
             parent_wbe_id: Parent WBE ID. None means root WBEs (parent_wbe_id IS NULL)
             branch: Branch name
-            
+
         Returns:
             List of WBEs matching the parent filter
         """
@@ -269,7 +269,7 @@ class WBEService(TemporalService[WBE]):
         wbe_data["wbe_id"] = root_id
 
         cmd = CreateVersionCommand(
-            entity_class=WBE,
+            entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
             **wbe_data,
@@ -281,7 +281,7 @@ class WBEService(TemporalService[WBE]):
         update_data = wbe_in.model_dump(exclude_unset=True)
 
         cmd = UpdateVersionCommand(
-            entity_class=WBE,  # type: ignore[type-var]
+            entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=wbe_id,
             actor_id=actor_id,
             **update_data,
@@ -290,21 +290,20 @@ class WBEService(TemporalService[WBE]):
 
     async def delete_wbe(self, wbe_id: UUID, actor_id: UUID) -> WBE:
         """Soft delete WBE with cascade to children.
-        
+
         Deletes the WBE and all its descendants recursively.
         Returns the root WBE that was deleted.
-        
+
         Args:
             wbe_id: Root WBE ID to delete
             actor_id: User performing the delete
-            
+
         Returns:
             The deleted WBE (root)
-            
+
         Raises:
             ValueError: If WBE not found
         """
-
 
         # First, check if WBE exists and get current children count
         wbe = await self.get_by_root_id(wbe_id)
@@ -317,7 +316,7 @@ class WBEService(TemporalService[WBE]):
         # Soft-delete all descendants first (bottom-up to avoid FK issues)
         for descendant in reversed(descendants):  # Reverse to delete deepest first
             cmd = SoftDeleteCommand(
-                entity_class=WBE,
+                entity_class=WBE,  # type: ignore[type-var,unused-ignore]
                 root_id=descendant.wbe_id,
                 actor_id=actor_id,
             )
@@ -325,7 +324,7 @@ class WBEService(TemporalService[WBE]):
 
         # Finally, soft-delete the root WBE itself
         cmd = SoftDeleteCommand(
-            entity_class=WBE,  # type: ignore[type-var]
+            entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=wbe_id,
             actor_id=actor_id,
         )
@@ -335,11 +334,11 @@ class WBEService(TemporalService[WBE]):
         self, parent_wbe_id: UUID, branch: str = "main"
     ) -> list[WBE]:
         """Recursively get all descendants of a WBE using recursive CTE.
-        
+
         Args:
             parent_wbe_id: Root WBE ID to get descendants for
             branch: Branch name
-            
+
         Returns:
             List of all descendant WBEs (ordered depth-first)
         """
@@ -402,13 +401,13 @@ class WBEService(TemporalService[WBE]):
 
     async def get_children_count(self, wbe_id: UUID, branch: str = "main") -> int:
         """Get count of direct children for a WBE.
-        
+
         Useful for UI to show children count indicator.
-        
+
         Args:
             wbe_id: Parent WBE ID
             branch: Branch name
-            
+
         Returns:
             Count of direct children
         """
@@ -429,18 +428,17 @@ class WBEService(TemporalService[WBE]):
         result = await self.session.execute(stmt)
         return result.scalar() or 0
 
-
-    async def get_breadcrumb(self, wbe_id: UUID) -> dict:
+    async def get_breadcrumb(self, wbe_id: UUID) -> dict[str, Any]:
         """Get breadcrumb trail for a WBE including project and all ancestors.
-        
+
         Uses recursive CTE to efficiently fetch the entire ancestor chain in a single query.
-        
+
         Args:
             wbe_id: Root WBE ID
-            
+
         Returns:
             Dict with 'project' and 'wbe_path' keys
-            
+
         Raises:
             ValueError: If WBE not found
         """
@@ -558,7 +556,7 @@ class WBEService(TemporalService[WBE]):
 
         wbe, parent_name = row
         wbe.parent_name = parent_name
-        return wbe
+        return cast(WBE, wbe)
 
     async def get_wbe_history(self, wbe_id: UUID) -> list[WBE]:
         """Get all versions of a WBE by root wbe_id (with creator and parent name)."""
@@ -581,13 +579,17 @@ class WBEService(TemporalService[WBE]):
             select(Parent.wbe_id, Parent.name)
             .where(
                 func.upper(cast(Any, Parent).valid_time).is_(None),
-                cast(Any, Parent).deleted_at.is_(None)
+                cast(Any, Parent).deleted_at.is_(None),
             )
             .subquery("parent_lookup")
         )
 
         stmt = (
-            select(WBE, creator_subq.c.full_name.label("created_by_name"), parent_subq.c.name.label("parent_name"))
+            select(
+                WBE,
+                creator_subq.c.full_name.label("created_by_name"),
+                parent_subq.c.name.label("parent_name"),
+            )
             .outerjoin(creator_subq, WBE.created_by == creator_subq.c.user_id)
             .outerjoin(parent_subq, WBE.parent_wbe_id == parent_subq.c.wbe_id)
             .where(

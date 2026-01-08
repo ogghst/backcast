@@ -95,7 +95,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
             select(self.entity_class)
             .where(
                 getattr(self.entity_class, root_field) == root_id,
-                self.entity_class.branch == branch,
+                self.entity_class.branch == branch,  # type: ignore[attr-defined]
                 func.upper(cast(Any, self.entity_class).valid_time).is_(None),
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
@@ -148,9 +148,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
             .where(
                 getattr(self.entity_class, root_field) == entity_id,
                 cast(Any, self.entity_class).valid_time.op("@>")(as_of),
-                cast(Any, self.entity_class).deleted_at.is_(
-                    None
-                ),
+                cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .limit(1)
         )
@@ -224,11 +222,13 @@ class TemporalService[TVersionable: VersionableProtocol]:
         # Create a subquery to get a unique (latest) name for each user_id
         # ensuring we don't multiply rows if the user entity itself has multiple versions.
         # We assume the most recent version (by transaction_time) has the correct name.
-        User = cast(Any, User)  # Cast for type checker to allow table access if needed
+        UserAlias = cast(
+            Any, User
+        )  # Cast for type checker to allow table access if needed
         creator_subq = (
-            select(User.user_id, User.full_name)
-            .distinct(User.user_id)
-            .order_by(User.user_id, User.transaction_time.desc())
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
             .subquery("creator_lookup")
         )
 

@@ -1,13 +1,13 @@
 """Generic paginated response schema."""
 
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 from pydantic import BaseModel, Field
 
 T = TypeVar("T")
 
 
-class PaginatedResponse(BaseModel, Generic[T]):
+class PaginatedResponse[T](BaseModel):
     """Generic paginated response with items and metadata.
 
     Used for list endpoints that support server-side pagination,

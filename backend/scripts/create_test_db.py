@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-async def create_test_database():
+async def create_test_database() -> None:
     """Create the test database if it doesn't exist."""
     # Get the default database URL (usually postgres)
     # We replace the database name with 'postgres' to connect to the system DB

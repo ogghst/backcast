@@ -190,7 +190,9 @@ async def delete_project(
 ) -> None:
     """Soft delete a project. Requires delete permission."""
     try:
-        await service.delete_project(project_id=project_id, actor_id=current_user.user_id)
+        await service.delete_project(
+            project_id=project_id, actor_id=current_user.user_id
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 

@@ -70,11 +70,17 @@ class BranchableService[TBranchable: BranchableProtocol]:
         data[root_field] = root_id
 
         cmd = CreateVersionCommand(
-            entity_class=self.entity_class, root_id=root_id, actor_id=actor_id, branch=branch, **data
+            entity_class=self.entity_class,
+            root_id=root_id,
+            actor_id=actor_id,
+            branch=branch,
+            **data,
         )
         return await cmd.execute(self.session)
 
-    async def update(self, root_id: UUID, actor_id: UUID, branch: str, **updates: Any) -> TBranchable:
+    async def update(
+        self, root_id: UUID, actor_id: UUID, branch: str, **updates: Any
+    ) -> TBranchable:
         """Update entity on a specific branch (creates new version)."""
         cmd = UpdateCommand(
             entity_class=self.entity_class,
@@ -112,7 +118,11 @@ class BranchableService[TBranchable: BranchableProtocol]:
         return await cmd.execute(self.session)
 
     async def revert(
-        self, root_id: UUID, actor_id: UUID, branch: str, to_version_id: UUID | None = None
+        self,
+        root_id: UUID,
+        actor_id: UUID,
+        branch: str,
+        to_version_id: UUID | None = None,
     ) -> TBranchable:
         """Revert branch to a previous state."""
         cmd = RevertCommand(

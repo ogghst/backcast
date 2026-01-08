@@ -154,7 +154,12 @@ class TestFilterParserBuildSQLAlchemyFilters:
 
     def test_build_all_allowed_when_no_whitelist(self) -> None:
         """Test that all model fields are allowed when no whitelist provided."""
-        filters = {"status": ["active"], "branch": ["main"], "level": ["1"], "name": ["test"]}
+        filters = {
+            "status": ["active"],
+            "branch": ["main"],
+            "level": ["1"],
+            "name": ["test"],
+        }
 
         # Should not raise error
         expressions = FilterParser.build_sqlalchemy_filters(TestModel, filters)

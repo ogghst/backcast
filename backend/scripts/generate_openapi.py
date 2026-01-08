@@ -4,7 +4,7 @@ from pathlib import Path
 from app.main import app
 
 
-def generate_openapi():
+def generate_openapi() -> None:
     # Use the app's openapi method to get the dict
     openapi_schema = app.openapi()
 

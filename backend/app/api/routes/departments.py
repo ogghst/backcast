@@ -51,7 +51,7 @@ async def read_departments(
     from app.models.schemas.common import PaginatedResponse
 
     skip = (page - 1) * per_page
-    
+
     items, total = await service.get_departments(
         skip=skip,
         limit=per_page,

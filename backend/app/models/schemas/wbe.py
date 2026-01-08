@@ -13,7 +13,9 @@ class WBEBase(BaseModel):
     project_id: UUID = Field(..., description="Parent project root ID")
     code: str = Field(..., max_length=50, description="WBS code (e.g., 1.2.3)")
     name: str = Field(..., max_length=255, description="WBE name")
-    budget_allocation: Decimal = Field(0, ge=0, description="Budget allocation")
+    budget_allocation: Decimal = Field(
+        Decimal(0), ge=0, description="Budget allocation"
+    )
     level: int = Field(1, ge=1, description="Hierarchy level")
     parent_wbe_id: UUID | None = Field(None, description="Parent WBE root ID")
     description: str | None = Field(None, max_length=5000, description="Description")
@@ -62,7 +64,7 @@ class WBERead(WBEBase):
 # Breadcrumb schemas for hierarchical navigation
 class ProjectBreadcrumbItem(BaseModel):
     """Minimal project info for breadcrumb."""
-    
+
     id: UUID
     project_id: UUID
     code: str
@@ -71,7 +73,7 @@ class ProjectBreadcrumbItem(BaseModel):
 
 class WBEBreadcrumbItem(BaseModel):
     """Minimal WBE info for breadcrumb."""
-    
+
     id: UUID
     wbe_id: UUID
     code: str
@@ -80,11 +82,11 @@ class WBEBreadcrumbItem(BaseModel):
 
 class WBEBreadcrumb(BaseModel):
     """Breadcrumb trail for a WBE showing project and ancestor path."""
-    
+
     project: ProjectBreadcrumbItem
     wbe_path: list[WBEBreadcrumbItem] = Field(
-        ..., 
-        description="Ordered list of WBEs from root to current (last item is the current WBE)"
+        ...,
+        description="Ordered list of WBEs from root to current (last item is the current WBE)",
     )
 
 

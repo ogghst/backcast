@@ -1,7 +1,8 @@
 """Cost Element Service - branchable entity management."""
 
 import builtins
-from typing import Any, Sequence, cast
+from collections.abc import Sequence
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
@@ -19,7 +20,7 @@ from app.models.domain.wbe import WBE
 from app.models.schemas.cost_element import CostElementCreate, CostElementUpdate
 
 
-class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var]
+class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var,unused-ignore]
     """Service for Cost Element management (branchable + versionable)."""
 
     def __init__(self, db: AsyncSession):
@@ -42,7 +43,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
             .where(
                 func.upper(cast(Any, WBEAlias).valid_time).is_(None),
-                cast(Any, WBEAlias).deleted_at.is_(None)
+                cast(Any, WBEAlias).deleted_at.is_(None),
             )
             .subquery("wbe_lookup_subq")
         )
@@ -52,22 +53,32 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             select(
                 TypeAlias.cost_element_type_id,
                 TypeAlias.name.label("type_name"),
-                TypeAlias.code.label("type_code")
+                TypeAlias.code.label("type_code"),
             )
             .where(
                 func.upper(cast(Any, TypeAlias).valid_time).is_(None),
-                cast(Any, TypeAlias).deleted_at.is_(None)
+                cast(Any, TypeAlias).deleted_at.is_(None),
             )
             .subquery("type_lookup_subq")
         )
 
         return (
-            select(CostElement, wbe_subq.c.wbe_name, type_subq.c.type_name, type_subq.c.type_code)
+            select(
+                CostElement,
+                wbe_subq.c.wbe_name,
+                type_subq.c.type_name,
+                type_subq.c.type_code,
+            )
             .outerjoin(wbe_subq, CostElement.wbe_id == wbe_subq.c.wbe_id)
-            .outerjoin(type_subq, CostElement.cost_element_type_id == type_subq.c.cost_element_type_id)
+            .outerjoin(
+                type_subq,
+                CostElement.cost_element_type_id == type_subq.c.cost_element_type_id,
+            )
         )
 
-    async def _resolve_relations(self, query_results: Sequence[Any]) -> list[CostElement]:
+    async def _resolve_relations(
+        self, query_results: Sequence[Any]
+    ) -> list[CostElement]:
         """Helper to resolve related names for a list of results."""
         resolved = []
         for item in query_results:
@@ -91,12 +102,12 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                 resolved.append(item)
         return resolved
 
-    async def create(
+    async def create(  # type: ignore[override]
         self,
         element_in: CostElementCreate,
         actor_id: UUID,
         branch: str = "main",
-    ) -> CostElement:  # type: ignore[override]
+    ) -> CostElement:
         """Create new cost element using CreateVersionCommand."""
         element_data = element_in.model_dump()
 
@@ -106,20 +117,20 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         element_data["branch"] = branch
 
         cmd = CreateVersionCommand(
-            entity_class=CostElement,  # type: ignore[type-var]
+            entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
             **element_data,
         )
         return await cmd.execute(self.session)
 
-    async def update(
+    async def update(  # type: ignore[override]
         self,
         cost_element_id: UUID,
         element_in: CostElementUpdate,
         actor_id: UUID,
         branch: str = "main",
-    ) -> CostElement:  # type: ignore[override]
+    ) -> CostElement:
         """Update cost element using UpdateVersionCommand or Fork if new branch."""
         update_data = element_in.model_dump(exclude_unset=True)
         update_data["branch"] = branch
@@ -132,8 +143,15 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             # Linear update in same branch: Close old, Open new
 
             # Custom command class to handle multi-word entity name AND branch filtering
-            class CostElementUpdateCommand(UpdateVersionCommand[CostElement]):
-                def __init__(self, entity_class, root_id, actor_id, branch="main", **updates):
+            class CostElementUpdateCommand(UpdateVersionCommand[CostElement]):  # type: ignore[type-var,unused-ignore]
+                def __init__(
+                    self,
+                    entity_class: type[CostElement],
+                    root_id: UUID,
+                    actor_id: UUID,
+                    branch: str = "main",
+                    **updates: Any,
+                ) -> None:
                     super().__init__(entity_class, root_id, actor_id, **updates)
                     self.branch = branch
 
@@ -144,9 +162,12 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                     stmt = (
                         select(self.entity_class)
                         .where(
-                            getattr(self.entity_class, self._root_field_name()) == self.root_id,
+                            getattr(self.entity_class, self._root_field_name())
+                            == self.root_id,
                             self.entity_class.branch == self.branch,
-                            func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+                            func.upper(cast(Any, self.entity_class).valid_time).is_(
+                                None
+                            ),
                             cast(Any, self.entity_class).deleted_at.is_(None),
                         )
                         .order_by(cast(Any, self.entity_class).valid_time.desc())
@@ -156,7 +177,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                     return result.scalar_one_or_none()
 
             cmd = CostElementUpdateCommand(
-                entity_class=CostElement,  # type: ignore[type-var]
+                entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
                 root_id=cost_element_id,
                 actor_id=actor_id,
                 # Branch is passed via update_data unpacking to match signature
@@ -172,17 +193,25 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             # Note: In a real system we might want to let the caller specify the source branch
             source_version = await self.get_by_id(cost_element_id, branch="main")
             if not source_version:
-                 # If not found in main either, we can't update a non-existent entity
-                 raise ValueError(f"Cost Element {cost_element_id} not found in {branch} or main.")
+                # If not found in main either, we can't update a non-existent entity
+                raise ValueError(
+                    f"Cost Element {cost_element_id} not found in {branch} or main."
+                )
 
             # Clone data from source
-            data = {c.name: getattr(source_version, c.name) for c in source_version.__table__.columns}
+            data = {
+                c.name: getattr(source_version, c.name)
+                for c in source_version.__table__.columns
+            }
 
             # Remove system/audit fields to let DB/Command handle them
             system_fields = [
-                'valid_time', 'transaction_time',
-                'created_by', 'deleted_by', 'deleted_at',
-                'id'  # New version needs new ID
+                "valid_time",
+                "transaction_time",
+                "created_by",
+                "deleted_by",
+                "deleted_at",
+                "id",  # New version needs new ID
             ]
             for field in system_fields:
                 data.pop(field, None)
@@ -191,17 +220,17 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             data.update(update_data)
 
             # Set branching metadata
-            data['branch'] = branch
-            data['parent_id'] = source_version.id  # Link to parent version
+            data["branch"] = branch
+            data["parent_id"] = source_version.id  # Link to parent version
 
             # Create new version (Insert only, do not close parent)
-            cmd = CreateVersionCommand(
-                entity_class=CostElement,  # type: ignore[type-var]
+            create_cmd = CreateVersionCommand(
+                entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
                 root_id=cost_element_id,
                 actor_id=actor_id,
                 **data,
             )
-            return await cmd.execute(self.session)
+            return await create_cmd.execute(self.session)
 
     async def soft_delete(
         self, cost_element_id: UUID, actor_id: UUID, branch: str = "main"
@@ -209,8 +238,14 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         """Soft delete cost element using SoftDeleteCommand."""
 
         # Custom command class
-        class CostElementSoftDeleteCommand(SoftDeleteCommand[CostElement]):
-            def __init__(self, entity_class, root_id, actor_id, branch="main"):
+        class CostElementSoftDeleteCommand(SoftDeleteCommand[CostElement]):  # type: ignore[type-var,unused-ignore]
+            def __init__(
+                self,
+                entity_class: type[CostElement],
+                root_id: UUID,
+                actor_id: UUID,
+                branch: str = "main",
+            ) -> None:
                 super().__init__(entity_class, root_id, actor_id)
                 self.branch = branch
 
@@ -222,7 +257,8 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                 stmt = (
                     select(self.entity_class)
                     .where(
-                        getattr(self.entity_class, self._root_field_name()) == self.root_id,
+                        getattr(self.entity_class, self._root_field_name())
+                        == self.root_id,
                         self.entity_class.branch == self.branch,
                         func.upper(cast(Any, self.entity_class).valid_time).is_(None),
                         cast(Any, self.entity_class).deleted_at.is_(None),
@@ -234,7 +270,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                 return result.scalar_one_or_none()
 
         cmd = CostElementSoftDeleteCommand(
-            entity_class=CostElement,
+            entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
             root_id=cost_element_id,
             actor_id=actor_id,
             branch=branch,
@@ -262,7 +298,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
 
     async def get_cost_elements(
         self,
-        filters: dict | None = None,
+        filters: dict[str, Any] | None = None,
         branch: str = "main",
         skip: int = 0,
         limit: int = 100000,
@@ -371,13 +407,19 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         return cost_elements, total
 
     async def list(
-        self, filters: dict[str, Any] | None = None, branch: str = "main", skip: int = 0, limit: int = 100000
+        self,
+        filters: dict[str, Any] | None = None,
+        branch: str = "main",
+        skip: int = 0,
+        limit: int = 100000,
     ) -> list[CostElement]:
         """Alias for get_cost_elements() to maintain backward compatibility.
-        
+
         Note: Returns only items, not total count. Use get_cost_elements() for pagination.
         """
-        items, _ = await self.get_cost_elements(filters=filters, branch=branch, skip=skip, limit=limit)
+        items, _ = await self.get_cost_elements(
+            filters=filters, branch=branch, skip=skip, limit=limit
+        )
         return items
 
     async def get_history(self, root_id: UUID) -> builtins.list[CostElement]:
@@ -401,7 +443,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
             .where(
                 func.upper(cast(Any, WBEAlias).valid_time).is_(None),
-                cast(Any, WBEAlias).deleted_at.is_(None)
+                cast(Any, WBEAlias).deleted_at.is_(None),
             )
             .subquery("wbe_history_lookup_subq")
         )
@@ -412,11 +454,11 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             select(
                 TypeAlias.cost_element_type_id,
                 TypeAlias.name.label("type_name"),
-                TypeAlias.code.label("type_code")
+                TypeAlias.code.label("type_code"),
             )
             .where(
                 func.upper(cast(Any, TypeAlias).valid_time).is_(None),
-                cast(Any, TypeAlias).deleted_at.is_(None)
+                cast(Any, TypeAlias).deleted_at.is_(None),
             )
             .subquery("type_history_lookup_subq")
         )
@@ -427,11 +469,14 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                 creator_subq.c.full_name.label("created_by_name"),
                 wbe_subq.c.wbe_name,
                 type_subq.c.type_name,
-                type_subq.c.type_code
+                type_subq.c.type_code,
             )
             .outerjoin(creator_subq, CostElement.created_by == creator_subq.c.user_id)
             .outerjoin(wbe_subq, CostElement.wbe_id == wbe_subq.c.wbe_id)
-            .outerjoin(type_subq, CostElement.cost_element_type_id == type_subq.c.cost_element_type_id)
+            .outerjoin(
+                type_subq,
+                CostElement.cost_element_type_id == type_subq.c.cost_element_type_id,
+            )
             .where(
                 CostElement.cost_element_id == root_id,
                 cast(Any, CostElement).deleted_at.is_(None),

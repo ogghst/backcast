@@ -179,13 +179,19 @@ class TestBranchCommands:
         v1_id = v1.id
 
         update_cmd = UpdateCommand(
-            entity_class=Project, root_id=root_id, actor_id=actor_id, updates={"name": "V2"}, branch="main"
+            entity_class=Project,
+            root_id=root_id,
+            actor_id=actor_id,
+            updates={"name": "V2"},
+            branch="main",
         )
         v2 = await update_cmd.execute(db_session)
         v2_id = v2.id
 
         # 2. Revert v2 -> v1 (implicit parent)
-        revert_cmd = RevertCommand(entity_class=Project, root_id=root_id, actor_id=actor_id, branch="main")
+        revert_cmd = RevertCommand(
+            entity_class=Project, root_id=root_id, actor_id=actor_id, branch="main"
+        )
         reverted = await revert_cmd.execute(db_session)
 
         assert reverted.name == "V1"
@@ -212,19 +218,31 @@ class TestBranchCommands:
         v1_id = v1.id
 
         update_cmd = UpdateCommand(
-            entity_class=Project, root_id=root_id, actor_id=actor_id, updates={"name": "V2"}, branch="main"
+            entity_class=Project,
+            root_id=root_id,
+            actor_id=actor_id,
+            updates={"name": "V2"},
+            branch="main",
         )
         await update_cmd.execute(db_session)
 
         update_cmd_2 = UpdateCommand(
-            entity_class=Project, root_id=root_id, actor_id=actor_id, updates={"name": "V3"}, branch="main"
+            entity_class=Project,
+            root_id=root_id,
+            actor_id=actor_id,
+            updates={"name": "V3"},
+            branch="main",
         )
         v3 = await update_cmd_2.execute(db_session)
         v3_id = v3.id
 
         # Revert V3 -> V1 explicitly
         revert_cmd = RevertCommand(
-            entity_class=Project, root_id=root_id, actor_id=actor_id, branch="main", to_version_id=v1_id
+            entity_class=Project,
+            root_id=root_id,
+            actor_id=actor_id,
+            branch="main",
+            to_version_id=v1_id,
         )
         reverted = await revert_cmd.execute(db_session)
 

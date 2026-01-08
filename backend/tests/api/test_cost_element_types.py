@@ -3,9 +3,7 @@ from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
 
 from app.api.dependencies.auth import (
     get_current_active_user,
@@ -68,7 +66,9 @@ def override_auth() -> Any:
 
 
 @pytest.mark.asyncio
-async def test_create_cost_element_type(client: AsyncClient, override_auth: None, db_session: AsyncSession) -> None:
+async def test_create_cost_element_type(
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test creating a new cost element type."""
     # Create Department first
     dept_resp = await client.post(
@@ -95,12 +95,17 @@ async def test_create_cost_element_type(client: AsyncClient, override_auth: None
 
 
 @pytest.mark.asyncio
-async def test_get_cost_element_types(client: AsyncClient, override_auth: None, db_session: AsyncSession) -> None:
+async def test_get_cost_element_types(
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test retrieving list of cost element types."""
     # Create Department
     dept_resp = await client.post(
         "/api/v1/departments",
-        json={"code": f"DEPT-LIST-{uuid4().hex[:4].upper()}", "name": "Department List"},
+        json={
+            "code": f"DEPT-LIST-{uuid4().hex[:4].upper()}",
+            "name": "Department List",
+        },
     )
     dept_id = dept_resp.json()["department_id"]
 
@@ -126,7 +131,9 @@ async def test_get_cost_element_types(client: AsyncClient, override_auth: None, 
 
 
 @pytest.mark.asyncio
-async def test_get_cost_element_type_by_id(client: AsyncClient, override_auth: None, db_session: AsyncSession) -> None:
+async def test_get_cost_element_type_by_id(
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test retrieving a specific cost element type."""
     # Create Department
     dept_resp = await client.post(
@@ -155,7 +162,9 @@ async def test_get_cost_element_type_by_id(client: AsyncClient, override_auth: N
 
 
 @pytest.mark.asyncio
-async def test_update_cost_element_type(client: AsyncClient, override_auth: None, db_session: AsyncSession) -> None:
+async def test_update_cost_element_type(
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test updating a cost element type."""
     # Create Department
     dept_resp = await client.post(
@@ -187,7 +196,9 @@ async def test_update_cost_element_type(client: AsyncClient, override_auth: None
 
 
 @pytest.mark.asyncio
-async def test_delete_cost_element_type(client: AsyncClient, override_auth: None, db_session: AsyncSession) -> None:
+async def test_delete_cost_element_type(
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test soft deleting a cost element type."""
     # Create Department
     dept_resp = await client.post(
@@ -219,4 +230,3 @@ async def test_delete_cost_element_type(client: AsyncClient, override_auth: None
     # Verify 404 on get
     get_resp = await client.get(f"/api/v1/cost-element-types/{type_id}")
     assert get_resp.status_code == 404
-

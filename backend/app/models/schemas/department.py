@@ -12,7 +12,9 @@ class DepartmentBase(BaseModel):
     name: str = Field(..., max_length=255, description="Department display name")
     manager_id: UUID | None = Field(None, description="UUID of the department manager")
     is_active: bool = Field(True, description="Whether the department is active")
-    description: str | None = Field(None, max_length=5000, description="Department description")
+    description: str | None = Field(
+        None, max_length=5000, description="Department description"
+    )
 
 
 class DepartmentCreate(DepartmentBase):

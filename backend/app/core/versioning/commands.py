@@ -35,7 +35,9 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
 
     actor_id: UUID
 
-    def __init__(self, entity_class: type[TVersionable], root_id: UUID, actor_id: UUID) -> None:
+    def __init__(
+        self, entity_class: type[TVersionable], root_id: UUID, actor_id: UUID
+    ) -> None:
         self.entity_class = entity_class
         self.root_id = root_id
         self.actor_id = actor_id
@@ -53,11 +55,11 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
         class_name = self.entity_class.__name__
         if class_name.endswith("Version"):
             class_name = class_name[:-7]  # Remove "version" suffix
-        
+
         # CamelCase to snake_case
         s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", class_name)
         snake_name = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
-        
+
         return f"{snake_name}_id"
 
     async def _close_version(
@@ -86,7 +88,7 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
 
         result = await session.execute(stmt)
 
-        if result.rowcount == 0:
+        if cast(Any, result).rowcount == 0:
             raise RuntimeError(
                 f"Concurrency Error: Failed to close version {version.id}. Row not updated."
             )
@@ -111,13 +113,12 @@ class CreateVersionCommand(VersionedCommandABC[TVersionable]):
     async def execute(self, session: AsyncSession) -> TVersionable:
         """Create new version with open-ended valid_time."""
         version = cast(Any, self.entity_class)(
-            created_by=self.actor_id,
-            **self.fields
+            created_by=self.actor_id, **self.fields
         )  # Model should handle TSTZRANGE defaults
         session.add(version)
         await session.flush()
         await session.refresh(version)
-        return version
+        return cast(TVersionable, version)
 
 
 class UpdateVersionCommand(VersionedCommandABC[TVersionable]):

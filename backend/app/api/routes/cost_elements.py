@@ -36,7 +36,9 @@ async def read_cost_elements(
     per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch to query"),
     wbe_id: UUID | None = Query(None, description="Filter by WBE ID"),
-    cost_element_type_id: UUID | None = Query(None, description="Filter by Cost Element Type ID"),
+    cost_element_type_id: UUID | None = Query(
+        None, description="Filter by Cost Element Type ID"
+    ),
     search: str | None = Query(None, description="Search term (code, name)"),
     filters: str | None = Query(
         None,
@@ -153,7 +155,7 @@ async def update_cost_element(
         # But we might want to 404 if it doesn't exist in source either.
         # Service update logic: "If version not found in target branch -> Fork from main".
         # If not in main -> ValueError.
-        
+
         return await service.update(
             cost_element_id=cost_element_id,
             element_in=element_in,
@@ -180,13 +182,15 @@ async def delete_cost_element(
     try:
         item = await service.get_by_id(cost_element_id, branch=branch)
         if not item:
-             raise HTTPException(
+            raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Cost Element not found in branch {branch}",
             )
 
         await service.soft_delete(
-            cost_element_id=cost_element_id, actor_id=current_user.user_id, branch=branch
+            cost_element_id=cost_element_id,
+            actor_id=current_user.user_id,
+            branch=branch,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -203,7 +207,7 @@ async def get_cost_element_history(
     service: CostElementService = Depends(get_cost_element_service),
 ) -> Sequence[CostElement]:
     """Get full version history for a cost element across all branches."""
-    # TODO: History might need branch filtering too? 
+    # TODO: History might need branch filtering too?
     # TemporalService.get_history gets ALL versions by root_id.
     # This is correct for "history view".
     return await service.get_history(cost_element_id)

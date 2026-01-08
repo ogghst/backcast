@@ -35,7 +35,9 @@ async def test_create_branch_command_no_active_version(db_session: AsyncSession)
     root_id = uuid4()
     actor_id = uuid4()
 
-    cmd = CreateBranchCommand(Project, root_id, actor_id, new_branch="feat/x", from_branch="main")
+    cmd = CreateBranchCommand(
+        Project, root_id, actor_id, new_branch="feat/x", from_branch="main"
+    )
     with pytest.raises(ValueError, match="No active version on branch"):
         await cmd.execute(db_session)
 
@@ -46,7 +48,9 @@ async def test_update_command_no_active_version(db_session: AsyncSession):
     root_id = uuid4()
     actor_id = uuid4()
 
-    cmd = UpdateCommand(Project, root_id, actor_id, updates={"name": "Update"}, branch="main")
+    cmd = UpdateCommand(
+        Project, root_id, actor_id, updates={"name": "Update"}, branch="main"
+    )
     with pytest.raises(ValueError, match="No active version on branch"):
         await cmd.execute(db_session)
 
@@ -58,7 +62,11 @@ async def test_merge_branch_command_missing_source(db_session: AsyncSession):
     actor_id = uuid4()
 
     cmd = MergeBranchCommand(
-        Project, root_id, actor_id, source_branch="feature/missing", target_branch="main"
+        Project,
+        root_id,
+        actor_id,
+        source_branch="feature/missing",
+        target_branch="main",
     )
     with pytest.raises(ValueError, match="Source branch .* not found"):
         await cmd.execute(db_session)
@@ -71,7 +79,13 @@ async def test_merge_branch_command_missing_target(db_session: AsyncSession):
     actor_id = uuid4()
 
     # Create source manually so it passes first check
-    project = Project(project_id=root_id, code="PROJ-MERGE-SRC", name="Src", branch="feature/exists", created_by=actor_id)
+    project = Project(
+        project_id=root_id,
+        code="PROJ-MERGE-SRC",
+        name="Src",
+        branch="feature/exists",
+        created_by=actor_id,
+    )
     db_session.add(project)
     await db_session.flush()
 
@@ -100,7 +114,13 @@ async def test_revert_command_no_target_version(db_session: AsyncSession):
     actor_id = uuid4()
 
     # Create orphan version (no parent)
-    project = Project(project_id=root_id, code="PROJ-ORPHAN", name="Orphan", branch="main", created_by=actor_id)
+    project = Project(
+        project_id=root_id,
+        code="PROJ-ORPHAN",
+        name="Orphan",
+        branch="main",
+        created_by=actor_id,
+    )
     db_session.add(project)
     await db_session.flush()
 
@@ -117,7 +137,13 @@ async def test_temporal_service_base_methods(db_session: AsyncSession):
     actor_id = uuid4()
 
     # 1. Create dummy data directly (service.create is not implemented)
-    p1 = Project(project_id=root_id, code="PROJ-SERVICE", name="Test Service", branch="main", created_by=actor_id)
+    p1 = Project(
+        project_id=root_id,
+        code="PROJ-SERVICE",
+        name="Test Service",
+        branch="main",
+        created_by=actor_id,
+    )
     db_session.add(p1)
     await db_session.flush()
     await db_session.refresh(p1)

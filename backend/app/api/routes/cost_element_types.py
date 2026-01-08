@@ -57,7 +57,7 @@ async def read_cost_element_types(
         legacy_filters["department_id"] = department_id
 
     skip = (page - 1) * per_page
-    
+
     # Assuming the service might need updates too, but let's check it
     # For now, we'll just use what it has or return (items, total) if it supports it
     # Actually, let's check the service.
@@ -95,9 +95,7 @@ async def create_cost_element_type(
 ) -> CostElementType:
     """Create a new cost element type."""
     try:
-        return await service.create(
-            type_in=type_in, actor_id=current_user.user_id
-        )
+        return await service.create(type_in=type_in, actor_id=current_user.user_id)
     except Exception as e:
         # Catch generic errors for now, ideally specific expected exceptions
         raise HTTPException(
@@ -146,7 +144,7 @@ async def update_cost_element_type(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Cost Element Type not found",
             )
-            
+
         return await service.update(
             cost_element_type_id=cost_element_type_id,
             type_in=type_in,
@@ -177,7 +175,7 @@ async def delete_cost_element_type(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Cost Element Type not found",
             )
-            
+
         await service.soft_delete(
             cost_element_type_id=cost_element_type_id, actor_id=current_user.user_id
         )

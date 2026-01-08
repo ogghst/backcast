@@ -18,7 +18,7 @@ from app.models.domain.department import Department
 from app.models.schemas.department import DepartmentCreate, DepartmentUpdate
 
 
-class DepartmentService(TemporalService[Department]):  # type: ignore[type-var]
+class DepartmentService(TemporalService[Department]):  # type: ignore[type-var,unused-ignore]
     """Service for Department entity operations.
 
     Extends TemporalService with department-specific methods like get_by_code.
@@ -41,12 +41,13 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var]
         sort_order: str = "asc",
     ) -> tuple[list[Department], int]:
         """Get departments with server-side search, filtering, and sorting.
-        
+
         Returns:
             Tuple of (list of departments, total count)
         """
-        from sqlalchemy import and_, func, or_
         from typing import Any, cast
+
+        from sqlalchemy import and_, func, or_
 
         from app.core.filtering import FilterParser
 
@@ -71,7 +72,7 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var]
             allowed_fields = ["code", "name"]
             parsed_filters = FilterParser.parse_filters(filter_string)
             filter_expressions = FilterParser.build_sqlalchemy_filters(
-                Department, parsed_filters, allowed_fields=allowed_fields
+                cast(Any, Department), parsed_filters, allowed_fields=allowed_fields
             )
             if filter_expressions:
                 stmt = stmt.where(and_(*filter_expressions))
@@ -119,7 +120,7 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var]
         dept_data["department_id"] = root_id
 
         cmd = CreateVersionCommand(
-            entity_class=Department,  # type: ignore[type-var]
+            entity_class=Department,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
             **dept_data,
@@ -132,7 +133,7 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var]
         """Update department using UpdateVersionCommand."""
         update_data = dept_in.model_dump(exclude_unset=True)
         cmd = UpdateVersionCommand(
-            entity_class=Department,  # type: ignore[type-var]
+            entity_class=Department,  # type: ignore[type-var,unused-ignore]
             root_id=department_id,
             actor_id=actor_id,
             **update_data,
@@ -142,7 +143,7 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var]
     async def delete_department(self, department_id: UUID, actor_id: UUID) -> None:
         """Soft delete department using SoftDeleteCommand."""
         cmd = SoftDeleteCommand(
-            entity_class=Department,  # type: ignore[type-var]
+            entity_class=Department,  # type: ignore[type-var,unused-ignore]
             root_id=department_id,
             actor_id=actor_id,
         )
