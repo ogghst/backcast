@@ -8,6 +8,7 @@ Quick reference for AI agents to find relevant architecture documents.
 | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Understand the overall system       | [`00-system-map.md`](00-system-map.md)                                                                                                                  |
 | Understand domain boundaries        | [`01-bounded-contexts.md`](01-bounded-contexts.md)                                                                                                      |
+| Write code (backend or frontend)    | [`coding-standards.md`](coding-standards.md) - Core principles, type safety, patterns, quality gates                                                    |
 | Work with versioning/branching      | [`backend/contexts/evcs-core/`](backend/contexts/evcs-core/)                                                                                            |
 | Implement API endpoints             | [`cross-cutting/api-conventions.md`](cross-cutting/api-conventions.md)                                                                                  |
 | Write database queries              | [`cross-cutting/database-strategy.md`](cross-cutting/database-strategy.md)                                                                              |

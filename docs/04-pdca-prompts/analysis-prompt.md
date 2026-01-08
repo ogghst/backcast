@@ -37,17 +37,21 @@ Before diving into solutions, ensure you understand:
 Gather context from multiple sources:
 
 1. **Read `docs/01-product-scope/` to understand:**
+
    - User stories related to the request
    - Business requirements and priorities
    - Domain concepts and terminology
 
 2. **Read `docs/02-architecture/` to understand:**
+
    - Bounded contexts involved
    - Existing patterns and conventions
+   - **Coding standards** (`coding-standards.md`): Core principles, type safety, quality requirements
    - Architectural constraints and decisions
    - Integration points
 
 3. **Analyze the existing codebase:**
+
    - **Backend**: Search for similar patterns, existing APIs, data models
    - **Frontend**: Find comparable UI components, state management patterns, routing
    - **Look for**: Reusable components, established conventions, technical debt
@@ -112,23 +116,29 @@ After presenting options, provide:
 ## Request Analysis: [User's Request Summary]
 
 ### Clarified Requirements
+
 [Restate requirements in your own words, highlighting any assumptions]
 
 ### Context Discovery Findings
+
 **Product Scope:**
+
 - Relevant user stories: [list]
 
 **Architecture Context:**
+
 - Bounded contexts involved: [list]
 - Existing patterns: [describe]
 
 **Codebase Analysis:**
 **Backend:**
+
 - Existing related APIs: [list files]
 - Data models: [list relevant models]
 - Similar patterns: [describe]
 
 **Frontend:**
+
 - Comparable components: [list files]
 - State management: [describe current approach]
 - Routing structure: [relevant routes]
@@ -173,12 +183,12 @@ After presenting options, provide:
 
 ## Comparison Summary
 
-| Criteria | Option 1 | Option 2 | Option 3 |
-|----------|----------|----------|----------|
-| Development Effort | [est.] | [est.] | [est.] |
-| UX Quality | [rating] | [rating] | [rating] |
-| Flexibility | [rating] | [rating] | [rating] |
-| Best For | [use case] | [use case] | [use case] |
+| Criteria           | Option 1   | Option 2   | Option 3   |
+| ------------------ | ---------- | ---------- | ---------- |
+| Development Effort | [est.]     | [est.]     | [est.]     |
+| UX Quality         | [rating]   | [rating]   | [rating]   |
+| Flexibility        | [rating]   | [rating]   | [rating]   |
+| Best For           | [use case] | [use case] | [use case] |
 
 ## Recommendation
 
@@ -192,6 +202,10 @@ After presenting options, provide:
 2. [Another clarifying question]
 3. [Priority/trade-off question]
 ```
+
+## Output file
+
+When the analysis is approved, prior to move to plan phase create an iteration folder in docs/03-project-plan/iterations with the followint naming convention: [YYYY-MM-DD-{title}], example: '2026-01-10-user-deletion-fix'.
 
 ## Key Principles
 

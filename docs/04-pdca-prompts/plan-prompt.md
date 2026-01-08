@@ -15,6 +15,7 @@ Analyze existing documentation for alignment:
 - **Documentation Guide** (`docs/00-meta/README.md`): How to read, write, and maintain documentation
 - **Product Scope** (`docs/01-product-scope/`): product vision, functional requirements
 - **Architecture** (`docs/02-architecture/`): Technical debt, constraints, system capabilities and gaps
+  - **Coding Standards** (`docs/02-architecture/coding-standards.md`): Core principles, type safety, backend/frontend patterns, quality gates
 - **Project Plan** (`docs/03-project-plan`): Epics, Sprints, User Stories, Recently completed work, current context, team velocity
 
 ### Codebase Analysis
@@ -29,6 +30,7 @@ Understand existing patterns:
 **Available MCP Tools for Analysis:**
 
 - **`context7`**: Query library documentation and usage patterns
+
   - Access official documentation for Python/TypeScript libraries
   - Research best practices for frameworks (FastAPI, React, etc.)
   - Validate implementation approaches against library conventions

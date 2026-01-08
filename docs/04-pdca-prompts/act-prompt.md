@@ -53,7 +53,7 @@ Identify patterns from this implementation that should be adopted codebase-wide:
 ### Actions if Standardizing
 
 - [ ] Update `docs/02-architecture/cross-cutting/` with new pattern
-- [ ] Update coding standards
+- [ ] Update coding standards (`docs/02-architecture/coding-standards.md`)
 - [ ] Create examples/templates
 - [ ] Schedule training session (if complex)
 - [ ] Add to code review checklist

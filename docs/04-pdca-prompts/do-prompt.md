@@ -1,6 +1,7 @@
 # DO Phase: TDD Implementation with Daily Tracking
 
 ## Purpose
+
 Execute approved implementation using strict TDD methodology while logging progress, decisions, and deviations.
 
 ---
@@ -43,8 +44,8 @@ Execute approved implementation using strict TDD methodology while logging progr
 
 After completing each logical component (3-5 test cycles):
 
-> [!IMPORTANT]
-> **Human Review Checkpoint**: Pause and present:
+> [!IMPORTANT] > **Human Review Checkpoint**: Pause and present:
+>
 > - Tests written and their purpose
 > - Code coverage of current increment
 > - Design decisions or trade-offs made
@@ -56,6 +57,12 @@ After completing each logical component (3-5 test cycles):
 
 ## Large Codebase Considerations
 
+- **Follow coding standards** (`docs/02-architecture/coding-standards.md`):
+  - Strict typing: No `Any`/`any` types
+  - Pydantic V2 strict mode for all schemas
+  - Separate logic from view (frontend)
+  - Early returns to avoid deep nesting
+  - Pure functions with isolated side effects
 - Maintain consistent patterns with existing code (naming, error handling, logging)
 - Use existing utilities and helpers rather than creating duplicates
 - Ensure new code integrates cleanly with dependency injection patterns
@@ -78,35 +85,41 @@ After completing each logical component (3-5 test cycles):
 ### Date: YYYY-MM-DD
 
 **Work Completed:**
+
 - Specific changes made
 - Files modified with brief descriptions
 - Tests added (list test names)
 - Coverage changes
 
 **Technical Decisions Made:**
+
 - Decision description
 - Reasoning behind decision
 - Alternatives considered
 - Impact on architecture
 
 **Deviations from Plan:**
+
 - What changed from original plan?
 - Why did it change?
 - Impact on timeline/scope
 - Approval obtained (if significant)
 
 **Blockers and Challenges:**
+
 - What's blocking progress?
 - Attempted solutions
 - Help needed
 - Resolution timeline
 
 **Tomorrow's Focus:**
+
 - Next test to write
 - Component to implement
 - Preparations needed
 
 **Integration Points:**
+
 - Related PRs (link)
 - Architecture decisions referenced (link to ADRs)
 - Architecture docs needing updates
@@ -118,6 +131,7 @@ After completing each logical component (3-5 test cycles):
 Continuously update: `docs/03-project-plan/iterations/YYYY-MM-name/02-do.md`
 
 Append daily entries chronologically. Keep running totals of:
+
 - Tests written: X
 - Files modified: Y
 - Coverage change: +/- Z%
