@@ -115,7 +115,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
             try:
                 await session.execute(
                     text(
-                        "TRUNCATE TABLE wbes, projects, departments, users RESTART IDENTITY CASCADE"
+                        "TRUNCATE TABLE cost_elements, cost_element_types, wbes, projects, departments, users RESTART IDENTITY CASCADE"
                     )
                 )
                 await session.commit()

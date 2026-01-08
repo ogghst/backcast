@@ -2,6 +2,7 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
 
 from app.api.dependencies.auth import (
@@ -64,7 +65,7 @@ def override_auth() -> Any:
     app.dependency_overrides = {}
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def setup_dependencies(client: AsyncClient) -> dict[str, Any]:
     """Setup dependencies: Project, WBE, Department, CostElementType."""
     # 1. Department
@@ -208,7 +209,7 @@ async def test_list_filtering(
     # List by WBE
     res = await client.get(f"/api/v1/cost-elements?wbe_id={deps['wbe_id']}")
     assert res.status_code == 200
-    assert len(res.json()) >= 1
+    assert len(res.json()["items"]) >= 1
 
 
 @pytest.mark.asyncio

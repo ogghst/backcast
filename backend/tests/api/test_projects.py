@@ -139,8 +139,8 @@ async def test_get_projects(
 
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 3
-    assert any(p["code"] == "PRJ-000" for p in data)
+    assert len(data["items"]) == 3
+    assert any(p["code"] == "PRJ-000" for p in data["items"])
 
 
 @pytest.mark.asyncio
@@ -218,7 +218,7 @@ async def test_delete_project(
 
     # Verify project is not in list
     list_response = await client.get("/api/v1/projects")
-    projects = list_response.json()
+    projects = list_response.json()["items"]
     assert not any(p["code"] == "DEL-001" for p in projects)
 
 
@@ -278,15 +278,15 @@ async def test_get_projects_with_pagination(
         )
 
     # Get first page
-    response = await client.get("/api/v1/projects?skip=0&limit=2")
+    response = await client.get("/api/v1/projects?page=1&per_page=2")
     assert response.status_code == 200
-    page1 = response.json()
+    page1 = response.json()["items"]
     assert len(page1) == 2
 
     # Get second page
-    response = await client.get("/api/v1/projects?skip=2&limit=2")
+    response = await client.get("/api/v1/projects?page=2&per_page=2")
     assert response.status_code == 200
-    page2 = response.json()
+    page2 = response.json()["items"]
     assert len(page2) == 2
 
     # Verify different projects

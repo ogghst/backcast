@@ -124,7 +124,7 @@ async def test_get_cost_element_types(
     response = await client.get("/api/v1/cost-element-types")
 
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["items"]
     # Note: DB might contain other types from other tests, so we check inclusion
     assert len(data) >= 3
     assert any(t["code"] == "TYPE-0" for t in data)
@@ -224,7 +224,7 @@ async def test_delete_cost_element_type(
 
     # Verify not in list
     list_resp = await client.get("/api/v1/cost-element-types")
-    types = list_resp.json()
+    types = list_resp.json()["items"]
     assert not any(t["cost_element_type_id"] == type_id for t in types)
 
     # Verify 404 on get
