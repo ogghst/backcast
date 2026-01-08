@@ -34,7 +34,7 @@ class PaginatedResponse(BaseModel, Generic[T]):
     items: list[T] = Field(description="List of items for current page")
     total: int = Field(description="Total count of items matching filters")
     page: int = Field(ge=1, description="Current page number (1-indexed)")
-    per_page: int = Field(ge=1, le=100, description="Number of items per page")
+    per_page: int = Field(ge=1, description="Number of items per page")
 
     @property
     def pages(self) -> int:

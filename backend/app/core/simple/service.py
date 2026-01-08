@@ -33,7 +33,7 @@ class SimpleService[TSimple: SimpleEntityProtocol]:
         """Get entity by ID."""
         return await self.session.get(self.entity_class, entity_id)
 
-    async def list_all(self, skip: int = 0, limit: int = 100) -> list[TSimple]:
+    async def list_all(self, skip: int = 0, limit: int = 100000) -> list[TSimple]:
         """List entities with pagination."""
         stmt = select(self.entity_class).offset(skip).limit(limit)
         result = await self.session.execute(stmt)

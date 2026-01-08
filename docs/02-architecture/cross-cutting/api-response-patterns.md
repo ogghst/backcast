@@ -351,7 +351,7 @@ from app.models.schemas.common import PaginatedResponse
 @router.get("", response_model=None)
 async def read_entities(
     page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
+    per_page: int = Query(20, ge=1),
     search: str | None = None,
     filters: str | None = None,
     sort_field: str | None = None,
@@ -385,7 +385,7 @@ async def read_entities(
 @router.get("", response_model=list[EntityRead])
 async def read_entities(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
+    limit: int = Query(100, ge=1),
     service: EntityService = Depends(get_service),
 ) -> Sequence[Entity]:
     # Service returns tuple, unpack and return only items

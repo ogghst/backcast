@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -32,7 +33,7 @@ def get_department_service(
 )
 async def read_departments(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
-    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    per_page: int = Query(20, ge=1, description="Items per page"),
     search: str | None = Query(None, description="Search term (code, name)"),
     filters: str | None = Query(
         None,
@@ -45,7 +46,7 @@ async def read_departments(
         description="Sort order (asc or desc)",
     ),
     service: DepartmentService = Depends(get_department_service),
-) -> dict:
+) -> dict[str, Any]:
     """Retrieve departments with server-side features. Requires read permission."""
     from app.models.schemas.common import PaginatedResponse
 

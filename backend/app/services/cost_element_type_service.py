@@ -32,7 +32,7 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
 
     async def create(
         self, type_in: CostElementTypeCreate, actor_id: UUID
-    ) -> CostElementType:
+    ) -> CostElementType:  # type: ignore[override]
         """Create new cost element type using CreateVersionCommand."""
         type_data = type_in.model_dump()
 
@@ -53,17 +53,17 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         cost_element_type_id: UUID,
         type_in: CostElementTypeUpdate,
         actor_id: UUID,
-    ) -> CostElementType:
+    ) -> CostElementType:  # type: ignore[override]
         """Update cost element type using UpdateVersionCommand."""
         update_data = type_in.model_dump(exclude_unset=True)
         
         # Custom command class to handle multi-word entity name
-        class CostElementTypeUpdateCommand(UpdateVersionCommand):  # type: ignore[type-var]
+        class CostElementTypeUpdateCommand(UpdateVersionCommand[CostElementType]):
             def _root_field_name(self) -> str:
                 return "cost_element_type_id"
         
         cmd = CostElementTypeUpdateCommand(
-            entity_class=CostElementType,  # type: ignore[type-var]
+            entity_class=CostElementType,
             root_id=cost_element_type_id,
             actor_id=actor_id,
             **update_data,
@@ -74,12 +74,12 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         self, cost_element_type_id: UUID, actor_id: UUID
     ) -> None:
         """Soft delete cost element type using SoftDeleteCommand."""
-        class CostElementTypeSoftDeleteCommand(SoftDeleteCommand):  # type: ignore[type-var]
+        class CostElementTypeSoftDeleteCommand(SoftDeleteCommand[CostElementType]):
             def _root_field_name(self) -> str:
                 return "cost_element_type_id"
         
         cmd = CostElementTypeSoftDeleteCommand(
-            entity_class=CostElementType,  # type: ignore[type-var]
+            entity_class=CostElementType,
             root_id=cost_element_type_id,
             actor_id=actor_id,
         )
@@ -104,7 +104,7 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         self,
         filters: dict | None = None,
         skip: int = 0,
-        limit: int = 100,
+        limit: int = 100000,
         search: str | None = None,
         filter_string: str | None = None,
         sort_field: str | None = None,
@@ -138,7 +138,7 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
             allowed_fields = ["code", "name"]
             parsed_filters = FilterParser.parse_filters(filter_string)
             filter_expressions = FilterParser.build_sqlalchemy_filters(
-                CostElementType, parsed_filters, allowed_fields=allowed_fields
+                cast(Any, CostElementType), parsed_filters, allowed_fields=allowed_fields
             )
             if filter_expressions:
                 stmt = stmt.where(and_(*filter_expressions))
@@ -164,7 +164,7 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         return list(result.scalars().all()), total
 
     async def list(
-        self, filters: dict | None = None, skip: int = 0, limit: int = 100
+        self, filters: dict[str, Any] | None = None, skip: int = 0, limit: int = 100000
     ) -> list[CostElementType]:
         """Legacy list method (backward compatibility)."""
         items, _ = await self.get_cost_element_types(filters=filters, skip=skip, limit=limit)

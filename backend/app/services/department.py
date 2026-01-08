@@ -34,7 +34,7 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var]
     async def get_departments(
         self,
         skip: int = 0,
-        limit: int = 100,
+        limit: int = 100000,
         search: str | None = None,
         filter_string: str | None = None,
         sort_field: str | None = None,

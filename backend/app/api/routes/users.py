@@ -28,7 +28,7 @@ router = APIRouter()
 )
 async def read_users(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
+    limit: int = Query(100, ge=1),
     service: UserService = Depends(get_user_service),
 ) -> Sequence[User]:
     """

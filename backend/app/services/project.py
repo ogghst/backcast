@@ -31,7 +31,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var]
     async def get_projects(
         self,
         skip: int = 0,
-        limit: int = 100,
+        limit: int = 100000,
         branch: str = "main",
         search: str | None = None,
         filters: str | None = None,

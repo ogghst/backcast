@@ -421,7 +421,7 @@ class ProjectService(TemporalService[Project, ProjectRead, ProjectCreate, Projec
 @router.get("/", response_model=PaginatedResponse[ProjectRead])
 async def list_projects(
     page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
+    per_page: int = Query(20, ge=1),
     search: Optional[str] = Query(None, description="Search term (code, name)"),
     filters: Optional[str] = Query(
         None,

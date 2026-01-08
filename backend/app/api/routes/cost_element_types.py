@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -32,7 +33,7 @@ def get_cost_element_type_service(
 )
 async def read_cost_element_types(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
-    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    per_page: int = Query(20, ge=1, description="Items per page"),
     department_id: UUID | None = Query(None, description="Filter by Department ID"),
     search: str | None = Query(None, description="Search term (code, name)"),
     filters: str | None = Query(
@@ -46,7 +47,7 @@ async def read_cost_element_types(
         description="Sort order (asc or desc)",
     ),
     service: CostElementTypeService = Depends(get_cost_element_type_service),
-) -> dict:
+) -> dict[str, Any]:
     """Retrieve cost element types with server-side features."""
     from app.models.schemas.common import PaginatedResponse
     from app.models.schemas.cost_element_type import CostElementTypeRead

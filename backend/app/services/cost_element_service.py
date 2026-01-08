@@ -1,7 +1,7 @@
 """Cost Element Service - branchable entity management."""
 
 import builtins
-from typing import Any, cast
+from typing import Any, Sequence, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
@@ -67,7 +67,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             .outerjoin(type_subq, CostElement.cost_element_type_id == type_subq.c.cost_element_type_id)
         )
 
-    async def _resolve_relations(self, query_results: list[Any]) -> list[CostElement]:
+    async def _resolve_relations(self, query_results: Sequence[Any]) -> list[CostElement]:
         """Helper to resolve related names for a list of results."""
         resolved = []
         for item in query_results:
@@ -96,7 +96,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         element_in: CostElementCreate,
         actor_id: UUID,
         branch: str = "main",
-    ) -> CostElement:
+    ) -> CostElement:  # type: ignore[override]
         """Create new cost element using CreateVersionCommand."""
         element_data = element_in.model_dump()
 
@@ -119,7 +119,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         element_in: CostElementUpdate,
         actor_id: UUID,
         branch: str = "main",
-    ) -> CostElement:
+    ) -> CostElement:  # type: ignore[override]
         """Update cost element using UpdateVersionCommand or Fork if new branch."""
         update_data = element_in.model_dump(exclude_unset=True)
         update_data["branch"] = branch
@@ -132,7 +132,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             # Linear update in same branch: Close old, Open new
 
             # Custom command class to handle multi-word entity name AND branch filtering
-            class CostElementUpdateCommand(UpdateVersionCommand):  # type: ignore[type-var]
+            class CostElementUpdateCommand(UpdateVersionCommand[CostElement]):
                 def __init__(self, entity_class, root_id, actor_id, branch="main", **updates):
                     super().__init__(entity_class, root_id, actor_id, **updates)
                     self.branch = branch
@@ -209,7 +209,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         """Soft delete cost element using SoftDeleteCommand."""
 
         # Custom command class
-        class CostElementSoftDeleteCommand(SoftDeleteCommand):  # type: ignore[type-var]
+        class CostElementSoftDeleteCommand(SoftDeleteCommand[CostElement]):
             def __init__(self, entity_class, root_id, actor_id, branch="main"):
                 super().__init__(entity_class, root_id, actor_id)
                 self.branch = branch
@@ -234,7 +234,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                 return result.scalar_one_or_none()
 
         cmd = CostElementSoftDeleteCommand(
-            entity_class=CostElement,  # type: ignore[type-var]
+            entity_class=CostElement,
             root_id=cost_element_id,
             actor_id=actor_id,
             branch=branch,
@@ -265,7 +265,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         filters: dict | None = None,
         branch: str = "main",
         skip: int = 0,
-        limit: int = 100,
+        limit: int = 100000,
         search: str | None = None,
         filter_string: str | None = None,
         sort_field: str | None = None,
@@ -336,7 +336,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
 
             parsed_filters = FilterParser.parse_filters(filter_string)
             filter_expressions = FilterParser.build_sqlalchemy_filters(
-                CostElement, parsed_filters, allowed_fields=allowed_fields
+                cast(Any, CostElement), parsed_filters, allowed_fields=allowed_fields
             )
             if filter_expressions:
                 stmt = stmt.where(and_(*filter_expressions))
@@ -371,7 +371,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         return cost_elements, total
 
     async def list(
-        self, filters: dict | None = None, branch: str = "main", skip: int = 0, limit: int = 100
+        self, filters: dict[str, Any] | None = None, branch: str = "main", skip: int = 0, limit: int = 100000
     ) -> list[CostElement]:
         """Alias for get_cost_elements() to maintain backward compatibility.
         

@@ -4,7 +4,7 @@ import type {
   CostElementRead,
   CostElementCreate,
   CostElementUpdate,
-  WbeRead,
+  WBERead,
   CostElementTypeRead,
 } from "@/api/generated";
 import { WbEsService, CostElementTypesService } from "@/api/generated";
@@ -33,7 +33,7 @@ export const CostElementModal = ({
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
 
-  const [wbes, setWbes] = useState<WbeRead[]>([]);
+  const [wbes, setWbes] = useState<WBERead[]>([]);
   const [types, setTypes] = useState<CostElementTypeRead[]>([]);
   const [loadingOpts, setLoadingOpts] = useState(false);
 
@@ -53,11 +53,19 @@ export const CostElementModal = ({
         try {
           setLoadingOpts(true);
           const [wbeRes, typeRes] = await Promise.all([
-            WbEsService.getWbes(0, 1000),
-            CostElementTypesService.getCostElementTypes(0, 1000),
+            WbEsService.getWbes(1, 100000), // Fetch up to 100k for dropdown
+            CostElementTypesService.getCostElementTypes(1, 100000), // Fetch up to 100k for dropdown
           ]);
-          setWbes(wbeRes);
-          setTypes(typeRes);
+
+          const wbeItems = Array.isArray(wbeRes)
+            ? wbeRes
+            : (wbeRes as any).items || [];
+          const typeItems = Array.isArray(typeRes)
+            ? typeRes
+            : (typeRes as any).items || [];
+
+          setWbes(wbeItems);
+          setTypes(typeItems);
         } catch (e) {
           console.error("Error fetching options:", e);
         } finally {

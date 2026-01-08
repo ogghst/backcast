@@ -105,7 +105,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_all(self, skip: int = 0, limit: int = 100) -> list[TVersionable]:
+    async def get_all(self, skip: int = 0, limit: int = 100000) -> list[TVersionable]:
         """Get all entities (current versions) with pagination.
 
         Filters by upper(valid_time) IS NULL (open-ended) and deleted_at IS NULL.

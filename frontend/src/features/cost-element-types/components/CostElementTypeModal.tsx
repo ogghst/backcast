@@ -40,8 +40,8 @@ export const CostElementTypeModal = ({
       const fetchDepts = async () => {
         try {
           setLoadingDepts(true);
-          // Fetch all departments (limit 100 for dropdown)
-          const res = await DepartmentsService.getDepartments(1, 100);
+          // Fetch all departments (limit 100k for dropdown)
+          const res = await DepartmentsService.getDepartments(1, 100000);
           const items = Array.isArray(res) ? res : (res as any).items || [];
           setDepartments(items);
         } catch (err) {

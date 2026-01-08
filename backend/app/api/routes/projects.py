@@ -1,6 +1,7 @@
 """Project API routes with RBAC."""
 
 from collections.abc import Sequence
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -34,7 +35,7 @@ def get_project_service(
 )
 async def read_projects(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
-    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch name"),
     search: str | None = Query(None, description="Search term (code, name)"),
     filters: str | None = Query(
@@ -49,7 +50,7 @@ async def read_projects(
         description="Sort order (asc or desc)",
     ),
     service: ProjectService = Depends(get_project_service),
-) -> dict:
+) -> dict[str, Any]:
     """Retrieve projects with server-side search, filtering, and sorting.
 
     Supports:

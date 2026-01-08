@@ -110,7 +110,7 @@ class CreateVersionCommand(VersionedCommandABC[TVersionable]):
 
     async def execute(self, session: AsyncSession) -> TVersionable:
         """Create new version with open-ended valid_time."""
-        version = self.entity_class(
+        version = cast(Any, self.entity_class)(
             created_by=self.actor_id,
             **self.fields
         )  # Model should handle TSTZRANGE defaults

@@ -7,6 +7,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -186,7 +187,7 @@ class DataSeeder:
         actor_id = uuid4()
         
         # Cache for departments
-        dept_cache = {}
+        dept_cache: dict[str, UUID] = {}
 
         for idx, item in enumerate(ce_type_data):
             try:
@@ -297,8 +298,8 @@ class DataSeeder:
         actor_id = uuid4()
         
         # Caches to avoid repetitive lookups
-        proj_cache = {}  # code -> uuid
-        wbe_cache = {}   # code -> uuid (root id of WBE)
+        proj_cache: dict[str, UUID] = {}  # code -> uuid
+        wbe_cache: dict[str, UUID] = {}   # code -> uuid (root id of WBE)
 
         for idx, item in enumerate(wbe_data):
             try:

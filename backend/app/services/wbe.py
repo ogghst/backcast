@@ -3,7 +3,7 @@
 Provides WBE-specific operations with parent-child project relationship.
 """
 
-from typing import Any
+from typing import Any, Sequence
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -21,7 +21,7 @@ from app.models.domain.wbe import WBE
 from app.models.schemas.wbe import WBECreate, WBEUpdate
 
 
-class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
+class WBEService(TemporalService[WBE]):
     """Service for WBE entity operations.
 
     Extends TemporalService with WBE-specific methods including
@@ -31,7 +31,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(WBE, session)
 
-    async def _resolve_parent_names(self, query_results: list[Any]) -> list[WBE]:
+    async def _resolve_parent_names(self, query_results: Sequence[Any]) -> list[WBE]:
         """Helper to resolve parent names for a list of WBE results.
         
         Args:
@@ -86,7 +86,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
     async def get_wbes(
         self,
         skip: int = 0,
-        limit: int = 100,
+        limit: int = 100000,
         branch: str = "main",
         search: str | None = None,
         filters: str | None = None,
@@ -141,7 +141,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
 
             parsed_filters = FilterParser.parse_filters(filters)
             filter_expressions = FilterParser.build_sqlalchemy_filters(
-                WBE, parsed_filters, allowed_fields=allowed_fields
+                cast(Any, WBE), parsed_filters, allowed_fields=allowed_fields
             )
             if filter_expressions:
                 stmt = stmt.where(and_(*filter_expressions))
@@ -269,7 +269,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
         wbe_data["wbe_id"] = root_id
 
         cmd = CreateVersionCommand(
-            entity_class=WBE,  # type: ignore[type-var]
+            entity_class=WBE,
             root_id=root_id,
             actor_id=actor_id,
             **wbe_data,
@@ -317,7 +317,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var]
         # Soft-delete all descendants first (bottom-up to avoid FK issues)
         for descendant in reversed(descendants):  # Reverse to delete deepest first
             cmd = SoftDeleteCommand(
-                entity_class=WBE,  # type: ignore[type-var]
+                entity_class=WBE,
                 root_id=descendant.wbe_id,
                 actor_id=actor_id,
             )

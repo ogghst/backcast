@@ -1,6 +1,7 @@
 """WBE API routes with RBAC."""
 
 from collections.abc import Sequence
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -35,7 +36,7 @@ def get_wbe_service(
 )
 async def read_wbes(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
-    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    per_page: int = Query(20, ge=1, description="Items per page"),
     project_id: UUID | None = Query(None, description="Filter by project ID"),
     parent_wbe_id: str | None = Query(None, description="Filter by parent WBE ID (use 'null' string for root WBEs)"),
     branch: str = Query("main", description="Branch name"),
@@ -52,7 +53,7 @@ async def read_wbes(
         description="Sort order (asc or desc)",
     ),
     service: WBEService = Depends(get_wbe_service),
-) -> dict | Sequence[WBE]:
+) -> dict[str, Any] | Sequence[WBE]:
     """Retrieve WBEs with server-side search, filtering, and sorting.
     
     Supports two modes:
@@ -241,7 +242,7 @@ async def delete_wbe(
 async def read_wbe_breadcrumb(
     wbe_id: UUID,
     service: WBEService = Depends(get_wbe_service),
-) -> dict:
+) -> dict[str, Any]:
     """Get breadcrumb trail for a WBE (project + ancestor path). Requires read permission."""
     try:
         return await service.get_breadcrumb(wbe_id)

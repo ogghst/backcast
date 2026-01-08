@@ -164,8 +164,8 @@ export const CostElementManagement = ({
     const fetchData = async () => {
       try {
         const [wbesRes, typesRes] = await Promise.all([
-          WbEsService.getWbes(0, 1000),
-          CostElementTypesService.getCostElementTypes(0, 1000),
+          WbEsService.getWbes(1, 1000),
+          CostElementTypesService.getCostElementTypes(1, 1000),
         ]);
         // Unwrap paginated responses
         const w = Array.isArray(wbesRes)
