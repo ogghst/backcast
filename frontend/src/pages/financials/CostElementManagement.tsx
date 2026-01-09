@@ -133,11 +133,16 @@ interface CostElementManagementProps {
   wbeName?: string;
 }
 
+import { CostElementFilters } from "@/types/filters";
+
 export const CostElementManagement = ({
   wbeId,
   wbeName,
 }: CostElementManagementProps) => {
-  const { tableParams, handleTableChange, handleSearch } = useTableParams();
+  const { tableParams, handleTableChange, handleSearch } = useTableParams<
+    CostElementRead,
+    CostElementFilters
+  >();
   const [currentBranch, setCurrentBranch] = useState("main");
 
   // Build query params, including wbeId filter if provided

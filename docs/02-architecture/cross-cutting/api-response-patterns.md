@@ -189,16 +189,25 @@ list: async (params) => {
 
 ```typescript
 // ProjectList.tsx
+import { ProjectFilters } from "@/types/filters";
+
+// Use generic hook for strict type safety
+const { tableParams, handleTableChange } = useTableParams<
+  ProjectRead,
+  ProjectFilters
+>();
+
 const { data, isLoading } = useProjects(tableParams);
 const projects = data?.items || [];
 const total = data?.total || 0;
 
 return (
-  <StandardTable
+  <StandardTable<ProjectRead>
     tableParams={{
       ...tableParams,
       pagination: { ...tableParams.pagination, total },
     }}
+    onChange={handleTableChange}
     dataSource={projects}
     // ...
   />
@@ -239,7 +248,8 @@ return response;
 const getPaginationParams = (params?: {
   pagination?: { current?: number; pageSize?: number };
   search?: string;
-  filters?: Record<string, string[] | string>;
+  // Use Ant Design's compatible generic structure or specific Filter type
+  filters?: Record<string, (string | number | boolean)[] | null>;
   sorter?: { field?: string; order?: "ascend" | "descend" };
 }) => {
   const current = params?.pagination?.current || 1;
@@ -250,7 +260,10 @@ const getPaginationParams = (params?: {
   if (params?.filters) {
     const filterParts: string[] = [];
     Object.entries(params.filters).forEach(([key, value]) => {
-      if (value && value.length > 0) {
+      if (
+        value &&
+        (Array.isArray(value) ? value.length > 0 : value !== undefined)
+      ) {
         const values = Array.isArray(value) ? value : [value];
         filterParts.push(`${key}:${values.join(",")}`);
       }
@@ -258,18 +271,8 @@ const getPaginationParams = (params?: {
     filterString = filterParts.length > 0 ? filterParts.join(";") : undefined;
   }
 
-  // Convert Ant Design sorter to server format
-  const sortField = params?.sorter?.field;
-  const sortOrder = params?.sorter?.order === "descend" ? "desc" : "asc";
-
-  return {
-    page: current,
-    per_page: pageSize,
-    search: params?.search,
-    filters: filterString,
-    sort_field: sortField,
-    sort_order: sortOrder,
-  };
+  // ... rest of logic
+  return { ... };
 };
 ```
 

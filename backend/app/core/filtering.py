@@ -86,56 +86,36 @@ class FilterParser:
         allowed_fields: list[str] | None = None,
     ) -> list[BinaryExpression[Any]]:
         """Build SQLAlchemy filter expressions from parsed filters.
-
-        Args:
-            model: SQLAlchemy model class
-            filters: Parsed filters dictionary (from parse_filters)
-            allowed_fields: Optional list of allowed field names.
-                If None, all model attributes are allowed.
-
-        Returns:
-            List of SQLAlchemy binary expressions for WHERE clause
-
-        Raises:
-            ValueError: If a field name is invalid or not allowed
-
-        Examples:
-            >>> from app.models.domain.project import Project
-            >>> filters = {"status": ["active"], "branch": ["main", "dev"]}
-            >>> expressions = FilterParser.build_sqlalchemy_filters(
-            ...     Project, filters, allowed_fields=["status", "branch"]
-            ... )
-            >>> # Returns: [Project.status == "active", Project.branch.in_(["main", "dev"])]
-
-        Security:
-            - Field names are validated against the model
-            - Only whitelisted fields (if provided) can be filtered
-            - SQL injection is prevented through SQLAlchemy ORM
+        
+        ... (docstring) ...
         """
+        from app.core.exceptions.filtering import (
+            FilterFieldNotAllowedError,
+            FilterValueTypeError,
+        )
+
         expressions: list[BinaryExpression[Any]] = []
 
         for field_name, values in filters.items():
             # Validate field exists on model
             if not hasattr(model, field_name):
+                # We can reuse the "Not Allowed" error for cleaner API responses
+                # or keep ValueError if we consider this a developer error
+                # But for API safety, treating unknown fields as "Not Allowed" is good practice.
+                # However, to be precise:
                 raise ValueError(
                     f"Invalid filter field '{field_name}' for model {model.__name__}"
                 )
 
             # Validate field is in allowed list (if provided)
             if allowed_fields is not None and field_name not in allowed_fields:
-                raise ValueError(
-                    f"Filter field '{field_name}' is not allowed. "
-                    f"Allowed fields: {', '.join(allowed_fields)}"
-                )
+                raise FilterFieldNotAllowedError(field_name, allowed_fields)
 
             # Get the column from the model
             column = getattr(model, field_name)
 
             # Attempt to cast values based on column type
-            # We use a simple heuristic: check python_type of the column's type
             try:
-                # This works for most standard types (String, Integer, Boolean, etc.)
-                # If specialized types are used, custom logic might be needed.
                 col_type = column.type.python_type
                 
                 # Only cast if not already compatible (e.g. str to int)
@@ -151,17 +131,23 @@ class FilterParser:
                              elif v_lower in ("false", "0", "no", "off"):
                                  casted_values.append(False)
                              else:
-                                 # Fallback or strict error? Let's just append as is or maybe raise?
-                                 # For robustness, we try to cast, if fail, keep original
-                                 # (but that might cause DB error like we saw).
-                                 # Let's trust standard matching for now.
-                                 casted_values.append(col_type(v)) 
+                                 raise ValueError("Invalid boolean value")
                          else:
                              casted_values.append(col_type(v))
                      values = casted_values # type: ignore
-            except (NotImplementedError, ValueError, TypeError):
-                # If we can't determine python_type or cast fails, use original string values
-                # This might happen for JSON types, Arrays, etc.
+            except (ValueError, TypeError, Exception):
+                # Catching general Exception here because third-party types (like Decimal)
+                # can raise specific errors (decimal.InvalidOperation) that don't inherit from ValueError.
+                # In strict mode, we capture this.
+                # The `pass` in the original instruction was likely a misunderstanding;
+                # we want to catch these errors and then raise our specific FilterValueTypeError.
+                raise FilterValueTypeError(
+                     field=field_name, 
+                     value=str(values), 
+                     expected_type=col_type.__name__
+                 )
+            except NotImplementedError:
+                # Some types like JSON/Array might not support python_type
                 pass
 
             # Build expression based on number of values

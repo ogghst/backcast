@@ -29,13 +29,17 @@ import {
   useDeleteWBE,
 } from "@/features/wbes/api/useWBEs";
 
+import { WBEFilters } from "@/types/filters";
+
 interface WBEListProps {
   projectId?: string;
 }
 
 export const WBEList = ({ projectId }: WBEListProps) => {
-  const { tableParams, handleTableChange, handleSearch } =
-    useTableParams<WBERead>();
+  const { tableParams, handleTableChange, handleSearch } = useTableParams<
+    WBERead,
+    WBEFilters
+  >();
   const { data, isLoading, refetch } = useWBEs({
     ...tableParams,
     projectId,

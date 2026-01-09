@@ -105,4 +105,36 @@ describe("useTableParams", () => {
     expect(result.current.params.get("page")).toBe("1"); // Should reset page
     expect(result.current.tableParams.search).toBe("new search");
   });
+
+  it("should handle typed generic filters", () => {
+    interface TestEntity {
+      id: string;
+      status: string;
+    }
+    interface TestFilters extends Record<string, string[] | null> {
+      status: string[] | null;
+    }
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <MemoryRouter initialEntries={["/users"]}>{children}</MemoryRouter>
+    );
+
+    const { result } = renderHook(
+      () => useTableParams<TestEntity, TestFilters>(),
+      { wrapper }
+    );
+
+    act(() => {
+      // @ts-expect-error - 'invalidHelper' is not in TestFilters
+      // This test actually just verifies runtime behavior, but explicitly using generics
+      // helps ensure no compilation errors in the hook usage.
+      result.current.handleTableChange(
+        {},
+        { status: ["active"] }, // Valid filter
+        {}
+      );
+    });
+
+    expect(result.current.tableParams.filters?.status).toEqual(["active"]);
+  });
 });

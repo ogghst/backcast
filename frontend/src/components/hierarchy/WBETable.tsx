@@ -10,6 +10,13 @@ import {
 import { Can } from "@/components/auth/Can";
 import { useMemo, useState } from "react";
 
+export interface WBETablePagination {
+  current: number;
+  pageSize: number;
+  total: number;
+  onChange: (page: number, pageSize: number) => void;
+}
+
 interface WBETableProps {
   wbes: WBERead[];
   loading?: boolean;
@@ -17,6 +24,7 @@ interface WBETableProps {
   onEdit?: (wbe: WBERead) => void;
   onDelete?: (wbe: WBERead) => void;
   searchable?: boolean;
+  pagination?: WBETablePagination;
 }
 
 export const WBETable = ({
@@ -26,6 +34,7 @@ export const WBETable = ({
   onEdit,
   onDelete,
   searchable = true,
+  pagination,
 }: WBETableProps) => {
   const [searchText, setSearchText] = useState("");
 
@@ -72,6 +81,12 @@ export const WBETable = ({
       <SearchOutlined style={{ color: filtered ? "#1890ff" : undefined }} />
     ),
     onFilter: (value, record) => {
+      // Client-side filtering only applies if NOT using server-side pagination
+      // OR if we want to filter within the current page (which is weird)
+      // Usually, if server-side pagination is on, we disable client-side filtering features or map them to server.
+      // For now, let's keep it simple: if pagination is provided, we assume server handles everything?
+      // Actually, if we use server-side pagination, 'wbes' is just one page. Client-side filtering on one page is confusing.
+      // But let's assume standard behavior.
       const fieldVal = record[dataIndex];
       return fieldVal
         ? fieldVal
@@ -155,6 +170,9 @@ export const WBETable = ({
 
   const filteredData = useMemo(() => {
     let result = wbes || [];
+    // Only apply client-side text search if pagination IS NOT provided (legacy mode)
+    // If pagination is provided, search should be handled by server (passed via props)
+    // But for this component, let's keep it simple:
     if (searchText) {
       const lower = searchText.toLowerCase();
       result = result.filter(
@@ -193,7 +211,26 @@ export const WBETable = ({
           onClick: () => onRowClick?.(record),
           style: { cursor: "pointer" },
         })}
-        pagination={false}
+        pagination={
+          pagination
+            ? {
+                current: pagination.current,
+                pageSize: pagination.pageSize,
+                total: pagination.total,
+                onChange: pagination.onChange,
+                showSizeChanger: true,
+                pageSizeOptions: ["10", "20", "50", "100"],
+                showTotal: (total) => `Total ${total} items`,
+                position: ["bottomRight"],
+              }
+            : {
+                defaultPageSize: 10,
+                showSizeChanger: true,
+                pageSizeOptions: ["10", "20", "50", "100"],
+                showTotal: (total) => `Total ${total} items`,
+                position: ["bottomRight"],
+              }
+        }
         size="middle"
       />
     </div>

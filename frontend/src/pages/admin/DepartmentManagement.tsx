@@ -73,9 +73,13 @@ const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<
   DepartmentUpdate
 >("departments", departmentApi);
 
+import { DepartmentFilters } from "@/types/filters";
+
 export const DepartmentManagement = () => {
-  const { tableParams, handleTableChange, handleSearch } =
-    useTableParams<DepartmentRead>();
+  const { tableParams, handleTableChange, handleSearch } = useTableParams<
+    DepartmentRead,
+    DepartmentFilters
+  >();
   const { data: departments, isLoading, refetch } = useList(tableParams);
 
   const [modalOpen, setModalOpen] = useState(false);

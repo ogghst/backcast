@@ -19,19 +19,30 @@ import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { Can } from "@/components/auth/Can";
 
+import type { PaginatedResponse } from "@/types/api";
+
 // Create hooks instance
 const userApi = {
-  getUsers: async (params?: {
+  getUsers: async (_params?: {
     pagination?: { current?: number; pageSize?: number };
-  }) => {
-    // Adapt filters/pagination to backend skip/limit
-    // params comes from tableParams (pagination.current, pageSize)
-    const current = params?.pagination?.current || 1;
-    const pageSize = params?.pagination?.pageSize || 10;
-    const skip = (current - 1) * pageSize;
-    // Search/Filters support can be added here
-    const res = await UsersService.getUsers(skip, pageSize);
-    return Array.isArray(res) ? res : (res as { items: User[] }).items;
+  }): Promise<PaginatedResponse<User>> => {
+    // Fetch ALL users for client-side pagination and filtering
+    // We ignore the pagination params because Ant Design will handle pagination client-side
+    // This is acceptable for user management since user count is typically small (< 1000)
+    const allUsers = await UsersService.getUsers(0, 100000);
+
+    // Normalize response to PaginatedResponse
+    if (Array.isArray(allUsers)) {
+      return {
+        items: allUsers,
+        total: allUsers.length,
+        page: 1,
+        per_page: allUsers.length,
+      };
+    }
+
+    // If backend ever returns paginated response, use it directly
+    return allUsers as unknown as PaginatedResponse<User>;
   },
   getUser: (id: string) => UsersService.getUser(id) as Promise<User>,
   createUser: (data: CreateUserPayload) =>
@@ -44,13 +55,19 @@ const userApi = {
 const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<
   User,
   CreateUserPayload,
-  UpdateUserPayload
+  UpdateUserPayload,
+  PaginatedResponse<User>
 >("users", userApi);
 
+import { UserFilters } from "@/types/filters";
+
 export const UserList = () => {
-  const { tableParams, handleTableChange, handleSearch } =
-    useTableParams<User>();
-  const { data: users, isLoading, refetch } = useList(tableParams);
+  const { tableParams, handleTableChange, handleSearch } = useTableParams<
+    User,
+    UserFilters
+  >();
+  const { data, isLoading, refetch } = useList(tableParams);
+  const users = data?.items || [];
 
   const [modalOpen, setModalOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -248,7 +265,13 @@ export const UserList = () => {
   return (
     <div>
       <StandardTable<User>
-        tableParams={tableParams}
+        tableParams={{
+          ...tableParams,
+          pagination: {
+            ...tableParams.pagination,
+            total: filteredUsers.length,
+          },
+        }}
         onChange={handleTableChange}
         loading={isLoading}
         dataSource={filteredUsers}

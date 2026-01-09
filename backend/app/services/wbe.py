@@ -92,6 +92,8 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
         filters: str | None = None,
         sort_field: str | None = None,
         sort_order: str = "asc",
+        project_id: UUID | None = None,
+        parent_wbe_id: UUID | None = None,
     ) -> tuple[list[WBE], int]:
         """Get all WBEs with pagination, search, and filters.
 
@@ -104,6 +106,8 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
                      Example: "level:1,2;code:1.1"
             sort_field: Field name to sort by (e.g., "name", "code", "level")
             sort_order: Sort order, either "asc" or "desc" (default: "asc")
+            project_id: Optional project filter
+            parent_wbe_id: Optional parent WBE filter
 
         Returns:
             Tuple of (list of WBEs with parent_name, total count matching filters)
@@ -123,6 +127,14 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
             func.upper(cast(Any, WBE).valid_time).is_(None),
             cast(Any, WBE).deleted_at.is_(None),
         )
+
+        # Apply project filter
+        if project_id:
+            stmt = stmt.where(WBE.project_id == project_id)
+
+        # Apply parent WBE filter
+        if parent_wbe_id:
+            stmt = stmt.where(WBE.parent_wbe_id == parent_wbe_id)
 
         # Apply search (across code and name)
         if search:

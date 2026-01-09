@@ -83,8 +83,13 @@ const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<
   CostElementTypeUpdate
 >("cost_element_types", costElementTypeApi);
 
+import { CostElementTypeFilters } from "@/types/filters";
+
 export const CostElementTypeManagement = () => {
-  const { tableParams, handleTableChange, handleSearch } = useTableParams();
+  const { tableParams, handleTableChange, handleSearch } = useTableParams<
+    CostElementTypeRead,
+    CostElementTypeFilters
+  >();
   const { data: types, isLoading, refetch } = useList(tableParams);
 
   // Department map for display

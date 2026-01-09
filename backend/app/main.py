@@ -58,6 +58,20 @@ app.add_middleware(
 )
 
 
+# Exception Handlers
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from app.core.exceptions.filtering import FilterError
+
+@app.exception_handler(FilterError)
+async def filter_exception_handler(request: Request, exc: FilterError) -> JSONResponse:
+    """Handle filter parsing errors by returning 400 Bad Request."""
+    return JSONResponse(
+        status_code=400,
+        content={"detail": str(exc)},
+    )
+
+
 @app.get("/")
 async def root() -> dict[str, str]:
     return {"message": "Welcome to Backcast EVS API"}

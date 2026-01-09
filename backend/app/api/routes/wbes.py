@@ -97,18 +97,12 @@ async def read_wbes(
     # Handle hierarchical filtering (returns list, not paginated)
     # Case 1: Specific parent (parsed_parent_id is set)
     # Case 2: Root query (is_root_query is True)
-    if parsed_parent_id or is_root_query:
-        return await service.get_by_parent(
-            project_id=project_id,
-            parent_wbe_id=parsed_parent_id,
-            branch=branch,
-        )
-
     # Project filtering only (returns list, not paginated)
-    if project_id:
+    # This is the ONLY unpaginated mode for hierarchical tree loading
+    if project_id and not (parsed_parent_id or is_root_query):
         return await service.get_by_project(project_id=project_id, branch=branch)
 
-    # No hierarchical filters - use paginated general listing with search/filter/sort
+    # General Listing AND Parent Filtering (Paginated)
     skip = (page - 1) * per_page
 
     try:
@@ -120,6 +114,8 @@ async def read_wbes(
             filters=filters,
             sort_field=sort_field,
             sort_order=sort_order,
+            project_id=project_id,
+            parent_wbe_id=parsed_parent_id,
         )
 
         # Convert to Pydantic models
