@@ -27,6 +27,7 @@ import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
+import type { PaginatedResponse } from "@/types/api";
 
 // Extended types for Branch support
 type CreateWithBranch = CostElementCreate & { branch?: string };
@@ -42,7 +43,7 @@ type CostElementApiParams = {
 
 // Custom API wrapper to handle branch and filtering
 const costElementApi = {
-  getUsers: async (
+  list: async (
     params?: CostElementApiParams
   ): Promise<PaginatedResponse<CostElementRead>> => {
     // Current Ant Design table params
@@ -105,16 +106,16 @@ const costElementApi = {
     // It's already a PaginatedResponse
     return res as unknown as PaginatedResponse<CostElementRead>;
   },
-  getUser: (id: string) => CostElementsService.getCostElement(id, "main"),
-  createUser: (data: CreateWithBranch) => {
+  detail: (id: string) => CostElementsService.getCostElement(id, "main"),
+  create: (data: CreateWithBranch) => {
     const { branch, ...rest } = data;
     return CostElementsService.createCostElement(rest, branch || "main");
   },
-  updateUser: (id: string, data: UpdateWithBranch) => {
+  update: (id: string, data: UpdateWithBranch) => {
     const { branch, ...rest } = data;
     return CostElementsService.updateCostElement(id, rest, branch || "main");
   },
-  deleteUser: (compositeId: string) => {
+  delete: (compositeId: string) => {
     // compositeId format: "uuid:::branch"
     const [id, branch] = compositeId.split(":::");
     return CostElementsService.deleteCostElement(id, branch || "main");

@@ -1,10 +1,24 @@
 # Backcast EVS
 
-**Project Budget Management & Earned Value Management System with Git-Style Versioning**
+# BackCast - Project Earned value Simulator, Time traveller and Analyzer
+
+![Favicon](frontend/public/assets/images/backcast.png)
 
 ## Overview
 
-Backcast EVS (Entity Versioning System) is a comprehensive project financial management platform for end-of-line automation projects. The system provides:
+BackCast is a comprehensive application designed for the Project Management Directorate to simulate, test, and validate financial management processes for end-of-line automation projects before implementing them in production environments.
+
+The system enables organizations to:
+
+- Model complex project scenarios with multiple machines (WBEs) and departmental cost elements
+- Track project financial performance using Earned Value Management (EVM) principles
+- Validate business rules and performance metrics under various conditions
+- Support complete project lifecycle financial management including budgets, costs, forecasts, change orders, and quality events
+- Generate accurate EVM calculations and reports for decision-making
+
+This tool serves as a simulation and validation platform, allowing the Project Management Directorate to refine business rules, test performance metrics, and establish best practices for project financial management without impacting production systems.
+
+The system provides:
 
 - **Git-like Versioning:** Complete entity history with branching and time-travel capabilities
 - **EVM Compliance:** Full Earned Value Management per ANSI/EIA-748
@@ -69,12 +83,11 @@ uv run mypy app/
 
 - [Product Vision](docs/01-product-scope/vision.md) - Business goals
 - [System Map](docs/02-architecture/00-system-map.md) - Architecture overview
-- [Current Work](docs/03-project-plan/current-iteration.md) - Sprint status
 - [PDCA Prompts](docs/04-pdca-prompts/) - AI collaboration templates
 
 ## Project Status
 
-See [Current Iteration](docs/03-project-plan/current-iteration.md) for details.
+- [Product Backlog](docs/03-project-plan/product-backlog.md) - Product backlog
 
 ## Technology Stack
 

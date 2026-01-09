@@ -1,7 +1,7 @@
 /* generated using openapi-typescript-codegen -- do not edit */
 /* istanbul ignore file */
 /* tslint:disable */
-/* eslint-disable */
+ 
 import type { UserHistory } from '../models/UserHistory';
 import type { UserPreferenceResponse } from '../models/UserPreferenceResponse';
 import type { UserPreferenceUpdate } from '../models/UserPreferenceUpdate';

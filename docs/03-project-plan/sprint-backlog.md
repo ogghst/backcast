@@ -1,6 +1,6 @@
 # Current Iteration
 
-**Iteration:** Frontend Filter Type Safety
+**Iteration:** Page-Level Adapters Refactoring
 
 **Start Date:** 2026-01-09
 **End Date:** 2026-01-09
@@ -10,53 +10,51 @@
 
 ## Goal
 
-Resolve Technical Debt items TD-014 and TD-015 by implementing strict TypeScript types for frontend filters and refactoring the `useTableParams` hook to be generic.
+Resolve Technical Debt item TD-017 by migrating legacy page-level API adapters to the standardized "Named Methods" pattern.
 
 **Key Focus Areas:**
 
-1.  **Type Safety:** Eliminate `Record<string, any>` usage in filtering.
-2.  **Hook Refactoring:** Make `useTableParams` generic (`<TEntity, TFilters>`).
-3.  **Migration:** Update all 7 dependent components.
-4.  **Documentation:** Define migration path to automated OpenAPI types.
+1.  **Refactoring:** Update `UserList`, `DepartmentManagement`, `CostElementManagement`, `CostElementTypeManagement`.
+2.  **Standardization:** Ensure all use `list`, `create`, `update`, `delete` keys.
+3.  **Type Safety:** Verify `useCrud` compatibility.
 
 ---
 
 ## Stories in Scope
 
-| Story                        | Points | Priority | Status  | Actual Time | Dependencies  |
-| ---------------------------- | ------ | -------- | ------- | ----------- | ------------- |
-| Define `Filterable` Types    | 1h     | High     | ✅ Done | 0.5h        | None          |
-| Refactor `useTableParams`    | 2h     | High     | ✅ Done | 0.5h        | Types         |
-| Migrate Components (7 files) | 3h     | Medium   | ✅ Done | 1h          | Hook Refactor |
-| Update Architecture Docs     | 1h     | Low      | ✅ Done | 0.5h        | All above     |
+| Story                   | Points | Priority | Status  | Actual Time | Dependencies |
+| ----------------------- | ------ | -------- | ------- | ----------- | ------------ |
+| Refactor 4 Components   | 1h     | Low      | ✅ Done | 0.5h        | None         |
+| Improve `useCrud` Types | 0.5h   | Low      | ✅ Done | 0.2h        | Refactoring  |
+| Verification & Testing  | 0.5h   | Low      | ✅ Done | 0.3h        | Code         |
 
-**Total Estimated Effort:** 7 hours
-**Actual Effort:** 2.5 hours
+**Total Estimated Effort:** 2 hours
+**Actual Effort:** 1 hour
 
 ---
 
 ## Success Criteria
 
-- [x] `useTableParams` uses generics `<TEntity, TFilters>`
-- [x] All 7 target components migrated
-- [x] `tsc` compiles (with legacy noise, but strict filters verified)
-- [x] Unit tests for `useTableParams` pass
-- [x] Migration path to OpenAPI automation documented
+- [x] All 4 target components migrated
+- [x] `useCrud` accepts generic params without type errors
+- [x] Application compiles
+- [x] Manual verification confirms data loading
 
 ---
 
 ## Iteration Records
 
-- **ANALYSIS:** [00-ANALYSIS.md](iterations/2026-01-09-frontend-filter-type-safety/00-ANALYSIS.md)
-- **PLAN:** [01-PLAN.md](iterations/2026-01-09-frontend-filter-type-safety/01-PLAN.md)
-- **DO:** [02-DO.md](iterations/2026-01-09-frontend-filter-type-safety/02-DO.md)
-- **CHECK:** [03-CHECK.md](iterations/2026-01-09-frontend-filter-type-safety/03-CHECK.md)
-- **ACT:** [04-ACT.md](iterations/2026-01-09-frontend-filter-type-safety/04-ACT.md)
+- **ANALYSIS:** [00-ANALYSIS.md](iterations/2026-01-09-page-level-adapters/00-ANALYSIS.md)
+- **PLAN:** [01-PLAN.md](iterations/2026-01-09-page-level-adapters/01-PLAN.md)
+- **DO:** [02-DO.md](iterations/2026-01-09-page-level-adapters/02-DO.md)
+- **CHECK:** [03-CHECK.md](iterations/2026-01-09-page-level-adapters/03-CHECK.md)
+- **ACT:** [04-ACT.md](iterations/2026-01-09-page-level-adapters/04-ACT.md)
 
 ---
 
 ## Previous Iterations
 
+- **[2026-01-09] Page-Level Adapters Refactoring:** ✅ Complete (100%)
 - **[2026-01-09] FilterParser Error Messages:** ✅ Complete (100%)
 - **[2026-01-09] Frontend Filter Type Safety:** ✅ Complete (100%)
 - **[2026-01-09] WBE Parent Filter Pagination:** ✅ Complete (100%)

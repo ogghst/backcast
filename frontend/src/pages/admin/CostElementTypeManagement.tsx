@@ -24,7 +24,7 @@ import { useEntityHistory } from "@/hooks/useEntityHistory";
 
 // Create CRUD hooks
 const costElementTypeApi = {
-  getUsers: async (params?: any) => {
+  list: async (params?: any) => {
     const { pagination, search, filters, sortField, sortOrder } = params || {};
     const page = pagination?.current || 1;
     const perPage = pagination?.pageSize || 20;
@@ -61,20 +61,20 @@ const costElementTypeApi = {
 
     return Array.isArray(res) ? res : (res as any).items;
   },
-  getUser: (id: string) =>
+  detail: (id: string) =>
     CostElementTypesService.getCostElementType(
       id
     ) as Promise<CostElementTypeRead>,
-  createUser: (data: CostElementTypeCreate) =>
+  create: (data: CostElementTypeCreate) =>
     CostElementTypesService.createCostElementType(
       data
     ) as Promise<CostElementTypeRead>,
-  updateUser: (id: string, data: CostElementTypeUpdate) =>
+  update: (id: string, data: CostElementTypeUpdate) =>
     CostElementTypesService.updateCostElementType(
       id,
       data
     ) as Promise<CostElementTypeRead>,
-  deleteUser: (id: string) => CostElementTypesService.deleteCostElementType(id),
+  delete: (id: string) => CostElementTypesService.deleteCostElementType(id),
 };
 
 const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<

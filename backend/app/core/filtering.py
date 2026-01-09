@@ -86,7 +86,7 @@ class FilterParser:
         allowed_fields: list[str] | None = None,
     ) -> list[BinaryExpression[Any]]:
         """Build SQLAlchemy filter expressions from parsed filters.
-        
+
         ... (docstring) ...
         """
         from app.core.exceptions.filtering import (
@@ -117,35 +117,33 @@ class FilterParser:
             # Attempt to cast values based on column type
             try:
                 col_type = column.type.python_type
-                
+
                 # Only cast if not already compatible (e.g. str to int)
                 # But we blindly try to cast to ensure safety, except for str which is already what we have
                 if col_type is not str:
-                     casted_values = []
-                     for v in values:
-                         if col_type is bool:
-                             # Handle boolean strings: "true"/"1" -> True, "false"/"0" -> False
-                             v_lower = v.lower()
-                             if v_lower in ("true", "1", "yes", "on"):
-                                 casted_values.append(True)
-                             elif v_lower in ("false", "0", "no", "off"):
-                                 casted_values.append(False)
-                             else:
-                                 raise ValueError("Invalid boolean value")
-                         else:
-                             casted_values.append(col_type(v))
-                     values = casted_values # type: ignore
-            except (ValueError, TypeError, Exception):
+                    casted_values = []
+                    for v in values:
+                        if col_type is bool:
+                            # Handle boolean strings: "true"/"1" -> True, "false"/"0" -> False
+                            v_lower = v.lower()
+                            if v_lower in ("true", "1", "yes", "on"):
+                                casted_values.append(True)
+                            elif v_lower in ("false", "0", "no", "off"):
+                                casted_values.append(False)
+                            else:
+                                raise ValueError("Invalid boolean value")
+                        else:
+                            casted_values.append(col_type(v))
+                    values = casted_values  # type: ignore
+            except (ValueError, TypeError, Exception) as e:
                 # Catching general Exception here because third-party types (like Decimal)
                 # can raise specific errors (decimal.InvalidOperation) that don't inherit from ValueError.
                 # In strict mode, we capture this.
                 # The `pass` in the original instruction was likely a misunderstanding;
                 # we want to catch these errors and then raise our specific FilterValueTypeError.
                 raise FilterValueTypeError(
-                     field=field_name, 
-                     value=str(values), 
-                     expected_type=col_type.__name__
-                 )
+                    field=field_name, value=str(values), expected_type=col_type.__name__
+                ) from e
             except NotImplementedError:
                 # Some types like JSON/Array might not support python_type
                 pass
@@ -156,6 +154,6 @@ class FilterParser:
                 expressions.append(column == values[0])
             else:
                 # Multiple values: IN clause
-                expressions.append(column.in_(values)) # type: ignore
+                expressions.append(column.in_(values))
 
         return expressions

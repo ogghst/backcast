@@ -24,7 +24,7 @@ import { useEntityHistory } from "@/hooks/useEntityHistory";
 
 // Create CRUD hooks using the generated API service
 const departmentApi = {
-  getUsers: async (params?: any) => {
+  list: async (params?: any) => {
     const { pagination, search, filters, sortField, sortOrder } = params || {};
     const page = pagination?.current || 1;
     const perPage = pagination?.pageSize || 20;
@@ -58,13 +58,13 @@ const departmentApi = {
 
     return Array.isArray(res) ? res : (res as any).items;
   },
-  getUser: (id: string) =>
+  detail: (id: string) =>
     DepartmentsService.getDepartment(id) as Promise<DepartmentRead>,
-  createUser: (data: DepartmentCreate) =>
+  create: (data: DepartmentCreate) =>
     DepartmentsService.createDepartment(data) as Promise<DepartmentRead>,
-  updateUser: (id: string, data: DepartmentUpdate) =>
+  update: (id: string, data: DepartmentUpdate) =>
     DepartmentsService.updateDepartment(id, data) as Promise<DepartmentRead>,
-  deleteUser: (id: string) => DepartmentsService.deleteDepartment(id),
+  delete: (id: string) => DepartmentsService.deleteDepartment(id),
 };
 
 const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<

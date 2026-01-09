@@ -27,7 +27,9 @@ async function getTestData(page: Page) {
   });
   expect(projRes.ok()).toBeTruthy();
   const projs = await projRes.json();
-  const proj = projs.items?.find((p: any) => p.code === "PRJ-DEMO-001");
+  const proj = projs.items?.find(
+    (p: { code: string; project_id: string }) => p.code === "PRJ-DEMO-001"
+  );
   if (!proj) throw new Error("Demo Project PRJ-DEMO-001 not found");
 
   // Fetch demo WBE
@@ -38,7 +40,9 @@ async function getTestData(page: Page) {
   expect(wbeRes.ok()).toBeTruthy();
   const wbeData = await wbeRes.json();
   const wbeItems = Array.isArray(wbeData) ? wbeData : wbeData.items;
-  const wbe = wbeItems?.find((w: any) => w.code === "PRJ-DEMO-001-L1-1");
+  const wbe = wbeItems?.find(
+    (w: { code: string; wbe_id: string }) => w.code === "PRJ-DEMO-001-L1-1"
+  );
   if (!wbe) throw new Error("Demo WBE PRJ-DEMO-001-L1-1 not found");
 
   // Fetch demo cost element type
@@ -48,7 +52,9 @@ async function getTestData(page: Page) {
   });
   expect(typeRes.ok()).toBeTruthy();
   const types = await typeRes.json();
-  const type = types.items?.find((t: any) => t.code === "LAB");
+  const type = types.items?.find(
+    (t: { code: string; cost_element_type_id: string }) => t.code === "LAB"
+  );
   if (!type) throw new Error("Cost Element Type LAB not found");
 
   return { proj, wbe, type, timestamp, token, baseURL };
@@ -71,8 +77,7 @@ test.describe("Cost Elements E2E Tests", () => {
   });
 
   test("CRUD: Create, Edit, View History, Delete", async ({ page }) => {
-    const { proj, wbe, type, timestamp, token, baseURL } =
-      await getTestData(page);
+    const { proj, wbe, type, timestamp } = await getTestData(page);
 
     // Navigate to WBE detail page
     await page.goto(`/projects/${proj.project_id}/wbes/${wbe.wbe_id}`);
@@ -246,8 +251,7 @@ test.describe("Cost Elements E2E Tests", () => {
   });
 
   test("Sort: By name column", async ({ page }) => {
-    const { proj, wbe, type, timestamp, token, baseURL } =
-      await getTestData(page);
+    const { proj, wbe, type, token, baseURL } = await getTestData(page);
 
     // Create sorted test data
     for (const name of ["AAA_SORT", "ZZZ_SORT"]) {

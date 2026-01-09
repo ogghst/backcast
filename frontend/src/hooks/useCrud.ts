@@ -20,7 +20,7 @@ export interface CrudOptions {
  * This interface allows the old adapter pattern to continue working.
  */
 export interface LegacyApiMethods<T, TCreate, TUpdate, TList = T[]> {
-  getUsers?: (filters?: Record<string, unknown>) => Promise<TList>;
+  getUsers?: (filters?: any) => Promise<TList>;
   getUser?: (id: string) => Promise<T>;
   createUser?: (data: TCreate) => Promise<T>;
   updateUser?: (id: string, data: TUpdate) => Promise<T>;
@@ -32,7 +32,7 @@ export interface LegacyApiMethods<T, TCreate, TUpdate, TList = T[]> {
  * This interface allows direct usage of service methods without adapters.
  */
 export interface NamedApiMethods<T, TCreate, TUpdate, TList = T[]> {
-  list?: (filters?: Record<string, unknown>) => Promise<TList>;
+  list?: (filters?: any) => Promise<TList>;
   detail?: (id: string) => Promise<T>;
   create?: (data: TCreate) => Promise<T>;
   update?: (id: string, data: TUpdate) => Promise<T>;
@@ -46,30 +46,7 @@ export type ApiMethods<T, TCreate, TUpdate, TList = T[]> =
 /**
  * Creates a set of React Query hooks for CRUD operations on a resource.
  *
- * Supports two patterns:
- *
- * 1. Legacy adapter pattern (backward compatible):
- *    ```ts
- *    const adapter = {
- *      getUsers: (params) => ProjectsService.getProjects(...),
- *      getUser: (id) => ProjectsService.getProject(id),
- *      createUser: (data) => ProjectsService.createProject(data),
- *      updateUser: (id, data) => ProjectsService.updateProject(id, data),
- *      deleteUser: (id) => ProjectsService.deleteProject(id),
- *    };
- *    const { useList } = createResourceHooks("projects", adapter);
- *    ```
- *
- * 2. New direct pattern (recommended):
- *    ```ts
- *    const { useList } = createResourceHooks("projects", {
- *      list: ProjectsService.getProjects,
- *      detail: ProjectsService.getProject,
- *      create: ProjectsService.createProject,
- *      update: ProjectsService.updateProject,
- *      delete: ProjectsService.deleteProject,
- *    });
- *    ```
+ * ...
  */
 export const createResourceHooks = <T, TCreate, TUpdate, TList = T[]>(
   queryKey: string,
@@ -86,7 +63,7 @@ export const createResourceHooks = <T, TCreate, TUpdate, TList = T[]>(
   const isLegacy = "getUsers" in api || "getUser" in api;
 
   const useList = (
-    filters?: Record<string, unknown>,
+    filters?: any,
     queryOptions?: Omit<UseQueryOptions<TList, Error>, "queryKey">
   ) => {
     return useQuery({

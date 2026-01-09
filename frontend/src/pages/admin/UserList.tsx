@@ -23,7 +23,7 @@ import type { PaginatedResponse } from "@/types/api";
 
 // Create hooks instance
 const userApi = {
-  getUsers: async (_params?: {
+  list: async (_params?: {
     pagination?: { current?: number; pageSize?: number };
   }): Promise<PaginatedResponse<User>> => {
     // Fetch ALL users for client-side pagination and filtering
@@ -44,12 +44,12 @@ const userApi = {
     // If backend ever returns paginated response, use it directly
     return allUsers as unknown as PaginatedResponse<User>;
   },
-  getUser: (id: string) => UsersService.getUser(id) as Promise<User>,
-  createUser: (data: CreateUserPayload) =>
+  detail: (id: string) => UsersService.getUser(id) as Promise<User>,
+  create: (data: CreateUserPayload) =>
     UsersService.createUser(data) as Promise<User>,
-  updateUser: (id: string, data: UpdateUserPayload) =>
+  update: (id: string, data: UpdateUserPayload) =>
     UsersService.updateUser(id, data) as Promise<User>,
-  deleteUser: (id: string) => UsersService.deleteUser(id),
+  delete: (id: string) => UsersService.deleteUser(id),
 };
 
 const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<

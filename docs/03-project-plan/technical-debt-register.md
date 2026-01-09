@@ -53,16 +53,6 @@
 
 ### Low Severity
 
-#### [TD-017] Remaining Page-Level API Adapters
-
-- **Source:** Frontend Architecture Cleanup ACT phase
-- **Description:** 5 page-level files still use legacy adapter pattern (UserList, DepartmentManagement, CostElementTypeManagement, CostElementManagement, WBEList). These work fine due to backward compatibility but could be migrated to named methods pattern.
-- **Impact:** Minor code duplication, inconsistent patterns
-- **Estimated Effort:** 1 hour
-- **Target Date:** 2026-01-15
-- **Status:** 🟡 Open
-- **Owner:** Frontend Developer
-
 ---
 
 ## Retired Debt
@@ -72,6 +62,7 @@
 | TD-013 | FilterParser Error Messages | 2026-01-09 | Implemented strict type validation, custom exceptions, and global 400 handler |
 | TD-014 | Frontend Filter Type Safety | 2026-01-09 | Implemented strict `Filterable` types and migrated 7 components |
 | TD-015 | useTableParams Type Safety | 2026-01-09 | Refactored hook to use `TEntity` and `TFilters` generics |
+| TD-017 | Remaining Page-Level API Adapters | 2026-01-09 | Migrated 5 files to named methods pattern |
 | N/A | Backend test environment loop mismatch | 2026-01-06 | Fixed conftest.py fixture scopes |
 | TD-001 | Generic TemporalService get_by_root_id | 2026-01-07 | Added `get_by_root_id` to `TemporalService[T]`, removed duplicate wrappers |
 | TD-006 | `useUserStore` server state violation | 2026-01-07 | Deleted store; verified unused in production code |
