@@ -1,11 +1,12 @@
-import { App, Button, Space } from "antd";
+import { App, Button, Input, Space } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
   HistoryOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { ColumnType } from "antd/es/table";
 import { createResourceHooks } from "@/hooks/useCrud";
 import { DepartmentsService } from "@/api/generated";
@@ -23,16 +24,39 @@ import { useEntityHistory } from "@/hooks/useEntityHistory";
 
 // Create CRUD hooks using the generated API service
 const departmentApi = {
-  getUsers: async (params?: {
-    pagination?: { current?: number; pageSize?: number };
-  }) => {
-    const current = params?.pagination?.current || 1;
-    const pageSize = params?.pagination?.pageSize || 10;
-    const skip = (current - 1) * pageSize;
-    const res = await DepartmentsService.getDepartments(skip, pageSize);
-    return Array.isArray(res)
-      ? res
-      : (res as { items: DepartmentRead[] }).items;
+  getUsers: async (params?: any) => {
+    const { pagination, search, filters, sortField, sortOrder } = params || {};
+    const page = pagination?.current || 1;
+    const perPage = pagination?.pageSize || 20;
+
+    // Convert Ant Design table filters to server format
+    let filterString: string | undefined;
+    if (filters) {
+      const filterParts: string[] = [];
+      Object.entries(filters).forEach(([key, value]) => {
+        if (
+          value &&
+          (Array.isArray(value) ? value.length > 0 : value !== undefined)
+        ) {
+          const values = Array.isArray(value) ? value : [value];
+          filterParts.push(`${key}:${values.join(",")}`);
+        }
+      });
+      filterString = filterParts.length > 0 ? filterParts.join(";") : undefined;
+    }
+
+    const serverSortOrder = sortOrder === "descend" ? "desc" : "asc";
+
+    const res = await DepartmentsService.getDepartments(
+      page,
+      perPage,
+      search,
+      filterString,
+      sortField,
+      serverSortOrder
+    );
+
+    return Array.isArray(res) ? res : (res as any).items;
   },
   getUser: (id: string) =>
     DepartmentsService.getDepartment(id) as Promise<DepartmentRead>,
@@ -50,7 +74,8 @@ const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<
 >("departments", departmentApi);
 
 export const DepartmentManagement = () => {
-  const { tableParams, handleTableChange } = useTableParams();
+  const { tableParams, handleTableChange, handleSearch } =
+    useTableParams<DepartmentRead>();
   const { data: departments, isLoading, refetch } = useList(tableParams);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -65,7 +90,7 @@ export const DepartmentManagement = () => {
       entityId: selectedDepartment?.department_id,
       fetchFn: (id) => DepartmentsService.getDepartmentHistory(id),
       enabled: historyOpen,
-    },
+    }
   );
 
   const { mutateAsync: createDepartment } = useCreate({
@@ -98,22 +123,80 @@ export const DepartmentManagement = () => {
     });
   };
 
+  const getColumnSearchProps = (
+    dataIndex: keyof DepartmentRead
+  ): ColumnType<DepartmentRead> => ({
+    filterDropdown: ({
+      setSelectedKeys,
+      selectedKeys,
+      confirm,
+      clearFilters,
+    }) => (
+      <div style={{ padding: 8 }}>
+        <Input
+          placeholder={`Search ${dataIndex}`}
+          value={selectedKeys[0]}
+          onChange={(e) =>
+            setSelectedKeys(e.target.value ? [e.target.value] : [])
+          }
+          onPressEnter={() => confirm()}
+          style={{ width: 188, marginBottom: 8, display: "block" }}
+        />
+        <Space>
+          <Button
+            type="primary"
+            onClick={() => confirm()}
+            icon={<SearchOutlined />}
+            size="small"
+            style={{ width: 90 }}
+          >
+            Search
+          </Button>
+          <Button
+            onClick={() => clearFilters && clearFilters()}
+            size="small"
+            style={{ width: 90 }}
+          >
+            Reset
+          </Button>
+        </Space>
+      </div>
+    ),
+    filterIcon: (filtered: boolean) => (
+      <SearchOutlined style={{ color: filtered ? "#1890ff" : undefined }} />
+    ),
+    onFilter: (value, record) => {
+      const fieldVal = record[dataIndex];
+      return fieldVal
+        ? fieldVal
+            .toString()
+            .toLowerCase()
+            .includes((value as string).toLowerCase())
+        : false;
+    },
+  });
+
   const columns: ColumnType<DepartmentRead>[] = [
     {
       title: "Name",
       dataIndex: "name",
       key: "name",
       sorter: true,
+      ...getColumnSearchProps("name"),
     },
     {
       title: "Code",
       dataIndex: "code",
       key: "code",
+      sorter: true,
+      ...getColumnSearchProps("code"),
     },
     {
       title: "Description",
       dataIndex: "description",
       key: "description",
+      sorter: true,
+      ...getColumnSearchProps("description"),
     },
     {
       title: "Actions",
@@ -162,6 +245,9 @@ export const DepartmentManagement = () => {
         dataSource={departments || []}
         columns={columns}
         rowKey="department_id"
+        searchable={true}
+        searchPlaceholder="Search departments..."
+        onSearch={handleSearch}
         toolbar={
           <div
             style={{

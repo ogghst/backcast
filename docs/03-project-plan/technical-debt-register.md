@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-01-07
-**Total Debt Items:** 4
-**Total Estimated Effort:** 9 hours
+**Last Updated:** 2026-01-09
+**Total Debt Items:** 6
+**Total Estimated Effort:** 13 hours
 
 ---
 
@@ -10,39 +10,61 @@
 
 | Severity | Items | Effort | % of Total |
 | -------- | ----- | ------ | ---------- |
-| High     | 1     | 4h     | 31%        |
-| Medium   | 3     | 8h     | 62%        |
-| Low      | 1     | 1h     | 7%         |
+| High     | 0     | 0h     | 0%         |
+| Medium   | 5     | 12h    | 92%        |
+| Low      | 1     | 1h     | 8%         |
 
 ---
 
 ## Debt Items
 
-### High Severity
-
-#### [TD-002] Remaining Unit Test Failures
-
-- **Source:** Hybrid Sprint 2/3 ACT phase
-- **Description:** Unit tests in `tests/unit/core` and `test_integration_branch_service` are failing, reducing confidence in complex branching logic.
-- **Impact:** Reduced confidence in complex branching features, potential undetected bugs
-- **Estimated Effort:** 4 hours
-- **Target Date:** 2026-01-10
-- **Status:** ✅ Closed
-- **Owner:** Backend Developer
-
 ### Medium Severity
 
-#### [TD-003] Frontend Types Casting
+#### [TD-012] E2E Test Data Isolation
 
-- **Source:** Hierarchical Nav ACT phase
-- **Description:** Loose `as any` casting in `useCrud` hooks and table components. Needs strict typing matching generated API clients.
-- **Impact:** Potential runtime errors, loss of type safety
+- **Source:** E2E Test Stabilization ACT phase (2026-01-09)
+- **Description:** E2E tests share database state, causing occasional flakiness when tests create data that affects pagination or search results in other tests.
+- **Impact:** Test flakiness, false positives/negatives
 - **Estimated Effort:** 3 hours
 - **Target Date:** 2026-01-20
 - **Status:** 🔴 Open
-- **Owner:** Frontend Developer
+- **Owner:** Full Stack Developer
+- **Recommendation:** Implement test data cleanup hooks or database isolation strategies
 
-#### [TD-004] Performance Optimization (Large Projects)
+#### [TD-013] FilterParser Error Messages
+
+- **Source:** E2E Test Stabilization ACT phase (2026-01-09)
+- **Description:** FilterParser provides generic error messages when filters fail. Could be more helpful for debugging.
+- **Impact:** Harder to debug filter issues
+- **Estimated Effort:** 2 hours
+- **Target Date:** 2026-01-25
+- **Status:** 🔴 Open
+- **Owner:** Backend Developer
+- **Recommendation:** Add specific error messages for type mismatches, invalid fields, etc.
+
+#### [TD-014] Frontend Filter Type Safety
+
+- **Source:** E2E Test Stabilization ACT phase (2026-01-09)
+- **Description:** Frontend filter types use `Record<string, any>` instead of strict typing based on entity schemas.
+- **Impact:** Potential runtime errors, loss of type safety
+- **Estimated Effort:** 3 hours
+- **Target Date:** 2026-01-25
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Recommendation:** Generate filter types from OpenAPI schema or create strict filter interfaces
+
+#### [TD-015] useTableParams Type Safety
+
+- **Source:** E2E Test Stabilization ACT phase (2026-01-09)
+- **Description:** `useTableParams` hook uses loose typing for filters and sort fields. Should be generic with entity-specific types.
+- **Impact:** Loss of type safety, harder to catch errors at compile time
+- **Estimated Effort:** 2 hours
+- **Target Date:** 2026-01-30
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Recommendation:** Refactor to accept generic type parameter for entity
+
+#### [TD-016] Performance Optimization (Large Projects)
 
 - **Source:** Hierarchical Nav ACT phase
 - **Description:** `useWBEs` fetches full list. Needs pagination or server-side tree loading for very large projects.
@@ -52,21 +74,11 @@
 - **Status:** 🔴 Open
 - **Owner:** Full Stack Developer
 
-#### [TD-005] UI/UX Tree View
-
-- **Source:** Hierarchical Nav ACT phase
-- **Description:** Current list/table view is functional but a true Tree View would be better for hierarchy visualization.
-- **Impact:** Sub-optimal UX for complex nested structures
-- **Estimated Effort:** 2 hours
-- **Target Date:** 2026-02-01
-- **Status:** 🔴 Open
-- **Owner:** Frontend Developer
-
 ---
 
 ### Low Severity
 
-#### [TD-007] Remaining Page-Level API Adapters
+#### [TD-017] Remaining Page-Level API Adapters
 
 - **Source:** Frontend Architecture Cleanup ACT phase
 - **Description:** 5 page-level files still use legacy adapter pattern (UserList, DepartmentManagement, CostElementTypeManagement, CostElementManagement, WBEList). These work fine due to backward compatibility but could be migrated to named methods pattern.
@@ -82,8 +94,8 @@
 
 | Age Bucket | Items | Effort | % of Total |
 | ---------- | ----- | ------ | ---------- |
-| < 1 week   | 3     | 11h    | 58%        |
-| 1-2 weeks  | 3     | 8h     | 42%        |
+| < 1 week   | 4     | 10h    | 77%        |
+| 1-2 weeks  | 2     | 3h     | 23%        |
 | 2-4 weeks  | 0     | 0h     | 0%         |
 | > 1 month  | 0     | 0h     | 0%         |
 
@@ -91,28 +103,29 @@
 
 ## Debt by Category
 
-| Category         | Items | Effort |
-| ---------------- | ----- | ------ |
-| Code Duplication | 2     | 7h     |
-| Test Coverage    | 1     | 4h     |
-| Performance      | 1     | 3h     |
-| UI/UX            | 1     | 2h     |
-| Architecture     | 1     | 1h     |
+| Category       | Items | Effort |
+| -------------- | ----- | ------ |
+| Type Safety    | 2     | 5h     |
+| Test Quality   | 1     | 3h     |
+| Performance    | 1     | 3h     |
+| Error Handling | 1     | 2h     |
+| Architecture   | 1     | 1h     |
 
 ---
 
 ## Paydown Plan
 
-**Current Sprint Allocation:** TBD hours for debt paydown
+**Current Sprint Allocation:** 3-4 hours for debt paydown
 
-**Target:** Reduce all high severity debt by 2026-01-10
+**Target:** Reduce type safety debt by 2026-01-30
 
 **Strategy:**
 
-1. Prioritize TD-002 (test failures) to restore confidence
-2. Refactor TD-001 (duplication) as part of E03-U06 implementation
+1. Prioritize TD-003 (test isolation) to improve test reliability
+2. Address TD-004 and TD-005 (type safety) together for efficiency
 3. Allocate 20% of each sprint to debt paydown
 4. Bundle related items for efficiency
+5. Track debt trends and prevent accumulation
 
 ---
 
@@ -133,8 +146,8 @@
 
 ## Maintenance Notes
 
-**Last Reviewed:** 2026-01-07
-**Next Review:** 2026-01-14
+**Last Reviewed:** 2026-01-09
+**Next Review:** 2026-01-16
 
 **Process:**
 
@@ -142,3 +155,4 @@
 - Assess severity and estimate effort
 - Add to register within 24 hours of iteration completion
 - Review and prioritize during sprint planning
+- Track trends and prevent accumulation

@@ -6,17 +6,15 @@ Create Date: 2026-01-06 19:25:00.000000
 
 """
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "a1b2c3d4e5f6"
-down_revision: Union[str, None] = "4af275505a7e"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "4af275505a7e"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -35,7 +33,6 @@ def upgrade() -> None:
             code VARCHAR(50) NOT NULL,
             name VARCHAR(255) NOT NULL,
             description TEXT,
-            
             -- Versioning columns (from VersionableMixin)
             valid_time TSTZRANGE NOT NULL DEFAULT tstzrange(now(), NULL, '[]'),
             transaction_time TSTZRANGE NOT NULL DEFAULT tstzrange(now(), NULL, '[]'),

@@ -5,7 +5,7 @@
 
 ## Quick Start
 
-- **New to the project?** Start with [Vision](../01-product-scope/vision.md)
+- **New to the project?** Start with [Onboarding Guide](onboarding.md) and [Vision](../01-product-scope/vision.md)
 - **Need architecture overview?** Read [System Map](../02-architecture/00-system-map.md)
 - **Working on current iteration?** Check [Sprint Backlog](../03-project-plan/sprint-backlog.md)
 - **Looking for specific context?** See [Bounded Contexts](../02-architecture/01-bounded-contexts.md)

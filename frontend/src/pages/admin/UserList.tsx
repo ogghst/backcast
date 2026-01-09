@@ -1,11 +1,12 @@
-import { App, Button, Space, Tag } from "antd";
+import { App, Button, Input, Space, Tag } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
   HistoryOutlined,
+  SearchOutlined,
 } from "@ant-design/icons";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CreateUserPayload, UpdateUserPayload, User } from "@/types/user";
 import { UserModal } from "@/features/users/components/UserModal";
 import type { ColumnType } from "antd/es/table";
@@ -19,12 +20,6 @@ import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { Can } from "@/components/auth/Can";
 
 // Create hooks instance
-// We use the generated service directly, but mapping parameters might be needed if signatures differ.
-// Implementation Plan said: "Reduces api/userService.ts ... to near-zero lines"
-// So we should ideally pass UsersService methods directly if they match.
-// UsersService.getUsers(skip, limit) -> hook expects (filters) => Promise<T[]>
-// We need a small adapter here or in the hook factory usage.
-
 const userApi = {
   getUsers: async (params?: {
     pagination?: { current?: number; pageSize?: number };
@@ -36,9 +31,6 @@ const userApi = {
     const skip = (current - 1) * pageSize;
     // Search/Filters support can be added here
     const res = await UsersService.getUsers(skip, pageSize);
-    // Handle paginated response wrapper
-    // Backend returns { items: [], total: ... } or similar?
-    // UserService.ts (old) said: "if (response && ... 'items' in response)"
     return Array.isArray(res) ? res : (res as { items: User[] }).items;
   },
   getUser: (id: string) => UsersService.getUser(id) as Promise<User>,
@@ -56,7 +48,8 @@ const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<
 >("users", userApi);
 
 export const UserList = () => {
-  const { tableParams, handleTableChange } = useTableParams<User>();
+  const { tableParams, handleTableChange, handleSearch } =
+    useTableParams<User>();
   const { data: users, isLoading, refetch } = useList(tableParams);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -70,7 +63,7 @@ export const UserList = () => {
       entityId: selectedUser?.user_id,
       fetchFn: UserService.getUserHistory,
       enabled: historyOpen,
-    },
+    }
   );
 
   const { mutateAsync: createUser } = useCreate({
@@ -83,7 +76,6 @@ export const UserList = () => {
     onSuccess: () => {
       refetch();
       setModalOpen(false);
-      // Invalidate history cache for updated user (handled by React Query)
     },
   });
   const { mutate: deleteUser } = useDelete({ onSuccess: () => refetch() });
@@ -100,33 +92,100 @@ export const UserList = () => {
     });
   };
 
+  const getColumnSearchProps = (dataIndex: keyof User): ColumnType<User> => ({
+    filterDropdown: ({
+      setSelectedKeys,
+      selectedKeys,
+      confirm,
+      clearFilters,
+    }) => (
+      <div style={{ padding: 8 }}>
+        <Input
+          placeholder={`Search ${dataIndex}`}
+          value={selectedKeys[0]}
+          onChange={(e) =>
+            setSelectedKeys(e.target.value ? [e.target.value] : [])
+          }
+          onPressEnter={() => confirm()}
+          style={{ width: 188, marginBottom: 8, display: "block" }}
+        />
+        <Space>
+          <Button
+            type="primary"
+            onClick={() => confirm()}
+            icon={<SearchOutlined />}
+            size="small"
+            style={{ width: 90 }}
+          >
+            Search
+          </Button>
+          <Button
+            onClick={() => clearFilters && clearFilters()}
+            size="small"
+            style={{ width: 90 }}
+          >
+            Reset
+          </Button>
+        </Space>
+      </div>
+    ),
+    filterIcon: (filtered: boolean) => (
+      <SearchOutlined style={{ color: filtered ? "#1890ff" : undefined }} />
+    ),
+    onFilter: (value, record) => {
+      const fieldVal = record[dataIndex];
+      return fieldVal
+        ? fieldVal
+            .toString()
+            .toLowerCase()
+            .includes((value as string).toLowerCase())
+        : false;
+    },
+  });
+
   const columns: ColumnType<User>[] = [
     {
       title: "Full Name",
       dataIndex: "full_name",
       key: "full_name",
-      sorter: true,
+      sorter: (a, b) => a.full_name.localeCompare(b.full_name),
+      ...getColumnSearchProps("full_name"),
     },
     {
       title: "Email",
       dataIndex: "email",
       key: "email",
+      sorter: (a, b) => a.email.localeCompare(b.email),
+      ...getColumnSearchProps("email"),
     },
     {
       title: "Role",
       dataIndex: "role",
       key: "role",
+      filters: [
+        { text: "Admin", value: "admin" },
+        { text: "User", value: "user" },
+        { text: "Viewer", value: "viewer" },
+      ],
+      onFilter: (value, record) => record.role === value,
       render: (role: string) => <Tag color="blue">{role.toUpperCase()}</Tag>,
     },
     {
       title: "Department",
       dataIndex: "department",
       key: "department",
+      sorter: (a, b) => (a.department || "").localeCompare(b.department || ""),
+      ...getColumnSearchProps("department"),
     },
     {
       title: "Status",
       dataIndex: "is_active",
       key: "is_active",
+      filters: [
+        { text: "Active", value: true },
+        { text: "Inactive", value: false },
+      ],
+      onFilter: (value, record) => record.is_active === value,
       render: (isActive: boolean) => (
         <Tag color={isActive ? "green" : "red"}>
           {isActive ? "Active" : "Inactive"}
@@ -169,15 +228,35 @@ export const UserList = () => {
     },
   ];
 
+  const filteredUsers = useMemo(() => {
+    let result = users || [];
+
+    // Apply global search
+    if (tableParams.search) {
+      const search = tableParams.search.toLowerCase();
+      result = result.filter(
+        (u) =>
+          u.full_name.toLowerCase().includes(search) ||
+          u.email.toLowerCase().includes(search) ||
+          u.department?.toLowerCase().includes(search)
+      );
+    }
+
+    return result;
+  }, [users, tableParams.search]);
+
   return (
     <div>
       <StandardTable<User>
         tableParams={tableParams}
         onChange={handleTableChange}
         loading={isLoading}
-        dataSource={users || []}
+        dataSource={filteredUsers}
         columns={columns}
         rowKey="user_id"
+        searchable={true}
+        searchPlaceholder="Search users..."
+        onSearch={handleSearch}
         toolbar={
           <div
             style={{
@@ -214,7 +293,6 @@ export const UserList = () => {
           } else {
             await createUser(values as CreateUserPayload);
           }
-          // Don't close here - let mutation onSuccess handle it
         }}
         confirmLoading={isLoading}
         initialValues={selectedUser}

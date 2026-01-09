@@ -101,8 +101,10 @@ test.describe("Admin Login & Profile Verification", () => {
     const dropdownMenuViewer = page.locator(".ant-dropdown-menu");
     await expect(dropdownMenuViewer).toBeVisible();
 
-    // Verify Name is 'viewer' (it's in a <strong> tag)
-    await expect(dropdownMenuViewer.locator("strong")).toHaveText("viewer");
+    // Verify Name is 'Viewer User' (it's in a <strong> tag)
+    await expect(dropdownMenuViewer.locator("strong")).toHaveText(
+      "Viewer User"
+    );
 
     // Verify Role is 'viewer' (secondary text)
     await expect(

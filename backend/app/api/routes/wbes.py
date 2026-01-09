@@ -1,6 +1,7 @@
 """WBE API routes with RBAC."""
 
 from collections.abc import Sequence
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -29,25 +30,54 @@ def get_wbe_service(
 
 @router.get(
     "",
-    response_model=list[WBEPublic],
+    response_model=None,  # Will be PaginatedResponse[WBEPublic]
     operation_id="get_wbes",
     dependencies=[Depends(RoleChecker(required_permission="wbe-read"))],
 )
 async def read_wbes(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    per_page: int = Query(20, ge=1, description="Items per page"),
     project_id: UUID | None = Query(None, description="Filter by project ID"),
-    parent_wbe_id: str | None = Query(None, description="Filter by parent WBE ID (use 'null' string for root WBEs)"),
+    parent_wbe_id: str | None = Query(
+        None, description="Filter by parent WBE ID (use 'null' string for root WBEs)"
+    ),
     branch: str = Query("main", description="Branch name"),
+    search: str | None = Query(None, description="Search term (code, name)"),
+    filters: str | None = Query(
+        None,
+        description="Filters in format 'column:value;column:value1,value2'",
+        example="level:1,2;code:1.1",
+    ),
+    sort_field: str | None = Query(None, description="Field to sort by"),
+    sort_order: str = Query(
+        "asc",
+        regex="^(asc|desc)$",
+        description="Sort order (asc or desc)",
+    ),
     service: WBEService = Depends(get_wbe_service),
-) -> Sequence[WBE]:
-    """Retrieve WBEs. Requires read permission.
-    
-    Filtering:
+) -> dict[str, Any] | Sequence[WBE]:
+    """Retrieve WBEs with server-side search, filtering, and sorting.
+
+    Supports two modes:
+    1. **Hierarchical filtering** (project_id/parent_wbe_id): Returns list without pagination
+    2. **General listing** (no hierarchical filters): Returns paginated response with search/filter/sort
+
+    Hierarchical Filtering:
     - project_id only: All WBEs in project
     - project_id + parent_wbe_id: Child WBEs of specified parent
     - parent_wbe_id='null': Root WBEs (parent_wbe_id IS NULL)
+
+    General Listing (when no hierarchical filters):
+    - **Search**: Case-insensitive search across code and name
+    - **Filters**: Filter by level, code, name (format: "column:value;column:value1,value2")
+    - **Sorting**: Sort by any field (asc/desc)
+    - **Pagination**: Returns total count for proper pagination UI
+
+    Requires read permission.
     """
+    from app.models.schemas.common import PaginatedResponse
+    from app.models.schemas.wbe import WBEPublic
+
     # Parse parent_wbe_id
     parsed_parent_id: UUID | None = None
     is_root_query = False
@@ -60,9 +90,11 @@ async def read_wbes(
             try:
                 parsed_parent_id = UUID(parent_wbe_id)
             except ValueError as e:
-                raise HTTPException(status_code=422, detail="Invalid parent_wbe_id format") from e
+                raise HTTPException(
+                    status_code=422, detail="Invalid parent_wbe_id format"
+                ) from e
 
-    # Handle hierarchical filtering
+    # Handle hierarchical filtering (returns list, not paginated)
     # Case 1: Specific parent (parsed_parent_id is set)
     # Case 2: Root query (is_root_query is True)
     if parsed_parent_id or is_root_query:
@@ -71,13 +103,43 @@ async def read_wbes(
             parent_wbe_id=parsed_parent_id,
             branch=branch,
         )
-    
-    # Project filtering only
+
+    # Project filtering only (returns list, not paginated)
     if project_id:
         return await service.get_by_project(project_id=project_id, branch=branch)
-    
-    # No filters - return all
-    return await service.get_wbes(skip=skip, limit=limit, branch=branch)
+
+    # No hierarchical filters - use paginated general listing with search/filter/sort
+    skip = (page - 1) * per_page
+
+    try:
+        wbes, total = await service.get_wbes(
+            skip=skip,
+            limit=per_page,
+            branch=branch,
+            search=search,
+            filters=filters,
+            sort_field=sort_field,
+            sort_order=sort_order,
+        )
+
+        # Convert to Pydantic models
+        items = [WBEPublic.model_validate(w) for w in wbes]
+
+        # Return paginated response
+        response = PaginatedResponse[WBEPublic](
+            items=items,
+            total=total,
+            page=page,
+            per_page=per_page,
+        )
+
+        return response.model_dump()
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
 
 
 @router.post(
@@ -184,7 +246,7 @@ async def delete_wbe(
 async def read_wbe_breadcrumb(
     wbe_id: UUID,
     service: WBEService = Depends(get_wbe_service),
-) -> dict:
+) -> dict[str, Any]:
     """Get breadcrumb trail for a WBE (project + ancestor path). Requires read permission."""
     try:
         return await service.get_breadcrumb(wbe_id)

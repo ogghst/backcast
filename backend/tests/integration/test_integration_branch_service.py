@@ -35,7 +35,10 @@ async def test_branch_service_lifecycle(db_session: AsyncSession):
     # 2. Create Feature Branch
     # ------------------------------------------------------------------
     v2 = await service.create_branch(
-        root_id=root_id, actor_id=actor_id, new_branch="feature/scope-increase", from_branch="main"
+        root_id=root_id,
+        actor_id=actor_id,
+        new_branch="feature/scope-increase",
+        from_branch="main",
     )
     assert v2.branch == "feature/scope-increase"
     assert v2.parent_id == v1_id
@@ -60,7 +63,10 @@ async def test_branch_service_lifecycle(db_session: AsyncSession):
     # 4. Merge Feature -> Main
     # ------------------------------------------------------------------
     merged = await service.merge_branch(
-        root_id=root_id, actor_id=actor_id, source_branch="feature/scope-increase", target_branch="main"
+        root_id=root_id,
+        actor_id=actor_id,
+        source_branch="feature/scope-increase",
+        target_branch="main",
     )
     assert merged.branch == "main"
     assert merged.name == "Project Alpha Plus"
@@ -70,7 +76,9 @@ async def test_branch_service_lifecycle(db_session: AsyncSession):
     merged_id = merged.id
 
     # 5. Revert Main to V1 state
-    reverted = await service.revert(root_id=root_id, actor_id=actor_id, branch="main", to_version_id=v1_id)
+    reverted = await service.revert(
+        root_id=root_id, actor_id=actor_id, branch="main", to_version_id=v1_id
+    )
     assert reverted.branch == "main"
     assert reverted.name == "Project Alpha"  # Restored content
     assert reverted.budget == 1000.0

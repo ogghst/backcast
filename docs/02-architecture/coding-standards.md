@@ -134,6 +134,20 @@ function useProjectStats(projects: Project[]) {
 
 See Section 2.4 for implementation patterns.
 
+### 1.5 API Response Patterns & Filtering
+
+**Standardize on server-side processing for scalability.**
+
+**Rules:**
+
+- Use `FilterParser` for all list endpoints.
+- Whitelist allowed filter fields explicitly.
+- Return `PaginatedResponse` for general listings.
+- Unpack service tuples `(items, total)` in the API layer.
+- Never concatenate raw SQL; use SQLAlchemy abstractions.
+
+See [API Response Patterns](cross-cutting/api-response-patterns.md) for detailed implementation guides.
+
 ---
 
 ## 2. Common Principles

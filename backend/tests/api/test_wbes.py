@@ -1,10 +1,13 @@
 """Integration tests for WBE API endpoints."""
 
+from collections.abc import Generator
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.core.rbac import RBACServiceABC, get_rbac_service
@@ -23,11 +26,11 @@ mock_admin_user = User(
 )
 
 
-def mock_get_current_user():
+def mock_get_current_user() -> User:
     return mock_admin_user
 
 
-def mock_get_current_active_user():
+def mock_get_current_active_user() -> User:
     return mock_admin_user
 
 
@@ -52,12 +55,12 @@ class MockRBACService(RBACServiceABC):
         ]
 
 
-def mock_get_rbac_service():
+def mock_get_rbac_service() -> RBACServiceABC:
     return MockRBACService()
 
 
 @pytest.fixture(autouse=True)
-def override_auth():
+def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
@@ -67,7 +70,7 @@ def override_auth():
 
 
 @pytest_asyncio.fixture
-async def test_project(client: AsyncClient):
+async def test_project(client: AsyncClient) -> dict[str, Any]:
     """Create a test project for WBE tests."""
     project_data = {
         "name": "WBE Test Project",
@@ -75,11 +78,17 @@ async def test_project(client: AsyncClient):
         "budget": 500000,
     }
     response = await client.post("/api/v1/projects", json=project_data)
-    return response.json()
+    return cast(dict[str, Any], response.json())
 
 
 @pytest.mark.asyncio
-async def test_create_wbe(client: AsyncClient, override_auth, db_session, test_project):
+@pytest.mark.asyncio
+async def test_create_wbe(
+    client: AsyncClient,
+    override_auth: None,
+    db_session: AsyncSession,
+    test_project: dict[str, Any],
+) -> None:
     """Test creating a new WBE."""
     wbe_data = {
         "project_id": test_project["project_id"],
@@ -104,8 +113,11 @@ async def test_create_wbe(client: AsyncClient, override_auth, db_session, test_p
 
 @pytest.mark.asyncio
 async def test_create_wbe_duplicate_code(
-    client: AsyncClient, override_auth, db_session, test_project
-):
+    client: AsyncClient,
+    override_auth: None,
+    db_session: AsyncSession,
+    test_project: dict[str, Any],
+) -> None:
     """Test creating WBE with duplicate code in same project fails."""
     wbe_data = {
         "project_id": test_project["project_id"],
@@ -128,8 +140,11 @@ async def test_create_wbe_duplicate_code(
 
 @pytest.mark.asyncio
 async def test_get_wbes_by_project(
-    client: AsyncClient, override_auth, db_session, test_project
-):
+    client: AsyncClient,
+    override_auth: None,
+    db_session: AsyncSession,
+    test_project: dict[str, Any],
+) -> None:
     """Test retrieving WBEs filtered by project."""
     # Create multiple WBEs
     for i in range(3):
@@ -153,8 +168,11 @@ async def test_get_wbes_by_project(
 
 @pytest.mark.asyncio
 async def test_get_wbe_by_id(
-    client: AsyncClient, override_auth, db_session, test_project
-):
+    client: AsyncClient,
+    override_auth: None,
+    db_session: AsyncSession,
+    test_project: dict[str, Any],
+) -> None:
     """Test retrieving a specific WBE."""
     wbe_data = {
         "project_id": test_project["project_id"],
@@ -176,7 +194,12 @@ async def test_get_wbe_by_id(
 
 
 @pytest.mark.asyncio
-async def test_update_wbe(client: AsyncClient, override_auth, db_session, test_project):
+async def test_update_wbe(
+    client: AsyncClient,
+    override_auth: None,
+    db_session: AsyncSession,
+    test_project: dict[str, Any],
+) -> None:
     """Test updating a WBE creates new version."""
     wbe_data = {
         "project_id": test_project["project_id"],
@@ -203,7 +226,12 @@ async def test_update_wbe(client: AsyncClient, override_auth, db_session, test_p
 
 
 @pytest.mark.asyncio
-async def test_delete_wbe(client: AsyncClient, override_auth, db_session, test_project):
+async def test_delete_wbe(
+    client: AsyncClient,
+    override_auth: None,
+    db_session: AsyncSession,
+    test_project: dict[str, Any],
+) -> None:
     """Test soft deleting a WBE."""
     wbe_data = {
         "project_id": test_project["project_id"],
@@ -230,8 +258,11 @@ async def test_delete_wbe(client: AsyncClient, override_auth, db_session, test_p
 
 @pytest.mark.asyncio
 async def test_get_wbe_history(
-    client: AsyncClient, override_auth, db_session, test_project
-):
+    client: AsyncClient,
+    override_auth: None,
+    db_session: AsyncSession,
+    test_project: dict[str, Any],
+) -> None:
     """Test retrieving version history for a WBE."""
     wbe_data = {
         "project_id": test_project["project_id"],
@@ -261,8 +292,11 @@ async def test_get_wbe_history(
 
 @pytest.mark.asyncio
 async def test_wbe_hierarchical_structure(
-    client: AsyncClient, override_auth, db_session, test_project
-):
+    client: AsyncClient,
+    override_auth: None,
+    db_session: AsyncSession,
+    test_project: dict[str, Any],
+) -> None:
     """Test creating hierarchical WBE structure."""
     # Create parent WBE
     parent_data = {

@@ -3,7 +3,7 @@
 Tests the RoleChecker FastAPI dependency with mock routes and users.
 """
 
-from typing import Annotated
+from typing import Annotated, Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -77,14 +77,14 @@ class TestRoleChecker:
         @app.get("/admin-only")
         async def admin_only_route(
             user: Annotated[User, Depends(RoleChecker(["admin"]))],
-        ) -> dict:
+        ) -> dict[str, Any]:
             return {"message": "Admin access granted"}
 
         # Route 2: Role-only protection (admin or manager)
         @app.get("/admin-or-manager")
         async def admin_or_manager_route(
             user: Annotated[User, Depends(RoleChecker(["admin", "manager"]))],
-        ) -> dict:
+        ) -> dict[str, Any]:
             return {"message": "Admin or manager access granted"}
 
         # Route 3: Permission-only protection (user-delete permission)
@@ -93,21 +93,21 @@ class TestRoleChecker:
             user: Annotated[
                 User, Depends(RoleChecker(required_permission="user-delete"))
             ],
-        ) -> dict:
+        ) -> dict[str, Any]:
             return {"message": "Delete permission granted"}
 
         # Route 4: Combined protection (admin role OR user-delete permission)
         @app.get("/admin-or-delete")
         async def admin_or_delete_route(
             user: Annotated[User, Depends(RoleChecker(["admin"], "user-delete"))],
-        ) -> dict:
+        ) -> dict[str, Any]:
             return {"message": "Admin or delete permission granted"}
 
         # Helper endpoint to set current user role
         current_user_role = {"role": "viewer"}
 
         @app.get("/set-role/{role}")
-        async def set_role(role: str) -> dict:
+        async def set_role(role: str) -> dict[str, Any]:
             current_user_role["role"] = role
             return {"role": role}
 

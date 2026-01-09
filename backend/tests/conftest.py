@@ -4,7 +4,8 @@ Provides database fixtures and test utilities.
 """
 
 import os
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
+from typing import Any, cast
 
 import pytest
 import pytest_asyncio
@@ -24,7 +25,9 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
 
-TEST_DATABASE_URL = str(settings.DATABASE_URL) #.rsplit("/", 1)[0] + "/backcast_evs_test"
+TEST_DATABASE_URL = str(
+    settings.DATABASE_URL
+)  # .rsplit("/", 1)[0] + "/backcast_evs_test"
 
 
 @pytest.fixture(scope="session")
@@ -34,11 +37,11 @@ def anyio_backend() -> str:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def apply_migrations() -> None:
+def apply_migrations() -> Generator[None, None, None]:
     """Apply alembic migrations to the test database."""
     # Override settings to point to test DB
     original_url = settings.DATABASE_URL
-    settings.DATABASE_URL = TEST_DATABASE_URL
+    settings.DATABASE_URL = cast(Any, TEST_DATABASE_URL)
     os.environ["DATABASE_URL"] = TEST_DATABASE_URL
     # Ensure ASYNC_DATABASE_URI is recomputed or patches env.py's source
     # But env.py imports settings. If settings is already imported, we need to ensure the property reflects the change.
@@ -56,15 +59,19 @@ def apply_migrations() -> None:
     env["WIPE_DATABASE_URL"] = TEST_DATABASE_URL
 
     try:
-        subprocess.run([sys.executable, wipe_script], env=env, check=True, capture_output=True, text=True)
+        subprocess.run(
+            [sys.executable, wipe_script],
+            env=env,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
     except subprocess.CalledProcessError as e:
         print(f"DB Wipe Failed: {e.stdout} {e.stderr}")
         raise
 
     # Run migrations
     command.upgrade(alembic_cfg, "head")
-
-
 
     yield
 
@@ -108,7 +115,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
             try:
                 await session.execute(
                     text(
-                        "TRUNCATE TABLE wbes, projects, departments, users RESTART IDENTITY CASCADE"
+                        "TRUNCATE TABLE cost_elements, cost_element_types, wbes, projects, departments, users RESTART IDENTITY CASCADE"
                     )
                 )
                 await session.commit()

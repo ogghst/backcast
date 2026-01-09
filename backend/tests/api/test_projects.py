@@ -1,10 +1,12 @@
 """Integration tests for Project API endpoints."""
 
+from collections.abc import Generator
 from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.core.rbac import RBACServiceABC, get_rbac_service
@@ -24,11 +26,11 @@ mock_admin_user = User(
 )
 
 
-def mock_get_current_user():
+def mock_get_current_user() -> User:
     return mock_admin_user
 
 
-def mock_get_current_active_user():
+def mock_get_current_active_user() -> User:
     return mock_admin_user
 
 
@@ -53,12 +55,12 @@ class MockRBACService(RBACServiceABC):
         ]
 
 
-def mock_get_rbac_service():
+def mock_get_rbac_service() -> RBACServiceABC:
     return MockRBACService()
 
 
 @pytest.fixture(autouse=True)
-def override_auth():
+def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
     app.dependency_overrides[get_current_user] = mock_get_current_user
     app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
@@ -68,7 +70,9 @@ def override_auth():
 
 
 @pytest.mark.asyncio
-async def test_create_project(client: AsyncClient, override_auth, db_session):
+async def test_create_project(
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test creating a new project."""
     unique_code = f"TEST-{uuid4().hex[:6].upper()}"
     project_data = {
@@ -94,8 +98,8 @@ async def test_create_project(client: AsyncClient, override_auth, db_session):
 
 @pytest.mark.asyncio
 async def test_create_project_duplicate_code(
-    client: AsyncClient, override_auth, db_session
-):
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test creating project with duplicate code fails."""
     unique_code = f"DUP-{uuid4().hex[:6].upper()}"
     project_data = {
@@ -116,7 +120,10 @@ async def test_create_project_duplicate_code(
 
 
 @pytest.mark.asyncio
-async def test_get_projects(client: AsyncClient, override_auth, db_session):
+@pytest.mark.asyncio
+async def test_get_projects(
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test retrieving list of projects."""
     # Create test projects
     for i in range(3):
@@ -132,12 +139,14 @@ async def test_get_projects(client: AsyncClient, override_auth, db_session):
 
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 3
-    assert any(p["code"] == "PRJ-000" for p in data)
+    assert len(data["items"]) == 3
+    assert any(p["code"] == "PRJ-000" for p in data["items"])
 
 
 @pytest.mark.asyncio
-async def test_get_project_by_id(client: AsyncClient, override_auth, db_session):
+async def test_get_project_by_id(
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test retrieving a specific project."""
     # Create project
     project_data = {
@@ -161,7 +170,9 @@ async def test_get_project_by_id(client: AsyncClient, override_auth, db_session)
 
 
 @pytest.mark.asyncio
-async def test_update_project(client: AsyncClient, override_auth, db_session):
+async def test_update_project(
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test updating a project creates new version."""
     # Create project
     project_data = {
@@ -187,7 +198,9 @@ async def test_update_project(client: AsyncClient, override_auth, db_session):
 
 
 @pytest.mark.asyncio
-async def test_delete_project(client: AsyncClient, override_auth, db_session):
+async def test_delete_project(
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test soft deleting a project."""
     # Create project
     project_data = {
@@ -205,18 +218,18 @@ async def test_delete_project(client: AsyncClient, override_auth, db_session):
 
     # Verify project is not in list
     list_response = await client.get("/api/v1/projects")
-    projects = list_response.json()
+    projects = list_response.json()["items"]
     assert not any(p["code"] == "DEL-001" for p in projects)
 
 
 @pytest.mark.asyncio
-async def test_get_project_history(client: AsyncClient, override_auth, db_session):
+async def test_get_project_history(
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     # Insert mock admin user into DB so the join works
     from app.models.domain.user import User
-    stmt = (
-        select(User)
-        .where(User.user_id == mock_admin_user.user_id)
-    )
+
+    stmt = select(User).where(User.user_id == mock_admin_user.user_id)
     existing_user = (await db_session.execute(stmt)).scalar_one_or_none()
     if not existing_user:
         db_session.add(mock_admin_user)
@@ -254,8 +267,8 @@ async def test_get_project_history(client: AsyncClient, override_auth, db_sessio
 
 @pytest.mark.asyncio
 async def test_get_projects_with_pagination(
-    client: AsyncClient, override_auth, db_session
-):
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test pagination works correctly."""
     # Create 5 projects
     for i in range(5):
@@ -265,15 +278,15 @@ async def test_get_projects_with_pagination(
         )
 
     # Get first page
-    response = await client.get("/api/v1/projects?skip=0&limit=2")
+    response = await client.get("/api/v1/projects?page=1&per_page=2")
     assert response.status_code == 200
-    page1 = response.json()
+    page1 = response.json()["items"]
     assert len(page1) == 2
 
     # Get second page
-    response = await client.get("/api/v1/projects?skip=2&limit=2")
+    response = await client.get("/api/v1/projects?page=2&per_page=2")
     assert response.status_code == 200
-    page2 = response.json()
+    page2 = response.json()["items"]
     assert len(page2) == 2
 
     # Verify different projects

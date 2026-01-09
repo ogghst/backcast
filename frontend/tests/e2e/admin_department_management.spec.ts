@@ -64,7 +64,7 @@ test.describe("Admin Department Management", () => {
     await page.click('button:has-text("Create")');
 
     // Wait for modal to close
-    await expect(page.locator('[role="dialog"]')).not.toBeVisible();
+    await expect(page.locator(".ant-modal-content")).not.toBeVisible();
 
     // Verify department appears in table
     await expect(page.locator(`text=${testName}`).first()).toBeVisible({
@@ -83,7 +83,7 @@ test.describe("Admin Department Management", () => {
     await page.fill('input[placeholder="Engineering"]', testName);
     await page.fill('input[placeholder="ENG"]', testCode);
     await page.click('button:has-text("Create")');
-    await expect(page.locator('[role="dialog"]')).not.toBeVisible();
+    await expect(page.locator(".ant-modal-content")).not.toBeVisible();
     await expect(page.locator(`text=${testCode}`).first()).toBeVisible({
       timeout: 10000,
     });
@@ -106,7 +106,7 @@ test.describe("Admin Department Management", () => {
     await page.click('button:has-text("Save")');
 
     // Wait for modal to close
-    await expect(page.locator('[role="dialog"]')).not.toBeVisible();
+    await expect(page.locator(".ant-modal-content")).not.toBeVisible();
 
     // Verify update
     await expect(page.locator(`text=${updatedName}`).first()).toBeVisible({
@@ -124,7 +124,7 @@ test.describe("Admin Department Management", () => {
     await page.fill('input[placeholder="Engineering"]', testName);
     await page.fill('input[placeholder="ENG"]', testCode);
     await page.click('button:has-text("Create")');
-    await expect(page.locator('[role="dialog"]')).not.toBeVisible();
+    await expect(page.locator(".ant-modal-content")).not.toBeVisible();
     await expect(page.locator(`text=${testCode}`).first()).toBeVisible({
       timeout: 10000,
     });
@@ -156,5 +156,45 @@ test.describe("Admin Department Management", () => {
     await expect(page.locator("text=Code")).toBeVisible();
     await expect(page.locator("text=Description")).toBeVisible();
     await expect(page.locator("text=Actions")).toBeVisible();
+  });
+  test("should filter departments using global search", async ({ page }) => {
+    // 1. Create a unique department
+    const timestamp = Date.now();
+    const uniqueCode = `SDEPT-${timestamp.toString().substring(8)}`;
+    const uniqueName = `Search Department ${timestamp}`;
+
+    await page.click('button:has-text("Add Department")');
+    await page.fill('input[placeholder="Engineering"]', uniqueName);
+    await page.fill('input[placeholder="ENG"]', uniqueCode);
+    await page.click('button:has-text("Create")');
+    await expect(page.locator(".ant-modal-content")).not.toBeVisible();
+    await expect(page.locator(`text=${uniqueCode}`).first()).toBeVisible({
+      timeout: 10000,
+    });
+
+    // 2. Use Global Search
+    const searchInput = page.locator(
+      'input[placeholder="Search departments..."]'
+    );
+    await expect(searchInput).toBeVisible();
+
+    await searchInput.fill(uniqueCode);
+    await page.waitForTimeout(500);
+
+    // Verify Department is visible
+    await expect(page.locator(`text=${uniqueName}`).first()).toBeVisible();
+
+    // 3. Search for non-existent
+    await searchInput.fill(`NON_EXISTENT_${timestamp}`);
+    await page.waitForTimeout(500);
+
+    // Verify Department is NOT visible
+    await expect(page.locator(`text=${uniqueName}`)).not.toBeVisible();
+    await expect(page.locator(".ant-empty-description")).toBeVisible();
+
+    // 4. Clear Search
+    await searchInput.clear();
+    await page.waitForTimeout(500);
+    await expect(page.locator(`text=${uniqueName}`).first()).toBeVisible();
   });
 });

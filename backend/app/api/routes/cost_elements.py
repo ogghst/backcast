@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -26,26 +27,67 @@ def get_cost_element_service(
 
 @router.get(
     "",
-    response_model=list[CostElementRead],
+    response_model=None,  # Will be PaginatedResponse[CostElementRead]
     operation_id="get_cost_elements",
     dependencies=[Depends(RoleChecker(required_permission="cost-element-read"))],
 )
 async def read_cost_elements(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch to query"),
-    wbe_id: UUID | None = None,
-    cost_element_type_id: UUID | None = None,
+    wbe_id: UUID | None = Query(None, description="Filter by WBE ID"),
+    cost_element_type_id: UUID | None = Query(
+        None, description="Filter by Cost Element Type ID"
+    ),
+    search: str | None = Query(None, description="Search term (code, name)"),
+    filters: str | None = Query(
+        None,
+        description="Filters in format 'column:value;column:value1,value2'",
+    ),
+    sort_field: str | None = Query(None, description="Field to sort by"),
+    sort_order: str = Query(
+        "asc",
+        pattern="^(asc|desc)$",
+        description="Sort order (asc or desc)",
+    ),
     service: CostElementService = Depends(get_cost_element_service),
-) -> Sequence[CostElement]:
-    """Retrieve cost elements for a specific branch."""
-    filters = {}
+) -> dict[str, Any]:
+    """Retrieve cost elements with server-side search, filtering, and sorting."""
+    from app.models.schemas.common import PaginatedResponse
+    from app.models.schemas.cost_element import CostElementRead
+
+    # Legacy filters support
+    legacy_filters = {}
     if wbe_id:
-        filters["wbe_id"] = wbe_id
+        legacy_filters["wbe_id"] = wbe_id
     if cost_element_type_id:
-        filters["cost_element_type_id"] = cost_element_type_id
-        
-    return await service.get_cost_elements(filters=filters, branch=branch, skip=skip, limit=limit)
+        legacy_filters["cost_element_type_id"] = cost_element_type_id
+
+    skip = (page - 1) * per_page
+
+    items, total = await service.get_cost_elements(
+        filters=legacy_filters,
+        branch=branch,
+        skip=skip,
+        limit=per_page,
+        search=search,
+        filter_string=filters,
+        sort_field=sort_field,
+        sort_order=sort_order,
+    )
+
+    # Convert to Pydantic models
+    items_out = [CostElementRead.model_validate(i) for i in items]
+
+    # Return paginated response
+    response = PaginatedResponse[CostElementRead](
+        items=items_out,
+        total=total,
+        page=page,
+        per_page=per_page,
+    )
+
+    return response.model_dump()
 
 
 @router.post(
@@ -113,7 +155,7 @@ async def update_cost_element(
         # But we might want to 404 if it doesn't exist in source either.
         # Service update logic: "If version not found in target branch -> Fork from main".
         # If not in main -> ValueError.
-        
+
         return await service.update(
             cost_element_id=cost_element_id,
             element_in=element_in,
@@ -140,13 +182,15 @@ async def delete_cost_element(
     try:
         item = await service.get_by_id(cost_element_id, branch=branch)
         if not item:
-             raise HTTPException(
+            raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Cost Element not found in branch {branch}",
             )
 
         await service.soft_delete(
-            cost_element_id=cost_element_id, actor_id=current_user.user_id, branch=branch
+            cost_element_id=cost_element_id,
+            actor_id=current_user.user_id,
+            branch=branch,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -163,7 +207,7 @@ async def get_cost_element_history(
     service: CostElementService = Depends(get_cost_element_service),
 ) -> Sequence[CostElement]:
     """Get full version history for a cost element across all branches."""
-    # TODO: History might need branch filtering too? 
+    # TODO: History might need branch filtering too?
     # TemporalService.get_history gets ALL versions by root_id.
     # This is correct for "history view".
     return await service.get_history(cost_element_id)

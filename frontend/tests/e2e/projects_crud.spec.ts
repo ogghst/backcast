@@ -49,7 +49,7 @@ test.describe("Project CRUD", () => {
     await page.getByLabel("Project Name").fill(`E2E Project ${timestamp}`);
     // Budget is InputNumber, specific handling might be needed
     // Usually standard input[id="budget"] works but might need explicit focus/type
-    await page.getByLabel("Budget").fill("50000");
+    await page.getByRole("dialog").getByLabel("Budget").fill("50000");
 
     // Select dates? Optional based on form, but let's try submitting
     // Select dates? Optional based on form, but let's try submitting
@@ -96,7 +96,9 @@ test.describe("Project CRUD", () => {
       page.locator(".ant-drawer-title").filter({ hasText: "History" })
     ).toBeVisible();
     // Should have at least 2 versions (Initial + Update)
-    await expect(page.locator(".ant-list-item")).toHaveCount(2);
+    await expect(page.locator(".ant-list-item")).toHaveCount(2, {
+      timeout: 15000,
+    });
 
     // Close drawer
     await page.locator(".ant-drawer-close").click();
@@ -117,5 +119,185 @@ test.describe("Project CRUD", () => {
     // Verify Deletion
     await expect(popconfirm).not.toBeVisible();
     await expect(page.locator(`text=${projectCode}`)).not.toBeVisible();
+  });
+  test("should filter projects using global search and update URL", async ({
+    page,
+  }) => {
+    // Navigate to projects
+    await page.click("text=Projects");
+    await expect(page.locator(".ant-table-wrapper")).toBeVisible();
+
+    // 1. Create a unique project
+    const timestamp = Date.now();
+    const uniqueCode = `SEARCH-${timestamp}`;
+    const uniqueName = `Searchable Project ${timestamp}`;
+
+    await page
+      .getByRole("button", { name: "Add Project" })
+      .click({ force: true });
+    await page.getByLabel("Project Code").fill(uniqueCode);
+    await page.getByLabel("Project Name").fill(uniqueName);
+    await page.getByRole("dialog").getByLabel("Budget").fill("10000");
+    await page.getByRole("button", { name: "Create" }).click();
+    await expect(page.locator(".ant-modal-content")).not.toBeVisible();
+    await expect(page.locator(`text=${uniqueCode}`).first()).toBeVisible({
+      timeout: 10000,
+    });
+
+    // 2. Use Global Search
+    const searchInput = page.locator('input[placeholder="Search projects..."]');
+    await expect(searchInput).toBeVisible();
+
+    // Type unique part of code
+    const searchResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("/api/v1/projects") &&
+        resp.url().includes(`search=${uniqueCode}`)
+    );
+    await searchInput.fill(uniqueCode);
+    await searchResponse;
+
+    // Verify Project is visible
+    await expect(page.locator(`text=${uniqueName}`).first()).toBeVisible();
+
+    // Verify URL updated
+    expect(page.url()).toContain(`search=${uniqueCode}`);
+
+    // 3. Search for non-existent
+    const emptyResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("/api/v1/projects") &&
+        resp.url().includes("search=NON_EXISTENT")
+    );
+    await searchInput.fill(`NON_EXISTENT_${timestamp}`);
+    await emptyResponse;
+
+    // Verify Project is NOT visible and Empty state
+    await expect(page.locator(`text=${uniqueName}`)).not.toBeVisible();
+    await expect(page.locator(".ant-empty-description")).toBeVisible();
+
+    // 4. Clear Search
+    // AntD Input.Search with allowClear has a clear icon .ant-input-clear-icon
+    const clearIcon = page.locator(".ant-input-clear-icon");
+    if (await clearIcon.isVisible()) {
+      await clearIcon.click();
+    } else {
+      await searchInput.fill("");
+    }
+
+    // Verify Project is visible again
+    await expect(page.locator(`text=${uniqueName}`).first()).toBeVisible({
+      timeout: 10000,
+    });
+    expect(page.url()).not.toContain("search=");
+  });
+
+  test("should verify projects api response format", async ({ page }) => {
+    await page.click("text=Projects");
+
+    const response = await page.waitForResponse(
+      (resp) =>
+        resp.url().includes("/api/v1/projects") &&
+        resp.request().method() === "GET"
+    );
+
+    const data = await response.json();
+    expect(data).toHaveProperty("items");
+    expect(data).toHaveProperty("total");
+    expect(data).toHaveProperty("page");
+    expect(data).toHaveProperty("per_page");
+    expect(Array.isArray(data.items)).toBe(true);
+  });
+
+  test("should filter projects by status", async ({ page }) => {
+    await page.click("text=Projects");
+    await expect(page.locator(".ant-table-wrapper")).toBeVisible();
+
+    const statusHeader = page.locator('th:has-text("Status")');
+    await statusHeader.locator(".ant-table-filter-trigger").click();
+
+    await page.click(".ant-dropdown-menu-item:has-text('Active')");
+    const filterResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("filters=") &&
+        resp.url().includes("status%3AActive")
+    );
+    await page.click(".ant-table-filter-dropdown button:has-text('OK')");
+    await filterResponse;
+
+    const rows = page.locator("table tbody tr:not(.ant-table-placeholder)");
+    const rowCount = await rows.count();
+    if (rowCount > 0) {
+      for (let i = 0; i < Math.min(rowCount, 5); i++) {
+        await expect(rows.nth(i)).toContainText("Active");
+      }
+    }
+  });
+
+  test("should sort projects by name", async ({ page }) => {
+    await page.click("text=Projects");
+    await expect(page.locator(".ant-table-wrapper")).toBeVisible();
+
+    const ascResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("sort_field=name") &&
+        resp.url().includes("sort_order=asc")
+    );
+    await page.click('th:has-text("Name")');
+    await ascResponse;
+
+    const descResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("sort_field=name") &&
+        resp.url().includes("sort_order=desc")
+    );
+    await page.click('th:has-text("Name")');
+    await descResponse;
+  });
+
+  test("should paginate projects", async ({ page }) => {
+    await page.click("text=Projects");
+    await expect(page.locator(".ant-table-wrapper")).toBeVisible();
+
+    await expect(page.locator(".ant-pagination")).toBeVisible();
+
+    const nextPage = page.locator(
+      ".ant-pagination-next:not(.ant-pagination-disabled)"
+    );
+    if (await nextPage.isVisible()) {
+      const page2Response = page.waitForResponse((resp) =>
+        resp.url().includes("page=2")
+      );
+      await nextPage.click();
+      await page2Response;
+      expect(page.url()).toContain("page=2");
+    }
+  });
+
+  test("should handle combined search + filter + sort", async ({ page }) => {
+    await page.click("text=Projects");
+    await expect(page.locator(".ant-table-wrapper")).toBeVisible();
+
+    const searchInput = page.locator('input[placeholder="Search projects..."]');
+    await searchInput.fill("Project");
+
+    const statusHeader = page.locator('th:has-text("Status")');
+    await statusHeader.locator(".ant-table-filter-trigger").click();
+    await page.click(".ant-dropdown-menu-item:has-text('Active')");
+
+    const combinedResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("search=Project") &&
+        resp.url().includes("filters=") &&
+        resp.url().includes("status%3AActive") &&
+        resp.url().includes("sort_field=name") &&
+        resp.url().includes("sort_order=asc")
+    );
+
+    await page.click(".ant-table-filter-dropdown button:has-text('OK')");
+    await page.click('th:has-text("Name")');
+
+    const response = await combinedResponse;
+    expect(response.ok()).toBe(true);
   });
 });

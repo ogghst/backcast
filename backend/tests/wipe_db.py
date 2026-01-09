@@ -1,4 +1,3 @@
-
 import asyncio
 import os
 import sys
@@ -24,6 +23,7 @@ async def wipe():
 
     await engine.dispose()
     print("Wipe complete.")
+
 
 if __name__ == "__main__":
     asyncio.run(wipe())

@@ -29,20 +29,36 @@ def upgrade() -> None:
         sa.Column("parent_wbe_id", sa.UUID(), nullable=True),
         sa.Column("code", sa.String(length=50), nullable=False),
         sa.Column("name", sa.String(length=255), nullable=False),
-        sa.Column("budget_allocation", sa.Numeric(precision=15, scale=2), nullable=False),
+        sa.Column(
+            "budget_allocation", sa.Numeric(precision=15, scale=2), nullable=False
+        ),
         sa.Column("level", sa.Integer(), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("id", sa.UUID(), nullable=False),
-        sa.Column("valid_time", postgresql.TSTZRANGE(), server_default=sa.text("tstzrange(now(), NULL, '[]')"), nullable=False),
-        sa.Column("transaction_time", postgresql.TSTZRANGE(), server_default=sa.text("tstzrange(now(), NULL, '[]')"), nullable=False),
+        sa.Column(
+            "valid_time",
+            postgresql.TSTZRANGE(),
+            server_default=sa.text("tstzrange(now(), NULL, '[]')"),
+            nullable=False,
+        ),
+        sa.Column(
+            "transaction_time",
+            postgresql.TSTZRANGE(),
+            server_default=sa.text("tstzrange(now(), NULL, '[]')"),
+            nullable=False,
+        ),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("branch", sa.String(length=50), server_default="main", nullable=False),
+        sa.Column(
+            "branch", sa.String(length=50), server_default="main", nullable=False
+        ),
         sa.Column("parent_id", sa.UUID(), nullable=True),
         sa.Column("merge_from_branch", sa.String(length=50), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_wbes_code"), "wbes", ["code"], unique=False)
-    op.create_index(op.f("ix_wbes_parent_wbe_id"), "wbes", ["parent_wbe_id"], unique=False)
+    op.create_index(
+        op.f("ix_wbes_parent_wbe_id"), "wbes", ["parent_wbe_id"], unique=False
+    )
     op.create_index(op.f("ix_wbes_project_id"), "wbes", ["project_id"], unique=False)
     op.create_index(op.f("ix_wbes_wbe_id"), "wbes", ["wbe_id"], unique=False)
     # ### end Alembic commands ###

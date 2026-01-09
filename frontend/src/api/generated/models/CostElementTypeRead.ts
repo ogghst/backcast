@@ -6,11 +6,12 @@
  * Properties returned to client.
  */
 export type CostElementTypeRead = {
-  code: string;
-  name: string;
-  description?: string | null;
-  id: string;
-  cost_element_type_id: string;
-  department_id: string;
-  created_by: string;
+    code: string;
+    name: string;
+    description?: (string | null);
+    id: string;
+    cost_element_type_id: string;
+    department_id: string;
+    created_by: string;
 };
+

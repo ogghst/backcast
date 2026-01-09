@@ -1,11 +1,16 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent, act } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { StandardTable, TableParams } from "./StandardTable";
 import { TablePaginationConfig } from "antd";
 
+interface TestItem {
+  id: string;
+  name: string;
+}
+
 describe("StandardTable", () => {
   const mockOnChange = vi.fn();
-  const mockData = [
+  const mockData: TestItem[] = [
     { id: "1", name: "Item 1" },
     { id: "2", name: "Item 2" },
   ];
@@ -23,15 +28,21 @@ describe("StandardTable", () => {
     onChange: mockOnChange,
   };
 
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders table with data", () => {
-    // @ts-expect-error - Testing missing prop
-    render(<StandardTable {...defaultProps} />);
+    render(<StandardTable<TestItem> {...defaultProps} />);
     expect(screen.getByText("Item 1")).toBeInTheDocument();
   });
 
   it("calls onChange when pagination changes", () => {
-    // @ts-expect-error - Testing missing prop
-    render(<StandardTable {...defaultProps} />);
+    render(<StandardTable<TestItem> {...defaultProps} />);
 
     // Find the pagination "next" button or page 2
     const page2Button = screen.getByTitle("2");
@@ -44,19 +55,42 @@ describe("StandardTable", () => {
   });
 
   it("shows loading state", () => {
-    // @ts-expect-error - Testing missing prop
-    render(<StandardTable {...defaultProps} loading={true} />);
-    // AntD table spinner usually has class or aria
-    // For simplicity, we just check if rows are replaced by loading or spinner exists
-    // But testing-library might find the rows if they are just grayed out.
-    // Let's rely on AntD internal implementation validation?
-    // Actually, snapshotting or checking for specific spinner class is brittle.
-    // We trust AntD works, we just verify we passed the prop.
-    // A better test for wrapper is strictly verifying props passing if we mocked Table.
-    // But integration testing is fine.
-
-    // Check if loading overlay or spinner exists.
-    // AntD uses .ant-spin
+    render(<StandardTable<TestItem> {...defaultProps} loading={true} />);
     expect(document.querySelector(".ant-spin")).toBeInTheDocument();
+  });
+
+  it("renders search input when searchable is true", () => {
+    render(
+      <StandardTable<TestItem>
+        {...defaultProps}
+        searchable={true}
+        searchPlaceholder="Test Search"
+      />
+    );
+    expect(screen.getByPlaceholderText("Test Search")).toBeInTheDocument();
+  });
+
+  it("calls onSearch with debounce when typing", () => {
+    const mockOnSearch = vi.fn();
+    render(
+      <StandardTable<TestItem>
+        {...defaultProps}
+        searchable={true}
+        onSearch={mockOnSearch}
+      />
+    );
+
+    const input = screen.getByPlaceholderText("Search...");
+    fireEvent.change(input, { target: { value: "test query" } });
+
+    // Should not be called immediately
+    expect(mockOnSearch).not.toHaveBeenCalled();
+
+    // Fast-forward time
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(mockOnSearch).toHaveBeenCalledWith("test query");
   });
 });

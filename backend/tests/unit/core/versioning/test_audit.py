@@ -1,4 +1,3 @@
-
 from uuid import UUID, uuid4
 
 import pytest
@@ -15,11 +14,15 @@ from app.models.mixins import VersionableMixin
 # Mock Entity
 # -----------------------------------------------------------------------------
 
+
 class MockAuditEntity(EntityBase, VersionableMixin):
     __tablename__ = "mock_audit_entities"
 
-    mock_audit_entity_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
+    mock_audit_entity_id: Mapped[UUID] = mapped_column(
+        PG_UUID, nullable=False, index=True
+    )
     description: Mapped[str] = mapped_column(nullable=False)
+
 
 # -----------------------------------------------------------------------------
 # Test Suite
@@ -33,6 +36,7 @@ async def create_mock_table(db_engine):
     yield
     async with db_engine.begin() as conn:
         await conn.run_sync(MockAuditEntity.__table__.drop)
+
 
 @pytest.mark.asyncio
 async def test_audit_create_persistence(db_session):
@@ -57,12 +61,13 @@ async def test_audit_create_persistence(db_session):
     entity = await service.create(
         root_id=root_id,
         description="Initial Version",
-        actor_id=actor_id # This arg doesn't exist yet -> TypeError (RED)
+        actor_id=actor_id,  # This arg doesn't exist yet -> TypeError (RED)
     )
 
     # 3. Assert
     assert entity.created_by == actor_id
     assert entity.deleted_by is None
+
 
 @pytest.mark.asyncio
 async def test_audit_update_persistence(db_session):
@@ -75,11 +80,7 @@ async def test_audit_update_persistence(db_session):
     service = TemporalService(MockAuditEntity, session)
 
     # Create V1
-    v1 = await service.create(
-        root_id=root_id,
-        description="V1",
-        actor_id=actor_1
-    )
+    v1 = await service.create(root_id=root_id, description="V1", actor_id=actor_1)
 
     # Capture ID before update expires the instance
     v1_id = v1.id
@@ -88,11 +89,12 @@ async def test_audit_update_persistence(db_session):
     v2 = await service.update(
         entity_id=root_id,
         description="V2",
-        actor_id=actor_2 # New arg
+        actor_id=actor_2,  # New arg
     )
 
     assert v2.created_by == actor_2
-    assert v2.id != v1_id # New version
+    assert v2.id != v1_id  # New version
+
 
 @pytest.mark.asyncio
 async def test_audit_soft_delete_persistence(db_session):
@@ -113,7 +115,11 @@ async def test_audit_soft_delete_persistence(db_session):
     # Command usually returns cached instance.
 
     # Let's fetch raw to check deleted_by
-    stmt = select(MockAuditEntity).where(MockAuditEntity.mock_audit_entity_id == root_id).order_by(MockAuditEntity.valid_time.desc())
+    stmt = (
+        select(MockAuditEntity)
+        .where(MockAuditEntity.mock_audit_entity_id == root_id)
+        .order_by(MockAuditEntity.valid_time.desc())
+    )
     result = await session.execute(stmt)
     deleted_entity = result.scalars().first()
 

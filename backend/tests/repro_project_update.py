@@ -1,4 +1,3 @@
-
 import asyncio
 from uuid import uuid4
 
@@ -9,7 +8,7 @@ from app.models.schemas.project import ProjectCreate, ProjectUpdate
 from app.services.project import ProjectService
 
 
-async def reproduce():
+async def reproduce() -> None:
     # Setup DB connection
     # Setup DB connection
     engine = create_async_engine(str(settings.ASYNC_DATABASE_URI))
@@ -29,7 +28,7 @@ async def reproduce():
             name="Repro Project",
             code=project_code,
             budget=10000,
-            description="Test Description"
+            description="Test Description",
         )
 
         try:
@@ -43,13 +42,12 @@ async def reproduce():
 
         # 2. Update Project (Immediately)
         print("\nAttempting immediate update...")
-        update_in = ProjectUpdate(
-            name="Updated Repro Project",
-            budget=20000
-        )
+        update_in = ProjectUpdate(name="Updated Repro Project", budget=20000)
 
         try:
-            updated = await service.update_project(created.project_id, update_in, actor_id)
+            updated = await service.update_project(
+                created.project_id, update_in, actor_id
+            )
             print(f"Updated Version ID: {updated.id}")
             print(f"Updated Name: {updated.name}")
             print("SUCCESS: Update completed.")
@@ -58,6 +56,7 @@ async def reproduce():
             print("REPRODUCTION SUCCESSFUL: The bug is present.")
         except Exception as e:
             print(f"CAUGHT UNEXPECTED ERROR: {type(e).__name__}: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(reproduce())

@@ -48,3 +48,17 @@ Additional information, links, or future review dates
 2. Review with team
 3. Update status to "Accepted" when consensus reached
 4. Link from this index
+
+---
+
+## Active ADRs
+
+| ID                                               | Title                                      | Status   | Date       |
+| ------------------------------------------------ | ------------------------------------------ | -------- | ---------- |
+| [ADR-001](ADR-001-technology-stack.md)           | Technology Stack                           | Accepted | 2026-01-01 |
+| [ADR-003](ADR-003-command-pattern.md)            | Command Pattern                            | Accepted | 2026-01-02 |
+| [ADR-004](ADR-004-quality-standards.md)          | Quality Standards                          | Accepted | 2026-01-02 |
+| [ADR-005](ADR-005-bitemporal-versioning.md)      | Bitemporal Versioning                      | Accepted | 2026-01-03 |
+| [ADR-006](ADR-006-protocol-based-type-system.md) | Protocol-based Type System                 | Accepted | 2026-01-04 |
+| [ADR-007](ADR-007-rbac-service.md)               | RBAC Service                               | Accepted | 2026-01-05 |
+| [ADR-008](ADR-008-server-side-filtering.md)      | Server-Side Filtering, Search, and Sorting | Accepted | 2026-01-08 |

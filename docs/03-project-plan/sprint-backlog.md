@@ -1,121 +1,118 @@
 # Current Iteration
 
-**Iteration:** Fix Unit Test Failures (TD-002)
+**Iteration:** E2E Test Stabilization & Debt Paydown
 
-**Start Date:** 2026-01-07
-**Target End:** 2026-01-07
-**Status:** 🟢 Complete
+**Start Date:** 2026-01-09
+**End Date:** 2026-01-09
+**Status:** ✅ **COMPLETE**
 
 ---
 
 ## Goal
 
-Resolve critical unit and integration test failures in the backend to restore confidence in the versioning and branching logic. Specifically address TD-002 from the Technical Debt Register.
+Resolve E2E failures caused by API changes (Server-Side Filtering) and address technical debt to ensure a stable testing baseline.
 
 **Key Focus Areas:**
 
-1. Fix `tests/unit/core/versioning/test_audit.py`
-2. Stabilize `tests/integration/test_integration_branch_service.py`
-3. Ensure 100% pass rate in core test modules
-
----
-
-## Team
-
-- **Backend Developer:** Implementation
-- **AI Assistant:** Code review, quality verification
-
----
-
-## Sprint Capacity
-
-- **Planned Story Points:** 5
-- **Available Capacity:** 20-25 points/sprint
-- **Buffer:** N/A (single-day iteration)
-- **Velocity Context:** Last sprint: 21 points, Average: 22 points
+1. **E2E Tests:** Update mocking and assertions for `PaginatedResponse`.
+2. **Backend Filtering:** Fix type casting issues in `FilterParser`.
+3. **Frontend Search:** Ensure search parameters are passed to API.
 
 ---
 
 ## Stories in Scope
 
-| Story                           | Points | Priority | Status         | Dependencies |
-| ------------------------------- | ------ | -------- | -------------- | ------------ |
-| [TD-002] Fix Unit Test Failures | 3      | High     | 🔵 In Progress | None         |
-
-**Total Points:** 3
-
-**Completed Points:** 0/3 (0%)
+| Story                     | Points | Priority | Status  | Actual Time | Dependencies |
+| ------------------------- | ------ | -------- | ------- | ----------- | ------------ |
+| [TD-003] Update E2E Tests | 3h     | High     | ✅ Done | 1.5h        | None         |
 
 ---
 
 ## Success Criteria
 
-### Functional
-
-- [ ] `tests/unit/core/versioning/test_audit.py` passes
-- [ ] `tests/integration/test_integration_branch_service.py` passes
-- [ ] All tests in `tests/unit/core` pass
-
-### Technical
-
-- [ ] MyPy strict mode passes on modified files
-- [ ] Ruff linting passes on modified files
-- [ ] Database isolation maintained in integration tests
-
-### Business
-
-- [ ] Restored confidence in bitemporal/branching core
-- [ ] Technical Debt Register (TD-002) closed
+- [x] All E2E tests pass (`projects_crud`, `wbes_crud`, `cost_elements_crud`)
+- [x] Backend tests pass (153/153)
+- [x] Type casting works for integer/boolean filters
+- [x] Search functionality works in Cost Elements table
 
 ---
 
-## Active Risks
+## Iteration Records
 
-| Risk                                         | Mitigation                 | Status        |
-| -------------------------------------------- | -------------------------- | ------------- |
-| Integration tests environmental dependencies | Use clean DB for each run  | 🟡 Monitoring |
-| Core logic changes cause regressions         | Full suite run after fixes | 🟢 Low        |
-
----
-
-## Current Status (2026-01-07)
-
-### Progress Summary
-
-- **Completed Points:** 0/3 (0%)
-- **Tests:** 19/22 passing (core/integration subset)
-- **Files Modified:** 0
-
-### Key Activities
-
-- **Planning:** ✅ PLAN phase document created
-- **Implementation:** 🔄 Starting investigation of failures
+- **PLAN:** [01-plan.md](iterations/2026-01-09-e2e-server-side-filtering/01-plan.md)
+- **DO:** [02-do.md](iterations/2026-01-09-e2e-server-side-filtering/02-do.md)
+- **CHECK:** [03-check.md](iterations/2026-01-09-e2e-server-side-filtering/03-check.md)
+- **ACT:** [04-act.md](iterations/2026-01-09-e2e-server-side-filtering/04-act.md)
 
 ---
 
-## Daily Standup Notes
+## Previous Iterations
 
-### 2026-01-07
-
-**Yesterday:**
-
-- Completed Cost Elements features.
-- Completed Frontend Architecture cleanup.
-
-**Today:**
-
-- Started TD-002 fix iteration.
-- Identified field naming mismatch in `MockAuditEntity`.
-
-**Blockers:**
-
-- None
+- **[2026-01-08] Frontend Table Harmonization - Phase 2:** ✅ Complete (100%)
 
 ---
 
-## Iteration Links
+## Next Iteration Planning
 
-- **PLAN Phase:** [iterations/2026-01-07-fix-unit-tests-td-002/01-plan.md](iterations/2026-01-07-fix-unit-tests-td-002/01-plan.md)
-- **DO Phase:** [iterations/2026-01-07-fix-unit-tests-td-002/02-do.md](iterations/2026-01-07-fix-unit-tests-td-002/02-do.md)
-- **CHECK Phase:** [iterations/2026-01-07-fix-unit-tests-td-002/03-check.md](iterations/2026-01-07-fix-unit-tests-td-002/03-check.md)
-- **ACT Phase:** [iterations/2026-01-07-fix-unit-tests-td-002/04-act.md](iterations/2026-01-07-fix-unit-tests-td-002/04-act.md)
+**Proposed Focus Areas:**
+
+### Option 1: Technical Debt Paydown (Recommended)
+
+- **TD-012:** E2E Test Data Isolation (3h)
+- **TD-013:** FilterParser Error Messages (2h)
+- **TD-014:** Frontend Filter Type Safety (3h)
+- **Estimated Effort:** 8 hours
+- **Benefit:** Improved test reliability and type safety
+
+### Option 2: Feature Development
+
+- Advanced filtering UI (Filter Builder)
+- Saved filter presets
+- Export filtered results
+- **Estimated Effort:** 8-12 hours
+- **Benefit:** Enhanced user experience
+
+### Option 3: Performance Optimization
+
+- Database indexes for filtered columns
+- Query result caching
+- Performance profiling
+- **Estimated Effort:** 6-8 hours
+- **Benefit:** Faster query response times
+
+**Recommendation:** Option 1 (Technical Debt) to maintain code quality and test reliability before adding new features.
+
+---
+
+## Backlog
+
+### Technical Debt (See [Technical Debt Register](technical-debt-register.md))
+
+- [TD-012] E2E Test Data Isolation (3h) - High Priority
+- [TD-013] FilterParser Error Messages (2h)
+- [TD-014] Frontend Filter Type Safety (3h)
+- [TD-015] useTableParams Type Safety (2h)
+- [TD-016] Performance Optimization - Large Projects (3h)
+- [TD-017] Remaining Page-Level API Adapters (1h)
+
+### Feature Enhancements
+
+- Advanced filter UI with filter builder
+- Saved filter presets per user
+- Export functionality for filtered results
+- Bulk operations on filtered items
+- Filter history and recent filters
+
+### Performance
+
+- Add database indexes for commonly filtered columns
+- Implement query result caching
+- Profile and optimize slow queries
+- Implement virtual scrolling for large tables
+
+### Testing
+
+- Add dedicated search functionality tests
+- Add filter combination tests
+- Add pagination edge case tests
+- Implement visual regression testing

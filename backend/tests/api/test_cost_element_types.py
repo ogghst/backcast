@@ -3,9 +3,7 @@ from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
 
 from app.api.dependencies.auth import (
     get_current_active_user,
@@ -68,7 +66,9 @@ def override_auth() -> Any:
 
 
 @pytest.mark.asyncio
-async def test_create_cost_element_type(client: AsyncClient, override_auth: None, db_session: AsyncSession) -> None:
+async def test_create_cost_element_type(
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test creating a new cost element type."""
     # Create Department first
     dept_resp = await client.post(
@@ -95,12 +95,17 @@ async def test_create_cost_element_type(client: AsyncClient, override_auth: None
 
 
 @pytest.mark.asyncio
-async def test_get_cost_element_types(client: AsyncClient, override_auth: None, db_session: AsyncSession) -> None:
+async def test_get_cost_element_types(
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test retrieving list of cost element types."""
     # Create Department
     dept_resp = await client.post(
         "/api/v1/departments",
-        json={"code": f"DEPT-LIST-{uuid4().hex[:4].upper()}", "name": "Department List"},
+        json={
+            "code": f"DEPT-LIST-{uuid4().hex[:4].upper()}",
+            "name": "Department List",
+        },
     )
     dept_id = dept_resp.json()["department_id"]
 
@@ -119,14 +124,16 @@ async def test_get_cost_element_types(client: AsyncClient, override_auth: None, 
     response = await client.get("/api/v1/cost-element-types")
 
     assert response.status_code == 200
-    data = response.json()
+    data = response.json()["items"]
     # Note: DB might contain other types from other tests, so we check inclusion
     assert len(data) >= 3
     assert any(t["code"] == "TYPE-0" for t in data)
 
 
 @pytest.mark.asyncio
-async def test_get_cost_element_type_by_id(client: AsyncClient, override_auth: None, db_session: AsyncSession) -> None:
+async def test_get_cost_element_type_by_id(
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test retrieving a specific cost element type."""
     # Create Department
     dept_resp = await client.post(
@@ -155,7 +162,9 @@ async def test_get_cost_element_type_by_id(client: AsyncClient, override_auth: N
 
 
 @pytest.mark.asyncio
-async def test_update_cost_element_type(client: AsyncClient, override_auth: None, db_session: AsyncSession) -> None:
+async def test_update_cost_element_type(
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test updating a cost element type."""
     # Create Department
     dept_resp = await client.post(
@@ -187,7 +196,9 @@ async def test_update_cost_element_type(client: AsyncClient, override_auth: None
 
 
 @pytest.mark.asyncio
-async def test_delete_cost_element_type(client: AsyncClient, override_auth: None, db_session: AsyncSession) -> None:
+async def test_delete_cost_element_type(
+    client: AsyncClient, override_auth: None, db_session: AsyncSession
+) -> None:
     """Test soft deleting a cost element type."""
     # Create Department
     dept_resp = await client.post(
@@ -213,10 +224,9 @@ async def test_delete_cost_element_type(client: AsyncClient, override_auth: None
 
     # Verify not in list
     list_resp = await client.get("/api/v1/cost-element-types")
-    types = list_resp.json()
+    types = list_resp.json()["items"]
     assert not any(t["cost_element_type_id"] == type_id for t in types)
 
     # Verify 404 on get
     get_resp = await client.get(f"/api/v1/cost-element-types/{type_id}")
     assert get_resp.status_code == 404
-
