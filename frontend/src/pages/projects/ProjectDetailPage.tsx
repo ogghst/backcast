@@ -26,14 +26,16 @@ export const ProjectDetailPage = () => {
   const { data: project, isLoading: projectLoading } = useProject(projectId!);
 
   // Fetch Root WBEs
+  // Fetch Root WBEs
   const {
-    data: wbes,
+    data,
     isLoading: wbesLoading,
     refetch: refetchWBEs,
   } = useWBEs({
     projectId: projectId,
     parentWbeId: "null", // Explicitly ask for root WBEs
   });
+  const wbes = data?.items || [];
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedWBE, setSelectedWBE] = useState<WBERead | null>(null);
@@ -50,7 +52,7 @@ export const ProjectDetailPage = () => {
       entityId: projectId,
       fetchFn: (id) => ProjectsService.getProjectHistory(id),
       enabled: historyOpen,
-    },
+    }
   );
 
   const { mutateAsync: createWBE } = useCreateWBE({

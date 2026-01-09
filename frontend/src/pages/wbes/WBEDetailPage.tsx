@@ -39,13 +39,14 @@ export const WBEDetailPage = () => {
 
   // Fetch child WBEs
   const {
-    data: childWbes,
+    data,
     isLoading: childrenLoading,
     refetch: refetchChildren,
   } = useWBEs({
     projectId,
     parentWbeId: wbeId,
   });
+  const childWbes = data?.items || [];
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -65,7 +66,7 @@ export const WBEDetailPage = () => {
       entityId: wbeId,
       fetchFn: (id) => WbEsService.getWbeHistory(id),
       enabled: historyOpen,
-    },
+    }
   );
 
   // Mutations
@@ -215,7 +216,7 @@ export const WBEDetailPage = () => {
                 // Navigate back to parent
                 if (wbeToDelete.parent_wbe_id) {
                   navigate(
-                    `/projects/${projectId}/wbes/${wbeToDelete.parent_wbe_id}`,
+                    `/projects/${projectId}/wbes/${wbeToDelete.parent_wbe_id}`
                   );
                 } else {
                   navigate(`/projects/${projectId}`);

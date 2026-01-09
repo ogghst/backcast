@@ -89,7 +89,13 @@ export const StandardTable = <T extends object>({
       )}
       <Table<T>
         {...props}
-        pagination={tableParams.pagination}
+        pagination={{
+          ...tableParams.pagination,
+          showSizeChanger: true,
+          pageSizeOptions: ["10", "20", "50", "100"],
+          showTotal: (total, range) =>
+            `${range[0]}-${range[1]} of ${total} items`,
+        }}
         onChange={onChange}
       />
     </div>

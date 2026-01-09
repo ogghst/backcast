@@ -7,16 +7,7 @@ import {
 } from "@/api/generated";
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
-
-/**
- * Paginated response from server-side filtering API.
- */
-interface PaginatedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  per_page: number;
-}
+import type { PaginatedResponse } from "@/types/api";
 
 /**
  * Parameters for server-side filtering, search, and sorting.
@@ -50,14 +41,6 @@ const getProjectsPaginated = async (
       sort_order: params?.sort_order,
     },
   });
-};
-
-/**
- * Helper to unwrap paginated response from API.
- * Backend may return either an array or { items: [...] } wrapper.
- */
-const unwrapResponse = <T>(res: T[] | { items: T[] }): T[] => {
-  return Array.isArray(res) ? res : (res as { items: T[] }).items;
 };
 
 /**
@@ -105,11 +88,16 @@ export const {
   useCreate: useCreateProject,
   useUpdate: useUpdateProject,
   useDelete: useDeleteProject,
-} = createResourceHooks<ProjectRead, ProjectCreate, ProjectUpdate>("projects", {
+} = createResourceHooks<
+  ProjectRead,
+  ProjectCreate,
+  ProjectUpdate,
+  PaginatedResponse<ProjectRead>
+>("projects", {
   list: async (params) => {
     const serverParams = getPaginationParams(params);
     const res = await getProjectsPaginated(serverParams);
-    return unwrapResponse(res);
+    return res;
   },
   detail: ProjectsService.getProject,
   create: ProjectsService.createProject,

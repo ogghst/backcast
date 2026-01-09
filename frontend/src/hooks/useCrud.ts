@@ -19,8 +19,8 @@ export interface CrudOptions {
  * API methods using generic names (legacy adapter pattern).
  * This interface allows the old adapter pattern to continue working.
  */
-export interface LegacyApiMethods<T, TCreate, TUpdate> {
-  getUsers?: (filters?: Record<string, unknown>) => Promise<T[]>;
+export interface LegacyApiMethods<T, TCreate, TUpdate, TList = T[]> {
+  getUsers?: (filters?: Record<string, unknown>) => Promise<TList>;
   getUser?: (id: string) => Promise<T>;
   createUser?: (data: TCreate) => Promise<T>;
   updateUser?: (id: string, data: TUpdate) => Promise<T>;
@@ -31,17 +31,17 @@ export interface LegacyApiMethods<T, TCreate, TUpdate> {
  * API methods using semantic names (new direct pattern).
  * This interface allows direct usage of service methods without adapters.
  */
-export interface NamedApiMethods<T, TCreate, TUpdate> {
-  list?: (filters?: Record<string, unknown>) => Promise<T[]>;
+export interface NamedApiMethods<T, TCreate, TUpdate, TList = T[]> {
+  list?: (filters?: Record<string, unknown>) => Promise<TList>;
   detail?: (id: string) => Promise<T>;
   create?: (data: TCreate) => Promise<T>;
   update?: (id: string, data: TUpdate) => Promise<T>;
   delete?: (id: string) => Promise<void>;
 }
 
-export type ApiMethods<T, TCreate, TUpdate> =
-  | LegacyApiMethods<T, TCreate, TUpdate>
-  | NamedApiMethods<T, TCreate, TUpdate>;
+export type ApiMethods<T, TCreate, TUpdate, TList = T[]> =
+  | LegacyApiMethods<T, TCreate, TUpdate, TList>
+  | NamedApiMethods<T, TCreate, TUpdate, TList>;
 
 /**
  * Creates a set of React Query hooks for CRUD operations on a resource.
@@ -71,10 +71,10 @@ export type ApiMethods<T, TCreate, TUpdate> =
  *    });
  *    ```
  */
-export const createResourceHooks = <T, TCreate, TUpdate>(
+export const createResourceHooks = <T, TCreate, TUpdate, TList = T[]>(
   queryKey: string,
-  api: ApiMethods<T, TCreate, TUpdate>,
-  options?: CrudOptions,
+  api: ApiMethods<T, TCreate, TUpdate, TList>,
+  options?: CrudOptions
 ) => {
   // Normalize invalidation arrays
   const getInvalidationKeys = (type: "create" | "update" | "delete") => {
@@ -87,14 +87,14 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
 
   const useList = (
     filters?: Record<string, unknown>,
-    queryOptions?: Omit<UseQueryOptions<T[], Error>, "queryKey">,
+    queryOptions?: Omit<UseQueryOptions<TList, Error>, "queryKey">
   ) => {
     return useQuery({
       queryKey: [queryKey, "list", filters],
       queryFn: () => {
         const listFn = isLegacy
-          ? (api as LegacyApiMethods<T, TCreate, TUpdate>).getUsers
-          : (api as NamedApiMethods<T, TCreate, TUpdate>).list;
+          ? (api as LegacyApiMethods<T, TCreate, TUpdate, TList>).getUsers
+          : (api as NamedApiMethods<T, TCreate, TUpdate, TList>).list;
         if (!listFn) throw new Error("list method not implemented");
         return listFn(filters);
       },
@@ -104,14 +104,14 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
 
   const useDetail = (
     id: string,
-    queryOptions?: Omit<UseQueryOptions<T, Error>, "queryKey">,
+    queryOptions?: Omit<UseQueryOptions<T, Error>, "queryKey">
   ) => {
     return useQuery({
       queryKey: [queryKey, "detail", id],
       queryFn: () => {
         const detailFn = isLegacy
-          ? (api as LegacyApiMethods<T, TCreate, TUpdate>).getUser
-          : (api as NamedApiMethods<T, TCreate, TUpdate>).detail;
+          ? (api as LegacyApiMethods<T, TCreate, TUpdate, TList>).getUser
+          : (api as NamedApiMethods<T, TCreate, TUpdate, TList>).detail;
         if (!detailFn) throw new Error("detail method not implemented");
         return detailFn(id);
       },
@@ -121,21 +121,21 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
   };
 
   const useCreate = (
-    mutationOptions?: Omit<UseMutationOptions<T, Error, TCreate>, "mutationFn">,
+    mutationOptions?: Omit<UseMutationOptions<T, Error, TCreate>, "mutationFn">
   ) => {
     const queryClient = useQueryClient();
     return useMutation({
       mutationFn: (data: TCreate) => {
         const createFn = isLegacy
-          ? (api as LegacyApiMethods<T, TCreate, TUpdate>).createUser
-          : (api as NamedApiMethods<T, TCreate, TUpdate>).create;
+          ? (api as LegacyApiMethods<T, TCreate, TUpdate, TList>).createUser
+          : (api as NamedApiMethods<T, TCreate, TUpdate, TList>).create;
         if (!createFn) throw new Error("create method not implemented");
         return createFn(data);
       },
       onSuccess: (...args) => {
         const keys = getInvalidationKeys("create");
         keys.forEach((key) =>
-          queryClient.invalidateQueries({ queryKey: [key] }),
+          queryClient.invalidateQueries({ queryKey: [key] })
         );
         toast.success(`Created successfully`);
         mutationOptions?.onSuccess?.(...args);
@@ -152,21 +152,21 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
     mutationOptions?: Omit<
       UseMutationOptions<T, Error, { id: string; data: TUpdate }>,
       "mutationFn"
-    >,
+    >
   ) => {
     const queryClient = useQueryClient();
     return useMutation({
       mutationFn: ({ id, data }: { id: string; data: TUpdate }) => {
         const updateFn = isLegacy
-          ? (api as LegacyApiMethods<T, TCreate, TUpdate>).updateUser
-          : (api as NamedApiMethods<T, TCreate, TUpdate>).update;
+          ? (api as LegacyApiMethods<T, TCreate, TUpdate, TList>).updateUser
+          : (api as NamedApiMethods<T, TCreate, TUpdate, TList>).update;
         if (!updateFn) throw new Error("update method not implemented");
         return updateFn(id, data);
       },
       onSuccess: (...args) => {
         const keys = getInvalidationKeys("update");
         keys.forEach((key) =>
-          queryClient.invalidateQueries({ queryKey: [key] }),
+          queryClient.invalidateQueries({ queryKey: [key] })
         );
         toast.success(`Updated successfully`);
         mutationOptions?.onSuccess?.(...args);
@@ -183,21 +183,21 @@ export const createResourceHooks = <T, TCreate, TUpdate>(
     mutationOptions?: Omit<
       UseMutationOptions<void, Error, string>,
       "mutationFn"
-    >,
+    >
   ) => {
     const queryClient = useQueryClient();
     return useMutation({
       mutationFn: (id: string) => {
         const deleteFn = isLegacy
-          ? (api as LegacyApiMethods<T, TCreate, TUpdate>).deleteUser
-          : (api as NamedApiMethods<T, TCreate, TUpdate>).delete;
+          ? (api as LegacyApiMethods<T, TCreate, TUpdate, TList>).deleteUser
+          : (api as NamedApiMethods<T, TCreate, TUpdate, TList>).delete;
         if (!deleteFn) throw new Error("delete method not implemented");
         return deleteFn(id);
       },
       onSuccess: (...args) => {
         const keys = getInvalidationKeys("delete");
         keys.forEach((key) =>
-          queryClient.invalidateQueries({ queryKey: [key] }),
+          queryClient.invalidateQueries({ queryKey: [key] })
         );
         toast.success(`Deleted successfully`);
         mutationOptions?.onSuccess?.(...args);

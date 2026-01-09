@@ -14,15 +14,9 @@ interface WBEListParams {
   branch?: string;
 }
 
-/**
- * Helper to unwrap paginated response from API.
- * WBE API returns:
- * - Array when using hierarchical filters (projectId/parentWbeId)
- * - Paginated object {items, total, page, per_page} when using general listing
- */
-const unwrapWBEResponse = <T>(res: T[] | { items: T[] }): T[] => {
-  return Array.isArray(res) ? res : (res as { items: T[] }).items;
-};
+import type { PaginatedResponse } from "@/types/api";
+
+// ... imports
 
 // Direct usage of WbEsService with named methods (no adapter needed)
 export const {
@@ -31,7 +25,12 @@ export const {
   useCreate: useCreateWBE,
   useUpdate: useUpdateWBE,
   useDelete: useDeleteWBE,
-} = createResourceHooks<WBERead, WBECreate, WBEUpdate>("wbes", {
+} = createResourceHooks<
+  WBERead,
+  WBECreate,
+  WBEUpdate,
+  PaginatedResponse<WBERead>
+>("wbes", {
   list: async (params?: any) => {
     // Convert Ant Design table params to server format
     const current = params?.pagination?.current || 1;
@@ -70,8 +69,19 @@ export const {
       sortOrder
     );
 
-    // Unwrap paginated response if needed (backend returns {items, total...} or items[])
-    return unwrapWBEResponse(response);
+    // Normalize response to always be PaginatedResponse
+    if (Array.isArray(response)) {
+      // Hierarchical or filtered list request that returned raw array
+      return {
+        items: response,
+        total: response.length,
+        page: 1,
+        per_page: response.length,
+      };
+    }
+
+    // It's already a PaginatedResponse
+    return response as unknown as PaginatedResponse<WBERead>;
   },
   detail: WbEsService.getWbe,
   create: WbEsService.createWbe,

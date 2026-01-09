@@ -121,7 +121,7 @@
 
 **Strategy:**
 
-1. Prioritize TD-003 (test isolation) to improve test reliability
+1. Prioritize TD-012 (test isolation) to improve test reliability
 2. Address TD-004 and TD-005 (type safety) together for efficiency
 3. Allocate 20% of each sprint to debt paydown
 4. Bundle related items for efficiency
