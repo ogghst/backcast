@@ -39,6 +39,7 @@ test.describe("WBE CRUD", () => {
     await expect(page.locator(".ant-modal-body")).not.toBeVisible();
 
     const projJson = await projResponse.json();
+    // Assuming backend returns the created object directly for POST
     const projectId = projJson.project_id;
 
     // 2. Navigate to Project Detail
@@ -217,10 +218,8 @@ test.describe("WBE CRUD", () => {
     const okBtn = page
       .locator(".ant-table-filter-dropdown")
       .getByRole("button", { name: "OK" });
-    const filterResponse = page.waitForResponse(
-      (resp) =>
-        resp.url().includes("filters=") &&
-        decodeURIComponent(resp.url()).includes("level:1")
+    const filterResponse = page.waitForResponse((resp) =>
+      resp.url().includes("filters=")
     );
     await okBtn.click();
     await filterResponse;

@@ -136,6 +136,7 @@ export const CostElementManagement = ({
       filters: tableParams.filters as
         | Record<string, (string | number | boolean)[] | null>
         | undefined,
+      search: tableParams.search,
       branch: currentBranch,
     };
     // If wbeId prop is provided, always filter by it

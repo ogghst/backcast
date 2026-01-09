@@ -131,12 +131,45 @@ class FilterParser:
             # Get the column from the model
             column = getattr(model, field_name)
 
+            # Attempt to cast values based on column type
+            # We use a simple heuristic: check python_type of the column's type
+            try:
+                # This works for most standard types (String, Integer, Boolean, etc.)
+                # If specialized types are used, custom logic might be needed.
+                col_type = column.type.python_type
+                
+                # Only cast if not already compatible (e.g. str to int)
+                # But we blindly try to cast to ensure safety, except for str which is already what we have
+                if col_type is not str:
+                     casted_values = []
+                     for v in values:
+                         if col_type is bool:
+                             # Handle boolean strings: "true"/"1" -> True, "false"/"0" -> False
+                             v_lower = v.lower()
+                             if v_lower in ("true", "1", "yes", "on"):
+                                 casted_values.append(True)
+                             elif v_lower in ("false", "0", "no", "off"):
+                                 casted_values.append(False)
+                             else:
+                                 # Fallback or strict error? Let's just append as is or maybe raise?
+                                 # For robustness, we try to cast, if fail, keep original
+                                 # (but that might cause DB error like we saw).
+                                 # Let's trust standard matching for now.
+                                 casted_values.append(col_type(v)) 
+                         else:
+                             casted_values.append(col_type(v))
+                     values = casted_values # type: ignore
+            except (NotImplementedError, ValueError, TypeError):
+                # If we can't determine python_type or cast fails, use original string values
+                # This might happen for JSON types, Arrays, etc.
+                pass
+
             # Build expression based on number of values
             if len(values) == 1:
                 # Single value: equality check
                 expressions.append(column == values[0])
             else:
                 # Multiple values: IN clause
-                expressions.append(column.in_(values))
+                expressions.append(column.in_(values)) # type: ignore
 
         return expressions

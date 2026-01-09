@@ -108,6 +108,11 @@ test.describe("Cost Elements E2E Tests", () => {
 
     // Select cost element type
     await page.click("#cost_element_form_cost_element_type_id");
+
+    // Wait for dropdown to appear and be stable
+    await page.waitForSelector(".ant-select-dropdown", { state: "visible" });
+    await page.waitForTimeout(300); // Small delay for stability
+
     await page.click(
       `.ant-select-dropdown .ant-select-item:has-text("${type.code}")`
     );
@@ -198,22 +203,36 @@ test.describe("Cost Elements E2E Tests", () => {
       });
     }
 
-    // Navigate to page
+    // Navigate to page - wait a bit for DB to settle (although tests are sequential, writes via API might race)
+    await page.waitForTimeout(500);
     await page.goto(`/projects/${proj.project_id}/wbes/${wbe.wbe_id}`);
 
+    // Force reload just in case
+    await page.reload();
+
+    // Verify data exists
     const costElementsSection = page
       .locator(".ant-card")
       .filter({ hasText: "Cost Elements" });
 
-    // Wait for initial data to load
+    // Because pagination might hide our new item if there are many items,
+    // we should use search immediately to verify existence
+    const searchInput = costElementsSection.locator(".ant-input");
+    await expect(searchInput).toBeVisible();
+
+    // Wait for response to ensure filtering happened
+    const searchResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("/api/v1/cost-elements") &&
+        resp.url().includes("search=")
+    );
+    await searchInput.fill(searchableName);
+    await searchResponse;
+
+    // Check if it appears
     await expect(
       costElementsSection.locator(`text=${searchableName}`).first()
     ).toBeVisible({ timeout: 15000 });
-
-    // Verify search input exists and is functional
-    const searchInput = costElementsSection.locator(".ant-input");
-    await expect(searchInput).toBeVisible();
-    await searchInput.fill(searchableName);
 
     // Wait for potential filtering
     await page.waitForTimeout(1500);
@@ -249,6 +268,18 @@ test.describe("Cost Elements E2E Tests", () => {
     const costElementsSection = page
       .locator(".ant-card")
       .filter({ hasText: "Cost Elements" });
+
+    // Filter to just our sort items to ensure they are on page 1
+    const searchInput = costElementsSection.locator(".ant-input");
+    await expect(searchInput).toBeVisible();
+
+    const searchResponse = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("/api/v1/cost-elements") &&
+        resp.url().includes("search=")
+    );
+    await searchInput.fill("_SORT");
+    await searchResponse;
 
     // Wait for data to load
     await expect(
