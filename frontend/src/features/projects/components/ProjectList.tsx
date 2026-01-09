@@ -33,7 +33,9 @@ export const ProjectList = () => {
   const navigate = useNavigate();
   const { tableParams, handleTableChange, handleSearch } =
     useTableParams<ProjectRead>();
-  const { data: projects, isLoading, refetch } = useProjects(tableParams);
+  const { data, isLoading, refetch } = useProjects(tableParams);
+  const projects = data?.items || [];
+  const total = data?.total || 0;
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -168,6 +170,7 @@ export const ProjectList = () => {
           ? new Intl.NumberFormat("en-US", {
               style: "currency",
               currency: "EUR",
+              currencyDisplay: "narrowSymbol",
             }).format(budget)
           : "-",
       width: 150,
@@ -182,6 +185,7 @@ export const ProjectList = () => {
           ? new Intl.NumberFormat("en-US", {
               style: "currency",
               currency: "EUR",
+              currencyDisplay: "narrowSymbol",
             }).format(value)
           : "-",
       width: 150,
@@ -253,10 +257,13 @@ export const ProjectList = () => {
   return (
     <div>
       <StandardTable<ProjectRead>
-        tableParams={tableParams}
+        tableParams={{
+          ...tableParams,
+          pagination: { ...tableParams.pagination, total },
+        }}
         onChange={handleTableChange}
         loading={isLoading}
-        dataSource={projects || []} // Use raw data - server handles filtering
+        dataSource={projects} // Use raw data - server handles filtering
         columns={columns}
         rowKey="project_id"
         searchable={true}

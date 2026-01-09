@@ -36,17 +36,21 @@ const MyListPage = () => {
   const { tableParams, handleTableChange, handleSearch } =
     useTableParams<MyDataType>();
 
-  // Pass params to your data fetching hook (if server-side)
-  // or use for client-side filtering
-  const filteredData = useMemo(() => {
-    // ... filter logic
-  }, [data, tableParams]);
+  // Pass params to your data fetching hook (server-side filtering)
+  const { data, isLoading } = useMyDataList(tableParams);
+  const items = data?.items || [];
+  const total = data?.total || 0;
 
   return (
     <StandardTable
-      tableParams={tableParams}
+      tableParams={{
+        ...tableParams,
+        pagination: { ...tableParams.pagination, total },
+      }}
       onChange={handleTableChange}
       onSearch={handleSearch}
+      loading={isLoading}
+      dataSource={items}
       // ...
     />
   );
@@ -112,11 +116,9 @@ const getColumnSearchProps = (dataIndex: keyof MyData): ColumnType<MyData> => ({
     <SearchOutlined style={{ color: filtered ? "#1890ff" : undefined }} />
   ),
   onFilter: (value, record) => {
-    // Client-side filter logic
-    return record[dataIndex]
-      ?.toString()
-      .toLowerCase()
-      .includes((value as string).toLowerCase());
+    // REMOVED: Server-side filtering handles this.
+    // Client-side 'onFilter' is not needed for StandardTable in server-side mode.
+    return true;
   },
 });
 ```
@@ -133,25 +135,18 @@ For columns with limited values (e.g., "Status", "Role"), use standard Ant Desig
     { text: "Admin", value: "admin" },
     { text: "User", value: "user" },
   ],
-  onFilter: (value, record) => record.role === value,
+  // onFilter: (value, record) => ... // REMOVED: Server-side handles this
 }
 ```
 
 ## 2. Search & Filtering Strategy
 
-### Hybrid Approach (Current Phase)
+### Server-Side Filtering (Standard)
 
-For moderate dataset sizes (< 1000 rows), we use a **Client-Side Filtering** approach for immediate feedback, whilst maintaining **URL synchronization** for shareability.
+The application standardizes on **Server-Side Filtering** for all list views to ensure performance and consistency.
 
-1.  **Fetch:** Load list data (page 1 or all) from API.
-2.  **Filter:** Use `useMemo` in the component to filter the raw data based on `tableParams.search` and `tableParams.filters`.
-3.  **Display:** Pass the _filtered_ data to `StandardTable`.
+1.  **State:** `useTableParams` manages the state in the URL.
+2.  **Fetch:** Pass `tableParams` directly to the API hook.
+3.  **Display:** Pass `data.items` and `data.total` to `StandardTable`.
 
-### Server-Side Filtering (Future)
-
-For large datasets, the architecture supports switching to server-side filtering:
-
-1.  Update API service to accept `search` and `filters` params.
-2.  Pass `tableParams` to the API hook (e.g., `useList(tableParams)`).
-3.  Remove client-side `useMemo` filtering.
-4.  `useTableParams` remains unchanged as it purely manages the interface state.
+The API hooks are responsible for converting `tableParams` (Ant Design format) to the backend API parameters (using `getPaginationParams` helper) and returning a `PaginatedResponse`.

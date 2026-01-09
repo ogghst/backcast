@@ -42,7 +42,9 @@ type CostElementApiParams = {
 
 // Custom API wrapper to handle branch and filtering
 const costElementApi = {
-  getUsers: async (params?: CostElementApiParams) => {
+  getUsers: async (
+    params?: CostElementApiParams
+  ): Promise<PaginatedResponse<CostElementRead>> => {
     // Current Ant Design table params
     const {
       branch = "main",
@@ -90,8 +92,18 @@ const costElementApi = {
       serverSortOrder
     );
 
-    // Handle both array (Legacy) and paginated response
-    return Array.isArray(res) ? res : (res as any).items;
+    // Normalize response to PaginatedResponse
+    if (Array.isArray(res)) {
+      return {
+        items: res,
+        total: res.length,
+        page: 1,
+        per_page: res.length,
+      };
+    }
+
+    // It's already a PaginatedResponse
+    return res as unknown as PaginatedResponse<CostElementRead>;
   },
   getUser: (id: string) => CostElementsService.getCostElement(id, "main"),
   createUser: (data: CreateWithBranch) => {
@@ -112,7 +124,8 @@ const costElementApi = {
 const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<
   CostElementRead,
   CreateWithBranch,
-  UpdateWithBranch
+  UpdateWithBranch,
+  PaginatedResponse<CostElementRead>
 >("cost_elements", costElementApi);
 
 interface CostElementManagementProps {
@@ -149,7 +162,9 @@ export const CostElementManagement = ({
     return params;
   }, [tableParams, currentBranch, wbeId]);
 
-  const { data: costElements, isLoading, refetch } = useList(queryParams);
+  const { data, isLoading, refetch } = useList(queryParams);
+  const costElements = data?.items || [];
+  const total = data?.total || 0;
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedElement, setSelectedElement] =
@@ -380,7 +395,10 @@ export const CostElementManagement = ({
   return (
     <div>
       <StandardTable<CostElementRead>
-        tableParams={tableParams}
+        tableParams={{
+          ...tableParams,
+          pagination: { ...tableParams.pagination, total },
+        }}
         onChange={handleTableChange}
         loading={isLoading}
         dataSource={costElements || []} // Use raw data - server handles filtering

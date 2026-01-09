@@ -11,7 +11,6 @@ import { useMemo, useState } from "react";
 import type { ColumnType } from "antd/es/table";
 import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
-import { createResourceHooks } from "@/hooks/useCrud";
 import {
   WbEsService,
   type WBERead,
@@ -37,14 +36,12 @@ interface WBEListProps {
 export const WBEList = ({ projectId }: WBEListProps) => {
   const { tableParams, handleTableChange, handleSearch } =
     useTableParams<WBERead>();
-  const {
-    data: wbes,
-    isLoading,
-    refetch,
-  } = useWBEs({
+  const { data, isLoading, refetch } = useWBEs({
     ...tableParams,
     projectId,
   });
+  const wbes = data?.items || [];
+  const total = data?.total || 0;
 
   const [historyOpen, setHistoryOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -188,6 +185,7 @@ export const WBEList = ({ projectId }: WBEListProps) => {
           ? new Intl.NumberFormat("en-US", {
               style: "currency",
               currency: "EUR",
+              currencyDisplay: "narrowSymbol",
             }).format(budget)
           : "-",
       width: 150,
@@ -243,10 +241,13 @@ export const WBEList = ({ projectId }: WBEListProps) => {
   return (
     <div>
       <StandardTable<WBERead>
-        tableParams={tableParams}
+        tableParams={{
+          ...tableParams,
+          pagination: { ...tableParams.pagination, total },
+        }}
         onChange={handleTableChange}
         loading={isLoading}
-        dataSource={wbes || []} // Use raw data - hierarchical queries return arrays
+        dataSource={wbes} // Use raw data - hierarchical queries return arrays
         columns={columns}
         rowKey="wbe_id"
         searchable={true}

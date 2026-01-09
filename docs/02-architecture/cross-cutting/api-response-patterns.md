@@ -168,66 +168,67 @@ const unwrapWBEResponse = <T>(res: T[] | { items: T[] }): T[] => {
 
 ## Frontend Integration Patterns
 
-### Pattern 1: TanStack Query Hook with Pagination
+### Pattern 1: Preserving Pagination Metadata (Standard)
 
-**Use Case:** Projects, general WBE listing
+**Use Case:** Projects, Cost Elements, General Lists
+
+**Approach:**
+Hooks should return the full `PaginatedResponse<T>` object to the component. Do **not** unwrap and discard metadata in the API layer.
 
 ```typescript
-import { OpenAPI } from "@/api/generated/core/OpenAPI";
-import { request as __request } from "@/api/generated/core/request";
-
-interface PaginatedResponse<T> {
-  items: T[];
-  total: number;
-  page: number;
-  per_page: number;
-}
-
-interface ServerSideParams {
-  page?: number;
-  per_page?: number;
-  search?: string;
-  filters?: string;
-  sort_field?: string;
-  sort_order?: "asc" | "desc";
-  branch?: string;
-}
-
-const getProjectsPaginated = async (
-  params?: ServerSideParams
-): Promise<PaginatedResponse<ProjectRead>> => {
-  return __request(OpenAPI, {
-    method: "GET",
-    url: "/api/v1/projects",
-    query: {
-      page: params?.page || 1,
-      per_page: params?.per_page || 20,
-      branch: params?.branch || "main",
-      search: params?.search,
-      filters: params?.filters,
-      sort_field: params?.sort_field,
-      sort_order: params?.sort_order,
-    },
-  });
-};
-
-// In hook
-const res = await getProjectsPaginated(serverParams);
-return unwrapResponse(res); // Returns items array
+// api/useProjects.ts
+list: async (params) => {
+  const serverParams = getPaginationParams(params);
+  const res = await getProjectsPaginated(serverParams);
+  // Return full response: { items, total, page, per_page }
+  return res;
+},
 ```
 
-### Pattern 2: Response Unwrapping Helper
-
-**Use Case:** All list endpoints
+**Component Usage:**
 
 ```typescript
-/**
- * Helper to unwrap paginated response from API.
- * Backend may return either an array or { items: [...] } wrapper.
- */
-const unwrapResponse = <T>(res: T[] | { items: T[] }): T[] => {
-  return Array.isArray(res) ? res : (res as { items: T[] }).items;
-};
+// ProjectList.tsx
+const { data, isLoading } = useProjects(tableParams);
+const projects = data?.items || [];
+const total = data?.total || 0;
+
+return (
+  <StandardTable
+    tableParams={{
+      ...tableParams,
+      pagination: { ...tableParams.pagination, total },
+    }}
+    dataSource={projects}
+    // ...
+  />
+);
+```
+
+### Pattern 2: Hybrid Response Normalization (WBEs)
+
+**Use Case:** Entities that support both hierarchical (array) and flat (paginated) views.
+
+**Approach:**
+Normalize the response in the hook so the component always receives a consistent `PaginatedResponse` structure.
+
+```typescript
+// api/useWBEs.ts
+const response = await WbEsService.getWbes(...);
+
+// Normalize response to always be PaginatedResponse
+if (Array.isArray(response)) {
+    // Hierarchical query returning raw array
+    return {
+        items: response,
+        total: response.length,
+        page: 1,
+        per_page: response.length,
+    };
+}
+
+// It's already a PaginatedResponse
+return response;
 ```
 
 ### Pattern 3: Ant Design Table Params Conversion
