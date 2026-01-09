@@ -27,12 +27,15 @@ import {
   useDeleteProject,
 } from "../api/useProjects";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
+import { ProjectFilters } from "@/types/filters";
 import { ProjectsService } from "@/api/generated";
 
 export const ProjectList = () => {
   const navigate = useNavigate();
-  const { tableParams, handleTableChange, handleSearch } =
-    useTableParams<ProjectRead>();
+  const { tableParams, handleTableChange, handleSearch } = useTableParams<
+    ProjectRead,
+    ProjectFilters
+  >();
   const { data, isLoading, refetch } = useProjects(tableParams);
   const projects = data?.items || [];
   const total = data?.total || 0;

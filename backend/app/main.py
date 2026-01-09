@@ -3,8 +3,9 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # Include routers
 from app.api.routes import (
@@ -17,6 +18,7 @@ from app.api.routes import (
     wbes,
 )
 from app.core.config import settings
+from app.core.exceptions.filtering import FilterError
 from app.core.logging import setup_logging
 
 # Import models to ensure they are registered with SQLAlchemy
@@ -56,6 +58,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Exception Handlers
+
+
+@app.exception_handler(FilterError)
+async def filter_exception_handler(request: Request, exc: FilterError) -> JSONResponse:
+    """Handle filter parsing errors by returning 400 Bad Request."""
+    return JSONResponse(
+        status_code=400,
+        content={"detail": str(exc)},
+    )
 
 
 @app.get("/")

@@ -31,6 +31,9 @@ export const WBEDetailPage = () => {
   const navigate = useNavigate();
 
   // Fetch WBE details
+  // Pagination State
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
+
   const { data: wbe, isLoading: wbeLoading } = useWBE(wbeId!);
 
   // Fetch breadcrumb
@@ -45,6 +48,7 @@ export const WBEDetailPage = () => {
   } = useWBEs({
     projectId,
     parentWbeId: wbeId,
+    pagination: { current: pagination.current, pageSize: pagination.pageSize },
   });
   const childWbes = data?.items || [];
 
@@ -183,6 +187,13 @@ export const WBEDetailPage = () => {
             onRowClick={handleRowClick}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            pagination={{
+              current: pagination.current,
+              pageSize: pagination.pageSize,
+              total: data?.total || 0,
+              onChange: (page, pageSize) =>
+                setPagination({ current: page, pageSize }),
+            }}
           />
         ) : (
           <div style={{ textAlign: "center", padding: 24, color: "#999" }}>

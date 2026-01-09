@@ -1,7 +1,7 @@
 /* generated using openapi-typescript-codegen -- do not edit */
 /* istanbul ignore file */
 /* tslint:disable */
-/* eslint-disable */
+ 
 import type { Body_login } from '../models/Body_login';
 import type { Token } from '../models/Token';
 import type { UserPublic } from '../models/UserPublic';

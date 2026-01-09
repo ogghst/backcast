@@ -7,6 +7,10 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: "html",
+
+  // Global setup: Reset test database before test suite
+  globalSetup: "./tests/setup/globalSetup.ts",
+
   use: {
     baseURL: "http://localhost:5173",
     trace: "on-first-retry",

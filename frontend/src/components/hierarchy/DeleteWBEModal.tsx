@@ -25,7 +25,7 @@ export const DeleteWBEModal = ({
     pagination: { current: 1, pageSize: 1 },
   });
 
-  const hasChildren = children && children.length > 0;
+  const hasChildren = children?.items && children.items.length > 0;
 
   return (
     <Modal

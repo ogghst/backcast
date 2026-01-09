@@ -15,7 +15,6 @@ Quick reference for AI agents to find relevant architecture documents.
 | Handle authentication/authorization | [`cross-cutting/security-practices.md`](cross-cutting/security-practices.md) + [`decisions/ADR-007-rbac-service.md`](decisions/ADR-007-rbac-service.md)     |
 | Understand a design decision        | [`decisions/adr-index.md`](decisions/adr-index.md) + [`decisions/ADR-008-server-side-filtering.md`](decisions/ADR-008-server-side-filtering.md)             |
 | Implement feature X                 | Look in `backend/contexts/x-*/` or `frontend/contexts/`                                                                                                     |
-| Understand technical debt           | [`02-technical-debt.md`](02-technical-debt.md)                                                                                                              |
 
 ## Folder Structure
 

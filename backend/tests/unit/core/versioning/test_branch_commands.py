@@ -56,7 +56,7 @@ class TestBranchCommands:
             Project.project_id == str(root_id),
             Project.branch == "main",
             Project.deleted_at.is_(None),
-            func.upper(Project.valid_time).is_(None),  # type: ignore
+            func.upper(Project.valid_time).is_(None),
         )
         main_current = (await db_session.execute(stmt)).scalar_one()
         assert main_current.id == v1.id

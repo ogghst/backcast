@@ -2,16 +2,25 @@ import { TablePaginationConfig } from "antd/es/table";
 import { FilterValue, SorterResult } from "antd/es/table/interface";
 import { useSearchParams } from "react-router-dom";
 
-export interface TableParams {
+export interface TableParams<
+  TFilters extends Record<string, FilterValue | null> = Record<
+    string,
+    FilterValue | null
+  >,
+> {
   pagination?: TablePaginationConfig;
   sortField?: string;
   sortOrder?: string;
-  filters?: Record<string, FilterValue | null>;
+  filters?: TFilters;
   search?: string;
 }
 
 export const useTableParams = <
-  T extends object = Record<string, unknown>,
+  TEntity extends object = Record<string, any>,
+  TFilters extends Record<string, FilterValue | null> = Record<
+    string,
+    FilterValue | null
+  >,
 >() => {
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -35,21 +44,21 @@ export const useTableParams = <
     });
   }
 
-  const tableParams: TableParams = {
+  const tableParams: TableParams<TFilters> = {
     pagination: {
       current,
       pageSize,
     },
     sortField: sortField || undefined,
     sortOrder: sortOrder || undefined,
-    filters,
+    filters: filters as TFilters,
     search,
   };
 
   const handleTableChange = (
     pagination: TablePaginationConfig,
     filters: Record<string, FilterValue | null>,
-    sorter: SorterResult<T> | SorterResult<T>[]
+    sorter: SorterResult<TEntity> | SorterResult<TEntity>[]
   ) => {
     const newParams = new URLSearchParams(searchParams);
 
