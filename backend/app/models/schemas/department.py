@@ -18,6 +18,11 @@ class DepartmentBase(BaseModel):
 
 
 class DepartmentCreate(DepartmentBase):
+    department_id: UUID | None = Field(
+        None,
+        description="Root Department ID (internal use only for seeding)",
+        exclude=True,  # Exclude from OpenAPI docs
+    )
     code: str = Field(
         ...,
         max_length=50,

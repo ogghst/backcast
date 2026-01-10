@@ -59,15 +59,15 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
 
     async def create_user(self, user_in: UserRegister, actor_id: UUID) -> User:
         """Create new user using CreateVersionCommand with Pydantic validation."""
-        user_data = user_in.model_dump()
+        user_data = user_in.model_dump(exclude_unset=True)
 
         # Handle password hashing
-        password = user_data.pop("password")
-        user_data["hashed_password"] = get_password_hash(password)
+        password = user_data.pop("password", None)
+        if password:
+            user_data["hashed_password"] = get_password_hash(password)
 
-        # Ensure root user_id exists (though normally not in register input,
-        # but could be generated here if needed for CreateVersionCommand)
-        root_id = uuid4()
+        # Use provided user_id (for seeding) or generate new one
+        root_id = user_in.user_id or uuid4()
         user_data["user_id"] = root_id
 
         cmd = CreateVersionCommand(

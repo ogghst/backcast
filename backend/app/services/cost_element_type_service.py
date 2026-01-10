@@ -34,10 +34,10 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         self, type_in: CostElementTypeCreate, actor_id: UUID
     ) -> CostElementType:
         """Create new cost element type using CreateVersionCommand."""
-        type_data = type_in.model_dump()
+        type_data = type_in.model_dump(exclude_unset=True)
 
-        # Ensure root cost_element_type_id exists
-        root_id = uuid4()
+        # Use provided cost_element_type_id (for seeding) or generate new one
+        root_id = type_in.cost_element_type_id or uuid4()
         type_data["cost_element_type_id"] = root_id
 
         cmd = CreateVersionCommand(

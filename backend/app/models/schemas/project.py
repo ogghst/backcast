@@ -23,7 +23,11 @@ class ProjectBase(BaseModel):
 class ProjectCreate(ProjectBase):
     """Schema for creating a new project."""
 
-    pass
+    project_id: UUID | None = Field(
+        None,
+        description="Root Project ID (internal use only for seeding)",
+        exclude=True,  # Exclude from OpenAPI docs
+    )
 
 
 class ProjectUpdate(BaseModel):

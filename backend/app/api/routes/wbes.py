@@ -1,6 +1,7 @@
 """WBE API routes with RBAC."""
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -179,14 +180,28 @@ async def create_wbe(
 )
 async def read_wbe(
     wbe_id: UUID,
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get WBE state as of this timestamp (ISO 8601)",
+    ),
     service: WBEService = Depends(get_wbe_service),
 ) -> WBE:
-    """Get a specific WBE by id. Requires read permission."""
-    wbe = await service.get_by_root_id(wbe_id)
+    """Get a specific WBE by id. Requires read permission.
+
+    Supports time-travel queries via the as_of parameter to view
+    the WBE's state at any historical point in time.
+    """
+    if as_of:
+        # Time travel query
+        wbe = await service.get_as_of(wbe_id, as_of)
+    else:
+        # Current version
+        wbe = await service.get_by_root_id(wbe_id)
+
     if not wbe:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="WBE not found",
+            detail="WBE not found" + (f" as of {as_of}" if as_of else ""),
         )
     return wbe
 

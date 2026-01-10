@@ -1,23 +1,27 @@
 [
   {
+    "department_id": "1c47969b-d568-5f34-bb9d-4e11cae84745",
     "code": "ADMIN",
     "name": "Administration",
     "manager_id": null,
     "is_active": true
   },
   {
+    "department_id": "23b5b365-b8ab-5cf8-8ed8-76362d5e2b0b",
     "code": "PM",
     "name": "Project Management",
     "manager_id": null,
     "is_active": true
   },
   {
+    "department_id": "e498f139-05b6-5da8-9008-31a8d760bcdc",
     "code": "ENG",
     "name": "Engineering",
     "manager_id": null,
     "is_active": true
   },
   {
+    "department_id": "c985679f-d9c0-5a03-b51f-0f8aab0d0732",
     "code": "CONST",
     "name": "Construction",
     "manager_id": null,

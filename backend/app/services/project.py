@@ -3,6 +3,7 @@
 Provides Project-specific operations on top of generic temporal service.
 """
 
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -155,25 +156,33 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         return result.scalar_one_or_none()
 
     async def create_project(
-        self, project_in: ProjectCreate, actor_id: UUID
+        self,
+        project_in: ProjectCreate,
+        actor_id: UUID,
+        control_date: datetime | None = None
     ) -> Project:
         """Create new project using CreateVersionCommand."""
-        project_data = project_in.model_dump()
+        project_data = project_in.model_dump(exclude_unset=True)
 
-        # Generate root project_id
-        root_id = uuid4()
+        # Use provided project_id (for seeding) or generate new one
+        root_id = project_in.project_id or uuid4()
         project_data["project_id"] = root_id
 
         cmd = CreateVersionCommand(
             entity_class=Project,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
+            control_date=control_date,
             **project_data,
         )
         return await cmd.execute(self.session)
 
     async def update_project(
-        self, project_id: UUID, project_in: ProjectUpdate, actor_id: UUID
+        self,
+        project_id: UUID,
+        project_in: ProjectUpdate,
+        actor_id: UUID,
+        control_date: datetime | None = None
     ) -> Project:
         """Update project using UpdateVersionCommand."""
         # Filter None values from update data
@@ -183,16 +192,23 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
             entity_class=Project,  # type: ignore[type-var,unused-ignore]
             root_id=project_id,
             actor_id=actor_id,
+            control_date=control_date,
             **update_data,
         )
         return await cmd.execute(self.session)
 
-    async def delete_project(self, project_id: UUID, actor_id: UUID) -> Project:
+    async def delete_project(
+        self,
+        project_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None
+    ) -> Project:
         """Soft delete project using SoftDeleteCommand."""
         cmd = SoftDeleteCommand(
             entity_class=Project,  # type: ignore[type-var,unused-ignore]
             root_id=project_id,
             actor_id=actor_id,
+            control_date=control_date,
         )
         return await cmd.execute(self.session)
 

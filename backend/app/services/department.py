@@ -113,10 +113,10 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var,u
         self, dept_in: DepartmentCreate, actor_id: UUID
     ) -> Department:
         """Create new department using CreateVersionCommand."""
-        dept_data = dept_in.model_dump()
+        dept_data = dept_in.model_dump(exclude_unset=True)
 
-        # Ensure root department_id exists
-        root_id = uuid4()
+        # Use provided department_id (for seeding) or generate new one
+        root_id = dept_in.department_id or uuid4()
         dept_data["department_id"] = root_id
 
         cmd = CreateVersionCommand(

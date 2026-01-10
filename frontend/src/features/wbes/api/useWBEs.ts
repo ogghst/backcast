@@ -1,11 +1,14 @@
 import { createResourceHooks } from "@/hooks/useCrud";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, UseQueryOptions } from "@tanstack/react-query";
 import {
   WbEsService,
   type WBERead,
   type WBECreate,
   type WBEUpdate,
 } from "@/api/generated";
+import { OpenAPI } from "@/api/generated/core/OpenAPI";
+import { request as __request } from "@/api/generated/core/request";
+import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 
 interface WBEListParams {
   pagination?: { current?: number; pageSize?: number };
@@ -18,14 +21,8 @@ import type { PaginatedResponse } from "@/types/api";
 
 // ... imports
 
-// Direct usage of WbEsService with named methods (no adapter needed)
-export const {
-  useList: useWBEs,
-  useDetail: useWBE,
-  useCreate: useCreateWBE,
-  useUpdate: useUpdateWBE,
-  useDelete: useDeleteWBE,
-} = createResourceHooks<
+// Create base hooks without time-travel support
+const baseHooks = createResourceHooks<
   WBERead,
   WBECreate,
   WBEUpdate,
@@ -88,6 +85,39 @@ export const {
   update: WbEsService.updateWbe,
   delete: WbEsService.deleteWbe,
 });
+
+// Export list, create, update, delete as-is
+export const useWBEs = baseHooks.useList;
+export const useCreateWBE = baseHooks.useCreate;
+export const useUpdateWBE = baseHooks.useUpdate;
+export const useDeleteWBE = baseHooks.useDelete;
+
+/**
+ * Custom useWBE hook with time-travel support.
+ * Automatically injects as_of parameter from TimeMachine context.
+ */
+export const useWBE = (
+  id: string | undefined,
+  queryOptions?: Omit<UseQueryOptions<WBERead, Error>, "queryKey">
+) => {
+  const { asOf } = useTimeMachineParams();
+
+  return useQuery({
+    queryKey: ["wbes", "detail", id, { asOf }],
+    queryFn: async () => {
+      if (!id) throw new Error("WBE ID is required");
+
+      // Call the API with as_of parameter if available
+      return __request(OpenAPI, {
+        method: "GET",
+        url: `/api/v1/wbes/${id}`,
+        query: asOf ? { as_of: asOf } : undefined,
+      });
+    },
+    enabled: !!id,
+    ...queryOptions,
+  });
+};
 
 // Breadcrumb hook
 export const useWBEBreadcrumb = (wbeId: string | undefined) => {

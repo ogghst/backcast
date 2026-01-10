@@ -4,7 +4,8 @@
 
 | Need                                  | Read This                                    |
 | ------------------------------------- | -------------------------------------------- |
-| **Plan a new iteration**              | [`plan-prompt.md`](plan-prompt.md)           |
+| **Analyze a requirement**             | [`analysis-prompt.md`](analysis-prompt.md)   |
+| **Project Plan**                      | [`plan-prompt.md`](plan-prompt.md)           |
 | **Execute implementation work**       | [`do-prompt.md`](do-prompt.md)               |
 | **Verify & validate completed work**  | [`check-prompt.md`](check-prompt.md)         |
 | **Close iteration with improvements** | [`act-prompt.md`](act-prompt.md)             |
@@ -15,6 +16,7 @@
 
 Each prompt guides the **Plan-Do-Check-Act** cycle for iterative development:
 
+- **Analyze a requirement**: Analyze a requirement and provide a detailed analysis
 - **Plan**: Define goals, tasks, and acceptance criteria for an iteration
 - **Do**: Execute the planned work with implementation guidance
 - **Check**: Validate outcomes against goals, identify gaps

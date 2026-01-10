@@ -38,6 +38,11 @@ class UserBase(BaseModel):
 class UserRegister(UserBase):
     """Schema for user registration."""
 
+    user_id: UUID | None = Field(
+        None,
+        description="Root User ID (internal use only for seeding)",
+        exclude=True,  # Exclude from OpenAPI docs
+    )
     password: str = Field(
         min_length=8, description="Password must be at least 8 characters"
     )

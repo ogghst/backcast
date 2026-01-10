@@ -1,6 +1,6 @@
 import React from "react";
 import { Layout, Menu, theme } from "antd";
-import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { Outlet, useNavigate, useLocation, useParams } from "react-router-dom";
 import {
   DashboardOutlined,
   UserOutlined,
@@ -12,6 +12,12 @@ import {
 } from "@ant-design/icons";
 
 import { UserProfile } from "@/components/UserProfile";
+import {
+  TimeMachineCompact,
+  TimeMachineExpanded,
+} from "@/components/time-machine";
+import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
+import { useProject } from "@/features/projects/api/useProjects";
 
 import { usePermission } from "@/hooks/usePermission";
 import type { ItemType } from "antd/es/menu/hooks/useItems";
@@ -26,6 +32,16 @@ const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { can, hasRole } = usePermission();
+
+  // Extract projectId from URL if on project pages
+  const params = useParams<{ projectId?: string }>();
+  const projectId = params.projectId;
+
+  // Fetch project data for timeline
+  const { data: project } = useProject(projectId);
+
+  // Time machine expanded state
+  const isTimeMachineExpanded = useTimeMachineStore((s) => s.isExpanded);
 
   const [collapsed, setCollapsed] = React.useState(false);
 
@@ -120,14 +136,37 @@ const AppLayout: React.FC = () => {
             padding: "16px 24px",
             background: colorBgContainer,
             display: "flex",
-            justifyContent: "flex-end",
+            justifyContent: "space-between",
             alignItems: "center",
             height: "auto",
             minHeight: 64,
           }}
         >
+          {/* Left side: Time Machine (only when project is selected) */}
+          <div style={{ display: "flex", alignItems: "center" }}>
+            {projectId && <TimeMachineCompact projectId={projectId} />}
+          </div>
+
+          {/* Right side: User Profile */}
           <UserProfile />
         </Header>
+
+        {/* Time Machine Expanded Panel (below header) */}
+        {projectId && isTimeMachineExpanded && (
+          <TimeMachineExpanded
+            projectId={projectId}
+            projectName={project?.name}
+            timelineData={{
+              startDate: project?.start_date
+                ? new Date(project.start_date)
+                : null,
+              endDate: project?.end_date ? new Date(project.end_date) : null,
+              branches: ["main"], // TODO: Fetch actual branches from API
+              events: [], // TODO: Fetch branch events from API
+            }}
+          />
+        )}
+
         <Content style={{ margin: "24px 16px 0" }}>
           <div
             style={{

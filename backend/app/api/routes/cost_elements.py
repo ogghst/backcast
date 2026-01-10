@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -124,14 +125,28 @@ async def create_cost_element(
 async def read_cost_element(
     cost_element_id: UUID,
     branch: str = Query("main", description="Branch to query"),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get cost element state as of this timestamp (ISO 8601)",
+    ),
     service: CostElementService = Depends(get_cost_element_service),
 ) -> CostElement:
-    """Get a specific cost element by id and branch."""
-    item = await service.get_by_id(cost_element_id, branch=branch)
+    """Get a specific cost element by id and branch.
+
+    Supports time-travel queries via the as_of parameter to view
+    the cost element's state at any historical point in time.
+    """
+    if as_of:
+        # Time travel query
+        item = await service.get_as_of(cost_element_id, as_of)
+    else:
+        # Current version
+        item = await service.get_by_id(cost_element_id, branch=branch)
+
     if not item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Cost Element not found in branch {branch}",
+            detail=f"Cost Element not found in branch {branch}" + (f" as of {as_of}" if as_of else ""),
         )
     return item
 

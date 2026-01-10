@@ -4,6 +4,7 @@ Provides WBE-specific operations with parent-child project relationship.
 """
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -272,23 +273,35 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
         resolved = await self._resolve_parent_names(result.all())
         return resolved[0] if resolved else None
 
-    async def create_wbe(self, wbe_in: WBECreate, actor_id: UUID) -> WBE:
+    async def create_wbe(
+        self,
+        wbe_in: WBECreate,
+        actor_id: UUID,
+        control_date: datetime | None = None
+    ) -> WBE:
         """Create new WBE using CreateVersionCommand."""
-        wbe_data = wbe_in.model_dump()
+        wbe_data = wbe_in.model_dump(exclude_unset=True)
 
-        # Generate root wbe_id
-        root_id = uuid4()
+        # Use provided wbe_id (for seeding) or generate new one
+        root_id = wbe_in.wbe_id or uuid4()
         wbe_data["wbe_id"] = root_id
 
         cmd = CreateVersionCommand(
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
+            control_date=control_date,
             **wbe_data,
         )
         return await cmd.execute(self.session)
 
-    async def update_wbe(self, wbe_id: UUID, wbe_in: WBEUpdate, actor_id: UUID) -> WBE:
+    async def update_wbe(
+        self,
+        wbe_id: UUID,
+        wbe_in: WBEUpdate,
+        actor_id: UUID,
+        control_date: datetime | None = None
+    ) -> WBE:
         """Update WBE using UpdateVersionCommand."""
         update_data = wbe_in.model_dump(exclude_unset=True)
 
@@ -296,11 +309,17 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=wbe_id,
             actor_id=actor_id,
+            control_date=control_date,
             **update_data,
         )
         return await cmd.execute(self.session)
 
-    async def delete_wbe(self, wbe_id: UUID, actor_id: UUID) -> WBE:
+    async def delete_wbe(
+        self,
+        wbe_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None
+    ) -> WBE:
         """Soft delete WBE with cascade to children.
 
         Deletes the WBE and all its descendants recursively.
@@ -309,6 +328,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
         Args:
             wbe_id: Root WBE ID to delete
             actor_id: User performing the delete
+            control_date: Optional control date for deletion
 
         Returns:
             The deleted WBE (root)
@@ -331,6 +351,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
                 entity_class=WBE,  # type: ignore[type-var,unused-ignore]
                 root_id=descendant.wbe_id,
                 actor_id=actor_id,
+                control_date=control_date,
             )
             await cmd.execute(self.session)
 
@@ -339,6 +360,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=wbe_id,
             actor_id=actor_id,
+            control_date=control_date,
         )
         return await cmd.execute(self.session)
 

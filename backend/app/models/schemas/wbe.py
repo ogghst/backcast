@@ -24,7 +24,11 @@ class WBEBase(BaseModel):
 class WBECreate(WBEBase):
     """Schema for creating a new WBE."""
 
-    pass
+    wbe_id: UUID | None = Field(
+        None,
+        description="Root WBE ID (internal use only for seeding)",
+        exclude=True,  # Exclude from OpenAPI docs
+    )
 
 
 class WBEUpdate(BaseModel):

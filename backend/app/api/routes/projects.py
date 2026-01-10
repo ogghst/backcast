@@ -1,10 +1,11 @@
 """Project API routes with RBAC."""
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
@@ -111,6 +112,7 @@ async def create_project(
     project_in: ProjectCreate,
     current_user: User = Depends(get_current_active_user),
     service: ProjectService = Depends(get_project_service),
+    x_control_date: datetime | None = Header(default=None, alias="X-Control-Date"),
 ) -> Project:
     """Create a new project. Requires create permission."""
     try:
@@ -123,7 +125,9 @@ async def create_project(
             )
 
         project = await service.create_project(
-            project_in=project_in, actor_id=current_user.user_id
+            project_in=project_in,
+            actor_id=current_user.user_id,
+            control_date=x_control_date
         )
         return project
     except ValueError as e:
@@ -141,14 +145,28 @@ async def create_project(
 )
 async def read_project(
     project_id: UUID,
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get project state as of this timestamp (ISO 8601)",
+    ),
     service: ProjectService = Depends(get_project_service),
 ) -> Project:
-    """Get a specific project by id. Requires read permission."""
-    project = await service.get_by_root_id(project_id)
+    """Get a specific project by id. Requires read permission.
+
+    Supports time-travel queries via the as_of parameter to view
+    the project's state at any historical point in time.
+    """
+    if as_of:
+        # Time travel query
+        project = await service.get_as_of(project_id, as_of)
+    else:
+        # Current version
+        project = await service.get_by_root_id(project_id)
+
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found",
+            detail="Project not found" + (f" as of {as_of}" if as_of else ""),
         )
     return project
 
@@ -164,6 +182,7 @@ async def update_project(
     project_in: ProjectUpdate,
     current_user: User = Depends(get_current_active_user),
     service: ProjectService = Depends(get_project_service),
+    x_control_date: datetime | None = Header(default=None, alias="X-Control-Date"),
 ) -> Project:
     """Update a project. Requires update permission."""
     try:
@@ -171,6 +190,7 @@ async def update_project(
             project_id=project_id,
             project_in=project_in,
             actor_id=current_user.user_id,
+            control_date=x_control_date,
         )
         return updated_project
     except ValueError as e:
@@ -187,11 +207,14 @@ async def delete_project(
     project_id: UUID,
     current_user: User = Depends(get_current_active_user),
     service: ProjectService = Depends(get_project_service),
+    x_control_date: datetime | None = Header(default=None, alias="X-Control-Date"),
 ) -> None:
     """Soft delete a project. Requires delete permission."""
     try:
         await service.delete_project(
-            project_id=project_id, actor_id=current_user.user_id
+            project_id=project_id,
+            actor_id=current_user.user_id,
+            control_date=x_control_date
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

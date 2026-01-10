@@ -12,6 +12,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.protocols import VersionableProtocol
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.core.versioning.enums import BranchMode
 
 
 class TemporalService[TVersionable: VersionableProtocol]:
@@ -129,34 +133,129 @@ class TemporalService[TVersionable: VersionableProtocol]:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_as_of(self, entity_id: UUID, as_of: datetime) -> TVersionable | None:
+    async def get_as_of(
+        self,
+        entity_id: UUID,
+        as_of: datetime,
+        branch: str = "main",
+        branch_mode: "BranchMode | None" = None,
+    ) -> TVersionable | None:
         """Time travel: Get entity as it was at specific timestamp.
 
-        Finds version where valid_time @> as_of for the given entity_id.
+        Implements bitemporal time travel by checking BOTH temporal dimensions:
+        - valid_time: When the data was valid in the real world
+        - transaction_time: When the data was recorded in the database
+
+        Args:
+            entity_id: Root entity ID
+            as_of: Timestamp to query
+            branch: Branch name (default: main)
+            branch_mode: Resolution mode for branches
+                - STRICT (default): Only return from specified branch
+                - MERGE: Fall back to main if not found on branch
+
+        Returns entity if:
+        - as_of >= lower(valid_time) (entity existed at that time)
+        - as_of < upper(valid_time) OR upper IS NULL (entity still valid)
+        - as_of >= lower(transaction_time) (version was committed by then)
+        - as_of < upper(transaction_time) OR upper IS NULL (version not superseded)
+        - Entity not deleted
+        - Entity on correct branch
+
+        The @> operator alone is insufficient because it treats NULL upper bounds
+        as infinity, matching ANY timestamp. We must also verify as_of >= lower bound.
         """
+
+
+        from app.core.versioning.enums import BranchMode
+
+        # Default to STRICT mode if not specified
+        if branch_mode is None:
+            branch_mode = BranchMode.STRICT
+
+        # Try to get from requested branch
+        result = await self._get_as_of_from_branch(entity_id, as_of, branch)
+
+        # If found, or strict mode, or already on main, return result
+        if result is not None or branch_mode == BranchMode.STRICT or branch == "main":
+            return result
+
+        # MERGE mode: Check if explicitly deleted on branch before falling back
+        is_deleted_on_branch = await self._is_deleted_on_branch(
+            entity_id, as_of, branch
+        )
+        if is_deleted_on_branch:
+            # Respect branch deletion, don't fall back to main
+            return None
+
+        # Fall back to main branch
+        return await self._get_as_of_from_branch(entity_id, as_of, "main")
+
+    async def _get_as_of_from_branch(
+        self, entity_id: UUID, as_of: datetime, branch: str
+    ) -> TVersionable | None:
+        """Internal: Get entity from specific branch at timestamp."""
         from typing import Any, cast
 
-        root_field = self._get_root_field_name()
+        from sqlalchemy import func, or_
 
-        # Verify field exists, else fallback to 'id'? No, that would be wrong for versioning.
-        if not hasattr(self.entity_class, root_field):
-            # If no root ID field found, usually implies configuration error or non-standard model
-            pass
+        root_field = self._get_root_field_name()
 
         stmt = (
             select(self.entity_class)
             .where(
                 getattr(self.entity_class, root_field) == entity_id,
+                cast(Any, self.entity_class).branch == branch,  # type: ignore[attr-defined]
+                # Check as_of is within valid_time range
                 cast(Any, self.entity_class).valid_time.op("@>")(as_of),
-                cast(Any, self.entity_class).deleted_at.is_(None),
+                # CRITICAL: Also check as_of >= lower bound (entity existed)
+                func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
+                # CRITICAL: Check transaction_time for bitemporal correctness
+                cast(Any, self.entity_class).transaction_time.op("@>")(as_of),
+                func.lower(cast(Any, self.entity_class).transaction_time) <= as_of,
+                # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
+                or_(
+                    cast(Any, self.entity_class).deleted_at.is_(None),
+                    cast(Any, self.entity_class).deleted_at > as_of,
+                ),
             )
             .limit(1)
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def _is_deleted_on_branch(
+        self, entity_id: UUID, as_of: datetime, branch: str
+    ) -> bool:
+        """Check if entity was explicitly deleted on branch at timestamp."""
+        from typing import Any, cast
+
+        from sqlalchemy import func
+
+        root_field = self._get_root_field_name()
+
+        stmt = (
+            select(self.entity_class)
+            .where(
+                getattr(self.entity_class, root_field) == entity_id,
+                cast(Any, self.entity_class).branch == branch,  # type: ignore[attr-defined]
+                cast(Any, self.entity_class).valid_time.op("@>")(as_of),
+                func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
+                cast(Any, self.entity_class).transaction_time.op("@>")(as_of),
+                func.lower(cast(Any, self.entity_class).transaction_time) <= as_of,
+                cast(Any, self.entity_class).deleted_at.is_not(None),  # IS deleted
+            )
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
     async def create(
-        self, actor_id: UUID, root_id: UUID | None = None, **fields: Any
+        self,
+        actor_id: UUID,
+        root_id: UUID | None = None,
+        control_date: datetime | None = None,
+        **fields: Any
     ) -> TVersionable:
         """Create new versioned entity."""
         from uuid import uuid4
@@ -181,12 +280,20 @@ class TemporalService[TVersionable: VersionableProtocol]:
             del fields["root_id"]
 
         cmd = CreateVersionCommand(
-            entity_class=self.entity_class, root_id=root_id, actor_id=actor_id, **fields
+            entity_class=self.entity_class,
+            root_id=root_id,
+            actor_id=actor_id,
+            control_date=control_date,
+            **fields
         )
         return await cmd.execute(self.session)
 
     async def update(
-        self, entity_id: UUID, actor_id: UUID, **updates: Any
+        self,
+        entity_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None,
+        **updates: Any
     ) -> TVersionable:
         """Update entity (creates new version)."""
         from app.core.versioning.commands import UpdateVersionCommand
@@ -195,11 +302,17 @@ class TemporalService[TVersionable: VersionableProtocol]:
             entity_class=self.entity_class,
             root_id=entity_id,
             actor_id=actor_id,
+            control_date=control_date,
             **updates,
         )
         return await cmd.execute(self.session)
 
-    async def soft_delete(self, entity_id: UUID, actor_id: UUID) -> None:
+    async def soft_delete(
+        self,
+        entity_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None
+    ) -> None:
         """Soft delete entity."""
         from app.core.versioning.commands import SoftDeleteCommand
 
@@ -207,6 +320,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
             entity_class=self.entity_class,
             root_id=entity_id,
             actor_id=actor_id,
+            control_date=control_date,
         )
         await cmd.execute(self.session)
 

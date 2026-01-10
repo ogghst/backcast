@@ -2,6 +2,7 @@
 
 import builtins
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -107,12 +108,13 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         element_in: CostElementCreate,
         actor_id: UUID,
         branch: str = "main",
+        control_date: datetime | None = None,
     ) -> CostElement:
         """Create new cost element using CreateVersionCommand."""
-        element_data = element_in.model_dump()
+        element_data = element_in.model_dump(exclude_unset=True)
 
-        # Ensure root cost_element_id exists
-        root_id = uuid4()
+        # Use provided cost_element_id (for seeding) or generate new one
+        root_id = element_in.cost_element_id or uuid4()
         element_data["cost_element_id"] = root_id
         element_data["branch"] = branch
 
@@ -120,6 +122,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
+            control_date=control_date,
             **element_data,
         )
         return await cmd.execute(self.session)
@@ -130,6 +133,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         element_in: CostElementUpdate,
         actor_id: UUID,
         branch: str = "main",
+        control_date: datetime | None = None,
     ) -> CostElement:
         """Update cost element using UpdateVersionCommand or Fork if new branch."""
         update_data = element_in.model_dump(exclude_unset=True)
@@ -150,9 +154,10 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                     root_id: UUID,
                     actor_id: UUID,
                     branch: str = "main",
+                    control_date: datetime | None = None,
                     **updates: Any,
                 ) -> None:
-                    super().__init__(entity_class, root_id, actor_id, **updates)
+                    super().__init__(entity_class, root_id, actor_id, control_date=control_date, **updates)
                     self.branch = branch
 
                 def _root_field_name(self) -> str:
@@ -180,6 +185,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                 entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
                 root_id=cost_element_id,
                 actor_id=actor_id,
+                control_date=control_date,
                 # Branch is passed via update_data unpacking to match signature
                 **update_data,
             )
@@ -228,12 +234,17 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                 entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
                 root_id=cost_element_id,
                 actor_id=actor_id,
+                control_date=control_date,
                 **data,
             )
             return await create_cmd.execute(self.session)
 
     async def soft_delete(
-        self, cost_element_id: UUID, actor_id: UUID, branch: str = "main"
+        self,
+        cost_element_id: UUID,
+        actor_id: UUID,
+        branch: str = "main",
+        control_date: datetime | None = None
     ) -> None:
         """Soft delete cost element using SoftDeleteCommand."""
 
@@ -245,8 +256,9 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                 root_id: UUID,
                 actor_id: UUID,
                 branch: str = "main",
+                control_date: datetime | None = None,
             ) -> None:
-                super().__init__(entity_class, root_id, actor_id)
+                super().__init__(entity_class, root_id, actor_id, control_date=control_date)
                 self.branch = branch
 
             def _root_field_name(self) -> str:
@@ -274,6 +286,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             root_id=cost_element_id,
             actor_id=actor_id,
             branch=branch,
+            control_date=control_date,
         )
         await cmd.execute(self.session)
 

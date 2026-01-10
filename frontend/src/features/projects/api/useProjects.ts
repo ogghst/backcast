@@ -8,6 +8,8 @@ import {
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
 import type { PaginatedResponse } from "@/types/api";
+import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
+import { useQuery, UseQueryOptions } from "@tanstack/react-query";
 
 /**
  * Parameters for server-side filtering, search, and sorting.
@@ -81,14 +83,8 @@ const getPaginationParams = (params?: any) => {
   };
 };
 
-// Direct usage of ProjectsService with named methods (no adapter needed)
-export const {
-  useList: useProjects,
-  useDetail: useProject,
-  useCreate: useCreateProject,
-  useUpdate: useUpdateProject,
-  useDelete: useDeleteProject,
-} = createResourceHooks<
+// Create base hooks without time-travel support
+const baseHooks = createResourceHooks<
   ProjectRead,
   ProjectCreate,
   ProjectUpdate,
@@ -104,3 +100,36 @@ export const {
   update: ProjectsService.updateProject,
   delete: ProjectsService.deleteProject,
 });
+
+// Export list, create, update, delete as-is
+export const useProjects = baseHooks.useList;
+export const useCreateProject = baseHooks.useCreate;
+export const useUpdateProject = baseHooks.useUpdate;
+export const useDeleteProject = baseHooks.useDelete;
+
+/**
+ * Custom useProject hook with time-travel support.
+ * Automatically injects as_of parameter from TimeMachine context.
+ */
+export const useProject = (
+  id: string | undefined,
+  queryOptions?: Omit<UseQueryOptions<ProjectRead, Error>, "queryKey">
+) => {
+  const { asOf } = useTimeMachineParams();
+
+  return useQuery({
+    queryKey: ["projects", "detail", id, { asOf }],
+    queryFn: async () => {
+      if (!id) throw new Error("Project ID is required");
+
+      // Call the API with as_of parameter if available
+      return __request(OpenAPI, {
+        method: "GET",
+        url: `/api/v1/projects/${id}`,
+        query: asOf ? { as_of: asOf } : undefined,
+      });
+    },
+    enabled: !!id,
+    ...queryOptions,
+  });
+};

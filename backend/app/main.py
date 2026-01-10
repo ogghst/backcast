@@ -30,14 +30,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Configure logging on startup
     setup_logging()
 
-    # Run database seeding
-    from app.db.seeder import DataSeeder
-    from app.db.session import async_session_maker
-
-    async with async_session_maker() as session:
-        seeder = DataSeeder()
-        await seeder.seed_all(session)
-
     # Startup: could check db connection here
     yield
     # Shutdown: clean up resources

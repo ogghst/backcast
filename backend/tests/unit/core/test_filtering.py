@@ -140,7 +140,7 @@ class TestFilterParserBuildSQLAlchemyFilters:
     def test_build_disallowed_field_raises_error(self) -> None:
         """Test that disallowed field raises FilterFieldNotAllowedError."""
         from app.core.exceptions.filtering import FilterFieldNotAllowedError
-        
+
         filters = {"status": ["active"], "name": ["test"]}
         allowed_fields = ["status", "branch"]  # 'name' is not allowed
 
@@ -255,7 +255,7 @@ class TestFilterParserIntegration:
         # We want to standardize this to FilterFieldNotAllowedError or similar if possible,
         # or at least ensure our new logic handles it.
         # For now, let's assume we want to catch the ValueError and re-raise or just specific disallowed fields.
-        
+
         # Test case: disallowed field (in whitelist context)
         allowed = ["status"]
         filters_disallowed = {"branch": ["main"]}
@@ -264,10 +264,9 @@ class TestFilterParserIntegration:
 
     def test_boolean_strict_parsing(self) -> None:
         """Test strict boolean parsing."""
-        from app.core.exceptions.filtering import FilterValueTypeError
-        
+
         # We need a boolean column for this test
-        # Let's mock or add to TestModel temporarily if easier, 
+        # Let's mock or add to TestModel temporarily if easier,
         # or just rely on the fact that our logic handles it.
         # TestModel doesn't have a bool column. Let's add one to TestModel definition at top of file
         # or just mock a model.

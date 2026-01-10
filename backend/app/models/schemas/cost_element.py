@@ -18,6 +18,11 @@ class CostElementBase(BaseModel):
 class CostElementCreate(CostElementBase):
     """Properties required for creating a Cost Element."""
 
+    cost_element_id: UUID | None = Field(
+        None,
+        description="Root Cost Element ID (internal use only for seeding)",
+        exclude=True,  # Exclude from OpenAPI docs
+    )
     wbe_id: UUID
     cost_element_type_id: UUID
 
