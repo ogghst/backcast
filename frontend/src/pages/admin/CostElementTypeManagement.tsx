@@ -14,7 +14,6 @@ import type {
   CostElementTypeRead,
   CostElementTypeCreate,
   CostElementTypeUpdate,
-  DepartmentRead,
 } from "@/api/generated";
 import { CostElementTypeModal } from "@/features/cost-element-types/components/CostElementTypeModal";
 import { StandardTable } from "@/components/common/StandardTable";
@@ -24,7 +23,13 @@ import { useEntityHistory } from "@/hooks/useEntityHistory";
 
 // Create CRUD hooks
 const costElementTypeApi = {
-  list: async (params?: any) => {
+  list: async (params?: {
+    pagination?: { current?: number; pageSize?: number };
+    search?: string;
+    filters?: Record<string, unknown>;
+    sortField?: string;
+    sortOrder?: string;
+  }) => {
     const { pagination, search, filters, sortField, sortOrder } = params || {};
     const page = pagination?.current || 1;
     const perPage = pagination?.pageSize || 20;
@@ -59,7 +64,7 @@ const costElementTypeApi = {
       serverSortOrder
     );
 
-    return Array.isArray(res) ? res : (res as any).items;
+    return Array.isArray(res) ? res : res.items;
   },
   detail: (id: string) =>
     CostElementTypesService.getCostElementType(
@@ -98,10 +103,10 @@ export const CostElementTypeManagement = () => {
   );
 
   useEffect(() => {
-    DepartmentsService.getDepartments(1, 1000).then((res: any) => {
+    DepartmentsService.getDepartments(1, 1000).then((res) => {
       const depts = Array.isArray(res) ? res : res.items || [];
       const map: Record<string, string> = {};
-      depts.forEach((d: any) => (map[d.department_id] = d.name));
+      depts.forEach((d) => (map[d.department_id] = d.name));
       setDepartmentMap(map);
     });
   }, []);
@@ -272,16 +277,20 @@ export const CostElementTypeManagement = () => {
       <VersionHistoryDrawer
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
-        versions={((historyVersions as any[]) || []).map(
-          (version, idx, arr) => ({
+        versions={(historyVersions || []).map((version, idx, arr) => {
+          const v = version as unknown as {
+            created_at?: string;
+            created_by_name?: string;
+          };
+          return {
             id: `v${arr.length - idx}`,
-            valid_from: version.created_at || new Date().toISOString(),
+            valid_from: v.created_at || new Date().toISOString(),
             transaction_time: new Date().toISOString(),
-            changed_by: version.created_by_name || "System",
+            changed_by: v.created_by_name || "System",
             changes:
               idx === 0 ? { created: "initial" } : { updated: "changed" },
-          })
-        )}
+          };
+        })}
         entityName={`Type: ${selectedType?.name || ""}`}
         isLoading={historyLoading}
       />

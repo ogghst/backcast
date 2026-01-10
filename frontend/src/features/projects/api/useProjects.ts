@@ -1,4 +1,3 @@
-import { createResourceHooks } from "@/hooks/useCrud";
 import {
   useQuery,
   useMutation,
@@ -17,45 +16,32 @@ import {
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
 import type { PaginatedResponse } from "@/types/api";
-
-/**
- * Parameters for server-side filtering, search, and sorting.
- */
-interface ServerSideParams {
-  page?: number;
-  per_page?: number;
+// Custom params interface
+export interface ProjectListParams {
+  pagination?: {
+    current?: number;
+    pageSize?: number;
+  };
+  filters?: Record<string, string | string[] | null | undefined>;
+  sorter?: {
+    field?: string | string[];
+    order?: string;
+  };
   search?: string;
-  filters?: string;
-  sort_field?: string;
-  sort_order?: "asc" | "desc";
-  branch?: string;
+  sortField?: string;
+  sortOrder?: string;
+  queryOptions?: unknown;
 }
 
 /**
- * Call the new paginated projects API with server-side filtering.
+/**
+ * Parameters for server-side filtering, search, and sorting.
  */
-const getProjectsPaginated = async (
-  params?: ServerSideParams
-): Promise<PaginatedResponse<ProjectRead>> => {
-  return __request(OpenAPI, {
-    method: "GET",
-    url: "/api/v1/projects",
-    query: {
-      page: params?.page || 1,
-      per_page: params?.per_page || 20,
-      branch: params?.branch || "main",
-      search: params?.search,
-      filters: params?.filters,
-      sort_field: params?.sort_field,
-      sort_order: params?.sort_order,
-    },
-  });
-};
 
 /**
  * Helper to extract pagination params from filters object.
  */
-const getPaginationParams = (params?: any) => {
+const getPaginationParams = (params?: ProjectListParams) => {
   const current = params?.pagination?.current || 1;
   const pageSize = params?.pagination?.pageSize || 20;
 
@@ -90,28 +76,8 @@ const getPaginationParams = (params?: any) => {
   };
 };
 
-// Create base hooks without time-travel support
-const baseHooks = createResourceHooks<
-  ProjectRead,
-  ProjectCreate,
-  ProjectUpdate,
-  PaginatedResponse<ProjectRead>
->("projects", {
-  list: async (params) => {
-    const serverParams = getPaginationParams(params);
-    const res = await getProjectsPaginated(serverParams);
-    return res;
-  },
-  detail: ProjectsService.getProject,
-  create: ProjectsService.createProject,
-  update: ProjectsService.updateProject,
-  delete: ProjectsService.deleteProject,
-});
-
 // Custom useProjects list hook with Time Machine integration
-export const useProjects = (
-  params?: Parameters<typeof baseHooks.useList>[0]
-) => {
+export const useProjects = (params?: ProjectListParams) => {
   const { asOf } = useTimeMachineParams();
 
   return useQuery({

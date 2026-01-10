@@ -6,7 +6,7 @@ import {
   HistoryOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { ColumnType } from "antd/es/table";
 import { createResourceHooks } from "@/hooks/useCrud";
 import { DepartmentsService } from "@/api/generated";
@@ -24,7 +24,13 @@ import { useEntityHistory } from "@/hooks/useEntityHistory";
 
 // Create CRUD hooks using the generated API service
 const departmentApi = {
-  list: async (params?: any) => {
+  list: async (params?: {
+    pagination?: { current?: number; pageSize?: number };
+    search?: string;
+    filters?: Record<string, unknown>;
+    sortField?: string;
+    sortOrder?: string;
+  }) => {
     const { pagination, search, filters, sortField, sortOrder } = params || {};
     const page = pagination?.current || 1;
     const perPage = pagination?.pageSize || 20;
@@ -56,7 +62,7 @@ const departmentApi = {
       serverSortOrder
     );
 
-    return Array.isArray(res) ? res : (res as any).items;
+    return Array.isArray(res) ? res : res.items;
   },
   detail: (id: string) =>
     DepartmentsService.getDepartment(id) as Promise<DepartmentRead>,

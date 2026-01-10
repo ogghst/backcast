@@ -4,10 +4,10 @@ import type {
   CostElementRead,
   CostElementCreate,
   CostElementUpdate,
-  WBERead,
+  CostElementUpdate,
   CostElementTypeRead,
 } from "@/api/generated";
-import { WbEsService, CostElementTypesService } from "@/api/generated";
+import { CostElementTypesService } from "@/api/generated";
 
 interface CostElementModalProps {
   open: boolean;
@@ -33,7 +33,6 @@ export const CostElementModal = ({
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
 
-  const [wbes, setWbes] = useState<WBERead[]>([]);
   const [types, setTypes] = useState<CostElementTypeRead[]>([]);
   const [loadingOpts, setLoadingOpts] = useState(false);
 
@@ -52,19 +51,15 @@ export const CostElementModal = ({
       const fetchOptions = async () => {
         try {
           setLoadingOpts(true);
-          const [wbeRes, typeRes] = await Promise.all([
-            WbEsService.getWbes(1, 100000), // Fetch up to 100k for dropdown
-            CostElementTypesService.getCostElementTypes(1, 100000), // Fetch up to 100k for dropdown
-          ]);
+          const typeRes = await CostElementTypesService.getCostElementTypes(
+            1,
+            100000
+          );
 
-          const wbeItems = Array.isArray(wbeRes)
-            ? wbeRes
-            : (wbeRes as any).items || [];
           const typeItems = Array.isArray(typeRes)
             ? typeRes
-            : (typeRes as any).items || [];
+            : typeRes.items || [];
 
-          setWbes(wbeItems);
           setTypes(typeItems);
         } catch (e) {
           console.error("Error fetching options:", e);
@@ -77,17 +72,8 @@ export const CostElementModal = ({
   }, [open, initialValues, form, wbeId]);
 
   const displayWbeName = isEdit
-    ? (initialValues as any).wbe_name || initialValues?.wbe_id
+    ? initialValues?.wbe_name || initialValues?.wbe_id
     : wbeName || "Unknown WBE";
-
-  // Generate display value for cost element type
-  const displayTypeName =
-    isEdit && initialValues
-      ? (initialValues as any).cost_element_type_code &&
-        (initialValues as any).cost_element_type_name
-        ? `${(initialValues as any).cost_element_type_code} - ${(initialValues as any).cost_element_type_name}`
-        : initialValues.cost_element_type_id
-      : undefined;
 
   const handleSubmit = async () => {
     try {

@@ -7,7 +7,6 @@ import {
   ProjectOutlined,
   SettingOutlined,
   TeamOutlined,
-  DollarOutlined,
   TagsOutlined,
 } from "@ant-design/icons";
 

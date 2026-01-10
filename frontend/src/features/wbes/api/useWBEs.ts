@@ -1,4 +1,3 @@
-import { createResourceHooks } from "@/hooks/useCrud";
 import {
   useQuery,
   useMutation,
@@ -35,80 +34,12 @@ export interface WBEListParams {
   search?: string;
   sortField?: string;
   sortOrder?: string;
-  queryOptions?: any;
+  queryOptions?: unknown;
 }
-
-// Create base hooks without time-travel support
-const baseHooks = createResourceHooks<
-  WBERead,
-  WBECreate,
-  WBEUpdate,
-  PaginatedResponse<WBERead>
->("wbes", {
-  list: async (params?: any) => {
-    // Cast params to local interface for safer access, though signature must remain compatible with simple generic
-    const typedParams = params as WBEListParams;
-    // Convert Ant Design table params to server format
-    const current = typedParams?.pagination?.current || 1;
-    const pageSize = typedParams?.pagination?.pageSize || 20;
-
-    // Convert Ant Design table filters to server format
-    let filterString: string | undefined;
-    if (typedParams?.filters) {
-      const filterParts: string[] = [];
-      Object.entries(typedParams.filters).forEach(([key, value]) => {
-        if (
-          value &&
-          (Array.isArray(value) ? value.length > 0 : value !== undefined)
-        ) {
-          const values = Array.isArray(value) ? value : [value];
-          filterParts.push(`${key}:${values.join(",")}`);
-        }
-      });
-      filterString = filterParts.length > 0 ? filterParts.join(";") : undefined;
-    }
-
-    // Support both AntD sorter object and flat params from useTableParams
-    const sortField = typedParams?.sorter?.field || typedParams?.sortField;
-    const sortOrderRaw = typedParams?.sorter?.order || typedParams?.sortOrder;
-    const sortOrder = sortOrderRaw === "descend" ? "desc" : "asc";
-
-    const response = await WbEsService.getWbes(
-      current,
-      pageSize,
-      typedParams?.projectId,
-      typedParams?.parentWbeId,
-      typedParams?.branch || "main",
-      typedParams?.search,
-      filterString,
-      sortField as string,
-      sortOrder
-    );
-
-    // Normalize response to always be PaginatedResponse
-    if (Array.isArray(response)) {
-      // Hierarchical or filtered list request that returned raw array
-      return {
-        items: response,
-        total: response.length,
-        page: 1,
-        per_page: response.length,
-      };
-    }
-
-    // It's already a PaginatedResponse
-    return response as unknown as PaginatedResponse<WBERead>;
-  },
-  detail: WbEsService.getWbe,
-  create: WbEsService.createWbe,
-  update: WbEsService.updateWbe,
-  delete: WbEsService.deleteWbe,
-});
 
 // Custom useWBEs list hook with Time Machine integration
 export const useWBEs = (params?: WBEListParams) => {
   const { asOf } = useTimeMachineParams();
-  const queryClient = useQueryClient();
 
   return useQuery({
     queryKey: ["wbes", params, { asOf }],

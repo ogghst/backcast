@@ -1,4 +1,3 @@
-import { createResourceHooks } from "@/hooks/useCrud";
 import {
   useMutation,
   useQueryClient,
@@ -23,92 +22,19 @@ export type UpdateWithBranch = CostElementUpdate & { branch?: string };
 /**
  * Cost Element API parameters for filtering, pagination, and sorting.
  */
-interface CostElementApiParams {
+interface CostElementListParams {
   branch?: string;
   pagination?: { current?: number; pageSize?: number };
   filters?: Record<string, (string | number | boolean)[] | null>;
   search?: string;
   sortField?: string;
   sortOrder?: string;
+  queryOptions?: unknown;
+  wbe_id?: string; // Add wbe_id for direct filtering support if needed
 }
 
-// Custom API wrapper
-const costElementApi = {
-  list: async (
-    params?: CostElementApiParams
-  ): Promise<PaginatedResponse<CostElementRead>> => {
-    const {
-      branch = "main",
-      pagination,
-      filters,
-      search,
-      sortField,
-      sortOrder,
-    } = params || {};
-    const page = pagination?.current || 1;
-    const perPage = pagination?.pageSize || 20;
-
-    let filterString: string | undefined;
-    if (filters) {
-      const filterParts: string[] = [];
-      Object.entries(filters).forEach(([key, value]) => {
-        if (key === "wbe_id" || key === "cost_element_type_id") return;
-
-        if (
-          value &&
-          (Array.isArray(value) ? value.length > 0 : value !== undefined)
-        ) {
-          const values = Array.isArray(value) ? value : [value];
-          filterParts.push(`${key}:${values.join(",")}`);
-        }
-      });
-      filterString = filterParts.length > 0 ? filterParts.join(";") : undefined;
-    }
-
-    const wbeId = filters?.wbe_id?.[0] as string | undefined;
-    const typeId = filters?.cost_element_type_id?.[0] as string | undefined;
-    const serverSortOrder = sortOrder === "descend" ? "desc" : "asc";
-
-    const res = await CostElementsService.getCostElements(
-      page,
-      perPage,
-      branch,
-      wbeId,
-      typeId,
-      search,
-      filterString,
-      sortField,
-      serverSortOrder
-    );
-
-    if (Array.isArray(res)) {
-      return {
-        items: res,
-        total: res.length,
-        page: 1,
-        per_page: res.length,
-      };
-    }
-    return res as unknown as PaginatedResponse<CostElementRead>;
-  },
-  detail: (id: string) => CostElementsService.getCostElement(id, "main"),
-  // Note: create/update/delete are replaced by custom hooks below
-  create: CostElementsService.createCostElement,
-  update: CostElementsService.updateCostElement,
-  delete: CostElementsService.deleteCostElement,
-};
-
-const baseHooks = createResourceHooks<
-  CostElementRead,
-  CreateWithBranch,
-  UpdateWithBranch,
-  PaginatedResponse<CostElementRead>
->("cost_elements", costElementApi);
-
 // Custom useCostElements list hook with Time Machine integration
-export const useCostElements = (
-  params?: Parameters<typeof baseHooks.useList>[0]
-) => {
+export const useCostElements = (params?: CostElementListParams) => {
   const { asOf } = useTimeMachineParams();
 
   return useQuery({

@@ -253,8 +253,13 @@ export const WBEDetailPage = () => {
                 .replace(")", "")
                 .split(",")[0];
               if (clean) start = clean.trim();
-            } else if (Array.isArray((version as any).valid_time)) {
-              start = (version as any).valid_time[0];
+            } else if (
+              Array.isArray(
+                (version as unknown as { valid_time: string[] }).valid_time
+              )
+            ) {
+              start = (version as unknown as { valid_time: string[] })
+                .valid_time[0];
             }
 
             return {

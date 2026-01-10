@@ -8,11 +8,7 @@ import {
   Typography,
   Alert,
 } from "antd";
-import {
-  CloseOutlined,
-  ReloadOutlined,
-  CalendarOutlined,
-} from "@ant-design/icons";
+import { CloseOutlined, ReloadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
@@ -21,13 +17,12 @@ import { TimelineSlider } from "./TimelineSlider";
 import { BranchSelector } from "./BranchSelector";
 import { QuickJumpButtons, calculateDateFromPreset } from "./QuickJumpButtons";
 import type {
-  TimelineEvent,
   BranchOption,
   QuickJumpPreset,
   ProjectTimelineData,
 } from "./types";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 interface TimeMachineExpandedProps {
   /** Project ID */
@@ -67,8 +62,6 @@ interface TimeMachineExpandedProps {
  * ```
  */
 export function TimeMachineExpanded({
-  projectId,
-  projectName,
   timelineData,
   isLoading = false,
 }: TimeMachineExpandedProps) {
@@ -92,9 +85,12 @@ export function TimeMachineExpanded({
   );
 
   // Default date range if not provided
+  // eslint-disable-next-line
+  const now = React.useRef(Date.now()).current;
+  // Default date range if not provided
   const minDate =
-    timelineData?.startDate || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
-  const maxDate = timelineData?.endDate || new Date();
+    timelineData?.startDate || new Date(now - 365 * 24 * 60 * 60 * 1000);
+  const maxDate = timelineData?.endDate || new Date(now);
 
   // Convert branches to options
   const branchOptions: BranchOption[] = useMemo(() => {
