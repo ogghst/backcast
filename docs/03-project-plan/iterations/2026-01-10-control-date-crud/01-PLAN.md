@@ -26,6 +26,13 @@ This preserves bitemporal correctness:
 - `valid_time` = When the event occurred (user's control date)
 - `transaction_time` = When it was recorded in database (now)
 
+**Mechanism Update:**
+Control date will be passed via **request body** (Create/Update) or **query parameters** (Delete) instead of headers. This ensures:
+
+1. No CORS issue with custom headers.
+2. An unique source of truth in api request parameters.
+3. Explicit visibility of the parameter in the data model.
+
 ---
 
 ## Phase 2: Problem Definition
@@ -72,6 +79,7 @@ This preserves bitemporal correctness:
 - [ ] Backward compatible (control_date parameter optional)
 - [ ] No breaking API changes
 - [ ] Frontend hooks updated to use TimeMachine state
+- [ ] API Models reflect `control_date` field
 
 **Business Criteria:**
 
@@ -83,14 +91,13 @@ This preserves bitemporal correctness:
 
 **In Scope:**
 
-| Item                 | Description                                        |
-| -------------------- | -------------------------------------------------- |
-| Backend: Commands    | Add control_date parameter to Create/Update/Delete |
-| Backend: Services    | Pass control_date through service layer            |
-| Backend: API         | Accept X-Control-Date header                       |
-| Frontend: Hooks      | Read selectedTime from TimeMachine store           |
-| Frontend: API Client | Send X-Control-Date header                         |
-| Tests                | Unit & integration tests for control date CRUD     |
+| Item              | Description                                        |
+| ----------------- | -------------------------------------------------- |
+| Backend: Commands | Add control_date parameter to Create/Update/Delete |
+| Backend: Services | Pass control_date through service layer            |
+| Backend: API      | Add control_date to Pydantic models & Query param  |
+| Frontend: Hooks   | Read selectedTime and inject into body/query       |
+| Tests             | Unit & integration tests for control date CRUD     |
 
 **Out of Scope (Technical Debt):**
 
@@ -110,27 +117,26 @@ This preserves bitemporal correctness:
 | #                 | Task                                       | Effort | Priority | Dependencies |
 | ----------------- | ------------------------------------------ | ------ | -------- | ------------ |
 | **Backend**       |
-| 1                 | Add control_date to CreateVersionCommand   | 1h     | Critical | None         |
-| 2                 | Add control_date to UpdateVersionCommand   | 1h     | Critical | Task 1       |
+| 1                 | Add control_date to CreateVersionCommand   | 0.5h   | Critical | None         |
+| 2                 | Add control_date to UpdateVersionCommand   | 0.5h   | Critical | Task 1       |
 | 3                 | Add control_date to SoftDeleteCommand      | 0.5h   | Critical | Task 1       |
 | 4                 | Update service layer methods               | 1h     | Critical | Tasks 1-3    |
-| 5                 | Add X-Control-Date header to API routes    | 1h     | Critical | Task 4       |
+| 5                 | Update API Schemas & Routes (Body/Query)   | 1.5h   | Critical | Task 4       |
 | **Frontend**      |
-| 6                 | Update API client base function            | 1h     | Critical | None         |
-| 7                 | Update useCreateWBE hook                   | 0.5h   | High     | Task 6       |
-| 8                 | Update useUpdateWBE hook                   | 0.5h   | High     | Task 6       |
-| 9                 | Update useDeleteWBE hook                   | 0.5h   | High     | Task 6       |
-| 10                | Apply pattern to Project/CostElement hooks | 1h     | Medium   | Tasks 7-9    |
+| 6                 | Update useCreateWBE hook (Body)            | 0.5h   | High     | Task 5       |
+| 7                 | Update useUpdateWBE hook (Body)            | 0.5h   | High     | Task 5       |
+| 8                 | Update useDeleteWBE hook (Query)           | 0.5h   | High     | Task 5       |
+| 9                 | Apply pattern to Project/CostElement hooks | 1h     | Medium   | Tasks 6-8    |
 | **Testing**       |
-| 11                | Unit tests for commands with control_date  | 2h     | High     | Tasks 1-3    |
-| 12                | Integration tests for API                  | 2h     | High     | Task 5       |
-| 13                | Frontend hook tests                        | 1h     | Medium   | Tasks 7-9    |
+| 10                | Unit tests for commands with control_date  | 2h     | High     | Tasks 1-3    |
+| 11                | Integration tests for API (Body/Query)     | 2h     | High     | Task 5       |
+| 12                | Frontend hook tests                        | 1h     | Medium   | Tasks 6-8    |
 | **Documentation** |
-| 14                | Update architecture.md                     | 1h     | Medium   | All          |
-| 15                | Update patterns.md                         | 1h     | Medium   | All          |
-| 16                | Update API docs                            | 0.5h   | Low      | Task 5       |
+| 13                | Update architecture.md                     | 1h     | Medium   | All          |
+| 14                | Update patterns.md                         | 1h     | Medium   | All          |
+| 15                | Update API docs                            | 0.5h   | Low      | Task 5       |
 
-**Total Estimated Effort:** 15 hours
+**Total Estimated Effort:** 13.5 hours
 
 ---
 
@@ -232,89 +238,122 @@ async def execute(self, session: AsyncSession) -> TVersionable:
 
 ### 4.2 Backend: API Layer
 
-**Add Header Parameter:**
+**Update Pydantic Models:**
 
 ```python
-from datetime import datetime
-from fastapi import Header
+# app/schemas/wbe.py
+
+class WBECreate(BaseModel):
+    # ... existing fields ...
+    control_date: datetime | None = None  # NEW
+
+class WBEUpdate(BaseModel):
+    # ... existing fields ...
+    control_date: datetime | None = None  # NEW
+```
+
+**Update API Routes:**
+
+```python
+# app/api/routes/wbes.py
 
 @router.post("/wbes", response_model=WBERead)
 async def create_wbe(
     wbe: WBECreate,
     current_user: User = Depends(get_current_user),
-    control_date: datetime | None = Header(
-        None,
-        alias="X-Control-Date",
-        description="Effective date for the operation (default: now)"
-    ),
     session: AsyncSession = Depends(get_session),
 ) -> WBE:
-    """Create WBE with optional control date."""
+    """Create WBE. payload.control_date is used if present."""
     service = WBEService(session)
+    # Extract control_date from payload, remove it from dict passed to command
+    wbe_data = wbe.model_dump()
+    control_date = wbe_data.pop("control_date", None)
+
     return await service.create_wbe(
-        wbe,
+        WBECreate(**wbe_data), # Re-wrap or pass dict if service accepts dict
         current_user.id,
-        control_date=control_date  # Pass through
+        control_date=control_date
+    )
+
+@router.put("/wbes/{wbe_id}", response_model=WBERead)
+async def update_wbe(
+    wbe_id: UUID,
+    wbe: WBEUpdate,
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> WBE:
+    """Update WBE. payload.control_date is used if present."""
+    service = WBEService(session)
+    wbe_data = wbe.model_dump(exclude_unset=True)
+    control_date = wbe_data.pop("control_date", None)
+
+    return await service.update_wbe(
+        wbe_id,
+        WBEUpdate(**wbe_data),
+        current_user.id,
+        control_date=control_date
+    )
+
+@router.delete("/wbes/{wbe_id}")
+async def delete_wbe(
+    wbe_id: UUID,
+    control_date: datetime | None = Query(None), # Query param for DELETE
+    current_user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    """Delete WBE using optional control_date from query param."""
+    service = WBEService(session)
+    await service.delete_wbe(
+        wbe_id,
+        current_user.id,
+        control_date=control_date
     )
 ```
 
-**No Validation Needed:**
-
-```python
-# Future dating ALLOWED for planning/forecasting
-# Past dating ALLOWED for backdating/corrections
-# Any control_date value is valid
-```
-
-### 4.3 Frontend: API Client
-
-**Base Function Enhancement:**
-
-```typescript
-// src/lib/api/client.ts
-import { useTimeMachineStore } from "@/stores/timeMachineStore";
-
-export async function apiRequest<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const { selectedTime } = useTimeMachineStore.getState();
-
-  const headers = {
-    "Content-Type": "application/json",
-    ...(selectedTime && {
-      "X-Control-Date": selectedTime.toISOString(),
-    }),
-    ...options.headers,
-  };
-
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
-
-  if (!response.ok) {
-    throw new ApiError(await response.json());
-  }
-
-  return response.json();
-}
-```
+### 4.3 Frontend: Hooks
 
 **Hook Updates:**
 
 ```typescript
 // src/hooks/useWBE.ts
+
 export function useCreateWBE() {
   const queryClient = useQueryClient();
+  // Get selected time from store
+  const selectedTime = useTimeMachineStore((s) => s.selectedTime);
 
   return useMutation({
     mutationFn: async (data: WBECreate) => {
-      // apiRequest will automatically add X-Control-Date header
+      const payload = {
+        ...data,
+        // Inject control_date if selectedTime exists
+        control_date: selectedTime ? selectedTime.toISOString() : undefined,
+      };
       return apiRequest<WBERead>("/api/v1/wbes", {
         method: "POST",
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["wbes"] });
+    },
+  });
+}
+
+export function useDeleteWBE() {
+  const queryClient = useQueryClient();
+  const selectedTime = useTimeMachineStore((s) => s.selectedTime);
+
+  return useMutation({
+    mutationFn: async (wbeId: string) => {
+      const params = new URLSearchParams();
+      if (selectedTime) {
+        params.append("control_date", selectedTime.toISOString());
+      }
+      return apiRequest(`/api/v1/wbes/${wbeId}?${params.toString()}`, {
+        method: "DELETE",
+      });
+      // Note: apiRequest should handle empty body for DELETE if not provided
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wbes"] });
@@ -334,64 +373,26 @@ export function useCreateWBE() {
 │   └── test_default_control_date_uses_now
 │
 ├── Backend Integration Tests
-│   ├── test_create_wbe_with_past_control_date_header
-│   ├── test_create_wbe_with_future_control_date_header
-│   ├── test_update_wbe_with_control_date_header
-│   ├── test_delete_wbe_with_control_date_header
-│   ├── test_create_without_control_date_uses_now
+│   ├── test_create_wbe_with_control_date_body
+│   ├── test_update_wbe_with_control_date_body
+│   ├── test_delete_wbe_with_control_date_query
 │   └── test_time_travel_sees_control_dated_entity
 │
 └── Frontend Tests
-    ├── test_api_client_sends_control_date_header
-    ├── test_create_hook_respects_selected_time
-    └── test_update_hook_respects_selected_time
+    ├── test_create_hook_injects_control_date_in_body
+    └── test_delete_hook_injects_control_date_in_query
 ```
 
 ### First 5 Test Cases (Ordered Simple to Complex)
 
 **1. test_create_version_command_with_control_date** (Unit)
+(Remains same as previous plan, unrelated to HTTP transport)
+
+**2. test_create_wbe_with_control_date_body** (Integration)
 
 ```python
-async def test_create_version_command_with_control_date(db_session):
-    """CreateVersionCommand should set valid_time to control_date."""
-    control_date = datetime(2026, 3, 3, tzinfo=UTC)
-
-    cmd = CreateVersionCommand(
-        Project,
-        uuid4(),
-        uuid4(),
-        control_date=control_date,
-        name="Test",
-        budget=100
-    )
-
-    project = await cmd.execute(db_session)
-
-    # valid_time starts at control_date
-    assert project.valid_time.lower == control_date
-    # transaction_time starts at actual recording time (now)
-    assert project.transaction_time.lower > control_date
-```
-
-**2. test_control_date_validation_future_rejected** (Unit)
-
-```python
-async def test_control_date_validation_future_rejected():
-    """Should reject control_date in the future."""
-    future_date = datetime.now(UTC) + timedelta(days=1)
-
-    with pytest.raises(HTTPException) as exc:
-        validate_control_date(future_date)
-
-    assert exc.value.status_code == 400
-    assert "future" in exc.value.detail.lower()
-```
-
-**3. test_create_wbe_with_control_date_header** (Integration)
-
-```python
-async def test_create_wbe_with_control_date_header(client, test_project):
-    """API should accept X-Control-Date header."""
+async def test_create_wbe_with_control_date_body(client, test_project):
+    """API should accept control_date in body."""
     control_date = datetime(2026, 3, 3, tzinfo=UTC)
 
     response = await client.post(
@@ -402,84 +403,28 @@ async def test_create_wbe_with_control_date_header(client, test_project):
             "name": "Test WBE",
             "budget_allocation": 50000,
             "level": 1,
-        },
-        headers={"X-Control-Date": control_date.isoformat()}
+            "control_date": control_date.isoformat() # IN BODY
+        }
     )
 
     assert response.status_code == 201
     wbe = response.json()
-
-    # Verify in database
-    stmt = select(WBE).where(WBE.wbe_id == wbe["wbe_id"])
-    result = await db_session.execute(stmt)
-    db_wbe = result.scalar_one()
-
-    assert db_wbe.valid_time.lower == control_date
-    assert db_wbe.transaction_time.lower > control_date
+    # verify valid_time in DB...
 ```
 
-**5. test_update_wbe_with_control_date_closes_at_control** (Integration)
+**3. test_delete_wbe_with_control_date_query** (Integration)
 
 ```python
-async def test_update_wbe_with_control_date_closes_at_control(client, wbe):
-    """Update should close old version at control_date."""
+async def test_delete_wbe_with_control_date_query(client, wbe):
+    """API should accept control_date in query for DELETE."""
     control_date = datetime(2026, 3, 3, tzinfo=UTC)
 
-    response = await client.put(
+    response = await client.delete(
         f"/api/v1/wbes/{wbe['wbe_id']}",
-        json={"name": "Updated Name"},
-        headers={"X-Control-Date": control_date.isoformat()}
-    )
-
-    assert response.status_code == 200
-
-    # Check old version closed at control_date
-    stmt = select(WBE).where(
-        WBE.wbe_id == wbe["wbe_id"],
-        func.upper(WBE.valid_time).is_not(None)
-    )
-    result = await db_session.execute(stmt)
-    old_version = result.scalar_one()
-
-    assert old_version.valid_time.upper == control_date
-```
-
-**6. test_time_travel_sees_control_dated_entity** (Integration)
-
-```python
-async def test_time_travel_sees_control_dated_entity(client, test_project):
-    """Time travel query should see entity created at control date."""
-    control_date = datetime(2026, 3, 3, tzinfo=UTC)
-
-    # Create WBE at control date
-    response = await client.post(
-        "/api/v1/wbes",
-        json={
-            "project_id": test_project["project_id"],
-            "code": "WBE-1",
-            "name": "Backdated WBE",
-            "budget_allocation": 50000,
-            "level": 1,
-        },
-        headers={"X-Control-Date": control_date.isoformat()}
-    )
-    wbe_id = response.json()["wbe_id"]
-
-    # Query before control date - should not see it
-    before = datetime(2026, 3, 1, tzinfo=UTC)
-    response = await client.get(
-        f"/api/v1/wbes/{wbe_id}",
-        params={"as_of": before.isoformat()}
-    )
-    assert response.status_code == 404
-
-    # Query at control date - should see it
-    response = await client.get(
-        f"/api/v1/wbes/{wbe_id}",
-        params={"as_of": control_date.isoformat()}
+        params={"control_date": control_date.isoformat()} # IN QUERY
     )
     assert response.status_code == 200
-    assert response.json()["name"] == "Backdated WBE"
+    # verify deleted_at in DB...
 ```
 
 ---
@@ -489,11 +434,9 @@ async def test_time_travel_sees_control_dated_entity(client, test_project):
 | Risk Type   | Description                       | Probability | Impact | Mitigation                                   |
 | ----------- | --------------------------------- | ----------- | ------ | -------------------------------------------- |
 | Technical   | Breaking existing CRUD            | Low         | High   | Default control_date=None preserves behavior |
-| Technical   | Frontend hooks complexity         | Medium      | Medium | Centralize logic in API client               |
-| Integration | Header not passed correctly       | Low         | Medium | Integration tests verify header              |
-| UX          | User confusion about control date | High        | Medium | Clear UI indicators, documentation           |
-| Data        | Invalid control dates             | Medium      | High   | Comprehensive validation                     |
-| Performance | Additional UPDATE queries         | Low         | Low    | Minimal overhead                             |
+| Technical   | Frontend hooks payload overrides  | Low         | Medium | Ensure manual control_date takes precedence? |
+| Integration | Parameter not extracted correctly | Low         | Medium | Integration tests verify flow                |
+| Data        | Invalid control dates             | Medium      | High   | Validation in Pydantic models                |
 
 ---
 
@@ -503,39 +446,30 @@ async def test_time_travel_sees_control_dated_entity(client, test_project):
 
 | Phase                    | Tasks       | Effort    |
 | ------------------------ | ----------- | --------- |
-| **Backend Core**         | Tasks 1-5   | 4.5h      |
-| **Frontend Integration** | Tasks 6-10  | 3.5h      |
-| **Testing**              | Tasks 11-13 | 5h        |
-| **Documentation**        | Tasks 14-16 | 2.5h      |
-| **Total**                |             | **15.5h** |
+| **Backend Core**         | Tasks 1-5   | 4h        |
+| **Frontend Integration** | Tasks 6-9   | 3h        |
+| **Testing**              | Tasks 10-12 | 4h        |
+| **Documentation**        | Tasks 13-15 | 2.5h      |
+| **Total**                |             | **13.5h** |
 
 ### Prerequisites
 
-1. ✅ TimeMachine store exists (already implemented)
-2. ✅ Bitemporal infrastructure working (just fixed)
-3. ⬜ No additional infrastructure needed
+1. ✅ TimeMachine store exists
+2. ✅ Bitemporal infrastructure working
 
 ### Implementation Order
 
 ```
-Phase 1: Backend Core (4.5h)
-├── Task 1: CreateVersionCommand
-├── Task 2: UpdateVersionCommand
-├── Task 3: SoftDeleteCommand
-├── Task 4: Service layer
-└── Task 5: API routes
+Phase 1: Backend Core
+├── Task 1-3: Commands (Already done/refined)
+├── Task 4: Content Service Layer (Already done/refined)
+└── Task 5: API Schemas & Routes (REFOCUS HERE)
 
-Phase 2: Frontend (3.5h) [can overlap with Phase 3]
-├── Task 6: API client
-└── Tasks 7-10: Hooks
+Phase 2: Frontend
+└── Tasks 6-9: Hooks (Update to pass data)
 
-Phase 3: Testing (5h)
-├── Task 11: Unit tests
-├── Task 12: Integration tests
-└── Task 13: Frontend tests
-
-Phase 4: Documentation (2.5h)
-└── Tasks 14-16: Docs updates
+Phase 3: Testing
+└── Integration tests (Update to match new API)
 ```
 
 ---
@@ -553,14 +487,12 @@ Phase 4: Documentation (2.5h)
 
 ## Approval
 
-**Status:** ✅ APPROVED - Ready for DO phase
+**Status:** ✅ APPROVED - Updated for Data/Query Params
 
 **Key Points:**
 
-1. Preserves bitemporal semantics (valid vs transaction time)
-2. Backward compatible (optional parameter)
-3. Clear audit trail maintained
-4. Comprehensive testing planned
+1. **Explicit Data Model:** control_date is part of the entity schema.
+2. **Standard REST:** Body for mutation, Query for deletion.
 
 ---
 

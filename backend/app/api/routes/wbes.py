@@ -55,6 +55,10 @@ async def read_wbes(
         regex="^(asc|desc)$",
         description="Sort order (asc or desc)",
     ),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get WBEs as of this timestamp (ISO 8601)",
+    ),
     service: WBEService = Depends(get_wbe_service),
 ) -> dict[str, Any] | Sequence[WBE]:
     """Retrieve WBEs with server-side search, filtering, and sorting.
@@ -117,6 +121,7 @@ async def read_wbes(
             sort_order=sort_order,
             project_id=project_id,
             parent_wbe_id=parsed_parent_id,
+            as_of=as_of,
         )
 
         # Convert to Pydantic models
@@ -153,6 +158,13 @@ async def create_wbe(
 ) -> WBE:
     """Create a new WBE. Requires create permission."""
     try:
+        # Extract control_date from payload if present
+        # We need to exclude it from the dict passed to the service if the service
+        # treats it separate, OR we let the service handle it.
+        # WBEService.create_wbe takes control_date as explicit arg.
+        # So we explicitly extract it.
+        control_date = wbe_in.control_date
+        
         # Check if WBE code already exists in the project
         existing = await service.get_by_code(
             code=wbe_in.code, project_id=wbe_in.project_id
@@ -163,7 +175,11 @@ async def create_wbe(
                 detail=f"WBE with code '{wbe_in.code}' already exists in this project",
             )
 
-        wbe = await service.create_wbe(wbe_in=wbe_in, actor_id=current_user.user_id)
+        wbe = await service.create_wbe(
+            wbe_in=wbe_in, 
+            actor_id=current_user.user_id,
+            control_date=control_date
+        )
         return wbe
     except ValueError as e:
         raise HTTPException(
@@ -220,10 +236,12 @@ async def update_wbe(
 ) -> WBE:
     """Update a WBE. Requires update permission."""
     try:
+        control_date = wbe_in.control_date
         updated_wbe = await service.update_wbe(
             wbe_id=wbe_id,
             wbe_in=wbe_in,
             actor_id=current_user.user_id,
+            control_date=control_date
         )
         return updated_wbe
     except ValueError as e:
@@ -238,12 +256,17 @@ async def update_wbe(
 )
 async def delete_wbe(
     wbe_id: UUID,
+    control_date: datetime | None = Query(None, description="Optional control date for deletion"),
     current_user: User = Depends(get_current_active_user),
     service: WBEService = Depends(get_wbe_service),
 ) -> None:
     """Soft delete a WBE. Requires delete permission."""
     try:
-        await service.delete_wbe(wbe_id=wbe_id, actor_id=current_user.user_id)
+        await service.delete_wbe(
+            wbe_id=wbe_id, 
+            actor_id=current_user.user_id,
+            control_date=control_date
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 

@@ -112,6 +112,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
     ) -> CostElement:
         """Create new cost element using CreateVersionCommand."""
         element_data = element_in.model_dump(exclude_unset=True)
+        element_data.pop("control_date", None)
 
         # Use provided cost_element_id (for seeding) or generate new one
         root_id = element_in.cost_element_id or uuid4()
@@ -137,6 +138,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
     ) -> CostElement:
         """Update cost element using UpdateVersionCommand or Fork if new branch."""
         update_data = element_in.model_dump(exclude_unset=True)
+        update_data.pop("control_date", None)
         update_data["branch"] = branch
 
         # Check if version exists in target branch
@@ -319,6 +321,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         filter_string: str | None = None,
         sort_field: str | None = None,
         sort_order: str = "asc",
+        as_of: datetime | None = None,
     ) -> tuple[list[CostElement], int]:
         """Get all cost elements with search, filtering, and sorting.
 
@@ -332,6 +335,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                           Example: "code:LAB;name:Phase"
             sort_field: Field name to sort by (e.g., "name", "code", "budget_amount")
             sort_order: Sort order, either "asc" or "desc" (default: "asc")
+            as_of: Optional timestamp for time-travel queries
 
         Returns:
             Tuple of (list of cost elements with relations, total count matching filters)
@@ -355,9 +359,20 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         # Base query with WBE name and type joins
         stmt = self._get_base_stmt().where(
             CostElement.branch == branch,
-            func.upper(cast(Any, CostElement).valid_time).is_(None),
             cast(Any, CostElement).deleted_at.is_(None),
         )
+
+        # Apply time-travel filter
+        if as_of:
+            # Get version valid at as_of time
+            stmt = stmt.where(
+                cast(Any, CostElement).valid_time.contains(as_of)
+            )
+        else:
+            # Get current version (open upper bound)
+            stmt = stmt.where(
+                func.upper(cast(Any, CostElement).valid_time).is_(None)
+            )
 
         # Apply legacy dict filters (for backward compatibility)
         if filters:

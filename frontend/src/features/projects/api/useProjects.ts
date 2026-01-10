@@ -1,5 +1,14 @@
 import { createResourceHooks } from "@/hooks/useCrud";
 import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  UseQueryOptions,
+  UseMutationOptions,
+} from "@tanstack/react-query";
+import { toast } from "sonner";
+import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
+import {
   ProjectsService,
   type ProjectRead,
   type ProjectCreate,
@@ -8,8 +17,6 @@ import {
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
 import type { PaginatedResponse } from "@/types/api";
-import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
-import { useQuery, UseQueryOptions } from "@tanstack/react-query";
 
 /**
  * Parameters for server-side filtering, search, and sorting.
@@ -79,7 +86,7 @@ const getPaginationParams = (params?: any) => {
     search: params?.search,
     filters: filterString,
     sort_field: sortField,
-    sort_order: sortOrder,
+    sort_order: (sortOrder === "desc" ? "desc" : "asc") as "asc" | "desc",
   };
 };
 
@@ -101,11 +108,126 @@ const baseHooks = createResourceHooks<
   delete: ProjectsService.deleteProject,
 });
 
-// Export list, create, update, delete as-is
-export const useProjects = baseHooks.useList;
-export const useCreateProject = baseHooks.useCreate;
-export const useUpdateProject = baseHooks.useUpdate;
-export const useDeleteProject = baseHooks.useDelete;
+// Custom useProjects list hook with Time Machine integration
+export const useProjects = (
+  params?: Parameters<typeof baseHooks.useList>[0]
+) => {
+  const { asOf } = useTimeMachineParams();
+
+  return useQuery({
+    queryKey: ["projects", params, { asOf }],
+    queryFn: async () => {
+      const serverParams = getPaginationParams(params);
+
+      // Manual request to support as_of query param
+      return __request(OpenAPI, {
+        method: "GET",
+        url: "/api/v1/projects",
+        query: {
+          ...serverParams,
+          as_of: asOf || undefined,
+        },
+      }) as Promise<PaginatedResponse<ProjectRead>>;
+    },
+    ...params?.queryOptions,
+  });
+};
+
+/**
+ * Custom create hook with Time Machine integration.
+ * Automatically injects control_date from TimeMachine context.
+ */
+export const useCreateProject = (
+  mutationOptions?: Omit<
+    UseMutationOptions<ProjectRead, Error, ProjectCreate>,
+    "mutationFn"
+  >
+) => {
+  const { asOf } = useTimeMachineParams();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: ProjectCreate) => {
+      const payload = { ...data, control_date: asOf || null };
+      return ProjectsService.createProject(payload);
+    },
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      toast.success("Created successfully");
+      mutationOptions?.onSuccess?.(...args);
+    },
+    onError: (error, ...args) => {
+      toast.error(`Error creating: ${error.message}`);
+      mutationOptions?.onError?.(error, ...args);
+    },
+    ...mutationOptions,
+  });
+};
+
+/**
+ * Custom update hook with Time Machine integration.
+ * Automatically injects control_date from TimeMachine context.
+ */
+export const useUpdateProject = (
+  mutationOptions?: Omit<
+    UseMutationOptions<ProjectRead, Error, { id: string; data: ProjectUpdate }>,
+    "mutationFn"
+  >
+) => {
+  const { asOf } = useTimeMachineParams();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: ProjectUpdate }) => {
+      const payload = { ...data, control_date: asOf || null };
+      return ProjectsService.updateProject(id, payload);
+    },
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      toast.success("Updated successfully");
+      mutationOptions?.onSuccess?.(...args);
+    },
+    onError: (error, ...args) => {
+      toast.error(`Error updating: ${error.message}`);
+      mutationOptions?.onError?.(error, ...args);
+    },
+    ...mutationOptions,
+  });
+};
+
+/**
+ * Custom delete hook with Time Machine integration.
+ * Automatically injects control_date from TimeMachine context as a query parameter.
+ */
+export const useDeleteProject = (
+  mutationOptions?: Omit<UseMutationOptions<void, Error, string>, "mutationFn">
+) => {
+  const { asOf } = useTimeMachineParams();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => {
+      return __request(OpenAPI, {
+        method: "DELETE",
+        url: "/api/v1/projects/{project_id}",
+        path: {
+          project_id: id,
+        },
+        query: asOf ? { control_date: asOf } : undefined,
+      }) as Promise<void>;
+    },
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      toast.success("Deleted successfully");
+      mutationOptions?.onSuccess?.(...args);
+    },
+    onError: (error, ...args) => {
+      toast.error(`Error deleting: ${error.message}`);
+      mutationOptions?.onError?.(error, ...args);
+    },
+    ...mutationOptions,
+  });
+};
 
 /**
  * Custom useProject hook with time-travel support.
@@ -127,7 +249,7 @@ export const useProject = (
         method: "GET",
         url: `/api/v1/projects/${id}`,
         query: asOf ? { as_of: asOf } : undefined,
-      });
+      }) as Promise<ProjectRead>;
     },
     enabled: !!id,
     ...queryOptions,

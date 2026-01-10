@@ -203,8 +203,10 @@ export const useTimeMachineStore = create<TimeMachineState>()(
  * Returns undefined when "now" is selected (default behavior).
  */
 export function useAsOfParam(): string | undefined {
-  const getSelectedTime = useTimeMachineStore((state) => state.getSelectedTime);
-  const selectedTime = getSelectedTime();
+  const selectedTime = useTimeMachineStore((state) => {
+    if (!state.currentProjectId) return null;
+    return state.projectSettings[state.currentProjectId]?.selectedTime ?? null;
+  });
   return selectedTime ?? undefined;
 }
 
@@ -212,8 +214,12 @@ export function useAsOfParam(): string | undefined {
  * Hook to get the branch parameter value for API calls.
  */
 export function useBranchParam(): string {
-  const getSelectedBranch = useTimeMachineStore(
-    (state) => state.getSelectedBranch
-  );
-  return getSelectedBranch();
+  const selectedBranch = useTimeMachineStore((state) => {
+    if (!state.currentProjectId) return DEFAULT_PROJECT_SETTINGS.selectedBranch;
+    return (
+      state.projectSettings[state.currentProjectId]?.selectedBranch ??
+      DEFAULT_PROJECT_SETTINGS.selectedBranch
+    );
+  });
+  return selectedBranch;
 }

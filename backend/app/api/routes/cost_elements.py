@@ -51,6 +51,10 @@ async def read_cost_elements(
         pattern="^(asc|desc)$",
         description="Sort order (asc or desc)",
     ),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get Cost Elements as of this timestamp (ISO 8601)",
+    ),
     service: CostElementService = Depends(get_cost_element_service),
 ) -> dict[str, Any]:
     """Retrieve cost elements with server-side search, filtering, and sorting."""
@@ -75,6 +79,7 @@ async def read_cost_elements(
         filter_string=filters,
         sort_field=sort_field,
         sort_order=sort_order,
+        as_of=as_of,
     )
 
     # Convert to Pydantic models
@@ -107,7 +112,10 @@ async def create_cost_element(
     """Create a new cost element in specified branch."""
     try:
         return await service.create(
-            element_in=element_in, actor_id=current_user.user_id, branch=branch
+            element_in=element_in, 
+            actor_id=current_user.user_id, 
+            branch=branch,
+            control_date=element_in.control_date
         )
     except Exception as e:
         raise HTTPException(
@@ -176,6 +184,7 @@ async def update_cost_element(
             element_in=element_in,
             actor_id=current_user.user_id,
             branch=branch,
+            control_date=element_in.control_date
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -190,6 +199,7 @@ async def update_cost_element(
 async def delete_cost_element(
     cost_element_id: UUID,
     branch: str = Query("main", description="Branch to delete from"),
+    control_date: datetime | None = Query(None, description="Optional control date for deletion"),
     current_user: User = Depends(get_current_active_user),
     service: CostElementService = Depends(get_cost_element_service),
 ) -> None:
@@ -206,6 +216,7 @@ async def delete_cost_element(
             cost_element_id=cost_element_id,
             actor_id=current_user.user_id,
             branch=branch,
+            control_date=control_date
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

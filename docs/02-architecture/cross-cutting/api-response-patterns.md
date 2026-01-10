@@ -1,6 +1,6 @@
 # API Response Patterns
 
-**Last Updated:** 2026-01-08  
+**Last Updated:** 2026-01-10  
 **Status:** Active
 
 ---
@@ -55,7 +55,7 @@ interface PaginatedResponse<T> {
 
 ### 2. Array Response (Legacy/Hierarchical)
 
-**Used by:** WBEs (hierarchical queries), Cost Elements (backward compatibility)
+**Used by:** WBEs (hierarchical queries)
 
 **Format:**
 
@@ -76,7 +76,6 @@ interface PaginatedResponse<T> {
 
 ```http
 GET /api/v1/wbes?project_id=abc123
-GET /api/v1/cost-elements?wbe_id=xyz789
 ```
 
 ---
@@ -133,15 +132,16 @@ const unwrapWBEResponse = <T>(res: T[] | { items: T[] }): T[] => {
 
 ### Supported Parameters
 
-| Parameter    | Type   | Description               | Example                 |
-| ------------ | ------ | ------------------------- | ----------------------- |
-| `page`       | int    | Page number (1-indexed)   | `page=1`                |
-| `per_page`   | int    | Items per page (1-100)    | `per_page=20`           |
-| `search`     | string | Search term (code, name)  | `search=Alpha`          |
-| `filters`    | string | Filter expression         | `filters=status:Active` |
-| `sort_field` | string | Field to sort by          | `sort_field=name`       |
-| `sort_order` | string | Sort direction (asc/desc) | `sort_order=desc`       |
-| `branch`     | string | Branch name               | `branch=main`           |
+| Parameter    | Type   | Description                 | Example                      |
+| ------------ | ------ | --------------------------- | ---------------------------- |
+| `page`       | int    | Page number (1-indexed)     | `page=1`                     |
+| `per_page`   | int    | Items per page (1-100)      | `per_page=20`                |
+| `search`     | string | Search term (code, name)    | `search=Alpha`               |
+| `filters`    | string | Filter expression           | `filters=status:Active`      |
+| `sort_field` | string | Field to sort by            | `sort_field=name`            |
+| `sort_order` | string | Sort direction (asc/desc)   | `sort_order=desc`            |
+| `branch`     | string | Branch name                 | `branch=main`                |
+| `as_of`      | string | Time-travel timestamp (ISO) | `as_of=2026-01-10T12:00:00Z` |
 
 ### Whitelisted Filter Fields
 
@@ -177,13 +177,24 @@ Hooks should return the full `PaginatedResponse<T>` object to the component. Do 
 
 ```typescript
 // api/useProjects.ts
-list: async (params) => {
-  const serverParams = getPaginationParams(params);
-  const res = await getProjectsPaginated(serverParams);
-  // Return full response: { items, total, page, per_page }
-  return res;
-},
+export const useProjects = (params) => {
+  const { asOf } = useTimeMachineParams();
+
+  return useQuery({
+    queryKey: ["projects", params, { asOf }],
+    queryFn: async () => {
+      const serverParams = getPaginationParams(params);
+      return __request(OpenAPI, {
+        method: "GET",
+        url: "/api/v1/projects",
+        query: { ...serverParams, as_of: asOf || undefined },
+      });
+    },
+  });
+};
 ```
+
+````
 
 **Component Usage:**
 
@@ -212,7 +223,7 @@ return (
     // ...
   />
 );
-```
+````
 
 ### Pattern 2: Hybrid Response Normalization (WBEs)
 
@@ -238,6 +249,15 @@ if (Array.isArray(response)) {
 
 // It's already a PaginatedResponse
 return response;
+```
+
+### Pattern 3: Injecting Time Machine State (Common)
+
+All list hooks should automatically inject the `as_of` parameter from the `TimeMachineContext`.
+
+```typescript
+const { asOf } = useTimeMachineParams();
+// ... pass asOf to API call as query: { ..., as_of: asOf }
 ```
 
 ### Pattern 3: Ant Design Table Params Conversion
@@ -294,6 +314,7 @@ async def get_entities(
     filters: str | None = None,
     sort_field: str | None = None,
     sort_order: str = "asc",
+    as_of: datetime | None = None,
 ) -> tuple[list[Entity], int]:
     """Returns (items, total_count) tuple."""
 ```
@@ -304,7 +325,15 @@ async def get_entities(
 from app.core.filtering import FilterParser
 
 # Base query
-stmt = select(Entity).where(Entity.branch == branch)
+stmt = select(Entity).where(Entity.branch == branch, cast(Any, Entity).deleted_at.is_(None))
+
+# Apply time-travel filter
+if as_of:
+    # Get version valid at as_of time
+    stmt = stmt.where(cast(Any, Entity).valid_time.contains(as_of))
+else:
+    # Get current version (open upper bound)
+    stmt = stmt.where(func.upper(cast(Any, Entity).valid_time).is_(None))
 
 # Apply search
 if search:

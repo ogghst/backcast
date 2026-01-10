@@ -8,7 +8,6 @@ import {
 } from "@ant-design/icons";
 import { useState, useEffect, useMemo } from "react";
 import type { ColumnType } from "antd/es/table";
-import { createResourceHooks } from "@/hooks/useCrud";
 import {
   CostElementsService,
   WbEsService,
@@ -18,116 +17,36 @@ import { Can } from "@/components/auth/Can";
 import type {
   CostElementRead,
   CostElementCreate,
-  CostElementUpdate,
   WBERead,
   CostElementTypeRead,
 } from "@/api/generated";
+import {
+  useCostElements,
+  useCreateCostElement,
+  useUpdateCostElement,
+  useDeleteCostElement,
+  CreateWithBranch,
+} from "@/features/cost-elements/api/useCostElements";
 import { CostElementModal } from "@/features/cost-elements/components/CostElementModal";
 import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
-import type { PaginatedResponse } from "@/types/api";
 
 // Extended types for Branch support
-type CreateWithBranch = CostElementCreate & { branch?: string };
-type UpdateWithBranch = CostElementUpdate & { branch?: string };
-type CostElementApiParams = {
+// type CreateWithBranch = CostElementCreate & { branch?: string };
+// type UpdateWithBranch = CostElementUpdate & { branch?: string };
+
+// Define the interface that was removed but is still used
+interface CostElementApiParams {
   branch?: string;
   pagination?: { current?: number; pageSize?: number };
   filters?: Record<string, (string | number | boolean)[] | null>;
   sortField?: string;
   sortOrder?: string;
-  [key: string]: any;
-};
-
-// Custom API wrapper to handle branch and filtering
-const costElementApi = {
-  list: async (
-    params?: CostElementApiParams
-  ): Promise<PaginatedResponse<CostElementRead>> => {
-    // Current Ant Design table params
-    const {
-      branch = "main",
-      pagination,
-      filters,
-      search,
-      sortField,
-      sortOrder,
-    } = params || {};
-    const page = pagination?.current || 1;
-    const perPage = pagination?.pageSize || 20;
-
-    // Convert Ant Design table filters to server format
-    let filterString: string | undefined;
-    if (filters) {
-      const filterParts: string[] = [];
-      Object.entries(filters).forEach(([key, value]) => {
-        // Skip wbe_id and cost_element_type_id as they are handled as explicit params by backend
-        if (key === "wbe_id" || key === "cost_element_type_id") return;
-
-        if (
-          value &&
-          (Array.isArray(value) ? value.length > 0 : value !== undefined)
-        ) {
-          const values = Array.isArray(value) ? value : [value];
-          filterParts.push(`${key}:${values.join(",")}`);
-        }
-      });
-      filterString = filterParts.length > 0 ? filterParts.join(";") : undefined;
-    }
-
-    const wbeId = filters?.wbe_id?.[0] as string | undefined;
-    const typeId = filters?.cost_element_type_id?.[0] as string | undefined;
-    const serverSortOrder = sortOrder === "descend" ? "desc" : "asc";
-
-    const res = await CostElementsService.getCostElements(
-      page,
-      perPage,
-      branch,
-      wbeId,
-      typeId,
-      search,
-      filterString,
-      sortField,
-      serverSortOrder
-    );
-
-    // Normalize response to PaginatedResponse
-    if (Array.isArray(res)) {
-      return {
-        items: res,
-        total: res.length,
-        page: 1,
-        per_page: res.length,
-      };
-    }
-
-    // It's already a PaginatedResponse
-    return res as unknown as PaginatedResponse<CostElementRead>;
-  },
-  detail: (id: string) => CostElementsService.getCostElement(id, "main"),
-  create: (data: CreateWithBranch) => {
-    const { branch, ...rest } = data;
-    return CostElementsService.createCostElement(rest, branch || "main");
-  },
-  update: (id: string, data: UpdateWithBranch) => {
-    const { branch, ...rest } = data;
-    return CostElementsService.updateCostElement(id, rest, branch || "main");
-  },
-  delete: (compositeId: string) => {
-    // compositeId format: "uuid:::branch"
-    const [id, branch] = compositeId.split(":::");
-    return CostElementsService.deleteCostElement(id, branch || "main");
-  },
-};
-
-const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<
-  CostElementRead,
-  CreateWithBranch,
-  UpdateWithBranch,
-  PaginatedResponse<CostElementRead>
->("cost_elements", costElementApi);
+  search?: string;
+  [key: string]: unknown;
+}
 
 interface CostElementManagementProps {
   wbeId?: string;
@@ -168,7 +87,7 @@ export const CostElementManagement = ({
     return params;
   }, [tableParams, currentBranch, wbeId]);
 
-  const { data, isLoading, refetch } = useList(queryParams);
+  const { data, isLoading, refetch } = useCostElements(queryParams);
   const costElements = data?.items || [];
   const total = data?.total || 0;
 
@@ -190,15 +109,12 @@ export const CostElementManagement = ({
           CostElementTypesService.getCostElementTypes(1, 1000),
         ]);
         // Unwrap paginated responses
-        const w = Array.isArray(wbesRes)
-          ? wbesRes
-          : (wbesRes as any).items || [];
-        const t = Array.isArray(typesRes)
-          ? typesRes
-          : (typesRes as any).items || [];
+        // Unwrap paginated responses (wbesRes is any, typesRes is any)
+        const w = Array.isArray(wbesRes) ? wbesRes : wbesRes.items || [];
+        const t = Array.isArray(typesRes) ? typesRes : typesRes.items || [];
         setWbes(w);
         setTypes(t);
-      } catch (e) {
+      } catch {
         /* ignore */
       }
     };
@@ -228,21 +144,21 @@ export const CostElementManagement = ({
     }
   );
 
-  const { mutateAsync: createCostElement } = useCreate({
+  const { mutateAsync: createCostElement } = useCreateCostElement({
     onSuccess: () => {
       refetch();
       setModalOpen(false);
     },
   });
 
-  const { mutateAsync: updateCostElement } = useUpdate({
+  const { mutateAsync: updateCostElement } = useUpdateCostElement({
     onSuccess: () => {
       refetch();
       setModalOpen(false);
     },
   });
 
-  const { mutate: deleteCostElement } = useDelete({
+  const { mutate: deleteCostElement } = useDeleteCostElement({
     onSuccess: () => refetch(),
   });
 
@@ -343,7 +259,7 @@ export const CostElementManagement = ({
       title: "WBE",
       dataIndex: "wbe_id",
       key: "wbe_id",
-      render: (id, record) => (record as any).wbe_name || wbeMap[id] || id,
+      render: (id, record) => record.wbe_name || wbeMap[id] || id,
       // Hide WBE filter when wbeId prop is provided (already filtered)
       filters: wbeId
         ? undefined
@@ -430,7 +346,6 @@ export const CostElementManagement = ({
                 value={currentBranch}
                 onChange={setCurrentBranch}
                 style={{ width: 200 }}
-                params={{}}
                 showSearch
                 placeholder="Select Branch"
                 options={[
@@ -472,31 +387,51 @@ export const CostElementManagement = ({
               branch: currentBranch,
               // Pre-fill wbeId when creating from WBE detail page
               wbe_id: wbeId || (values as CostElementCreate).wbe_id,
-            });
+              // Force cast to solve type mismatch since CreateWithBranch is derived type
+              control_date: null,
+            } as CreateWithBranch);
           }
         }}
         confirmLoading={isLoading}
         initialValues={selectedElement}
         currentBranch={currentBranch}
         wbeId={wbeId}
-        wbeName={wbeName || (selectedElement as any)?.wbe_name}
+        wbeName={wbeName || selectedElement?.wbe_name}
       />
 
       <VersionHistoryDrawer
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
-        versions={(historyVersions || []).map((version, idx, arr) => ({
-          id: `v${arr.length - idx}`,
-          valid_from:
-            version.valid_from ||
-            (version as any).valid_time?.lower ||
-            new Date().toISOString(),
-          transaction_time:
-            (version as any).transaction_time?.lower ||
-            new Date().toISOString(),
-          changed_by: (version as any).created_by_name || "System",
-          changes: idx === 0 ? { created: "initial" } : { updated: "changed" },
-        }))}
+        versions={(historyVersions || []).map((version, idx, arr) => {
+          // Helper type for history object variations
+          type HistoryItem = {
+            valid_from?: string;
+            valid_time?: string | { lower: string };
+            transaction_time?: string | { lower: string };
+            created_by_name?: string;
+          };
+          const v = version as unknown as HistoryItem;
+
+          return {
+            id: `v${arr.length - idx}`,
+            valid_from:
+              v.valid_from ||
+              (typeof v.valid_time === "object" ? v.valid_time?.lower : null) ||
+              (typeof v.valid_time === "string"
+                ? v.valid_time
+                : new Date().toISOString()),
+            transaction_time:
+              (typeof v.transaction_time === "object"
+                ? v.transaction_time?.lower
+                : null) ||
+              (typeof v.transaction_time === "string"
+                ? v.transaction_time
+                : new Date().toISOString()),
+            changed_by: v.created_by_name || "System",
+            changes:
+              idx === 0 ? { created: "initial" } : { updated: "changed" },
+          };
+        })}
         entityName={`Cost Element: ${selectedElement?.name || ""}`}
         isLoading={historyLoading}
       />

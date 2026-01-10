@@ -41,11 +41,18 @@ export function TimeMachineProvider({ children }: TimeMachineProviderProps) {
   const queryClient = useQueryClient();
 
   // Subscribe to store state
-  const getSelectedTime = useTimeMachineStore((s) => s.getSelectedTime);
-  const getSelectedBranch = useTimeMachineStore((s) => s.getSelectedBranch);
+  // Subscribe to store state changes directly to ensure re-renders
+  const selectedTime = useTimeMachineStore((state) => {
+    if (!state.currentProjectId) return null;
+    return state.projectSettings[state.currentProjectId]?.selectedTime ?? null;
+  });
 
-  const selectedTime = getSelectedTime();
-  const selectedBranch = getSelectedBranch();
+  const selectedBranch = useTimeMachineStore((state) => {
+    if (!state.currentProjectId) return "main";
+    return (
+      state.projectSettings[state.currentProjectId]?.selectedBranch ?? "main"
+    );
+  });
 
   // Compute context values
   const asOf = useMemo(

@@ -34,13 +34,9 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 **Key Classes:**
 
-- `CreateCommand[T]` - Create new entity version
-- `UpdateCommand[T]` - Update entity (creates new version)
+- `CreateVersionCommand[T]` - Create new entity version
+- `UpdateVersionCommand[T]` - Update entity (creates new version)
 - `SoftDeleteCommand[T]` - Soft delete entity
-- `UndeleteCommand[T]` - Restore deleted entity
-- `CreateBranchCommand[T]` - Create new branch
-- `MergeBranchCommand[T]` - Merge branches
-- `RevertCommand[T]` - Revert to previous version
 - `CommandMetadata` - Metadata dataclass for audit
 
 ---
@@ -54,6 +50,33 @@ This document provides a reference to all code files implementing the EVCS Core 
 **Key Classes:**
 
 - `TemporalService[T]` - Generic service with all CRUD/branch operations
+
+---
+
+## Branching Framework
+
+### Branching Commands
+
+| File                                                                                                            | Description                             |
+| --------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| [`app/core/branching/commands.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/branching/commands.py) | Command classes for branchable entities |
+
+**Key Classes:**
+
+- `CreateBranchCommand[T]` - Create new branch
+- `UpdateCommand[T]` - Update entity on branch
+- `MergeBranchCommand[T]` - Merge branches
+- `RevertCommand[T]` - Revert to previous version
+
+### Branching Service
+
+| File                                                                                                          | Description                           |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| [`app/core/branching/service.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/branching/service.py) | Service class for branchable entities |
+
+**Key Classes:**
+
+- `BranchableService[T]` - Service for full EVCS operations
 
 ---
 

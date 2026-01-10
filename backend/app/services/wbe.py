@@ -62,21 +62,35 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
                 resolved.append(item)
         return resolved
 
-    def _get_base_stmt(self) -> Any:
-        """Get base select statement with parent name join."""
+    def _get_base_stmt(self, as_of: datetime | None = None) -> Any:
+        """Get base select statement with parent name join.
+        
+        Args:
+            as_of: Optional timestamp for time-travel queries on parent names
+        """
         from typing import Any, cast
 
         from sqlalchemy import func
 
         Parent = aliased(WBE, name="parent_wbe")
 
-        # Subquery for current parent versions to avoid multiple rows
+        # Subquery for parent versions (current or as of specific time)
+        parent_where_clauses = [cast(Any, Parent).deleted_at.is_(None)]
+        
+        if as_of:
+            # Get parent version valid at as_of time
+            parent_where_clauses.append(
+                cast(Any, Parent).valid_time.contains(as_of)
+            )
+        else:
+            # Get current parent version
+            parent_where_clauses.append(
+                func.upper(cast(Any, Parent).valid_time).is_(None)
+            )
+        
         parent_subq = (
             select(Parent.wbe_id, Parent.name)
-            .where(
-                func.upper(cast(Any, Parent).valid_time).is_(None),
-                cast(Any, Parent).deleted_at.is_(None),
-            )
+            .where(*parent_where_clauses)
             .subquery("parent_lookup")
         )
 
@@ -95,6 +109,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
         sort_order: str = "asc",
         project_id: UUID | None = None,
         parent_wbe_id: UUID | None = None,
+        as_of: datetime | None = None,
     ) -> tuple[list[WBE], int]:
         """Get all WBEs with pagination, search, and filters.
 
@@ -109,6 +124,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
             sort_order: Sort order, either "asc" or "desc" (default: "asc")
             project_id: Optional project filter
             parent_wbe_id: Optional parent WBE filter
+            as_of: Optional timestamp for time-travel queries
 
         Returns:
             Tuple of (list of WBEs with parent_name, total count matching filters)
@@ -123,11 +139,22 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
         from app.core.filtering import FilterParser
 
         # Base query with parent name join
-        stmt = self._get_base_stmt().where(
+        stmt = self._get_base_stmt(as_of=as_of).where(
             WBE.branch == branch,
-            func.upper(cast(Any, WBE).valid_time).is_(None),
             cast(Any, WBE).deleted_at.is_(None),
         )
+
+        # Apply time-travel filter
+        if as_of:
+            # Get version valid at as_of time
+            stmt = stmt.where(
+                cast(Any, WBE).valid_time.contains(as_of)
+            )
+        else:
+            # Get current version (open upper bound)
+            stmt = stmt.where(
+                func.upper(cast(Any, WBE).valid_time).is_(None)
+            )
 
         # Apply project filter
         if project_id:
@@ -281,6 +308,8 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
     ) -> WBE:
         """Create new WBE using CreateVersionCommand."""
         wbe_data = wbe_in.model_dump(exclude_unset=True)
+        # Remove control_date from wbe_data if present to avoid conflict with explicit arg
+        wbe_data.pop("control_date", None)
 
         # Use provided wbe_id (for seeding) or generate new one
         root_id = wbe_in.wbe_id or uuid4()
@@ -304,6 +333,8 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
     ) -> WBE:
         """Update WBE using UpdateVersionCommand."""
         update_data = wbe_in.model_dump(exclude_unset=True)
+        # Remove control_date from update_data if present to avoid conflict with explicit arg
+        update_data.pop("control_date", None)
 
         cmd = UpdateVersionCommand(
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]

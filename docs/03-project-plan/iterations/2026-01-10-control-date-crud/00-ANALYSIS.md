@@ -148,7 +148,7 @@ async def create(
     stmt = text(f"""
         UPDATE {table}
         SET valid_time = tstzrange(:effective_date, NULL, '[]'),
-            transaction_time = tstzrange(clock_timestamp(), NULL, '[]')
+        transaction_time = tstzrange(clock_timestamp(), NULL, '[]')
         WHERE id = :id
     """)
     await session.execute(stmt, {
@@ -269,9 +269,10 @@ effective_date: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True)
    @router.post("/wbes")
    async def create_wbe(
        wbe: WBECreate,
-       control_date: datetime | None = Header(None, alias="X-Control-Date")
+       control_date: datetime | None = None # Explicit arg or in wbe model
    ):
-       return await service.create(..., control_date=control_date)
+       # control_date passed via body/model
+       return await service.create(..., control_date=wbe.control_date)
    ```
 
 ### Frontend Changes
@@ -280,21 +281,23 @@ effective_date: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True)
 
    ```typescript
    const createWBE = async (data: WBECreate) => {
-     const headers = selectedTime
-       ? { "X-Control-Date": selectedTime.toISOString() }
-       : {};
+     // Inject control date into payload
+     const payload = {
+       ...data,
+       control_date: selectedTime ? selectedTime.toISOString() : undefined,
+     };
      return fetch("/api/v1/wbes", {
        method: "POST",
-       headers,
-       body: JSON.stringify(data),
+       body: JSON.stringify(payload),
      });
    };
    ```
 
 2. **Hooks Update:**
-   - Modify `useCreateWBE`, `useUpdateWBE`, `useDeleteWBE`
+   - Modify `useCreateWBE`, `useUpdateWBE` (Body)
+   - Modify `useDeleteWBE` (Query Param)
    - Read `selectedTime` from TimeMachineStore
-   - Pass as header in API calls
+   - Inject into body or query params
 
 ### Validation Rules
 
@@ -363,7 +366,7 @@ effective_date: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True)
 
 2. **API Docs:**
 
-   - Document X-Control-Date header
+   - Document control_date body/query param
    - Update request/response examples
    - Explain validation rules
 

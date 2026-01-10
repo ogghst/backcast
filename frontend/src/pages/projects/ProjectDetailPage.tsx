@@ -173,7 +173,7 @@ export const ProjectDetailPage = () => {
           onClose={() => setHistoryOpen(false)}
           entityName={`Project: ${project.name}`}
           isLoading={historyLoading}
-          versions={(historyVersions || []).map((version: any, idx, arr) => {
+          versions={(historyVersions || []).map((version, idx, arr) => {
             // Basic parsing of stringified range "[start, end)"
             let start = new Date().toISOString();
             if (version.valid_time && typeof version.valid_time === "string") {
@@ -182,8 +182,13 @@ export const ProjectDetailPage = () => {
                 .replace(")", "")
                 .split(",")[0];
               if (clean) start = clean.trim();
-            } else if (Array.isArray(version.valid_time)) {
-              start = version.valid_time[0];
+            } else if (
+              Array.isArray(
+                (version as unknown as { valid_time: string[] }).valid_time
+              )
+            ) {
+              start = (version as unknown as { valid_time: string[] })
+                .valid_time[0];
             }
 
             return {

@@ -313,7 +313,7 @@ export const WBEList = ({ projectId }: WBEListProps) => {
         parentWbeId={selectedWBE ? selectedWBE.parent_wbe_id : null}
         parentName={
           selectedWBE
-            ? (selectedWBE as any).parent_name
+            ? selectedWBE.parent_name
             : projectId
               ? "Project Root"
               : null

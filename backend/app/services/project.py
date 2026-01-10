@@ -38,6 +38,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         filters: str | None = None,
         sort_field: str | None = None,
         sort_order: str = "asc",
+        as_of: datetime | None = None,
     ) -> tuple[list[Project], int]:
         """Get all projects with pagination, search, and filters.
 
@@ -50,6 +51,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
                      Example: "status:Active;budget:>100000"
             sort_field: Field name to sort by (e.g., "name", "code", "budget")
             sort_order: Sort order, either "asc" or "desc" (default: "asc")
+            as_of: Optional timestamp for time-travel queries
 
         Returns:
             Tuple of (list of projects, total count matching filters)
@@ -77,12 +79,23 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
 
         from app.core.filtering import FilterParser
 
-        # Base query: current versions in specified branch, not deleted
+        # Base query: versions in specified branch, not deleted
         stmt = select(Project).where(
             Project.branch == branch,
-            func.upper(cast(Any, Project).valid_time).is_(None),
             cast(Any, Project).deleted_at.is_(None),
         )
+
+        # Apply time-travel filter
+        if as_of:
+            # Get version valid at as_of time
+            stmt = stmt.where(
+                cast(Any, Project).valid_time.contains(as_of)
+            )
+        else:
+            # Get current version (open upper bound)
+            stmt = stmt.where(
+                func.upper(cast(Any, Project).valid_time).is_(None)
+            )
 
         # Apply search (across code and name)
         if search:
@@ -163,6 +176,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
     ) -> Project:
         """Create new project using CreateVersionCommand."""
         project_data = project_in.model_dump(exclude_unset=True)
+        project_data.pop("control_date", None)
 
         # Use provided project_id (for seeding) or generate new one
         root_id = project_in.project_id or uuid4()
@@ -187,6 +201,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         """Update project using UpdateVersionCommand."""
         # Filter None values from update data
         update_data = project_in.model_dump(exclude_unset=True)
+        update_data.pop("control_date", None)
 
         cmd = UpdateVersionCommand(
             entity_class=Project,  # type: ignore[type-var,unused-ignore]

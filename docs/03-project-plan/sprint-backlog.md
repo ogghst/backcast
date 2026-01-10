@@ -1,28 +1,22 @@
 # Current Iteration
 
-**Iteration:** Time Machine Production Hardening
-
+**Iteration:** Control Date Implementation
 **Start Date:** 2026-01-10
 **End Date:** 2026-01-10
-**Status:** ✅ **COMPLETE** (CHECK Phase)
+**Status:** ✅ **COMPLETE** (ACT Phase)
 
 ---
 
 ## Goal
 
-Deliver battle-tested, production-quality time-travel functionality with comprehensive test coverage. Enable users to:
-
-1. View entity state at any past timestamp
-2. Perform CRUD operations at control dates
-3. Enforce temporal integrity (no backdating past last edit)
+Enable users to perform Create, Update, and Delete operations on entities (Project, WBE, Cost Element) at a specific point in time ("Control Date"), ensuring that the validity of the data reflects that chosen date rather than the current clock time.
 
 **Key Focus Areas:**
 
-1.  **Backend Fixes**: Complete clock_timestamp() migration for all version commands
-2.  **Comprehensive Tests**: Unit, integration, and E2E tests covering all edge cases
-3.  **Control Date CRUD**: API endpoints for editing at specific control dates
-4.  **Temporal Validation**: Enforce append-only semantics
-5.  **Documentation**: Update architecture docs with corrected patterns
+1.  **Backend Commands**: Update commands to accept and utilize `control_date`.
+2.  **Service Layer**: Refactor services to propagate `control_date` to commands.
+3.  **API Schema**: Expose `control_date` in creation/update payloads and delete query parameters.
+4.  **Frontend Integration**: Update React Hooks to inject `control_date` from the global Time Machine context automatically.
 
 ---
 
@@ -30,129 +24,39 @@ Deliver battle-tested, production-quality time-travel functionality with compreh
 
 | Story                               | Points | Priority | Status     | Actual Time | Dependencies |
 | ----------------------------------- | ------ | -------- | ---------- | ----------- | ------------ |
-| Analysis: Root cause investigation  | 2h     | High     | ✅ Done    | ~1h         | None         |
-| Fix: CreateVersionCommand timestamp | 1h     | High     | ⬜ Pending | -           | Analysis     |
-| Fix: SoftDeleteCommand time-travel  | 1h     | High     | ⬜ Pending | -           | Analysis     |
-| Tests: Unit tests for commands      | 2h     | High     | ⬜ Pending | -           | Fixes        |
-| Tests: Integration time-travel      | 3h     | High     | ⬜ Pending | -           | Fixes        |
-| Tests: Edge case coverage           | 3h     | High     | ⬜ Pending | -           | Integration  |
-| API: Control date CRUD endpoints    | 4h     | Medium   | ⬜ Pending | -           | Tests        |
-| Validation: Append-only enforcement | 2h     | Medium   | ⬜ Pending | -           | API          |
-| Docs: Architecture updates          | 2h     | Medium   | ⬜ Pending | -           | All          |
+| Backend: Command Updates            | 2h     | High     | ✅ Done    | 2h          | None         |
+| Service: Refactor for Temporal      | 2h     | High     | ✅ Done    | 2h          | Backend      |
+| API: Schema & Route Updates         | 2h     | High     | ✅ Done    | 2h          | Service      |
+| Frontend: Hook Implementation       | 3h     | High     | ✅ Done    | 3h          | API          |
+| Tests: Backend Integration          | 2h     | High     | ✅ Done    | 2h          | API          |
+| Tests: Frontend Unit                | 1h     | Medium   | ✅ Done    | 1h          | Frontend     |
 
-**Total Estimated Effort:** 20 hours
+**Total Estimated Effort:** 12 hours
 
 ---
 
 ## Success Criteria
 
-- [x] All 5 time machine tests passing ✅ (was 3/5, now 5/5)
-- [x] CreateVersionCommand uses clock_timestamp() ✅
-- [x] SoftDeleteCommand supports time-travel visibility ✅
-- [x] Branch mode parameter implemented (STRICT/MERGE) ✅
-- [x] Seed data enhanced with entity_id ✅
-- [ ] Edge case tests added (deferred as TD-020)
-- [ ] Control date CRUD API (deferred - out of scope)
-- [ ] Temporal validation prevents backdating (deferred as TD-018)
-- [ ] Architecture documentation updated (deferred as TD-022)
-- [x] Production-ready code quality ✅
+- [x] Backend commands (Create/Update/SoftDelete) accept `control_date`. ✅
+- [x] API endpoints accept `control_date` in body (Create/Update) or query (Delete). ✅
+- [x] Frontend hooks (`useWBEs`, `useProjects`, `useCostElements`) inject `control_date` from `TimeMachineContext`. ✅
+- [x] Integration tests verify correct bitemporal valid_time setting based on `control_date`. ✅
+- [x] Frontend unit tests verify hook behavior. ✅
 
 ---
 
 ## Iteration Records
 
-- **ANALYSIS:** [00-ANALYSIS.md](iterations/2026-01-10-time-machine-production-hardening/00-ANALYSIS.md) ✅
-- **PLAN:** [01-PLAN.md](iterations/2026-01-10-time-machine-production-hardening/01-PLAN.md) ✅
-- **DO:** [02-DO.md](iterations/2026-01-10-time-machine-production-hardening/02-DO.md) ✅
-- **CHECK:** [03-CHECK.md](iterations/2026-01-10-time-machine-production-hardening/03-CHECK.md) ✅
-- **ACT:** TBD (deferred - no actions needed)
+- **ANALYSIS:** [00-ANALYSIS.md](iterations/2026-01-10-control-date-crud/00-ANALYSIS.md)
+- **PLAN:** [01-PLAN.md](iterations/2026-01-10-control-date-crud/01-PLAN.md)
+- **DO:** [02-DO.md](iterations/2026-01-10-control-date-crud/02-DO.md)
+- **CHECK:** [03-CHECK.md](iterations/2026-01-10-control-date-crud/03-CHECK.md)
+- **ACT:** [04-ACT.md](iterations/2026-01-10-control-date-crud/04-ACT.md)
 
 ---
 
 ## Previous Iterations
 
-- **[2026-01-09] Time Machine Component:** ✅ Complete (100% - PDCA Finished)
+- **[2026-01-10] Time Machine Production Hardening:** ✅ Complete (100%)
+- **[2026-01-09] Time Machine Component:** ✅ Complete (100%)
 - **[2026-01-09] Page-Level Adapters Refactoring:** ✅ Complete (100%)
-- **[2026-01-09] FilterParser Error Messages:** ✅ Complete (100%)
-- **[2026-01-09] Frontend Filter Type Safety:** ✅ Complete (100%)
-- **[2026-01-09] WBE Parent Filter Pagination:** ✅ Complete (100%)
-- **[2026-01-09] Pagination Metadata Refactor:** ✅ Complete (100%)
-
----
-
-## Previous Iterations
-
-- **[2026-01-09] Page-Level Adapters Refactoring:** ✅ Complete (100%)
-- **[2026-01-09] FilterParser Error Messages:** ✅ Complete (100%)
-- **[2026-01-09] Frontend Filter Type Safety:** ✅ Complete (100%)
-- **[2026-01-09] WBE Parent Filter Pagination:** ✅ Complete (100%)
-- **[2026-01-09] Pagination Metadata Refactor:** ✅ Complete (100%)
-- **[2026-01-09] E2E Test Stabilization & Isolation:** ✅ Complete (100%)
-- **[2026-01-08] Frontend Table Harmonization - Phase 2:** ✅ Complete (100%)
-
----
-
-## Next Iteration Planning
-
-**Proposed Focus Areas:**
-
-### Option 1: Technical Debt Paydown (Recommended)
-
-- **TD-012:** E2E Test Data Isolation (3h)
-- **TD-013:** FilterParser Error Messages (2h)
-- **TD-014:** Frontend Filter Type Safety (3h)
-- **Estimated Effort:** 8 hours
-- **Benefit:** Improved test reliability and type safety
-
-### Option 2: Feature Development
-
-- Advanced filtering UI (Filter Builder)
-- Saved filter presets
-- Export filtered results
-- **Estimated Effort:** 8-12 hours
-- **Benefit:** Enhanced user experience
-
-### Option 3: Performance Optimization
-
-- Database indexes for filtered columns
-- Query result caching
-- Performance profiling
-- **Estimated Effort:** 6-8 hours
-- **Benefit:** Faster query response times
-
-**Recommendation:** Option 1 (Technical Debt) to maintain code quality and test reliability before adding new features.
-
----
-
-## Backlog
-
-### Technical Debt (See [Technical Debt Register](technical-debt-register.md))
-
-- [TD-012] E2E Test Data Isolation (Completed 2026-01-09)
-- [TD-013] FilterParser Error Messages (2h)
-- [TD-014] Frontend Filter Type Safety (3h)
-- [TD-015] useTableParams Type Safety (2h)
-- [TD-016] Performance Optimization - Large Projects (3h)
-- [TD-017] Remaining Page-Level API Adapters (1h)
-
-### Feature Enhancements
-
-- Advanced filter UI with filter builder
-- Saved filter presets per user
-- Export functionality for filtered results
-- Bulk operations on filtered items
-- Filter history and recent filters
-
-### Performance
-
-- Add database indexes for commonly filtered columns
-- Implement query result caching
-- Profile and optimize slow queries
-- Implement virtual scrolling for large tables
-
-### Testing
-
-- Add dedicated search functionality tests
-- Add filter combination tests
-- Add pagination edge case tests
-- Implement visual regression testing

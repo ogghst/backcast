@@ -244,7 +244,7 @@ export const WBEDetailPage = () => {
           onClose={() => setHistoryOpen(false)}
           entityName={`WBE: ${wbe.code} - ${wbe.name}`}
           isLoading={historyLoading}
-          versions={(historyVersions || []).map((version: any, idx, arr) => {
+          versions={(historyVersions || []).map((version, idx, arr) => {
             // Basic parsing of stringified range "[start, end)"
             let start = new Date().toISOString();
             if (version.valid_time && typeof version.valid_time === "string") {
@@ -253,8 +253,8 @@ export const WBEDetailPage = () => {
                 .replace(")", "")
                 .split(",")[0];
               if (clean) start = clean.trim();
-            } else if (Array.isArray(version.valid_time)) {
-              start = version.valid_time[0];
+            } else if (Array.isArray((version as any).valid_time)) {
+              start = (version as any).valid_time[0];
             }
 
             return {
@@ -296,9 +296,7 @@ export const WBEDetailPage = () => {
         initialValues={selectedWBE}
         projectId={projectId}
         parentWbeId={isCreatingChild ? wbe?.wbe_id : selectedWBE?.parent_wbe_id}
-        parentName={
-          isCreatingChild ? wbe?.name : (selectedWBE as any)?.parent_name
-        }
+        parentName={isCreatingChild ? wbe?.name : selectedWBE?.parent_name}
       />
     </div>
   );

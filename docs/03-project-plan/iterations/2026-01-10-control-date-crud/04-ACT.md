@@ -1,22 +1,38 @@
 # ACT Phase: Control Date CRUD
 
-**Status:** 🔵 PENDING
-**Decision:** ✅ PROCEED to Frontend Implementation
+**Status:** 🟢 COMPLETED
+**Decision:** ✅ RELEASE
 
 ## Outcomes
 
-- Backend core logic for "Control Date" is complete and verified.
-- API interface established via `X-Control-Date` header.
+- **Backend:**
+
+  - Implemented `control_date` handling in `CreateVersionCommand`, `UpdateVersionCommand`, and `SoftDeleteCommand`.
+  - Updated `ProjectService`, `WBEService`, and `CostElementService` to inject `valid_time`.
+  - Updated API Routes to accept `control_date` via Request Body (Create/Update) and Query Param (Delete).
+  - Verified with comprehensive Integration Tests.
+
+- **Frontend:**
+  - Updated `useWBEs`, `useProjects`, and created `useCostElements` hooks to automatically inject `control_date` from `TimeMachineContext`.
+  - Updated `CostElementManagement.tsx` to use reusable hooks.
+  - Verified hook behavior with mocked unit tests (`useWBEs.test.tsx`).
+  - Fixed linting and build issues in modified files.
 
 ## Retrospective
 
-- **What went well:** TDD approach ensured robust command logic. Integration tests verified E2E flow quickly.
-- **Challenges:** Service layer duplication (ProjectService, WBEService) required repetitive updates.
-- **Action Items:** Refactor Service duplication in future iteration (move more logic to Generic TemporalService).
+- **What went well:**
+
+  - Switching from Header to Body/Query param simplified the API contract and avoided potential CORS/middleware complexity for strict control.
+  - Custom hooks pattern proved effective for abstracting Time Travel complexity from UI components.
+
+- **Challenges:**
+
+  - Frontend build issues (Linting/Types) required multiple fix iterations, highlighting the need for stricter pre-commit checks or continuous linting during dev.
+  - `CostElementManagement.tsx` had duplicate imports and unused types which caused noise.
+
+- **Action Items:**
+  - None immediate. Feature is complete.
 
 ## Next Iteration Plan
 
-- Focus on Frontend integration:
-  - Update `api.ts` client to support header.
-  - Update React Query hooks to accept `control_date`.
-  - Update UI forms (if needed, or just hooks for now).
+- Proceed to next items in backlog (e.g., UI for diffing past versions, or further stabilization).

@@ -50,6 +50,10 @@ async def read_projects(
         regex="^(asc|desc)$",
         description="Sort order (asc or desc)",
     ),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get Projects as of this timestamp (ISO 8601)",
+    ),
     service: ProjectService = Depends(get_project_service),
 ) -> dict[str, Any]:
     """Retrieve projects with server-side search, filtering, and sorting.
@@ -77,6 +81,7 @@ async def read_projects(
             filters=filters,
             sort_field=sort_field,
             sort_order=sort_order,
+            as_of=as_of,
         )
 
         # Convert to Pydantic models
@@ -112,7 +117,6 @@ async def create_project(
     project_in: ProjectCreate,
     current_user: User = Depends(get_current_active_user),
     service: ProjectService = Depends(get_project_service),
-    x_control_date: datetime | None = Header(default=None, alias="X-Control-Date"),
 ) -> Project:
     """Create a new project. Requires create permission."""
     try:
@@ -127,7 +131,7 @@ async def create_project(
         project = await service.create_project(
             project_in=project_in,
             actor_id=current_user.user_id,
-            control_date=x_control_date
+            control_date=project_in.control_date
         )
         return project
     except ValueError as e:
@@ -182,7 +186,6 @@ async def update_project(
     project_in: ProjectUpdate,
     current_user: User = Depends(get_current_active_user),
     service: ProjectService = Depends(get_project_service),
-    x_control_date: datetime | None = Header(default=None, alias="X-Control-Date"),
 ) -> Project:
     """Update a project. Requires update permission."""
     try:
@@ -190,7 +193,7 @@ async def update_project(
             project_id=project_id,
             project_in=project_in,
             actor_id=current_user.user_id,
-            control_date=x_control_date,
+            control_date=project_in.control_date,
         )
         return updated_project
     except ValueError as e:
@@ -205,16 +208,16 @@ async def update_project(
 )
 async def delete_project(
     project_id: UUID,
+    control_date: datetime | None = Query(None, description="Optional control date for deletion"),
     current_user: User = Depends(get_current_active_user),
     service: ProjectService = Depends(get_project_service),
-    x_control_date: datetime | None = Header(default=None, alias="X-Control-Date"),
 ) -> None:
     """Soft delete a project. Requires delete permission."""
     try:
         await service.delete_project(
             project_id=project_id,
             actor_id=current_user.user_id,
-            control_date=x_control_date
+            control_date=control_date
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
