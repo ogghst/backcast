@@ -1,5 +1,7 @@
 import axios from "axios";
+import { toast } from "sonner";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { getErrorMessage } from "@/utils/apiError";
 import { OpenAPI } from "./generated";
 
 // Base API URL should come from environment variables
@@ -13,16 +15,13 @@ OpenAPI.TOKEN = async () => {
   return token || "";
 };
 
-export const apiClient = axios.create({
-  baseURL: API_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
-  withCredentials: true, // For cookie-based auth if needed
-});
+// Configure Global Axios Instance
+// Generated services use the default 'axios' import, so we must configure THAT instance.
+axios.defaults.baseURL = API_URL;
+axios.defaults.withCredentials = true;
 
 // Request interceptor: Add JWT token to Authorization header
-apiClient.interceptors.request.use(
+axios.interceptors.request.use(
   (config) => {
     const token = useAuthStore.getState().token;
     if (token) {
@@ -35,20 +34,30 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor: Handle 401 Unauthorized responses
-apiClient.interceptors.response.use(
+// Response interceptor: Handle errors globally
+axios.interceptors.response.use(
   (response) => response,
   (error) => {
+    // 1. Handle 401 Unauthorized (Session Expired)
     if (error.response?.status === 401) {
-      // Token expired or invalid - logout and redirect to login
       const { logout } = useAuthStore.getState();
       logout();
 
       // Only redirect if not already on login page
       if (window.location.pathname !== "/login") {
         window.location.href = "/login";
+        toast.error("Session expired. Please login again.");
       }
+      return Promise.reject(error);
     }
+
+    // 2. Handle Generic Errors (Toaster)
+    const message = getErrorMessage(error);
+    toast.error(message);
+
     return Promise.reject(error);
   }
 );
+
+// Export the global instance as 'apiClient' for backward compatibility
+export const apiClient = axios;

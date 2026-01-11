@@ -80,21 +80,17 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         from app.core.filtering import FilterParser
 
         # Base query: versions in specified branch, not deleted
-        stmt = select(Project).where(
-            Project.branch == branch,
-            cast(Any, Project).deleted_at.is_(None),
-        )
+        # Base query: versions in specified branch
+        stmt = select(Project).where(Project.branch == branch)
 
         # Apply time-travel filter
         if as_of:
-            # Get version valid at as_of time
-            stmt = stmt.where(
-                cast(Any, Project).valid_time.contains(as_of)
-            )
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
         else:
-            # Get current version (open upper bound)
+            # Get current version (open upper bound) and not deleted
             stmt = stmt.where(
-                func.upper(cast(Any, Project).valid_time).is_(None)
+                func.upper(cast(Any, Project).valid_time).is_(None),
+                cast(Any, Project).deleted_at.is_(None),
             )
 
         # Apply search (across code and name)

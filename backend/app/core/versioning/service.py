@@ -5,14 +5,13 @@ following the VersionableProtocol.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.protocols import VersionableProtocol
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.core.versioning.enums import BranchMode
@@ -197,32 +196,50 @@ class TemporalService[TVersionable: VersionableProtocol]:
         """Internal: Get entity from specific branch at timestamp."""
         from typing import Any, cast
 
-        from sqlalchemy import func, or_
 
         root_field = self._get_root_field_name()
 
-        stmt = (
-            select(self.entity_class)
-            .where(
-                getattr(self.entity_class, root_field) == entity_id,
-                cast(Any, self.entity_class).branch == branch,  # type: ignore[attr-defined]
-                # Check as_of is within valid_time range
-                cast(Any, self.entity_class).valid_time.op("@>")(as_of),
-                # CRITICAL: Also check as_of >= lower bound (entity existed)
-                func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
-                # CRITICAL: Check transaction_time for bitemporal correctness
-                cast(Any, self.entity_class).transaction_time.op("@>")(as_of),
-                func.lower(cast(Any, self.entity_class).transaction_time) <= as_of,
-                # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
-                or_(
-                    cast(Any, self.entity_class).deleted_at.is_(None),
-                    cast(Any, self.entity_class).deleted_at > as_of,
-                ),
-            )
-            .limit(1)
+        stmt = select(self.entity_class).where(
+            getattr(self.entity_class, root_field) == entity_id,
+            cast(Any, self.entity_class).branch == branch,
         )
+
+        # Apply bitemporal filtering
+        stmt = self._apply_bitemporal_filter(stmt, as_of)
+
+        stmt = stmt.limit(1)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    def _apply_bitemporal_filter(self, stmt: Any, as_of: datetime) -> Any:
+        """Apply standardized bitemporal WHERE clauses to a statement.
+
+        Filters for:
+        - valid_time contains as_of
+        - transaction_time contains as_of
+        - deleted_at IS NULL OR deleted_at > as_of
+        """
+        from typing import Any, cast
+
+        from sqlalchemy import func, or_
+
+        return stmt.where(
+            # Check as_of is within valid_time range
+            cast(Any, self.entity_class).valid_time.op("@>")(as_of),
+            # CRITICAL: Also check as_of >= lower bound (entity existed)
+            func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
+
+            # TRANSACTION TIME: We use "Current Knowledge" semantics for lists.
+            # We want the latest "truth" about the 'as_of' time.
+            # So we check that the row has not been superseded (transaction_time upper bound is NULL).
+            func.upper(cast(Any, self.entity_class).transaction_time).is_(None),
+
+            # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
+            or_(
+                cast(Any, self.entity_class).deleted_at.is_(None),
+                cast(Any, self.entity_class).deleted_at > as_of,
+            ),
+        )
 
     async def _is_deleted_on_branch(
         self, entity_id: UUID, as_of: datetime, branch: str
@@ -238,7 +255,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
             select(self.entity_class)
             .where(
                 getattr(self.entity_class, root_field) == entity_id,
-                cast(Any, self.entity_class).branch == branch,  # type: ignore[attr-defined]
+                cast(Any, self.entity_class).branch == branch,
                 cast(Any, self.entity_class).valid_time.op("@>")(as_of),
                 func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
                 cast(Any, self.entity_class).transaction_time.op("@>")(as_of),

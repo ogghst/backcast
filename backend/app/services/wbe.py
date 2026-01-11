@@ -64,7 +64,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
 
     def _get_base_stmt(self, as_of: datetime | None = None) -> Any:
         """Get base select statement with parent name join.
-        
+
         Args:
             as_of: Optional timestamp for time-travel queries on parent names
         """
@@ -76,7 +76,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
 
         # Subquery for parent versions (current or as of specific time)
         parent_where_clauses = [cast(Any, Parent).deleted_at.is_(None)]
-        
+
         if as_of:
             # Get parent version valid at as_of time
             parent_where_clauses.append(
@@ -87,7 +87,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
             parent_where_clauses.append(
                 func.upper(cast(Any, Parent).valid_time).is_(None)
             )
-        
+
         parent_subq = (
             select(Parent.wbe_id, Parent.name)
             .where(*parent_where_clauses)
@@ -139,21 +139,16 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
         from app.core.filtering import FilterParser
 
         # Base query with parent name join
-        stmt = self._get_base_stmt(as_of=as_of).where(
-            WBE.branch == branch,
-            cast(Any, WBE).deleted_at.is_(None),
-        )
+        stmt = self._get_base_stmt(as_of=as_of).where(WBE.branch == branch)
 
         # Apply time-travel filter
         if as_of:
-            # Get version valid at as_of time
-            stmt = stmt.where(
-                cast(Any, WBE).valid_time.contains(as_of)
-            )
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
         else:
-            # Get current version (open upper bound)
+            # Get current version (open upper bound) and not deleted
             stmt = stmt.where(
-                func.upper(cast(Any, WBE).valid_time).is_(None)
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
             )
 
         # Apply project filter

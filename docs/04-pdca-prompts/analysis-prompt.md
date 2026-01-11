@@ -246,3 +246,15 @@ When analyzing UX, consider these established patterns:
    - Option 3: Single page with nested tabs/panels
 4. **Compare**: Effort, UX quality, scalability, mobile support
 5. **Recommend**: Based on project conventions and user needs
+
+---
+
+## Output Format
+
+Create file: `docs/03-project-plan/iterations/YYYY-MM-name/00-analysis.md`
+
+Include:
+
+- All sections above
+- Date was created
+- Links to related architecture docs

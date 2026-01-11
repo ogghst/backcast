@@ -164,7 +164,7 @@ async def create_wbe(
         # WBEService.create_wbe takes control_date as explicit arg.
         # So we explicitly extract it.
         control_date = wbe_in.control_date
-        
+
         # Check if WBE code already exists in the project
         existing = await service.get_by_code(
             code=wbe_in.code, project_id=wbe_in.project_id
@@ -176,7 +176,7 @@ async def create_wbe(
             )
 
         wbe = await service.create_wbe(
-            wbe_in=wbe_in, 
+            wbe_in=wbe_in,
             actor_id=current_user.user_id,
             control_date=control_date
         )
@@ -263,7 +263,7 @@ async def delete_wbe(
     """Soft delete a WBE. Requires delete permission."""
     try:
         await service.delete_wbe(
-            wbe_id=wbe_id, 
+            wbe_id=wbe_id,
             actor_id=current_user.user_id,
             control_date=control_date
         )

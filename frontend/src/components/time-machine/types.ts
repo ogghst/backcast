@@ -45,7 +45,7 @@ export interface ProjectTimelineData {
 /**
  * Quick jump presets for timeline navigation.
  */
-export type QuickJumpPreset = "1D" | "1W" | "1M" | "3M" | "ALL";
+export type QuickJumpPreset = "-1M" | "-1W" | "-1D" | "+1D" | "+1W" | "+1M";
 
 /**
  * Branch selector option

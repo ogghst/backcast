@@ -183,6 +183,5 @@ Create file: `docs/03-project-plan/iterations/YYYY-MM-name/01-plan.md`
 Include:
 
 - All sections above
-- Approval status and approver name
-- Date plan was created
+- Date was created
 - Links to related architecture docs

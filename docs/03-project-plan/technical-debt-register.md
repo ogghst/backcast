@@ -1,9 +1,9 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-01-09  
-**Total Debt Items:** 2 (4 completed)  
-**Total Estimated Effort:** 3 hours  
-**Completed Effort:** 8.5 hours
+**Last Updated:** 2026-01-11
+**Total Debt Items:** 2 (7 completed)
+**Total Estimated Effort:** 3 hours
+**Completed Effort:** 11 hours
 
 ---
 
@@ -12,7 +12,7 @@
 | Severity | Items | Effort | % of Total |
 | -------- | ----- | ------ | ---------- |
 | High     | 0     | 0h     | 0%         |
-| Medium   | 1     | 2h     | 66%        |
+| Medium   | 1     | 2h     | 67%        |
 | Low      | 1     | 1h     | 33%        |
 
 ---
@@ -49,6 +49,39 @@
 - **Status:** 🔴 Open
 - **Owner:** Full Stack Developer
 
+#### [TD-024] Zombie Check TDD Pattern Documentation ✅
+
+- **Source:** Time Travel List Standardization ACT phase (2026-01-10)
+- **Description:** Document the "Create → Delete → Query Past" test pattern for verifying bitemporal history and zombie detection.
+- **Impact:** Team may struggle with temporal testing without established patterns
+- **Estimated Effort:** 1 hour
+- **Actual Effort:** 1 hour
+- **Target Date:** 2026-01-20
+- **Status:** ✅ Complete (2026-01-11)
+- **Owner:** Backend Developer
+- **Solution:** Added comprehensive Zombie Check TDD section to time-travel.md with full test example
+- **Documentation:**
+  - [Iteration ACT](./iterations/2026-01-10-time-travel-list-standardization/04-ACT.md)
+  - [time-travel.md](../02-architecture/cross-cutting/time-travel.md)
+
+#### [TD-025] Frontend Lint Errors ✅
+
+- **Source:** Frontend Error Handling iteration (2026-01-11)
+- **Description:** 6 deferred lint errors unrelated to error handling functionality need resolution.
+- **Impact:** Code quality maintenance debt
+- **Estimated Effort:** 0.5 hours
+- **Actual Effort:** 0.5 hours
+- **Target Date:** 2026-01-15
+- **Status:** ✅ Complete (2026-01-11)
+- **Owner:** Frontend Developer
+- **Solution:** Fixed 6 ESLint errors: removed unused imports, replaced `any` with proper types
+- **Files Fixed:**
+  - `frontend/src/features/wbes/api/useWBEs.test.tsx` - removed unused `waitFor` import, reordered vitest imports
+  - `frontend/src/hooks/useTableParams.test.tsx` - added `TablePaginationConfig` type import
+  - `frontend/src/pages/admin/UserList.test.tsx` - typed mock selector parameter
+  - `frontend/src/stores/useTimeMachineStore.test.ts` - removed unused `vi` import
+  - `frontend/src/utils/apiError.ts` - added `ValidationError` and `ApiErrorResponse` interfaces
+
 ---
 
 ### Low Severity
@@ -59,6 +92,9 @@
 
 | ID | Item | Retired Date | Resolution |
 | TD-012 | E2E Test Data Isolation | 2026-01-09 | Implemented Playwright global setup with TRUNCATE |
+| TD-023 | Time-Travel Architecture Documentation | 2026-01-11 | Enhanced time-travel.md with bitemporal fundamentals, filter patterns, and Zombie Check TDD |
+| TD-024 | Zombie Check TDD Pattern Documentation | 2026-01-11 | Added comprehensive Zombie Check TDD section with full test example to time-travel.md |
+| TD-025 | Frontend Lint Errors | 2026-01-11 | Fixed 6 ESLint errors across test files and utilities |
 | TD-013 | FilterParser Error Messages | 2026-01-09 | Implemented strict type validation, custom exceptions, and global 400 handler |
 | TD-014 | Frontend Filter Type Safety | 2026-01-09 | Implemented strict `Filterable` types and migrated 7 components |
 | TD-015 | useTableParams Type Safety | 2026-01-09 | Refactored hook to use `TEntity` and `TFilters` generics |
@@ -76,8 +112,8 @@
 
 ## Maintenance Notes
 
-**Last Reviewed:** 2026-01-09
-**Next Review:** 2026-01-16
+**Last Reviewed:** 2026-01-11
+**Next Review:** 2026-01-18
 
 **Process:**
 

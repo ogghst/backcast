@@ -112,8 +112,8 @@ async def create_cost_element(
     """Create a new cost element in specified branch."""
     try:
         return await service.create(
-            element_in=element_in, 
-            actor_id=current_user.user_id, 
+            element_in=element_in,
+            actor_id=current_user.user_id,
             branch=branch,
             control_date=element_in.control_date
         )

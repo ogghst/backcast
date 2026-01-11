@@ -241,7 +241,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             )
             return await create_cmd.execute(self.session)
 
-    async def soft_delete(
+    async def soft_delete(  # type: ignore[override]
         self,
         cost_element_id: UUID,
         actor_id: UUID,
@@ -357,21 +357,17 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         from app.core.filtering import FilterParser
 
         # Base query with WBE name and type joins
-        stmt = self._get_base_stmt().where(
-            CostElement.branch == branch,
-            cast(Any, CostElement).deleted_at.is_(None),
-        )
+        # Base query: versions in specified branch
+        stmt = self._get_base_stmt().where(CostElement.branch == branch)
 
         # Apply time-travel filter
         if as_of:
-            # Get version valid at as_of time
-            stmt = stmt.where(
-                cast(Any, CostElement).valid_time.contains(as_of)
-            )
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
         else:
-            # Get current version (open upper bound)
+            # Get current version (open upper bound) and not deleted
             stmt = stmt.where(
-                func.upper(cast(Any, CostElement).valid_time).is_(None)
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
             )
 
         # Apply legacy dict filters (for backward compatibility)

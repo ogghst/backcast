@@ -123,10 +123,11 @@ export function TimeMachineExpanded({
   // Handle quick jump
   const handleQuickJump = useCallback(
     (preset: QuickJumpPreset) => {
-      const date = calculateDateFromPreset(preset, timelineData?.startDate);
+      const baseDate = selectedDate || new Date();
+      const date = calculateDateFromPreset(preset, baseDate);
       handleSelectTime(date);
     },
-    [timelineData?.startDate, handleSelectTime]
+    [selectedDate, handleSelectTime]
   );
 
   // Handle reset to now
@@ -208,7 +209,13 @@ export function TimeMachineExpanded({
 
           <Divider type="vertical" />
 
-          <QuickJumpButtons onJump={handleQuickJump} disabled={isLoading} />
+          <QuickJumpButtons
+            onJump={handleQuickJump}
+            disabled={isLoading}
+            currentDate={selectedDate}
+            minDate={minDate}
+            maxDate={maxDate}
+          />
         </Space>
 
         {/* Right: Date picker + Reset */}

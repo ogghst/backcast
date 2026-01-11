@@ -156,9 +156,11 @@ const AppLayout: React.FC = () => {
             projectId={projectId}
             projectName={project?.name}
             timelineData={{
-              startDate: project?.start_date
-                ? new Date(project.start_date)
-                : null,
+              startDate: project?.created_at
+                ? new Date(project.created_at)
+                : project?.start_date
+                  ? new Date(project.start_date)
+                  : null,
               endDate: project?.end_date ? new Date(project.end_date) : null,
               branches: ["main"], // TODO: Fetch actual branches from API
               events: [], // TODO: Fetch branch events from API

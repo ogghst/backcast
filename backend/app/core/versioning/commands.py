@@ -70,7 +70,7 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
         close_at_valid_time: datetime | None = None
     ) -> None:
         """Close a version by setting upper bound on BOTH temporal dimensions.
-        
+
         CRITICAL: Bitemporal correctness requires closing BOTH:
         - valid_time: When data stopped being valid (close_at_valid_time or clock_timestamp)
         - transaction_time: When it was recorded in database (clock_timestamp)
@@ -127,7 +127,7 @@ class CreateVersionCommand(VersionedCommandABC[TVersionable]):
 
     async def execute(self, session: AsyncSession) -> TVersionable:
         """Create new version with valid_time set to control_date (or now).
-        
+
         CRITICAL: Uses clock_timestamp() for transaction_time to ensure uniqueness
         and current recording time, while allowing valid_time to be backdated/future-dated
         via control_date.
@@ -139,10 +139,12 @@ class CreateVersionCommand(VersionedCommandABC[TVersionable]):
         await session.flush()  # Get ID assigned
 
         # Set valid_time to control_date, transaction_time to clock_timestamp()
+        # Use getattr to safely access __tablename__ from the protocol
+        tablename = cast(str, self.entity_class.__tablename__)
         stmt = text(
             f"""
-            UPDATE {self.entity_class.__tablename__}
-            SET 
+            UPDATE {tablename}
+            SET
                 valid_time = tstzrange(:control_date, NULL, '[]'),
                 transaction_time = tstzrange(clock_timestamp(), NULL, '[]')
             WHERE id = :version_id
@@ -174,7 +176,7 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
 
     async def execute(self, session: AsyncSession) -> TVersionable:
         """Close current version and create new with updates.
-        
+
         CRITICAL: Uses clock_timestamp() for new version to ensure bitemporal
         correctness. PostgreSQL's now()/current_timestamp() is transaction-scoped
         and returns the same value throughout the transaction.
@@ -183,6 +185,19 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
         current = await self._get_current(session)
         if not current:
             raise ValueError(f"No active version found for {self.root_id}")
+
+        # VALIDATION: Ensure control_date is after current version's valid_time lower bound
+        # This prevents PostgreSQL range constraint violations
+        if self.control_date:
+            current_lower = cast(Any, current).valid_time.lower
+
+            # Validate control_date is strictly greater than lower bound
+            if self.control_date <= current_lower:
+                raise ValueError(
+                    f"control_date ({self.control_date.isoformat()}) must be after "
+                    f"the current version's valid_time lower bound ({current_lower.isoformat()}). "
+                    f"This ensures bitemporal range constraints are satisfied."
+                )
 
         # Clone and apply updates (must happen before close due to expire)
         new_version = cast(
@@ -200,10 +215,12 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
         await session.flush()  # Flush to get the ID
 
         # Set valid_time to control_date, transaction_time to clock_timestamp()
+        # Use getattr to safely access __tablename__ from the protocol
+        tablename = cast(str, self.entity_class.__tablename__)
         stmt_fix_time = text(
             f"""
-            UPDATE {self.entity_class.__tablename__}
-            SET 
+            UPDATE {tablename}
+            SET
                 valid_time = tstzrange(:control_date, NULL, '[]'),
                 transaction_time = tstzrange(clock_timestamp(), NULL, '[]')
             WHERE id = :version_id

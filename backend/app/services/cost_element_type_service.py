@@ -1,5 +1,6 @@
 """Cost Element Type Service - versionable entity management."""
 
+from datetime import datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -70,7 +71,9 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         )
         return await cmd.execute(self.session)
 
-    async def soft_delete(self, cost_element_type_id: UUID, actor_id: UUID) -> None:
+    async def soft_delete(
+        self, cost_element_type_id: UUID, actor_id: UUID, control_date: datetime | None = None
+    ) -> None:
         """Soft delete cost element type using SoftDeleteCommand."""
 
         class CostElementTypeSoftDeleteCommand(SoftDeleteCommand[CostElementType]):  # type: ignore[type-var,unused-ignore]
@@ -81,6 +84,7 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
             entity_class=CostElementType,  # type: ignore[type-var,unused-ignore]
             root_id=cost_element_type_id,
             actor_id=actor_id,
+            control_date=control_date,
         )
         await cmd.execute(self.session)
 

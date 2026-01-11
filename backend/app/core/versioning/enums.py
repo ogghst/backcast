@@ -5,7 +5,7 @@ from enum import Enum
 
 class BranchMode(str, Enum):
     """Branch resolution mode for time-travel queries.
-    
+
     Controls how entity lookups handle branch isolation:
     - STRICT: Only return entities from the specified branch
     - MERGE: Fall back to main branch if entity not found on specified branch

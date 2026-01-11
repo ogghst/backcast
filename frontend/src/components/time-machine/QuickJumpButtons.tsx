@@ -5,83 +5,100 @@ import type { QuickJumpPreset } from "./types";
 interface QuickJumpButtonsProps {
   /** Called when a preset is clicked */
   onJump: (preset: QuickJumpPreset) => void;
-  /** Currently active preset (for highlighting) */
-  activePreset?: QuickJumpPreset | null;
+  /** Current selected date (reference for relative jumps) */
+  currentDate: Date | null;
+  /** Minimum allowed date (project start) */
+  minDate?: Date | null;
+  /** Maximum allowed date (project end/now) */
+  maxDate?: Date | null;
   /** Disable all buttons */
   disabled?: boolean;
 }
 
 const PRESETS: { key: QuickJumpPreset; label: string; tooltip: string }[] = [
-  { key: "1D", label: "1D", tooltip: "Go back 1 day" },
-  { key: "1W", label: "1W", tooltip: "Go back 1 week" },
-  { key: "1M", label: "1M", tooltip: "Go back 1 month" },
-  { key: "3M", label: "3M", tooltip: "Go back 3 months" },
-  { key: "ALL", label: "All", tooltip: "Go to project start" },
+  { key: "-1M", label: "-1M", tooltip: "Go back 1 month" },
+  { key: "-1W", label: "-1W", tooltip: "Go back 1 week" },
+  { key: "-1D", label: "-1D", tooltip: "Go back 1 day" },
+  { key: "+1D", label: "+1D", tooltip: "Go forward 1 day" },
+  { key: "+1W", label: "+1W", tooltip: "Go forward 1 week" },
+  { key: "+1M", label: "+1M", tooltip: "Go forward 1 month" },
 ];
 
 /**
  * Quick jump buttons for common time navigation.
- *
- * @example
- * ```tsx
- * <QuickJumpButtons
- *   onJump={(preset) => {
- *     const date = calculateDateFromPreset(preset);
- *     selectTime(date);
- *   }}
- * />
- * ```
+ * Jumps are relative to the currently selected date.
  */
 export function QuickJumpButtons({
   onJump,
-  activePreset,
+  currentDate,
+  minDate,
+  maxDate,
   disabled = false,
 }: QuickJumpButtonsProps) {
+  // Use current date or now as reference
+  const baseDate = currentDate || new Date();
+
   return (
     <Space size="small">
-      {PRESETS.map(({ key, label, tooltip }) => (
-        <Tooltip key={key} title={tooltip}>
-          <Button
-            size="small"
-            type={activePreset === key ? "primary" : "default"}
-            onClick={() => onJump(key)}
-            disabled={disabled}
-          >
-            {label}
-          </Button>
-        </Tooltip>
-      ))}
+      {PRESETS.map(({ key, label, tooltip }) => {
+        // Check if jump would go out of bounds
+        const targetDate = calculateDateFromPreset(key, baseDate);
+        let isOutOfRange = false;
+
+        if (minDate && targetDate < minDate) isOutOfRange = true;
+        if (maxDate && targetDate > maxDate) isOutOfRange = true;
+
+        return (
+          <Tooltip key={key} title={isOutOfRange ? "Out of range" : tooltip}>
+            <Button
+              size="small"
+              onClick={() => onJump(key)}
+              disabled={disabled || isOutOfRange}
+            >
+              {label}
+            </Button>
+          </Tooltip>
+        );
+      })}
     </Space>
   );
 }
 
 /**
- * Calculate a date based on quick jump preset.
+ * Calculate a date based on quick jump preset relative to a base date.
  *
  * @param preset - The preset to calculate from
- * @param projectStartDate - Optional project start date for "ALL" preset
+ * @param baseDate - The reference date
  * @returns The calculated date
  */
 export function calculateDateFromPreset(
   preset: QuickJumpPreset,
-  projectStartDate?: Date | null
+  baseDate: Date
 ): Date {
-  const now = new Date();
+  const date = new Date(baseDate);
 
   switch (preset) {
-    case "1D":
-      return new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    case "1W":
-      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    case "1M":
-      return new Date(now.setMonth(now.getMonth() - 1));
-    case "3M":
-      return new Date(now.setMonth(now.getMonth() - 3));
-    case "ALL":
-      return (
-        projectStartDate || new Date(now.setFullYear(now.getFullYear() - 1))
-      );
+    case "-1D":
+      date.setDate(date.getDate() - 1);
+      break;
+    case "-1W":
+      date.setDate(date.getDate() - 7);
+      break;
+    case "-1M":
+      date.setMonth(date.getMonth() - 1);
+      break;
+    case "+1D":
+      date.setDate(date.getDate() + 1);
+      break;
+    case "+1W":
+      date.setDate(date.getDate() + 7);
+      break;
+    case "+1M":
+      date.setMonth(date.getMonth() + 1);
+      break;
   }
+
+  return date;
 }
 
 export default QuickJumpButtons;
