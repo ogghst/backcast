@@ -82,6 +82,7 @@ The system is partitioned into the following bounded contexts. See [01-bounded-c
 - **API Conventions:** REST, `/api/v1` prefix.
 - **Security:** JWT access tokens, Argon2 hashing.
 - **Performance:** <200ms API response target.
+- **Seed Data:** Deterministic UUIDv5-based seeding with ID-based relationships.
 
 ## Key Design Decisions
 

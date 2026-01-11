@@ -15,14 +15,17 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 ### Base Model
 
-| File                                                                                      | Description                                                        |
-| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| [`app/core/db/base.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/db/base.py) | `TemporalBase` abstract class with all temporal fields and methods |
+| File                                                                                    | Description                                                        |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [`app/core/base/base.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/base/base.py) | `EntityBase` and `SimpleEntityBase` abstract classes |
+| [`app/models/mixins.py`](file:///home/nicola/dev/backcast_evs/backend/app/models/mixins.py) | `VersionableMixin` and `BranchableMixin` for temporal composition |
 
 **Key Classes:**
 
-- `TemporalBase` - Abstract base for all versioned entities
-- `Base` - SQLAlchemy declarative base
+- `EntityBase` - Abstract base for all entities (provides ID)
+- `SimpleEntityBase` - Non-versioned entities with `created_at`/`updated_at`
+- `VersionableMixin` - Adds bitemporal fields (`valid_time`, `transaction_time`, `deleted_at`)
+- `BranchableMixin` - Adds branching fields (`branch`, `parent_id`, `merge_from_branch`)
 
 ---
 
@@ -34,13 +37,9 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 **Key Classes:**
 
-- `CreateCommand[T]` - Create new entity version
-- `UpdateCommand[T]` - Update entity (creates new version)
+- `CreateVersionCommand[T]` - Create new entity version
+- `UpdateVersionCommand[T]` - Update entity (creates new version)
 - `SoftDeleteCommand[T]` - Soft delete entity
-- `UndeleteCommand[T]` - Restore deleted entity
-- `CreateBranchCommand[T]` - Create new branch
-- `MergeBranchCommand[T]` - Merge branches
-- `RevertCommand[T]` - Revert to previous version
 - `CommandMetadata` - Metadata dataclass for audit
 
 ---
@@ -57,17 +56,44 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 ---
 
+## Branching Framework
+
+### Branching Commands
+
+| File                                                                                                            | Description                             |
+| --------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| [`app/core/branching/commands.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/branching/commands.py) | Command classes for branchable entities |
+
+**Key Classes:**
+
+- `CreateBranchCommand[T]` - Create new branch
+- `UpdateCommand[T]` - Update entity on branch
+- `MergeBranchCommand[T]` - Merge branches
+- `RevertCommand[T]` - Revert to previous version
+
+### Branching Service
+
+| File                                                                                                          | Description                           |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| [`app/core/branching/service.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/branching/service.py) | Service class for branchable entities |
+
+**Key Classes:**
+
+- `BranchableService[T]` - Service for full EVCS operations
+
+---
+
 ## Non-Versioned Entity Framework
 
 ### Simple Base Model
 
-| File                                                                                                    | Description                             |
-| ------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| [`app/core/db/simple_base.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/db/simple_base.py) | `SimpleBase` for non-versioned entities |
+| File                                                                                           | Description                              |
+| ---------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| [`app/core/base/base.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/base/base.py) | `SimpleEntityBase` for non-versioned entities |
 
 **Key Classes:**
 
-- `SimpleBase` - Abstract base with `id`, `created_at`, `updated_at`
+- `SimpleEntityBase` - Abstract base with `id`, `created_at`, `updated_at`
 
 ---
 
@@ -87,8 +113,8 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 ### Simple Service
 
-| File                                                                                                    | Description                             |
-| ------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| File                                                                                                  | Description                              |
+| ----------------------------------------------------------------------------------------------------- | ---------------------------------------- |
 | [`app/core/simple/service.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/simple/service.py) | Base service for non-versioned entities |
 
 **Key Classes:**
@@ -211,40 +237,44 @@ This document provides a reference to all code files implementing the EVCS Core 
 ```
 backend/app/
 ├── core/
-│   ├── db/
-│   │   ├── base.py              # TemporalBase (versioned entities)
-│   │   └── simple_base.py       # SimpleBase (non-versioned entities)
+│   ├── base/
+│   │   └── base.py              # EntityBase, SimpleEntityBase
 │   ├── versioning/              # Temporal versioning framework
 │   │   ├── __init__.py
-│   │   ├── commands.py          # TemporalBase generic commands
+│   │   ├── commands.py          # Create/Update/SoftDelete commands
 │   │   └── service.py           # TemporalService[T]
+│   ├── branching/               # Branching framework
+│   │   ├── __init__.py
+│   │   ├── commands.py          # CreateBranch/Merge/Revert commands
+│   │   └── service.py           # BranchableService[T]
 │   └── simple/                  # Non-versioned entity framework
 │       ├── __init__.py
-│       ├── commands.py          # SimpleBase generic commands
+│       ├── commands.py          # Simple commands
 │       └── service.py           # SimpleService[T]
 ├── models/
+│   ├── mixins.py                # VersionableMixin, BranchableMixin
+│   ├── protocols.py             # EntityProtocol, VersionableProtocol, etc.
 │   ├── domain/
-│   │   ├── project.py           # ProjectVersion (versioned)
-│   │   ├── wbe.py               # WBEVersion (versioned)
-│   │   ├── cost_element.py      # CostElementVersion (versioned)
-│   │   ├── user_preferences.py  # UserPreferences (non-versioned)
-│   │   └── system_config.py     # SystemConfig (non-versioned)
+│   │   ├── project.py           # Project (EntityBase + mixins)
+│   │   ├── wbe.py               # WBE (EntityBase + mixins)
+│   │   ├── cost_element.py      # CostElement (EntityBase + mixins)
+│   │   ├── cost_element_type.py # CostElementType (EntityBase + mixins)
+│   │   ├── department.py        # Department (EntityBase + mixins)
+│   │   └── user.py              # User (EntityBase + mixins)
 │   └── schemas/
-│       ├── temporal.py          # Pydantic schemas for versioned
-│       └── simple.py            # Pydantic schemas for non-versioned
+│       └── ...                  # Pydantic schemas
 ├── services/
-│   ├── project.py               # ProjectService (versioned)
-│   ├── wbe.py                   # WBEService (versioned)
-│   ├── cost_element.py          # CostElementService (versioned)
-│   ├── user_preferences.py      # UserPreferencesService (non-versioned)
-│   └── system_config.py         # SystemConfigService (non-versioned)
+│   ├── project.py               # ProjectService (extends TemporalService)
+│   ├── wbe.py                   # WBEService (extends TemporalService)
+│   ├── cost_element.py          # CostElementService (extends TemporalService)
+│   ├── cost_element_type.py     # CostElementTypeService
+│   ├── department.py            # DepartmentService
+│   └── user.py                  # UserService
 └── api/
     └── routes/
         ├── projects.py          # /api/v1/projects
         ├── wbes.py              # /api/v1/wbes
-        ├── cost_elements.py     # /api/v1/cost-elements
-        ├── user_preferences.py  # /api/v1/me/preferences
-        └── system_config.py     # /api/v1/admin/config
+        └── cost_elements.py     # /api/v1/cost-elements
 ```
 
 ---

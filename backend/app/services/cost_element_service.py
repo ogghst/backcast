@@ -2,6 +2,7 @@
 
 import builtins
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -13,6 +14,7 @@ from app.core.versioning.commands import (
     SoftDeleteCommand,
     UpdateVersionCommand,
 )
+from app.core.versioning.enums import BranchMode
 from app.core.versioning.service import TemporalService
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_element_type import CostElementType
@@ -107,12 +109,14 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         element_in: CostElementCreate,
         actor_id: UUID,
         branch: str = "main",
+        control_date: datetime | None = None,
     ) -> CostElement:
         """Create new cost element using CreateVersionCommand."""
-        element_data = element_in.model_dump()
+        element_data = element_in.model_dump(exclude_unset=True)
+        element_data.pop("control_date", None)
 
-        # Ensure root cost_element_id exists
-        root_id = uuid4()
+        # Use provided cost_element_id (for seeding) or generate new one
+        root_id = element_in.cost_element_id or uuid4()
         element_data["cost_element_id"] = root_id
         element_data["branch"] = branch
 
@@ -120,6 +124,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
+            control_date=control_date,
             **element_data,
         )
         return await cmd.execute(self.session)
@@ -130,9 +135,11 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         element_in: CostElementUpdate,
         actor_id: UUID,
         branch: str = "main",
+        control_date: datetime | None = None,
     ) -> CostElement:
         """Update cost element using UpdateVersionCommand or Fork if new branch."""
         update_data = element_in.model_dump(exclude_unset=True)
+        update_data.pop("control_date", None)
         update_data["branch"] = branch
 
         # Check if version exists in target branch
@@ -150,9 +157,10 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                     root_id: UUID,
                     actor_id: UUID,
                     branch: str = "main",
+                    control_date: datetime | None = None,
                     **updates: Any,
                 ) -> None:
-                    super().__init__(entity_class, root_id, actor_id, **updates)
+                    super().__init__(entity_class, root_id, actor_id, control_date=control_date, **updates)
                     self.branch = branch
 
                 def _root_field_name(self) -> str:
@@ -180,6 +188,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                 entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
                 root_id=cost_element_id,
                 actor_id=actor_id,
+                control_date=control_date,
                 # Branch is passed via update_data unpacking to match signature
                 **update_data,
             )
@@ -228,12 +237,17 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                 entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
                 root_id=cost_element_id,
                 actor_id=actor_id,
+                control_date=control_date,
                 **data,
             )
             return await create_cmd.execute(self.session)
 
-    async def soft_delete(
-        self, cost_element_id: UUID, actor_id: UUID, branch: str = "main"
+    async def soft_delete(  # type: ignore[override]
+        self,
+        cost_element_id: UUID,
+        actor_id: UUID,
+        branch: str = "main",
+        control_date: datetime | None = None
     ) -> None:
         """Soft delete cost element using SoftDeleteCommand."""
 
@@ -245,8 +259,9 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                 root_id: UUID,
                 actor_id: UUID,
                 branch: str = "main",
+                control_date: datetime | None = None,
             ) -> None:
-                super().__init__(entity_class, root_id, actor_id)
+                super().__init__(entity_class, root_id, actor_id, control_date=control_date)
                 self.branch = branch
 
             def _root_field_name(self) -> str:
@@ -274,6 +289,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             root_id=cost_element_id,
             actor_id=actor_id,
             branch=branch,
+            control_date=control_date,
         )
         await cmd.execute(self.session)
 
@@ -306,6 +322,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         filter_string: str | None = None,
         sort_field: str | None = None,
         sort_order: str = "asc",
+        as_of: datetime | None = None,
     ) -> tuple[list[CostElement], int]:
         """Get all cost elements with search, filtering, and sorting.
 
@@ -319,6 +336,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
                           Example: "code:LAB;name:Phase"
             sort_field: Field name to sort by (e.g., "name", "code", "budget_amount")
             sort_order: Sort order, either "asc" or "desc" (default: "asc")
+            as_of: Optional timestamp for time-travel queries
 
         Returns:
             Tuple of (list of cost elements with relations, total count matching filters)
@@ -340,11 +358,18 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         from app.core.filtering import FilterParser
 
         # Base query with WBE name and type joins
-        stmt = self._get_base_stmt().where(
-            CostElement.branch == branch,
-            func.upper(cast(Any, CostElement).valid_time).is_(None),
-            cast(Any, CostElement).deleted_at.is_(None),
-        )
+        # Base query: versions in specified branch
+        stmt = self._get_base_stmt().where(CostElement.branch == branch)
+
+        # Apply time-travel filter
+        if as_of:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            # Get current version (open upper bound) and not deleted
+            stmt = stmt.where(
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
 
         # Apply legacy dict filters (for backward compatibility)
         if filters:
@@ -495,3 +520,98 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             history.append(entity)
 
         return history
+
+    async def get_cost_element_as_of(
+        self,
+        cost_element_id: UUID,
+        as_of: datetime,
+        branch: str = "main",
+        branch_mode: BranchMode | None = None,
+    ) -> CostElement | None:
+        """Get cost element as it was at specific timestamp.
+
+        Provides System Time Travel semantics for single-entity queries.
+        Includes parent_name and cost_element_type_name relations.
+        Uses STRICT mode by default (only searches in specified branch).
+        Use BranchMode.MERGE to fall back to main branch if not found.
+
+        Args:
+            cost_element_id: The unique identifier of the cost element
+            as_of: Timestamp to query (historical state)
+            branch: Branch name to query (default: "main")
+            branch_mode: Resolution mode for branches
+                - None/STRICT: Only return from specified branch (default)
+                - MERGE: Fall back to main if not found on branch
+
+        Returns:
+            CostElement if found at the specified timestamp, None otherwise
+
+        Example:
+            >>> # Get cost element as of January 1st
+            >>> from datetime import datetime
+            >>> as_of = datetime(2026, 1, 1, 12, 0, 0)
+            >>> element = await service.get_cost_element_as_of(
+            ...     cost_element_id=uuid,
+            ...     as_of=as_of
+            ... )
+        """
+        from sqlalchemy.orm import aliased
+
+        WBEAlias = aliased(WBE, name="wbe_lookup")
+        TypeAlias = aliased(CostElementType, name="type_lookup")
+
+        # Subqueries for parent versions (as of specific time)
+        wbe_where_clauses = [cast(Any, WBEAlias).deleted_at.is_(None)]
+        if as_of:
+            wbe_where_clauses.append(cast(Any, WBEAlias).valid_time.contains(as_of))
+        else:
+            wbe_where_clauses.append(func.upper(cast(Any, WBEAlias).valid_time).is_(None))
+
+        wbe_subq = (
+            select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
+            .where(*wbe_where_clauses)
+            .subquery("wbe_lookup_subq")
+        )
+
+        type_where_clauses = [cast(Any, TypeAlias).deleted_at.is_(None)]
+        if as_of:
+            type_where_clauses.append(cast(Any, TypeAlias).valid_time.contains(as_of))
+        else:
+            type_where_clauses.append(func.upper(cast(Any, TypeAlias).valid_time).is_(None))
+
+        type_subq = (
+            select(
+                TypeAlias.cost_element_type_id,
+                TypeAlias.name.label("type_name"),
+                TypeAlias.code.label("type_code"),
+            )
+            .where(*type_where_clauses)
+            .subquery("type_lookup_subq")
+        )
+
+        # Build query with joins
+        stmt = (
+            select(
+                CostElement,
+                wbe_subq.c.wbe_name,
+                type_subq.c.type_name,
+                type_subq.c.type_code,
+            )
+            .outerjoin(wbe_subq, CostElement.wbe_id == wbe_subq.c.wbe_id)
+            .outerjoin(
+                type_subq,
+                CostElement.cost_element_type_id == type_subq.c.cost_element_type_id,
+            )
+            .where(
+                CostElement.cost_element_id == cost_element_id,
+                CostElement.branch == branch,
+            )
+        )
+
+        # Apply time-travel filter
+        stmt = self._apply_bitemporal_filter_for_time_travel(stmt, as_of)
+
+        stmt = stmt.limit(1)
+        result = await self.session.execute(stmt)
+        resolved = await self._resolve_relations(result.all())
+        return resolved[0] if resolved else None

@@ -1066,8 +1066,12 @@ WHERE upper(valid_time) IS NULL
 - **Protocols:** `app/models/protocols.py` - Protocol definitions for type checking
 - **Base Models:** `app/models/domain/base.py` - `EntityBase`, `SimpleEntityBase`
 - **Mixins:** `app/models/mixins.py` - `VersionableMixin`, `BranchableMixin`
-- **Commands:** `app/core/versioning/commands.py` - All command ABCs and implementations
-- **Services:** `app/core/versioning/service.py` - `SimpleService`, `TemporalService`, `BranchableService`
+- **Commands (Base):** `app/core/versioning/commands.py` - Base/Versioned command ABCs and implementations
+- **Commands (Branching):** `app/core/branching/commands.py` - Branching command ABCs and implementations
+- **Services (Base):** `app/core/versioning/service.py` - `SimpleService`, `TemporalService`
+- **Services (Branching):** `app/core/branching/service.py` - `BranchableService`
+- **UUID Utils:** `app/core/uuid_utils.py` - UUIDv5 namespace-based generation
+- **Seed Context:** `app/db/seed_context.py` - Seed operation context manager
 - **Entity Examples:** `app/models/domain/project.py`, `app/models/domain/wbe.py`
 
 ---
@@ -1076,6 +1080,7 @@ WHERE upper(valid_time) IS NULL
 
 - [Entity Classification Guide](entity-classification.md) - How to choose Simple/Versionable/Branchable
 - [Temporal Patterns Reference](patterns.md) - Query patterns and recipes
+- [Seed Data Strategy](../../seed-data-strategy.md) - Deterministic UUIDv5 seeding
 - [ADR-006: Protocol-Based Type System](../../decisions/ADR-006-protocol-based-type-system.md) - Type system decision
 - [ADR-005: Bitemporal Versioning](../../decisions/ADR-005-bitemporal-versioning.md) - Decision record
 - [Database Strategy](../../cross-cutting/database-strategy.md) - TSTZRANGE usage

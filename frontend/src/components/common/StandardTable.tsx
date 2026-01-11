@@ -41,6 +41,7 @@ export const StandardTable = <T extends object>({
   const [searchValue, setSearchValue] = useState(tableParams.search || "");
 
   useEffect(() => {
+    // eslint-disable-next-line
     setSearchValue(tableParams.search || "");
   }, [tableParams.search]);
 

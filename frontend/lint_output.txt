@@ -1,0 +1,57 @@
+
+> project-management-dashboard@1.0.0 lint
+> eslint . --ignore-pattern **/*.test.ts --ignore-pattern **/*.test.tsx --ignore-pattern **/*.spec.ts --ignore-pattern **/*.spec.tsx --ignore-pattern **/e2e/**
+
+
+/home/nicola/dev/backcast_evs/frontend/src/api/auth.ts
+  2:10  error  'apiClient' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/nicola/dev/backcast_evs/frontend/src/components/common/StandardTable.tsx
+  44:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/nicola/dev/backcast_evs/frontend/src/components/common/StandardTable.tsx:44:5
+  42 |
+  43 |   useEffect(() => {
+> 44 |     setSearchValue(tableParams.search || "");
+     |     ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  45 |   }, [tableParams.search]);
+  46 |
+  47 |   useEffect(() => {  react-hooks/set-state-in-effect
+
+/home/nicola/dev/backcast_evs/frontend/src/components/time-machine/QuickJumpButtons.tsx
+  65:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/home/nicola/dev/backcast_evs/frontend/src/components/time-machine/TimeMachineCompact.tsx
+  2:42  error  'Dropdown' is defined but never used  @typescript-eslint/no-unused-vars
+
+/home/nicola/dev/backcast_evs/frontend/src/components/time-machine/TimeMachineExpanded.tsx
+  14:3   error  'CalendarOutlined' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+  24:3   error  'TimelineEvent' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+  30:15  error  'Title' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+  70:3   error  'projectId' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               @typescript-eslint/no-unused-vars
+  71:3   error  'projectName' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-unused-vars
+  96:41  error  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/home/nicola/dev/backcast_evs/frontend/src/components/time-machine/TimeMachineExpanded.tsx:96:41
+  94 |   // Default date range if not provided
+  95 |   const minDate =
+> 96 |     timelineData?.startDate || new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+     |                                         ^^^^^^^^^^ Cannot call impure function
+  97 |   const maxDate = timelineData?.endDate || new Date();
+  98 |
+  99 |   // Convert branches to options  react-hooks/purity
+
+/home/nicola/dev/backcast_evs/frontend/src/contexts/TimeMachineContext.tsx
+  115:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+  134:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+✖ 12 problems (9 errors, 3 warnings)
+

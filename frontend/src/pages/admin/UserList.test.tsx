@@ -7,7 +7,7 @@ import { ConfigProvider } from "antd";
 // Mock useAuthStore to allow all permissions
 // Mock useAuthStore to allow all permissions
 vi.mock("@/stores/useAuthStore", () => ({
-  useAuthStore: (selector: any) => {
+  useAuthStore: (selector: (state: unknown) => unknown) => {
     const state = {
       hasPermission: () => true,
       hasAnyPermission: () => true,

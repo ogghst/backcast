@@ -33,23 +33,27 @@ Backend implementation for the Backcast Entity Versioning System (EVS) - a Proje
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/ogghst/backcast_evs.git
    cd backcast_evs/backend
    ```
 
 2. **Install dependencies**
+
    ```bash
    uv sync
    ```
 
 3. **Configure environment**
+
    ```bash
    cp .env.example .env
    # Edit .env with your database credentials
    ```
 
 4. **Run database migrations**
+
    ```bash
    uv run alembic upgrade head
    ```
@@ -60,6 +64,16 @@ Backend implementation for the Backcast Entity Versioning System (EVS) - a Proje
    ```
 
 The API will be available at `http://localhost:8020`
+
+### Database Seeding
+
+By default, the database is NOT seeded automatically on startup. To seed the database with initial demonstration data, use the provided script:
+
+```bash
+uv run python scripts/reseed_db.py
+```
+
+**WARNING:** This script will clear ALL data currently in the database before reseeding.
 
 ## Development
 
@@ -150,6 +164,7 @@ open htmlcov/index.html
 ```
 
 **Coverage Policy:**
+
 - Minimum coverage: 80% (enforced in CI)
 - New code should maintain or improve coverage
 - Coverage reports generated on every test run
@@ -170,6 +185,7 @@ Every push and pull request triggers automated quality checks:
 ### CI Troubleshooting
 
 **Build failing on coverage?**
+
 ```bash
 # Run locally to see coverage report
 uv run pytest --cov=app --cov-report=term-missing
@@ -180,6 +196,7 @@ open htmlcov/index.html
 ```
 
 **Build failing on type checks?**
+
 ```bash
 # Run MyPy locally
 uv run mypy app --strict
@@ -191,6 +208,7 @@ uv run mypy app --strict
 ```
 
 **Build failing on linting?**
+
 ```bash
 # Check what needs fixing
 uv run ruff check .

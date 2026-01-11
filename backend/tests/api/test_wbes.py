@@ -324,3 +324,101 @@ async def test_wbe_hierarchical_structure(
     child_data_resp = child_response.json()
     assert child_data_resp["parent_wbe_id"] == parent_id
     assert child_data_resp["level"] == 2
+
+@pytest.mark.asyncio
+async def test_create_wbe_with_control_date(
+    client: AsyncClient,
+    override_auth: None,
+    db_session: AsyncSession,
+    test_project: dict[str, Any],
+) -> None:
+    """Test creating WBE with explicit control_date."""
+    # Future date to ensure it's different from "now"
+    control_date = "2026-03-03T10:00:00+00:00"
+    
+    wbe_data = {
+        "project_id": test_project["project_id"],
+        "code": "CD-1.0",
+        "name": "Control Date WBE",
+        "budget_allocation": 100000,
+        "level": 1,
+        "control_date": control_date
+    }
+
+    response = await client.post("/api/v1/wbes", json=wbe_data)
+    assert response.status_code == 201
+    data = response.json()
+    
+    # Verify valid_time starts at control_date
+    assert data["valid_time"].startswith(f"[{control_date[:10]}")
+
+
+@pytest.mark.asyncio
+async def test_update_wbe_with_control_date(
+    client: AsyncClient,
+    override_auth: None,
+    db_session: AsyncSession,
+    test_project: dict[str, Any],
+) -> None:
+    """Test updating WBE with explicit control_date."""
+    # 1. Create standard WBE
+    create_resp = await client.post("/api/v1/wbes", json={
+        "project_id": test_project["project_id"],
+        "code": "CD-2.0",
+        "name": "Update Test WBE",
+        "budget_allocation": 50000,
+        "level": 1
+    })
+    wbe_id = create_resp.json()["wbe_id"]
+    
+    # 2. Update with control date
+    control_date = "2026-04-01T10:00:00+00:00"
+    update_data = {
+        "name": "Updated With Control Date",
+        "control_date": control_date
+    }
+    
+    response = await client.put(f"/api/v1/wbes/{wbe_id}", json=update_data)
+    assert response.status_code == 200
+    data = response.json()
+    
+    # Verify new version starts at control_date
+    assert data["valid_time"].startswith(f"[{control_date[:10]}")
+
+
+@pytest.mark.asyncio
+async def test_delete_wbe_with_control_date(
+    client: AsyncClient,
+    override_auth: None,
+    db_session: AsyncSession,
+    test_project: dict[str, Any],
+) -> None:
+    """Test deleting WBE with explicit control_date."""
+    # 1. Create WBE
+    create_resp = await client.post("/api/v1/wbes", json={
+        "project_id": test_project["project_id"],
+        "code": "CD-3.0",
+        "name": "Delete Test WBE",
+        "budget_allocation": 50000,
+        "level": 1
+    })
+    wbe_id = create_resp.json()["wbe_id"]
+    
+    # 2. Delete with control date
+    control_date = "2026-05-01T10:00:00+00:00"
+    response = await client.delete(
+        f"/api/v1/wbes/{wbe_id}", 
+        params={"control_date": control_date}
+    )
+    assert response.status_code == 204
+    
+    # 3. Verify deletion happened effectively at control_date
+    # Query BEFORE control date - should still exist
+    before_date = "2026-04-30T10:00:00+00:00"
+    resp_before = await client.get(f"/api/v1/wbes/{wbe_id}", params={"as_of": before_date})
+    assert resp_before.status_code == 200
+    
+    # Query AFTER control date - should be gone
+    after_date = "2026-05-02T10:00:00+00:00"
+    resp_after = await client.get(f"/api/v1/wbes/{wbe_id}", params={"as_of": after_date})
+    assert resp_after.status_code == 404

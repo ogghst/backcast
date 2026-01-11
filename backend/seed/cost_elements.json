@@ -1,802 +1,902 @@
 [
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1",
     "code": "PRJ-DEMO-001-L1-1-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1",
     "code": "PRJ-DEMO-001-L1-1-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1",
     "code": "PRJ-DEMO-001-L1-1-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "2450a921-a5a2-5442-b223-62f8884c534a",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1",
     "code": "PRJ-DEMO-001-L1-1-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "345901f0-2c89-5ab3-b4c1-1b76b33507a3",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1",
     "code": "PRJ-DEMO-001-L1-1-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "2218bd7e-04da-5f32-b31c-453cc3d3561b",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1",
     "code": "PRJ-DEMO-001-L1-1-L2-1-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "18c26d12-9789-5004-b766-3b099405e884",
+    "wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1",
     "code": "PRJ-DEMO-001-L1-1-L2-1-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "fd3e2f3d-d8d0-5057-a1a7-e18ebb866557",
+    "wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1",
     "code": "PRJ-DEMO-001-L1-1-L2-1-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "24006d86-ae96-5cf0-bd17-3ef736ce942f",
+    "wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1",
     "code": "PRJ-DEMO-001-L1-1-L2-1-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "801966ec-2479-5ee5-bc12-33d4416aa57e",
+    "wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1",
     "code": "PRJ-DEMO-001-L1-1-L2-1-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "8d884e39-3fe8-58c6-bf44-c368cf232c8a",
+    "wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1-L3-1",
     "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "25c5b1b5-d7f7-580a-aa53-f8400f647611",
+    "wbe_id": "874cdb91-1ad1-5300-9673-21c2e086aacb",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1-L3-1",
     "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "7892a1c1-cad3-5f9b-884a-d447119170f6",
+    "wbe_id": "874cdb91-1ad1-5300-9673-21c2e086aacb",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1-L3-1",
     "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "b8553a66-0d11-57be-abc2-8f0182bbc7d1",
+    "wbe_id": "874cdb91-1ad1-5300-9673-21c2e086aacb",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1-L3-1",
     "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "7952c593-af27-5039-bf6a-327f6e013cf5",
+    "wbe_id": "874cdb91-1ad1-5300-9673-21c2e086aacb",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-1-L3-1",
     "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "eda50327-059d-5bb4-b44a-77149f656856",
+    "wbe_id": "874cdb91-1ad1-5300-9673-21c2e086aacb",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2",
     "code": "PRJ-DEMO-001-L1-1-L2-2-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "195eb39a-9f78-538b-99d7-31ec20bc2119",
+    "wbe_id": "a17200de-79c9-5eaa-9959-f4960ccc9b38",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2",
     "code": "PRJ-DEMO-001-L1-1-L2-2-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "18d0b34f-5d73-5f0c-bb48-1b72496c12ad",
+    "wbe_id": "a17200de-79c9-5eaa-9959-f4960ccc9b38",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2",
     "code": "PRJ-DEMO-001-L1-1-L2-2-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "69a715ce-6d9b-5bca-ada1-9238f1b1281e",
+    "wbe_id": "a17200de-79c9-5eaa-9959-f4960ccc9b38",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2",
     "code": "PRJ-DEMO-001-L1-1-L2-2-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "875a19d2-3b5a-5d2f-bfe2-d4ffaa4b4772",
+    "wbe_id": "a17200de-79c9-5eaa-9959-f4960ccc9b38",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2",
     "code": "PRJ-DEMO-001-L1-1-L2-2-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "f595dbf4-53c2-5334-82bd-857333351bf5",
+    "wbe_id": "a17200de-79c9-5eaa-9959-f4960ccc9b38",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2-L3-1",
     "code": "PRJ-DEMO-001-L1-1-L2-2-L3-1-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "db065157-537c-5a98-ac94-cc2c8d7d1840",
+    "wbe_id": "ea18bdbb-9ad0-5a79-9fa2-46d727a5bc3c",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2-L3-1",
     "code": "PRJ-DEMO-001-L1-1-L2-2-L3-1-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "cf27c180-6ceb-5ca2-bebf-129856b748ff",
+    "wbe_id": "ea18bdbb-9ad0-5a79-9fa2-46d727a5bc3c",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2-L3-1",
     "code": "PRJ-DEMO-001-L1-1-L2-2-L3-1-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "d3678069-6735-51b4-b9fb-fa824b6e42ec",
+    "wbe_id": "ea18bdbb-9ad0-5a79-9fa2-46d727a5bc3c",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2-L3-1",
     "code": "PRJ-DEMO-001-L1-1-L2-2-L3-1-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "3c9dc605-7c47-5203-852f-b047b1ed55d6",
+    "wbe_id": "ea18bdbb-9ad0-5a79-9fa2-46d727a5bc3c",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-1-L2-2-L3-1",
     "code": "PRJ-DEMO-001-L1-1-L2-2-L3-1-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "f05c5a1c-ebd1-5a52-9303-4adc353c1de6",
+    "wbe_id": "ea18bdbb-9ad0-5a79-9fa2-46d727a5bc3c",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2",
     "code": "PRJ-DEMO-001-L1-2-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "4ec38d67-fbfb-5b31-9a74-232d50e2bac5",
+    "wbe_id": "8271f58b-2300-5a45-a901-cfb20e5f67de",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2",
     "code": "PRJ-DEMO-001-L1-2-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "ea04bf4a-e770-5dcf-aeb2-c355000f2951",
+    "wbe_id": "8271f58b-2300-5a45-a901-cfb20e5f67de",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2",
     "code": "PRJ-DEMO-001-L1-2-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "6c26f698-47a0-572d-bd99-fb248694bca0",
+    "wbe_id": "8271f58b-2300-5a45-a901-cfb20e5f67de",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2",
     "code": "PRJ-DEMO-001-L1-2-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "0aabb43e-00a5-5241-9a67-bcfe1bc55a87",
+    "wbe_id": "8271f58b-2300-5a45-a901-cfb20e5f67de",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2",
     "code": "PRJ-DEMO-001-L1-2-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "0b7980a8-ec58-5f95-bef0-67dfd5119b14",
+    "wbe_id": "8271f58b-2300-5a45-a901-cfb20e5f67de",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1",
     "code": "PRJ-DEMO-001-L1-2-L2-1-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "b80224e4-e494-57c6-b725-97978f338fea",
+    "wbe_id": "60ed9749-441c-5dd5-864c-4f8ef7faf30e",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1",
     "code": "PRJ-DEMO-001-L1-2-L2-1-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "5c3d6fca-8789-542f-926e-d7e7fd7a9fa8",
+    "wbe_id": "60ed9749-441c-5dd5-864c-4f8ef7faf30e",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1",
     "code": "PRJ-DEMO-001-L1-2-L2-1-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "9c1481f3-2dd8-5375-8d1b-0c6f4b932ee1",
+    "wbe_id": "60ed9749-441c-5dd5-864c-4f8ef7faf30e",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1",
     "code": "PRJ-DEMO-001-L1-2-L2-1-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "28b1b37b-2331-54eb-85fe-8bd781551e96",
+    "wbe_id": "60ed9749-441c-5dd5-864c-4f8ef7faf30e",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1",
     "code": "PRJ-DEMO-001-L1-2-L2-1-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "a339e96d-c590-546d-8285-1380c2699efc",
+    "wbe_id": "60ed9749-441c-5dd5-864c-4f8ef7faf30e",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1-L3-1",
     "code": "PRJ-DEMO-001-L1-2-L2-1-L3-1-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "350f03a5-1361-574e-b92c-6cd108b2753c",
+    "wbe_id": "151ff5e8-4ca8-5ee6-9741-d8d512e31efd",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1-L3-1",
     "code": "PRJ-DEMO-001-L1-2-L2-1-L3-1-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "00d5715e-1289-5c69-b9f3-fe13b65bf956",
+    "wbe_id": "151ff5e8-4ca8-5ee6-9741-d8d512e31efd",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1-L3-1",
     "code": "PRJ-DEMO-001-L1-2-L2-1-L3-1-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "2be8c9e3-1f8f-50c8-987f-74496a371560",
+    "wbe_id": "151ff5e8-4ca8-5ee6-9741-d8d512e31efd",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1-L3-1",
     "code": "PRJ-DEMO-001-L1-2-L2-1-L3-1-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "cd985fd2-1a52-5ef6-9278-b07bc64baf60",
+    "wbe_id": "151ff5e8-4ca8-5ee6-9741-d8d512e31efd",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-1-L3-1",
     "code": "PRJ-DEMO-001-L1-2-L2-1-L3-1-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "6d30be08-8104-5297-bae2-cdbcfdd75246",
+    "wbe_id": "151ff5e8-4ca8-5ee6-9741-d8d512e31efd",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2",
     "code": "PRJ-DEMO-001-L1-2-L2-2-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "18891623-1bd9-5d55-ab4a-999512f99915",
+    "wbe_id": "535c6084-f565-560e-9beb-4a35b29cf96a",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2",
     "code": "PRJ-DEMO-001-L1-2-L2-2-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "4aa28c8e-b50b-5564-8e9d-61b9f4c07631",
+    "wbe_id": "535c6084-f565-560e-9beb-4a35b29cf96a",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2",
     "code": "PRJ-DEMO-001-L1-2-L2-2-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "9ecd3f8d-f655-521c-b0b3-939d663dcfce",
+    "wbe_id": "535c6084-f565-560e-9beb-4a35b29cf96a",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2",
     "code": "PRJ-DEMO-001-L1-2-L2-2-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "bf5b26f1-ce4a-5ea2-8ec6-8d6b767b4e05",
+    "wbe_id": "535c6084-f565-560e-9beb-4a35b29cf96a",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2",
     "code": "PRJ-DEMO-001-L1-2-L2-2-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "b48bdf02-799b-5f88-b1f3-83e9367fd4f3",
+    "wbe_id": "535c6084-f565-560e-9beb-4a35b29cf96a",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2-L3-1",
     "code": "PRJ-DEMO-001-L1-2-L2-2-L3-1-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "f9e035f4-022e-5e37-8903-003b5b6bec29",
+    "wbe_id": "c1964b59-7fd0-59b3-ad98-6836a641fd0e",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2-L3-1",
     "code": "PRJ-DEMO-001-L1-2-L2-2-L3-1-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "6e4a1957-0525-53f4-a992-fb258a0c0580",
+    "wbe_id": "c1964b59-7fd0-59b3-ad98-6836a641fd0e",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2-L3-1",
     "code": "PRJ-DEMO-001-L1-2-L2-2-L3-1-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "e1791102-2d94-5897-93c8-ae5840ce2905",
+    "wbe_id": "c1964b59-7fd0-59b3-ad98-6836a641fd0e",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2-L3-1",
     "code": "PRJ-DEMO-001-L1-2-L2-2-L3-1-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "4040af76-0834-53bd-8c1a-2699c6ba23b6",
+    "wbe_id": "c1964b59-7fd0-59b3-ad98-6836a641fd0e",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-001-L1-2-L2-2-L3-1",
     "code": "PRJ-DEMO-001-L1-2-L2-2-L3-1-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "3b3583bd-7114-5117-a752-77a5e9a78802",
+    "wbe_id": "c1964b59-7fd0-59b3-ad98-6836a641fd0e",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1",
     "code": "PRJ-DEMO-002-L1-1-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "2b5d4292-27cb-591c-92e4-e586e02a9de4",
+    "wbe_id": "88b1508c-58ce-5f10-8891-81d860df82f1",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1",
     "code": "PRJ-DEMO-002-L1-1-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "77515048-e5e3-5a55-8e5d-72c437f92800",
+    "wbe_id": "88b1508c-58ce-5f10-8891-81d860df82f1",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1",
     "code": "PRJ-DEMO-002-L1-1-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "2a5463e8-95fd-5c87-b780-32194b02dc46",
+    "wbe_id": "88b1508c-58ce-5f10-8891-81d860df82f1",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1",
     "code": "PRJ-DEMO-002-L1-1-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "95b8248c-7b97-5f94-b09d-63aaca9c9f50",
+    "wbe_id": "88b1508c-58ce-5f10-8891-81d860df82f1",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1",
     "code": "PRJ-DEMO-002-L1-1-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "71a09036-5008-5f09-a444-eeecc5e79a41",
+    "wbe_id": "88b1508c-58ce-5f10-8891-81d860df82f1",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1",
     "code": "PRJ-DEMO-002-L1-1-L2-1-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "6e1f0973-52f9-5b63-90db-9bbecadd7ff9",
+    "wbe_id": "3fc36af9-791f-5005-9803-e2fb8a9b62b9",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1",
     "code": "PRJ-DEMO-002-L1-1-L2-1-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "192358d0-2cab-5e8b-af20-ce56ee63d6eb",
+    "wbe_id": "3fc36af9-791f-5005-9803-e2fb8a9b62b9",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1",
     "code": "PRJ-DEMO-002-L1-1-L2-1-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "fbbd0f38-2790-50aa-8e34-e76b5b795d25",
+    "wbe_id": "3fc36af9-791f-5005-9803-e2fb8a9b62b9",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1",
     "code": "PRJ-DEMO-002-L1-1-L2-1-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "ef79012e-ee24-575f-addc-77d6d5b9226f",
+    "wbe_id": "3fc36af9-791f-5005-9803-e2fb8a9b62b9",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1",
     "code": "PRJ-DEMO-002-L1-1-L2-1-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "c6dcdfde-bfa2-5583-9f31-6502ef4abef6",
+    "wbe_id": "3fc36af9-791f-5005-9803-e2fb8a9b62b9",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1-L3-1",
     "code": "PRJ-DEMO-002-L1-1-L2-1-L3-1-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "fe668ddb-54a8-50c9-b2f9-9bef03724748",
+    "wbe_id": "a45c3f10-16bf-5880-a9f7-32cb0a258a45",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1-L3-1",
     "code": "PRJ-DEMO-002-L1-1-L2-1-L3-1-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "eb34faf1-1dbb-5b98-a45b-495cba3f0340",
+    "wbe_id": "a45c3f10-16bf-5880-a9f7-32cb0a258a45",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1-L3-1",
     "code": "PRJ-DEMO-002-L1-1-L2-1-L3-1-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "1b0e38ba-ba5f-5ed9-a387-bd9c0156ef33",
+    "wbe_id": "a45c3f10-16bf-5880-a9f7-32cb0a258a45",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1-L3-1",
     "code": "PRJ-DEMO-002-L1-1-L2-1-L3-1-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "a8ed82c1-9146-5ea7-90e5-babbb7772d3e",
+    "wbe_id": "a45c3f10-16bf-5880-a9f7-32cb0a258a45",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-1-L3-1",
     "code": "PRJ-DEMO-002-L1-1-L2-1-L3-1-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "34b38b7f-3801-5cc9-a6ad-22fe2792b442",
+    "wbe_id": "a45c3f10-16bf-5880-a9f7-32cb0a258a45",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2",
     "code": "PRJ-DEMO-002-L1-1-L2-2-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "a2a0040b-5122-5657-a555-8f955d74ce2e",
+    "wbe_id": "059ebf2d-0789-5340-98a6-2733478554f6",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2",
     "code": "PRJ-DEMO-002-L1-1-L2-2-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "5dde4c26-4131-5f2b-baf5-4d4f65fbeba4",
+    "wbe_id": "059ebf2d-0789-5340-98a6-2733478554f6",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2",
     "code": "PRJ-DEMO-002-L1-1-L2-2-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "6be0822c-7fc3-5bb0-9025-150fcd9c2799",
+    "wbe_id": "059ebf2d-0789-5340-98a6-2733478554f6",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2",
     "code": "PRJ-DEMO-002-L1-1-L2-2-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "0248f4ee-14a0-5ebd-8487-8b74f7234196",
+    "wbe_id": "059ebf2d-0789-5340-98a6-2733478554f6",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2",
     "code": "PRJ-DEMO-002-L1-1-L2-2-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "11c265be-2ade-5af5-80fe-0ae9c9f2ecc1",
+    "wbe_id": "059ebf2d-0789-5340-98a6-2733478554f6",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2-L3-1",
     "code": "PRJ-DEMO-002-L1-1-L2-2-L3-1-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "faecc50a-01b4-5632-b9a0-cc4a914ebf92",
+    "wbe_id": "306563e1-5cdf-51d7-a4b2-98f5922e7955",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2-L3-1",
     "code": "PRJ-DEMO-002-L1-1-L2-2-L3-1-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "5534969a-ee49-5c36-9c0f-c39619762a52",
+    "wbe_id": "306563e1-5cdf-51d7-a4b2-98f5922e7955",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2-L3-1",
     "code": "PRJ-DEMO-002-L1-1-L2-2-L3-1-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "ce3ce4c6-0b69-59a7-9d32-c99ffb14e83f",
+    "wbe_id": "306563e1-5cdf-51d7-a4b2-98f5922e7955",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2-L3-1",
     "code": "PRJ-DEMO-002-L1-1-L2-2-L3-1-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "c5e5d713-c754-524d-ba7d-82577d56c17f",
+    "wbe_id": "306563e1-5cdf-51d7-a4b2-98f5922e7955",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-1-L2-2-L3-1",
     "code": "PRJ-DEMO-002-L1-1-L2-2-L3-1-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "15a04d78-acb9-5e3c-bcd6-5412618ec321",
+    "wbe_id": "306563e1-5cdf-51d7-a4b2-98f5922e7955",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2",
     "code": "PRJ-DEMO-002-L1-2-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "db71aba0-33d1-5531-b3d3-404e3e7bc68b",
+    "wbe_id": "13793446-c32b-5682-85e4-3376841003ae",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2",
     "code": "PRJ-DEMO-002-L1-2-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "e9af0829-709d-5efe-a07c-af2821817234",
+    "wbe_id": "13793446-c32b-5682-85e4-3376841003ae",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2",
     "code": "PRJ-DEMO-002-L1-2-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "1bb170c0-28a6-540a-aeca-1eb277496dca",
+    "wbe_id": "13793446-c32b-5682-85e4-3376841003ae",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2",
     "code": "PRJ-DEMO-002-L1-2-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "831c2398-822f-5bfc-84c5-3bcdb54b4f17",
+    "wbe_id": "13793446-c32b-5682-85e4-3376841003ae",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2",
     "code": "PRJ-DEMO-002-L1-2-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "663b1c53-d3f4-571a-88f8-ecd720db6003",
+    "wbe_id": "13793446-c32b-5682-85e4-3376841003ae",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1",
     "code": "PRJ-DEMO-002-L1-2-L2-1-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "e8c6b05f-3040-5a50-961b-75d8b7877c3e",
+    "wbe_id": "5449b0d4-1cf3-53f3-b996-40e7ed144474",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1",
     "code": "PRJ-DEMO-002-L1-2-L2-1-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "b2dfb985-e5f9-5140-aea0-750f62d3ec30",
+    "wbe_id": "5449b0d4-1cf3-53f3-b996-40e7ed144474",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1",
     "code": "PRJ-DEMO-002-L1-2-L2-1-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "ac39ae5c-2892-5f2d-ae82-00df68c53c90",
+    "wbe_id": "5449b0d4-1cf3-53f3-b996-40e7ed144474",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1",
     "code": "PRJ-DEMO-002-L1-2-L2-1-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "b487446c-5dd4-522c-bace-01208df90c31",
+    "wbe_id": "5449b0d4-1cf3-53f3-b996-40e7ed144474",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1",
     "code": "PRJ-DEMO-002-L1-2-L2-1-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "7fa59408-2d89-59bb-8511-732388992943",
+    "wbe_id": "5449b0d4-1cf3-53f3-b996-40e7ed144474",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1-L3-1",
     "code": "PRJ-DEMO-002-L1-2-L2-1-L3-1-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "3a38f4a1-22df-5b15-aef6-2cc1b4f8a1fb",
+    "wbe_id": "fb4064a7-8fed-5459-bd87-73440c010974",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1-L3-1",
     "code": "PRJ-DEMO-002-L1-2-L2-1-L3-1-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "d8acd89c-2085-5a8a-8f37-157e2a5de19a",
+    "wbe_id": "fb4064a7-8fed-5459-bd87-73440c010974",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1-L3-1",
     "code": "PRJ-DEMO-002-L1-2-L2-1-L3-1-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "29485cca-aa91-597f-9fad-0b9ec475f3a8",
+    "wbe_id": "fb4064a7-8fed-5459-bd87-73440c010974",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1-L3-1",
     "code": "PRJ-DEMO-002-L1-2-L2-1-L3-1-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "cd25fde8-9c66-5166-b93a-0b169d7bc8d9",
+    "wbe_id": "fb4064a7-8fed-5459-bd87-73440c010974",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-1-L3-1",
     "code": "PRJ-DEMO-002-L1-2-L2-1-L3-1-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "d1d386bc-dbe3-543c-b31c-7493aaa99852",
+    "wbe_id": "fb4064a7-8fed-5459-bd87-73440c010974",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2",
     "code": "PRJ-DEMO-002-L1-2-L2-2-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "18f139da-d717-5c6e-b28b-e94c857b84ba",
+    "wbe_id": "4a4bbb14-6308-520d-b591-9ff0b4c65aad",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2",
     "code": "PRJ-DEMO-002-L1-2-L2-2-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "958f7b68-b17e-54c2-9341-c847c2e86d88",
+    "wbe_id": "4a4bbb14-6308-520d-b591-9ff0b4c65aad",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2",
     "code": "PRJ-DEMO-002-L1-2-L2-2-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "55ce9227-4ee5-5961-9dca-183146d4a9f3",
+    "wbe_id": "4a4bbb14-6308-520d-b591-9ff0b4c65aad",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2",
     "code": "PRJ-DEMO-002-L1-2-L2-2-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "bcaaab6f-ff9f-5ccd-9923-90abf9da4383",
+    "wbe_id": "4a4bbb14-6308-520d-b591-9ff0b4c65aad",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2",
     "code": "PRJ-DEMO-002-L1-2-L2-2-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "05129eaf-4aa9-5664-93e8-9978d6c95e1d",
+    "wbe_id": "4a4bbb14-6308-520d-b591-9ff0b4c65aad",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2-L3-1",
     "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1-CE-1",
     "name": "Cost Element 1",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "LAB",
-    "description": "Cost element of type LAB"
+    "description": "Cost element of type LAB",
+    "cost_element_id": "ed9d201e-0118-5e4f-bb49-0c741dbcfd05",
+    "wbe_id": "e91f8c2b-42d2-518e-acfd-7201280f9799",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2-L3-1",
     "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1-CE-2",
     "name": "Cost Element 2",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "MAT",
-    "description": "Cost element of type MAT"
+    "description": "Cost element of type MAT",
+    "cost_element_id": "8d8201c6-8533-5786-8b00-49485188c8c3",
+    "wbe_id": "e91f8c2b-42d2-518e-acfd-7201280f9799",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2-L3-1",
     "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1-CE-3",
     "name": "Cost Element 3",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "EQP",
-    "description": "Cost element of type EQP"
+    "description": "Cost element of type EQP",
+    "cost_element_id": "8233f89c-e594-50b6-ab0b-94f07fe68d22",
+    "wbe_id": "e91f8c2b-42d2-518e-acfd-7201280f9799",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2-L3-1",
     "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1-CE-4",
     "name": "Cost Element 4",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "SUB",
-    "description": "Cost element of type SUB"
+    "description": "Cost element of type SUB",
+    "cost_element_id": "55313237-02ac-5b0d-8cb7-d991d376ce10",
+    "wbe_id": "e91f8c2b-42d2-518e-acfd-7201280f9799",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e"
   },
   {
-    "wbe_code": "PRJ-DEMO-002-L1-2-L2-2-L3-1",
     "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1-CE-5",
     "name": "Cost Element 5",
     "budget_amount": 1000.0,
-    "cost_element_type_code": "TRV",
-    "description": "Cost element of type TRV"
+    "description": "Cost element of type TRV",
+    "cost_element_id": "8779acf4-8b15-5f71-9856-7d1095424caf",
+    "wbe_id": "e91f8c2b-42d2-518e-acfd-7201280f9799",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78"
   }
 ]

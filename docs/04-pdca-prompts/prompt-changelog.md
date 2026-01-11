@@ -4,14 +4,30 @@
 
 ---
 
+## 2026-01-10: Analysis prompt
+
+**Changes:**
+
+- included analysis prompt in cycle
+
+**Rationale:**
+
+- need to analyze requirements before planning
+
+**Effectiveness:**
+
+- TBD (first iteration with analysis prompt)
+
 ## 2025-12-29: Initial Merge
 
 **Changes:**
+
 - Merged `.agent/rules/` prompts (TDD/implementation focus) with iteration tracking templates
 - Created unified PLAN/DO/CHECK/ACT prompt structure
 - Added cross-references to documentation structure
 
 **Rationale:**
+
 - Needed single source of truth for PDCA process
 - Combined tactical (TDD) and strategic (iteration tracking) guidance
 - Integrated with new bounded-context documentation structure
@@ -25,13 +41,16 @@
 ### YYYY-MM-DD: [Change Description]
 
 **Changes:**
+
 - Bullet list of specific changes to prompts
 
 **Rationale:**
+
 - Why these changes were needed
 - What problem they solve
 
 **Effectiveness:**
+
 - How well did the changes work?
 - Metrics or observations
 - Further improvements needed?
@@ -53,10 +72,13 @@ When evolving prompts, assess:
 ## Meta-Learning Notes
 
 **Common Issues Requiring Prompt Updates:**
+
 - [To be filled as we learn]
 
 **Patterns That Work Well:**
+
 - [To be filled as we learn]
 
 **Anti-Patterns to Avoid:**
+
 - [To be filled as we learn]

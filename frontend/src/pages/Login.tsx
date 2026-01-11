@@ -5,6 +5,7 @@ import { UserOutlined, LockOutlined } from "@ant-design/icons";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthLayout } from "@/layouts/AuthLayout";
 import type { UserLogin } from "@/types/auth";
+import { getErrorMessage } from "@/utils/apiError";
 
 const { Text } = Typography;
 
@@ -25,16 +26,7 @@ export default function Login() {
       navigate(from, { replace: true });
     } catch (error: unknown) {
       // Handle login errors
-      const err = error as {
-        body?: { detail?: string };
-        response?: { data?: { detail?: string } };
-        message?: string;
-      };
-      const message =
-        err?.body?.detail ||
-        err?.response?.data?.detail ||
-        err?.message ||
-        "Login failed. Please check your credentials.";
+      const message = getErrorMessage(error);
       setErrorMessage(message);
     }
   };

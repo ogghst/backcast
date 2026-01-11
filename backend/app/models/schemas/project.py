@@ -23,7 +23,14 @@ class ProjectBase(BaseModel):
 class ProjectCreate(ProjectBase):
     """Schema for creating a new project."""
 
-    pass
+    project_id: UUID | None = Field(
+        None,
+        description="Root Project ID (internal use only for seeding)",
+        exclude=True,  # Exclude from OpenAPI docs
+    )
+    control_date: datetime | None = Field(
+        None, description="Optional control date for creation (valid_time start)"
+    )
 
 
 class ProjectUpdate(BaseModel):
@@ -35,6 +42,9 @@ class ProjectUpdate(BaseModel):
     start_date: datetime | None = None
     end_date: datetime | None = None
     description: str | None = Field(None, max_length=5000)
+    control_date: datetime | None = Field(
+        None, description="Optional control date for update (valid_time start)"
+    )
 
 
 class ProjectRead(ProjectBase):

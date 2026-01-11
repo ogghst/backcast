@@ -4,6 +4,7 @@ Provides WBE-specific operations with parent-child project relationship.
 """
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -16,6 +17,7 @@ from app.core.versioning.commands import (
     SoftDeleteCommand,
     UpdateVersionCommand,
 )
+from app.core.versioning.enums import BranchMode
 from app.core.versioning.service import TemporalService
 from app.models.domain.user import User
 from app.models.domain.wbe import WBE
@@ -61,21 +63,35 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
                 resolved.append(item)
         return resolved
 
-    def _get_base_stmt(self) -> Any:
-        """Get base select statement with parent name join."""
+    def _get_base_stmt(self, as_of: datetime | None = None) -> Any:
+        """Get base select statement with parent name join.
+
+        Args:
+            as_of: Optional timestamp for time-travel queries on parent names
+        """
         from typing import Any, cast
 
         from sqlalchemy import func
 
         Parent = aliased(WBE, name="parent_wbe")
 
-        # Subquery for current parent versions to avoid multiple rows
+        # Subquery for parent versions (current or as of specific time)
+        parent_where_clauses = [cast(Any, Parent).deleted_at.is_(None)]
+
+        if as_of:
+            # Get parent version valid at as_of time
+            parent_where_clauses.append(
+                cast(Any, Parent).valid_time.contains(as_of)
+            )
+        else:
+            # Get current parent version
+            parent_where_clauses.append(
+                func.upper(cast(Any, Parent).valid_time).is_(None)
+            )
+
         parent_subq = (
             select(Parent.wbe_id, Parent.name)
-            .where(
-                func.upper(cast(Any, Parent).valid_time).is_(None),
-                cast(Any, Parent).deleted_at.is_(None),
-            )
+            .where(*parent_where_clauses)
             .subquery("parent_lookup")
         )
 
@@ -94,6 +110,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
         sort_order: str = "asc",
         project_id: UUID | None = None,
         parent_wbe_id: UUID | None = None,
+        as_of: datetime | None = None,
     ) -> tuple[list[WBE], int]:
         """Get all WBEs with pagination, search, and filters.
 
@@ -108,6 +125,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
             sort_order: Sort order, either "asc" or "desc" (default: "asc")
             project_id: Optional project filter
             parent_wbe_id: Optional parent WBE filter
+            as_of: Optional timestamp for time-travel queries
 
         Returns:
             Tuple of (list of WBEs with parent_name, total count matching filters)
@@ -122,11 +140,17 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
         from app.core.filtering import FilterParser
 
         # Base query with parent name join
-        stmt = self._get_base_stmt().where(
-            WBE.branch == branch,
-            func.upper(cast(Any, WBE).valid_time).is_(None),
-            cast(Any, WBE).deleted_at.is_(None),
-        )
+        stmt = self._get_base_stmt(as_of=as_of).where(WBE.branch == branch)
+
+        # Apply time-travel filter
+        if as_of:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            # Get current version (open upper bound) and not deleted
+            stmt = stmt.where(
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
+            )
 
         # Apply project filter
         if project_id:
@@ -272,35 +296,57 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
         resolved = await self._resolve_parent_names(result.all())
         return resolved[0] if resolved else None
 
-    async def create_wbe(self, wbe_in: WBECreate, actor_id: UUID) -> WBE:
+    async def create_wbe(
+        self,
+        wbe_in: WBECreate,
+        actor_id: UUID,
+        control_date: datetime | None = None
+    ) -> WBE:
         """Create new WBE using CreateVersionCommand."""
-        wbe_data = wbe_in.model_dump()
+        wbe_data = wbe_in.model_dump(exclude_unset=True)
+        # Remove control_date from wbe_data if present to avoid conflict with explicit arg
+        wbe_data.pop("control_date", None)
 
-        # Generate root wbe_id
-        root_id = uuid4()
+        # Use provided wbe_id (for seeding) or generate new one
+        root_id = wbe_in.wbe_id or uuid4()
         wbe_data["wbe_id"] = root_id
 
         cmd = CreateVersionCommand(
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
+            control_date=control_date,
             **wbe_data,
         )
         return await cmd.execute(self.session)
 
-    async def update_wbe(self, wbe_id: UUID, wbe_in: WBEUpdate, actor_id: UUID) -> WBE:
+    async def update_wbe(
+        self,
+        wbe_id: UUID,
+        wbe_in: WBEUpdate,
+        actor_id: UUID,
+        control_date: datetime | None = None
+    ) -> WBE:
         """Update WBE using UpdateVersionCommand."""
         update_data = wbe_in.model_dump(exclude_unset=True)
+        # Remove control_date from update_data if present to avoid conflict with explicit arg
+        update_data.pop("control_date", None)
 
         cmd = UpdateVersionCommand(
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=wbe_id,
             actor_id=actor_id,
+            control_date=control_date,
             **update_data,
         )
         return await cmd.execute(self.session)
 
-    async def delete_wbe(self, wbe_id: UUID, actor_id: UUID) -> WBE:
+    async def delete_wbe(
+        self,
+        wbe_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None
+    ) -> WBE:
         """Soft delete WBE with cascade to children.
 
         Deletes the WBE and all its descendants recursively.
@@ -309,6 +355,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
         Args:
             wbe_id: Root WBE ID to delete
             actor_id: User performing the delete
+            control_date: Optional control date for deletion
 
         Returns:
             The deleted WBE (root)
@@ -331,6 +378,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
                 entity_class=WBE,  # type: ignore[type-var,unused-ignore]
                 root_id=descendant.wbe_id,
                 actor_id=actor_id,
+                control_date=control_date,
             )
             await cmd.execute(self.session)
 
@@ -339,6 +387,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=wbe_id,
             actor_id=actor_id,
+            control_date=control_date,
         )
         return await cmd.execute(self.session)
 
@@ -620,3 +669,38 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
             history.append(wbe)
 
         return history
+
+    async def get_wbe_as_of(
+        self,
+        wbe_id: UUID,
+        as_of: datetime,
+        branch: str = "main",
+        branch_mode: BranchMode | None = None,
+    ) -> WBE | None:
+        """Get WBE as it was at specific timestamp.
+
+        Provides System Time Travel semantics for single-entity queries.
+        Uses STRICT mode by default (only searches in specified branch).
+        Use BranchMode.MERGE to fall back to main branch if not found.
+
+        Args:
+            wbe_id: The unique identifier of the WBE
+            as_of: Timestamp to query (historical state)
+            branch: Branch name to query (default: "main")
+            branch_mode: Resolution mode for branches
+                - None/STRICT: Only return from specified branch (default)
+                - MERGE: Fall back to main if not found on branch
+
+        Returns:
+            WBE if found at the specified timestamp, None otherwise
+
+        Example:
+            >>> # Get WBE as of January 1st
+            >>> from datetime import datetime
+            >>> as_of = datetime(2026, 1, 1, 12, 0, 0)
+            >>> wbe = await service.get_wbe_as_of(
+            ...     wbe_id=uuid,
+            ...     as_of=as_of
+            ... )
+        """
+        return await self.get_as_of(wbe_id, as_of, branch, branch_mode)

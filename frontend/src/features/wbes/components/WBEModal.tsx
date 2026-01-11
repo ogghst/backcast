@@ -45,7 +45,7 @@ export const WBEModal = ({
 
   const displayParentName = isEdit
     ? initialValues?.parent_wbe_id
-      ? (initialValues as any).parent_name || initialValues.parent_wbe_id
+      ? initialValues.parent_name || initialValues.parent_wbe_id
       : "Project Root"
     : parentWbeId
       ? parentName || parentWbeId

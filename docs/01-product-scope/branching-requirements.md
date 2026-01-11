@@ -79,7 +79,9 @@ This dual-time tracking enables:
 - Parent relationships preserved
 - Branch metadata stamped on all versions
 
-**API Endpoint:**
+**Implementation Status:** 🔴 API endpoint not implemented - Service layer only
+
+**API Endpoint (Not Implemented):**
 ```
 POST /api/v1/branches
 {
@@ -89,7 +91,7 @@ POST /api/v1/branches
 }
 ```
 
-**Service Method:**
+**Service Method (Available):**
 ```python
 BranchableService.create_branch(
     root_id=UUID,
@@ -98,7 +100,7 @@ BranchableService.create_branch(
 )
 ```
 
-**Trigger:** Automatic when change order is created
+**Trigger:** Automatic when change order is created (planned)
 
 ---
 
@@ -112,10 +114,11 @@ BranchableService.create_branch(
 - Version chain (parent_id) maintained within branch
 - All modifications tracked with audit info
 
+**Implementation Status:** ✅ Implemented via branch query parameter
+
 **API Endpoint:**
 ```
-PUT /api/v1/projects/{project_id}
-Headers: X-Branch: co-abc123-def456
+PUT /api/v1/projects/{project_id}?branch=co-abc123-def456
 {...updates...}
 ```
 
@@ -142,7 +145,9 @@ BranchableService.update(
 - Calculate budget/cost variances
 - Generate comparison report
 
-**API Endpoint:**
+**Implementation Status:** 🔴 Not implemented
+
+**API Endpoint (Planned):**
 ```
 GET /api/v1/branches/compare?source=co-abc123-def456&target=main
 ```
@@ -170,7 +175,9 @@ GET /api/v1/branches/compare?source=co-abc123-def456&target=main
 - Stamp with `merge_from_branch` for traceability
 - Preserve merge history in version chain
 
-**API Endpoint:**
+**Implementation Status:** 🔴 API endpoint not implemented - Service layer only
+
+**API Endpoint (Not Implemented):**
 ```
 POST /api/v1/branches/merge
 {
@@ -179,7 +186,7 @@ POST /api/v1/branches/merge
 }
 ```
 
-**Service Method:**
+**Service Method (Available):**
 ```python
 BranchableService.merge_branch(
     root_id=UUID,
@@ -195,9 +202,9 @@ BranchableService.merge_branch(
 - Manual: Future enhancement for three-way merge
 
 **Post-Merge:**
-- Source branch locked
+- Source branch locked (planned)
 - Audit trail updated
-- Notifications sent
+- Notifications sent (planned)
 
 ---
 
@@ -210,7 +217,9 @@ BranchableService.merge_branch(
 - Enforced at repository layer
 - Visual indicators in UI
 
-**API Endpoint:**
+**Implementation Status:** 🔴 Not implemented
+
+**API Endpoint (Planned):**
 ```
 PUT /api/v1/branches/{branch_name}/lock
 { "locked": true }
@@ -229,7 +238,9 @@ PUT /api/v1/branches/{branch_name}/lock
 - Archive option preserves history
 - Confirmation required
 
-**API Endpoint:**
+**Implementation Status:** 🔴 Not implemented
+
+**API Endpoint (Planned):**
 ```
 DELETE /api/v1/branches/{branch_name}
 ```
@@ -272,8 +283,8 @@ Need version history?
 | Entity | Protocol | Reason |
 |--------|----------|--------|
 | User | Versionable | Audit trail needed, no CO workflow |
-| Department | Simple | Reference data, standard CRUD |
-| Cost Element Type | Simple | Organizational categories |
+| Department | Versionable | Organizational structure with history tracking |
+| Cost Element Type | Versionable | Reference data with change history |
 
 ---
 

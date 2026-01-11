@@ -1,5 +1,6 @@
 [
   {
+    "user_id": "e03556f3-4385-5d68-a685-af307fc8af5c",
     "email": "admin@backcast.org",
     "password": "adminadmin",
     "full_name": "System Administrator",
@@ -7,6 +8,7 @@
     "department": "ADMIN"
   },
   {
+    "user_id": "85b44758-76ab-5a80-9d47-836a09d00e03",
     "email": "viewer@backcast.org",
     "password": "backcast",
     "full_name": "Viewer User",
@@ -14,6 +16,7 @@
     "department": "ENG"
   },
   {
+    "user_id": "533a7e61-6b73-5978-a751-7862efa734f7",
     "email": "pm@backcast.org",
     "password": "backcast",
     "full_name": "Project Manager",
@@ -21,6 +24,7 @@
     "department": "PM"
   },
   {
+    "user_id": "dce2e861-bdb7-5887-beaf-6a22837d266d",
     "email": "eng.lead@backcast.org",
     "password": "backcast",
     "full_name": "Engineering Lead",
@@ -28,6 +32,7 @@
     "department": "ENG"
   },
   {
+    "user_id": "10bce202-8321-5208-8c9c-1fa8269e48fa",
     "email": "const.super@backcast.org",
     "password": "backcast",
     "full_name": "Construction Super",

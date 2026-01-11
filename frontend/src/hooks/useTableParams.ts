@@ -16,7 +16,7 @@ export interface TableParams<
 }
 
 export const useTableParams = <
-  TEntity extends object = Record<string, any>,
+  TEntity extends object = Record<string, unknown>,
   TFilters extends Record<string, FilterValue | null> = Record<
     string,
     FilterValue | null

@@ -1,5 +1,6 @@
 [
   {
+    "project_id": "d54fbbe6-f3df-51db-9c3e-9408700442be",
     "code": "PRJ-DEMO-001",
     "name": "Demo Project 1",
     "budget": 1000000.0,
@@ -9,6 +10,7 @@
     "end_date": "2027-01-07T05:49:36.993839"
   },
   {
+    "project_id": "877c4cba-b30e-54c1-b25d-c73fb364019d",
     "code": "PRJ-DEMO-002",
     "name": "Demo Project 2",
     "budget": 1000000.0,

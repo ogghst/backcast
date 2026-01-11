@@ -1,5 +1,6 @@
 """Pydantic schemas for Cost Element."""
 
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -18,8 +19,16 @@ class CostElementBase(BaseModel):
 class CostElementCreate(CostElementBase):
     """Properties required for creating a Cost Element."""
 
+    cost_element_id: UUID | None = Field(
+        None,
+        description="Root Cost Element ID (internal use only for seeding)",
+        exclude=True,  # Exclude from OpenAPI docs
+    )
     wbe_id: UUID
     cost_element_type_id: UUID
+    control_date: datetime | None = Field(
+        None, description="Optional control date for creation (valid_time start)"
+    )
 
 
 class CostElementUpdate(BaseModel):
@@ -30,6 +39,9 @@ class CostElementUpdate(BaseModel):
     budget_amount: Decimal | None = Field(None, ge=0, decimal_places=2)
     description: str | None = None
     cost_element_type_id: UUID | None = None
+    control_date: datetime | None = Field(
+        None, description="Optional control date for update (valid_time start)"
+    )
 
 
 class CostElementRead(CostElementBase):

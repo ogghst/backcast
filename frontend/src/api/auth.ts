@@ -1,5 +1,5 @@
 import { AuthenticationService, Body_login } from "@/api/generated";
-import { apiClient } from "@/api/client";
+
 import type { Token, UserLogin, UserPublic } from "@/types/auth";
 
 /**

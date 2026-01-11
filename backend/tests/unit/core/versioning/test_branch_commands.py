@@ -28,7 +28,7 @@ class TestBranchCommands:
             entity_class=Project,
             root_id=root_id,
             actor_id=actor_id,
-            project_id=str(root_id),
+            project_id=root_id,
             code="PROJ-001",
             name="Main Project",
             branch="main",
@@ -53,7 +53,7 @@ class TestBranchCommands:
 
         # 3. Verify main still exists and is separate
         stmt = select(Project).where(
-            Project.project_id == str(root_id),
+            Project.project_id == root_id,
             Project.branch == "main",
             Project.deleted_at.is_(None),
             func.upper(Project.valid_time).is_(None),

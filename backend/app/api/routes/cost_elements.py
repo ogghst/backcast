@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -50,6 +51,10 @@ async def read_cost_elements(
         pattern="^(asc|desc)$",
         description="Sort order (asc or desc)",
     ),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get Cost Elements as of this timestamp (ISO 8601)",
+    ),
     service: CostElementService = Depends(get_cost_element_service),
 ) -> dict[str, Any]:
     """Retrieve cost elements with server-side search, filtering, and sorting."""
@@ -74,6 +79,7 @@ async def read_cost_elements(
         filter_string=filters,
         sort_field=sort_field,
         sort_order=sort_order,
+        as_of=as_of,
     )
 
     # Convert to Pydantic models
@@ -106,7 +112,10 @@ async def create_cost_element(
     """Create a new cost element in specified branch."""
     try:
         return await service.create(
-            element_in=element_in, actor_id=current_user.user_id, branch=branch
+            element_in=element_in,
+            actor_id=current_user.user_id,
+            branch=branch,
+            control_date=element_in.control_date
         )
     except Exception as e:
         raise HTTPException(
@@ -124,14 +133,28 @@ async def create_cost_element(
 async def read_cost_element(
     cost_element_id: UUID,
     branch: str = Query("main", description="Branch to query"),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get cost element state as of this timestamp (ISO 8601)",
+    ),
     service: CostElementService = Depends(get_cost_element_service),
 ) -> CostElement:
-    """Get a specific cost element by id and branch."""
-    item = await service.get_by_id(cost_element_id, branch=branch)
+    """Get a specific cost element by id and branch.
+
+    Supports time-travel queries via the as_of parameter to view
+    the cost element's state at any historical point in time.
+    """
+    if as_of:
+        # Time travel query
+        item = await service.get_cost_element_as_of(cost_element_id, as_of)
+    else:
+        # Current version
+        item = await service.get_by_id(cost_element_id, branch=branch)
+
     if not item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Cost Element not found in branch {branch}",
+            detail=f"Cost Element not found in branch {branch}" + (f" as of {as_of}" if as_of else ""),
         )
     return item
 
@@ -161,6 +184,7 @@ async def update_cost_element(
             element_in=element_in,
             actor_id=current_user.user_id,
             branch=branch,
+            control_date=element_in.control_date
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -175,6 +199,7 @@ async def update_cost_element(
 async def delete_cost_element(
     cost_element_id: UUID,
     branch: str = Query("main", description="Branch to delete from"),
+    control_date: datetime | None = Query(None, description="Optional control date for deletion"),
     current_user: User = Depends(get_current_active_user),
     service: CostElementService = Depends(get_cost_element_service),
 ) -> None:
@@ -191,6 +216,7 @@ async def delete_cost_element(
             cost_element_id=cost_element_id,
             actor_id=current_user.user_id,
             branch=branch,
+            control_date=control_date
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

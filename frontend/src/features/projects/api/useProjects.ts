@@ -1,4 +1,12 @@
-import { createResourceHooks } from "@/hooks/useCrud";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  UseQueryOptions,
+  UseMutationOptions,
+} from "@tanstack/react-query";
+import { toast } from "sonner";
+import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import {
   ProjectsService,
   type ProjectRead,
@@ -8,45 +16,32 @@ import {
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
 import type { PaginatedResponse } from "@/types/api";
-
-/**
- * Parameters for server-side filtering, search, and sorting.
- */
-interface ServerSideParams {
-  page?: number;
-  per_page?: number;
+// Custom params interface
+export interface ProjectListParams {
+  pagination?: {
+    current?: number;
+    pageSize?: number;
+  };
+  filters?: Record<string, string | string[] | null | undefined>;
+  sorter?: {
+    field?: string | string[];
+    order?: string;
+  };
   search?: string;
-  filters?: string;
-  sort_field?: string;
-  sort_order?: "asc" | "desc";
-  branch?: string;
+  sortField?: string;
+  sortOrder?: string;
+  queryOptions?: unknown;
 }
 
 /**
- * Call the new paginated projects API with server-side filtering.
+/**
+ * Parameters for server-side filtering, search, and sorting.
  */
-const getProjectsPaginated = async (
-  params?: ServerSideParams
-): Promise<PaginatedResponse<ProjectRead>> => {
-  return __request(OpenAPI, {
-    method: "GET",
-    url: "/api/v1/projects",
-    query: {
-      page: params?.page || 1,
-      per_page: params?.per_page || 20,
-      branch: params?.branch || "main",
-      search: params?.search,
-      filters: params?.filters,
-      sort_field: params?.sort_field,
-      sort_order: params?.sort_order,
-    },
-  });
-};
 
 /**
  * Helper to extract pagination params from filters object.
  */
-const getPaginationParams = (params?: any) => {
+const getPaginationParams = (params?: ProjectListParams) => {
   const current = params?.pagination?.current || 1;
   const pageSize = params?.pagination?.pageSize || 20;
 
@@ -77,30 +72,152 @@ const getPaginationParams = (params?: any) => {
     search: params?.search,
     filters: filterString,
     sort_field: sortField,
-    sort_order: sortOrder,
+    sort_order: (sortOrder === "desc" ? "desc" : "asc") as "asc" | "desc",
   };
 };
 
-// Direct usage of ProjectsService with named methods (no adapter needed)
-export const {
-  useList: useProjects,
-  useDetail: useProject,
-  useCreate: useCreateProject,
-  useUpdate: useUpdateProject,
-  useDelete: useDeleteProject,
-} = createResourceHooks<
-  ProjectRead,
-  ProjectCreate,
-  ProjectUpdate,
-  PaginatedResponse<ProjectRead>
->("projects", {
-  list: async (params) => {
-    const serverParams = getPaginationParams(params);
-    const res = await getProjectsPaginated(serverParams);
-    return res;
-  },
-  detail: ProjectsService.getProject,
-  create: ProjectsService.createProject,
-  update: ProjectsService.updateProject,
-  delete: ProjectsService.deleteProject,
-});
+// Custom useProjects list hook with Time Machine integration
+export const useProjects = (params?: ProjectListParams) => {
+  const { asOf } = useTimeMachineParams();
+
+  return useQuery({
+    queryKey: ["projects", params, { asOf }],
+    queryFn: async () => {
+      const serverParams = getPaginationParams(params);
+
+      // Manual request to support as_of query param
+      return __request(OpenAPI, {
+        method: "GET",
+        url: "/api/v1/projects",
+        query: {
+          ...serverParams,
+          as_of: asOf || undefined,
+        },
+      }) as Promise<PaginatedResponse<ProjectRead>>;
+    },
+    ...params?.queryOptions,
+  });
+};
+
+/**
+ * Custom create hook with Time Machine integration.
+ * Automatically injects control_date from TimeMachine context.
+ */
+export const useCreateProject = (
+  mutationOptions?: Omit<
+    UseMutationOptions<ProjectRead, Error, ProjectCreate>,
+    "mutationFn"
+  >
+) => {
+  const { asOf } = useTimeMachineParams();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: ProjectCreate) => {
+      const payload = { ...data, control_date: asOf || null };
+      return ProjectsService.createProject(payload);
+    },
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      toast.success("Created successfully");
+      mutationOptions?.onSuccess?.(...args);
+    },
+    onError: (error, ...args) => {
+      toast.error(`Error creating: ${error.message}`);
+      mutationOptions?.onError?.(error, ...args);
+    },
+    ...mutationOptions,
+  });
+};
+
+/**
+ * Custom update hook with Time Machine integration.
+ * Automatically injects control_date from TimeMachine context.
+ */
+export const useUpdateProject = (
+  mutationOptions?: Omit<
+    UseMutationOptions<ProjectRead, Error, { id: string; data: ProjectUpdate }>,
+    "mutationFn"
+  >
+) => {
+  const { asOf } = useTimeMachineParams();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: ProjectUpdate }) => {
+      const payload = { ...data, control_date: asOf || null };
+      return ProjectsService.updateProject(id, payload);
+    },
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      toast.success("Updated successfully");
+      mutationOptions?.onSuccess?.(...args);
+    },
+    onError: (error, ...args) => {
+      toast.error(`Error updating: ${error.message}`);
+      mutationOptions?.onError?.(error, ...args);
+    },
+    ...mutationOptions,
+  });
+};
+
+/**
+ * Custom delete hook with Time Machine integration.
+ * Automatically injects control_date from TimeMachine context as a query parameter.
+ */
+export const useDeleteProject = (
+  mutationOptions?: Omit<UseMutationOptions<void, Error, string>, "mutationFn">
+) => {
+  const { asOf } = useTimeMachineParams();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => {
+      return __request(OpenAPI, {
+        method: "DELETE",
+        url: "/api/v1/projects/{project_id}",
+        path: {
+          project_id: id,
+        },
+        query: asOf ? { control_date: asOf } : undefined,
+      }) as Promise<void>;
+    },
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      toast.success("Deleted successfully");
+      mutationOptions?.onSuccess?.(...args);
+    },
+    onError: (error, ...args) => {
+      toast.error(`Error deleting: ${error.message}`);
+      mutationOptions?.onError?.(error, ...args);
+    },
+    ...mutationOptions,
+  });
+};
+
+/**
+ * Custom useProject hook with time-travel support.
+ * Automatically injects as_of parameter from TimeMachine context.
+ */
+export const useProject = (
+  id: string | undefined,
+  queryOptions?: Omit<UseQueryOptions<ProjectRead, Error>, "queryKey">
+) => {
+  const { asOf } = useTimeMachineParams();
+
+  return useQuery({
+    queryKey: ["projects", "detail", id, { asOf }],
+    queryFn: async () => {
+      if (!id) throw new Error("Project ID is required");
+
+      // Call the API with as_of parameter if available
+      return __request(OpenAPI, {
+        method: "GET",
+        url: `/api/v1/projects/${id}`,
+        query: asOf ? { as_of: asOf } : undefined,
+      }) as Promise<ProjectRead>;
+    },
+    enabled: !!id,
+    ...queryOptions,
+  });
+};

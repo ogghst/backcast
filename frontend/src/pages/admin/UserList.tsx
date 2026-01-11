@@ -23,9 +23,7 @@ import type { PaginatedResponse } from "@/types/api";
 
 // Create hooks instance
 const userApi = {
-  list: async (_params?: {
-    pagination?: { current?: number; pageSize?: number };
-  }): Promise<PaginatedResponse<User>> => {
+  list: async (): Promise<PaginatedResponse<User>> => {
     // Fetch ALL users for client-side pagination and filtering
     // We ignore the pagination params because Ant Design will handle pagination client-side
     // This is acceptable for user management since user count is typically small (< 1000)
@@ -67,7 +65,7 @@ export const UserList = () => {
     UserFilters
   >();
   const { data, isLoading, refetch } = useList(tableParams);
-  const users = data?.items || [];
+  const users = useMemo(() => data?.items || [], [data]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);

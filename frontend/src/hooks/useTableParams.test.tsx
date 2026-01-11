@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { MemoryRouter, useSearchParams } from "react-router-dom";
 import { useTableParams } from "./useTableParams";
+import type { TablePaginationConfig } from "antd/es/table";
 
 // Helper to inspect URL params
 const useURLParams = () => {
@@ -44,7 +45,7 @@ describe("useTableParams", () => {
       result.current.handleTableChange({ current: 2, pageSize: 20 }, {}, {
         field: "name",
         order: "ascend",
-      } as any);
+      } as TablePaginationConfig);
     });
 
     expect(result.current.tableParams.pagination.current).toBe(2);

@@ -1,5 +1,6 @@
 """Cost Element Type Service - versionable entity management."""
 
+from datetime import datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -11,6 +12,7 @@ from app.core.versioning.commands import (
     SoftDeleteCommand,
     UpdateVersionCommand,
 )
+from app.core.versioning.enums import BranchMode
 from app.core.versioning.service import TemporalService
 from app.models.domain.cost_element_type import CostElementType
 from app.models.schemas.cost_element_type import (
@@ -34,10 +36,10 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         self, type_in: CostElementTypeCreate, actor_id: UUID
     ) -> CostElementType:
         """Create new cost element type using CreateVersionCommand."""
-        type_data = type_in.model_dump()
+        type_data = type_in.model_dump(exclude_unset=True)
 
-        # Ensure root cost_element_type_id exists
-        root_id = uuid4()
+        # Use provided cost_element_type_id (for seeding) or generate new one
+        root_id = type_in.cost_element_type_id or uuid4()
         type_data["cost_element_type_id"] = root_id
 
         cmd = CreateVersionCommand(
@@ -70,7 +72,9 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         )
         return await cmd.execute(self.session)
 
-    async def soft_delete(self, cost_element_type_id: UUID, actor_id: UUID) -> None:
+    async def soft_delete(
+        self, cost_element_type_id: UUID, actor_id: UUID, control_date: datetime | None = None
+    ) -> None:
         """Soft delete cost element type using SoftDeleteCommand."""
 
         class CostElementTypeSoftDeleteCommand(SoftDeleteCommand[CostElementType]):  # type: ignore[type-var,unused-ignore]
@@ -81,6 +85,7 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
             entity_class=CostElementType,  # type: ignore[type-var,unused-ignore]
             root_id=cost_element_type_id,
             actor_id=actor_id,
+            control_date=control_date,
         )
         await cmd.execute(self.session)
 
@@ -175,3 +180,38 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
             filters=filters, skip=skip, limit=limit
         )
         return items
+
+    async def get_cost_element_type_as_of(
+        self,
+        cost_element_type_id: UUID,
+        as_of: datetime,
+        branch: str = "main",
+        branch_mode: BranchMode | None = None,
+    ) -> CostElementType | None:
+        """Get cost element type as it was at specific timestamp.
+
+        Provides System Time Travel semantics for single-entity queries.
+        Uses STRICT mode by default (only searches in specified branch).
+        Use BranchMode.MERGE to fall back to main branch if not found.
+
+        Args:
+            cost_element_type_id: The unique identifier of the cost element type
+            as_of: Timestamp to query (historical state)
+            branch: Branch name to query (default: "main")
+            branch_mode: Resolution mode for branches
+                - None/STRICT: Only return from specified branch (default)
+                - MERGE: Fall back to main if not found on branch
+
+        Returns:
+            CostElementType if found at the specified timestamp, None otherwise
+
+        Example:
+            >>> # Get cost element type as of January 1st
+            >>> from datetime import datetime
+            >>> as_of = datetime(2026, 1, 1, 12, 0, 0)
+            >>> element_type = await service.get_cost_element_type_as_of(
+            ...     cost_element_type_id=uuid,
+            ...     as_of=as_of
+            ... )
+        """
+        return await self.get_as_of(cost_element_type_id, as_of, branch, branch_mode)

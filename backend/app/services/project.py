@@ -3,6 +3,7 @@
 Provides Project-specific operations on top of generic temporal service.
 """
 
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -13,6 +14,7 @@ from app.core.versioning.commands import (
     SoftDeleteCommand,
     UpdateVersionCommand,
 )
+from app.core.versioning.enums import BranchMode
 from app.core.versioning.service import TemporalService
 from app.models.domain.project import Project
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
@@ -37,6 +39,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         filters: str | None = None,
         sort_field: str | None = None,
         sort_order: str = "asc",
+        as_of: datetime | None = None,
     ) -> tuple[list[Project], int]:
         """Get all projects with pagination, search, and filters.
 
@@ -49,6 +52,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
                      Example: "status:Active;budget:>100000"
             sort_field: Field name to sort by (e.g., "name", "code", "budget")
             sort_order: Sort order, either "asc" or "desc" (default: "asc")
+            as_of: Optional timestamp for time-travel queries
 
         Returns:
             Tuple of (list of projects, total count matching filters)
@@ -76,12 +80,19 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
 
         from app.core.filtering import FilterParser
 
-        # Base query: current versions in specified branch, not deleted
-        stmt = select(Project).where(
-            Project.branch == branch,
-            func.upper(cast(Any, Project).valid_time).is_(None),
-            cast(Any, Project).deleted_at.is_(None),
-        )
+        # Base query: versions in specified branch, not deleted
+        # Base query: versions in specified branch
+        stmt = select(Project).where(Project.branch == branch)
+
+        # Apply time-travel filter
+        if as_of:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            # Get current version (open upper bound) and not deleted
+            stmt = stmt.where(
+                func.upper(cast(Any, Project).valid_time).is_(None),
+                cast(Any, Project).deleted_at.is_(None),
+            )
 
         # Apply search (across code and name)
         if search:
@@ -155,47 +166,99 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         return result.scalar_one_or_none()
 
     async def create_project(
-        self, project_in: ProjectCreate, actor_id: UUID
+        self,
+        project_in: ProjectCreate,
+        actor_id: UUID,
+        control_date: datetime | None = None
     ) -> Project:
         """Create new project using CreateVersionCommand."""
-        project_data = project_in.model_dump()
+        project_data = project_in.model_dump(exclude_unset=True)
+        project_data.pop("control_date", None)
 
-        # Generate root project_id
-        root_id = uuid4()
+        # Use provided project_id (for seeding) or generate new one
+        root_id = project_in.project_id or uuid4()
         project_data["project_id"] = root_id
 
         cmd = CreateVersionCommand(
             entity_class=Project,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
+            control_date=control_date,
             **project_data,
         )
         return await cmd.execute(self.session)
 
     async def update_project(
-        self, project_id: UUID, project_in: ProjectUpdate, actor_id: UUID
+        self,
+        project_id: UUID,
+        project_in: ProjectUpdate,
+        actor_id: UUID,
+        control_date: datetime | None = None
     ) -> Project:
         """Update project using UpdateVersionCommand."""
         # Filter None values from update data
         update_data = project_in.model_dump(exclude_unset=True)
+        update_data.pop("control_date", None)
 
         cmd = UpdateVersionCommand(
             entity_class=Project,  # type: ignore[type-var,unused-ignore]
             root_id=project_id,
             actor_id=actor_id,
+            control_date=control_date,
             **update_data,
         )
         return await cmd.execute(self.session)
 
-    async def delete_project(self, project_id: UUID, actor_id: UUID) -> Project:
+    async def delete_project(
+        self,
+        project_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None
+    ) -> Project:
         """Soft delete project using SoftDeleteCommand."""
         cmd = SoftDeleteCommand(
             entity_class=Project,  # type: ignore[type-var,unused-ignore]
             root_id=project_id,
             actor_id=actor_id,
+            control_date=control_date,
         )
         return await cmd.execute(self.session)
 
     async def get_project_history(self, project_id: UUID) -> list[Project]:
         """Get all versions of a project by root project_id (with creator name)."""
         return await self.get_history(project_id)
+
+    async def get_project_as_of(
+        self,
+        project_id: UUID,
+        as_of: datetime,
+        branch: str = "main",
+        branch_mode: BranchMode | None = None,
+    ) -> Project | None:
+        """Get project as it was at specific timestamp.
+
+        Provides System Time Travel semantics for single-entity queries.
+        Uses STRICT mode by default (only searches in specified branch).
+        Use BranchMode.MERGE to fall back to main branch if not found.
+
+        Args:
+            project_id: The unique identifier of the project
+            as_of: Timestamp to query (historical state)
+            branch: Branch name to query (default: "main")
+            branch_mode: Resolution mode for branches
+                - None/STRICT: Only return from specified branch (default)
+                - MERGE: Fall back to main if not found on branch
+
+        Returns:
+            Project if found at the specified timestamp, None otherwise
+
+        Example:
+            >>> # Get project as of January 1st
+            >>> from datetime import datetime
+            >>> as_of = datetime(2026, 1, 1, 12, 0, 0)
+            >>> project = await service.get_project_as_of(
+            ...     project_id=uuid,
+            ...     as_of=as_of
+            ... )
+        """
+        return await self.get_as_of(project_id, as_of, branch, branch_mode)
