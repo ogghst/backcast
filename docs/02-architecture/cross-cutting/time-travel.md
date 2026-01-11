@@ -293,6 +293,32 @@ stmt = self._apply_bitemporal_filter(stmt, as_of)
 
 ---
 
+## Implementation Notes
+
+### get_as_of Availability
+
+The `TemporalService.get_as_of()` method is fully implemented and supports:
+- **STRICT mode** (default): Only search in specified branch
+- **MERGE mode**: Fall back to main branch if not found on specified branch
+- Full bitemporal filtering with System Time Travel semantics
+- Proper handling of deleted entities on branches
+
+However, individual service classes (e.g., `ProjectService`, `WBEService`, `CostElementService`) do not currently expose this method directly in their public interfaces. The `get_as_of` method is available in the base `TemporalService` class but not propagated to service-specific APIs.
+
+**Workaround:** Use list endpoints with `as_of` parameter for time-travel queries, or call `TemporalService.get_as_of()` directly.
+
+**Related Technical Debt:** [TD-026: Expose get_as_of in Service Interfaces](../../03-project-plan/technical-debt-register.md#td-026-expose-get_as_of-in-service-interfaces)
+
+### Zombie Check Tests
+
+The zombie check pattern documented above is a best-practice TDD pattern for verifying bitemporal deletion behavior. However, this specific test pattern has not yet been implemented in the test suite.
+
+**Recommended:** Add zombie check tests to verify that soft-deleted entities:
+1. Remain visible for queries targeting timestamps before their deletion
+2. Disappear for queries targeting timestamps after their deletion
+
+---
+
 ## Related Documentation
 
 - [ADR-005: Bitemporal Versioning](../decisions/ADR-005-bitemporal-versioning.md) - Architecture decision record
