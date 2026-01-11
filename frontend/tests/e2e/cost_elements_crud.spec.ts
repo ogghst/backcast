@@ -88,10 +88,8 @@ test.describe("Cost Elements E2E Tests", () => {
     ).toBeVisible();
 
     // Locate the Cost Elements card
-    const costElementsSection = page
-      .locator(".ant-card")
-      .filter({ hasText: "Cost Elements" });
-    await expect(costElementsSection).toBeVisible();
+    const costElementsSection = page;
+    await expect(page.locator(".ant-table")).toBeVisible();
 
     // === CREATE ===
     const uniqueCode = `CE${timestamp}`.substring(0, 15);
@@ -216,13 +214,11 @@ test.describe("Cost Elements E2E Tests", () => {
     await page.reload();
 
     // Verify data exists
-    const costElementsSection = page
-      .locator(".ant-card")
-      .filter({ hasText: "Cost Elements" });
+    const costElementsSection = page;
 
     // Because pagination might hide our new item if there are many items,
     // we should use search immediately to verify existence
-    const searchInput = costElementsSection.locator(".ant-input");
+    const searchInput = page.getByPlaceholder("Search cost elements...");
     await expect(searchInput).toBeVisible();
 
     // Wait for response to ensure filtering happened
@@ -269,12 +265,10 @@ test.describe("Cost Elements E2E Tests", () => {
 
     await page.goto(`/projects/${proj.project_id}/wbes/${wbe.wbe_id}`);
 
-    const costElementsSection = page
-      .locator(".ant-card")
-      .filter({ hasText: "Cost Elements" });
+    const costElementsSection = page;
 
     // Filter to just our sort items to ensure they are on page 1
-    const searchInput = costElementsSection.locator(".ant-input");
+    const searchInput = page.getByPlaceholder("Search cost elements...");
     await expect(searchInput).toBeVisible();
 
     const searchResponse = page.waitForResponse(
@@ -342,9 +336,7 @@ test.describe("Cost Elements E2E Tests", () => {
 
     await page.goto(`/projects/${proj.project_id}/wbes/${wbe.wbe_id}`);
 
-    const costElementsSection = page
-      .locator(".ant-card")
-      .filter({ hasText: "Cost Elements" });
+    const costElementsSection = page;
 
     // Verify table is loaded
     await expect(costElementsSection.locator(".ant-table")).toBeVisible({

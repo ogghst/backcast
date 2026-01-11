@@ -4,6 +4,7 @@ import { WBEList } from "./WBEList";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConfigProvider } from "antd";
 import { MemoryRouter } from "react-router-dom";
+import { TimeMachineProvider } from "@/contexts/TimeMachineContext";
 
 // Mock Can component to bypass RBAC
 vi.mock("@/components/auth/Can", () => ({
@@ -69,7 +70,9 @@ const createWrapper = () => {
   return ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>
       <ConfigProvider>
-        <MemoryRouter>{children}</MemoryRouter>
+        <TimeMachineProvider>
+          <MemoryRouter>{children}</MemoryRouter>
+        </TimeMachineProvider>
       </ConfigProvider>
     </QueryClientProvider>
   );

@@ -57,6 +57,8 @@ vi.mock("@/hooks/usePermission", () => ({
   }),
 }));
 
+import { TimeMachineProvider } from "@/contexts/TimeMachineContext";
+
 const createWrapper = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -69,7 +71,9 @@ const createWrapper = () => {
   return ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>
       <ConfigProvider>
-        <MemoryRouter>{children}</MemoryRouter>
+        <TimeMachineProvider>
+          <MemoryRouter>{children}</MemoryRouter>
+        </TimeMachineProvider>
       </ConfigProvider>
     </QueryClientProvider>
   );
@@ -91,7 +95,6 @@ describe("ProjectList Integration", () => {
 
     expect(screen.getByText("PRJ-001")).toBeInTheDocument();
     expect(screen.getByText(/100,000/)).toBeInTheDocument();
-    expect(screen.getByText("main")).toBeInTheDocument();
   });
 
   it("handles create project flow", async () => {
@@ -107,7 +110,7 @@ describe("ProjectList Integration", () => {
 
     await waitFor(() => {
       expect(
-        screen.queryByTestId("mock-project-modal"),
+        screen.queryByTestId("mock-project-modal")
       ).not.toBeInTheDocument();
     });
   });

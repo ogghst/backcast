@@ -94,27 +94,34 @@ export const handlers = [
   // Projects Handlers
   http.get("*/api/v1/projects", async () => {
     await delay(100);
-    return HttpResponse.json([
-      {
-        id: "proj-1",
-        code: "PRJ-001",
-        name: "Alpha Project",
-        budget: 100000,
-        contract_value: 120000,
-        start_date: "2024-01-01",
-        end_date: "2024-12-31",
-        branch: "main",
-      },
-      {
-        id: "proj-2",
-        code: "PRJ-002",
-        name: "Beta Project",
-        budget: 50000,
-        contract_value: 60000,
-        start_date: "2024-02-01",
-        branch: "draft",
-      },
-    ]);
+    return HttpResponse.json({
+      items: [
+        {
+          id: "proj-1",
+          project_id: "proj-1",
+          code: "PRJ-001",
+          name: "Alpha Project",
+          budget: 100000,
+          contract_value: 120000,
+          start_date: "2024-01-01",
+          end_date: "2024-12-31",
+          branch: "main",
+        },
+        {
+          id: "proj-2",
+          project_id: "proj-2",
+          code: "PRJ-002",
+          name: "Beta Project",
+          budget: 50000,
+          contract_value: 60000,
+          start_date: "2024-02-01",
+          branch: "draft",
+        },
+      ],
+      total: 2,
+      page: 1,
+      per_page: 20,
+    });
   }),
 
   http.post("*/api/v1/projects", async ({ request }) => {
@@ -145,28 +152,35 @@ export const handlers = [
 
     // Filter logic simulation if needed, but for now return static list
     // In real tests we might check if projectId is passed
-    return HttpResponse.json([
-      {
-        id: "wbe-1",
-        code: "1.0",
-        name: "Phase 1",
-        level: 1,
-        budget_allocation: 50000,
-        parent_wbe_id: null,
-        project_id: projectId || "proj-1",
-        branch: "main",
-      },
-      {
-        id: "wbe-2",
-        code: "1.1",
-        name: "Design",
-        level: 2,
-        budget_allocation: 20000,
-        parent_wbe_id: "wbe-1",
-        project_id: projectId || "proj-1",
-        branch: "main",
-      },
-    ]);
+    return HttpResponse.json({
+      items: [
+        {
+          id: "wbe-1",
+          wbe_id: "wbe-1",
+          code: "1.0",
+          name: "Phase 1",
+          level: 1,
+          budget_allocation: 50000,
+          parent_wbe_id: null,
+          project_id: projectId || "proj-1",
+          branch: "main",
+        },
+        {
+          id: "wbe-2",
+          wbe_id: "wbe-2",
+          code: "1.1",
+          name: "Design",
+          level: 2,
+          budget_allocation: 20000,
+          parent_wbe_id: "wbe-1",
+          project_id: projectId || "proj-1",
+          branch: "main",
+        },
+      ],
+      total: 2,
+      page: 1,
+      per_page: 20,
+    });
   }),
 
   http.post("*/api/v1/wbes", async ({ request }) => {
