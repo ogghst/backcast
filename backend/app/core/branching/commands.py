@@ -26,15 +26,17 @@ class BranchCommandABC(VersionedCommandABC[TBranchable]):
     async def _get_current_on_branch(
         self, session: AsyncSession, branch: str
     ) -> TBranchable | None:
-        """Get current version on specific branch."""
+        """Get current version on specific branch.
+
+        Uses open-ended valid_time check (upper IS NULL) for reliability,
+        consistent with VersionedCommandABC._get_current().
+        """
         stmt = (
             select(self.entity_class)
             .where(
                 getattr(self.entity_class, self._root_field_name()) == self.root_id,
                 cast(Any, self.entity_class).branch == branch,
-                cast(Any, self.entity_class).valid_time.op("@>")(
-                    func.current_timestamp()
-                ),
+                func.upper(cast(Any, self.entity_class).valid_time).is_(None),
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .order_by(cast(Any, self.entity_class).valid_time.desc())

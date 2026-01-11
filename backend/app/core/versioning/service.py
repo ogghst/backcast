@@ -204,8 +204,9 @@ class TemporalService[TVersionable: VersionableProtocol]:
             cast(Any, self.entity_class).branch == branch,
         )
 
-        # Apply bitemporal filtering
-        stmt = self._apply_bitemporal_filter(stmt, as_of)
+        # Apply bitemporal filtering for time-travel queries
+        # Use System Time Travel semantics to find historical versions
+        stmt = self._apply_bitemporal_filter_for_time_travel(stmt, as_of)
 
         stmt = stmt.limit(1)
         result = await self.session.execute(stmt)
@@ -233,6 +234,41 @@ class TemporalService[TVersionable: VersionableProtocol]:
             # We want the latest "truth" about the 'as_of' time.
             # So we check that the row has not been superseded (transaction_time upper bound is NULL).
             func.upper(cast(Any, self.entity_class).transaction_time).is_(None),
+
+            # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
+            or_(
+                cast(Any, self.entity_class).deleted_at.is_(None),
+                cast(Any, self.entity_class).deleted_at > as_of,
+            ),
+        )
+
+    def _apply_bitemporal_filter_for_time_travel(self, stmt: Any, as_of: datetime) -> Any:
+        """Apply bitemporal filter for single-entity time-travel queries.
+
+        Uses System Time Travel semantics:
+        - valid_time contains as_of
+        - transaction_time contains as_of (not just open-ended)
+        - deleted_at IS NULL OR deleted_at > as_of
+
+        This differs from _apply_bitemporal_filter which uses Current Knowledge
+        semantics (transaction_time.upper IS NULL) for list operations.
+        """
+        from typing import Any, cast
+
+        from sqlalchemy import func, or_
+
+        return stmt.where(
+            # Check as_of is within valid_time range
+            cast(Any, self.entity_class).valid_time.op("@>")(as_of),
+            # CRITICAL: Also check as_of >= lower bound (entity existed)
+            func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
+
+            # TRANSACTION TIME: System Time Travel semantics for time-travel queries.
+            # Check that as_of is within the transaction_time range, not just open-ended.
+            # This allows querying historical versions that have been superseded.
+            cast(Any, self.entity_class).transaction_time.op("@>")(as_of),
+            # CRITICAL: Also check as_of >= lower bound (version existed)
+            func.lower(cast(Any, self.entity_class).transaction_time) <= as_of,
 
             # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
             or_(
