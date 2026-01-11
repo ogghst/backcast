@@ -209,7 +209,7 @@ async def read_wbe(
     """
     if as_of:
         # Time travel query
-        wbe = await service.get_as_of(wbe_id, as_of)
+        wbe = await service.get_wbe_as_of(wbe_id, as_of)
     else:
         # Current version
         wbe = await service.get_by_root_id(wbe_id)

@@ -293,21 +293,50 @@ stmt = self._apply_bitemporal_filter(stmt, as_of)
 
 ---
 
+## Service-Level Time Travel Support
+
+The following services expose `get_as_of` methods for single-entity time-travel queries:
+
+| Service                    | Method                               | Branch Modes   | Relations Included      |
+| ------------------------- | ------------------------------------ | -------------- | ---------------------- |
+| ProjectService            | `get_project_as_of()`                | STRICT, MERGE  | -                      |
+| WBEService                | `get_wbe_as_of()`                    | STRICT, MERGE  | -                      |
+| CostElementService        | `get_cost_element_as_of()`           | STRICT, MERGE  | parent_name, type_name |
+| CostElementTypeService    | `get_cost_element_type_as_of()`      | STRICT, MERGE  | -                      |
+| DepartmentService         | `get_department_as_of()`             | STRICT, MERGE  | -                      |
+| UserService               | `get_user_as_of()`                   | STRICT, MERGE  | -                      |
+
+**Usage Example:**
+
+```python
+from datetime import datetime
+from app.services.project import ProjectService
+from app.core.versioning.enums import BranchMode
+
+service = ProjectService(session)
+
+# Get project as of January 1st, 2026
+as_of = datetime(2026, 1, 1, 12, 0, 0)
+project = await service.get_project_as_of(
+    project_id=project_id,
+    as_of=as_of,
+    branch="main",
+)
+
+# For change order preview, use MERGE mode
+project = await service.get_project_as_of(
+    project_id=project_id,
+    as_of=as_of,
+    branch="co-123",
+    branch_mode=BranchMode.MERGE,  # fall back to main
+)
+```
+
+**Implementation:** All methods delegate to `TemporalService.get_as_of()` which implements full bitemporal filtering with System Time Travel semantics. See [`TemporalService.get_as_of()`](../../../backend/app/core/versioning/service.py) for implementation details.
+
+---
+
 ## Implementation Notes
-
-### get_as_of Availability
-
-The `TemporalService.get_as_of()` method is fully implemented and supports:
-- **STRICT mode** (default): Only search in specified branch
-- **MERGE mode**: Fall back to main branch if not found on specified branch
-- Full bitemporal filtering with System Time Travel semantics
-- Proper handling of deleted entities on branches
-
-However, individual service classes (e.g., `ProjectService`, `WBEService`, `CostElementService`) do not currently expose this method directly in their public interfaces. The `get_as_of` method is available in the base `TemporalService` class but not propagated to service-specific APIs.
-
-**Workaround:** Use list endpoints with `as_of` parameter for time-travel queries, or call `TemporalService.get_as_of()` directly.
-
-**Related Technical Debt:** [TD-026: Expose get_as_of in Service Interfaces](../../03-project-plan/technical-debt-register.md#td-026-expose-get_as_of-in-service-interfaces)
 
 ### Zombie Check Tests
 

@@ -17,6 +17,7 @@ from app.core.versioning.commands import (
     SoftDeleteCommand,
     UpdateVersionCommand,
 )
+from app.core.versioning.enums import BranchMode
 from app.core.versioning.service import TemporalService
 from app.models.domain.user import User
 from app.models.domain.wbe import WBE
@@ -668,3 +669,38 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
             history.append(wbe)
 
         return history
+
+    async def get_wbe_as_of(
+        self,
+        wbe_id: UUID,
+        as_of: datetime,
+        branch: str = "main",
+        branch_mode: BranchMode | None = None,
+    ) -> WBE | None:
+        """Get WBE as it was at specific timestamp.
+
+        Provides System Time Travel semantics for single-entity queries.
+        Uses STRICT mode by default (only searches in specified branch).
+        Use BranchMode.MERGE to fall back to main branch if not found.
+
+        Args:
+            wbe_id: The unique identifier of the WBE
+            as_of: Timestamp to query (historical state)
+            branch: Branch name to query (default: "main")
+            branch_mode: Resolution mode for branches
+                - None/STRICT: Only return from specified branch (default)
+                - MERGE: Fall back to main if not found on branch
+
+        Returns:
+            WBE if found at the specified timestamp, None otherwise
+
+        Example:
+            >>> # Get WBE as of January 1st
+            >>> from datetime import datetime
+            >>> as_of = datetime(2026, 1, 1, 12, 0, 0)
+            >>> wbe = await service.get_wbe_as_of(
+            ...     wbe_id=uuid,
+            ...     as_of=as_of
+            ... )
+        """
+        return await self.get_as_of(wbe_id, as_of, branch, branch_mode)

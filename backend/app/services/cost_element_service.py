@@ -14,6 +14,7 @@ from app.core.versioning.commands import (
     SoftDeleteCommand,
     UpdateVersionCommand,
 )
+from app.core.versioning.enums import BranchMode
 from app.core.versioning.service import TemporalService
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_element_type import CostElementType
@@ -519,3 +520,98 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             history.append(entity)
 
         return history
+
+    async def get_cost_element_as_of(
+        self,
+        cost_element_id: UUID,
+        as_of: datetime,
+        branch: str = "main",
+        branch_mode: BranchMode | None = None,
+    ) -> CostElement | None:
+        """Get cost element as it was at specific timestamp.
+
+        Provides System Time Travel semantics for single-entity queries.
+        Includes parent_name and cost_element_type_name relations.
+        Uses STRICT mode by default (only searches in specified branch).
+        Use BranchMode.MERGE to fall back to main branch if not found.
+
+        Args:
+            cost_element_id: The unique identifier of the cost element
+            as_of: Timestamp to query (historical state)
+            branch: Branch name to query (default: "main")
+            branch_mode: Resolution mode for branches
+                - None/STRICT: Only return from specified branch (default)
+                - MERGE: Fall back to main if not found on branch
+
+        Returns:
+            CostElement if found at the specified timestamp, None otherwise
+
+        Example:
+            >>> # Get cost element as of January 1st
+            >>> from datetime import datetime
+            >>> as_of = datetime(2026, 1, 1, 12, 0, 0)
+            >>> element = await service.get_cost_element_as_of(
+            ...     cost_element_id=uuid,
+            ...     as_of=as_of
+            ... )
+        """
+        from sqlalchemy.orm import aliased
+
+        WBEAlias = aliased(WBE, name="wbe_lookup")
+        TypeAlias = aliased(CostElementType, name="type_lookup")
+
+        # Subqueries for parent versions (as of specific time)
+        wbe_where_clauses = [cast(Any, WBEAlias).deleted_at.is_(None)]
+        if as_of:
+            wbe_where_clauses.append(cast(Any, WBEAlias).valid_time.contains(as_of))
+        else:
+            wbe_where_clauses.append(func.upper(cast(Any, WBEAlias).valid_time).is_(None))
+
+        wbe_subq = (
+            select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
+            .where(*wbe_where_clauses)
+            .subquery("wbe_lookup_subq")
+        )
+
+        type_where_clauses = [cast(Any, TypeAlias).deleted_at.is_(None)]
+        if as_of:
+            type_where_clauses.append(cast(Any, TypeAlias).valid_time.contains(as_of))
+        else:
+            type_where_clauses.append(func.upper(cast(Any, TypeAlias).valid_time).is_(None))
+
+        type_subq = (
+            select(
+                TypeAlias.cost_element_type_id,
+                TypeAlias.name.label("type_name"),
+                TypeAlias.code.label("type_code"),
+            )
+            .where(*type_where_clauses)
+            .subquery("type_lookup_subq")
+        )
+
+        # Build query with joins
+        stmt = (
+            select(
+                CostElement,
+                wbe_subq.c.wbe_name,
+                type_subq.c.type_name,
+                type_subq.c.type_code,
+            )
+            .outerjoin(wbe_subq, CostElement.wbe_id == wbe_subq.c.wbe_id)
+            .outerjoin(
+                type_subq,
+                CostElement.cost_element_type_id == type_subq.c.cost_element_type_id,
+            )
+            .where(
+                CostElement.cost_element_id == cost_element_id,
+                CostElement.branch == branch,
+            )
+        )
+
+        # Apply time-travel filter
+        stmt = self._apply_bitemporal_filter_for_time_travel(stmt, as_of)
+
+        stmt = stmt.limit(1)
+        result = await self.session.execute(stmt)
+        resolved = await self._resolve_relations(result.all())
+        return resolved[0] if resolved else None

@@ -1,9 +1,9 @@
 # Technical Debt Register
 
 **Last Updated:** 2026-01-11
-**Total Debt Items:** 3 (7 completed)
-**Total Estimated Effort:** 4 hours
-**Completed Effort:** 11 hours
+**Total Debt Items:** 2 (8 completed)
+**Total Estimated Effort:** 3 hours
+**Completed Effort:** 12 hours
 
 ---
 
@@ -11,9 +11,9 @@
 
 | Severity | Items | Effort | % of Total |
 | -------- | ----- | ------ | ---------- |
-| High     | 1     | 1h     | 25%        |
-| Medium   | 1     | 2h     | 50%        |
-| Low      | 1     | 1h     | 25%        |
+| High     | 0     | 0h     | 0%         |
+| Medium   | 1     | 2h     | 100%       |
+| Low      | 1     | 1h     | 50%        |
 
 ---
 
@@ -21,20 +21,15 @@
 
 ### High Severity
 
-#### [TD-026] Expose get_as_of in Service Interfaces
+*No high severity debt items.*
 
-- **Source:** Documentation Audit (2026-01-11)
-- **Description:** `TemporalService.get_as_of()` is implemented with full branch mode support and System Time Travel semantics, but individual service classes (e.g., `ProjectService`, `WBEService`) do not expose this method in their public interfaces.
-- **Impact:** Developers cannot query entity state at specific timestamps via service layer; must either use `TemporalService` directly or rely on list endpoints with `as_of` parameter
-- **Estimated Effort:** 1 hour
-- **Target Date:** 2026-01-20
-- **Status:** 🔴 Open
-- **Owner:** Backend Developer
-- **Proposed Solution:**
-  1. Add `get_as_of(entity_id, as_of, branch, branch_mode)` method to each service that extends `TemporalService`
-  2. Document in time-travel.md which services support time-travel queries
-  3. Add tests for time-travel queries through service layer
-- **Related Docs:** [time-travel.md](../02-architecture/cross-cutting/time-travel.md)
+---
+
+## Retired Debt
+
+| ID     | Item                                  | Retired Date | Resolution                                   |
+| ------ | ------------------------------------- | ------------ | -------------------------------------------- |
+| TD-026 | Expose get_as_of in Service Interfaces | 2026-01-11   | Added `get_{entity}_as_of()` methods to 6 services |
 
 ### Medium Severity
 

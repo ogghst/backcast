@@ -162,7 +162,7 @@ async def read_project(
     """
     if as_of:
         # Time travel query
-        project = await service.get_as_of(project_id, as_of)
+        project = await service.get_project_as_of(project_id, as_of)
     else:
         # Current version
         project = await service.get_by_root_id(project_id)

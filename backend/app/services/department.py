@@ -3,6 +3,7 @@
 Provides Department-specific operations on top of generic temporal service.
 """
 
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -13,6 +14,7 @@ from app.core.versioning.commands import (
     SoftDeleteCommand,
     UpdateVersionCommand,
 )
+from app.core.versioning.enums import BranchMode
 from app.core.versioning.service import TemporalService
 from app.models.domain.department import Department
 from app.models.schemas.department import DepartmentCreate, DepartmentUpdate
@@ -152,3 +154,38 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var,u
     async def get_department_history(self, department_id: UUID) -> list[Department]:
         """Get all versions of a department by root department_id (with creator name)."""
         return await self.get_history(department_id)
+
+    async def get_department_as_of(
+        self,
+        department_id: UUID,
+        as_of: datetime,
+        branch: str = "main",
+        branch_mode: BranchMode | None = None,
+    ) -> Department | None:
+        """Get department as it was at specific timestamp.
+
+        Provides System Time Travel semantics for single-entity queries.
+        Uses STRICT mode by default (only searches in specified branch).
+        Use BranchMode.MERGE to fall back to main branch if not found.
+
+        Args:
+            department_id: The unique identifier of the department
+            as_of: Timestamp to query (historical state)
+            branch: Branch name to query (default: "main")
+            branch_mode: Resolution mode for branches
+                - None/STRICT: Only return from specified branch (default)
+                - MERGE: Fall back to main if not found on branch
+
+        Returns:
+            Department if found at the specified timestamp, None otherwise
+
+        Example:
+            >>> # Get department as of January 1st
+            >>> from datetime import datetime
+            >>> as_of = datetime(2026, 1, 1, 12, 0, 0)
+            >>> department = await service.get_department_as_of(
+            ...     department_id=uuid,
+            ...     as_of=as_of
+            ... )
+        """
+        return await self.get_as_of(department_id, as_of, branch, branch_mode)

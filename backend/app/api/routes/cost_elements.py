@@ -146,7 +146,7 @@ async def read_cost_element(
     """
     if as_of:
         # Time travel query
-        item = await service.get_as_of(cost_element_id, as_of)
+        item = await service.get_cost_element_as_of(cost_element_id, as_of)
     else:
         # Current version
         item = await service.get_by_id(cost_element_id, branch=branch)
