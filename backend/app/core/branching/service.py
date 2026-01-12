@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.commands import (
@@ -19,6 +19,7 @@ from app.core.branching.commands import (
     UpdateCommand,
 )
 from app.core.versioning.commands import CreateVersionCommand
+from app.core.versioning.enums import BranchMode
 from app.models.protocols import BranchableProtocol
 
 
@@ -227,6 +228,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
         entity_id: UUID,
         as_of: datetime,
         branch: str = "main",
+        branch_mode: BranchMode | None = None,
     ) -> TBranchable | None:
         """Time travel: Get active version at specific timestamp on a branch.
 
@@ -234,6 +236,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
             entity_id: Root entity ID
             as_of: Timestamp to query
             branch: Branch name (default: main)
+            branch_mode: Resolution mode (STRICT=only branch, MERGE=fallback to main)
         """
         # Helper to get root field name
         class_name = self.entity_class.__name__.lower()
@@ -241,24 +244,47 @@ class BranchableService[TBranchable: BranchableProtocol]:
             class_name = class_name[:-7]
         root_field = f"{class_name}_id"
 
-        # System Time Travel semantics as per TemporalService
-        stmt = (
-            select(self.entity_class)
-            .where(
-                getattr(self.entity_class, root_field) == entity_id,
-                cast(Any, self.entity_class).branch == branch,
-                # Valid Time Coverage
-                cast(Any, self.entity_class).valid_time.op("@>")(as_of),
-                func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
-                # Transaction Time Coverage
-                cast(Any, self.entity_class).transaction_time.op("@>")(as_of),
-                func.lower(cast(Any, self.entity_class).transaction_time) <= as_of,
-                # Deleted At Check
-                func.coalesce(cast(Any, self.entity_class).deleted_at, datetime.max) > as_of
+        # Base conditions for ID and Time
+        conditions = [
+            getattr(self.entity_class, root_field) == entity_id,
+            # Valid Time Coverage
+            cast(Any, self.entity_class).valid_time.op("@>")(as_of),
+            func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
+            # Transaction Time Coverage
+            cast(Any, self.entity_class).transaction_time.op("@>")(as_of),
+            func.lower(cast(Any, self.entity_class).transaction_time) <= as_of,
+            # Deleted At Check
+            func.coalesce(cast(Any, self.entity_class).deleted_at, datetime.max) > as_of,
+        ]
+
+        # Handle Branch Mode
+        if branch_mode == BranchMode.MERGE and branch != "main":
+            # Search in both branch and main, prioritizing the requested branch
+            stmt = (
+                select(self.entity_class)
+                .where(
+                    *conditions,
+                    cast(Any, self.entity_class).branch.in_([branch, "main"]),
+                )
+                .order_by(
+                    # Prioritize requested branch (0) over main (1)
+                    case((cast(Any, self.entity_class).branch == branch, 0), else_=1),
+                    # Then by valid time
+                    cast(Any, self.entity_class).valid_time.desc(),
+                )
+                .limit(1)
             )
-            .limit(1)
-        )
-        
+        else:
+            # STRICT mode or already on main: exact branch match
+            stmt = (
+                select(self.entity_class)
+                .where(
+                    *conditions,
+                    cast(Any, self.entity_class).branch == branch,
+                )
+                .limit(1)
+            )
+
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 

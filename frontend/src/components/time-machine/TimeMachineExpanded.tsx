@@ -14,13 +14,9 @@ import dayjs from "dayjs";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { useTimeMachine } from "@/contexts/TimeMachineContext";
 import { TimelineSlider } from "./TimelineSlider";
-import { BranchSelector } from "./BranchSelector";
+
 import { QuickJumpButtons, calculateDateFromPreset } from "./QuickJumpButtons";
-import type {
-  BranchOption,
-  QuickJumpPreset,
-  ProjectTimelineData,
-} from "./types";
+import type { QuickJumpPreset, ProjectTimelineData } from "./types";
 
 const { Text } = Typography;
 
@@ -40,7 +36,7 @@ interface TimeMachineExpandedProps {
  *
  * Features:
  * - Timeline slider with event markers
- * - Branch selector
+
  * - Quick jump buttons (1D, 1W, 1M, 3M, All)
  * - Date picker for precise selection
  * - Reset to now button
@@ -66,17 +62,10 @@ export function TimeMachineExpanded({
   isLoading = false,
 }: TimeMachineExpandedProps) {
   const { isHistorical, invalidateQueries } = useTimeMachine();
-  const {
-    toggleExpanded,
-    getSelectedTime,
-    getSelectedBranch,
-    selectTime,
-    selectBranch,
-    resetToNow,
-  } = useTimeMachineStore();
+  const { toggleExpanded, getSelectedTime, selectTime, resetToNow } =
+    useTimeMachineStore();
 
   const selectedTime = getSelectedTime();
-  const selectedBranchValue = getSelectedBranch();
 
   // Parse selected time
   const selectedDate = useMemo(
@@ -92,16 +81,6 @@ export function TimeMachineExpanded({
     timelineData?.startDate || new Date(now - 365 * 24 * 60 * 60 * 1000);
   const maxDate = timelineData?.endDate || new Date(now);
 
-  // Convert branches to options
-  const branchOptions: BranchOption[] = useMemo(() => {
-    const branches = timelineData?.branches || ["main"];
-    return branches.map((branch) => ({
-      value: branch,
-      label: branch,
-      isDefault: branch === "main",
-    }));
-  }, [timelineData?.branches]);
-
   // Handle time selection with query invalidation
   const handleSelectTime = useCallback(
     (date: Date | null) => {
@@ -109,15 +88,6 @@ export function TimeMachineExpanded({
       invalidateQueries();
     },
     [selectTime, invalidateQueries]
-  );
-
-  // Handle branch selection with query invalidation
-  const handleSelectBranch = useCallback(
-    (branch: string) => {
-      selectBranch(branch);
-      invalidateQueries();
-    },
-    [selectBranch, invalidateQueries]
   );
 
   // Handle quick jump
@@ -198,17 +168,8 @@ export function TimeMachineExpanded({
           gap: 12,
         }}
       >
-        {/* Left: Branch selector + Quick jumps */}
+        {/* Left: Quick jumps */}
         <Space>
-          <BranchSelector
-            value={selectedBranchValue}
-            branches={branchOptions}
-            onChange={handleSelectBranch}
-            disabled={isLoading}
-          />
-
-          <Divider type="vertical" />
-
           <QuickJumpButtons
             onJump={handleQuickJump}
             disabled={isLoading}

@@ -16,6 +16,7 @@ import {
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
 import type { PaginatedResponse } from "@/types/api";
+import type { Branch } from "@/types/branch";
 // Custom params interface
 export interface ProjectListParams {
   pagination?: {
@@ -229,11 +230,15 @@ export const useProject = (
  * Custom hook to fetch branches for a project.
  * Returns main branch plus any change order branches (co-{code}).
  */
+/**
+ * Custom hook to fetch branches for a project.
+ * Returns main branch plus any change order branches.
+ */
 export const useProjectBranches = (
   projectId: string | undefined,
-  queryOptions?: Omit<UseQueryOptions<string[], Error>, "queryKey">
+  queryOptions?: Omit<UseQueryOptions<Branch[], Error>, "queryKey">
 ) => {
-  return useQuery<string[]>({
+  return useQuery<Branch[]>({
     queryKey: ["projects", projectId, "branches"],
     queryFn: async () => {
       if (!projectId) throw new Error("Project ID is required");
@@ -241,7 +246,7 @@ export const useProjectBranches = (
       return __request(OpenAPI, {
         method: "GET",
         url: `/api/v1/projects/${projectId}/branches`,
-      }) as Promise<string[]>;
+      }) as Promise<Branch[]>;
     },
     enabled: !!projectId,
     ...queryOptions,

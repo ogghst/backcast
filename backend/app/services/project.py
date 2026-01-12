@@ -20,6 +20,11 @@ from app.models.domain.project import Project
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
 
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.schemas.branch import BranchPublic
+
 class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-ignore]
     """Service for Project entity operations.
 
@@ -263,27 +268,58 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         """
         return await self.get_as_of(project_id, as_of, branch, branch_mode)
 
-    async def get_project_branches(self, project_id: UUID) -> list[str]:
+    async def get_project_branches(self, project_id: UUID) -> list["BranchPublic"]:
         """Get all branches for a project.
 
         Returns:
-            List of branch names, always including "main" plus any
+            List of BranchPublic objects, always including "main" plus any
             change order branches (co-{code}) for this project.
         """
+        from typing import Any, cast
+
+        from sqlalchemy import func
+
         from app.models.domain.change_order import ChangeOrder
+        from app.models.schemas.branch import BranchPublic
 
         # Always include main branch
-        branches = ["main"]
+        branches: list[BranchPublic] = [
+            BranchPublic(
+                name="main",
+                type="main",
+                is_default=True
+            )
+        ]
 
-        # Get all unique change order branches for this project
-        # CO branches are named co-{code}, we can get them from the branch column
-        stmt = select(ChangeOrder.branch).where(
-            ChangeOrder.project_id == project_id,
-            ChangeOrder.branch != "main",  # Exclude main branch
-        ).distinct()
+        # Get all change orders for this project to derive branches
+        # We look for the CO definition on the 'main' branch
+        stmt = (
+            select(ChangeOrder)
+            .where(
+                ChangeOrder.project_id == project_id,
+                ChangeOrder.branch == "main",
+                func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
+                cast(Any, ChangeOrder).deleted_at.is_(None),
+            )
+            .order_by(ChangeOrder.code.desc())
+        )
 
         result = await self.session.execute(stmt)
-        co_branches = [row[0] for row in result.all()]
+        change_orders = result.scalars().all()
 
-        branches.extend(co_branches)
+        for co in change_orders:
+            # Branch name convention: co-{code}
+            branch_name = f"co-{co.code}"
+
+            branches.append(
+                BranchPublic(
+                    name=branch_name,
+                    type="change_order",
+                    is_default=False,
+                    change_order_id=co.change_order_id,
+                    change_order_code=co.code,
+                    change_order_status=co.status
+                )
+            )
+
         return branches

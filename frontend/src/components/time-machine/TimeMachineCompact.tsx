@@ -9,6 +9,7 @@ import {
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { useTimeMachine } from "@/contexts/TimeMachineContext";
 import { useProject } from "@/features/projects/api/useProjects";
+import { ProjectBranchSelector } from "./ProjectBranchSelector";
 
 const { Text } = Typography;
 
@@ -97,13 +98,8 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
         </Space>
       </Button>
 
-      {/* Branch indicator */}
-      <Tag
-        icon={<BranchesOutlined />}
-        color={selectedBranch === "main" ? "default" : "blue"}
-      >
-        {selectedBranch}
-      </Tag>
+      {/* Branch Selector */}
+      <ProjectBranchSelector projectId={projectId} />
 
       {/* Quick reset to now (only shown when viewing history) */}
       {isHistorical && (
