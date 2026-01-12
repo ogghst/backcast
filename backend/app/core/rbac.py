@@ -10,6 +10,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -91,7 +93,8 @@ class JsonRBACService(RBACServiceABC):
         """
         if config_path is None:
             # Default path relative to backend directory
-            config_path = Path(__file__).parent.parent.parent / "config" / "rbac.json"
+            base_dir = Path(__file__).resolve().parent.parent.parent
+            config_path = base_dir / "config" / "rbac.json"
 
         self.config_path = config_path
         self._config: dict[str, Any] = self._load_config()
@@ -186,7 +189,12 @@ def get_rbac_service() -> RBACServiceABC:
     """
     global _rbac_service
     if _rbac_service is None:
-        _rbac_service = JsonRBACService()
+        path = Path(settings.RBAC_POLICY_FILE)
+        if not path.is_absolute():
+            # Resolve relative to project root (backend/)
+            base_dir = Path(__file__).resolve().parent.parent.parent
+            path = base_dir / path
+        _rbac_service = JsonRBACService(config_path=path)
     return _rbac_service
 
 
