@@ -3,10 +3,11 @@
 Moved from app.core.versioning.commands.
 """
 
+from datetime import UTC, datetime
 from typing import Any, TypeVar, cast
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.commands import VersionedCommandABC
@@ -56,13 +57,19 @@ class CreateBranchCommand(BranchCommandABC[TBranchable]):
         actor_id: UUID,
         new_branch: str,
         from_branch: str = "main",
+        control_date: datetime | None = None,
     ) -> None:
         super().__init__(entity_class, root_id, actor_id)
         self.new_branch = new_branch
         self.from_branch = from_branch
+        self.control_date = control_date or datetime.now(UTC)
 
     async def execute(self, session: AsyncSession) -> TBranchable:
-        """Clone current version to new branch."""
+        """Clone current version to new branch.
+
+        Uses control_date for valid_time, and clock_timestamp() for transaction_time
+        to ensure bitemporal correctness.
+        """
         # Get current version from source branch
         source = await self._get_current_on_branch(session, self.from_branch)
         if not source:
@@ -75,7 +82,25 @@ class CreateBranchCommand(BranchCommandABC[TBranchable]):
             TBranchable, source.clone(branch=self.new_branch, parent_id=source.id)
         )
         session.add(branched)
+        await session.flush()  # Get ID assigned
+
+        # Set valid_time to control_date, transaction_time to clock_timestamp()
+        tablename = cast(str, self.entity_class.__tablename__)
+        stmt = text(
+            f"""
+            UPDATE {tablename}
+            SET
+                valid_time = tstzrange(:control_date, NULL, '[]'),
+                transaction_time = tstzrange(clock_timestamp(), NULL, '[]')
+            WHERE id = :version_id
+            """
+        )
+        await session.execute(stmt, {
+            "control_date": self.control_date,
+            "version_id": branched.id
+        })
         await session.flush()
+        await session.refresh(branched)
         return branched
 
 
@@ -89,10 +114,12 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         actor_id: UUID,
         updates: dict[str, Any],
         branch: str = "main",
+        control_date: datetime | None = None,
     ) -> None:
         super().__init__(entity_class, root_id, actor_id)
         self.updates = updates
         self.branch = branch
+        self.control_date = control_date or datetime.now(UTC)
 
     async def execute(self, session: AsyncSession) -> TBranchable:
         """Close current on branch and create new."""
@@ -102,6 +129,47 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
             raise ValueError(
                 f"No active version on branch {self.branch} for {self.root_id}"
             )
+        
+        if self.control_date:
+             current_lower = cast(Any, current).valid_time.lower
+             if self.control_date <= current_lower:
+                 raise ValueError(
+                     f"control_date ({self.control_date.isoformat()}) must be after "
+                     f"valid_time lower bound ({current_lower.isoformat()})"
+                 )
+             
+             # SPLIT HISTORY: Create a remainder version for the period [current_lower, control_date)
+             # This ensures we preserve "Current Knowledge" that the entity WAS valid during that period.
+             remainder = cast(
+                 TBranchable, current.clone(parent_id=current.parent_id) 
+                 # use same parent as current (linear history split)? 
+                 # Or should remainder be the parent of the new version? 
+                 # Actually, usually V1 -> V2. 
+                 # If we split V1 into V1a and V1b (where V1b is the new update V2?), 
+                 # Remainder is V1a. New Version is V2.
+                 # Remainder should conceptually assume the identity of the old version for that period.
+                 # parent_id should be same as current.
+             )
+             session.add(remainder)
+             await session.flush()
+             
+             # Fix Remainder Times
+             tablename = cast(str, self.entity_class.__tablename__)
+             stmt_rem = text(
+                f"""
+                UPDATE {tablename}
+                SET
+                    valid_time = tstzrange(:lower, :upper, '[)'),
+                    transaction_time = tstzrange(clock_timestamp(), NULL, '[]')
+                WHERE id = :version_id
+                """
+             )
+             await session.execute(stmt_rem, {
+                 "lower": current_lower,
+                 "upper": self.control_date,
+                 "version_id": remainder.id
+             })
+
         # 2. Clone and apply updates (Safe Clone via Core Select)
         # Fetch raw data to avoid ORM lazy-load triggers (MissingGreenlet)
         new_version = cast(
@@ -109,10 +177,29 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         )
 
         # 3. Close current
-        await self._close_version(session, current)
+        await self._close_version(session, current, close_at_valid_time=self.control_date)
 
         session.add(new_version)
         await session.flush()
+
+        # 4. Set valid_time and transaction_time on new version via SQL
+        tablename = cast(str, self.entity_class.__tablename__)
+        stmt = text(
+            f"""
+            UPDATE {tablename}
+            SET
+                valid_time = tstzrange(:control_date, NULL, '[]'),
+                transaction_time = tstzrange(clock_timestamp(), NULL, '[]')
+            WHERE id = :version_id
+            """
+        )
+        await session.execute(stmt, {
+            "control_date": self.control_date,
+            "version_id": new_version.id
+        })
+        await session.flush()
+        await session.refresh(new_version)
+        
         return new_version
 
 
@@ -218,3 +305,37 @@ class RevertCommand(BranchCommandABC[TBranchable]):
         session.add(reverted)
         await session.flush()
         return reverted
+
+
+class BranchableSoftDeleteCommand(BranchCommandABC[TBranchable]):
+    """Soft delete a branchable entity on a specific branch.
+
+    Unlike the generic SoftDeleteCommand, this command is branch-aware
+    and will only delete the current version on the specified branch.
+    This is essential for entities that exist on multiple branches (e.g., Change Orders).
+    """
+
+    def __init__(
+        self,
+        entity_class: type[TBranchable],
+        root_id: UUID,
+        actor_id: UUID,
+        branch: str = "main",
+        control_date: datetime | None = None,
+    ) -> None:
+        super().__init__(entity_class, root_id, actor_id)
+        self.branch = branch
+        self.control_date = control_date or datetime.now(UTC)
+
+    async def execute(self, session: AsyncSession) -> TBranchable:
+        """Mark current version on specified branch as deleted."""
+        current = await self._get_current_on_branch(session, self.branch)
+        if not current:
+            raise ValueError(
+                f"No active version found on branch {self.branch} for {self.root_id}"
+            )
+
+        current.deleted_at = self.control_date  # type: ignore[attr-defined]
+        current.deleted_by = self.actor_id  # type: ignore[attr-defined]
+        await session.flush()
+        return current

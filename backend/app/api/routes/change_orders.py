@@ -39,6 +39,18 @@ async def read_change_orders(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch name"),
+    search: str | None = Query(None, description="Search term (code, title)"),
+    filters: str | None = Query(
+        None,
+        description="Filters in format 'column:value;column:value1,value2'",
+        example="status:Draft",
+    ),
+    sort_field: str | None = Query(None, description="Field to sort by"),
+    sort_order: str = Query(
+        "asc",
+        pattern="^(asc|desc)$",
+        description="Sort order (asc or desc)",
+    ),
     as_of: datetime | None = Query(
         None,
         description="Time travel: get Change Orders as of this timestamp (ISO 8601)",
@@ -64,6 +76,11 @@ async def read_change_orders(
             skip=skip,
             limit=per_page,
             branch=branch,
+            search=search,
+            filters=filters,
+            sort_field=sort_field,
+            sort_order=sort_order,
+            as_of=as_of,
         )
 
         # Convert to Pydantic models
@@ -282,3 +299,63 @@ async def read_change_order_history(
             detail="No history found for this change order",
         )
     return history
+
+
+@router.post(
+    "/{change_order_id}/merge",
+    response_model=ChangeOrderPublic,
+    operation_id="merge_change_order",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-update"))],
+)
+async def merge_change_order(
+    change_order_id: UUID,
+    target_branch: str = Query("main", description="Target branch to merge into"),
+    current_user: User = Depends(get_current_active_user),
+    service: ChangeOrderService = Depends(get_change_order_service),
+) -> ChangeOrder:
+    """Merge a Change Order's branch into the target branch.
+
+    Infers the source branch from the Change Order code (e.g., `co-{code}`).
+
+    Requires update permission.
+    """
+    try:
+        return await service.merge_change_order(
+            change_order_id=change_order_id,
+            actor_id=current_user.user_id,
+            target_branch=target_branch,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+
+@router.post(
+    "/{change_order_id}/revert",
+    response_model=ChangeOrderPublic,
+    operation_id="revert_change_order",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-update"))],
+)
+async def revert_change_order(
+    change_order_id: UUID,
+    branch: str = Query("main", description="Branch to revert on"),
+    current_user: User = Depends(get_current_active_user),
+    service: ChangeOrderService = Depends(get_change_order_service),
+) -> ChangeOrder:
+    """Revert a Change Order to its previous version.
+
+    Requires update permission.
+    """
+    try:
+        return await service.revert_change_order_version(
+            change_order_id=change_order_id,
+            actor_id=current_user.user_id,
+            branch=branch,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e

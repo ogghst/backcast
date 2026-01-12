@@ -9,20 +9,16 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.versioning.commands import (
-    CreateVersionCommand,
-    SoftDeleteCommand,
-    UpdateVersionCommand,
-)
+from app.core.branching.service import BranchableService
+from app.core.versioning.commands import CreateVersionCommand, UpdateVersionCommand
 from app.core.versioning.enums import BranchMode
-from app.core.versioning.service import TemporalService
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_element_type import CostElementType
 from app.models.domain.wbe import WBE
 from app.models.schemas.cost_element import CostElementCreate, CostElementUpdate
 
 
-class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var,unused-ignore]
+class CostElementService(BranchableService[CostElement]):  # type: ignore[type-var,unused-ignore]
     """Service for Cost Element management (branchable + versionable)."""
 
     def __init__(self, db: AsyncSession):
@@ -32,6 +28,61 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             db: Async database session
         """
         super().__init__(CostElement, db)
+
+    async def get_current(self, root_id: UUID, branch: str = "main") -> CostElement | None:
+        """Get the current active version for a root entity on a specific branch.
+
+        Override parent method to use 'cost_element_id' field instead of
+        the auto-generated field name.
+        """
+        stmt = (
+            select(CostElement)
+            .where(
+                CostElement.cost_element_id == root_id,
+                CostElement.branch == branch,
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, CostElement).valid_time.desc())
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def create_root(
+        self,
+        root_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None,
+        branch: str = "main",
+        **data: Any,
+    ) -> CostElement:
+        """Create the initial version of a CostElement.
+
+        Override parent method to use 'cost_element_id' field instead of
+        the auto-generated field name.
+
+        Args:
+            root_id: Root UUID identifier for the CostElement
+            actor_id: User creating the CostElement
+            control_date: Optional control date for valid_time (defaults to now)
+            branch: Branch name (default: "main")
+            **data: Additional fields for the CostElement
+
+        Returns:
+            Created CostElement
+        """
+        data["cost_element_id"] = root_id
+
+        cmd = CreateVersionCommand(
+            entity_class=CostElement,
+            root_id=root_id,
+            actor_id=actor_id,
+            control_date=control_date,
+            branch=branch,
+            **data,
+        )
+        return await cmd.execute(self.session)
 
     def _get_base_stmt(self) -> Any:
         """Get base select statement with WBE name and CostElementType joins."""
@@ -249,49 +300,17 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         branch: str = "main",
         control_date: datetime | None = None
     ) -> None:
-        """Soft delete cost element using SoftDeleteCommand."""
+        """Soft delete cost element using BranchableService.soft_delete.
 
-        # Custom command class
-        class CostElementSoftDeleteCommand(SoftDeleteCommand[CostElement]):  # type: ignore[type-var,unused-ignore]
-            def __init__(
-                self,
-                entity_class: type[CostElement],
-                root_id: UUID,
-                actor_id: UUID,
-                branch: str = "main",
-                control_date: datetime | None = None,
-            ) -> None:
-                super().__init__(entity_class, root_id, actor_id, control_date=control_date)
-                self.branch = branch
-
-            def _root_field_name(self) -> str:
-                return "cost_element_id"
-
-            async def _get_current(self, session: AsyncSession) -> Any | None:
-                """Get current active version filtering by branch."""
-                stmt = (
-                    select(self.entity_class)
-                    .where(
-                        getattr(self.entity_class, self._root_field_name())
-                        == self.root_id,
-                        self.entity_class.branch == self.branch,
-                        func.upper(cast(Any, self.entity_class).valid_time).is_(None),
-                        cast(Any, self.entity_class).deleted_at.is_(None),
-                    )
-                    .order_by(cast(Any, self.entity_class).valid_time.desc())
-                    .limit(1)
-                )
-                result = await session.execute(stmt)
-                return result.scalar_one_or_none()
-
-        cmd = CostElementSoftDeleteCommand(
-            entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
+        This uses the BranchableSoftDeleteCommand which is branch-aware.
+        """
+        # Call parent method from BranchableService
+        return await super().soft_delete(
             root_id=cost_element_id,
             actor_id=actor_id,
             branch=branch,
             control_date=control_date,
         )
-        await cmd.execute(self.session)
 
     async def get_by_id(
         self, cost_element_id: UUID, branch: str = "main"

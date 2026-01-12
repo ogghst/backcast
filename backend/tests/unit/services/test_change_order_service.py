@@ -55,6 +55,46 @@ class TestChangeOrderServiceCreate:
         # change_order_id should be a UUID (auto-generated)
         assert created_co.change_order_id is not None
 
+    @pytest.mark.asyncio
+    async def test_create_change_order_control_date_single_row(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Test creating a change order with explicit control_date creates single row.
+
+        Verifies:
+        - Only 1 row created (no auto-branch duplication)
+        - valid_time starts at control_date
+        """
+        # Arrange
+        from sqlalchemy import text
+        from zoneinfo import ZoneInfo
+        
+        service = ChangeOrderService(db_session)
+        project_id = uuid4()
+        actor_id = uuid4()
+        control_date = datetime(2025, 1, 1, 12, 0, 0, tzinfo=ZoneInfo("UTC"))
+
+        co_in = ChangeOrderCreate(
+            project_id=project_id,
+            code="CO-TIME-TEST",
+            title="Time Test",
+            control_date=control_date
+        )
+
+        # Act
+        created_co = await service.create_change_order(
+            co_in, actor_id=actor_id, control_date=control_date
+        )
+
+        # Assert
+        stmt = text("SELECT branch, valid_time FROM change_orders WHERE change_order_id = :co_id")
+        result = await db_session.execute(stmt, {"co_id": created_co.change_order_id})
+        rows = result.fetchall()
+
+        assert len(rows) == 1
+        assert rows[0].branch == "main"
+        assert rows[0].valid_time.lower == control_date
+
 
 class TestChangeOrderServiceUpdate:
     """Test ChangeOrderService.update_change_order() method."""

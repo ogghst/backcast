@@ -1,4 +1,4 @@
-"""WBEService extending TemporalService for branchable entities.
+"""WBEService extending BranchableService for branchable entities.
 
 Provides WBE-specific operations with parent-child project relationship.
 """
@@ -12,27 +12,82 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.core.versioning.commands import (
-    CreateVersionCommand,
-    SoftDeleteCommand,
-    UpdateVersionCommand,
-)
+from app.core.branching.service import BranchableService
+from app.core.versioning.commands import CreateVersionCommand, UpdateVersionCommand
 from app.core.versioning.enums import BranchMode
-from app.core.versioning.service import TemporalService
 from app.models.domain.user import User
 from app.models.domain.wbe import WBE
 from app.models.schemas.wbe import WBECreate, WBEUpdate
 
 
-class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
+class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore]
     """Service for WBE entity operations.
 
-    Extends TemporalService with WBE-specific methods including
+    Extends BranchableService with WBE-specific methods including
     project filtering and hierarchical queries.
     """
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(WBE, session)
+
+    async def get_current(self, root_id: UUID, branch: str = "main") -> WBE | None:
+        """Get the current active version for a root entity on a specific branch.
+
+        Override parent method to use 'wbe_id' field instead of
+        the auto-generated field name.
+        """
+        from typing import cast as type_cast
+
+        from sqlalchemy import func
+
+        stmt = (
+            select(WBE)
+            .where(
+                WBE.wbe_id == root_id,
+                WBE.branch == branch,
+                func.upper(type_cast(Any, WBE).valid_time).is_(None),
+                type_cast(Any, WBE).deleted_at.is_(None),
+            )
+            .order_by(type_cast(Any, WBE).valid_time.desc())
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def create_root(
+        self,
+        root_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None,
+        branch: str = "main",
+        **data: Any,
+    ) -> WBE:
+        """Create the initial version of a WBE.
+
+        Override parent method to use 'wbe_id' field instead of
+        the auto-generated field name.
+
+        Args:
+            root_id: Root UUID identifier for the WBE
+            actor_id: User creating the WBE
+            control_date: Optional control date for valid_time (defaults to now)
+            branch: Branch name (default: "main")
+            **data: Additional fields for the WBE
+
+        Returns:
+            Created WBE
+        """
+        data["wbe_id"] = root_id
+
+        cmd = CreateVersionCommand(
+            entity_class=WBE,
+            root_id=root_id,
+            actor_id=actor_id,
+            control_date=control_date,
+            branch=branch,
+            **data,
+        )
+        return await cmd.execute(self.session)
 
     async def _resolve_parent_names(self, query_results: Sequence[Any]) -> list[WBE]:
         """Helper to resolve parent names for a list of WBE results.
@@ -404,22 +459,20 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
 
         # Soft-delete all descendants first (bottom-up to avoid FK issues)
         for descendant in reversed(descendants):  # Reverse to delete deepest first
-            cmd = SoftDeleteCommand(
-                entity_class=WBE,  # type: ignore[type-var,unused-ignore]
+            await self.soft_delete(
                 root_id=descendant.wbe_id,
                 actor_id=actor_id,
+                branch=descendant.branch,
                 control_date=control_date,
             )
-            await cmd.execute(self.session)
 
         # Finally, soft-delete the root WBE itself
-        cmd = SoftDeleteCommand(
-            entity_class=WBE,  # type: ignore[type-var,unused-ignore]
+        return await self.soft_delete(
             root_id=wbe_id,
             actor_id=actor_id,
+            branch=wbe.branch,
             control_date=control_date,
         )
-        return await cmd.execute(self.session)
 
     async def _get_all_descendants(
         self, parent_wbe_id: UUID, branch: str = "main"

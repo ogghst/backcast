@@ -201,6 +201,7 @@ async def create_wbe(
 )
 async def read_wbe(
     wbe_id: UUID,
+    branch: str = Query("main", description="Branch name"),
     as_of: datetime | None = Query(
         None,
         description="Time travel: get WBE state as of this timestamp (ISO 8601)",
@@ -214,10 +215,10 @@ async def read_wbe(
     """
     if as_of:
         # Time travel query
-        wbe = await service.get_wbe_as_of(wbe_id, as_of)
+        wbe = await service.get_wbe_as_of(wbe_id, as_of, branch=branch)
     else:
         # Current version
-        wbe = await service.get_by_root_id(wbe_id)
+        wbe = await service.get_current(wbe_id, branch=branch)
 
     if not wbe:
         raise HTTPException(
