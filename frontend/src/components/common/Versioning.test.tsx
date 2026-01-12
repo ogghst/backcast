@@ -24,7 +24,6 @@ describe("VersionHistoryDrawer", () => {
   ];
 
   it("renders list of versions", () => {
-    // @ts-expect-error - Testing invalid date
     render(
       <VersionHistoryDrawer
         open={true}
@@ -32,7 +31,7 @@ describe("VersionHistoryDrawer", () => {
         versions={mockVersions}
         entityName="User"
         onRestore={mockOnRestore}
-      />,
+      />
     );
 
     expect(screen.getByText(/Alice/)).toBeInTheDocument();
@@ -40,7 +39,6 @@ describe("VersionHistoryDrawer", () => {
   });
 
   it("calls onRestore when button clicked", () => {
-    // @ts-expect-error - Testing missing prop
     render(
       <VersionHistoryDrawer
         open={true}
@@ -48,7 +46,7 @@ describe("VersionHistoryDrawer", () => {
         versions={mockVersions}
         entityName="User"
         onRestore={mockOnRestore}
-      />,
+      />
     );
 
     // Find restore button for v1 (older version)

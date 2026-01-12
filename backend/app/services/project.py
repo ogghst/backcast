@@ -262,3 +262,28 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
             ... )
         """
         return await self.get_as_of(project_id, as_of, branch, branch_mode)
+
+    async def get_project_branches(self, project_id: UUID) -> list[str]:
+        """Get all branches for a project.
+
+        Returns:
+            List of branch names, always including "main" plus any
+            change order branches (co-{code}) for this project.
+        """
+        from app.models.domain.change_order import ChangeOrder
+
+        # Always include main branch
+        branches = ["main"]
+
+        # Get all unique change order branches for this project
+        # CO branches are named co-{code}, we can get them from the branch column
+        stmt = select(ChangeOrder.branch).where(
+            ChangeOrder.project_id == project_id,
+            ChangeOrder.branch != "main",  # Exclude main branch
+        ).distinct()
+
+        result = await self.session.execute(stmt)
+        co_branches = [row[0] for row in result.all()]
+
+        branches.extend(co_branches)
+        return branches

@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     PORT: int = 8020
     BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    BACKEND_CORS_METHODS: list[str] = ["*"]
+    BACKEND_CORS_HEADERS: list[str] = ["*"]
     RBAC_POLICY_FILE: str = "config/rbac.json"
 
     # Database

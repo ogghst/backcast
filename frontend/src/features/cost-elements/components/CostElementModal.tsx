@@ -4,7 +4,6 @@ import type {
   CostElementRead,
   CostElementCreate,
   CostElementUpdate,
-  CostElementUpdate,
   CostElementTypeRead,
 } from "@/api/generated";
 import { CostElementTypesService } from "@/api/generated";

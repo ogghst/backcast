@@ -2,6 +2,7 @@ import {
   useMutation,
   useQueryClient,
   UseMutationOptions,
+  useQuery,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
@@ -29,7 +30,7 @@ interface CostElementListParams {
   search?: string;
   sortField?: string;
   sortOrder?: string;
-  queryOptions?: unknown;
+  queryOptions?: any;
   wbe_id?: string; // Add wbe_id for direct filtering support if needed
 }
 
@@ -37,7 +38,7 @@ interface CostElementListParams {
 export const useCostElements = (params?: CostElementListParams) => {
   const { asOf } = useTimeMachineParams();
 
-  return useQuery({
+  return useQuery<PaginatedResponse<CostElementRead>>({
     queryKey: ["cost_elements", params, { asOf }],
     queryFn: async () => {
       const {

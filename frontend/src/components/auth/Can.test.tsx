@@ -17,21 +17,29 @@ describe("Can Component", () => {
     // Mock the getState method of the useAuthStore
     // Assuming useAuthStore is a function that also has a getState property
     vi.mocked(useAuthStore).getState = vi.fn(() => ({
-      user: null,
+      user: null as any,
       permissions: [],
+      token: null,
+      isAuthenticated: false,
+      setToken: vi.fn(),
+      hasPermission: vi.fn(),
+      hasAnyPermission: vi.fn(),
+      hasAllPermissions: vi.fn(),
+      hasRole: vi.fn(),
+      login: vi.fn(),
+      logout: vi.fn(),
+      setUser: vi.fn(),
     }));
     // Default mock implementation for the hook itself
-    vi.mocked(useAuthStore).mockImplementation(
-      (selector: (state: unknown) => unknown) => {
-        const state = {
-          hasPermission: mockHasPermission,
-          hasAnyPermission: mockHasAnyPermission,
-          hasAllPermissions: mockHasAllPermissions,
-          hasRole: mockHasRole,
-        };
-        return selector(state);
-      },
-    );
+    vi.mocked(useAuthStore).mockImplementation((selector: any) => {
+      const state = {
+        hasPermission: mockHasPermission,
+        hasAnyPermission: mockHasAnyPermission,
+        hasAllPermissions: mockHasAllPermissions,
+        hasRole: mockHasRole,
+      };
+      return selector(state);
+    });
   });
 
   it("renders children when no permission or role is required", () => {
@@ -57,7 +65,7 @@ describe("Can Component", () => {
     render(
       <Can permission="user-delete" fallback={<div>Fallback</div>}>
         Protected Content
-      </Can>,
+      </Can>
     );
     expect(screen.getByText("Fallback")).toBeInTheDocument();
   });
@@ -76,7 +84,7 @@ describe("Can Component", () => {
     render(
       <Can role="admin" permission="user-delete">
         Protected Content
-      </Can>,
+      </Can>
     );
     expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
 
@@ -84,7 +92,7 @@ describe("Can Component", () => {
     render(
       <Can role="admin" permission="user-delete">
         Allowed Content
-      </Can>,
+      </Can>
     );
     expect(screen.getByText("Allowed Content")).toBeInTheDocument();
   });
@@ -92,7 +100,7 @@ describe("Can Component", () => {
   it("handles array of permissions (ANY logic by default)", () => {
     mockHasAnyPermission.mockReturnValue(true);
     render(
-      <Can permission={["user-read", "user-create"]}>Allowed Content</Can>,
+      <Can permission={["user-read", "user-create"]}>Allowed Content</Can>
     );
     expect(screen.getByText("Allowed Content")).toBeInTheDocument();
     expect(mockHasAnyPermission).toHaveBeenCalledWith([
@@ -106,7 +114,7 @@ describe("Can Component", () => {
     render(
       <Can permission={["user-read", "user-create"]} requireAll>
         Allowed Content
-      </Can>,
+      </Can>
     );
     expect(screen.getByText("Allowed Content")).toBeInTheDocument();
     expect(mockHasAllPermissions).toHaveBeenCalledWith([

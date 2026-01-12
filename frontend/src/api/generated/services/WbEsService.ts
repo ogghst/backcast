@@ -39,6 +39,7 @@ export class WbEsService {
      * @param filters Filters in format 'column:value;column:value1,value2'
      * @param sortField Field to sort by
      * @param sortOrder Sort order (asc or desc)
+     * @param asOf Time travel: get WBEs as of this timestamp (ISO 8601)
      * @returns any Successful Response
      * @throws ApiError
      */
@@ -52,6 +53,7 @@ export class WbEsService {
         filters?: (string | null),
         sortField?: (string | null),
         sortOrder: string = 'asc',
+        asOf?: (string | null),
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -66,6 +68,7 @@ export class WbEsService {
                 'filters': filters,
                 'sort_field': sortField,
                 'sort_order': sortOrder,
+                'as_of': asOf,
             },
             errors: {
                 422: `Validation Error`,
@@ -95,18 +98,26 @@ export class WbEsService {
     /**
      * Read Wbe
      * Get a specific WBE by id. Requires read permission.
+     *
+     * Supports time-travel queries via the as_of parameter to view
+     * the WBE's state at any historical point in time.
      * @param wbeId
+     * @param asOf Time travel: get WBE state as of this timestamp (ISO 8601)
      * @returns WBERead Successful Response
      * @throws ApiError
      */
     public static getWbe(
         wbeId: string,
+        asOf?: (string | null),
     ): CancelablePromise<WBERead> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/wbes/{wbe_id}',
             path: {
                 'wbe_id': wbeId,
+            },
+            query: {
+                'as_of': asOf,
             },
             errors: {
                 422: `Validation Error`,
@@ -142,17 +153,22 @@ export class WbEsService {
      * Delete Wbe
      * Soft delete a WBE. Requires delete permission.
      * @param wbeId
+     * @param controlDate Optional control date for deletion
      * @returns void
      * @throws ApiError
      */
     public static deleteWbe(
         wbeId: string,
+        controlDate?: (string | null),
     ): CancelablePromise<void> {
         return __request(OpenAPI, {
             method: 'DELETE',
             url: '/api/v1/wbes/{wbe_id}',
             path: {
                 'wbe_id': wbeId,
+            },
+            query: {
+                'control_date': controlDate,
             },
             errors: {
                 422: `Validation Error`,

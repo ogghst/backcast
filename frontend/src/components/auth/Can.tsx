@@ -1,6 +1,6 @@
 import React from "react";
 import { useAuthStore } from "@/stores/useAuthStore";
-import type { Permission, Role } from "../types/auth";
+import type { Permission, Role } from "@/types/auth";
 
 interface CanProps {
   /** Required permission(s) - user needs ANY if array */

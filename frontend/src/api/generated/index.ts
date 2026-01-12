@@ -1,13 +1,16 @@
 /* generated using openapi-typescript-codegen -- do not edit */
 /* istanbul ignore file */
 /* tslint:disable */
- 
+/* eslint-disable */
 export { ApiError } from './core/ApiError';
 export { CancelablePromise, CancelError } from './core/CancelablePromise';
 export { OpenAPI } from './core/OpenAPI';
 export type { OpenAPIConfig } from './core/OpenAPI';
 
 export type { Body_login } from './models/Body_login';
+export type { ChangeOrderCreate } from './models/ChangeOrderCreate';
+export type { ChangeOrderPublic } from './models/ChangeOrderPublic';
+export type { ChangeOrderUpdate } from './models/ChangeOrderUpdate';
 export type { CostElementCreate } from './models/CostElementCreate';
 export type { CostElementRead } from './models/CostElementRead';
 export type { CostElementTypeCreate } from './models/CostElementTypeCreate';
@@ -37,6 +40,7 @@ export type { WBERead } from './models/WBERead';
 export type { WBEUpdate } from './models/WBEUpdate';
 
 export { AuthenticationService } from './services/AuthenticationService';
+export { ChangeOrdersService } from './services/ChangeOrdersService';
 export { CostElementsService } from './services/CostElementsService';
 export { CostElementTypesService } from './services/CostElementTypesService';
 export { DefaultService } from './services/DefaultService';

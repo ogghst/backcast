@@ -18,21 +18,22 @@ describe("usePermission Hook", () => {
       useAuthStore as unknown as {
         getState: () => { user: null; permissions: [] };
       }
-    ).getState = vi.fn(() => ({
-      user: null,
-      permissions: [],
-    }));
-    vi.mocked(useAuthStore).mockImplementation(
-      (selector: (state: unknown) => unknown) => {
-        const state = {
-          hasPermission: mockHasPermission,
-          hasAnyPermission: mockHasAnyPermission,
-          hasAllPermissions: mockHasAllPermissions,
-          hasRole: mockHasRole,
-        };
-        return selector(state);
-      },
+    ).getState = vi.fn(
+      () =>
+        ({
+          user: null,
+          permissions: [],
+        }) as any
     );
+    vi.mocked(useAuthStore).mockImplementation((selector: any) => {
+      const state = {
+        hasPermission: mockHasPermission,
+        hasAnyPermission: mockHasAnyPermission,
+        hasAllPermissions: mockHasAllPermissions,
+        hasRole: mockHasRole,
+      };
+      return selector(state);
+    });
   });
 
   it("exposes permission check methods", () => {

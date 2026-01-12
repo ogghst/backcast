@@ -358,12 +358,17 @@ const HistoryDrawerWrapper = ({
     <VersionHistoryDrawer
       open={open}
       onClose={onClose}
-      versions={(history || []).map((v) => ({
+      versions={(history || []).map((v, idx, arr) => ({
         ...v,
+        id: `v${arr.length - idx}`,
         valid_from: Array.isArray(v.valid_time)
           ? v.valid_time[0]
-          : v.valid_time,
-        changed_by: v.created_by_name,
+          : (v.valid_time as unknown as string) || new Date().toISOString(),
+        transaction_time: Array.isArray(v.transaction_time)
+          ? v.transaction_time[0]
+          : (v.transaction_time as unknown as string) ||
+            new Date().toISOString(),
+        changed_by: v.created_by_name || "System",
       }))}
       entityName={`Project: ${project?.name || ""}`}
       isLoading={isLoading}

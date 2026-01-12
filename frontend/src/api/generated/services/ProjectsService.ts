@@ -27,6 +27,7 @@ export class ProjectsService {
      * @param filters Filters in format 'column:value;column:value1,value2'
      * @param sortField Field to sort by
      * @param sortOrder Sort order (asc or desc)
+     * @param asOf Time travel: get Projects as of this timestamp (ISO 8601)
      * @returns any Successful Response
      * @throws ApiError
      */
@@ -38,6 +39,7 @@ export class ProjectsService {
         filters?: (string | null),
         sortField?: (string | null),
         sortOrder: string = 'asc',
+        asOf?: (string | null),
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -50,6 +52,7 @@ export class ProjectsService {
                 'filters': filters,
                 'sort_field': sortField,
                 'sort_order': sortOrder,
+                'as_of': asOf,
             },
             errors: {
                 422: `Validation Error`,
@@ -79,18 +82,26 @@ export class ProjectsService {
     /**
      * Read Project
      * Get a specific project by id. Requires read permission.
+     *
+     * Supports time-travel queries via the as_of parameter to view
+     * the project's state at any historical point in time.
      * @param projectId
+     * @param asOf Time travel: get project state as of this timestamp (ISO 8601)
      * @returns ProjectRead Successful Response
      * @throws ApiError
      */
     public static getProject(
         projectId: string,
+        asOf?: (string | null),
     ): CancelablePromise<ProjectRead> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/projects/{project_id}',
             path: {
                 'project_id': projectId,
+            },
+            query: {
+                'as_of': asOf,
             },
             errors: {
                 422: `Validation Error`,
@@ -126,17 +137,22 @@ export class ProjectsService {
      * Delete Project
      * Soft delete a project. Requires delete permission.
      * @param projectId
+     * @param controlDate Optional control date for deletion
      * @returns void
      * @throws ApiError
      */
     public static deleteProject(
         projectId: string,
+        controlDate?: (string | null),
     ): CancelablePromise<void> {
         return __request(OpenAPI, {
             method: 'DELETE',
             url: '/api/v1/projects/{project_id}',
             path: {
                 'project_id': projectId,
+            },
+            query: {
+                'control_date': controlDate,
             },
             errors: {
                 422: `Validation Error`,

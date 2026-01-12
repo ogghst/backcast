@@ -110,6 +110,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
         sort_order: str = "asc",
         project_id: UUID | None = None,
         parent_wbe_id: UUID | None = None,
+        apply_parent_filter: bool = False,
         as_of: datetime | None = None,
     ) -> tuple[list[WBE], int]:
         """Get all WBEs with pagination, search, and filters.
@@ -157,7 +158,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
             stmt = stmt.where(WBE.project_id == project_id)
 
         # Apply parent WBE filter
-        if parent_wbe_id:
+        if apply_parent_filter:
             stmt = stmt.where(WBE.parent_wbe_id == parent_wbe_id)
 
         # Apply search (across code and name)
@@ -311,6 +312,15 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
         root_id = wbe_in.wbe_id or uuid4()
         wbe_data["wbe_id"] = root_id
 
+        # Infer level from parent
+        if wbe_in.parent_wbe_id:
+            parent = await self.get_by_root_id(wbe_in.parent_wbe_id)
+            if not parent:
+                raise ValueError(f"Parent WBE {wbe_in.parent_wbe_id} not found")
+            wbe_data["level"] = parent.level + 1
+        else:
+            wbe_data["level"] = 1
+
         cmd = CreateVersionCommand(
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
@@ -331,6 +341,26 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
         update_data = wbe_in.model_dump(exclude_unset=True)
         # Remove control_date from update_data if present to avoid conflict with explicit arg
         update_data.pop("control_date", None)
+
+        # Handle re-leveling if parent changes
+        if wbe_in.parent_wbe_id is not None:  # explicit check for field presence/value
+            # Note: partial updates might send None to clear parent, or UUID to change it
+            # But here we are checking if it's IN the update data.
+            # However, since wbe_in fields are Optional, we need to check if it was set.
+            # wbe_in.model_dump(exclude_unset=True) handled this for update_data,
+            # but we need to check if "parent_wbe_id" is in update_data.
+            pass
+
+        if "parent_wbe_id" in update_data:
+            new_parent_id = update_data["parent_wbe_id"]
+            if new_parent_id:
+                parent = await self.get_by_root_id(new_parent_id)
+                if not parent:
+                    raise ValueError(f"Parent WBE {new_parent_id} not found")
+                update_data["level"] = parent.level + 1
+            else:
+                # Setting to root
+                update_data["level"] = 1
 
         cmd = UpdateVersionCommand(
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]

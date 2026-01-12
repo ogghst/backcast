@@ -25,7 +25,11 @@
         "cost-element-read",
         "cost-element-create",
         "cost-element-update",
-        "cost-element-delete"
+        "cost-element-delete",
+        "change-order-read",
+        "change-order-create",
+        "change-order-update",
+        "change-order-delete"
       ]
     },
     "manager": {
@@ -44,7 +48,10 @@
         "cost-element-read",
         "cost-element-create",
         "cost-element-update",
-        "cost-element-type-read"
+        "cost-element-type-read",
+        "change-order-read",
+        "change-order-create",
+        "change-order-update"
       ]
     },
     "viewer": {
@@ -53,7 +60,8 @@
         "project-read",
         "wbe-read",
         "cost-element-read",
-        "cost-element-type-read"
+        "cost-element-type-read",
+        "change-order-read"
       ]
     }
   }

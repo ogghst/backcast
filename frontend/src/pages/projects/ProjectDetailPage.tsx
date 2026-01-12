@@ -18,6 +18,7 @@ import { Can } from "@/components/auth/Can";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { ProjectsService } from "@/api/generated";
+import { ChangeOrderList } from "@/features/change-orders";
 
 export const ProjectDetailPage = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -145,6 +146,13 @@ export const ProjectDetailPage = () => {
                 setDeleteModalOpen(true);
               }}
             />
+          </Card>
+
+          <Card
+            title="Change Orders"
+            style={{ marginTop: 16 }}
+          >
+            <ChangeOrderList projectId={projectId!} />
           </Card>
         </>
       )}

@@ -322,14 +322,18 @@ export const UserList = () => {
       <VersionHistoryDrawer
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
-        versions={(historyVersions || []).map((version, idx, arr) => ({
-          id: `v${arr.length - idx}`,
-          valid_from: version.valid_time?.[0] || new Date().toISOString(),
-          transaction_time:
-            version.transaction_time?.[0] || new Date().toISOString(),
-          changed_by: version.created_by_name || "System",
-          changes: idx === 0 ? { created: "initial" } : { updated: "changed" },
-        }))}
+        versions={(historyVersions || []).map((v, idx, arr) => {
+          const version = v as User & { created_by_name?: string };
+          return {
+            id: `v${arr.length - idx}`,
+            valid_from: version.valid_time?.[0] || new Date().toISOString(),
+            transaction_time:
+              version.transaction_time?.[0] || new Date().toISOString(),
+            changed_by: version.created_by_name || "System",
+            changes:
+              idx === 0 ? { created: "initial" } : { updated: "changed" },
+          };
+        })}
         entityName={`User: ${selectedUser?.full_name || ""}`}
         isLoading={historyLoading}
       />

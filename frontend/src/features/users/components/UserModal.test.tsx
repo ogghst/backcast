@@ -31,11 +31,11 @@ describe("UserModal", () => {
   it("renders edit mode fields correctly", () => {
     const mockUser: User = {
       id: "1",
+      user_id: "1",
       email: "edit@test.com",
       full_name: "Edit User",
       role: "project_manager",
       is_active: true,
-      is_superuser: false,
       created_at: "2025-01-01",
     };
 
@@ -93,7 +93,7 @@ describe("UserModal", () => {
           full_name: "New User",
           email: "new@test.com",
           role: "viewer",
-        }),
+        })
       );
     });
   });

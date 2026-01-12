@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import { Slider, Tooltip } from "antd";
 import type { SliderMarks } from "antd/es/slider";
 import type { TimelineEvent } from "./types";

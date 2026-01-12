@@ -1,53 +1,53 @@
 # Current Iteration
 
-**Iteration:** Frontend Global Error Handling
-**Start Date:** 2026-01-11
-**End Date:** 2026-01-11
+**Iteration:** User Interface Refinements
+**Start Date:** 2026-01-12
+**End Date:** 2026-01-12
 **Status:** 🏃 **IN PROGRESS**
 
 ---
 
 ## Goal
 
-Implement robust global error handling for the frontend to prevent crashes on complex API errors (like 422s) and ensure user-friendly toast notifications.
+Improve User Experience by refining forms and automating data inference where possible.
 
 **Key Focus Areas:**
 
-1.  **Bug Fixes**: Resolve login failure (422) and subsequent frontend crash (React child error).
-2.  **Infrastructure**: Create safe error parsing utilities for `axios`, `zod`/`pydantic`, and `sonner`.
+1.  **WBE Creation**: Automate level calculation.
+2.  **Navigation**: Refine Project Detail view to show only Root WBEs.
 
 ---
 
 ## Stories in Scope
 
-| Story                            | Points | Priority | Status  | Actual Time | Dependencies |
-| :------------------------------- | :----- | :------- | :------ | :---------- | :----------- |
-| Fix Login 422 (Content-Type)     | 1h     | Critical | ✅ Done | 0.5h        | None         |
-| Create `getErrorMessage` utility | 1h     | High     | ✅ Done | 0.5h        | None         |
-| Update Global Axios Interceptor  | 1h     | High     | ✅ Done | 0.5h        | Utils        |
+| Story                        | Points | Priority | Status  | Actual Time | Dependencies |
+| :--------------------------- | :----- | :------- | :------ | :---------- | :----------- |
+| Automate WBE Level Inference | 1h     | High     | ✅ Done | 0.5h        | None         |
+| Fix WBE Root Filtering       | 1h     | High     | ✅ Done | 0.5h        | None         |
 
-**Total Estimated Effort:** 3 hours
+**Total Estimated Effort:** 2 hours
 
 ---
 
 ## Success Criteria
 
-- [x] Login request sends correct `application/x-www-form-urlencoded` header (via generated client).
-- [x] API errors (including Pydantic 422 arrays) result in readable toast messages, not app crashes.
-- [x] Session expiration (401) is handled gracefully.
+- [x] WBE Level field removed from form.
+- [x] Backend automatically calculates level from parent.
+- [x] Project Detail page shows only Root WBEs (Level 1).
+- [x] Tests verify filtering logic.
 
 ---
 
 ## Iteration Records
 
-- **ANALYSIS:** [00-analysis.md](iterations/2026-01-11-frontend-error-handling/00-analysis.md)
-- **PLAN:** [01-plan.md](iterations/2026-01-11-frontend-error-handling/01-plan.md)
-- **IMPLEMENTATION:** [02-implementation.md](iterations/2026-01-11-frontend-error-handling/02-implementation.md)
+- **WBE Level Inference:** [Iteration Folder](iterations/2026-01-12-wbe-level-inference/)
+- **WBE Root Filter:** [Iteration Folder](iterations/2026-01-12-wbe-root-filter/)
 
 ---
 
 ## Previous Iterations
 
+- **[2026-01-11] Frontend Global Error Handling:** ✅ Complete (100%)
 - **[2026-01-10] Standardize Time Travel List Operations:** ✅ Complete (100%)
 - **[2026-01-10] Control Date Implementation:** ✅ Complete (100%)
 - **[2026-01-10] Time Machine Production Hardening:** ✅ Complete (100%)

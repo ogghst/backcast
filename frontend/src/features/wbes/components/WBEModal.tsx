@@ -117,10 +117,6 @@ export const WBEModal = ({
           />
         </Form.Item>
 
-        <Form.Item name="level" label="Level">
-          <InputNumber style={{ width: "100%" }} min={1} />
-        </Form.Item>
-
         <Form.Item name="parent_wbe_id" hidden>
           <Input />
         </Form.Item>

@@ -22,7 +22,10 @@ export interface ProjectListParams {
     current?: number;
     pageSize?: number;
   };
-  filters?: Record<string, string | string[] | null | undefined>;
+  filters?: Record<
+    string,
+    (string | number | boolean | bigint)[] | null | undefined
+  >;
   sorter?: {
     field?: string | string[];
     order?: string;
@@ -30,7 +33,7 @@ export interface ProjectListParams {
   search?: string;
   sortField?: string;
   sortOrder?: string;
-  queryOptions?: unknown;
+  queryOptions?: any;
 }
 
 /**
@@ -80,7 +83,7 @@ const getPaginationParams = (params?: ProjectListParams) => {
 export const useProjects = (params?: ProjectListParams) => {
   const { asOf } = useTimeMachineParams();
 
-  return useQuery({
+  return useQuery<PaginatedResponse<ProjectRead>>({
     queryKey: ["projects", params, { asOf }],
     queryFn: async () => {
       const serverParams = getPaginationParams(params);
@@ -218,6 +221,29 @@ export const useProject = (
       }) as Promise<ProjectRead>;
     },
     enabled: !!id,
+    ...queryOptions,
+  });
+};
+
+/**
+ * Custom hook to fetch branches for a project.
+ * Returns main branch plus any change order branches (co-{code}).
+ */
+export const useProjectBranches = (
+  projectId: string | undefined,
+  queryOptions?: Omit<UseQueryOptions<string[], Error>, "queryKey">
+) => {
+  return useQuery<string[]>({
+    queryKey: ["projects", projectId, "branches"],
+    queryFn: async () => {
+      if (!projectId) throw new Error("Project ID is required");
+
+      return __request(OpenAPI, {
+        method: "GET",
+        url: `/api/v1/projects/${projectId}/branches`,
+      }) as Promise<string[]>;
+    },
+    enabled: !!projectId,
     ...queryOptions,
   });
 };

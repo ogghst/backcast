@@ -40,7 +40,10 @@ interface ErrorBoundaryProps {
 }
 
 export const ErrorBoundary: React.FC<ErrorBoundaryProps> = ({ children }) => {
-  const handleError = (error: Error, info: { componentStack: string }) => {
+  const handleError = (
+    error: Error,
+    info: { componentStack?: string | null }
+  ) => {
     // Log error to console in development
     console.error("ErrorBoundary caught an error:", error, info);
 

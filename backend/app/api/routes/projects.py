@@ -241,3 +241,23 @@ async def read_project_history(
             detail="No history found for this project",
         )
     return history
+
+
+@router.get(
+    "/{project_id}/branches",
+    response_model=list[str],
+    operation_id="get_project_branches",
+    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
+)
+async def read_project_branches(
+    project_id: UUID,
+    service: ProjectService = Depends(get_project_service),
+) -> list[str]:
+    """Get all branches for a project.
+
+    Returns the main branch plus any change order branches (co-{code})
+    that exist for this project.
+
+    Requires read permission.
+    """
+    return await service.get_project_branches(project_id)

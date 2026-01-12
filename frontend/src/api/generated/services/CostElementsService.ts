@@ -21,6 +21,7 @@ export class CostElementsService {
      * @param filters Filters in format 'column:value;column:value1,value2'
      * @param sortField Field to sort by
      * @param sortOrder Sort order (asc or desc)
+     * @param asOf Time travel: get Cost Elements as of this timestamp (ISO 8601)
      * @returns any Successful Response
      * @throws ApiError
      */
@@ -34,6 +35,7 @@ export class CostElementsService {
         filters?: (string | null),
         sortField?: (string | null),
         sortOrder: string = 'asc',
+        asOf?: (string | null),
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -48,6 +50,7 @@ export class CostElementsService {
                 'filters': filters,
                 'sort_field': sortField,
                 'sort_order': sortOrder,
+                'as_of': asOf,
             },
             errors: {
                 422: `Validation Error`,
@@ -82,14 +85,19 @@ export class CostElementsService {
     /**
      * Read Cost Element
      * Get a specific cost element by id and branch.
+     *
+     * Supports time-travel queries via the as_of parameter to view
+     * the cost element's state at any historical point in time.
      * @param costElementId
      * @param branch Branch to query
+     * @param asOf Time travel: get cost element state as of this timestamp (ISO 8601)
      * @returns CostElementRead Successful Response
      * @throws ApiError
      */
     public static getCostElement(
         costElementId: string,
         branch: string = 'main',
+        asOf?: (string | null),
     ): CancelablePromise<CostElementRead> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -99,6 +107,7 @@ export class CostElementsService {
             },
             query: {
                 'branch': branch,
+                'as_of': asOf,
             },
             errors: {
                 422: `Validation Error`,
@@ -140,12 +149,14 @@ export class CostElementsService {
      * Soft delete a cost element in a branch.
      * @param costElementId
      * @param branch Branch to delete from
+     * @param controlDate Optional control date for deletion
      * @returns void
      * @throws ApiError
      */
     public static deleteCostElement(
         costElementId: string,
         branch: string = 'main',
+        controlDate?: (string | null),
     ): CancelablePromise<void> {
         return __request(OpenAPI, {
             method: 'DELETE',
@@ -155,6 +166,7 @@ export class CostElementsService {
             },
             query: {
                 'branch': branch,
+                'control_date': controlDate,
             },
             errors: {
                 422: `Validation Error`,

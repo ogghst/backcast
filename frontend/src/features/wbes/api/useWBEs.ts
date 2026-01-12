@@ -23,7 +23,10 @@ export interface WBEListParams {
     current?: number;
     pageSize?: number;
   };
-  filters?: Record<string, string | string[] | null | undefined>;
+  filters?: Record<
+    string,
+    (string | number | boolean | bigint)[] | null | undefined
+  >;
   sorter?: {
     field?: string | string[];
     order?: string;
@@ -34,14 +37,14 @@ export interface WBEListParams {
   search?: string;
   sortField?: string;
   sortOrder?: string;
-  queryOptions?: unknown;
+  queryOptions?: any;
 }
 
 // Custom useWBEs list hook with Time Machine integration
 export const useWBEs = (params?: WBEListParams) => {
   const { asOf } = useTimeMachineParams();
 
-  return useQuery({
+  return useQuery<PaginatedResponse<WBERead>>({
     queryKey: ["wbes", params, { asOf }],
     queryFn: async () => {
       const current = params?.pagination?.current || 1;
