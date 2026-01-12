@@ -1,5 +1,7 @@
 # Pre-commit hooks configuration
 # See https://pre-commit.com for more information
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -8,8 +10,10 @@ repos:
       # Run the linter
       - id: ruff
         args: [--fix]
+        types_or: [python, pyi, jupyter]
       # Run the formatter
       - id: ruff-format
+        types_or: [python, pyi, jupyter]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.14.1
@@ -20,3 +24,5 @@ repos:
           - sqlalchemy>=2.0.0
           - types-passlib
         args: [--strict, --ignore-missing-imports]
+        # Only run on backend directory
+        files: ^backend/

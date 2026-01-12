@@ -1,15 +1,20 @@
 import React from "react";
+import { Space } from "antd";
 import { useProjectBranches } from "@/features/projects/api/useProjects";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { BranchSelector } from "./BranchSelector";
+import { ViewModeSelector } from "./ViewModeSelector";
 import type { BranchOption } from "./types";
 
 interface ProjectBranchSelectorProps {
   projectId: string;
+  /** Include view mode selector */
+  includeViewMode?: boolean;
 }
 
 export const ProjectBranchSelector: React.FC<ProjectBranchSelectorProps> = ({
   projectId,
+  includeViewMode = true,
 }) => {
   const { data: branches = [], isLoading } = useProjectBranches(projectId);
   const selectedBranch = useTimeMachineStore((state) =>
@@ -28,22 +33,28 @@ export const ProjectBranchSelector: React.FC<ProjectBranchSelectorProps> = ({
   if (isLoading) {
     // Render a loading state or the dumb selector disabled
     return (
-      <BranchSelector
-        value={selectedBranch}
-        branches={[{ value: selectedBranch, label: selectedBranch }]}
-        onChange={() => {}}
-        disabled
-        compact
-      />
+      <Space size="small">
+        <BranchSelector
+          value={selectedBranch}
+          branches={[{ value: selectedBranch, label: selectedBranch }]}
+          onChange={() => {}}
+          disabled
+          compact
+        />
+        {includeViewMode && <ViewModeSelector compact />}
+      </Space>
     );
   }
 
   return (
-    <BranchSelector
-      value={selectedBranch}
-      branches={options}
-      onChange={selectBranch}
-      compact
-    />
+    <Space size="small">
+      <BranchSelector
+        value={selectedBranch}
+        branches={options}
+        onChange={selectBranch}
+        compact
+      />
+      {includeViewMode && <ViewModeSelector compact />}
+    </Space>
   );
 };

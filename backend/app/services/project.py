@@ -4,6 +4,7 @@ Provides Project-specific operations on top of generic temporal service.
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -18,9 +19,6 @@ from app.core.versioning.enums import BranchMode
 from app.core.versioning.service import TemporalService
 from app.models.domain.project import Project
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
-
-
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.models.schemas.branch import BranchPublic
@@ -40,6 +38,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         skip: int = 0,
         limit: int = 100000,
         branch: str = "main",
+        branch_mode: BranchMode = BranchMode.MERGE,
         search: str | None = None,
         filters: str | None = None,
         sort_field: str | None = None,
@@ -52,6 +51,9 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
             skip: Number of records to skip (for pagination)
             limit: Maximum number of records to return
             branch: Branch name to filter by (default: "main")
+            branch_mode: Branch resolution mode (default: MERGE)
+                - MERGE: Combine current branch with main (current branch takes precedence)
+                - STRICT: Only return entities from current branch
             search: Search term to match against code and name (case-insensitive)
             filters: Filter string in format "column:value;column:value1,value2"
                      Example: "status:Active;budget:>100000"
@@ -85,9 +87,13 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
 
         from app.core.filtering import FilterParser
 
-        # Base query: versions in specified branch, not deleted
-        # Base query: versions in specified branch
-        stmt = select(Project).where(Project.branch == branch)
+        # Base query: versions in specified branch(es)
+        stmt = select(Project)
+
+        # Apply branch mode filter (STRICT vs MERGE)
+        stmt = self._apply_branch_mode_filter(
+            stmt, branch=branch, branch_mode=branch_mode, as_of=as_of
+        )
 
         # Apply time-travel filter
         if as_of:

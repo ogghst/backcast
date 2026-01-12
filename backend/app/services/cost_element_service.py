@@ -159,7 +159,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         self,
         element_in: CostElementCreate,
         actor_id: UUID,
-        branch: str = "main",
+        branch: str | None = None,
         control_date: datetime | None = None,
     ) -> CostElement:
         """Create new cost element using CreateVersionCommand."""
@@ -169,7 +169,10 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         # Use provided cost_element_id (for seeding) or generate new one
         root_id = element_in.cost_element_id or uuid4()
         element_data["cost_element_id"] = root_id
-        element_data["branch"] = branch
+
+        # Use schema branch if provided, otherwise use parameter (for backward compatibility)
+        if "branch" not in element_data or element_data["branch"] == "main":
+            element_data["branch"] = branch or "main"
 
         cmd = CreateVersionCommand(
             entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
@@ -185,17 +188,20 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         cost_element_id: UUID,
         element_in: CostElementUpdate,
         actor_id: UUID,
-        branch: str = "main",
+        branch: str | None = None,
         control_date: datetime | None = None,
     ) -> CostElement:
         """Update cost element using UpdateVersionCommand or Fork if new branch."""
         update_data = element_in.model_dump(exclude_unset=True)
         update_data.pop("control_date", None)
-        update_data["branch"] = branch
+
+        # Use schema branch if provided, otherwise use parameter (for backward compatibility)
+        target_branch = update_data.pop("branch", None) or branch or "main"
+        update_data["branch"] = target_branch
 
         # Check if version exists in target branch
         # We need to manage the query manually to avoid TemporalService issues and handle branching
-        current = await self.get_by_id(cost_element_id, branch=branch)
+        current = await self.get_by_id(cost_element_id, branch=target_branch)
 
         if current:
             # Linear update in same branch: Close old, Open new
@@ -335,6 +341,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         self,
         filters: dict[str, Any] | None = None,
         branch: str = "main",
+        branch_mode: BranchMode = BranchMode.MERGE,
         skip: int = 0,
         limit: int = 100000,
         search: str | None = None,
@@ -348,6 +355,9 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         Args:
             filters: Legacy dict filters (for backward compatibility)
             branch: Branch name to filter by (default: "main")
+            branch_mode: Branch resolution mode (default: MERGE)
+                - MERGE: Combine current branch with main (current branch takes precedence)
+                - STRICT: Only return entities from current branch
             skip: Number of records to skip (for pagination)
             limit: Maximum number of records to return
             search: Search term to match against code and name (case-insensitive)
@@ -377,8 +387,12 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         from app.core.filtering import FilterParser
 
         # Base query with WBE name and type joins
-        # Base query: versions in specified branch
-        stmt = self._get_base_stmt().where(CostElement.branch == branch)
+        stmt = self._get_base_stmt()
+
+        # Apply branch mode filter (STRICT vs MERGE)
+        stmt = self._apply_branch_mode_filter(
+            stmt, branch=branch, branch_mode=branch_mode, as_of=as_of
+        )
 
         # Apply time-travel filter
         if as_of:
@@ -460,9 +474,10 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         """Alias for get_cost_elements() to maintain backward compatibility.
 
         Note: Returns only items, not total count. Use get_cost_elements() for pagination.
+        Uses STRICT mode (only current branch) for backward compatibility.
         """
         items, _ = await self.get_cost_elements(
-            filters=filters, branch=branch, skip=skip, limit=limit
+            filters=filters, branch=branch, branch_mode=BranchMode.STRICT, skip=skip, limit=limit
         )
         return items
 

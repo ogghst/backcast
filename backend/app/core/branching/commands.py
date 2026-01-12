@@ -129,7 +129,7 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
             raise ValueError(
                 f"No active version on branch {self.branch} for {self.root_id}"
             )
-        
+
         if self.control_date:
              current_lower = cast(Any, current).valid_time.lower
              if self.control_date <= current_lower:
@@ -137,22 +137,22 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
                      f"control_date ({self.control_date.isoformat()}) must be after "
                      f"valid_time lower bound ({current_lower.isoformat()})"
                  )
-             
+
              # SPLIT HISTORY: Create a remainder version for the period [current_lower, control_date)
              # This ensures we preserve "Current Knowledge" that the entity WAS valid during that period.
              remainder = cast(
-                 TBranchable, current.clone(parent_id=current.parent_id) 
-                 # use same parent as current (linear history split)? 
-                 # Or should remainder be the parent of the new version? 
-                 # Actually, usually V1 -> V2. 
-                 # If we split V1 into V1a and V1b (where V1b is the new update V2?), 
+                 TBranchable, current.clone(parent_id=current.parent_id)
+                 # use same parent as current (linear history split)?
+                 # Or should remainder be the parent of the new version?
+                 # Actually, usually V1 -> V2.
+                 # If we split V1 into V1a and V1b (where V1b is the new update V2?),
                  # Remainder is V1a. New Version is V2.
                  # Remainder should conceptually assume the identity of the old version for that period.
                  # parent_id should be same as current.
              )
              session.add(remainder)
              await session.flush()
-             
+
              # Fix Remainder Times
              tablename = cast(str, self.entity_class.__tablename__)
              stmt_rem = text(
@@ -199,7 +199,7 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         })
         await session.flush()
         await session.refresh(new_version)
-        
+
         return new_version
 
 

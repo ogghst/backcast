@@ -1,10 +1,9 @@
 import React from "react";
-import { Button, Space, Typography, Tag } from "antd";
+import { Button, Space, Typography } from "antd";
 import {
   ClockCircleOutlined,
   DownOutlined,
   UpOutlined,
-  BranchesOutlined,
 } from "@ant-design/icons";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { useTimeMachine } from "@/contexts/TimeMachineContext";
@@ -40,7 +39,6 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
     isExpanded,
     toggleExpanded,
     getSelectedTime,
-    getSelectedBranch,
     resetToNow,
     setCurrentProject,
   } = useTimeMachineStore();
@@ -56,7 +54,6 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
   }, [projectId, project?.start_date, setCurrentProject]);
 
   const selectedTime = getSelectedTime();
-  const selectedBranch = getSelectedBranch();
 
   // Format display date
   const displayDate = selectedTime

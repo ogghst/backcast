@@ -28,6 +28,10 @@ class ProjectCreate(ProjectBase):
         description="Root Project ID (internal use only for seeding)",
         exclude=True,  # Exclude from OpenAPI docs
     )
+    branch: str = Field(
+        "main",
+        description="Branch name for creation (defaults to main if not specified)",
+    )
     control_date: datetime | None = Field(
         None, description="Optional control date for creation (valid_time start)"
     )
@@ -42,6 +46,7 @@ class ProjectUpdate(BaseModel):
     start_date: datetime | None = None
     end_date: datetime | None = None
     description: str | None = Field(None, max_length=5000)
+    branch: str | None = Field(None, description="Branch name for update (defaults to current branch)")
     control_date: datetime | None = Field(
         None, description="Optional control date for update (valid_time start)"
     )

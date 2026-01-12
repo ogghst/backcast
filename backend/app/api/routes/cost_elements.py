@@ -105,7 +105,6 @@ async def read_cost_elements(
 )
 async def create_cost_element(
     element_in: CostElementCreate,
-    branch: str = Query("main", description="Target branch for creation"),
     current_user: User = Depends(get_current_active_user),
     service: CostElementService = Depends(get_cost_element_service),
 ) -> CostElement:
@@ -114,7 +113,7 @@ async def create_cost_element(
         return await service.create(
             element_in=element_in,
             actor_id=current_user.user_id,
-            branch=branch,
+            branch=element_in.branch,
             control_date=element_in.control_date
         )
     except Exception as e:
@@ -168,16 +167,13 @@ async def read_cost_element(
 async def update_cost_element(
     cost_element_id: UUID,
     element_in: CostElementUpdate,
-    branch: str = Query("main", description="Target branch for update"),
     current_user: User = Depends(get_current_active_user),
     service: CostElementService = Depends(get_cost_element_service),
 ) -> CostElement:
     """Update a cost element. Creates new version or forks."""
     try:
-        # Check existence first? Service handles existence logic (especially fork).
-        # But we might want to 404 if it doesn't exist in source either.
-        # Service update logic: "If version not found in target branch -> Fork from main".
-        # If not in main -> ValueError.
+        # Use branch from schema if provided, otherwise default to main
+        branch = element_in.branch or "main"
 
         return await service.update(
             cost_element_id=cost_element_id,

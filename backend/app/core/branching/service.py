@@ -4,6 +4,7 @@ Extends the command pattern to provide business-level operations for
 entities implementing BranchableProtocol (e.g. Projects).
 """
 
+import re
 from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
@@ -29,6 +30,24 @@ class BranchableService[TBranchable: BranchableProtocol]:
     def __init__(self, entity_class: type[TBranchable], session: AsyncSession) -> None:
         self.entity_class = entity_class
         self.session = session
+
+    def _get_root_field_name(self) -> str:
+        """Derive the root column name from the entity class name.
+
+        Handles:
+        - Project -> project_id
+        - CostElement -> cost_element_id
+        - WBE -> wbe_id
+        """
+        name = self.entity_class.__name__
+        if name.endswith("Version"):
+            name = name[:-7]
+
+        # CamelCase to snake_case
+        s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", name)
+        snake_name = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
+
+        return f"{snake_name}_id"
 
     async def get_by_id(self, entity_id: UUID) -> TBranchable | None:
         """Get specific version by its version ID (primary key)."""
@@ -223,6 +242,80 @@ class BranchableService[TBranchable: BranchableProtocol]:
             ),
         )
 
+    def _apply_branch_mode_filter(
+        self,
+        stmt: Any,
+        branch: str,
+        branch_mode: BranchMode,
+        as_of: datetime | None = None,
+    ) -> Any:
+        """Apply branch mode filtering (STRICT vs MERGE) to a statement.
+
+        For STRICT mode: Filters to only the specified branch.
+        For MERGE mode: Uses DISTINCT ON to merge main branch with specified branch,
+        with branch taking precedence over main for entities that exist in both.
+
+        Args:
+            stmt: SQLAlchemy statement to filter
+            branch: Current branch name
+            branch_mode: STRICT (isolated) or MERGE (composite)
+            as_of: Optional timestamp for time-travel queries
+
+        Returns:
+            Filtered statement with DISTINCT ON applied for MERGE mode
+        """
+        from typing import Any, cast
+
+        from sqlalchemy import case, or_
+
+        # Get root field name (e.g., "wbe_id", "project_id", "cost_element_id")
+        root_field = self._get_root_field_name()
+
+        if branch_mode == BranchMode.MERGE and branch != "main":
+            # MERGE MODE: Use DISTINCT ON with branch precedence
+            # Filter to include both current branch AND main
+            stmt = stmt.where(cast(Any, self.entity_class).branch.in_([branch, "main"]))
+
+            # Exclude main branch entities that were deleted on current branch
+            # by adding a NOT EXISTS condition
+            deleted_root_ids_subq = (
+                select(getattr(self.entity_class, root_field))
+                .where(
+                    cast(Any, self.entity_class).branch == branch,
+                    cast(Any, self.entity_class).deleted_at.is_not(None),
+                )
+                .distinct()
+            )
+
+            # Exclude main branch entities that have a deleted version on current branch
+            # Logic: Include entity if (it's on current branch) OR (root_id NOT in deleted list)
+            stmt = stmt.where(
+                or_(
+                    cast(Any, self.entity_class).branch == branch,  # Include current branch
+                    ~getattr(self.entity_class, root_field).in_(
+                        deleted_root_ids_subq.scalar_subquery()
+                    ),  # Exclude main if deleted on current branch
+                ),
+            )
+
+            # Apply DISTINCT ON with branch precedence ordering
+            # The CASE expression returns 0 for current branch, 1 for main
+            # We want current branch (0) to come first, then main (1)
+            stmt = stmt.order_by(
+                getattr(self.entity_class, root_field),
+                case((cast(Any, self.entity_class).branch == branch, 0), else_=1),
+                # Then by valid_time descending (newest first)
+                cast(Any, self.entity_class).valid_time.desc(),
+            )
+
+            # Apply DISTINCT ON root_id
+            stmt = stmt.distinct(getattr(self.entity_class, root_field))
+
+            return stmt
+        else:
+            # STRICT MODE: Only query the specified branch (current behavior)
+            return stmt.where(cast(Any, self.entity_class).branch == branch)
+
     async def get_as_of(
         self,
         entity_id: UUID,
@@ -239,10 +332,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
             branch_mode: Resolution mode (STRICT=only branch, MERGE=fallback to main)
         """
         # Helper to get root field name
-        class_name = self.entity_class.__name__.lower()
-        if class_name.endswith("version"):
-            class_name = class_name[:-7]
-        root_field = f"{class_name}_id"
+        root_field = self._get_root_field_name()
 
         # Base conditions for ID and Time
         conditions = [
@@ -293,10 +383,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
         from app.models.domain.user import User
 
         # Helper to get root field name
-        class_name = self.entity_class.__name__.lower()
-        if class_name.endswith("version"):
-            class_name = class_name[:-7]
-        root_field = f"{class_name}_id"
+        root_field = self._get_root_field_name()
 
         # Creator lookup subquery
         UserAlias = cast(Any, User)

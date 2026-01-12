@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useMemo, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
+import { useTimeMachineStore, type BranchMode } from "@/stores/useTimeMachineStore";
 
 /**
- * Time Machine context value providing as_of and branch parameters
+ * Time Machine context value providing as_of, branch, and mode parameters
  * for API calls throughout the component tree.
  */
 interface TimeMachineContextValue {
@@ -11,6 +11,8 @@ interface TimeMachineContextValue {
   asOf: string | undefined;
   /** Current branch name */
   branch: string;
+  /** Branch mode: "merged" or "isolated" */
+  mode: BranchMode;
   /** Whether viewing historical data (not "now") */
   isHistorical: boolean;
   /** Invalidate all queries when time/branch changes */
@@ -54,6 +56,13 @@ export function TimeMachineProvider({ children }: TimeMachineProviderProps) {
     );
   });
 
+  const selectedViewMode = useTimeMachineStore((state) => {
+    if (!state.currentProjectId) return "merged";
+    return (
+      state.projectSettings[state.currentProjectId]?.viewMode ?? "merged"
+    );
+  });
+
   // Compute context values
   const asOf = useMemo(
     () => (selectedTime ? selectedTime : undefined),
@@ -75,10 +84,11 @@ export function TimeMachineProvider({ children }: TimeMachineProviderProps) {
     () => ({
       asOf,
       branch: selectedBranch,
+      mode: selectedViewMode,
       isHistorical,
       invalidateQueries,
     }),
-    [asOf, selectedBranch, isHistorical, invalidateQueries]
+    [asOf, selectedBranch, selectedViewMode, isHistorical, invalidateQueries]
   );
 
   return (
@@ -121,17 +131,21 @@ export function useTimeMachine(): TimeMachineContextValue {
 }
 
 /**
- * Hook that returns API query parameters including as_of and branch.
+ * Hook that returns API query parameters including as_of, branch, and mode.
  * Use this when building query keys or API calls.
  *
  * @example
  * ```tsx
  * const params = useTimeMachineParams();
- * // { asOf: '2026-01-15T00:00:00Z', branch: 'main' } or
- * // { asOf: undefined, branch: 'main' } for current time
+ * // { asOf: '2026-01-15T00:00:00Z', branch: 'main', mode: 'merged' } or
+ * // { asOf: undefined, branch: 'main', mode: 'isolated' } for current time
  * ```
  */
-export function useTimeMachineParams(): { asOf?: string; branch: string } {
-  const { asOf, branch } = useTimeMachine();
-  return useMemo(() => ({ asOf, branch }), [asOf, branch]);
+export function useTimeMachineParams(): {
+  asOf?: string;
+  branch: string;
+  mode: BranchMode;
+} {
+  const { asOf, branch, mode } = useTimeMachine();
+  return useMemo(() => ({ asOf, branch, mode }), [asOf, branch, mode]);
 }

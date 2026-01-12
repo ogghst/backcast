@@ -12,12 +12,12 @@ from app.api.dependencies.auth import RoleChecker, get_current_active_user
 from app.db.session import get_db
 from app.models.domain.project import Project
 from app.models.domain.user import User
+from app.models.schemas.branch import BranchPublic
 from app.models.schemas.project import (
     ProjectCreate,
     ProjectPublic,
     ProjectUpdate,
 )
-from app.models.schemas.branch import BranchPublic
 from app.services.project import ProjectService
 
 router = APIRouter()
@@ -39,16 +39,20 @@ async def read_projects(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch name"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
     search: str | None = Query(None, description="Search term (code, name)"),
     filters: str | None = Query(
         None,
         description="Filters in format 'column:value;column:value1,value2'",
-        example="status:Active;code:PROJ",
     ),
     sort_field: str | None = Query(None, description="Field to sort by"),
     sort_order: str = Query(
         "asc",
-        regex="^(asc|desc)$",
+        pattern="^(asc|desc)$",
         description="Sort order (asc or desc)",
     ),
     as_of: datetime | None = Query(
@@ -64,10 +68,15 @@ async def read_projects(
     - **Filters**: Filter by status, code, name (format: "column:value;column:value1,value2")
     - **Sorting**: Sort by any field (asc/desc)
     - **Pagination**: Returns total count for proper pagination UI
+    - **Mode**: Branch mode - "merged" (combine with main) or "isolated" (current branch only)
 
     Requires read permission.
     """
+    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
+
+    # Parse mode string to BranchMode enum
+    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     # Calculate skip from page number
     skip = (page - 1) * per_page
@@ -78,6 +87,7 @@ async def read_projects(
             skip=skip,
             limit=per_page,
             branch=branch,
+            branch_mode=branch_mode,
             search=search,
             filters=filters,
             sort_field=sort_field,

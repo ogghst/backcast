@@ -43,16 +43,20 @@ async def read_wbes(
         None, description="Filter by parent WBE ID (use 'null' string for root WBEs)"
     ),
     branch: str = Query("main", description="Branch name"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
     search: str | None = Query(None, description="Search term (code, name)"),
     filters: str | None = Query(
         None,
         description="Filters in format 'column:value;column:value1,value2'",
-        example="level:1,2;code:1.1",
     ),
     sort_field: str | None = Query(None, description="Field to sort by"),
     sort_order: str = Query(
         "asc",
-        regex="^(asc|desc)$",
+        pattern="^(asc|desc)$",
         description="Sort order (asc or desc)",
     ),
     as_of: datetime | None = Query(
@@ -77,11 +81,16 @@ async def read_wbes(
     - **Filters**: Filter by level, code, name (format: "column:value;column:value1,value2")
     - **Sorting**: Sort by any field (asc/desc)
     - **Pagination**: Returns total count for proper pagination UI
+    - **Mode**: Branch mode - "merged" (combine with main) or "isolated" (current branch only)
 
     Requires read permission.
     """
+    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
     from app.models.schemas.wbe import WBEPublic
+
+    # Parse mode string to BranchMode enum
+    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     # Parse parent_wbe_id
     parsed_parent_id: UUID | None = None
@@ -119,6 +128,7 @@ async def read_wbes(
             skip=skip,
             limit=per_page,
             branch=branch,
+            branch_mode=branch_mode,
             search=search,
             filters=filters,
             sort_field=sort_field,

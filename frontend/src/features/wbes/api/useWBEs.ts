@@ -42,10 +42,10 @@ export interface WBEListParams {
 
 // Custom useWBEs list hook with Time Machine integration
 export const useWBEs = (params?: WBEListParams) => {
-  const { asOf } = useTimeMachineParams();
+  const { asOf, mode } = useTimeMachineParams();
 
   return useQuery<PaginatedResponse<WBERead>>({
-    queryKey: ["wbes", params, { asOf }],
+    queryKey: ["wbes", params, { asOf, mode }],
     queryFn: async () => {
       const current = params?.pagination?.current || 1;
       const pageSize = params?.pagination?.pageSize || 20;
@@ -72,7 +72,7 @@ export const useWBEs = (params?: WBEListParams) => {
       const sortOrderRaw = params?.sorter?.order || params?.sortOrder;
       const sortOrder = sortOrderRaw === "descend" ? "desc" : "asc";
 
-      // Manual request to support as_of query param
+      // Manual request to support as_of and mode query params
       const response = await __request(OpenAPI, {
         method: "GET",
         url: "/api/v1/wbes",
@@ -82,6 +82,7 @@ export const useWBEs = (params?: WBEListParams) => {
           project_id: params?.projectId,
           parent_wbe_id: params?.parentWbeId,
           branch: params?.branch || "main",
+          mode: mode,
           search: params?.search,
           filters: filterString,
           sort_field: sortField as string,
@@ -110,7 +111,7 @@ export const useWBEs = (params?: WBEListParams) => {
 
 /**
  * Custom create hook with Time Machine integration.
- * Automatically injects control_date from TimeMachine context.
+ * Automatically injects control_date and branch from TimeMachine context.
  */
 export const useCreateWBE = (
   mutationOptions?: Omit<
@@ -118,12 +119,12 @@ export const useCreateWBE = (
     "mutationFn"
   >
 ) => {
-  const { asOf } = useTimeMachineParams();
+  const { asOf, branch } = useTimeMachineParams();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (data: WBECreate) => {
-      const payload = { ...data, control_date: asOf || null };
+      const payload = { ...data, control_date: asOf || null, branch };
       return WbEsService.createWbe(payload);
     },
     onSuccess: (...args) => {
@@ -141,7 +142,7 @@ export const useCreateWBE = (
 
 /**
  * Custom update hook with Time Machine integration.
- * Automatically injects control_date from TimeMachine context.
+ * Automatically injects control_date and branch from TimeMachine context.
  */
 export const useUpdateWBE = (
   mutationOptions?: Omit<
@@ -149,12 +150,12 @@ export const useUpdateWBE = (
     "mutationFn"
   >
 ) => {
-  const { asOf } = useTimeMachineParams();
+  const { asOf, branch } = useTimeMachineParams();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: WBEUpdate }) => {
-      const payload = { ...data, control_date: asOf || null };
+      const payload = { ...data, control_date: asOf || null, branch };
       return WbEsService.updateWbe(id, payload);
     },
     onSuccess: (...args) => {

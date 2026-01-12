@@ -159,6 +159,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         skip: int = 0,
         limit: int = 100000,
         branch: str = "main",
+        branch_mode: BranchMode = BranchMode.MERGE,
         search: str | None = None,
         filters: str | None = None,
         sort_field: str | None = None,
@@ -174,6 +175,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             skip: Number of records to skip (for pagination)
             limit: Maximum number of records to return
             branch: Branch name to filter by (default: "main")
+            branch_mode: Branch mode - MERGE (composite with main) or STRICT (isolated)
             search: Search term to match against code and name (case-insensitive)
             filters: Filter string in format "column:value;column:value1,value2"
                      Example: "level:1,2;code:1.1"
@@ -195,11 +197,19 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
 
         from app.core.filtering import FilterParser
 
-        # Base query with parent name join
-        stmt = self._get_base_stmt(as_of=as_of).where(WBE.branch == branch)
+        # Build base query with all non-branch filters first
+        # Start with base statement and join for parent names
+        base_stmt = self._get_base_stmt(as_of=as_of)
 
-        # Apply time-travel filter
+        # Apply branch mode filter (handles STRICT vs MERGE logic)
+        stmt = self._apply_branch_mode_filter(
+            base_stmt, branch=branch, branch_mode=branch_mode, as_of=as_of
+        )
+
+        # Apply time-travel filter (for additional bitemporal constraints)
+        # Note: _apply_branch_mode_filter already handles basic filtering
         if as_of:
+            # Additional time-travel constraints if needed beyond branch mode
             stmt = self._apply_bitemporal_filter(stmt, as_of)
         else:
             # Get current version (open upper bound) and not deleted
@@ -239,7 +249,9 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
                 stmt = stmt.where(and_(*filter_expressions))
 
         # Get total count (before pagination)
-        count_stmt = select(func.count()).select_from(stmt.subquery())
+        # For MERGE mode, count the distinct result
+        count_from = stmt.subquery()
+        count_stmt = select(func.count()).select_from(count_from)
         total_result = await self.session.execute(count_stmt)
         total = total_result.scalar_one()
 
