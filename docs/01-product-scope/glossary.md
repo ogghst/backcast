@@ -1,7 +1,39 @@
 # Glossary
 
-**Last Updated:** 2025-12-29  
+**Last Updated:** 2026-01-13
 **Purpose:** Define domain terms, acronyms, and EVM terminology
+
+---
+
+## Standardized Terminology
+
+The following terms shall be used consistently across all project documentation:
+
+**Earned Value Management Terms:**
+- "Percent Complete" (preferred) - Use instead of "Physical Completion" or "% di completamento"
+- "Earned Value (EV)" - Use instead of "EV Calculation"
+- "Gaussian Progression" (capitalized) - Use instead of "gaussian" (lowercase)
+- "Cost Performance Index (CPI)" - Always use full term on first use in each section
+- "Schedule Performance Index (SPI)" - Always use full term on first use in each section
+
+**Quality Terms:**
+- "Quality Event" (preferred) - Use instead of "Quality Incident"
+
+**Branching Terms:**
+- "Source Branch" - The branch from which a change order branch is forked
+- "Target Branch" - The branch receiving merged changes (typically main)
+- "Branch States: Active, Locked, Archived" - Use these exact terms (not "merged")
+
+**Financial Terms:**
+- "Budget at Completion (BAC)" - Always use full term on first use
+- "Estimate at Completion (EAC)" - Always use full term on first use
+- "Estimate to Complete (ETC)" - Always use full term on first use
+- "Variance at Completion (VAC)" - Always use full term on first use
+
+**Date/Time Terms:**
+- "Control Date" - The temporal reference point for time machine queries
+- "Registration Date" - When a record was created or took effect
+- "Baseline Date" - The date a baseline snapshot was taken
 
 ---
 
