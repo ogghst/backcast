@@ -1,127 +1,100 @@
-# PLAN Phase: Strategic Analysis and Iteration Planning
+# PLAN Phase: Work Decomposition & Success Criteria
 
 ## Purpose
 
-Structure iteration planning by analyzing requirements, architectural constraints, and generating implementation options for human decision.
+Decompose the **approved approach from Analysis phase** into actionable tasks with measurable success criteria, documentation references, and test specifications.
+
+**Prerequisite**: Analysis phase (00-analysis.md) must be completed with an **approved option**.
 
 ---
 
-## Phase 1: Context Analysis
+## Phase 1: Scope & Success Criteria
 
-### Documentation Review
+### 1.1 Approved Approach Summary
 
-Analyze existing documentation for alignment:
+Reference the approved option from analysis:
 
-- **Documentation Guide** (`docs/00-meta/README.md`): How to read, write, and maintain documentation
-- **Product Scope** (`docs/01-product-scope/`): product vision, functional requirements
-- **Architecture** (`docs/02-architecture/`): Technical debt, constraints, system capabilities and gaps
-  - **Coding Standards** (`docs/02-architecture/coding-standards.md`): Core principles, type safety, backend/frontend patterns, quality gates
-- **Project Plan** (`docs/03-project-plan`): Epics, Sprints, User Stories, Recently completed work, current context, team velocity
+- **Selected Option**: [Option X from analysis]
+- **Architecture**: [Brief description]
+- **Key Decisions**: [List critical decisions made]
 
-### Codebase Analysis
+### 1.2 Success Criteria (Measurable)
 
-Understand existing patterns:
-
-- Current architectural patterns and conventions
-- Existing test infrastructure and coverage patterns
-- Dependencies and integration points
-- Historical patterns for similar features
-
-**Available MCP Tools for Analysis:**
-
-- **`context7`**: Query library documentation and usage patterns
-
-  - Access official documentation for Python/TypeScript libraries
-  - Research best practices for frameworks (FastAPI, React, etc.)
-  - Validate implementation approaches against library conventions
-
-- **`postgres_evs`**: Direct database introspection
-  - Query current schema, tables, columns, and constraints
-  - Inspect existing data patterns and relationships
-  - Validate migration strategies against actual database state
-  - Test SQL queries before implementation
-
----
-
-## Phase 2: Problem Definition
-
-### 1. Problem Statement
-
-- What specific problem are we solving?
-- Why is it important now?
-- What happens if we don't address it?
-- What is the business value?
-
-### 2. Success Criteria (Measurable)
-
-Define **measurable acceptance criteria** verified through automated tests:
+Define **testable acceptance criteria**:
 
 **Functional Criteria:**
 
-- Features working as specified
-- Edge cases handled
-- Error conditions managed
+- [Specific feature behavior] VERIFIED BY: [test type]
+- [Edge case handling] VERIFIED BY: [test type]
+- [Error condition] VERIFIED BY: [test type]
 
 **Technical Criteria:**
 
-- Performance targets (response times, throughput)
-- Security requirements
-- Scalability needs
+- Performance: [metric] VERIFIED BY: [measurement method]
+- Security: [requirement] VERIFIED BY: [test type]
+- Code Quality: [standard] VERIFIED BY: [quality gate]
 
 **Business Criteria:**
 
-- Metrics to track
-- User impact measurements
+- [User outcome] VERIFIED BY: [measurement method]
+- [Business metric] VERIFIED BY: [measurement method]
 
-### 3. Scope Definition
+### 1.3 Scope Boundaries
 
 **In Scope:**
 
-- Specific features/changes
-- Components affected
-- Testing requirements
-- Documentation updates
+- [Specific features/changes]
+- [Components affected]
+- [Testing requirements]
+- [Documentation updates]
 
 **Out of Scope:**
 
-- Explicitly list what we're NOT doing
-- Items deferred to future iterations
-- Assumptions requiring stakeholder validation
+- [Explicitly list what's NOT done]
+- [Items deferred to future iterations]
+- [Assumptions requiring validation]
 
 ---
 
-## Phase 3: Implementation Options
+## Phase 2: Work Decomposition
 
-Generate **2-3 distinct implementation approaches**:
+### 2.1 Task Breakdown
 
-| Aspect                   | Option A                | Option B                | Option C (optional)     |
-| ------------------------ | ----------------------- | ----------------------- | ----------------------- |
-| **Approach Summary**     | Brief description       | Brief description       | Brief description       |
-| **Design Patterns**      | Patterns applied        | Patterns applied        | Patterns applied        |
-| **Pros**                 | Key benefits            | Key benefits            | Key benefits            |
-| **Cons**                 | Trade-offs              | Trade-offs              | Trade-offs              |
-| **Test Strategy Impact** | How testing changes     | How testing changes     | How testing changes     |
-| **Risk Level**           | Low/Medium/High         | Low/Medium/High         | Low/Medium/High         |
-| **Estimated Complexity** | Simple/Moderate/Complex | Simple/Moderate/Complex | Simple/Moderate/Complex |
+Break down the work into **sequential, atomic tasks**:
 
-### Recommendation
+```
+├── Task 1: [Description]
+│   ├── Files: [list files to create/modify]
+│   ├── Dependencies: [what must be done first]
+│   ├── Success: [how to verify completion]
+│   └── Estimated: [complexity: Low/Med/High]
+├── Task 2: [Description]
+│   └── [same structure]
+└── Task N: [Description]
+    └── [same structure]
+```
 
-Provide recommended option with justification based on:
+**Task Ordering Principles:**
 
-- Alignment with existing codebase conventions
-- Long-term maintainability and extensibility
-- Test coverage feasibility
-- Risk mitigation
+1. **Database/Models First**: Schema changes before API/services
+2. **Backend Before Frontend**: API ready before UI consumes it
+3. **Tests Parallel**: Write tests alongside implementation (TDD)
+4. **Incremental**: Each task adds verifiable value
 
-> [!IMPORTANT] > **Human Decision Point**: Present options clearly and await explicit approval before proceeding.
+### 2.2 File Change List
+
+List all files to be created or modified:
+
+| File Path           | Action | Purpose                |
+| ------------------- | ------ | ---------------------- |
+| `path/to/file.ext`  | Create | [Brief description]    |
+| `path/to/other.ext` | Modify | [What changes and why] |
 
 ---
 
-## Phase 4: Technical Design
+## Phase 3: Test Specification
 
-### TDD Test Blueprint
-
-For the approved approach, outline test hierarchy:
+### 3.1 Test Hierarchy
 
 ```
 ├── Unit Tests (isolated component behavior)
@@ -135,53 +108,244 @@ For the approved approach, outline test hierarchy:
     └── Critical user flows
 ```
 
-Document the first 3-5 test cases, ordered simplest to most complex.
+### 3.2 Test Cases (First 3-5)
 
-### Implementation Strategy
+Document specific test cases, ordered simplest to most complex:
 
-- High-level approach
-- Key technologies/patterns to use
-- Integration points with existing system
-- Component breakdown
+| Test ID | Description              | Type         | Verification      |
+| ------- | ------------------------ | ------------ | ----------------- |
+| T-001   | [Brief test description] | Unit/Int/E2E | [Expected result] |
+| T-002   | [Brief test description] | Unit/Int/E2E | [Expected result] |
+| T-003   | [Brief test description] | Unit/Int/E2E | [Expected result] |
 
----
+### 3.3 Test Infrastructure
 
-## Phase 5: Risk Assessment
-
-### Risks and Mitigations
-
-| Risk Type   | Description                       | Probability  | Impact       | Mitigation Strategy |
-| ----------- | --------------------------------- | ------------ | ------------ | ------------------- |
-| Technical   | e.g., API compatibility           | Low/Med/High | Low/Med/High | Specific mitigation |
-| Schedule    | e.g., Dependency on external team | Low/Med/High | Low/Med/High | Specific mitigation |
-| Integration | e.g., Breaking changes            | Low/Med/High | Low/Med/High | Specific mitigation |
+- **Test Framework**: [e.g., pytest, vitest]
+- **Fixtures Needed**: [list shared test fixtures]
+- **Mock/Stub Requirements**: [external dependencies to mock]
 
 ---
 
-## Phase 6: Effort Estimation
+## Phase 4: Risk Assessment
 
-### Time Breakdown
+### 4.1 Risks and Mitigations
 
-- **Development:** X hours/days
-- **Testing:** X hours/days
-- **Documentation:** X hours/days
-- **Review & Deployment:** X hours/days
-- **Total Estimated Effort:** X days
-
-### Prerequisites
-
-- What must be done first?
-- What documentation needs updating?
-- What infrastructure is needed?
+| Risk Type   | Description     | Probability  | Impact       | Mitigation Strategy   |
+| ----------- | --------------- | ------------ | ------------ | --------------------- |
+| Technical   | [specific risk] | Low/Med/High | Low/Med/High | [concrete mitigation] |
+| Integration | [specific risk] | Low/Med/High | Low/Med/High | [concrete mitigation] |
+| Schedule    | [specific risk] | Low/Med/High | Low/Med/High | [concrete mitigation] |
 
 ---
 
-## Output Format
+## Phase 5: Documentation References
 
-Create file: `docs/03-project-plan/iterations/YYYY-MM-name/01-plan.md`
+### 5.1 Required Documentation
 
-Include:
+Link to relevant docs for implementation:
 
-- All sections above
-- Date was created
-- Links to related architecture docs
+**Architecture & Standards:**
+
+- Coding Standards: `docs/02-architecture/coding-standards.md`
+- [Relevant ADRs]: `docs/02-architecture/decisions/...`
+- [Bounded Context]: `docs/02-architecture/01-bounded-contexts.md`
+
+**Domain & Requirements:**
+
+- [User Stories]: `docs/01-product-scope/...`
+- [Functional Specs]: `docs/01-product-scope/...`
+
+**Project Context:**
+
+- Current Iteration: `docs/03-project-plan/current-iteration.md`
+- Related Iterations: [links]
+
+### 5.2 Code References
+
+**Existing Patterns to Follow:**
+
+- Backend: [link to similar implementation]
+- Frontend: [link to similar component]
+- Tests: [link to test pattern reference]
+
+**Database Schema:**
+
+- Relevant tables: [table names]
+- Relationships: [describe]
+- Indexes: [list if needed]
+
+---
+
+## Phase 6: Prerequisites & Dependencies
+
+### 6.1 Technical Prerequisites
+
+- [ ] Database migrations applied
+- [ ] Dependencies installed
+- [ ] Environment configured
+- [ ] External services available
+
+### 6.2 Documentation Prerequisites
+
+- [ ] Analysis phase approved
+- [ ] Architecture docs reviewed
+- [ ] Related ADRs understood
+
+---
+
+## Output Template
+
+```markdown
+# Plan: [Request Title]
+
+**Created:** [Date]
+**Based on:** [Link to 00-analysis.md]
+**Approved Option:** [Option X]
+
+---
+
+## Scope & Success Criteria
+
+### Approved Approach Summary
+
+- **Selected Option**: [Option X from analysis]
+- **Architecture**: [Brief description]
+- **Key Decisions**: [List critical decisions made]
+
+### Success Criteria
+
+**Functional Criteria:**
+
+- [Specific feature behavior] VERIFIED BY: [test type]
+- [Edge case handling] VERIFIED BY: [test type]
+- [Error condition] VERIFIED BY: [test type]
+
+**Technical Criteria:**
+
+- Performance: [metric] VERIFIED BY: [measurement method]
+- Security: [requirement] VERIFIED BY: [test type]
+- Code Quality: [standard] VERIFIED BY: [quality gate]
+
+**Business Criteria:**
+
+- [User outcome] VERIFIED BY: [measurement method]
+
+### Scope Boundaries
+
+**In Scope:**
+
+- [List]
+
+**Out of Scope:**
+
+- [List]
+
+---
+
+## Work Decomposition
+
+### Task Breakdown
+
+| Task | Description | Files  | Dependencies  | Success  | Est. Complexity |
+| ---- | ----------- | ------ | ------------- | -------- | --------------- |
+| 1    | [desc]      | [list] | [none/task X] | [verify] | Low/Med/High    |
+| 2    | [desc]      | [list] | [task 1]      | [verify] | Low/Med/High    |
+| 3    | [desc]      | [list] | [task 2]      | [verify] | Low/Med/High    |
+
+---
+
+## Test Specification
+
+### Test Hierarchy
+```
+
+├── Unit Tests
+│ ├── [test areas]
+├── Integration Tests
+│ ├── [test areas]
+└── E2E Tests (if applicable)
+└── [critical flows]
+
+```
+
+### Test Cases
+
+| Test ID | Description | Type | Verification |
+| ------- | ----------- | ---- | ------------ |
+| T-001   | [desc]      | Unit | [expected]   |
+| T-002   | [desc]      | Int  | [expected]   |
+| T-003   | [desc]      | Unit | [expected]   |
+
+### Test Infrastructure
+
+- **Test Framework**: [framework]
+- **Fixtures Needed**: [list]
+- **Mock Requirements**: [list]
+
+---
+
+## Risk Assessment
+
+| Risk Type | Description | Probability | Impact | Mitigation |
+| --------- | ----------- | ----------- | ------ | ---------- |
+| Technical | [desc]      | Low/Med/High| Low/Med/High| [strategy] |
+| Integration| [desc]     | Low/Med/High| Low/Med/High| [strategy] |
+
+---
+
+## Documentation References
+
+### Required Documentation
+
+**Architecture & Standards:**
+- Coding Standards: `docs/02-architecture/coding-standards.md`
+- [Relevant ADR]: `docs/02-architecture/decisions/...`
+
+**Domain & Requirements:**
+- [User Story]: `docs/01-product-scope/...`
+
+**Project Context:**
+- Current Iteration: `docs/03-project-plan/current-iteration.md`
+
+### Code References
+
+**Existing Patterns:**
+- Backend: [link to similar implementation]
+- Frontend: [link to similar component]
+
+**Database Schema:**
+- Tables: [list]
+- Relationships: [describe]
+
+---
+
+## Prerequisites & Dependencies
+
+### Technical Prerequisites
+
+- [ ] [Prerequisite 1]
+- [ ] [Prerequisite 2]
+
+### Documentation Prerequisites
+
+- [x] Analysis phase approved
+
+```
+
+---
+
+## Output File
+
+Create file: `docs/03-project-plan/iterations/YYYY-MM-DD-{title}/01-plan.md`
+
+**Location**: Same folder as `00-analysis.md`
+
+---
+
+## Key Principles
+
+1. **Actionable**: Each task must be clear and executable
+2. **Measurable**: Success criteria must be objectively verifiable
+3. **Sequential**: Tasks ordered with clear dependencies
+4. **Test-Driven**: Tests specified alongside implementation
+5. **Reference-Rich**: Link to existing patterns and documentation
