@@ -732,8 +732,8 @@ list: async (params) => {
 
 ### Phase 5: Documentation (2.5 hours)
 
-- [ ] Update `api-response-patterns.md` - add frontend examples
-- [ ] Update `ui-patterns.md` - add pagination section
+- [ ] Update `api-response-evcs-implementation-guide.md` - add frontend examples
+- [ ] Update `ui-evcs-implementation-guide.md` - add pagination section
 - [ ] Create troubleshooting guide for pagination issues
 - [ ] Update this PLAN doc status to "Complete"
 - [ ] Create DO document with implementation log
@@ -784,8 +784,8 @@ list: async (params) => {
 
 - **Analysis:** [ANALYSIS.md](./ANALYSIS.md)
 - **ADR-008:** [Server-Side Filtering](../../02-architecture/decisions/ADR-008-server-side-filtering.md)
-- **API Response Patterns:** [Cross-Cutting Docs](../../02-architecture/cross-cutting/api-response-patterns.md)
-- **UI Patterns:** [Frontend Docs](../../02-architecture/frontend/ui-patterns.md)
+- **API Response Patterns:** [Cross-Cutting Docs](../../02-architecture/cross-cutting/api-response-evcs-implementation-guide.md)
+- **UI Patterns:** [Frontend Docs](../../02-architecture/frontend/ui-evcs-implementation-guide.md)
 - **Coding Standards:** [Core Principles](../../02-architecture/coding-standards.md)
 
 ---

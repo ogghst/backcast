@@ -54,6 +54,7 @@ class ChangeOrderUpdate(BaseModel):
     justification: str | None = None
     effective_date: datetime | None = None
     status: str | None = None
+    branch: str | None = Field(None, description="Branch name for update (defaults to current branch)")
     control_date: datetime | None = Field(
         None, description="Control date for bitemporal operations"
     )
@@ -73,6 +74,20 @@ class ChangeOrderPublic(ChangeOrderBase):
     branch: str = Field(..., description="Branch name")
     parent_id: UUID | None = Field(None, description="Parent version ID")
     deleted_at: datetime | None = Field(None, description="Soft delete timestamp")
+
+    # Workflow metadata fields (E06-U06-UI)
+    available_transitions: list[str] | None = Field(
+        None,
+        description="Valid workflow status transitions from current state",
+    )
+    can_edit_status: bool = Field(
+        True,
+        description="Whether Change Order status can be edited in current state",
+    )
+    branch_locked: bool = Field(
+        False,
+        description="Whether the associated branch is locked",
+    )
 
 
 # Response schemas for list endpoints

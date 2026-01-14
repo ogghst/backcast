@@ -70,5 +70,5 @@ Located in `backend/app/models/schemas/common.py`.
 **Related Assets:**
 
 - [ADR-008](../../02-architecture/decisions/ADR-008-server-side-filtering.md)
-- [API Response Patterns](../../02-architecture/cross-cutting/api-response-patterns.md)
+- [API Response Patterns](../../02-architecture/cross-cutting/api-response-evcs-implementation-guide.md)
 - [Onboarding Guide](../../00-meta/onboarding.md)

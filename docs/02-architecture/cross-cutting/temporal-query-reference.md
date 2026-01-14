@@ -43,20 +43,22 @@ This document is the **definitive reference** for bitemporal queries and time tr
 
 ## Two Types of Time Travel
 
-### 1. Valid Time Travel (Current Knowledge)
+### 1. Valid Time Travel (List Queries)
 
-**Use Case:** "Show me the list of projects as they were valid on Jan 1st, based on what we know _today_."
+**Use Case:** "Show me the list of projects as they were valid on Jan 1st."
 **Context:** List views, reports, history browsing.
 
 **Semantics:**
 
 - `valid_time` must contain the target `as_of` timestamp
-- `transaction_time` is **current** (i.e., we use the latest record version that covers that valid time)
+- `transaction_time` is **not used for filtering** (used only for audit/correction tracking)
 - `deleted_at`: If the entity was logically deleted _after_ `as_of`, it should appear. If deleted _before_ `as_of`, it should not.
 
 **Why This Matters:**
 
-If we discovered on Feb 20 that a project's budget was wrong, we issue a correction. With **Current Knowledge**, querying "as of Jan 15" shows the corrected value, not the erroneous original value. This is typically what users want for reports and analysis.
+List queries filter by `valid_time` only to show what business facts were valid at the specified time. The `transaction_time` dimension tracks when corrections were made but does not filter results. If overlapping `valid_time` ranges exist (due to corrections), the latest version by `transaction_time` should be used - this is handled by `DISTINCT ON` in branch mode filtering or by ordering in service methods.
+
+> **Note:** Overlapping `valid_time` ranges should be prevented at create/update time. See [Technical Debt Register](../../03-project-plan/technical-debt-register.md#td-058-overlapping-valid_time-constraint) for details.
 
 ### 2. System Time Travel (Audit / Reproducibility)
 
@@ -89,20 +91,20 @@ def _apply_bitemporal_filter(self, stmt: Any, as_of: datetime) -> Any:
     """Apply standardized bitemporal WHERE clauses to a statement.
 
     Filters for:
-    - valid_time contains as_of
-    - transaction_time upper bound IS NULL (current knowledge)
+    - valid_time contains as_of (time travel based on business validity)
     - deleted_at IS NULL OR deleted_at > as_of
+
+    Note: Time travel queries are based on valid_time only. The transaction_time
+    dimension is used for audit/correction tracking but does not filter list results.
+    For overlapping valid_time ranges (corrections), the latest transaction_time
+    version should be used - this is handled by DISTINCT ON in branch mode filter
+    or by ordering in the specific service method.
     """
     return stmt.where(
-        # Check as_of is within valid_time range
+        # Check as_of is within valid_time range (time travel by business validity)
         self.entity_class.valid_time.op("@>")(as_of),
         # CRITICAL: Also check as_of >= lower bound (entity existed)
         func.lower(self.entity_class.valid_time) <= as_of,
-
-        # TRANSACTION TIME: Current Knowledge semantics for lists.
-        # We want the latest "truth" about the 'as_of' time.
-        # So we check that the row has not been superseded (transaction_time upper bound is NULL).
-        func.upper(self.entity_class.transaction_time).is_(None),
 
         # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
         or_(

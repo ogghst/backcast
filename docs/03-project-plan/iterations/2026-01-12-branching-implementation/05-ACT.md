@@ -25,7 +25,7 @@ None required at this stage.
 
 | Document                                          | Update Needed                                                            |
 | ------------------------------------------------- | ------------------------------------------------------------------------ |
-| `docs/01-product-scope/branching-requirements.md` | Start tracking that "listing branches" is implemented via CO aggregation |
+| `docs/02-architecture/cross-cutting/temporal-query-reference.md` | Start tracking that "listing branches" is implemented via CO aggregation |
 
 ## 4. Technical Debt Ledger
 

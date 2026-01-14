@@ -387,8 +387,8 @@ If immediate deployment is critical and there's risk aversion to breaking change
 ## References
 
 - **ADR-008:** [Server-Side Filtering](file:///home/nicola/dev/backcast_evs/docs/02-architecture/decisions/ADR-008-server-side-filtering.md)
-- **API Response Patterns:** [Cross-Cutting Docs](file:///home/nicola/dev/backcast_evs/docs/02-architecture/cross-cutting/api-response-patterns.md)
-- **UI Patterns:** [Frontend Docs](file:///home/nicola/dev/backcast_evs/docs/02-architecture/frontend/ui-patterns.md)
+- **API Response Patterns:** [Cross-Cutting Docs](file:///home/nicola/dev/backcast_evs/docs/02-architecture/cross-cutting/api-response-evcs-implementation-guide.md)
+- **UI Patterns:** [Frontend Docs](file:///home/nicola/dev/backcast_evs/docs/02-architecture/frontend/ui-evcs-implementation-guide.md)
 - **Coding Standards:** [Core Principles](file:///home/nicola/dev/backcast_evs/docs/02-architecture/coding-standards.md)
 
 ---

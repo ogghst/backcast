@@ -224,7 +224,7 @@ get_as_of(wbe_id, as_of, branch="co-456", branch_mode=BranchMode.MERGE)
 | TD-019 | Cross-branch discovery APIs      | Medium   | 6h     |
 | TD-020 | Comprehensive edge case tests    | Medium   | 4h     |
 | TD-021 | Database performance benchmarks  | Low      | 2h     |
-| TD-022 | Update patterns.md documentation | Medium   | 1h     |
+| TD-022 | Update evcs-implementation-guide.md documentation | Medium   | 1h     |
 
 ---
 
@@ -252,7 +252,7 @@ get_as_of(wbe_id, as_of, branch="co-456", branch_mode=BranchMode.MERGE)
 
 1. **Add unit tests** - Cover branch_mode edge cases
 2. **Performance benchmarks** - Establish baseline for temporal queries
-3. **Documentation** - Update patterns.md with new examples
+3. **Documentation** - Update evcs-implementation-guide.md with new examples
 
 ### For DevOps Team
 

@@ -515,7 +515,7 @@ Simplest implementation: CO as non-versioned entity, manual branch creation via 
 
 4. **Documentation:**
    - Update [Bounded Contexts](../../../02-architecture/01-bounded-contexts.md) with E006 changes
-   - Update [API Response Patterns](../../../02-architecture/cross-cutting/api-response-patterns.md)
+   - Update [API Response Patterns](../../../02-architecture/cross-cutting/api-response-evcs-implementation-guide.md)
 
 **Infrastructure Needs:**
 

@@ -144,11 +144,12 @@ async def test_create_cost_element_in_branch(
         "budget_amount": 1000.00,
         "wbe_id": deps["wbe_id"],
         "cost_element_type_id": deps["cost_element_type_id"],
+        "branch": "feature-1",  # Pass branch in request body
     }
 
-    # Create in 'feature-1' branch directly (though typically we fork, creation can happen in any branch if backend supports it)
+    # Create in 'feature-1' branch directly (via request body)
     response = await client.post(
-        "/api/v1/cost-elements?branch=feature-1", json=element_data
+        "/api/v1/cost-elements", json=element_data
     )
     assert response.status_code == 201
     data = response.json()
@@ -169,14 +170,14 @@ async def test_update_forks_branch(
         "cost_element_type_id": deps["cost_element_type_id"],
     }
     create_res = await client.post(
-        "/api/v1/cost-elements?branch=main", json=element_data
+        "/api/v1/cost-elements", json=element_data
     )
     element_id = create_res.json()["cost_element_id"]
 
-    # 2. Update in 'feature-fork' branch (should fork)
-    update_data = {"name": "Forked Element"}
+    # 2. Update in 'feature-fork' branch (should fork) - pass branch in request body
+    update_data = {"name": "Forked Element", "branch": "feature-fork"}
     response = await client.put(
-        f"/api/v1/cost-elements/{element_id}?branch=feature-fork", json=update_data
+        f"/api/v1/cost-elements/{element_id}", json=update_data
     )
     assert response.status_code == 200
     data = response.json()

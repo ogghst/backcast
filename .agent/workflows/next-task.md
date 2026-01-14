@@ -2,14 +2,10 @@
 description: perform next task
 ---
 
-analyze all documents in docs folder, analyze work done in project_track_record.md, and define the next task to implement. follow guidelines in GEMINI.md. ask to user confirmation over the findings.
+following docs/README.md, according to current sprint and technical debt, define the next task to implement and provide to user 2-options. ask then user approval.
 
-perform then the full PDCA cycle using prompts in docs/04-pdca-prompts:
+once user approves, perform then the full PDCA cycle using prompts in docs/04-pdca-prompts starting from analysis-prompt.md
 
-- plan.md - analysis and plan phase
-- do.md - implementation and execution phase
-- check.md - revision phase
-- act.md - retrospective, documentation, improvement phase
-
-use @mcp:context7 to review libraries best practices.
-use @mcp:postgres_evs to check database status and data.
+use those tools:
+context7 to review libraries best practices.
+postgres_evs to check database status and data.

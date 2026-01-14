@@ -518,7 +518,7 @@
 | Aspect             | Option A (Quick Fix)     | Option B (Thorough)                    | Option C (Defer)    |
 | ------------------ | ------------------------ | -------------------------------------- | ------------------- |
 | **Approach**       | Add comments in code     | Create architecture doc                | No action           |
-| **Scope**          | Inline comments          | `docs/02-architecture/api-patterns.md` | N/A                 |
+| **Scope**          | Inline comments          | `docs/02-architecture/api-evcs-implementation-guide.md` | N/A                 |
 | **Impact**         | Helps current developers | Helps all future developers            | May cause confusion |
 | **Effort**         | Low (15min)              | Low (30min)                            | None                |
 | **Risk**           | May be overlooked        | Low risk                               | Future bugs         |

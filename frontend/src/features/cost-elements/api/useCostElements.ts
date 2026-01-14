@@ -36,13 +36,13 @@ interface CostElementListParams {
 
 // Custom useCostElements list hook with Time Machine integration
 export const useCostElements = (params?: CostElementListParams) => {
-  const { asOf } = useTimeMachineParams();
+  const { asOf, mode, branch: tmBranch } = useTimeMachineParams();
 
   return useQuery<PaginatedResponse<CostElementRead>>({
-    queryKey: ["cost_elements", params, { asOf }],
+    queryKey: ["cost_elements", params, { asOf, mode, branch: tmBranch }],
     queryFn: async () => {
       const {
-        branch = "main",
+        branch = tmBranch || "main",
         pagination,
         filters,
         search,
@@ -74,7 +74,7 @@ export const useCostElements = (params?: CostElementListParams) => {
       const typeId = filters?.cost_element_type_id?.[0] as string | undefined;
       const serverSortOrder = sortOrder === "descend" ? "desc" : "asc";
 
-      // Manual request to support as_of query param
+      // Manual request to support as_of and mode query params
       const res = await __request(OpenAPI, {
         method: "GET",
         url: "/api/v1/cost-elements",
@@ -88,6 +88,7 @@ export const useCostElements = (params?: CostElementListParams) => {
           filters: filterString,
           sort_field: sortField,
           sort_order: serverSortOrder,
+          mode: mode,
           as_of: asOf || undefined,
         },
       });

@@ -119,10 +119,17 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         super().__init__(entity_class, root_id, actor_id)
         self.updates = updates
         self.branch = branch
-        self.control_date = control_date or datetime.now(UTC)
+        # CRITICAL FIX: Don't default control_date to datetime.now(UTC)
+        # Keep it as None when not provided, to avoid creating unnecessary remainder versions
+        self.control_date = control_date
 
     async def execute(self, session: AsyncSession) -> TBranchable:
         """Close current on branch and create new."""
+        # CRITICAL FIX: Generate a single timestamp for the entire update operation
+        # This ensures all temporal operations use consistent timestamps and avoids
+        # creating empty ranges or duplicate current versions
+        update_timestamp = datetime.now(UTC)
+
         # 1. Get current on branch
         current = await self._get_current_on_branch(session, self.branch)
         if not current:
@@ -132,43 +139,46 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
 
         if self.control_date:
              current_lower = cast(Any, current).valid_time.lower
-             if self.control_date <= current_lower:
+             # NOTE: Allow control_date == current_lower for Time Machine mode
+             if self.control_date < current_lower:
                  raise ValueError(
-                     f"control_date ({self.control_date.isoformat()}) must be after "
+                     f"control_date ({self.control_date.isoformat()}) must be on or after "
                      f"valid_time lower bound ({current_lower.isoformat()})"
                  )
 
-             # SPLIT HISTORY: Create a remainder version for the period [current_lower, control_date)
-             # This ensures we preserve "Current Knowledge" that the entity WAS valid during that period.
-             remainder = cast(
-                 TBranchable, current.clone(parent_id=current.parent_id)
-                 # use same parent as current (linear history split)?
-                 # Or should remainder be the parent of the new version?
-                 # Actually, usually V1 -> V2.
-                 # If we split V1 into V1a and V1b (where V1b is the new update V2?),
-                 # Remainder is V1a. New Version is V2.
-                 # Remainder should conceptually assume the identity of the old version for that period.
-                 # parent_id should be same as current.
-             )
-             session.add(remainder)
-             await session.flush()
+             # SPLIT HISTORY: Only create remainder if there is an actual time gap
+             # If control_date == current_lower, the new version completely replaces the old one
+             # starting from the same time, so no "previous history" (remainder) is needed for this period.
+             if self.control_date > current_lower:
+                 # Create a remainder version for the period [current_lower, control_date)
+                 # This ensures we preserve "Current Knowledge" that the entity WAS valid during that period.
+                 # CRITICAL: The remainder is HISTORICAL data (was corrected), so its transaction_time
+                 # must be CLOSED at the update_timestamp to show it was superseded by the new version.
+                 remainder = cast(
+                     TBranchable, current.clone(parent_id=current.parent_id)
+                 )
+                 session.add(remainder)
+                 await session.flush()
 
-             # Fix Remainder Times
-             tablename = cast(str, self.entity_class.__tablename__)
-             stmt_rem = text(
-                f"""
-                UPDATE {tablename}
-                SET
-                    valid_time = tstzrange(:lower, :upper, '[)'),
-                    transaction_time = tstzrange(clock_timestamp(), NULL, '[]')
-                WHERE id = :version_id
-                """
-             )
-             await session.execute(stmt_rem, {
-                 "lower": current_lower,
-                 "upper": self.control_date,
-                 "version_id": remainder.id
-             })
+                 # Fix Remainder Times
+                 # CRITICAL FIX: Close remainder's transaction_time to show it was corrected
+                 tablename = cast(str, self.entity_class.__tablename__)
+                 stmt_rem = text(
+                    f"""
+                    UPDATE {tablename}
+                    SET
+                        valid_time = tstzrange(:lower, :upper, '[)'),
+                        transaction_time = tstzrange(:tx_lower, :tx_upper, '[)')
+                    WHERE id = :version_id
+                    """
+                 )
+                 await session.execute(stmt_rem, {
+                     "lower": current_lower,
+                     "upper": self.control_date,
+                     "tx_lower": cast(Any, current).transaction_time.lower,
+                     "tx_upper": update_timestamp,  # Close: remainder was corrected at this time
+                     "version_id": remainder.id
+                 })
 
         # 2. Clone and apply updates (Safe Clone via Core Select)
         # Fetch raw data to avoid ORM lazy-load triggers (MissingGreenlet)
@@ -183,18 +193,23 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         await session.flush()
 
         # 4. Set valid_time and transaction_time on new version via SQL
+        # CRITICAL FIX: Use the same update_timestamp for both ranges to avoid empty ranges
+        # When control_date is None (normal update), use update_timestamp for valid_time lower bound
+        valid_time_lower = self.control_date if self.control_date is not None else update_timestamp
+
         tablename = cast(str, self.entity_class.__tablename__)
         stmt = text(
             f"""
             UPDATE {tablename}
             SET
                 valid_time = tstzrange(:control_date, NULL, '[]'),
-                transaction_time = tstzrange(clock_timestamp(), NULL, '[]')
+                transaction_time = tstzrange(:update_timestamp, NULL, '[]')
             WHERE id = :version_id
             """
         )
         await session.execute(stmt, {
-            "control_date": self.control_date,
+            "control_date": valid_time_lower,
+            "update_timestamp": update_timestamp,
             "version_id": new_version.id
         })
         await session.flush()
@@ -250,7 +265,28 @@ class MergeBranchCommand(BranchCommandABC[TBranchable]):
         await self._close_version(session, target)
 
         session.add(merged)
+        await session.flush()  # Get ID assigned
+
+        # 5. Set valid_time and transaction_time on merged version via SQL
+        # Generate timestamp in Python to avoid empty ranges from duplicate clock_timestamp() calls
+        merge_timestamp = datetime.now(UTC)
+        tablename = cast(str, self.entity_class.__tablename__)
+        stmt = text(
+            f"""
+            UPDATE {tablename}
+            SET
+                valid_time = tstzrange(:merge_timestamp, NULL, '[]'),
+                transaction_time = tstzrange(:merge_timestamp, NULL, '[]')
+            WHERE id = :version_id
+            """
+        )
+        await session.execute(stmt, {
+            "merge_timestamp": merge_timestamp,
+            "version_id": merged.id
+        })
         await session.flush()
+        await session.refresh(merged)
+
         return merged
 
 
@@ -303,7 +339,28 @@ class RevertCommand(BranchCommandABC[TBranchable]):
         await self._close_version(session, current)
 
         session.add(reverted)
+        await session.flush()  # Get ID assigned
+
+        # 5. Set valid_time and transaction_time on reverted version via SQL
+        # Generate timestamp in Python to avoid empty ranges from duplicate clock_timestamp() calls
+        revert_timestamp = datetime.now(UTC)
+        tablename = cast(str, self.entity_class.__tablename__)
+        stmt = text(
+            f"""
+            UPDATE {tablename}
+            SET
+                valid_time = tstzrange(:revert_timestamp, NULL, '[]'),
+                transaction_time = tstzrange(:revert_timestamp, NULL, '[]')
+            WHERE id = :version_id
+            """
+        )
+        await session.execute(stmt, {
+            "revert_timestamp": revert_timestamp,
+            "version_id": reverted.id
+        })
         await session.flush()
+        await session.refresh(reverted)
+
         return reverted
 
 

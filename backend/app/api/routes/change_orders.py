@@ -1,5 +1,6 @@
 """Change Order API routes with RBAC."""
 
+import logging
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
@@ -18,6 +19,8 @@ from app.models.schemas.change_order import (
     ChangeOrderUpdate,
 )
 from app.services.change_order_service import ChangeOrderService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -83,8 +86,8 @@ async def read_change_orders(
             as_of=as_of,
         )
 
-        # Convert to Pydantic models
-        items = [ChangeOrderPublic.model_validate(co) for co in change_orders]
+        # Convert to Pydantic models with workflow metadata
+        items = [await service._to_public(co) for co in change_orders]
 
         # Return paginated response
         response = PaginatedResponse[ChangeOrderPublic](
@@ -141,7 +144,7 @@ async def create_change_order(
             actor_id=current_user.user_id,
             control_date=change_order_in.control_date,
         )
-        return change_order
+        return await service._to_public(change_order)
     except HTTPException:
         raise
     except ValueError as e:
@@ -185,7 +188,7 @@ async def read_change_order(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Change Order not found" + (f" as of {as_of}" if as_of else ""),
         )
-    return change_order
+    return await service._to_public(change_order)
 
 
 @router.get(
@@ -212,7 +215,7 @@ async def read_change_order_by_code(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Change Order with code '{code}' not found",
         )
-    return change_order
+    return await service._to_public(change_order)
 
 
 @router.put(
@@ -229,20 +232,33 @@ async def update_change_order(
 ) -> ChangeOrder:
     """Update a change order's metadata.
 
-    Creates a new version with the updated metadata on the current active branch.
+    Creates a new version with the updated metadata. Optionally specify a branch
+    to update on a specific branch (will auto-fork from main if no version exists
+    on the target branch).
 
     Requires update permission.
     """
+    logger.info(f"[API DEBUG] update_change_order START - change_order_id={change_order_id}, user_id={current_user.user_id}, branch={change_order_in.branch}")
     try:
         updated_change_order = await service.update_change_order(
             change_order_id=change_order_id,
             change_order_in=change_order_in,
             actor_id=current_user.user_id,
             control_date=change_order_in.control_date,
+            branch=change_order_in.branch,
         )
-        return updated_change_order
+        logger.info(f"[API DEBUG] update_change_order SUCCESS - updated_co id={updated_change_order.id}, branch={updated_change_order.branch}")
+        return await service._to_public(updated_change_order)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        # Include more context in the error response
+        error_detail = f"{str(e)} (change_order_id={change_order_id}, user_id={current_user.user_id})"
+        logger.error(f"[API DEBUG] update_change_order ERROR - {error_detail}")
+        raise HTTPException(status_code=404, detail=error_detail) from e
+    except Exception as e:
+        # Catch any unexpected errors and include them
+        error_detail = f"Unexpected error: {str(e)} (change_order_id={change_order_id})"
+        logger.error(f"[API DEBUG] update_change_order UNEXPECTED ERROR - {error_detail}")
+        raise HTTPException(status_code=500, detail=error_detail) from e
 
 
 @router.delete(
@@ -298,7 +314,7 @@ async def read_change_order_history(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No history found for this change order",
         )
-    return history
+    return [await service._to_public(co) for co in history]
 
 
 @router.post(
@@ -320,11 +336,12 @@ async def merge_change_order(
     Requires update permission.
     """
     try:
-        return await service.merge_change_order(
+        merged_co = await service.merge_change_order(
             change_order_id=change_order_id,
             actor_id=current_user.user_id,
             target_branch=target_branch,
         )
+        return await service._to_public(merged_co)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -349,11 +366,12 @@ async def revert_change_order(
     Requires update permission.
     """
     try:
-        return await service.revert_change_order_version(
+        reverted_co = await service.revert_change_order_version(
             change_order_id=change_order_id,
             actor_id=current_user.user_id,
             branch=branch,
         )
+        return await service._to_public(reverted_co)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

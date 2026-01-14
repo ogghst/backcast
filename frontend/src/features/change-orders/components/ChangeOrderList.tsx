@@ -1,11 +1,10 @@
-import { App, Badge, Button, Space, Tag } from "antd";
+import { App, Button, Space, Tag } from "antd";
 import {
   HistoryOutlined,
   FileTextOutlined,
   EditOutlined,
   DeleteOutlined,
   PlusOutlined,
-  BranchesOutlined,
 } from "@ant-design/icons";
 import { useState } from "react";
 import type { ColumnType } from "antd/es/table";
@@ -31,13 +30,13 @@ interface ChangeOrderListProps {
   projectId: string;
 }
 
-// Status badge colors
+// Status tag colors
 const STATUS_COLORS: Record<string, string> = {
   Draft: "default",
   Submitted: "blue",
-  "Under Review": "processing",
-  Approved: "success",
-  Rejected: "error",
+  "Under Review": "cyan",
+  Approved: "green",
+  Rejected: "red",
   Implemented: "purple",
   Closed: "default",
 };
@@ -94,18 +93,9 @@ export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
       title: "Code",
       dataIndex: "code",
       key: "code",
-      width: 140,
+      width: 120,
       render: (code: string) => (
-        <Space>
-          <span style={{ fontWeight: 500 }}>{code}</span>
-          <Tag
-            icon={<BranchesOutlined />}
-            color="geekblue"
-            style={{ fontSize: "11px" }}
-          >
-            co-{code}
-          </Tag>
-        </Space>
+        <span style={{ fontWeight: 500 }}>{code}</span>
       ),
     },
     {
@@ -120,7 +110,7 @@ export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
       key: "status",
       width: 130,
       render: (status: string) => (
-        <Badge status={STATUS_COLORS[status] as any} text={status} />
+        <Tag color={STATUS_COLORS[status]}>{status}</Tag>
       ),
     },
     {
@@ -130,17 +120,6 @@ export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
       width: 130,
       render: (date: string | null) =>
         date ? new Date(date).toLocaleDateString() : "-",
-    },
-    {
-      title: "Branch",
-      dataIndex: "code",
-      key: "branch",
-      width: 120,
-      render: (code: string) => (
-        <Tag color="geekblue" style={{ fontSize: "12px" }}>
-          co-{code}
-        </Tag>
-      ),
     },
     {
       title: "Actions",

@@ -62,6 +62,9 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
         String(50), nullable=False, default="Draft"
     )
 
+    # Branch reference (explicit link to branches table)
+    branch_name: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+
     # Temporal and branching fields inherited from mixins:
     # - valid_time: TSTZRANGE (from VersionableMixin)
     # - transaction_time: TSTZRANGE (from VersionableMixin)

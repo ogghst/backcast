@@ -274,7 +274,7 @@ async def test_{entity_snake}_as_of_merge_mode(
 
 **Priority:** MEDIUM
 
-**File:** `docs/02-architecture/cross-cutting/time-travel.md`
+**File:** `docs/02-architecture/cross-cutting/temporal-query-reference.md`
 
 **Section:** Add new subsection after "Zombie Check Tests" (around line 320)
 
@@ -347,7 +347,7 @@ project = await service.get_project_as_of(
 
 ### Documentation
 
-- [ ] `time-travel.md` updated with service support table
+- [ ] `temporal-query-reference.md` updated with service support table
 - [ ] TD-026 marked as complete in technical debt register
 - [ ] All docstrings follow Google style with Args/Returns/Example sections
 
@@ -389,7 +389,7 @@ If issues arise:
 5. ✅ Full backend test suite passes (≥198 tests)
 6. ✅ MyPy strict mode passes (zero errors)
 7. ✅ Ruff linting passes (zero errors)
-8. ✅ Documentation updated (time-travel.md)
+8. ✅ Documentation updated (temporal-query-reference.md)
 9. ✅ TD-026 marked as complete
 
 ---

@@ -56,7 +56,12 @@ class BranchableService[TBranchable: BranchableProtocol]:
     async def get_current(
         self, root_id: UUID, branch: str = "main"
     ) -> TBranchable | None:
-        """Get the current active version for a root entity on a specific branch."""
+        """Get the current active version for a root entity on a specific branch.
+
+        Uses clock_timestamp() instead of current_timestamp() because within
+        a transaction, current_timestamp() returns the transaction start time,
+        which may be before the valid_time lower bound of recently created records.
+        """
         # Helper to get root field name
         class_name = self.entity_class.__name__.lower()
         if class_name.endswith("version"):
@@ -69,7 +74,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
                 getattr(self.entity_class, root_field) == root_id,
                 cast(Any, self.entity_class).branch == branch,
                 cast(Any, self.entity_class).valid_time.op("@>")(
-                    func.current_timestamp()
+                    func.clock_timestamp()
                 ),
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
@@ -216,24 +221,24 @@ class BranchableService[TBranchable: BranchableProtocol]:
         """Apply standardized bitemporal WHERE clauses to a statement.
 
         Filters for:
-        - valid_time contains as_of
-        - transaction_time contains as_of
+        - valid_time contains as_of (time travel based on business validity)
         - deleted_at IS NULL OR deleted_at > as_of
+
+        Note: Time travel queries are based on valid_time only. The transaction_time
+        dimension is used for audit/correction tracking but does not filter list results.
+        For overlapping valid_time ranges (corrections), the latest transaction_time
+        version should be used - this is handled by DISTINCT ON in branch mode filter
+        or by ordering in the specific service method.
         """
         from typing import Any, cast
 
         from sqlalchemy import func, or_
 
         return stmt.where(
-            # Check as_of is within valid_time range
+            # Check as_of is within valid_time range (time travel by business validity)
             cast(Any, self.entity_class).valid_time.op("@>")(as_of),
             # CRITICAL: Also check as_of >= lower bound (entity existed)
             func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
-
-            # TRANSACTION TIME: We use "Current Knowledge" semantics for lists.
-            # We want the latest "truth" about the 'as_of' time.
-            # So we check that the row has not been superseded (transaction_time upper bound is NULL).
-            func.upper(cast(Any, self.entity_class).transaction_time).is_(None),
 
             # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
             or_(
@@ -415,3 +420,96 @@ class BranchableService[TBranchable: BranchableProtocol]:
             history.append(entity)
 
         return history
+
+    async def list_branches(
+        self,
+        root_id: UUID,
+        as_of: datetime | None = None,
+    ) -> list[str]:
+        """Get all branch names for an entity.
+
+        Args:
+            root_id: The root entity ID
+            as_of: Optional time travel timestamp
+
+        Returns:
+            List of distinct branch names where this entity exists
+
+        Example:
+            >>> branches = await service.list_branches(project_id)
+            >>> print(branches)  # ['main', 'co-123', 'co-456']
+        """
+        root_field = self._get_root_field_name()
+
+        # Build base statement
+        stmt = select(self.entity_class.branch).where(
+            getattr(self.entity_class, root_field) == root_id,
+        )
+
+        # Apply bitemporal filtering if as_of is provided
+        if as_of:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            # Current state: only non-deleted, currently valid versions
+            stmt = stmt.where(
+                cast(Any, self.entity_class).deleted_at.is_(None),
+                func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+            )
+
+        # Get distinct branch names
+        stmt = stmt.distinct().order_by(self.entity_class.branch)
+        result = await self.session.execute(stmt)
+        return [row[0] for row in result.all()]
+
+    async def compare_branches(
+        self,
+        root_id: UUID,
+        branch_a: str,
+        branch_b: str,
+        as_of: datetime | None = None,
+    ) -> dict[str, TBranchable | None]:
+        """Compare entity state between two branches.
+
+        Args:
+            root_id: The root entity ID
+            branch_a: First branch name
+            branch_b: Second branch name
+            as_of: Optional time travel timestamp
+
+        Returns:
+            Dict with 'branch_a' and 'branch_b' keys containing current versions.
+            Returns None for branches where the entity doesn't exist.
+
+        Example:
+            >>> comparison = await service.compare_branches(
+            ...     project_id, "main", "co-123"
+            ... )
+            >>> print(comparison['branch_a'].name)
+            >>> print(comparison['branch_b'].name)
+        """
+        # Get version from branch_a
+        if as_of:
+            version_a = await self.get_as_of(
+                entity_id=root_id,
+                as_of=as_of,
+                branch=branch_a,
+                branch_mode=BranchMode.STRICT,
+            )
+        else:
+            version_a = await self.get_current(root_id=root_id, branch=branch_a)
+
+        # Get version from branch_b
+        if as_of:
+            version_b = await self.get_as_of(
+                entity_id=root_id,
+                as_of=as_of,
+                branch=branch_b,
+                branch_mode=BranchMode.STRICT,
+            )
+        else:
+            version_b = await self.get_current(root_id=root_id, branch=branch_b)
+
+        return {
+            "branch_a": version_a,
+            "branch_b": version_b,
+        }

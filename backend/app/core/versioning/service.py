@@ -216,24 +216,24 @@ class TemporalService[TVersionable: VersionableProtocol]:
         """Apply standardized bitemporal WHERE clauses to a statement.
 
         Filters for:
-        - valid_time contains as_of
-        - transaction_time contains as_of
+        - valid_time contains as_of (time travel based on business validity)
         - deleted_at IS NULL OR deleted_at > as_of
+
+        Note: Time travel queries are based on valid_time only. The transaction_time
+        dimension is used for audit/correction tracking but does not filter list results.
+        For overlapping valid_time ranges (corrections), the latest transaction_time
+        version should be used - this is handled by DISTINCT ON in branch mode filter
+        or by ordering in the specific service method.
         """
         from typing import Any, cast
 
         from sqlalchemy import func, or_
 
         return stmt.where(
-            # Check as_of is within valid_time range
+            # Check as_of is within valid_time range (time travel by business validity)
             cast(Any, self.entity_class).valid_time.op("@>")(as_of),
             # CRITICAL: Also check as_of >= lower bound (entity existed)
             func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
-
-            # TRANSACTION TIME: We use "Current Knowledge" semantics for lists.
-            # We want the latest "truth" about the 'as_of' time.
-            # So we check that the row has not been superseded (transaction_time upper bound is NULL).
-            func.upper(cast(Any, self.entity_class).transaction_time).is_(None),
 
             # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
             or_(

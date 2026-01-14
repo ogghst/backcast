@@ -2,7 +2,7 @@
 
 **Date Created:** 2026-01-12
 **Status:** Draft
-**Related:** [Analysis](00-analysis.md) | [Time Travel Architecture](../../02-architecture/cross-cutting/time-travel.md) | [Branching Requirements](../../02-architecture/cross-cutting/branching-requirements.md)
+**Related:** [Analysis](00-analysis.md) | [Time Travel & Branching Architecture](../../02-architecture/cross-cutting/temporal-query-reference.md)
 
 ---
 
@@ -141,7 +141,7 @@ The system currently supports MERGE mode for single-entity queries (`get_as_of()
 - Add `mode` query parameter to list API routes
 - Write unit tests for branch mode filtering
 - Write integration tests for API endpoints
-- Update time-travel.md documentation
+- Update temporal-query-reference.md documentation
 
 **Frontend:**
 
@@ -342,7 +342,7 @@ ProjectBranchSelector
 
 | Task | Time |
 |------|------|
-| Update `time-travel.md` with branch mode behavior | 15 min |
+| Update `temporal-query-reference.md` with branch mode behavior | 15 min |
 | Update API documentation | 15 min |
 | **Documentation Subtotal** | **~30 min** |
 
@@ -367,7 +367,6 @@ ProjectBranchSelector
 ## Related Documentation
 
 - [ADR-005: Bitemporal Versioning](../../02-architecture/decisions/ADR-005-bitemporal-versioning.md)
-- [Time Travel Architecture](../../02-architecture/cross-cutting/time-travel.md)
-- [Branching Requirements](../../02-architecture/cross-cutting/branching-requirements.md)
+- [Time Travel & Branching Architecture](../../02-architecture/cross-cutting/temporal-query-reference.md)
 - [Change Management User Stories](../../01-product-scope/change-management-user-stories.md)
 - [Coding Standards](../../02-architecture/coding-standards.md)

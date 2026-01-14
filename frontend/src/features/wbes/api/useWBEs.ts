@@ -42,10 +42,10 @@ export interface WBEListParams {
 
 // Custom useWBEs list hook with Time Machine integration
 export const useWBEs = (params?: WBEListParams) => {
-  const { asOf, mode } = useTimeMachineParams();
+  const { asOf, mode, branch } = useTimeMachineParams();
 
   return useQuery<PaginatedResponse<WBERead>>({
-    queryKey: ["wbes", params, { asOf, mode }],
+    queryKey: ["wbes", params, { asOf, mode, branch }],
     queryFn: async () => {
       const current = params?.pagination?.current || 1;
       const pageSize = params?.pagination?.pageSize || 20;
@@ -81,7 +81,7 @@ export const useWBEs = (params?: WBEListParams) => {
           per_page: pageSize,
           project_id: params?.projectId,
           parent_wbe_id: params?.parentWbeId,
-          branch: params?.branch || "main",
+          branch: branch || "main",
           mode: mode,
           search: params?.search,
           filters: filterString,

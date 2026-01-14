@@ -90,7 +90,7 @@ This addresses the core product vision: _"Ability to time travel project at a sp
 **Key Architecture Documents:**
 
 - `docs/02-architecture/backend/contexts/evcs-core/architecture.md`
-- `docs/02-architecture/backend/contexts/evcs-core/patterns.md`
+- `docs/02-architecture/backend/contexts/evcs-core/evcs-implementation-guide.md`
 - `docs/02-architecture/backend/contexts/evcs-core/entity-classification.md`
 
 ### Codebase Analysis
@@ -263,7 +263,7 @@ get_as_of(project_id, as_of="2026-01-01", branch="co-123", branch_mode="merge")
 # → Returns entity from co-123 if exists, else falls back to main
 ```
 
-**Implementation Pattern (Already Documented in patterns.md):**
+**Implementation Pattern (Already Documented in evcs-implementation-guide.md):**
 
 ```python
 def get_as_of_with_fallback(
@@ -308,7 +308,7 @@ This gives users a "merged view" of what the project would look like if the chan
 | **Git-like Semantics** | Branch overlays changes on main, unchanged items show main version |
 | **Single API** | One endpoint with mode parameter, no additional APIs needed |
 | **Backwards Compatible** | Default `strict` mode preserves current behavior |
-| **Already Documented** | Pattern exists in `patterns.md` (Fallback to Main Branch) |
+| **Already Documented** | Pattern exists in `evcs-implementation-guide.md` (Fallback to Main Branch) |
 | **Flexible** | Users choose the behavior they need per-query |
 
 **Cons:**
@@ -350,7 +350,7 @@ def get_as_of_with_fallback(...):
 | **UX Clarity**       | ✅ Clear         | ⚠️ Confusing        | ✅ Clear         | ✅ Clear                |
 | **Git Mental Model** | ✅ Matches       | ❌ Differs          | ✅ Matches       | ✅ Matches best         |
 | **CO Preview**       | ❌ Manual merge  | ⚠️ Complex          | ⚠️ Needs extra   | ✅ Built-in             |
-| **Existing Pattern** | ✅ Current       | ❌ New              | ⚠️ Partial       | ✅ patterns.md          |
+| **Existing Pattern** | ✅ Current       | ❌ New              | ⚠️ Partial       | ✅ evcs-implementation-guide.md          |
 
 ---
 
@@ -359,7 +359,7 @@ def get_as_of_with_fallback(...):
 **I recommend Option D** because:
 
 1. **Best Change Order UX** - Users can preview "merged" state of change orders naturally
-2. **Already Documented** - The fallback pattern exists in `patterns.md` (lines 339-378)
+2. **Already Documented** - The fallback pattern exists in `evcs-implementation-guide.md` (lines 339-378)
 3. **Single API** - No proliferation of endpoints, just one mode parameter
 4. **Backwards Compatible** - Default `strict` mode = current behavior, no breaking changes
 5. **Git Mental Model** - Perfectly matches how Git shows files (branch overlays main)
@@ -404,7 +404,7 @@ def get_as_of_with_fallback(...):
 ### Phase 4: Documentation & Cleanup (2 hours)
 
 1. Update architecture.md with fixes
-2. Update patterns.md with corrected examples
+2. Update evcs-implementation-guide.md with corrected examples
 3. Document branch isolation behavior
 4. Clean up debug test files
 

@@ -65,7 +65,7 @@ Address technical debt item **TD-014**: Frontend filter types currently use `Rec
 
 **Existing Patterns:**
 
-1. **Filter String Format:** `column:value1,value2;column2:value3` (documented in [API Response Patterns](file:///home/nicola/dev/backcast_evs/docs/02-architecture/cross-cutting/api-response-patterns.md))
+1. **Filter String Format:** `column:value1,value2;column2:value3` (documented in [API Response Patterns](file:///home/nicola/dev/backcast_evs/docs/02-architecture/cross-cutting/api-response-evcs-implementation-guide.md))
 2. **WhitelistPolicy:** Backend explicitly defines `allowed_fields` per entity
 3. **Type Safety Standard:** Strict TypeScript mode, no `any` types ([Coding Standards](file:///home/nicola/dev/backcast_evs/docs/02-architecture/coding-standards.md) section 1.1)
 
@@ -78,7 +78,7 @@ filters?: Record<string, FilterValue | null>;
 // ❌ Current Implementation (useTableParams.ts:14)
 <T extends object = Record<string, unknown>>()
 
-// ❌ Current Implementation (api-response-patterns.md:242)
+// ❌ Current Implementation (api-response-evcs-implementation-guide.md:242)
 filters?: Record<string, string[] | string>;
 ```
 
@@ -411,7 +411,7 @@ export const useTableParams = <
 
    - **Recommendation:** Update all at once to prevent partial adoption and confusion
 
-3. **Documentation:** Should we update the [API Response Patterns](file:///home/nicola/dev/backcast_evs/docs/02-architecture/cross-cutting/api-response-patterns.md) doc as part of this work?
+3. **Documentation:** Should we update the [API Response Patterns](file:///home/nicola/dev/backcast_evs/docs/02-architecture/cross-cutting/api-response-evcs-implementation-guide.md) doc as part of this work?
 
    - **Recommendation:** Yes - update the "Frontend Integration Patterns" section with type-safe examples
 

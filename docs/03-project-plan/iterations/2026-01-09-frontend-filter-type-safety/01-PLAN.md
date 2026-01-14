@@ -40,7 +40,7 @@ The frontend currently uses loosely typed structures for table parameters and fi
 
 ### 2.3 Documentation Criteria
 
-- [ ] [API Response Patterns](file:///home/nicola/dev/backcast_evs/docs/02-architecture/cross-cutting/api-response-patterns.md) updated with type-safe examples.
+- [ ] [API Response Patterns](file:///home/nicola/dev/backcast_evs/docs/02-architecture/cross-cutting/api-response-evcs-implementation-guide.md) updated with type-safe examples.
 - [ ] Migration path for future OpenAPI automation documented.
 
 ---
@@ -52,7 +52,7 @@ The frontend currently uses loosely typed structures for table parameters and fi
 - Refactoring `useTableParams.ts` hook for strict generic typing.
 - Creating a new centralized typing system for filterable fields.
 - Updating all 7 component/page files using the hook.
-- Updating `api-response-patterns.md`.
+- Updating `api-response-evcs-implementation-guide.md`.
 - Creating the migration path documentation.
 
 ### Out of Scope
@@ -137,7 +137,7 @@ export const useTableParams = <
 ## 8. Prerequisites
 
 1. Approved [Analysis](./00-ANALYSIS.md).
-2. Backup of current `api-response-patterns.md`.
+2. Backup of current `api-response-evcs-implementation-guide.md`.
 
 ---
 

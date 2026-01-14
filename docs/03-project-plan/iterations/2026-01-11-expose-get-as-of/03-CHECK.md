@@ -258,7 +258,7 @@ None. The implementation exactly followed the plan:
 ## Next Steps (ACT Phase)
 
 1. **Update Documentation:**
-   - Update `time-travel.md` with service support table
+   - Update `temporal-query-reference.md` with service support table
    - Add usage examples for each service method
 
 2. **Update Technical Debt Register:**
