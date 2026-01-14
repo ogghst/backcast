@@ -293,7 +293,7 @@ After completing all changes:
 - [ ] All internal section references are updated
 - [ ] FR aligns with change-management-user-stories.md on workflows
 - [ ] FR aligns with evm-requirements.md on calculations
-- [ ] FR aligns with branching-requirements.md on states
+- [ ] FR aligns with temporal-query-reference.md on branching states
 - [ ] All bounded contexts have FR justification
 - [ ] All FR features have corresponding architecture
 - [ ] Terminology is consistent across all documents

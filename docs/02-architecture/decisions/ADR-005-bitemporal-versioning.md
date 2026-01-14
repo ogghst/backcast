@@ -173,5 +173,5 @@ Entities using the dual-table pattern should be migrated:
 ### Related Documentation
 
 - [EVCS Core Architecture](../backend/contexts/evcs-core/architecture.md)
-- [Temporal Patterns Reference](../backend/contexts/evcs-core/patterns.md)
+- [Temporal Patterns Reference](../backend/contexts/evcs-core/evcs-implementation-guide.md)
 - [Database Strategy](../cross-cutting/database-strategy.md)

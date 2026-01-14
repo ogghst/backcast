@@ -831,7 +831,7 @@ class SimpleService(Generic[TSimple]):
 For versioned entities without branching (`VersionableProtocol`):
 
 ```python
-class TemporalService(Generic[TSimple]):
+class TemporalService(Generic[TVersionable]):
     """Service for versioned entities without branching."""
 
     def __init__(self, session: Session, entity_class: type[TVersionable]) -> None:
@@ -1079,7 +1079,8 @@ WHERE upper(valid_time) IS NULL
 ## See Also
 
 - [Entity Classification Guide](entity-classification.md) - How to choose Simple/Versionable/Branchable
-- [Temporal Patterns Reference](patterns.md) - Query patterns and recipes
+- [EVCS Implementation Guide](evcs-implementation-guide.md) - Code patterns and recipes
+- [Temporal Query Reference](../../../cross-cutting/temporal-query-reference.md) - Bitemporal queries and time travel
 - [Seed Data Strategy](../../seed-data-strategy.md) - Deterministic UUIDv5 seeding
 - [ADR-006: Protocol-Based Type System](../../decisions/ADR-006-protocol-based-type-system.md) - Type system decision
 - [ADR-005: Bitemporal Versioning](../../decisions/ADR-005-bitemporal-versioning.md) - Decision record

@@ -162,7 +162,7 @@ Cost Elements are the leaf level of the project hierarchy where budgets are allo
 - Branch merge for approved change orders
 - Branch locking/unlocking
 
-**Documentation:** [Branching Requirements](../../01-product-scope/branching-requirements.md)
+**Documentation:** [Time Travel & Branching Architecture](cross-cutting/temporal-query-reference.md)
 
 ---
 

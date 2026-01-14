@@ -252,7 +252,7 @@ The system shall implement a comprehensive branching and versioning architecture
 
 #### 8.4.1 Entity Versioning
 
-All entities in the system shall support branching and versioning through a unified mechanism described in [Branching Requirements](branching-requirements.md).
+All entities in the system shall support branching and versioning through a unified mechanism described in [Time Travel & Branching Architecture](../02-architecture/cross-cutting/temporal-query-reference.md).
 
 #### 8.4.2 Branch-Enabled Entities
 

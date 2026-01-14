@@ -330,4 +330,5 @@ Use this checklist when designing a new entity:
 - [EVCS Core Architecture](./architecture.md)
 - [ADR-006: Protocol-Based Type System](../../decisions/ADR-006-protocol-based-type-system.md)
 - [ADR-005: Bitemporal Versioning](../../decisions/ADR-005-bitemporal-versioning.md)
-- [Temporal Patterns Reference](./patterns.md)
+- [EVCS Implementation Guide](./evcs-implementation-guide.md) - Code patterns and recipes
+- [Temporal Query Reference](../../../cross-cutting/temporal-query-reference.md) - Bitemporal queries and time travel

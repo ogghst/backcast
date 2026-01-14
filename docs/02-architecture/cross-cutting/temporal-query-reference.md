@@ -1,11 +1,24 @@
-# Time Travel Architecture
+# Temporal Query Reference
 
-**Last Updated:** 2026-01-11
+**Last Updated:** 2026-01-14
 **Related ADRs:** [ADR-005: Bitemporal Versioning](../decisions/ADR-005-bitemporal-versioning.md)
 
 ## Overview
 
-This project uses a **Bitemporal Data Model** to track history through the EVCS (Entity Version Control System). This document explains the semantics used for "Time Travel" queries, the standard filter pattern, and TDD practices for temporal features.
+This document is the **definitive reference** for bitemporal queries and time travel in the Backcast EVS system. It covers:
+
+- **Bitemporal Fundamentals:** Two time dimensions (valid time, transaction time)
+- **Time Travel Semantics:** Current Knowledge vs System Time travel
+- **Query Patterns:** Standardized filters for temporal queries
+- **Branch Modes:** STRICT vs MERGE behavior for queries
+- **TDD Patterns:** Zombie check tests for temporal deletion
+
+**Key Capabilities:**
+- **Time Travel:** Reconstruct entity state at any historical point
+- **Complete History:** Immutable audit trail of all entity changes
+- **Branch-Aware Queries:** STRICT and MERGE modes for different use cases
+
+> **Note:** For branching operations (create, merge, lock, etc.), see [EVCS Implementation Guide](../backend/contexts/evcs-core/evcs-implementation-guide.md). For choosing entity types, see [Entity Classification Guide](../backend/contexts/evcs-core/entity-classification.md).
 
 ---
 
@@ -348,9 +361,55 @@ The zombie check pattern documented above is a best-practice TDD pattern for ver
 
 ---
 
+## Query Patterns for Branches
+
+### Current Version on Branch
+
+```sql
+SELECT * FROM project_versions
+WHERE project_id = :id
+  AND branch = :branch
+  AND valid_time @> NOW()
+  AND transaction_time @> NOW()
+  AND deleted_at IS NULL;
+```
+
+### Branch Fallback (MERGE mode)
+
+```python
+# Try target branch first, fall back to main if not found
+version = get_current(root_id, branch="co-123")
+if version is None:
+    version = get_current(root_id, branch="main")
+```
+
+### Time Travel on Branch
+
+```sql
+SELECT * FROM project_versions
+WHERE project_id = :id
+  AND branch = :branch
+  AND valid_time @> :as_of
+  AND transaction_time @> :as_of
+  AND (deleted_at IS NULL OR deleted_at > :as_of);
+```
+
+---
+
 ## Related Documentation
 
+### Architecture & Design
 - [ADR-005: Bitemporal Versioning](../decisions/ADR-005-bitemporal-versioning.md) - Architecture decision record
-- [TemporalService Implementation](../../../backend/app/core/versioning/service.py) - Source code
-- [Branching Requirements](./branching-requirements.md) - Change order isolation
-- [API Response Patterns](./api-response-patterns.md) - Filter and pagination standards
+- [ADR-006: Protocol-Based Type System](../decisions/ADR-006-protocol-based-type-system.md) - Type system design
+- [EVCS Core Architecture](../backend/contexts/evcs-core/architecture.md) - Complete EVCS system architecture
+
+### Implementation Guides
+- [EVCS Implementation Guide](../backend/contexts/evcs-core/evcs-implementation-guide.md) - Code patterns and recipes (CRUD, branching, relationships)
+- [Entity Classification Guide](../backend/contexts/evcs-core/entity-classification.md) - Choosing Simple/Versionable/Branchable entity types
+
+### User Guides
+- [EVCS User Guide](../../05-user-guide/evcs-wbe-user-guide.md) - Working with versioned entities (API consumers)
+
+### Source Code
+- [TemporalService Implementation](../../../backend/app/core/versioning/service.py) - Core service with time travel support
+- [BranchableService Implementation](../../../backend/app/core/branching/service.py) - Branch-aware service operations

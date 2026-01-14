@@ -146,7 +146,7 @@ See Section 2.4 for implementation patterns.
 - Unpack service tuples `(items, total)` in the API layer.
 - Never concatenate raw SQL; use SQLAlchemy abstractions.
 
-See [API Response Patterns](cross-cutting/api-response-patterns.md) for detailed implementation guides.
+See [API Response Patterns](cross-cutting/api-response-evcs-implementation-guide.md) for detailed implementation guides.
 
 ---
 

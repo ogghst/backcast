@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-11  
 **Status:** Draft  
-**Related:** [Functional Requirements](functional-requirements.md) | [Branching Requirements](branching-requirements.md) | [EVM Requirements](evm-requirements.md)
+**Related:** [Functional Requirements](functional-requirements.md) | [Time Travel & Branching Architecture](../02-architecture/cross-cutting/temporal-query-reference.md) | [EVM Requirements](evm-requirements.md)
 
 ---
 

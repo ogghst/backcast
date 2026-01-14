@@ -74,6 +74,6 @@ We decided to implement **Database-level filtering, search, and sorting** integr
 
 ## References
 
-- [API Response Patterns](../cross-cutting/api-response-patterns.md)
+- [API Response Patterns](../cross-cutting/api-response-evcs-implementation-guide.md)
 - [Coding Standards](../coding-standards.md)
 - [Phase 2 Final Summary](../../03-project-plan/iterations/2026-01-08-table-harmonization/phase2/FINAL-SUMMARY.md)
