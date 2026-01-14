@@ -39,6 +39,10 @@ export type WBECreate = {
      */
     wbe_id?: (string | null);
     /**
+     * Branch name for creation (defaults to main if not specified)
+     */
+    branch?: string;
+    /**
      * Optional control date for creation (valid_time start)
      */
     control_date?: (string | null);

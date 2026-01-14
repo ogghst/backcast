@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { BranchPublic } from '../models/BranchPublic';
 import type { ProjectCreate } from '../models/ProjectCreate';
 import type { ProjectRead } from '../models/ProjectRead';
 import type { ProjectUpdate } from '../models/ProjectUpdate';
@@ -18,11 +19,13 @@ export class ProjectsService {
      * - **Filters**: Filter by status, code, name (format: "column:value;column:value1,value2")
      * - **Sorting**: Sort by any field (asc/desc)
      * - **Pagination**: Returns total count for proper pagination UI
+     * - **Mode**: Branch mode - "merged" (combine with main) or "isolated" (current branch only)
      *
      * Requires read permission.
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param branch Branch name
+     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param search Search term (code, name)
      * @param filters Filters in format 'column:value;column:value1,value2'
      * @param sortField Field to sort by
@@ -35,6 +38,7 @@ export class ProjectsService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
+        mode: string = 'merged',
         search?: (string | null),
         filters?: (string | null),
         sortField?: (string | null),
@@ -48,6 +52,7 @@ export class ProjectsService {
                 'page': page,
                 'per_page': perPage,
                 'branch': branch,
+                'mode': mode,
                 'search': search,
                 'filters': filters,
                 'sort_field': sortField,
@@ -172,6 +177,32 @@ export class ProjectsService {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/projects/{project_id}/history',
+            path: {
+                'project_id': projectId,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Read Project Branches
+     * Get all branches for a project.
+     *
+     * Returns the main branch plus any change order branches (co-{code})
+     * that exist for this project.
+     *
+     * Requires read permission.
+     * @param projectId
+     * @returns BranchPublic Successful Response
+     * @throws ApiError
+     */
+    public static getProjectBranches(
+        projectId: string,
+    ): CancelablePromise<Array<BranchPublic>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/projects/{project_id}/branches',
             path: {
                 'project_id': projectId,
             },

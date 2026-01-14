@@ -15,6 +15,10 @@ export type ChangeOrderUpdate = {
     effective_date?: (string | null);
     status?: (string | null);
     /**
+     * Branch name for update (defaults to current branch)
+     */
+    branch?: (string | null);
+    /**
      * Control date for bitemporal operations
      */
     control_date?: (string | null);

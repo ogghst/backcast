@@ -13,6 +13,10 @@ export type ProjectUpdate = {
     end_date?: (string | null);
     description?: (string | null);
     /**
+     * Branch name for update (defaults to current branch)
+     */
+    branch?: (string | null);
+    /**
      * Optional control date for update (valid_time start)
      */
     control_date?: (string | null);

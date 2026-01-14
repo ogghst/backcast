@@ -12,6 +12,10 @@ export type CostElementUpdate = {
     description?: (string | null);
     cost_element_type_id?: (string | null);
     /**
+     * Branch name for update (defaults to current branch)
+     */
+    branch?: (string | null);
+    /**
      * Optional control date for update (valid_time start)
      */
     control_date?: (string | null);

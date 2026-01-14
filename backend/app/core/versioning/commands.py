@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from typing import Any, TypeVar, cast
 from uuid import UUID
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.protocols import VersionableProtocol

@@ -13,13 +13,13 @@ Per Phase 3 Plan:
 
 from datetime import date
 from decimal import Decimal
-from typing import Literal, TypeAlias
+from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 # Type alias for entity change types
-EntityChangeType: TypeAlias = Literal["added", "modified", "removed"]
+type EntityChangeType = Literal["added", "modified", "removed"]
 
 
 class KPIMetric(BaseModel):
@@ -143,9 +143,9 @@ class ImpactAnalysisResponse(BaseModel):
 
     model_config = ConfigDict(strict=True)
 
-    change_order_id: int = Field(description="Change Order ID")
-    branch_id: int = Field(description="Branch ID being compared")
-    main_branch_id: int = Field(description="Main branch ID (baseline)")
+    change_order_id: UUID = Field(description="Change Order ID (UUID)")
+    branch_name: str = Field(description="Branch name being compared (e.g., 'co-CO-2026-001')")
+    main_branch_name: str = Field(description="Main branch name (always 'main')")
     kpi_scorecard: KPIScorecard = Field(description="KPI comparison")
     entity_changes: EntityChanges = Field(description="Entity changes")
     waterfall: list[WaterfallSegment] = Field(

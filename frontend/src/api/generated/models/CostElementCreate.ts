@@ -17,6 +17,10 @@ export type CostElementCreate = {
     wbe_id: string;
     cost_element_type_id: string;
     /**
+     * Branch name for creation (defaults to main if not specified)
+     */
+    branch?: string;
+    /**
      * Optional control date for creation (valid_time start)
      */
     control_date?: (string | null);

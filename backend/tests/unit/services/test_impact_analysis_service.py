@@ -4,20 +4,13 @@ Tests follow Red-Green-Refactor TDD cycle.
 Tests are ordered from simplest to most complex.
 """
 
-from datetime import date, datetime
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.schemas.impact_analysis import (
-    EntityChange,
-    EntityChangeType,
-    ImpactAnalysisResponse,
-    KPIMetric,
-    KPIScorecard,
-)
+from app.models.schemas.impact_analysis import EntityChange
 from app.services.impact_analysis_service import ImpactAnalysisService
 
 
@@ -157,7 +150,6 @@ class TestImpactAnalysisServiceCompareEntities:
         - Budget delta calculated correctly
         """
         # Arrange
-        wbe_id = uuid4()
         old_budget = Decimal("50000.00")
         new_budget = Decimal("60000.00")
 
@@ -177,7 +169,6 @@ class TestImpactAnalysisServiceCompareEntities:
         - Previous financial values shown as negative impact
         """
         # Arrange
-        wbe_id = uuid4()
         old_budget = Decimal("50000.00")
 
         # When removed, the delta is negative (lost budget)
@@ -204,7 +195,6 @@ class TestImpactAnalysisServiceBuildWaterfall:
         service = ImpactAnalysisService(db_session)
         current_margin = Decimal("20000.00")
         margin_delta = Decimal("5000.00")
-        new_margin = current_margin + margin_delta  # Decimal("25000.00")
 
         # Act
         result = service._build_waterfall(current_margin, margin_delta)
@@ -237,16 +227,21 @@ class TestImpactAnalysisServiceGenerateTimeSeries:
         Acceptance Criteria:
         - Data points grouped by week (week_start date)
         - Main and change values populated for each point
+        - Returns TimeSeriesPoint objects
         """
         # Arrange
-        week_start = date(2026, 1, 1)
-        main_budget = Decimal("10000.00")
-        change_budget = Decimal("12000.00")
+        service = ImpactAnalysisService(db_session)
+        project_id = uuid4()
+        branch_name = "co-test-001"
 
-        # Expected structure validation
-        assert week_start == date(2026, 1, 1)
-        assert main_budget == Decimal("10000.00")
-        assert change_budget == Decimal("12000.00")
+        # Act - This will return empty results since project has no WBEs
+        result = await service._generate_time_series(project_id, branch_name)
+
+        # Assert - Should return a list with one TimeSeriesPoint
+        # (or empty if no data found)
+        assert isinstance(result, list)
+        # Empty project returns zero budget
+        assert len(result) >= 1  # At least one time point
 
 
 class TestImpactAnalysisServiceEdgeCases:

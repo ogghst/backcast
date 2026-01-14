@@ -10,6 +10,7 @@ import { ProjectList } from "@/pages/projects/ProjectList";
 import { ProjectDetailPage } from "@/pages/projects/ProjectDetailPage";
 import { WBEList } from "@/pages/wbes/WBEList";
 import { WBEDetailPage } from "@/pages/wbes/WBEDetailPage";
+import { ImpactAnalysisDashboard } from "@/features/change-orders";
 
 import { Profile } from "@/pages/Profile";
 
@@ -66,6 +67,10 @@ export const router = createBrowserRouter([
       {
         path: "/projects/:projectId",
         element: <ProjectDetailPage />,
+      },
+      {
+        path: "/projects/:projectId/change-orders/:changeOrderId/impact",
+        element: <ImpactAnalysisDashboard />,
       },
       {
         path: "/projects/:projectId/wbes/:wbeId",

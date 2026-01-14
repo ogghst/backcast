@@ -61,20 +61,15 @@ export class CostElementsService {
      * Create Cost Element
      * Create a new cost element in specified branch.
      * @param requestBody
-     * @param branch Target branch for creation
      * @returns CostElementRead Successful Response
      * @throws ApiError
      */
     public static createCostElement(
         requestBody: CostElementCreate,
-        branch: string = 'main',
     ): CancelablePromise<CostElementRead> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/cost-elements',
-            query: {
-                'branch': branch,
-            },
             body: requestBody,
             mediaType: 'application/json',
             errors: {
@@ -119,23 +114,18 @@ export class CostElementsService {
      * Update a cost element. Creates new version or forks.
      * @param costElementId
      * @param requestBody
-     * @param branch Target branch for update
      * @returns CostElementRead Successful Response
      * @throws ApiError
      */
     public static updateCostElement(
         costElementId: string,
         requestBody: CostElementUpdate,
-        branch: string = 'main',
     ): CancelablePromise<CostElementRead> {
         return __request(OpenAPI, {
             method: 'PUT',
             url: '/api/v1/cost-elements/{cost_element_id}',
             path: {
                 'cost_element_id': costElementId,
-            },
-            query: {
-                'branch': branch,
             },
             body: requestBody,
             mediaType: 'application/json',

@@ -18,7 +18,9 @@ from app.models.schemas.change_order import (
     ChangeOrderPublic,
     ChangeOrderUpdate,
 )
+from app.models.schemas.impact_analysis import ImpactAnalysisResponse
 from app.services.change_order_service import ChangeOrderService
+from app.services.impact_analysis_service import ImpactAnalysisService
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +31,12 @@ def get_change_order_service(
     session: AsyncSession = Depends(get_db),
 ) -> ChangeOrderService:
     return ChangeOrderService(session)
+
+
+def get_impact_analysis_service(
+    session: AsyncSession = Depends(get_db),
+) -> ImpactAnalysisService:
+    return ImpactAnalysisService(session)
 
 
 @router.get(
@@ -375,5 +383,39 @@ async def revert_change_order(
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+
+@router.get(
+    "/{change_order_id}/impact",
+    response_model=ImpactAnalysisResponse,
+    operation_id="get_change_order_impact",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-read"))],
+)
+async def get_change_order_impact(
+    change_order_id: UUID,
+    branch_name: str = Query(..., description="Branch name to compare (e.g., 'co-CO-2026-001')"),
+    service: ImpactAnalysisService = Depends(get_impact_analysis_service),
+) -> ImpactAnalysisResponse:
+    """Get impact analysis for a change order by comparing branches.
+
+    Analyzes the financial and schedule impact of a change order by comparing
+    data between the main branch and the specified change branch.
+
+    Returns:
+        - KPI Scorecard: BAC, Budget Delta, Gross Margin comparison
+        - Entity Changes: Added/Modified/Removed WBEs and Cost Elements
+        - Waterfall Chart: Cost bridge visualization
+        - Time Series: Weekly S-curve budget comparison
+
+    Requires read permission.
+    """
+    try:
+        impact_analysis = await service.analyze_impact(change_order_id, branch_name)
+        return impact_analysis
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         ) from e

@@ -3,17 +3,13 @@
 from app.models.schemas.impact_analysis import (
     EntityChange,
     EntityChanges,
+    EntityChangeType,
     ImpactAnalysisResponse,
     KPIMetric,
     KPIScorecard,
     TimeSeriesData,
     TimeSeriesPoint,
     WaterfallSegment,
-)
-
-# EntityChangeType is a TypeAlias, exported differently
-from app.models.schemas.impact_analysis import (  # noqa: F401
-    EntityChangeType,
 )
 
 __all__ = [

@@ -47,9 +47,9 @@ export type ChangeOrderPublic = {
      */
     created_by: string;
     /**
-     * When this version was created
+     * When this version was created (derived from transaction_time)
      */
-    created_at: string;
+    created_at?: (string | null);
     /**
      * User who last updated
      */
@@ -70,5 +70,17 @@ export type ChangeOrderPublic = {
      * Soft delete timestamp
      */
     deleted_at?: (string | null);
+    /**
+     * Valid workflow status transitions from current state
+     */
+    available_transitions?: (Array<string> | null);
+    /**
+     * Whether Change Order status can be edited in current state
+     */
+    can_edit_status?: boolean;
+    /**
+     * Whether the associated branch is locked
+     */
+    branch_locked?: boolean;
 };
 

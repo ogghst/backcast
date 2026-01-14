@@ -5,6 +5,7 @@
 import type { ChangeOrderCreate } from '../models/ChangeOrderCreate';
 import type { ChangeOrderPublic } from '../models/ChangeOrderPublic';
 import type { ChangeOrderUpdate } from '../models/ChangeOrderUpdate';
+import type { ImpactAnalysisResponse } from '../models/ImpactAnalysisResponse';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
@@ -21,6 +22,10 @@ export class ChangeOrdersService {
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param branch Branch name
+     * @param search Search term (code, title)
+     * @param filters Filters in format 'column:value;column:value1,value2'
+     * @param sortField Field to sort by
+     * @param sortOrder Sort order (asc or desc)
      * @param asOf Time travel: get Change Orders as of this timestamp (ISO 8601)
      * @returns any Successful Response
      * @throws ApiError
@@ -30,6 +35,10 @@ export class ChangeOrdersService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
+        search?: (string | null),
+        filters?: (string | null),
+        sortField?: (string | null),
+        sortOrder: string = 'asc',
         asOf?: (string | null),
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
@@ -40,6 +49,10 @@ export class ChangeOrdersService {
                 'page': page,
                 'per_page': perPage,
                 'branch': branch,
+                'search': search,
+                'filters': filters,
+                'sort_field': sortField,
+                'sort_order': sortOrder,
                 'as_of': asOf,
             },
             errors: {
@@ -115,7 +128,9 @@ export class ChangeOrdersService {
      * Update Change Order
      * Update a change order's metadata.
      *
-     * Creates a new version with the updated metadata on the current active branch.
+     * Creates a new version with the updated metadata. Optionally specify a branch
+     * to update on a specific branch (will auto-fork from main if no version exists
+     * on the target branch).
      *
      * Requires update permission.
      * @param changeOrderId
@@ -220,6 +235,101 @@ export class ChangeOrdersService {
             url: '/api/v1/change-orders/{change_order_id}/history',
             path: {
                 'change_order_id': changeOrderId,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Merge Change Order
+     * Merge a Change Order's branch into the target branch.
+     *
+     * Infers the source branch from the Change Order code (e.g., `co-{code}`).
+     *
+     * Requires update permission.
+     * @param changeOrderId
+     * @param targetBranch Target branch to merge into
+     * @returns ChangeOrderPublic Successful Response
+     * @throws ApiError
+     */
+    public static mergeChangeOrder(
+        changeOrderId: string,
+        targetBranch: string = 'main',
+    ): CancelablePromise<ChangeOrderPublic> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/change-orders/{change_order_id}/merge',
+            path: {
+                'change_order_id': changeOrderId,
+            },
+            query: {
+                'target_branch': targetBranch,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Revert Change Order
+     * Revert a Change Order to its previous version.
+     *
+     * Requires update permission.
+     * @param changeOrderId
+     * @param branch Branch to revert on
+     * @returns ChangeOrderPublic Successful Response
+     * @throws ApiError
+     */
+    public static revertChangeOrder(
+        changeOrderId: string,
+        branch: string = 'main',
+    ): CancelablePromise<ChangeOrderPublic> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/change-orders/{change_order_id}/revert',
+            path: {
+                'change_order_id': changeOrderId,
+            },
+            query: {
+                'branch': branch,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Get Change Order Impact
+     * Get impact analysis for a change order by comparing branches.
+     *
+     * Analyzes the financial and schedule impact of a change order by comparing
+     * data between the main branch and the specified change branch.
+     *
+     * Returns:
+     * - KPI Scorecard: BAC, Budget Delta, Gross Margin comparison
+     * - Entity Changes: Added/Modified/Removed WBEs and Cost Elements
+     * - Waterfall Chart: Cost bridge visualization
+     * - Time Series: Weekly S-curve budget comparison
+     *
+     * Requires read permission.
+     * @param changeOrderId
+     * @param branchName Branch name to compare (e.g., 'co-CO-2026-001')
+     * @returns ImpactAnalysisResponse Successful Response
+     * @throws ApiError
+     */
+    public static getChangeOrderImpact(
+        changeOrderId: string,
+        branchName: string,
+    ): CancelablePromise<ImpactAnalysisResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/change-orders/{change_order_id}/impact',
+            path: {
+                'change_order_id': changeOrderId,
+            },
+            query: {
+                'branch_name': branchName,
             },
             errors: {
                 422: `Validation Error`,

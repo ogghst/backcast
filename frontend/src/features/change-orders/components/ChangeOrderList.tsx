@@ -5,8 +5,10 @@ import {
   EditOutlined,
   DeleteOutlined,
   PlusOutlined,
+  FundOutlined,
 } from "@ant-design/icons";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { ColumnType } from "antd/es/table";
 import { StandardTable } from "@/components/common/StandardTable";
 import type {
@@ -42,6 +44,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
+  const navigate = useNavigate();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedChangeOrder, setSelectedChangeOrder] =
@@ -124,9 +127,18 @@ export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
     {
       title: "Actions",
       key: "actions",
-      width: 140,
+      width: 180,
       render: (_, record) => (
         <Space size="small">
+          <Can permission="change-order-read">
+            <Button
+              icon={<FundOutlined />}
+              onClick={() => {
+                navigate(`/projects/${projectId}/change-orders/${record.change_order_id}/impact`);
+              }}
+              title="Impact Analysis"
+            />
+          </Can>
           <Can permission="change-order-read">
             <Button
               icon={<HistoryOutlined />}
