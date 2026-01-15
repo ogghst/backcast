@@ -84,6 +84,7 @@ uv run mypy app/
 - [Product Vision](docs/01-product-scope/vision.md) - Business goals
 - [System Map](docs/02-architecture/00-system-map.md) - Architecture overview
 - [PDCA Prompts](docs/04-pdca-prompts/) - AI collaboration templates
+- [Docker Deployment Guide](docs/05-user-guide/docker-deployment-guide.md) - Production deployment
 
 ## Project Status
 
