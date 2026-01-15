@@ -461,6 +461,131 @@ class BranchableService[TBranchable: BranchableProtocol]:
         result = await self.session.execute(stmt)
         return [row[0] for row in result.all()]
 
+    async def _detect_merge_conflicts(
+        self,
+        root_id: UUID,
+        source_branch: str,
+        target_branch: str = "main",
+    ) -> list[dict[str, Any]]:
+        """Detect merge conflicts between source and target branches.
+
+        A conflict occurs when both branches have modified the same entity
+        since they diverged, and they have different values for any field.
+
+        Args:
+            root_id: Root entity ID
+            source_branch: Source branch name (e.g., "co-123")
+            target_branch: Target branch name (default: "main")
+
+        Returns:
+            List of conflict dictionaries. Empty if no conflicts.
+
+        Raises:
+            ValueError: If source or target branch doesn't have a current version
+        """
+        from typing import Any
+
+        # Get current versions on both branches
+        source = await self.get_current(root_id=root_id, branch=source_branch)
+        if not source:
+            raise ValueError(f"No current version on source branch '{source_branch}'")
+
+        target = await self.get_current(root_id=root_id, branch=target_branch)
+        if not target:
+            raise ValueError(f"No current version on target branch '{target_branch}'")
+
+        # Find the divergence point by walking parent chains
+        # The divergence point is the common ancestor where branches split
+        source_ancestors: set[UUID] = set()
+        current = source
+        while current.parent_id:
+            source_ancestors.add(current.parent_id)
+            parent = await self.session.get(self.entity_class, current.parent_id)
+            if not parent:
+                break
+            current = cast(Any, parent)
+
+        # Find common ancestor in target's parent chain
+        target_ancestors: list[UUID] = []
+        current = target
+        while current.parent_id:
+            target_ancestors.append(current.parent_id)
+            if current.parent_id in source_ancestors:
+                # Found common ancestor
+                divergence_point_id = current.parent_id
+                break
+            parent = await self.session.get(self.entity_class, current.parent_id)
+            if not parent:
+                break
+            current = cast(Any, parent)
+        else:
+            # No common ancestor found (shouldn't happen in normal workflow)
+            # Assume no conflict if they're completely unrelated
+            return []
+
+        # Get the divergence point version
+        divergence_point = await self.session.get(self.entity_class, divergence_point_id)
+        if not divergence_point:
+            return []
+
+        # Check if both branches modified since divergence
+        # If source branch was created directly from divergence (no intermediate changes),
+        # and target hasn't changed since divergence, no conflict
+        if source.parent_id == divergence_point_id and target.parent_id == divergence_point_id:
+            # Both point to same parent - check if they diverged from same state
+            # This is a "new branch with changes" vs "unchanged target" scenario
+            # No conflict if target is the divergence point (hasn't been modified)
+            return []
+
+        # Compare fields to detect conflicts
+        # Fields to compare: exclude system fields
+        system_fields = {
+            "id",
+            "valid_time",
+            "transaction_time",
+            "deleted_at",
+            "created_by",
+            "deleted_by",
+            "branch",
+            "parent_id",
+            "merge_from_branch",
+            self._get_root_field_name(),  # e.g., "project_id"
+        }
+
+        conflicts: list[dict[str, Any]] = []
+
+        # Get all columns for the entity
+        for column in self.entity_class.__table__.columns:
+            field_name = column.name
+
+            if field_name in system_fields:
+                continue
+
+            source_value = getattr(source, field_name, None)
+            target_value = getattr(target, field_name, None)
+            divergence_value = getattr(divergence_point, field_name, None)
+
+            # Conflict if:
+            # 1. Source value differs from divergence (source modified the field)
+            # 2. Target value differs from divergence (target modified the field)
+            # 3. Source and target have different values
+            if (
+                source_value != divergence_value
+                and target_value != divergence_value
+                and source_value != target_value
+            ):
+                conflicts.append({
+                    "entity_type": self.entity_class.__name__,
+                    "entity_id": str(root_id),
+                    "field": field_name,
+                    "source_branch": source_branch,
+                    "target_branch": target_branch,
+                    "source_value": str(source_value) if source_value is not None else None,
+                    "target_value": str(target_value) if target_value is not None else None,
+                })
+
+        return conflicts
+
     async def compare_branches(
         self,
         root_id: UUID,

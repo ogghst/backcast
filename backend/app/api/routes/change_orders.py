@@ -17,6 +17,7 @@ from app.models.schemas.change_order import (
     ChangeOrderCreate,
     ChangeOrderPublic,
     ChangeOrderUpdate,
+    MergeRequest,
 )
 from app.models.schemas.impact_analysis import ImpactAnalysisResponse
 from app.services.change_order_service import ChangeOrderService
@@ -325,6 +326,37 @@ async def read_change_order_history(
     return [await service._to_public(co) for co in history]
 
 
+@router.get(
+    "/{change_order_id}/merge-conflicts",
+    operation_id="get_merge_conflicts",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-read"))],
+)
+async def get_merge_conflicts(
+    change_order_id: UUID,
+    source_branch: str = Query(..., description="Source branch name (e.g., 'co-123')"),
+    target_branch: str = Query("main", description="Target branch name (default: 'main')"),
+    service: ChangeOrderService = Depends(get_change_order_service),
+) -> list[dict[str, Any]]:
+    """Check for merge conflicts between source and target branches.
+
+    Returns a list of conflict details if conflicts exist, or an empty list if no conflicts.
+
+    Requires read permission.
+    """
+    try:
+        conflicts = await service._detect_merge_conflicts(
+            root_id=change_order_id,
+            source_branch=source_branch,
+            target_branch=target_branch,
+        )
+        return conflicts
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
+
+
 @router.post(
     "/{change_order_id}/merge",
     response_model=ChangeOrderPublic,
@@ -333,7 +365,7 @@ async def read_change_order_history(
 )
 async def merge_change_order(
     change_order_id: UUID,
-    target_branch: str = Query("main", description="Target branch to merge into"),
+    merge_request: MergeRequest,
     current_user: User = Depends(get_current_active_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ChangeOrder:
@@ -341,15 +373,71 @@ async def merge_change_order(
 
     Infers the source branch from the Change Order code (e.g., `co-{code}`).
 
+    Checks for merge conflicts before proceeding. If conflicts exist,
+    returns 409 with conflict details.
+
     Requires update permission.
     """
     try:
+        # Get current CO to find source branch
+        current = await service.get_current(
+            change_order_id, branch=merge_request.target_branch
+        )
+        if not current:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Change Order {change_order_id} not found",
+            )
+
+        source_branch = f"co-{current.code}"
+
+        # Check for conflicts
+        conflicts = await service._detect_merge_conflicts(
+            root_id=change_order_id,
+            source_branch=source_branch,
+            target_branch=merge_request.target_branch,
+        )
+
+        if conflicts:
+            # Return 409 with conflict details
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "Merge blocked by conflicts",
+                    "conflicts": conflicts,
+                },
+            )
+
+        # Perform merge
         merged_co = await service.merge_change_order(
             change_order_id=change_order_id,
             actor_id=current_user.user_id,
-            target_branch=target_branch,
+            target_branch=merge_request.target_branch,
         )
+
+        # If comment provided, store in audit log
+        if merge_request.comment:
+            from sqlalchemy import select
+
+            from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
+
+            # Check if status transition occurred (Approved -> Implemented)
+            stmt = select(ChangeOrderAuditLog).where(
+                ChangeOrderAuditLog.change_order_id == change_order_id,
+                ChangeOrderAuditLog.new_status == "Implemented",
+            ).order_by(ChangeOrderAuditLog.changed_at.desc())
+
+            result = await service.session.execute(stmt)
+            audit_entry = result.scalar_one_or_none()
+
+            if audit_entry:
+                audit_entry.comment = merge_request.comment
+                await service.session.flush()
+
         return await service._to_public(merged_co)
+
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

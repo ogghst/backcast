@@ -19,6 +19,7 @@ import type {
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { Can } from "@/components/auth/Can";
 import { ChangeOrderModal } from "./ChangeOrderModal";
+import { ChangeOrderWorkflowModal } from "./ChangeOrderWorkflowModal";
 import {
   useChangeOrders,
   useCreateChangeOrder,
@@ -47,6 +48,7 @@ export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
   const navigate = useNavigate();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
   const [selectedChangeOrder, setSelectedChangeOrder] =
     useState<ChangeOrderPublic | null>(null);
 
@@ -183,6 +185,13 @@ export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
         dataSource={changeOrders}
         columns={columns}
         rowKey="change_order_id"
+        onRow={(record) => ({
+          onClick: () => {
+            setSelectedChangeOrder(record);
+            setWorkflowModalOpen(true);
+          },
+          style: { cursor: "pointer" },
+        })}
         toolbar={
           <div
             style={{
@@ -243,6 +252,12 @@ export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
         onClose={() => setHistoryOpen(false)}
         changeOrder={selectedChangeOrder}
       />
+
+      <ChangeOrderWorkflowModal
+        open={workflowModalOpen}
+        changeOrderId={selectedChangeOrder?.change_order_id || ""}
+        onCancel={() => setWorkflowModalOpen(false)}
+      />
     </div>
   );
 };
@@ -268,7 +283,11 @@ const HistoryDrawerWrapper = ({
       open={open}
       onClose={onClose}
       versions={(history || []).map((v, idx, arr) => {
-        const item = v as any;
+        const item = v as ChangeOrderPublic & {
+          valid_time?: string[] | string;
+          transaction_time?: string[] | string;
+          created_by_name?: string;
+        };
         return {
           ...item,
           id: `v${arr.length - idx}`,

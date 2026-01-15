@@ -115,7 +115,7 @@ export const ImpactAnalysisDashboard = ({
           {
             title: (
               <Link to={`/projects/${changeOrder?.project_id || ""}`}>
-                {changeOrder?.project_code || "Project"}
+                Project
               </Link>
             ),
           },

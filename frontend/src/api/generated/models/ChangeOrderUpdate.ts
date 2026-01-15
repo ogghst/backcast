@@ -22,5 +22,9 @@ export type ChangeOrderUpdate = {
      * Control date for bitemporal operations
      */
     control_date?: (string | null);
+    /**
+     * Optional comment for status transitions (Submit, Approve, Reject, Merge)
+     */
+    comment?: (string | null);
 };
 

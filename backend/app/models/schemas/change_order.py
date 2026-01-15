@@ -58,6 +58,26 @@ class ChangeOrderUpdate(BaseModel):
     control_date: datetime | None = Field(
         None, description="Control date for bitemporal operations"
     )
+    comment: str | None = Field(
+        None,
+        description="Optional comment for status transitions (Submit, Approve, Reject, Merge)",
+    )
+
+
+class MergeRequest(BaseModel):
+    """Schema for merge operation request.
+
+    All fields are optional.
+    """
+
+    target_branch: str = Field(
+        "main",
+        description="Target branch to merge into (default: 'main')",
+    )
+    comment: str | None = Field(
+        None,
+        description="Optional comment explaining the merge",
+    )
 
 
 class ChangeOrderPublic(ChangeOrderBase):

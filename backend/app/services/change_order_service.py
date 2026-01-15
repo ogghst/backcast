@@ -16,6 +16,7 @@ from app.core.branching.service import BranchableService
 from app.core.versioning.commands import CreateVersionCommand
 from app.models.domain.branch import Branch
 from app.models.domain.change_order import ChangeOrder
+from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
 from app.models.schemas.change_order import ChangeOrderCreate, ChangeOrderUpdate
 from app.services.branch_service import BranchService
 from app.services.change_order_workflow_service import ChangeOrderWorkflowService
@@ -241,6 +242,9 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         update_data.pop("control_date", None)
         update_data.pop("branch", None)  # Remove branch from update data, we use it separately
 
+        # Extract comment for audit log (not stored in ChangeOrder model)
+        comment = update_data.pop("comment", None)
+
         # Determine target branch
         target_branch = branch if branch is not None else current.branch
 
@@ -346,6 +350,18 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
                 control_date=control_date,
                 **update_data,
             )
+
+        # Create audit log entry for status transition
+        if old_status != new_status:
+            # Create audit log entry
+            audit_entry = ChangeOrderAuditLog(
+                change_order_id=change_order_id,
+                old_status=old_status,
+                new_status=new_status,
+                comment=comment,
+                changed_by=actor_id,
+            )
+            self.session.add(audit_entry)
 
         # Trigger branch lock/unlock based on status change
         if old_status != new_status and updated_co.branch_name:

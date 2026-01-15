@@ -28,6 +28,7 @@ export type { HTTPValidationError } from './models/HTTPValidationError';
 export type { ImpactAnalysisResponse } from './models/ImpactAnalysisResponse';
 export type { KPIMetric } from './models/KPIMetric';
 export type { KPIScorecard } from './models/KPIScorecard';
+export type { MergeRequest } from './models/MergeRequest';
 export type { ProjectBreadcrumbItem } from './models/ProjectBreadcrumbItem';
 export type { ProjectCreate } from './models/ProjectCreate';
 export type { ProjectRead } from './models/ProjectRead';

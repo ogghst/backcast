@@ -12,6 +12,7 @@ import {
   type ChangeOrderPublic,
   type ChangeOrderCreate,
   type ChangeOrderUpdate,
+  type MergeRequest,
 } from "@/api/generated";
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
@@ -83,7 +84,7 @@ export const useCreateChangeOrder = (
     mutationFn: (data: ChangeOrderCreate) => {
       // Only include control_date if asOf is set (not null/undefined)
       // Remove effective_date if not set
-      const payload: Record<string, any> = { ...data };
+      const payload: Record<string, string | number | boolean | null | undefined> = { ...data };
       if (asOf) {
         payload.control_date = asOf;
       } else {
@@ -134,7 +135,7 @@ export const useUpdateChangeOrder = (
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: ChangeOrderUpdate }) => {
       // Remove control_date if not set
-      const payload: Record<string, any> = { ...data };
+      const payload: Record<string, string | number | boolean | null | undefined> = { ...data };
       if (asOf) {
         payload.control_date = asOf;
       } else {
@@ -231,5 +232,102 @@ export const useChangeOrderHistory = (
       return ChangeOrdersService.getChangeOrderHistory(id);
     },
     enabled: !!id && enabled,
+  });
+};
+
+/**
+ * Merge conflict type - represents a single field conflict during merge.
+ */
+export interface MergeConflict {
+  entity_type: string;
+  entity_id: string;
+  field: string;
+  source_branch: string;
+  target_branch: string;
+  source_value: string | null;
+  target_value: string | null;
+}
+
+/**
+ * Custom hook for checking merge conflicts between branches.
+ * Returns an empty array if no conflicts exist.
+ */
+export const useCheckMergeConflicts = (
+  changeOrderId: string | undefined,
+  sourceBranch: string,
+  targetBranch: string = "main",
+  options?: Omit<UseQueryOptions<MergeConflict[], Error>, "queryKey">
+) => {
+  return useQuery({
+    queryKey: ["change-orders", "merge-conflicts", changeOrderId, sourceBranch, targetBranch],
+    queryFn: async () => {
+      if (!changeOrderId) throw new Error("Change Order ID is required");
+      if (!sourceBranch) throw new Error("Source branch is required");
+      const result = await ChangeOrdersService.getMergeConflicts(
+        changeOrderId,
+        sourceBranch,
+        targetBranch
+      );
+      return result as unknown as MergeConflict[];
+    },
+    enabled: !!changeOrderId && !!sourceBranch,
+    ...options,
+  });
+};
+
+/**
+ * Custom merge hook for change orders with MergeRequest support.
+ * Automatically checks for conflicts before merging (if enabled).
+ * Shows toast notifications for success/error.
+ */
+export const useMergeChangeOrder = (
+  mutationOptions?: Omit<
+    UseMutationOptions<
+      ChangeOrderPublic,
+      Error,
+      { id: string; mergeRequest: MergeRequest }
+    >,
+    "mutationFn"
+  >
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, mergeRequest }: { id: string; mergeRequest: MergeRequest }) => {
+      return ChangeOrdersService.mergeChangeOrder(id, mergeRequest);
+    },
+    onSuccess: (data, ...args) => {
+      // Invalidate change orders queries
+      queryClient.invalidateQueries({ queryKey: ["change-orders"] });
+      // Invalidate branches queries
+      queryClient.invalidateQueries({ queryKey: ["branches"] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+
+      const targetBranch = args[0]?.mergeRequest?.target_branch || "main";
+      toast.success(
+        `Change Order merged successfully to ${targetBranch}. Status: ${data.status}`
+      );
+      mutationOptions?.onSuccess?.(data, ...args);
+    },
+    onError: (error: Error & { status?: number; detail?: { conflicts?: MergeConflict[] } }, ...args) => {
+      // Handle 409 Conflict error with conflict details
+      if (error?.status === 409 && error?.detail?.conflicts) {
+        const conflicts = error.detail.conflicts as MergeConflict[];
+        const conflictCount = conflicts.length;
+        const conflictSummary = conflicts
+          .slice(0, 3)
+          .map((c) => `${c.entity_type}.${c.field}`)
+          .join(", ");
+        const moreText = conflictCount > 3 ? ` and ${conflictCount - 3} more` : "";
+
+        toast.error(
+          `Merge blocked: ${conflictCount} conflict${conflictCount > 1 ? "s" : ""} detected. ${conflictSummary}${moreText}.`
+        );
+      } else {
+        toast.error(`Error merging change order: ${error.message}`);
+      }
+      mutationOptions?.onError?.(error, ...args);
+    },
+    ...mutationOptions,
   });
 };

@@ -3382,14 +3382,14 @@
         }
       }
     },
-    "/api/v1/change-orders/{change_order_id}/merge": {
-      "post": {
+    "/api/v1/change-orders/{change_order_id}/merge-conflicts": {
+      "get": {
         "tags": [
           "Change Orders"
         ],
-        "summary": "Merge Change Order",
-        "description": "Merge a Change Order's branch into the target branch.\n\nInfers the source branch from the Change Order code (e.g., `co-{code}`).\n\nRequires update permission.",
-        "operationId": "merge_change_order",
+        "summary": "Get Merge Conflicts",
+        "description": "Check for merge conflicts between source and target branches.\n\nReturns a list of conflict details if conflicts exist, or an empty list if no conflicts.\n\nRequires read permission.",
+        "operationId": "get_merge_conflicts",
         "security": [
           {
             "OAuth2PasswordBearer": []
@@ -3407,18 +3407,93 @@
             }
           },
           {
+            "name": "source_branch",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Source branch name (e.g., 'co-123')",
+              "title": "Source Branch"
+            },
+            "description": "Source branch name (e.g., 'co-123')"
+          },
+          {
             "name": "target_branch",
             "in": "query",
             "required": false,
             "schema": {
               "type": "string",
-              "description": "Target branch to merge into",
+              "description": "Target branch name (default: 'main')",
               "default": "main",
               "title": "Target Branch"
             },
-            "description": "Target branch to merge into"
+            "description": "Target branch name (default: 'main')"
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Get Merge Conflicts"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/change-orders/{change_order_id}/merge": {
+      "post": {
+        "tags": [
+          "Change Orders"
+        ],
+        "summary": "Merge Change Order",
+        "description": "Merge a Change Order's branch into the target branch.\n\nInfers the source branch from the Change Order code (e.g., `co-{code}`).\n\nChecks for merge conflicts before proceeding. If conflicts exist,\nreturns 409 with conflict details.\n\nRequires update permission.",
+        "operationId": "merge_change_order",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "change_order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Change Order Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -4073,6 +4148,18 @@
             ],
             "title": "Control Date",
             "description": "Control date for bitemporal operations"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment",
+            "description": "Optional comment for status transitions (Submit, Approve, Reject, Merge)"
           }
         },
         "type": "object",
@@ -5042,6 +5129,31 @@
         ],
         "title": "KPIScorecard",
         "description": "KPI comparison scorecard for impact analysis."
+      },
+      "MergeRequest": {
+        "properties": {
+          "target_branch": {
+            "type": "string",
+            "title": "Target Branch",
+            "description": "Target branch to merge into (default: 'main')",
+            "default": "main"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment",
+            "description": "Optional comment explaining the merge"
+          }
+        },
+        "type": "object",
+        "title": "MergeRequest",
+        "description": "Schema for merge operation request.\n\nAll fields are optional."
       },
       "ProjectBreadcrumbItem": {
         "properties": {

@@ -6,6 +6,7 @@ import type { ChangeOrderCreate } from '../models/ChangeOrderCreate';
 import type { ChangeOrderPublic } from '../models/ChangeOrderPublic';
 import type { ChangeOrderUpdate } from '../models/ChangeOrderUpdate';
 import type { ImpactAnalysisResponse } from '../models/ImpactAnalysisResponse';
+import type { MergeRequest } from '../models/MergeRequest';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
@@ -242,20 +243,56 @@ export class ChangeOrdersService {
         });
     }
     /**
+     * Get Merge Conflicts
+     * Check for merge conflicts between source and target branches.
+     *
+     * Returns a list of conflict details if conflicts exist, or an empty list if no conflicts.
+     *
+     * Requires read permission.
+     * @param changeOrderId
+     * @param sourceBranch Source branch name (e.g., 'co-123')
+     * @param targetBranch Target branch name (default: 'main')
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static getMergeConflicts(
+        changeOrderId: string,
+        sourceBranch: string,
+        targetBranch: string = 'main',
+    ): CancelablePromise<Array<Record<string, any>>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/change-orders/{change_order_id}/merge-conflicts',
+            path: {
+                'change_order_id': changeOrderId,
+            },
+            query: {
+                'source_branch': sourceBranch,
+                'target_branch': targetBranch,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
      * Merge Change Order
      * Merge a Change Order's branch into the target branch.
      *
      * Infers the source branch from the Change Order code (e.g., `co-{code}`).
      *
+     * Checks for merge conflicts before proceeding. If conflicts exist,
+     * returns 409 with conflict details.
+     *
      * Requires update permission.
      * @param changeOrderId
-     * @param targetBranch Target branch to merge into
+     * @param requestBody
      * @returns ChangeOrderPublic Successful Response
      * @throws ApiError
      */
     public static mergeChangeOrder(
         changeOrderId: string,
-        targetBranch: string = 'main',
+        requestBody: MergeRequest,
     ): CancelablePromise<ChangeOrderPublic> {
         return __request(OpenAPI, {
             method: 'POST',
@@ -263,9 +300,8 @@ export class ChangeOrdersService {
             path: {
                 'change_order_id': changeOrderId,
             },
-            query: {
-                'target_branch': targetBranch,
-            },
+            body: requestBody,
+            mediaType: 'application/json',
             errors: {
                 422: `Validation Error`,
             },
