@@ -378,31 +378,33 @@ The user wants to consolidate these into a **single unified page** that:
 
 ---
 
-## Recommendation
+## Recommendation & Decision
 
-**I recommend Option 1: Tab-Based Layout with URL Routing**
+User Selected: Option 2 - Single-Page Scroll Layout
 
-**Rationale:**
+### Rationale for Selection
 
-1. **Aligns with Architecture Standards:** Follows the established [PageNavigation pattern](../../../05-user-guide/navigation-patterns.md) and nested routing approach already used in [`ProjectLayout.tsx`](../../../frontend/src/pages/projects/ProjectLayout.tsx)
+The user chose Option 2 for the following reasons:
 
-2. **Superior UX:**
-   - Progressive disclosure (form → workflow → impact)
-   - Shareable URLs for each change order
-   - Browser back/forward button support
-   - Clean, organized interface
+1. **Development Speed:** Lower complexity and faster implementation
+2. **Information Visibility:** All relevant information visible at once without clicking tabs
+3. **Simplicity:** No URL state management for tab navigation
+4. **Single View:** Users can see the complete change order context (form, workflow, impact) in one scrollable page
 
-3. **Scalability:**
-   - Easy to add more tabs (History, Audit Log, Comments)
-   - Can hide/disable tabs based on CO state or permissions
-   - Impact analysis can be loaded only when needed
+### Acknowledged Trade-offs
 
-4. **Future-Proof:**
-   - Enables deep linking to specific change orders
-   - Supports browser refresh without losing context
-   - Compatible with existing routing infrastructure
+By selecting Option 2, the following trade-offs are accepted:
 
-**Alternative consideration:** Choose Option 2 (Single-Page Scroll) if development speed is the priority and shareable URLs are not required. However, this deviates from the project's URL-driven navigation philosophy.
+- **No URL sharing for specific sections** - Users can share the change order URL but not specific sections
+- **All content loads at once** - Impact charts load immediately (may affect initial page load)
+- **Longer page** - Users must scroll to see all content
+- **Mobile experience** - Longer scroll on mobile devices
+
+### Implementation Decision
+
+Final Choice: Option 2 - Single-Page Scroll Layout
+
+This decision is recorded and will guide the PLAN and DO phases.
 
 ---
 
@@ -458,10 +460,16 @@ The user wants to consolidate these into a **single unified page** that:
 /projects/:projectId/change-orders/:changeOrderId/impact  → Impact page (only)
 ```
 
-**Proposed Routes (Option 1):**
+**Proposed Routes (Option 2 - Selected):**
 ```
 /projects/:projectId/change-orders                          → List page (unchanged)
 /projects/:projectId/change-orders/new                     → Create new CO
-/projects/:projectId/change-orders/:changeOrderId          → Detail page (all tabs)
-/projects/:projectId/change-orders/:changeOrderId/impact  → Impact (legacy, redirect)
+/projects/:projectId/change-orders/:changeOrderId          → Detail page (all sections, scrollable)
+/projects/:projectId/change-orders/:changeOrderId/impact  → Legacy redirect to detail page
 ```
+
+**Route Differences from Option 1:**
+
+- No tab state in URL (simpler routing)
+- All sections render on same page (no lazy-loading by tab)
+- Anchor links for in-page navigation (not route navigation)

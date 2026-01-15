@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import AppLayout from "@/layouts/AppLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Home from "@/pages/Home";
@@ -14,6 +14,7 @@ import { ProjectDetailPage } from "@/pages/projects/ProjectDetailPage";
 import { WBEList } from "@/pages/wbes/WBEList";
 import { WBEDetailPage } from "@/pages/wbes/WBEDetailPage";
 import { ImpactAnalysisDashboard } from "@/features/change-orders";
+import { ChangeOrderUnifiedPage } from "@/pages/projects/change-orders/ChangeOrderUnifiedPage";
 
 import { Profile } from "@/pages/Profile";
 
@@ -83,7 +84,15 @@ export const router = createBrowserRouter([
       },
       {
         path: "/projects/:projectId/change-orders/:changeOrderId/impact",
-        element: <ImpactAnalysisDashboard />,
+        element: <Navigate to={`/projects/:projectId/change-orders/:changeOrderId`} replace />,
+      },
+      {
+        path: "/projects/:projectId/change-orders/new",
+        element: <ChangeOrderUnifiedPage />,
+      },
+      {
+        path: "/projects/:projectId/change-orders/:changeOrderId",
+        element: <ChangeOrderUnifiedPage />,
       },
       {
         path: "/projects/:projectId/wbes/:wbeId",

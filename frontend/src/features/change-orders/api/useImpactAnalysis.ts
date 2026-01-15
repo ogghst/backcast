@@ -27,6 +27,7 @@ export const useImpactAnalysis = (
     queryKey: ["impact-analysis", changeOrderId, branchName, { asOf }],
     queryFn: async () => {
       if (!changeOrderId) throw new Error("Change Order ID is required");
+      if (!branchName) throw new Error("Branch name is required for impact analysis");
 
       return __request(OpenAPI, {
         method: "GET",
@@ -37,7 +38,7 @@ export const useImpactAnalysis = (
         },
       }) as Promise<ImpactAnalysisResponse>;
     },
-    enabled: !!changeOrderId,
+    enabled: !!changeOrderId && !!branchName,
     ...queryOptions,
   });
 };

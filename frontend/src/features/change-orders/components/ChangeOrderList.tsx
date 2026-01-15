@@ -2,7 +2,6 @@ import { App, Button, Space, Tag } from "antd";
 import {
   HistoryOutlined,
   FileTextOutlined,
-  EditOutlined,
   DeleteOutlined,
   PlusOutlined,
   FundOutlined,
@@ -11,19 +10,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { ColumnType } from "antd/es/table";
 import { StandardTable } from "@/components/common/StandardTable";
-import type {
-  ChangeOrderPublic,
-  ChangeOrderCreate,
-  ChangeOrderUpdate,
-} from "@/api/generated";
+import type { ChangeOrderPublic } from "@/api/generated";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { Can } from "@/components/auth/Can";
-import { ChangeOrderModal } from "./ChangeOrderModal";
-import { ChangeOrderWorkflowModal } from "./ChangeOrderWorkflowModal";
 import {
   useChangeOrders,
-  useCreateChangeOrder,
-  useUpdateChangeOrder,
   useDeleteChangeOrder,
 } from "../api/useChangeOrders";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
@@ -47,8 +38,6 @@ const STATUS_COLORS: Record<string, string> = {
 export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
   const navigate = useNavigate();
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
   const [selectedChangeOrder, setSelectedChangeOrder] =
     useState<ChangeOrderPublic | null>(null);
 
@@ -61,23 +50,6 @@ export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
   });
   const changeOrders = data?.items || [];
   const total = data?.total || 0;
-
-  // Extract existing codes for auto-generation
-  const existingCodes = changeOrders.map((co) => co.code);
-
-  const { mutateAsync: createChangeOrder } = useCreateChangeOrder({
-    onSuccess: () => {
-      refetch();
-      setModalOpen(false);
-    },
-  });
-
-  const { mutateAsync: updateChangeOrder } = useUpdateChangeOrder({
-    onSuccess: () => {
-      refetch();
-      setModalOpen(false);
-    },
-  });
 
   const { mutate: deleteChangeOrder } = useDeleteChangeOrder({
     onSuccess: () => refetch(),
@@ -135,37 +107,32 @@ export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
           <Can permission="change-order-read">
             <Button
               icon={<FundOutlined />}
-              onClick={() => {
-                navigate(`/projects/${projectId}/change-orders/${record.change_order_id}/impact`);
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent row click
+                navigate(`/projects/${projectId}/change-orders/${record.change_order_id}`);
               }}
-              title="Impact Analysis"
+              title="View Details"
             />
           </Can>
           <Can permission="change-order-read">
             <Button
               icon={<HistoryOutlined />}
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent row click
                 setSelectedChangeOrder(record);
                 setHistoryOpen(true);
               }}
               title="View History"
             />
           </Can>
-          <Can permission="change-order-update">
-            <Button
-              icon={<EditOutlined />}
-              onClick={() => {
-                setSelectedChangeOrder(record);
-                setModalOpen(true);
-              }}
-              title="Edit Change Order"
-            />
-          </Can>
           <Can permission="change-order-delete">
             <Button
               danger
               icon={<DeleteOutlined />}
-              onClick={() => handleDelete(record.change_order_id, record.code)}
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent row click
+                handleDelete(record.change_order_id, record.code);
+              }}
               title="Delete Change Order"
             />
           </Can>
@@ -187,8 +154,7 @@ export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
         rowKey="change_order_id"
         onRow={(record) => ({
           onClick: () => {
-            setSelectedChangeOrder(record);
-            setWorkflowModalOpen(true);
+            navigate(`/projects/${projectId}/change-orders/${record.change_order_id}`);
           },
           style: { cursor: "pointer" },
         })}
@@ -217,8 +183,7 @@ export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
                 type="primary"
                 icon={<PlusOutlined />}
                 onClick={() => {
-                  setSelectedChangeOrder(null);
-                  setModalOpen(true);
+                  navigate(`/projects/${projectId}/change-orders/new`);
                 }}
               >
                 New Change Order
@@ -228,35 +193,10 @@ export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
         }
       />
 
-      <ChangeOrderModal
-        open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        onOk={async (values) => {
-          if (selectedChangeOrder) {
-            await updateChangeOrder({
-              id: selectedChangeOrder.change_order_id,
-              data: values as ChangeOrderUpdate,
-            });
-          } else {
-            await createChangeOrder(values as ChangeOrderCreate);
-          }
-        }}
-        confirmLoading={isLoading}
-        initialValues={selectedChangeOrder}
-        projectId={projectId}
-        existingCodes={existingCodes}
-      />
-
       <HistoryDrawerWrapper
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
         changeOrder={selectedChangeOrder}
-      />
-
-      <ChangeOrderWorkflowModal
-        open={workflowModalOpen}
-        changeOrderId={selectedChangeOrder?.change_order_id || ""}
-        onCancel={() => setWorkflowModalOpen(false)}
       />
     </div>
   );
