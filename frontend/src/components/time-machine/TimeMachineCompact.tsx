@@ -1,14 +1,14 @@
 import React from "react";
-import { Button, Space, Typography, Tag } from "antd";
+import { Button, Space, Typography } from "antd";
 import {
   ClockCircleOutlined,
   DownOutlined,
   UpOutlined,
-  BranchesOutlined,
 } from "@ant-design/icons";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { useTimeMachine } from "@/contexts/TimeMachineContext";
 import { useProject } from "@/features/projects/api/useProjects";
+import { ProjectBranchSelector } from "./ProjectBranchSelector";
 
 const { Text } = Typography;
 
@@ -39,7 +39,6 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
     isExpanded,
     toggleExpanded,
     getSelectedTime,
-    getSelectedBranch,
     resetToNow,
     setCurrentProject,
   } = useTimeMachineStore();
@@ -48,14 +47,15 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
   const { data: project } = useProject(projectId);
 
   // Ensure store knows about current project and initialize with start date
+  // Note: We pass null for projectStartDate to initialize at "now" instead of project start date
+  // This avoids issues where the project doesn't exist at its own start date in the bitemporal system
   React.useEffect(() => {
-    const startDate = project?.start_date ? new Date(project.start_date) : null;
-    setCurrentProject(projectId, startDate);
+    // Pass null to initialize at "now" instead of project's start_date
+    setCurrentProject(projectId, null);
     return () => setCurrentProject(null);
-  }, [projectId, project?.start_date, setCurrentProject]);
+  }, [projectId]); // Only depend on projectId, NOT on setCurrentProject (prevents infinite loop)
 
   const selectedTime = getSelectedTime();
-  const selectedBranch = getSelectedBranch();
 
   // Format display date
   const displayDate = selectedTime
@@ -97,13 +97,8 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
         </Space>
       </Button>
 
-      {/* Branch indicator */}
-      <Tag
-        icon={<BranchesOutlined />}
-        color={selectedBranch === "main" ? "default" : "blue"}
-      >
-        {selectedBranch}
-      </Tag>
+      {/* Branch Selector */}
+      <ProjectBranchSelector projectId={projectId} />
 
       {/* Quick reset to now (only shown when viewing history) */}
       {isHistorical && (

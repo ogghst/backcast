@@ -20,7 +20,7 @@ export interface CrudOptions {
  * This interface allows the old adapter pattern to continue working.
  */
 export interface LegacyApiMethods<T, TCreate, TUpdate, TList = T[]> {
-  getUsers?: (filters?: unknown) => Promise<TList>;
+  getUsers?: (filters?: any) => Promise<TList>;
   getUser?: (id: string) => Promise<T>;
   createUser?: (data: TCreate) => Promise<T>;
   updateUser?: (id: string, data: TUpdate) => Promise<T>;
@@ -32,7 +32,7 @@ export interface LegacyApiMethods<T, TCreate, TUpdate, TList = T[]> {
  * This interface allows direct usage of service methods without adapters.
  */
 export interface NamedApiMethods<T, TCreate, TUpdate, TList = T[]> {
-  list?: (filters?: unknown) => Promise<TList>;
+  list?: (filters?: any) => Promise<TList>;
   detail?: (id: string) => Promise<T>;
   create?: (data: TCreate) => Promise<T>;
   update?: (id: string, data: TUpdate) => Promise<T>;

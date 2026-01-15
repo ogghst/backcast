@@ -28,6 +28,7 @@ describe("UserService", () => {
           is_active: true,
           created_at: null,
           user_id: "1",
+          role: "viewer",
         },
       ];
       vi.mocked(UsersService.getUsers).mockResolvedValue(mockUsers);
@@ -56,6 +57,7 @@ describe("UserService", () => {
         ...payload,
         user_id: "2",
         created_at: null,
+        is_active: true,
       };
       vi.mocked(UsersService.createUser).mockResolvedValue(mockResponse);
 
@@ -81,6 +83,7 @@ describe("UserService", () => {
         role: "viewer",
         user_id: id,
         created_at: null,
+        full_name: "Updated Name",
       };
       vi.mocked(UsersService.updateUser).mockResolvedValue(mockResponse);
 

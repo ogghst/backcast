@@ -23,6 +23,41 @@ A comprehensive guide to the Entity Versioning Control System (EVCS) using the W
 - System architects designing EVCS-based features
 - QA engineers writing tests for versioned entities
 
+### [Docker Deployment Guide](./docker-deployment-guide.md)
+
+Production deployment guide using Docker, Traefik, and Let's Encrypt SSL.
+
+**Topics Covered:**
+- Prerequisites and server requirements
+- Architecture overview
+- Step-by-step deployment instructions
+- SSL/TLS configuration
+- Troubleshooting common issues
+- Maintenance and updates
+
+**Target Audience:**
+- DevOps engineers
+- System administrators
+- Developers deploying to staging/production
+
+### [Frontend Navigation Patterns](./navigation-patterns.md)
+
+Guide to the navigation patterns used in the Backcast EVS frontend application.
+
+**Topics Covered:**
+
+- URL-driven navigation approach
+- PageNavigation component usage
+- Nested routing pattern for entities
+- When to use contextual navigation
+- Best practices and examples
+
+**Target Audience:**
+
+- Frontend developers
+- UI/UX designers
+- Contributors working on navigation features
+
 ## Additional Resources
 
 - [Architecture Documentation](../02-architecture/) - System design and architecture

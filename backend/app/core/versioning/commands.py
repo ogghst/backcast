@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from typing import Any, TypeVar, cast
 from uuid import UUID
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.protocols import VersionableProtocol
@@ -75,36 +75,48 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
         - valid_time: When data stopped being valid (close_at_valid_time or clock_timestamp)
         - transaction_time: When it was recorded in database (clock_timestamp)
         """
-        # Determine closing time for valid_time
-        # If control_date (close_at_valid_time) is provided, use it.
-        # Otherwise use clock_timestamp() (actual now)
-        valid_upper = close_at_valid_time if close_at_valid_time else func.clock_timestamp()
+        # CRITICAL FIX: Capture the current lower bounds in Python before updating
+        # SQLAlchemy's func.lower() doesn't work correctly with PostgreSQL ranges in UPDATE
+        from sqlalchemy import text
 
-        stmt = (
-            update(self.entity_class)
-            .where(cast(Any, self.entity_class).id == version.id)
-            .values(
-                # Close valid_time
-                valid_time=func.tstzrange(
-                    func.lower(cast(Any, self.entity_class).valid_time),
-                    valid_upper,
-                    "[)",
-                ),
-                # Close transaction_time to now - marks when superseded
-                transaction_time=func.tstzrange(
-                    func.lower(cast(Any, self.entity_class).transaction_time),
-                    func.clock_timestamp(),
-                    "[)",
-                ),
-            )
+        version_any = cast(Any, version)
+        valid_lower = version_any.valid_time.lower
+        tx_lower = version_any.transaction_time.lower
+
+        # CRITICAL FIX: Generate closing timestamps in Python to avoid identical timestamps
+        # When calling clock_timestamp() twice in SQL, PostgreSQL returns the same microsecond
+        # value if both calls execute within the same microsecond, creating empty ranges [t, t)
+        closing_timestamp = datetime.now(UTC)
+
+        # Determine closing times
+        # If control_date (close_at_valid_time) is provided, use it for valid_time.
+        # Otherwise use the generated timestamp for both.
+        if close_at_valid_time:
+            valid_upper = close_at_valid_time
+        else:
+            valid_upper = closing_timestamp
+
+        # Always use the same timestamp for transaction_time upper bound
+        tx_upper = closing_timestamp
+
+        # Use raw SQL to update the ranges with known lower bounds
+        tablename = cast(str, self.entity_class.__tablename__)
+        stmt = text(
+            f"""
+            UPDATE {tablename}
+            SET
+                valid_time = tstzrange(:valid_lower, :valid_upper, '[)'),
+                transaction_time = tstzrange(:tx_lower, :tx_upper, '[)')
+            WHERE id = :version_id
+            """
         )
-
-        result = await session.execute(stmt)
-
-        if cast(Any, result).rowcount == 0:
-            raise RuntimeError(
-                f"Concurrency Error: Failed to close version {version.id}. Row not updated."
-            )
+        await session.execute(stmt, {
+            "valid_lower": valid_lower,
+            "valid_upper": valid_upper,
+            "tx_lower": tx_lower,
+            "tx_upper": tx_upper,
+            "version_id": version.id
+        })
 
         await session.flush()
         session.expire(version)
@@ -186,15 +198,16 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
         if not current:
             raise ValueError(f"No active version found for {self.root_id}")
 
-        # VALIDATION: Ensure control_date is after current version's valid_time lower bound
+        # VALIDATION: Ensure control_date is not before current version's valid_time lower bound
         # This prevents PostgreSQL range constraint violations
+        # NOTE: control_date can be equal to current_lower (Time Machine mode: updating at same timestamp)
         if self.control_date:
             current_lower = cast(Any, current).valid_time.lower
 
-            # Validate control_date is strictly greater than lower bound
-            if self.control_date <= current_lower:
+            # Validate control_date is >= lower bound (allowing equal for Time Machine updates)
+            if self.control_date < current_lower:
                 raise ValueError(
-                    f"control_date ({self.control_date.isoformat()}) must be after "
+                    f"control_date ({self.control_date.isoformat()}) must be on or after "
                     f"the current version's valid_time lower bound ({current_lower.isoformat()}). "
                     f"This ensures bitemporal range constraints are satisfied."
                 )
@@ -236,7 +249,7 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
         return new_version
 
     async def _get_current(self, session: AsyncSession) -> TVersionable | None:
-        """Get current active version (HEAD)."""
+        """Get current active version (HEAD). Excludes empty ranges."""
         stmt = (
             select(self.entity_class)
             .where(
@@ -246,6 +259,7 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
                 )
                 == self.root_id,
                 func.upper(cast(Any, self.entity_class).valid_time).is_(None),  # Use open-ended check
+                func.not_(func.isempty(self.entity_class.valid_time)),  # Exclude empty ranges
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .order_by(cast(Any, self.entity_class).valid_time.desc())
@@ -281,7 +295,7 @@ class SoftDeleteCommand(VersionedCommandABC[TVersionable]):
         return current
 
     async def _get_current(self, session: AsyncSession) -> TVersionable | None:
-        """Get current active version."""
+        """Get current active version. Excludes empty ranges."""
         # Use more robust check for current version (open-ended valid_time)
         # Consistent with TemporalService.get_all
         stmt = (
@@ -293,6 +307,7 @@ class SoftDeleteCommand(VersionedCommandABC[TVersionable]):
                 )
                 == self.root_id,
                 func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+                func.not_(func.isempty(self.entity_class.valid_time)),  # Exclude empty ranges
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .order_by(cast(Any, self.entity_class).valid_time.desc())

@@ -282,4 +282,5 @@ backend/app/
 ## See Also
 
 - [EVCS Core Architecture](architecture.md)
-- [Temporal Patterns Reference](patterns.md)
+- [EVCS Implementation Guide](evcs-implementation-guide.md) - Code patterns and recipes
+- [Temporal Query Reference](../../../cross-cutting/temporal-query-reference.md) - Bitemporal queries and time travel

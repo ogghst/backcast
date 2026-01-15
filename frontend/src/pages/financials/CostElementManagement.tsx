@@ -396,7 +396,7 @@ export const CostElementManagement = ({
         initialValues={selectedElement}
         currentBranch={currentBranch}
         wbeId={wbeId}
-        wbeName={wbeName || selectedElement?.wbe_name}
+        wbeName={wbeName || selectedElement?.wbe_name || undefined}
       />
 
       <VersionHistoryDrawer

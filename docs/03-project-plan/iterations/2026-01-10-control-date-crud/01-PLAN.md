@@ -133,7 +133,7 @@ Control date will be passed via **request body** (Create/Update) or **query para
 | 12                | Frontend hook tests                        | 1h     | Medium   | Tasks 6-8    |
 | **Documentation** |
 | 13                | Update architecture.md                     | 1h     | Medium   | All          |
-| 14                | Update patterns.md                         | 1h     | Medium   | All          |
+| 14                | Update evcs-implementation-guide.md                         | 1h     | Medium   | All          |
 | 15                | Update API docs                            | 0.5h   | Low      | Task 5       |
 
 **Total Estimated Effort:** 13.5 hours
@@ -501,4 +501,4 @@ Phase 3: Testing
 - [Analysis](./00-ANALYSIS.md)
 - [Previous Iteration](../2026-01-10-time-machine-production-hardening/)
 - [EVCS Architecture](../../../02-architecture/backend/contexts/evcs-core/architecture.md)
-- [Temporal Patterns](../../../02-architecture/backend/contexts/evcs-core/patterns.md)
+- [Temporal Patterns](../../../02-architecture/backend/contexts/evcs-core/evcs-implementation-guide.md)

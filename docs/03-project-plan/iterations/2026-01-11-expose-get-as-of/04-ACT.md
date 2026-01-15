@@ -36,7 +36,7 @@ TD-026 (Expose get_as_of in Service Interfaces) has been successfully completed.
 
 ### 2. Documentation Updates
 
-Updated [`docs/02-architecture/cross-cutting/time-travel.md`](../../../docs/02-architecture/cross-cutting/time-travel.md):
+Updated [`docs/02-architecture/cross-cutting/temporal-query-reference.md`](../../../docs/02-architecture/cross-cutting/temporal-query-reference.md):
 
 **Replaced the "Implementation Notes" section:**
 
@@ -106,7 +106,7 @@ Updated [`docs/03-project-plan/technical-debt-register.md`](../../technical-debt
   - `backend/app/services/cost_element_type_service.py`
   - `backend/app/services/department.py`
   - `backend/app/services/user.py`
-- **Documentation:** [time-travel.md](../../../02-architecture/cross-cutting/time-travel.md)
+- **Documentation:** [temporal-query-reference.md](../../../02-architecture/cross-cutting/temporal-query-reference.md)
 ```
 
 **Updated Summary Statistics:**
@@ -129,7 +129,7 @@ Updated [`docs/03-project-plan/technical-debt-register.md`](../../technical-debt
 | Full backend test suite passes | Required | 197/198 passed | ✅ |
 | MyPy strict mode passes | Required | Zero new errors | ✅ |
 | Ruff linting passes | Required | Zero errors | ✅ |
-| Documentation updated | Required | time-travel.md updated | ✅ |
+| Documentation updated | Required | temporal-query-reference.md updated | ✅ |
 | TD-026 marked complete | Required | Register updated | ✅ |
 
 ### Effort Estimation
@@ -206,7 +206,7 @@ project = await project_service.get_project_as_of(project_id, as_of, branch)
 ### Technical Debt Reduction
 
 - **TD-026:** Resolved (1 hour of debt eliminated)
-- **Documentation Debt:** time-travel.md now accurately reflects implementation
+- **Documentation Debt:** temporal-query-reference.md now accurately reflects implementation
 - **API Layer Debt:** No longer needs to access base class methods directly
 
 ---
@@ -247,7 +247,7 @@ project = await project_service.get_project_as_of(project_id, as_of, branch)
 - Frontend tests: Not applicable (backend-only change)
 
 ### Act (Close Phase)
-- ✅ Documentation updated (time-travel.md)
+- ✅ Documentation updated (temporal-query-reference.md)
 - ✅ Technical debt register updated (TD-026 marked complete)
 - ✅ PDCA cycle documented
 

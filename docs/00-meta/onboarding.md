@@ -18,7 +18,7 @@ Start by reading these core documents in order:
 1. **[Product Vision](../01-product-scope/vision.md)**: Why we are building this.
 2. **[System Map](../02-architecture/00-system-map.md)**: High-level overview.
 3. **[Coding Standards](../02-architecture/coding-standards.md)**: **MANDATORY READING**.
-4. **[API Response Patterns](../02-architecture/cross-cutting/api-response-patterns.md)**: Modern filtering and response patterns.
+4. **[API Response Patterns](../02-architecture/cross-cutting/api-response-evcs-implementation-guide.md)**: Modern filtering and response patterns.
 5. **[Technical Debt Ledger](../03-project-plan/technical-debt/)**: Known issues and areas for improvement.
 
 ## 3. Local Setup

@@ -40,6 +40,7 @@ const mockDepartments: DepartmentRead[] = [
     is_active: true,
     manager_id: null,
     created_at: "2024-01-01T00:00:00Z",
+    created_by: "system",
   },
   {
     id: "dept-2",
@@ -49,6 +50,7 @@ const mockDepartments: DepartmentRead[] = [
     is_active: true,
     manager_id: null,
     created_at: "2024-01-01T00:00:00Z",
+    created_by: "system",
   },
 ];
 
@@ -73,7 +75,7 @@ describe("DepartmentManagement", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(DepartmentsService.getDepartments).mockResolvedValue(
-      mockDepartments as never,
+      mockDepartments as never
     );
   });
 
@@ -104,7 +106,7 @@ describe("DepartmentManagement", () => {
 
     // Assert
     expect(
-      screen.getByRole("button", { name: /Add Department/i }),
+      screen.getByRole("button", { name: /Add Department/i })
     ).toBeInTheDocument();
   });
 
@@ -151,10 +153,11 @@ describe("DepartmentManagement", () => {
       is_active: true,
       manager_id: null,
       created_at: "2024-01-01T00:00:00Z",
+      created_by: "system",
     };
 
     vi.mocked(DepartmentsService.createDepartment).mockResolvedValue(
-      newDepartment as never,
+      newDepartment as never
     );
 
     render(<DepartmentManagement />, { wrapper: createWrapper() });

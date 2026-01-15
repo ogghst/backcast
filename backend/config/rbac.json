@@ -25,7 +25,11 @@
         "cost-element-read",
         "cost-element-create",
         "cost-element-update",
-        "cost-element-delete"
+        "cost-element-delete",
+        "change-order-read",
+        "change-order-create",
+        "change-order-update",
+        "change-order-delete"
       ]
     },
     "manager": {
@@ -34,11 +38,31 @@
         "user-update",
         "department-read",
         "department-create",
-        "department-update"
+        "department-update",
+        "project-read",
+        "project-create",
+        "project-update",
+        "wbe-read",
+        "wbe-create",
+        "wbe-update",
+        "cost-element-read",
+        "cost-element-create",
+        "cost-element-update",
+        "cost-element-type-read",
+        "change-order-read",
+        "change-order-create",
+        "change-order-update"
       ]
     },
     "viewer": {
-      "permissions": ["department-read"]
+      "permissions": [
+        "department-read",
+        "project-read",
+        "wbe-read",
+        "cost-element-read",
+        "cost-element-type-read",
+        "change-order-read"
+      ]
     }
   }
 }

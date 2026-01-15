@@ -1,53 +1,22 @@
-# Temporal Patterns Reference
+# EVCS Implementation Guide
 
-**Last Updated:** 2026-01-02  
+**Last Updated:** 2026-01-14
 **Context:** [EVCS Core Architecture](architecture.md)
 
-> [!NOTE]
-> This document provides patterns for working with EVCS entities. All entities follow a Protocol-based architecture with three tiers: `SimpleEntityProtocol` (non-versioned), `VersionableProtocol` (temporal), and `BranchableProtocol` (full EVCS with branching). See [EVCS Core Architecture](architecture.md) for complete type system details.
-
-This document provides query patterns and recipes for working with the bitemporal versioning system.
+> **Note:** This document provides code patterns and implementation recipes for working with EVCS entities. For bitemporal query patterns and time travel semantics, see [Temporal Query Reference](../../../cross-cutting/temporal-query-reference.md). For choosing entity types, see [Entity Classification Guide](entity-classification.md).
 
 ---
 
-## Fundamental Concepts
+## Overview
 
-### Bitemporal Model
+This guide provides practical code patterns for implementing EVCS (Entity Versioning Control System) features:
 
-The system tracks two independent time dimensions:
-
-| Dimension            | Column             | Meaning                                 | Example                        |
-| -------------------- | ------------------ | --------------------------------------- | ------------------------------ |
-| **Valid Time**       | `valid_time`       | When data is/was true in the real world | Employee salary effective date |
-| **Transaction Time** | `transaction_time` | When data was recorded in the database  | When the update was saved      |
-
-```
-                Transaction Time →
-                ┌─────────────────────────────────────────┐
-                │                                         │
-    Valid       │   ┌─────────────┐                       │
-    Time        │   │ Version 1   │  (recorded at T1)     │
-      ↓         │   │ valid: now  │                       │
-                │   └─────────────┘                       │
-                │         ↓                               │
-                │   ┌─────────────┐                       │
-                │   │ Version 2   │  (recorded at T2)     │
-                │   │ valid: now  │                       │
-                │   └─────────────┘                       │
-                └─────────────────────────────────────────┘
-```
-
-### Range Type Operators
-
-PostgreSQL `TSTZRANGE` supports these key operators:
-
-| Operator | Meaning         | Example                                          |
-| -------- | --------------- | ------------------------------------------------ | --------- | --------- |
-| `@>`     | Contains        | `valid_time @> NOW()` - range contains timestamp |
-| `&&`     | Overlaps        | `valid_time && '[2025-01-01, 2025-12-31)'`       |
-| `<<`     | Strictly before | `valid_time << transaction_time`                 |
-| `>>`     | Strictly after  | `valid_time >> other_range`                      |
-| `-       | -`              | Adjacent                                         | `range1 - | - range2` |
+- **Query Patterns:** Get current, time travel, version history
+- **CRUD Patterns:** Create, update, soft delete operations
+- **Branching Patterns:** Create branches, work on branches, merge
+- **Relationship Patterns:** Same-branch and fallback relationships
+- **Revert Patterns:** Undo changes by reverting to previous versions
+- **Performance:** Query optimization and indexing strategies
 
 ---
 
@@ -137,6 +106,8 @@ def get_at_time(
 last_month = datetime(2025, 12, 1, tzinfo=UTC)
 project = get_at_time(session, ProjectVersion, project_id, last_month)
 ```
+
+> **For more details on time travel semantics and standardized filters, see [Temporal Query Reference](../../../cross-cutting/temporal-query-reference.md).**
 
 ---
 
@@ -308,6 +279,8 @@ merged = service.merge_branch(
 session.commit()
 ```
 
+> **For complete branching documentation (branch types, operations, locking), see [Temporal Query Reference](../../../cross-cutting/temporal-query-reference.md#branch-mode-behavior).**
+
 ---
 
 ## Relationship Patterns
@@ -465,16 +438,27 @@ class UserPreferencesService(SimpleService[UserPreferences]):
 | Entity Type       | Protocol               | Service                | Create               | Update                  | Delete      | Read                          |
 | ----------------- | ---------------------- | ---------------------- | -------------------- | ----------------------- | ----------- | ----------------------------- |
 | **Non-versioned** | `SimpleEntityProtocol` | `SimpleService[T]`     | INSERT               | UPDATE in place         | Hard DELETE | SELECT by ID                  |
-| **Versioned**     | `VersionableProtocol`  | `Temporal Service[T]`  | Version + valid_time | Close old + create new  | Soft delete | Filter by valid_time          |
+| **Versioned**     | `VersionableProtocol`  | `TemporalService[T]`   | Version + valid_time | Close old + create new  | Soft delete | Filter by valid_time          |
 | **Branchable**    | `BranchableProtocol`   | `BranchableService[T]` | Version + branch     | Close + clone on branch | Soft delete | Filter by valid_time + branch |
 
-> [!NOTE]
-> For complete type system details including Protocols and ABCs, see [Type System](architecture.md#type-system) in architecture.md.
+> **Note:** For complete type system details including Protocols and ABCs, see [Type System](architecture.md#type-system) in architecture.md.
 
 ---
 
 ## See Also
 
-- [EVCS Core Architecture](architecture.md)
-- [Database Strategy](../../../cross-cutting/database-strategy.md)
-- [ADR-005: Bitemporal Versioning](../../decisions/ADR-005-bitemporal-versioning.md)
+### Architecture & Design
+- [EVCS Core Architecture](architecture.md) - Complete EVCS system architecture
+- [Entity Classification Guide](entity-classification.md) - Choosing Simple/Versionable/Branchable entity types
+- [ADR-005: Bitemporal Versioning](../../decisions/ADR-005-bitemporal-versioning.md) - Architecture decision record
+- [ADR-006: Protocol-Based Type System](../../decisions/ADR-006-protocol-based-type-system.md) - Type system design
+
+### Query References
+- [Temporal Query Reference](../../../cross-cutting/temporal-query-reference.md) - Bitemporal queries and time travel semantics
+
+### Database
+- [Database Strategy](../../../cross-cutting/database-strategy.md) - TSTZRANGE usage and indexing
+
+### Source Code
+- [TemporalService Implementation](../../../../app/core/versioning/service.py) - Core service with temporal support
+- [BranchableService Implementation](../../../../app/core/branching/service.py) - Branch-aware service operations

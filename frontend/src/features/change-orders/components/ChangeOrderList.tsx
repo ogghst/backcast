@@ -1,0 +1,247 @@
+import { App, Button, Space, Tag } from "antd";
+import {
+  HistoryOutlined,
+  FileTextOutlined,
+  DeleteOutlined,
+  PlusOutlined,
+  FundOutlined,
+} from "@ant-design/icons";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import type { ColumnType } from "antd/es/table";
+import { StandardTable } from "@/components/common/StandardTable";
+import type { ChangeOrderPublic } from "@/api/generated";
+import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
+import { Can } from "@/components/auth/Can";
+import {
+  useChangeOrders,
+  useDeleteChangeOrder,
+} from "../api/useChangeOrders";
+import { useEntityHistory } from "@/hooks/useEntityHistory";
+import { ChangeOrdersService } from "@/api/generated";
+
+interface ChangeOrderListProps {
+  projectId: string;
+}
+
+// Status tag colors
+const STATUS_COLORS: Record<string, string> = {
+  Draft: "default",
+  Submitted: "blue",
+  "Under Review": "cyan",
+  Approved: "green",
+  Rejected: "red",
+  Implemented: "purple",
+  Closed: "default",
+};
+
+export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
+  const navigate = useNavigate();
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [selectedChangeOrder, setSelectedChangeOrder] =
+    useState<ChangeOrderPublic | null>(null);
+
+  const { modal } = App.useApp();
+
+  // Query change orders for this project
+  const { data, isLoading, refetch } = useChangeOrders({
+    projectId,
+    pagination: { current: 1, pageSize: 20 },
+  });
+  const changeOrders = data?.items || [];
+  const total = data?.total || 0;
+
+  const { mutate: deleteChangeOrder } = useDeleteChangeOrder({
+    onSuccess: () => refetch(),
+  });
+
+  const handleDelete = (id: string, code: string) => {
+    modal.confirm({
+      title: "Are you sure you want to delete this change order?",
+      content: `Deleting change order ${code}. This action cannot be undone.`,
+      okText: "Yes, Delete",
+      okType: "danger",
+      onOk: () => deleteChangeOrder(id),
+    });
+  };
+
+  const columns: ColumnType<ChangeOrderPublic>[] = [
+    {
+      title: "Code",
+      dataIndex: "code",
+      key: "code",
+      width: 120,
+      render: (code: string) => (
+        <span style={{ fontWeight: 500 }}>{code}</span>
+      ),
+    },
+    {
+      title: "Title",
+      dataIndex: "title",
+      key: "title",
+      ellipsis: true,
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      width: 130,
+      render: (status: string) => (
+        <Tag color={STATUS_COLORS[status]}>{status}</Tag>
+      ),
+    },
+    {
+      title: "Effective Date",
+      dataIndex: "effective_date",
+      key: "effective_date",
+      width: 130,
+      render: (date: string | null) =>
+        date ? new Date(date).toLocaleDateString() : "-",
+    },
+    {
+      title: "Actions",
+      key: "actions",
+      width: 180,
+      render: (_, record) => (
+        <Space size="small">
+          <Can permission="change-order-read">
+            <Button
+              icon={<FundOutlined />}
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent row click
+                navigate(`/projects/${projectId}/change-orders/${record.change_order_id}`);
+              }}
+              title="View Details"
+            />
+          </Can>
+          <Can permission="change-order-read">
+            <Button
+              icon={<HistoryOutlined />}
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent row click
+                setSelectedChangeOrder(record);
+                setHistoryOpen(true);
+              }}
+              title="View History"
+            />
+          </Can>
+          <Can permission="change-order-delete">
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent row click
+                handleDelete(record.change_order_id, record.code);
+              }}
+              title="Delete Change Order"
+            />
+          </Can>
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <StandardTable<ChangeOrderPublic>
+        tableParams={{
+          pagination: { current: 1, pageSize: 20, total },
+        }}
+        onChange={() => {}} // Placeholder as pagination logic is static/missing
+        loading={isLoading}
+        dataSource={changeOrders}
+        columns={columns}
+        rowKey="change_order_id"
+        onRow={(record) => ({
+          onClick: () => {
+            navigate(`/projects/${projectId}/change-orders/${record.change_order_id}`);
+          },
+          style: { cursor: "pointer" },
+        })}
+        toolbar={
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "16px",
+                fontWeight: "bold",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <FileTextOutlined />
+              Change Orders
+            </div>
+            <Can permission="change-order-create">
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  navigate(`/projects/${projectId}/change-orders/new`);
+                }}
+              >
+                New Change Order
+              </Button>
+            </Can>
+          </div>
+        }
+      />
+
+      <HistoryDrawerWrapper
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        changeOrder={selectedChangeOrder}
+      />
+    </div>
+  );
+};
+
+const HistoryDrawerWrapper = ({
+  open,
+  onClose,
+  changeOrder,
+}: {
+  open: boolean;
+  onClose: () => void;
+  changeOrder: ChangeOrderPublic | null;
+}) => {
+  const { data: history, isLoading } = useEntityHistory({
+    resource: "change-orders",
+    entityId: changeOrder?.change_order_id,
+    fetchFn: (id) => ChangeOrdersService.getChangeOrderHistory(id),
+    enabled: open,
+  });
+
+  return (
+    <VersionHistoryDrawer
+      open={open}
+      onClose={onClose}
+      versions={(history || []).map((v, idx, arr) => {
+        const item = v as ChangeOrderPublic & {
+          valid_time?: string[] | string;
+          transaction_time?: string[] | string;
+          created_by_name?: string;
+        };
+        return {
+          ...item,
+          id: `v${arr.length - idx}`,
+          valid_from: Array.isArray(item.valid_time)
+            ? item.valid_time[0]
+            : (item.valid_time as string) || new Date().toISOString(),
+          transaction_time: Array.isArray(item.transaction_time)
+            ? item.transaction_time[0]
+            : (item.transaction_time as string) || new Date().toISOString(),
+          changed_by: item.created_by_name || "System",
+        };
+      })}
+      entityName={`Change Order: ${changeOrder?.title || ""} (${changeOrder?.code || ""})`}
+      isLoading={isLoading}
+    />
+  );
+};

@@ -1,27 +1,12 @@
-# Request Analysis & Solution Design Prompt
+# ANALYSIS Phase: Requirements, Context Discovery & Solution Design
 
-You are a senior technical architect and UX designer helping users refine their requests and prepare for the planning phase. Your role is to analyze requirements, existing solutions, and propose 2-3 alternative approaches with clear trade-offs.
+## Purpose
 
-## When to Use This Prompt
+Analyze user requests by clarifying requirements, discovering context from documentation and codebase, and proposing 2-3 alternative solution approaches with clear trade-offs for human decision.
 
-Use this analytical framework when users request:
+---
 
-- New features or functionality
-- UX/UI improvements or redesigns
-- Architecture changes or refactoring
-- Integration between components
-- Complex user workflows
-
-**Example user requests:**
-
-- "Implement hierarchical navigation between projects, WBEs, and cost elements"
-- "Create a dashboard for EVM metrics visualization"
-- "Add filtering and search to the cost element list"
-- "Refactor the state management for better performance"
-
-## Analysis Process
-
-### Phase 1: Requirements Clarification
+## Phase 1: Requirements Clarification
 
 Before diving into solutions, ensure you understand:
 
@@ -32,114 +17,182 @@ Before diving into solutions, ensure you understand:
 
 **Ask clarifying questions if any aspect is ambiguous.**
 
-### Phase 2: Context Discovery
+---
 
-Gather context from multiple sources:
+## Phase 2: Context Discovery
 
-1. **Read `docs/01-product-scope/` to understand:**
+### 2.1 Documentation Review
 
-   - User stories related to the request
-   - Business requirements and priorities
-   - Domain concepts and terminology
+Read and analyze relevant documentation:
 
-2. **Read `docs/02-architecture/` to understand:**
+**Product Scope** (`docs/01-product-scope/`):
 
-   - Bounded contexts involved
-   - Existing patterns and conventions
-   - **Coding standards** (`coding-standards.md`): Core principles, type safety, quality requirements
-   - Architectural constraints and decisions
-   - Integration points
+- User stories related to the request
+- Business requirements and priorities
+- Domain concepts and terminology
 
-3. **Analyze the existing codebase:**
+**Architecture** (`docs/02-architecture/`):
 
-   - **Backend**: Search for similar patterns, existing APIs, data models
-   - **Frontend**: Find comparable UI components, state management patterns, routing
-   - **Look for**: Reusable components, established conventions, technical debt
+- Bounded contexts involved
+- Existing patterns and conventions
+- **Coding Standards** (`coding-standards.md`): Core principles, type safety, quality requirements
+- Architectural constraints and decisions
+- Integration points
 
-4. **Review `docs/03-project-plan/` to understand:**
-   - Recently completed work (what's fresh in mind?)
-   - Current iteration context
-   - Dependencies and blockers
+**Project Plan** (`docs/03-project-plan/`):
 
-### Phase 3: Solution Design
+- Recently completed work (context awareness)
+- Current iteration context
+- Dependencies and blockers
 
-Propose 2-3 distinct solutions with:
+### 2.2 Codebase Analysis
 
-#### Solution Structure for Each Option
+Analyze existing implementations:
 
-##### 1. Architecture & Design Patterns
+**Backend**:
+
+- Search for similar patterns, existing APIs, data models
+- Identify reusable components and conventions
+- Note technical debt or limitations
+
+**Frontend**:
+
+- Find comparable UI components, state management patterns, routing
+- Identify established conventions
+- Note technical debt or limitations
+
+**Look for**:
+
+- Reusable components and patterns
+- Established conventions to follow
+- Technical constraints or debt
+
+---
+
+## Phase 3: Solution Design
+
+Propose **2-3 distinct solutions** with complete analysis for each:
+
+### Solution Structure (for each option)
+
+#### 1. Architecture & Design Patterns
 
 - Component structure (frontend) or Layer design (backend)
-
 - State management approach
 - Data flow and API interactions
 - Key design patterns applied
 
-##### 2. User Experience Design
+#### 2. User Experience Design
 
+- User stories
 - User interaction flow
 - Visual hierarchy and layout
-
 - Navigation patterns
 - Accessibility considerations
 - Edge cases and error states
 
-##### 3. Technical Implementation
+#### 3. Technical Implementation
 
 - Key files to create/modify
 - Integration points with existing code
-
 - Potential technical challenges
-- Testing strategy
+- Testing approach (high-level)
 
-##### 4. Trade-offs Analysis
+#### 4. Trade-offs Analysis
 
-- Pros: What this option excels at
-- Cons: Drawbacks and limitations
+| Aspect          | Assessment                                |
+| --------------- | ----------------------------------------- |
+| Pros            | What this option excels at                |
+| Cons            | Drawbacks and limitations                 |
+| Complexity      | Implementation difficulty (Low/Med/High)  |
+| Maintainability | Long-term sustainability (Good/Fair/Poor) |
+| Performance     | Expected performance characteristics      |
 
-- Complexity: Implementation difficulty
-- Maintainability: Long-term sustainability
-- Performance: Expected performance characteristics
+---
 
-### Phase 4: Recommendation Framework
+## Phase 4: Recommendation & Decision
 
-After presenting options, provide:
+### Comparison Summary
 
-1. **Comparison Summary**: Quick reference table comparing options
-2. **Recommended Option**: Your expert recommendation with rationale
-3. **Hybrid Possibilities**: Can we combine best aspects?
-4. **Decision Questions**: Specific questions for user to choose
+Quick reference table comparing options:
+
+| Criteria           | Option 1   | Option 2   | Option 3   |
+| ------------------ | ---------- | ---------- | ---------- |
+| Development Effort | [est.]     | [est.]     | [est.]     |
+| UX Quality         | [rating]   | [rating]   | [rating]   |
+| Flexibility        | [rating]   | [rating]   | [rating]   |
+| Best For           | [use case] | [use case] | [use case] |
+
+### Recommendation
+
+**I recommend Option [X] because:** [clear rationale]
+
+**Alternative consideration:** [when to choose another option]
+
+### Questions for Decision
+
+Specific questions to help the user choose:
+
+1. [Specific question to help user choose]
+2. [Another clarifying question]
+3. [Priority/trade-off question]
+
+> [!IMPORTANT] > **Human Decision Point**: Present options clearly and await explicit approval before proceeding to PLAN phase.
+
+---
 
 ## Output Template
 
 ```markdown
-## Request Analysis: [User's Request Summary]
+# Analysis: [Request Title]
 
-### Clarified Requirements
+**Created:** [Date]
+**Request:** [User's original request]
+
+---
+
+## Clarified Requirements
 
 [Restate requirements in your own words, highlighting any assumptions]
 
-### Context Discovery Findings
+### Functional Requirements
 
-**Product Scope:**
+- [List functional requirements]
 
-- Relevant user stories: [list]
+### Non-Functional Requirements
 
-**Architecture Context:**
+- [List non-functional requirements]
+
+### Constraints
+
+- [List constraints]
+
+---
+
+## Context Discovery
+
+### Product Scope
+
+- Relevant user stories: [list with links]
+- Business requirements: [summarize]
+
+### Architecture Context
 
 - Bounded contexts involved: [list]
-- Existing patterns: [describe]
+- Existing patterns to follow: [describe]
+- Architectural constraints: [list]
 
-**Codebase Analysis:**
+### Codebase Analysis
+
 **Backend:**
 
-- Existing related APIs: [list files]
+- Existing related APIs: [list files with links]
 - Data models: [list relevant models]
-- Similar patterns: [describe]
+- Similar patterns: [describe with references]
 
 **Frontend:**
 
-- Comparable components: [list files]
+- Comparable components: [list files with links]
 - State management: [describe current approach]
 - Routing structure: [relevant routes]
 
@@ -190,22 +243,39 @@ After presenting options, provide:
 | Flexibility        | [rating]   | [rating]   | [rating]   |
 | Best For           | [use case] | [use case] | [use case] |
 
+---
+
 ## Recommendation
 
 **I recommend Option [X] because:** [clear rationale]
 
 **Alternative consideration:** [when to choose another option]
 
-## Questions for Decision
+---
+
+## Decision Questions
 
 1. [Specific question to help user choose]
 2. [Another clarifying question]
 3. [Priority/trade-off question]
+
+---
+
+## References
+
+- [Relevant architecture docs with links]
+- [Related user stories with links]
 ```
 
-## Output file
+---
 
-When the analysis is approved, prior to move to plan phase create an iteration folder in docs/03-project-plan/iterations with the followint naming convention: [YYYY-MM-DD-{title}], example: '2026-01-10-user-deletion-fix'.
+## Output File
+
+Create file: `docs/03-project-plan/iterations/YYYY-MM-DD-{title}/00-analysis.md`
+
+Folder naming convention: `YYYY-MM-DD-{title}` (e.g., `2026-01-10-user-deletion-fix`)
+
+---
 
 ## Key Principles
 
@@ -214,6 +284,8 @@ When the analysis is approved, prior to move to plan phase create an iteration f
 3. **User-Centered**: UX decisions should prioritize user workflows and mental models
 4. **Pragmatic**: Prefer simpler, maintainable solutions over clever but complex ones
 5. **Iterative**: Design for incremental delivery when possible
+
+---
 
 ## Common UX Patterns to Reference
 
@@ -228,6 +300,8 @@ When analyzing UX, consider these established patterns:
 - **Tabs/Chips**: Horizontal organization of related content
 - **Modal/Drawer**: Contextual actions without losing place
 - **Inline Actions**: Direct manipulation (edit-in-place, quick actions)
+
+---
 
 ## Example Workflow
 
@@ -246,15 +320,4 @@ When analyzing UX, consider these established patterns:
    - Option 3: Single page with nested tabs/panels
 4. **Compare**: Effort, UX quality, scalability, mobile support
 5. **Recommend**: Based on project conventions and user needs
-
----
-
-## Output Format
-
-Create file: `docs/03-project-plan/iterations/YYYY-MM-name/00-analysis.md`
-
-Include:
-
-- All sections above
-- Date was created
-- Links to related architecture docs
+6. **Await Decision**: User approves one option or requests modifications

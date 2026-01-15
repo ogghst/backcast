@@ -425,13 +425,13 @@ test("should search users by name", async ({ page }) => {
 
 **Files to Create/Update:**
 
-- `docs/02-architecture/frontend/ui-patterns.md` (create)
+- `docs/02-architecture/frontend/ui-evcs-implementation-guide.md` (create)
 - `docs/02-architecture/frontend/developer-guide.md` (update or create)
 - Component JSDoc (already done in tasks above)
 
 **Subtasks:**
 
-- [ ] 10.1: Create `ui-patterns.md` documenting StandardTable patterns
+- [ ] 10.1: Create `ui-evcs-implementation-guide.md` documenting StandardTable patterns
 - [ ] 10.2: Document when to use client vs server mode (Phase 2)
 - [ ] 10.3: Add examples of column configurations
 - [ ] 10.4: Update developer guide with "How to create a list page"
@@ -531,7 +531,7 @@ For each of the 6 tables, verify:
 
 ### Documentation
 
-- [ ] `ui-patterns.md` created
+- [ ] `ui-evcs-implementation-guide.md` created
 - [ ] Developer guide updated
 - [ ] Component JSDoc complete
 - [ ] Code examples provided

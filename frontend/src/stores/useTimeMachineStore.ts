@@ -3,6 +3,13 @@ import { persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 
 /**
+ * Branch mode for list operations
+ * - "merged": Combine current branch with main (current branch takes precedence)
+ * - "isolated": Only return entities from current branch
+ */
+export type BranchMode = "merged" | "isolated";
+
+/**
  * Project-specific time machine settings stored in localStorage
  */
 interface ProjectTimeMachineSettings {
@@ -10,6 +17,8 @@ interface ProjectTimeMachineSettings {
   selectedTime: string | null;
   /** Selected branch name */
   selectedBranch: string;
+  /** Branch mode for list operations */
+  viewMode: BranchMode;
 }
 
 /**
@@ -37,6 +46,8 @@ interface TimeMachineState {
   getSelectedTime: () => string | null;
   /** Get selected branch for current project */
   getSelectedBranch: () => string;
+  /** Get view mode for current project */
+  getViewMode: () => BranchMode;
 
   // Actions
   /** Set current project context and optionally initialize with project start date */
@@ -54,6 +65,9 @@ interface TimeMachineState {
   /** Select a branch */
   selectBranch: (branch: string) => void;
 
+  /** Select view mode */
+  selectViewMode: (viewMode: BranchMode) => void;
+
   /** Reset to current time (now) */
   resetToNow: () => void;
 
@@ -65,6 +79,7 @@ interface TimeMachineState {
 const DEFAULT_PROJECT_SETTINGS: ProjectTimeMachineSettings = {
   selectedTime: null,
   selectedBranch: "main",
+  viewMode: "merged",
 };
 
 /**
@@ -112,9 +127,51 @@ export const useTimeMachineStore = create<TimeMachineState>()(
           );
         },
 
-        setCurrentProject: (projectId, projectStartDate) =>
+        getViewMode: (): BranchMode => {
+          const { currentProjectId, projectSettings } = get();
+          if (!currentProjectId) return DEFAULT_PROJECT_SETTINGS.viewMode;
+          return (
+            projectSettings[currentProjectId]?.viewMode ??
+            DEFAULT_PROJECT_SETTINGS.viewMode
+          );
+        },
+
+        setCurrentProject: (projectId, projectStartDate) => {
+          const state = useTimeMachineStore.getState();
+
+          // Only update if actually switching projects
+          if (state.currentProjectId === projectId) {
+            // Still initializing settings if needed (only if they don't exist)
+            if (projectId && !state.projectSettings[projectId]) {
+              set((state) => {
+                state.projectSettings[projectId] = {
+                  ...DEFAULT_PROJECT_SETTINGS,
+                  selectedTime: projectStartDate
+                    ? projectStartDate.toISOString()
+                    : null,
+                };
+              });
+            }
+            return;
+          }
+
+          // Actually switching projects - use set() to update state
           set((state) => {
             state.currentProjectId = projectId;
+
+            // Clear all other project settings to avoid stale data when switching projects
+            // Only keep settings for the current project (if it exists)
+            if (projectId) {
+              const currentSettings = state.projectSettings[projectId];
+              state.projectSettings = {};
+              if (currentSettings) {
+                state.projectSettings[projectId] = currentSettings;
+              }
+            } else {
+              // When projectId is null (leaving project), clear all settings
+              state.projectSettings = {};
+            }
+
             // Initialize settings for new projects
             if (projectId && !state.projectSettings[projectId]) {
               state.projectSettings[projectId] = {
@@ -125,7 +182,8 @@ export const useTimeMachineStore = create<TimeMachineState>()(
                   : null,
               };
             }
-          }),
+          });
+        },
 
         toggleExpanded: () =>
           set((state) => {
@@ -165,6 +223,21 @@ export const useTimeMachineStore = create<TimeMachineState>()(
             state.projectSettings[currentProjectId].selectedBranch = branch;
           }),
 
+        selectViewMode: (viewMode) =>
+          set((state) => {
+            const { currentProjectId } = state;
+            if (!currentProjectId) return;
+
+            // Ensure project settings exist
+            if (!state.projectSettings[currentProjectId]) {
+              state.projectSettings[currentProjectId] = {
+                ...DEFAULT_PROJECT_SETTINGS,
+              };
+            }
+
+            state.projectSettings[currentProjectId].viewMode = viewMode;
+          }),
+
         resetToNow: () =>
           set((state) => {
             const { currentProjectId } = state;
@@ -178,6 +251,13 @@ export const useTimeMachineStore = create<TimeMachineState>()(
         clearProjectSettings: (projectId) =>
           set((state) => {
             delete state.projectSettings[projectId];
+          }),
+
+        clearAll: () =>
+          set((state) => {
+            state.currentProjectId = null;
+            state.isExpanded = false;
+            state.projectSettings = {};
           }),
       }),
       {
@@ -222,4 +302,19 @@ export function useBranchParam(): string {
     );
   });
   return selectedBranch;
+}
+
+/**
+ * Hook to get the mode parameter value for API calls.
+ * Returns "merged" or "isolated" for branch mode filtering.
+ */
+export function useModeParam(): BranchMode {
+  const viewMode = useTimeMachineStore((state) => {
+    if (!state.currentProjectId) return DEFAULT_PROJECT_SETTINGS.viewMode;
+    return (
+      state.projectSettings[state.currentProjectId]?.viewMode ??
+      DEFAULT_PROJECT_SETTINGS.viewMode
+    );
+  });
+  return viewMode;
 }

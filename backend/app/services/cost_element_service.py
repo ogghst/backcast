@@ -9,20 +9,16 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.versioning.commands import (
-    CreateVersionCommand,
-    SoftDeleteCommand,
-    UpdateVersionCommand,
-)
+from app.core.branching.service import BranchableService
+from app.core.versioning.commands import CreateVersionCommand, UpdateVersionCommand
 from app.core.versioning.enums import BranchMode
-from app.core.versioning.service import TemporalService
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_element_type import CostElementType
 from app.models.domain.wbe import WBE
 from app.models.schemas.cost_element import CostElementCreate, CostElementUpdate
 
 
-class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var,unused-ignore]
+class CostElementService(BranchableService[CostElement]):  # type: ignore[type-var,unused-ignore]
     """Service for Cost Element management (branchable + versionable)."""
 
     def __init__(self, db: AsyncSession):
@@ -32,6 +28,61 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
             db: Async database session
         """
         super().__init__(CostElement, db)
+
+    async def get_current(self, root_id: UUID, branch: str = "main") -> CostElement | None:
+        """Get the current active version for a root entity on a specific branch.
+
+        Override parent method to use 'cost_element_id' field instead of
+        the auto-generated field name.
+        """
+        stmt = (
+            select(CostElement)
+            .where(
+                CostElement.cost_element_id == root_id,
+                CostElement.branch == branch,
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, CostElement).valid_time.desc())
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def create_root(
+        self,
+        root_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None,
+        branch: str = "main",
+        **data: Any,
+    ) -> CostElement:
+        """Create the initial version of a CostElement.
+
+        Override parent method to use 'cost_element_id' field instead of
+        the auto-generated field name.
+
+        Args:
+            root_id: Root UUID identifier for the CostElement
+            actor_id: User creating the CostElement
+            control_date: Optional control date for valid_time (defaults to now)
+            branch: Branch name (default: "main")
+            **data: Additional fields for the CostElement
+
+        Returns:
+            Created CostElement
+        """
+        data["cost_element_id"] = root_id
+
+        cmd = CreateVersionCommand(
+            entity_class=CostElement,
+            root_id=root_id,
+            actor_id=actor_id,
+            control_date=control_date,
+            branch=branch,
+            **data,
+        )
+        return await cmd.execute(self.session)
 
     def _get_base_stmt(self) -> Any:
         """Get base select statement with WBE name and CostElementType joins."""
@@ -108,7 +159,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         self,
         element_in: CostElementCreate,
         actor_id: UUID,
-        branch: str = "main",
+        branch: str | None = None,
         control_date: datetime | None = None,
     ) -> CostElement:
         """Create new cost element using CreateVersionCommand."""
@@ -118,7 +169,10 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         # Use provided cost_element_id (for seeding) or generate new one
         root_id = element_in.cost_element_id or uuid4()
         element_data["cost_element_id"] = root_id
-        element_data["branch"] = branch
+
+        # Use schema branch if provided, otherwise use parameter (for backward compatibility)
+        if "branch" not in element_data or element_data["branch"] == "main":
+            element_data["branch"] = branch or "main"
 
         cmd = CreateVersionCommand(
             entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
@@ -134,17 +188,20 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         cost_element_id: UUID,
         element_in: CostElementUpdate,
         actor_id: UUID,
-        branch: str = "main",
+        branch: str | None = None,
         control_date: datetime | None = None,
     ) -> CostElement:
         """Update cost element using UpdateVersionCommand or Fork if new branch."""
         update_data = element_in.model_dump(exclude_unset=True)
         update_data.pop("control_date", None)
-        update_data["branch"] = branch
+
+        # Use schema branch if provided, otherwise use parameter (for backward compatibility)
+        target_branch = update_data.pop("branch", None) or branch or "main"
+        update_data["branch"] = target_branch
 
         # Check if version exists in target branch
         # We need to manage the query manually to avoid TemporalService issues and handle branching
-        current = await self.get_by_id(cost_element_id, branch=branch)
+        current = await self.get_by_id(cost_element_id, branch=target_branch)
 
         if current:
             # Linear update in same branch: Close old, Open new
@@ -249,49 +306,17 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         branch: str = "main",
         control_date: datetime | None = None
     ) -> None:
-        """Soft delete cost element using SoftDeleteCommand."""
+        """Soft delete cost element using BranchableService.soft_delete.
 
-        # Custom command class
-        class CostElementSoftDeleteCommand(SoftDeleteCommand[CostElement]):  # type: ignore[type-var,unused-ignore]
-            def __init__(
-                self,
-                entity_class: type[CostElement],
-                root_id: UUID,
-                actor_id: UUID,
-                branch: str = "main",
-                control_date: datetime | None = None,
-            ) -> None:
-                super().__init__(entity_class, root_id, actor_id, control_date=control_date)
-                self.branch = branch
-
-            def _root_field_name(self) -> str:
-                return "cost_element_id"
-
-            async def _get_current(self, session: AsyncSession) -> Any | None:
-                """Get current active version filtering by branch."""
-                stmt = (
-                    select(self.entity_class)
-                    .where(
-                        getattr(self.entity_class, self._root_field_name())
-                        == self.root_id,
-                        self.entity_class.branch == self.branch,
-                        func.upper(cast(Any, self.entity_class).valid_time).is_(None),
-                        cast(Any, self.entity_class).deleted_at.is_(None),
-                    )
-                    .order_by(cast(Any, self.entity_class).valid_time.desc())
-                    .limit(1)
-                )
-                result = await session.execute(stmt)
-                return result.scalar_one_or_none()
-
-        cmd = CostElementSoftDeleteCommand(
-            entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
+        This uses the BranchableSoftDeleteCommand which is branch-aware.
+        """
+        # Call parent method from BranchableService
+        return await super().soft_delete(
             root_id=cost_element_id,
             actor_id=actor_id,
             branch=branch,
             control_date=control_date,
         )
-        await cmd.execute(self.session)
 
     async def get_by_id(
         self, cost_element_id: UUID, branch: str = "main"
@@ -316,6 +341,7 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         self,
         filters: dict[str, Any] | None = None,
         branch: str = "main",
+        branch_mode: BranchMode = BranchMode.MERGE,
         skip: int = 0,
         limit: int = 100000,
         search: str | None = None,
@@ -329,6 +355,9 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         Args:
             filters: Legacy dict filters (for backward compatibility)
             branch: Branch name to filter by (default: "main")
+            branch_mode: Branch resolution mode (default: MERGE)
+                - MERGE: Combine current branch with main (current branch takes precedence)
+                - STRICT: Only return entities from current branch
             skip: Number of records to skip (for pagination)
             limit: Maximum number of records to return
             search: Search term to match against code and name (case-insensitive)
@@ -358,8 +387,12 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         from app.core.filtering import FilterParser
 
         # Base query with WBE name and type joins
-        # Base query: versions in specified branch
-        stmt = self._get_base_stmt().where(CostElement.branch == branch)
+        stmt = self._get_base_stmt()
+
+        # Apply branch mode filter (STRICT vs MERGE)
+        stmt = self._apply_branch_mode_filter(
+            stmt, branch=branch, branch_mode=branch_mode, as_of=as_of
+        )
 
         # Apply time-travel filter
         if as_of:
@@ -441,9 +474,10 @@ class CostElementService(TemporalService[CostElement]):  # type: ignore[type-var
         """Alias for get_cost_elements() to maintain backward compatibility.
 
         Note: Returns only items, not total count. Use get_cost_elements() for pagination.
+        Uses STRICT mode (only current branch) for backward compatibility.
         """
         items, _ = await self.get_cost_elements(
-            filters=filters, branch=branch, skip=skip, limit=limit
+            filters=filters, branch=branch, branch_mode=BranchMode.STRICT, skip=skip, limit=limit
         )
         return items
 

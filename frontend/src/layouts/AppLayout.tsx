@@ -1,5 +1,5 @@
 import React from "react";
-import { Layout, Menu, theme } from "antd";
+import { Layout, Menu, theme, MenuProps, Alert } from "antd";
 import { Outlet, useNavigate, useLocation, useParams } from "react-router-dom";
 import {
   DashboardOutlined,
@@ -16,12 +16,19 @@ import {
   TimeMachineExpanded,
 } from "@/components/time-machine";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
-import { useProject } from "@/features/projects/api/useProjects";
+import { useProject, useProjectBranches } from "@/features/projects/api/useProjects";
+import { parseRangeLowerBound } from "@/utils/temporal";
 
 import { usePermission } from "@/hooks/usePermission";
-import type { ItemType } from "antd/es/menu/hooks/useItems";
 
 const { Header, Content, Footer, Sider } = Layout;
+
+/**
+ * Check if a branch name is a change order branch (co-{code} pattern)
+ */
+function isChangeOrderBranch(branch: string): boolean {
+  return branch.startsWith("co-");
+}
 
 const AppLayout: React.FC = () => {
   const {
@@ -39,13 +46,20 @@ const AppLayout: React.FC = () => {
   // Fetch project data for timeline
   const { data: project } = useProject(projectId);
 
+  // Fetch branches for the project (main + change order branches)
+  const { data: branches = [] } = useProjectBranches(projectId);
+
   // Time machine expanded state
   const isTimeMachineExpanded = useTimeMachineStore((s) => s.isExpanded);
 
+  // Get selected branch to detect change order branches
+  const selectedBranch = useTimeMachineStore((s) => s.getSelectedBranch?.() ?? "main");
+  const isChangeOrderMode = isChangeOrderBranch(selectedBranch);
+
   const [collapsed, setCollapsed] = React.useState(false);
 
-  const getMenuItems = (): ItemType[] => {
-    const items: ItemType[] = [
+  const getMenuItems = (): MenuProps["items"] => {
+    const items: MenuProps["items"] = [
       {
         key: "/",
         icon: <DashboardOutlined />,
@@ -62,7 +76,7 @@ const AppLayout: React.FC = () => {
 
     // Admin submenu - only visible to admins
     if (hasRole("admin")) {
-      const adminItems: ItemType[] = [];
+      const adminItems: MenuProps["items"] = [];
 
       if (can("user-read")) {
         adminItems.push({
@@ -139,11 +153,31 @@ const AppLayout: React.FC = () => {
             alignItems: "center",
             height: "auto",
             minHeight: 64,
+            // Amber indicator border when in change order branch
+            borderBottom: isChangeOrderMode ? "4px solid #F59E0B" : undefined,
           }}
         >
           {/* Left side: Time Machine (only when project is selected) */}
-          <div style={{ display: "flex", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             {projectId && <TimeMachineCompact projectId={projectId} />}
+            {/* Change order mode indicator */}
+            {isChangeOrderMode && (
+              <Alert
+                message={
+                  <span style={{ fontWeight: 500 }}>
+                    Change Order Mode: <strong>{selectedBranch}</strong>
+                  </span>
+                }
+                type="warning"
+                showIcon
+                style={{
+                  padding: "4px 12px",
+                  fontSize: 13,
+                  backgroundColor: "#FFF7E6",
+                  borderColor: "#F59E0B",
+                }}
+              />
+            )}
           </div>
 
           {/* Right side: User Profile */}
@@ -156,13 +190,10 @@ const AppLayout: React.FC = () => {
             projectId={projectId}
             projectName={project?.name}
             timelineData={{
-              startDate: project?.created_at
-                ? new Date(project.created_at)
-                : project?.start_date
-                  ? new Date(project.start_date)
-                  : null,
+              startDate: parseRangeLowerBound(project?.valid_time ?? null)
+                ?? (project?.start_date ? new Date(project.start_date) : null),
               endDate: project?.end_date ? new Date(project.end_date) : null,
-              branches: ["main"], // TODO: Fetch actual branches from API
+              branches: branches.map(b => b.name),
               events: [], // TODO: Fetch branch events from API
             }}
           />

@@ -1,7 +1,7 @@
 /* generated using openapi-typescript-codegen -- do not edit */
 /* istanbul ignore file */
 /* tslint:disable */
- 
+/* eslint-disable */
 export type DepartmentCreate = {
     /**
      * Department display name
@@ -19,6 +19,10 @@ export type DepartmentCreate = {
      * Department description
      */
     description?: (string | null);
+    /**
+     * Root Department ID (internal use only for seeding)
+     */
+    department_id?: (string | null);
     /**
      * Unique department code (immutable)
      */

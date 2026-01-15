@@ -422,3 +422,151 @@ async def test_delete_wbe_with_control_date(
     after_date = "2026-05-02T10:00:00+00:00"
     resp_after = await client.get(f"/api/v1/wbes/{wbe_id}", params={"as_of": after_date})
     assert resp_after.status_code == 404
+
+@pytest.mark.asyncio
+async def test_wbe_level_inference(
+    client: AsyncClient,
+    override_auth: None,
+    db_session: AsyncSession,
+    test_project: dict[str, Any],
+) -> None:
+    """Test automatic level inference logic."""
+    # 1. Create root WBE (no parent) -> Should be Level 1
+    root_data = {
+        "project_id": test_project["project_id"],
+        "code": "L1",
+        "name": "Level 1 WBE",
+        "budget_allocation": 100000,
+        # note: no level provided
+    }
+    root_resp = await client.post("/api/v1/wbes", json=root_data)
+    # assert root_resp.status_code == 201 
+    if root_resp.status_code != 201:
+        print(root_resp.json())
+    assert root_resp.status_code == 201
+    root_wbe = root_resp.json()
+    assert root_wbe["level"] == 1
+    root_id = root_wbe["wbe_id"]
+
+    # 2. Create child WBE (parent = root) -> Should be Level 2
+    child_data = {
+        "project_id": test_project["project_id"],
+        "code": "L2",
+        "name": "Level 2 WBE",
+        "budget_allocation": 50000,
+        "parent_wbe_id": root_id
+        # note: no level provided
+    }
+    child_resp = await client.post("/api/v1/wbes", json=child_data)
+    assert child_resp.status_code == 201
+    child_wbe = child_resp.json()
+    assert child_wbe["level"] == 2
+    assert child_wbe["parent_wbe_id"] == root_id
+    child_id = child_wbe["wbe_id"]
+
+    # 3. Create sub-child WBE (parent = child) -> Should be Level 3
+    sub_child_data = {
+        "project_id": test_project["project_id"],
+        "code": "L3",
+        "name": "Level 3 WBE",
+        "budget_allocation": 25000,
+        "parent_wbe_id": child_id
+    }
+    sub_resp = await client.post("/api/v1/wbes", json=sub_child_data)
+    assert sub_resp.status_code == 201
+    sub_wbe = sub_resp.json()
+    assert sub_wbe["level"] == 3
+    sub_id = sub_wbe["wbe_id"]
+
+    # 4. Update child to be root (remove parent) -> Should likely become Level 1
+    update_to_root = {
+        "parent_wbe_id": None
+    }
+    update_resp = await client.put(f"/api/v1/wbes/{sub_id}", json=update_to_root)
+    assert update_resp.status_code == 200
+    updated_sub = update_resp.json()
+    assert updated_sub["level"] == 1
+    assert updated_sub["parent_wbe_id"] is None
+
+    # 5. Update root to be child of another (move) -> Should adopt new level
+    new_root_data = {
+        "project_id": test_project["project_id"],
+        "code": "L1-New",
+        "name": "New Root",
+        "budget_allocation": 100000,
+    }
+    new_root_resp = await client.post("/api/v1/wbes", json=new_root_data)
+    new_root_id = new_root_resp.json()["wbe_id"]
+
+    # Move our previous L3 (now L1) under New Root
+    update_move = {
+        "parent_wbe_id": new_root_id
+    }
+    move_resp = await client.put(f"/api/v1/wbes/{sub_id}", json=update_move)
+    assert move_resp.status_code == 200
+    moved_wbe = move_resp.json()
+    assert moved_wbe["level"] == 2
+    assert moved_wbe["parent_wbe_id"] == new_root_id
+
+@pytest.mark.asyncio
+async def test_get_wbes_param_filter(
+    client: AsyncClient,
+    override_auth: None,
+    db_session: AsyncSession,
+    test_project: dict[str, Any],
+) -> None:
+    """Test filtering by parent_wbe_id parameter."""
+    # Create Root WBE
+    root_data = {
+        "project_id": test_project["project_id"],
+        "code": "TF-1",
+        "name": "Root",
+        "budget_allocation": 100
+    }
+    root_resp = await client.post("/api/v1/wbes", json=root_data)
+    root_id = root_resp.json()["wbe_id"]
+    
+    # Create Child WBE
+    child_data = {
+        "project_id": test_project["project_id"],
+        "code": "TF-1.1",
+        "name": "Child",
+        "budget_allocation": 50,
+        "parent_wbe_id": root_id
+    }
+    await client.post("/api/v1/wbes", json=child_data)
+    
+    # 1. Test "null" filter (Root only)
+    resp_null = await client.get("/api/v1/wbes", params={
+        "project_id": test_project["project_id"],
+        "parent_wbe_id": "null"
+    })
+    assert resp_null.status_code == 200
+    # Hierarchical filter (including "null" for root) returns list directly
+    data_null = resp_null.json()
+    # Should contain Root, should NOT contain Child
+    assert any(w["code"] == "TF-1" for w in data_null)
+    assert not any(w["code"] == "TF-1.1" for w in data_null)
+    
+    # 2. Test Specific ID filter
+    resp_specific = await client.get("/api/v1/wbes", params={
+        "project_id": test_project["project_id"],
+        "parent_wbe_id": str(root_id)
+    })
+    assert resp_specific.status_code == 200
+    # Hierarchical filter returns list directly, not PaginatedResponse
+    data_specific = resp_specific.json()
+    # Should contain Child, should NOT contain Root
+    assert any(w["code"] == "TF-1.1" for w in data_specific)
+    assert not any(w["code"] == "TF-1" for w in data_specific)
+    
+    # 3. Test No Filter (All)
+    resp_all = await client.get("/api/v1/wbes", params={
+        "project_id": test_project["project_id"]
+    })
+    assert resp_all.status_code == 200
+    data_all = resp_all.json()["items"]
+    # Should contain BOTH if pagination allows
+    codes = [w["code"] for w in data_all]
+    assert "TF-1" in codes
+    assert "TF-1.1" in codes

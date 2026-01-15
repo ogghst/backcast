@@ -30,7 +30,7 @@
 | Generic Hook   | `useTableParams<T, F>` | Type safety, autocomplete   | None            | Yes          |
 | Mapped Filters | `Filterable<T, K>`     | Sync with backend whitelist | Drift if manual | Yes          |
 
-**Action:** Updated `api-response-patterns.md` to reflect this standard.
+**Action:** Updated `api-response-evcs-implementation-guide.md` to reflect this standard.
 
 ---
 
@@ -38,7 +38,7 @@
 
 | Document                              | Update Needed             | Status               |
 | ------------------------------------- | ------------------------- | -------------------- |
-| `api-response-patterns.md`            | Add generic hook examples | ✅ Done in DO Phase  |
+| `api-response-evcs-implementation-guide.md`            | Add generic hook examples | ✅ Done in DO Phase  |
 | `automated-filter-types-migration.md` | Create migration path     | ✅ Done in DO Phase  |
 | `technical-debt-register.md`          | Close TD-014, TD-015      | ✅ Done in ACT Phase |
 

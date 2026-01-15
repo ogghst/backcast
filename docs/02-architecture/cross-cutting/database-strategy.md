@@ -306,5 +306,5 @@ stmt = select(Entity).where(
 ### Related Documentation
 
 - [EVCS Core Architecture](../backend/contexts/evcs-core/architecture.md)
-- [Temporal Patterns Reference](../backend/contexts/evcs-core/patterns.md)
+- [Temporal Patterns Reference](../backend/contexts/evcs-core/evcs-implementation-guide.md)
 - [ADR-005: Bitemporal Versioning](../decisions/ADR-005-bitemporal-versioning.md)

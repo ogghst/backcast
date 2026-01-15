@@ -23,6 +23,7 @@ export { TimeMachineCompact } from "./TimeMachineCompact";
 export { TimeMachineExpanded } from "./TimeMachineExpanded";
 export { TimelineSlider } from "./TimelineSlider";
 export { BranchSelector } from "./BranchSelector";
+export { ViewModeSelector } from "./ViewModeSelector";
 export { QuickJumpButtons, calculateDateFromPreset } from "./QuickJumpButtons";
 
 // Types

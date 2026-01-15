@@ -28,7 +28,7 @@ Standardize use of `_apply_bitemporal_filter` and document "Valid Time" semantic
 ### Actions
 
 - [x] Implemented `_apply_bitemporal_filter` in `TemporalService`.
-- [ ] Create `docs/02-architecture/cross-cutting/time-travel.md` to document the pattern.
+- [ ] Create `docs/02-architecture/cross-cutting/temporal-query-reference.md` to document the pattern.
 - [ ] Update `docs/03-project-plan/sprint-backlog.md` to mark iteration complete.
 
 ---
@@ -37,7 +37,7 @@ Standardize use of `_apply_bitemporal_filter` and document "Valid Time" semantic
 
 | Document                                            | Update Needed                                                                     | Priority |
 | :-------------------------------------------------- | :-------------------------------------------------------------------------------- | :------- |
-| `docs/02-architecture/cross-cutting/time-travel.md` | **Create New**. Explain Valid vs System time, and how to use the standard filter. | High     |
+| `docs/02-architecture/cross-cutting/temporal-query-reference.md` | **Create New**. Explain Valid vs System time, and how to use the standard filter. | High     |
 | `docs/03-project-plan/sprint-backlog.md`            | Mark items as Done.                                                               | High     |
 
 ---
@@ -74,7 +74,7 @@ Standardize use of `_apply_bitemporal_filter` and document "Valid Time" semantic
 
 ## 10. Concrete Action Items
 
-- [ ] Create `docs/02-architecture/cross-cutting/time-travel.md`.
+- [ ] Create `docs/02-architecture/cross-cutting/temporal-query-reference.md`.
 - [ ] Update Sprint Backlog.
 
 **Date Completed:** 2026-01-11

@@ -57,12 +57,10 @@ After completing each logical component (3-5 test cycles):
 
 ## Large Codebase Considerations
 
+- **Follow architecture docs** (`docs/02-architecture/README.md`):
+
 - **Follow coding standards** (`docs/02-architecture/coding-standards.md`):
-  - Strict typing: No `Any`/`any` types
-  - Pydantic V2 strict mode for all schemas
-  - Separate logic from view (frontend)
-  - Early returns to avoid deep nesting
-  - Pure functions with isolated side effects
+
 - Maintain consistent patterns with existing code (naming, error handling, logging)
 - Use existing utilities and helpers rather than creating duplicates
 - Ensure new code integrates cleanly with dependency injection patterns

@@ -43,16 +43,20 @@ async def read_wbes(
         None, description="Filter by parent WBE ID (use 'null' string for root WBEs)"
     ),
     branch: str = Query("main", description="Branch name"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
     search: str | None = Query(None, description="Search term (code, name)"),
     filters: str | None = Query(
         None,
         description="Filters in format 'column:value;column:value1,value2'",
-        example="level:1,2;code:1.1",
     ),
     sort_field: str | None = Query(None, description="Field to sort by"),
     sort_order: str = Query(
         "asc",
-        regex="^(asc|desc)$",
+        pattern="^(asc|desc)$",
         description="Sort order (asc or desc)",
     ),
     as_of: datetime | None = Query(
@@ -77,11 +81,16 @@ async def read_wbes(
     - **Filters**: Filter by level, code, name (format: "column:value;column:value1,value2")
     - **Sorting**: Sort by any field (asc/desc)
     - **Pagination**: Returns total count for proper pagination UI
+    - **Mode**: Branch mode - "merged" (combine with main) or "isolated" (current branch only)
 
     Requires read permission.
     """
+    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
     from app.models.schemas.wbe import WBEPublic
+
+    # Parse mode string to BranchMode enum
+    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     # Parse parent_wbe_id
     parsed_parent_id: UUID | None = None
@@ -111,16 +120,22 @@ async def read_wbes(
     skip = (page - 1) * per_page
 
     try:
+        # Determine if we should apply the parent filter
+        # We apply it if a specific ID is parsed OR if it was an explicit "null" query (root only)
+        apply_parent_filter = (parsed_parent_id is not None) or is_root_query
+
         wbes, total = await service.get_wbes(
             skip=skip,
             limit=per_page,
             branch=branch,
+            branch_mode=branch_mode,
             search=search,
             filters=filters,
             sort_field=sort_field,
             sort_order=sort_order,
             project_id=project_id,
             parent_wbe_id=parsed_parent_id,
+            apply_parent_filter=apply_parent_filter,
             as_of=as_of,
         )
 
@@ -196,6 +211,7 @@ async def create_wbe(
 )
 async def read_wbe(
     wbe_id: UUID,
+    branch: str = Query("main", description="Branch name"),
     as_of: datetime | None = Query(
         None,
         description="Time travel: get WBE state as of this timestamp (ISO 8601)",
@@ -209,10 +225,10 @@ async def read_wbe(
     """
     if as_of:
         # Time travel query
-        wbe = await service.get_wbe_as_of(wbe_id, as_of)
+        wbe = await service.get_wbe_as_of(wbe_id, as_of, branch=branch)
     else:
         # Current version
-        wbe = await service.get_by_root_id(wbe_id)
+        wbe = await service.get_current(wbe_id, branch=branch)
 
     if not wbe:
         raise HTTPException(

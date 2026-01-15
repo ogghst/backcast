@@ -356,7 +356,26 @@
   - Unlock to allow edits
   - RBAC: Only approvers can lock/unlock
 - **Estimated Complexity:** Simple
+- **Status:** ✅ Complete (Phase 2 Backend)
 - **Ready for Iteration:** No (blocked by E06-U02)
+
+#### [E06-U06-UI] Workflow-Aware Status Management
+
+- **Epic:** E006 (Branching & Change Order Management)
+- **Story Points:** 5
+- **Business Value:** HIGH - User experience & data integrity
+- **Dependencies:** E06-U06 ✅
+- **Acceptance Criteria:**
+  - Create mode: Status dropdown shows only "Draft" (or disabled)
+  - Edit mode: Status dropdown shows only valid transitions from current state
+  - Status field disabled when branch is locked
+  - Status field disabled when `can_edit_on_status()` returns false
+  - Visual warning when working on locked branch
+  - Backend provides `available_transitions` in ChangeOrderPublic schema
+  - Frontend uses `useWorkflowInfo()` hook for dynamic options
+- **Estimated Complexity:** Simple
+- **Related Docs:** [`iterations/2026-01-11-change-orders-implementation/workflow-ui/00-analysis.md`](iterations/2026-01-11-change-orders-implementation/workflow-ui/00-analysis.md)
+- **Ready for Iteration:** Yes (backend complete)
 
 #### [E06-U07] Merged View Showing Main + Branch Changes
 

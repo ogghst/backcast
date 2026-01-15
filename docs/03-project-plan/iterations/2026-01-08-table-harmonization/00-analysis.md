@@ -473,7 +473,7 @@ Once Phase 1 is complete, update:
 
 1. **Architecture:**
 
-   - `docs/02-architecture/frontend/ui-patterns.md` (create)
+   - `docs/02-architecture/frontend/ui-evcs-implementation-guide.md` (create)
    - Document StandardTable patterns and when to use client vs server mode
 
 2. **Component Documentation:**

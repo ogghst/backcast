@@ -28,6 +28,7 @@ export class WbEsService {
      * - **Filters**: Filter by level, code, name (format: "column:value;column:value1,value2")
      * - **Sorting**: Sort by any field (asc/desc)
      * - **Pagination**: Returns total count for proper pagination UI
+     * - **Mode**: Branch mode - "merged" (combine with main) or "isolated" (current branch only)
      *
      * Requires read permission.
      * @param page Page number (1-indexed)
@@ -35,10 +36,12 @@ export class WbEsService {
      * @param projectId Filter by project ID
      * @param parentWbeId Filter by parent WBE ID (use 'null' string for root WBEs)
      * @param branch Branch name
+     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param search Search term (code, name)
      * @param filters Filters in format 'column:value;column:value1,value2'
      * @param sortField Field to sort by
      * @param sortOrder Sort order (asc or desc)
+     * @param asOf Time travel: get WBEs as of this timestamp (ISO 8601)
      * @returns any Successful Response
      * @throws ApiError
      */
@@ -48,10 +51,12 @@ export class WbEsService {
         projectId?: (string | null),
         parentWbeId?: (string | null),
         branch: string = 'main',
+        mode: string = 'merged',
         search?: (string | null),
         filters?: (string | null),
         sortField?: (string | null),
         sortOrder: string = 'asc',
+        asOf?: (string | null),
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -62,10 +67,12 @@ export class WbEsService {
                 'project_id': projectId,
                 'parent_wbe_id': parentWbeId,
                 'branch': branch,
+                'mode': mode,
                 'search': search,
                 'filters': filters,
                 'sort_field': sortField,
                 'sort_order': sortOrder,
+                'as_of': asOf,
             },
             errors: {
                 422: `Validation Error`,
@@ -95,18 +102,29 @@ export class WbEsService {
     /**
      * Read Wbe
      * Get a specific WBE by id. Requires read permission.
+     *
+     * Supports time-travel queries via the as_of parameter to view
+     * the WBE's state at any historical point in time.
      * @param wbeId
+     * @param branch Branch name
+     * @param asOf Time travel: get WBE state as of this timestamp (ISO 8601)
      * @returns WBERead Successful Response
      * @throws ApiError
      */
     public static getWbe(
         wbeId: string,
+        branch: string = 'main',
+        asOf?: (string | null),
     ): CancelablePromise<WBERead> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/wbes/{wbe_id}',
             path: {
                 'wbe_id': wbeId,
+            },
+            query: {
+                'branch': branch,
+                'as_of': asOf,
             },
             errors: {
                 422: `Validation Error`,
@@ -142,17 +160,22 @@ export class WbEsService {
      * Delete Wbe
      * Soft delete a WBE. Requires delete permission.
      * @param wbeId
+     * @param controlDate Optional control date for deletion
      * @returns void
      * @throws ApiError
      */
     public static deleteWbe(
         wbeId: string,
+        controlDate?: (string | null),
     ): CancelablePromise<void> {
         return __request(OpenAPI, {
             method: 'DELETE',
             url: '/api/v1/wbes/{wbe_id}',
             path: {
                 'wbe_id': wbeId,
+            },
+            query: {
+                'control_date': controlDate,
             },
             errors: {
                 422: `Validation Error`,

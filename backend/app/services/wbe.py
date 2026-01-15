@@ -1,4 +1,4 @@
-"""WBEService extending TemporalService for branchable entities.
+"""WBEService extending BranchableService for branchable entities.
 
 Provides WBE-specific operations with parent-child project relationship.
 """
@@ -12,27 +12,82 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from app.core.versioning.commands import (
-    CreateVersionCommand,
-    SoftDeleteCommand,
-    UpdateVersionCommand,
-)
+from app.core.branching.service import BranchableService
+from app.core.versioning.commands import CreateVersionCommand, UpdateVersionCommand
 from app.core.versioning.enums import BranchMode
-from app.core.versioning.service import TemporalService
 from app.models.domain.user import User
 from app.models.domain.wbe import WBE
 from app.models.schemas.wbe import WBECreate, WBEUpdate
 
 
-class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
+class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore]
     """Service for WBE entity operations.
 
-    Extends TemporalService with WBE-specific methods including
+    Extends BranchableService with WBE-specific methods including
     project filtering and hierarchical queries.
     """
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(WBE, session)
+
+    async def get_current(self, root_id: UUID, branch: str = "main") -> WBE | None:
+        """Get the current active version for a root entity on a specific branch.
+
+        Override parent method to use 'wbe_id' field instead of
+        the auto-generated field name.
+        """
+        from typing import cast as type_cast
+
+        from sqlalchemy import func
+
+        stmt = (
+            select(WBE)
+            .where(
+                WBE.wbe_id == root_id,
+                WBE.branch == branch,
+                func.upper(type_cast(Any, WBE).valid_time).is_(None),
+                type_cast(Any, WBE).deleted_at.is_(None),
+            )
+            .order_by(type_cast(Any, WBE).valid_time.desc())
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def create_root(
+        self,
+        root_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None,
+        branch: str = "main",
+        **data: Any,
+    ) -> WBE:
+        """Create the initial version of a WBE.
+
+        Override parent method to use 'wbe_id' field instead of
+        the auto-generated field name.
+
+        Args:
+            root_id: Root UUID identifier for the WBE
+            actor_id: User creating the WBE
+            control_date: Optional control date for valid_time (defaults to now)
+            branch: Branch name (default: "main")
+            **data: Additional fields for the WBE
+
+        Returns:
+            Created WBE
+        """
+        data["wbe_id"] = root_id
+
+        cmd = CreateVersionCommand(
+            entity_class=WBE,
+            root_id=root_id,
+            actor_id=actor_id,
+            control_date=control_date,
+            branch=branch,
+            **data,
+        )
+        return await cmd.execute(self.session)
 
     async def _resolve_parent_names(self, query_results: Sequence[Any]) -> list[WBE]:
         """Helper to resolve parent names for a list of WBE results.
@@ -104,12 +159,14 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
         skip: int = 0,
         limit: int = 100000,
         branch: str = "main",
+        branch_mode: BranchMode = BranchMode.MERGE,
         search: str | None = None,
         filters: str | None = None,
         sort_field: str | None = None,
         sort_order: str = "asc",
         project_id: UUID | None = None,
         parent_wbe_id: UUID | None = None,
+        apply_parent_filter: bool = False,
         as_of: datetime | None = None,
     ) -> tuple[list[WBE], int]:
         """Get all WBEs with pagination, search, and filters.
@@ -118,6 +175,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
             skip: Number of records to skip (for pagination)
             limit: Maximum number of records to return
             branch: Branch name to filter by (default: "main")
+            branch_mode: Branch mode - MERGE (composite with main) or STRICT (isolated)
             search: Search term to match against code and name (case-insensitive)
             filters: Filter string in format "column:value;column:value1,value2"
                      Example: "level:1,2;code:1.1"
@@ -139,11 +197,19 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
 
         from app.core.filtering import FilterParser
 
-        # Base query with parent name join
-        stmt = self._get_base_stmt(as_of=as_of).where(WBE.branch == branch)
+        # Build base query with all non-branch filters first
+        # Start with base statement and join for parent names
+        base_stmt = self._get_base_stmt(as_of=as_of)
 
-        # Apply time-travel filter
+        # Apply branch mode filter (handles STRICT vs MERGE logic)
+        stmt = self._apply_branch_mode_filter(
+            base_stmt, branch=branch, branch_mode=branch_mode, as_of=as_of
+        )
+
+        # Apply time-travel filter (for additional bitemporal constraints)
+        # Note: _apply_branch_mode_filter already handles basic filtering
         if as_of:
+            # Additional time-travel constraints if needed beyond branch mode
             stmt = self._apply_bitemporal_filter(stmt, as_of)
         else:
             # Get current version (open upper bound) and not deleted
@@ -157,7 +223,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
             stmt = stmt.where(WBE.project_id == project_id)
 
         # Apply parent WBE filter
-        if parent_wbe_id:
+        if apply_parent_filter:
             stmt = stmt.where(WBE.parent_wbe_id == parent_wbe_id)
 
         # Apply search (across code and name)
@@ -183,7 +249,9 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
                 stmt = stmt.where(and_(*filter_expressions))
 
         # Get total count (before pagination)
-        count_stmt = select(func.count()).select_from(stmt.subquery())
+        # For MERGE mode, count the distinct result
+        count_from = stmt.subquery()
+        count_stmt = select(func.count()).select_from(count_from)
         total_result = await self.session.execute(count_stmt)
         total = total_result.scalar_one()
 
@@ -311,6 +379,15 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
         root_id = wbe_in.wbe_id or uuid4()
         wbe_data["wbe_id"] = root_id
 
+        # Infer level from parent
+        if wbe_in.parent_wbe_id:
+            parent = await self.get_by_root_id(wbe_in.parent_wbe_id)
+            if not parent:
+                raise ValueError(f"Parent WBE {wbe_in.parent_wbe_id} not found")
+            wbe_data["level"] = parent.level + 1
+        else:
+            wbe_data["level"] = 1
+
         cmd = CreateVersionCommand(
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
@@ -331,6 +408,26 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
         update_data = wbe_in.model_dump(exclude_unset=True)
         # Remove control_date from update_data if present to avoid conflict with explicit arg
         update_data.pop("control_date", None)
+
+        # Handle re-leveling if parent changes
+        if wbe_in.parent_wbe_id is not None:  # explicit check for field presence/value
+            # Note: partial updates might send None to clear parent, or UUID to change it
+            # But here we are checking if it's IN the update data.
+            # However, since wbe_in fields are Optional, we need to check if it was set.
+            # wbe_in.model_dump(exclude_unset=True) handled this for update_data,
+            # but we need to check if "parent_wbe_id" is in update_data.
+            pass
+
+        if "parent_wbe_id" in update_data:
+            new_parent_id = update_data["parent_wbe_id"]
+            if new_parent_id:
+                parent = await self.get_by_root_id(new_parent_id)
+                if not parent:
+                    raise ValueError(f"Parent WBE {new_parent_id} not found")
+                update_data["level"] = parent.level + 1
+            else:
+                # Setting to root
+                update_data["level"] = 1
 
         cmd = UpdateVersionCommand(
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
@@ -374,22 +471,20 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
 
         # Soft-delete all descendants first (bottom-up to avoid FK issues)
         for descendant in reversed(descendants):  # Reverse to delete deepest first
-            cmd = SoftDeleteCommand(
-                entity_class=WBE,  # type: ignore[type-var,unused-ignore]
+            await self.soft_delete(
                 root_id=descendant.wbe_id,
                 actor_id=actor_id,
+                branch=descendant.branch,
                 control_date=control_date,
             )
-            await cmd.execute(self.session)
 
         # Finally, soft-delete the root WBE itself
-        cmd = SoftDeleteCommand(
-            entity_class=WBE,  # type: ignore[type-var,unused-ignore]
+        return await self.soft_delete(
             root_id=wbe_id,
             actor_id=actor_id,
+            branch=wbe.branch,
             control_date=control_date,
         )
-        return await cmd.execute(self.session)
 
     async def _get_all_descendants(
         self, parent_wbe_id: UUID, branch: str = "main"
@@ -524,6 +619,7 @@ class WBEService(TemporalService[WBE]):  # type: ignore[type-var,unused-ignore]
                 func.upper(cast(Any, Project).valid_time).is_(None),
                 cast(Any, Project).deleted_at.is_(None),
             )
+            .order_by(cast(Any, Project).valid_time.desc())
             .limit(1)
         )
         project_result = await self.session.execute(project_stmt)

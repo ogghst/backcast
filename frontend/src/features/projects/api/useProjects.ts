@@ -16,13 +16,17 @@ import {
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
 import type { PaginatedResponse } from "@/types/api";
+import type { Branch } from "@/types/branch";
 // Custom params interface
 export interface ProjectListParams {
   pagination?: {
     current?: number;
     pageSize?: number;
   };
-  filters?: Record<string, string | string[] | null | undefined>;
+  filters?: Record<
+    string,
+    (string | number | boolean | bigint)[] | null | undefined
+  >;
   sorter?: {
     field?: string | string[];
     order?: string;
@@ -30,7 +34,7 @@ export interface ProjectListParams {
   search?: string;
   sortField?: string;
   sortOrder?: string;
-  queryOptions?: unknown;
+  queryOptions?: any;
 }
 
 /**
@@ -78,20 +82,21 @@ const getPaginationParams = (params?: ProjectListParams) => {
 
 // Custom useProjects list hook with Time Machine integration
 export const useProjects = (params?: ProjectListParams) => {
-  const { asOf } = useTimeMachineParams();
+  const { asOf, mode } = useTimeMachineParams();
 
-  return useQuery({
-    queryKey: ["projects", params, { asOf }],
+  return useQuery<PaginatedResponse<ProjectRead>>({
+    queryKey: ["projects", params, { asOf, mode }],
     queryFn: async () => {
       const serverParams = getPaginationParams(params);
 
-      // Manual request to support as_of query param
+      // Manual request to support as_of and mode query params
       return __request(OpenAPI, {
         method: "GET",
         url: "/api/v1/projects",
         query: {
           ...serverParams,
           as_of: asOf || undefined,
+          mode: mode,
         },
       }) as Promise<PaginatedResponse<ProjectRead>>;
     },
@@ -101,7 +106,7 @@ export const useProjects = (params?: ProjectListParams) => {
 
 /**
  * Custom create hook with Time Machine integration.
- * Automatically injects control_date from TimeMachine context.
+ * Automatically injects control_date and branch from TimeMachine context.
  */
 export const useCreateProject = (
   mutationOptions?: Omit<
@@ -109,12 +114,12 @@ export const useCreateProject = (
     "mutationFn"
   >
 ) => {
-  const { asOf } = useTimeMachineParams();
+  const { asOf, branch } = useTimeMachineParams();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (data: ProjectCreate) => {
-      const payload = { ...data, control_date: asOf || null };
+      const payload = { ...data, control_date: asOf || null, branch };
       return ProjectsService.createProject(payload);
     },
     onSuccess: (...args) => {
@@ -132,7 +137,7 @@ export const useCreateProject = (
 
 /**
  * Custom update hook with Time Machine integration.
- * Automatically injects control_date from TimeMachine context.
+ * Automatically injects control_date and branch from TimeMachine context.
  */
 export const useUpdateProject = (
   mutationOptions?: Omit<
@@ -140,12 +145,12 @@ export const useUpdateProject = (
     "mutationFn"
   >
 ) => {
-  const { asOf } = useTimeMachineParams();
+  const { asOf, branch } = useTimeMachineParams();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: ProjectUpdate }) => {
-      const payload = { ...data, control_date: asOf || null };
+      const payload = { ...data, control_date: asOf || null, branch };
       return ProjectsService.updateProject(id, payload);
     },
     onSuccess: (...args) => {
@@ -218,6 +223,33 @@ export const useProject = (
       }) as Promise<ProjectRead>;
     },
     enabled: !!id,
+    ...queryOptions,
+  });
+};
+
+/**
+ * Custom hook to fetch branches for a project.
+ * Returns main branch plus any change order branches (co-{code}).
+ */
+/**
+ * Custom hook to fetch branches for a project.
+ * Returns main branch plus any change order branches.
+ */
+export const useProjectBranches = (
+  projectId: string | undefined,
+  queryOptions?: Omit<UseQueryOptions<Branch[], Error>, "queryKey">
+) => {
+  return useQuery<Branch[]>({
+    queryKey: ["projects", projectId, "branches"],
+    queryFn: async () => {
+      if (!projectId) throw new Error("Project ID is required");
+
+      return __request(OpenAPI, {
+        method: "GET",
+        url: `/api/v1/projects/${projectId}/branches`,
+      }) as Promise<Branch[]>;
+    },
+    enabled: !!projectId,
     ...queryOptions,
   });
 };

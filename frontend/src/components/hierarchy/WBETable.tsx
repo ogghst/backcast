@@ -127,7 +127,8 @@ export const WBETable = ({
           : "-",
       width: 150,
       align: "right",
-      sorter: (a, b) => (a.budget_allocation || 0) - (b.budget_allocation || 0),
+      sorter: (a, b) =>
+        Number(a.budget_allocation || 0) - Number(b.budget_allocation || 0),
     },
     {
       title: "Actions",

@@ -14,6 +14,7 @@ import type {
   CostElementTypeRead,
   CostElementTypeCreate,
   CostElementTypeUpdate,
+  DepartmentRead,
 } from "@/api/generated";
 import { CostElementTypeModal } from "@/features/cost-element-types/components/CostElementTypeModal";
 import { StandardTable } from "@/components/common/StandardTable";
@@ -26,7 +27,7 @@ const costElementTypeApi = {
   list: async (params?: {
     pagination?: { current?: number; pageSize?: number };
     search?: string;
-    filters?: Record<string, unknown>;
+    filters?: Record<string, any>;
     sortField?: string;
     sortOrder?: string;
   }) => {
@@ -104,7 +105,9 @@ export const CostElementTypeManagement = () => {
 
   useEffect(() => {
     DepartmentsService.getDepartments(1, 1000).then((res) => {
-      const depts = Array.isArray(res) ? res : res.items || [];
+      const depts: DepartmentRead[] = Array.isArray(res)
+        ? res
+        : (res.items as DepartmentRead[]) || [];
       const map: Record<string, string> = {};
       depts.forEach((d) => (map[d.department_id] = d.name));
       setDepartmentMap(map);

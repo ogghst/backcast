@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { MemoryRouter, useSearchParams } from "react-router-dom";
 import { useTableParams } from "./useTableParams";
-import type { TablePaginationConfig } from "antd/es/table";
 
 // Helper to inspect URL params
 const useURLParams = () => {
@@ -45,10 +44,10 @@ describe("useTableParams", () => {
       result.current.handleTableChange({ current: 2, pageSize: 20 }, {}, {
         field: "name",
         order: "ascend",
-      } as TablePaginationConfig);
+      } as any);
     });
 
-    expect(result.current.tableParams.pagination.current).toBe(2);
+    expect(result.current.tableParams.pagination?.current).toBe(2);
     expect(result.current.tableParams.sortField).toBe("name");
     expect(result.current.tableParams.sortOrder).toBe("ascend");
   });
@@ -126,7 +125,6 @@ describe("useTableParams", () => {
     );
 
     act(() => {
-      // @ts-expect-error - 'invalidHelper' is not in TestFilters
       // This test actually just verifies runtime behavior, but explicitly using generics
       // helps ensure no compilation errors in the hook usage.
       result.current.handleTableChange(

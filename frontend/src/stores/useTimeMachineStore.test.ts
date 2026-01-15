@@ -25,6 +25,7 @@ describe("useTimeMachineStore", () => {
       expect(state.projectSettings["project-1"]).toEqual({
         selectedTime: null,
         selectedBranch: "main",
+        viewMode: "merged",
       });
     });
 
@@ -146,6 +147,58 @@ describe("useTimeMachineStore", () => {
     });
   });
 
+  describe("View Mode Selection", () => {
+    beforeEach(() => {
+      act(() => {
+        useTimeMachineStore.getState().setCurrentProject("project-1");
+      });
+    });
+
+    it("selects merged view mode", () => {
+      act(() => {
+        useTimeMachineStore.getState().selectViewMode("merged");
+      });
+
+      const state = useTimeMachineStore.getState();
+      expect(state.getViewMode()).toBe("merged");
+    });
+
+    it("selects isolated view mode", () => {
+      act(() => {
+        useTimeMachineStore.getState().selectViewMode("isolated");
+      });
+
+      const state = useTimeMachineStore.getState();
+      expect(state.getViewMode()).toBe("isolated");
+    });
+
+    it("defaults to merged view mode", () => {
+      const state = useTimeMachineStore.getState();
+      expect(state.getViewMode()).toBe("merged");
+    });
+
+    it("preserves view mode when switching projects", () => {
+      // Set project 1 to isolated mode
+      act(() => {
+        useTimeMachineStore.getState().selectViewMode("isolated");
+      });
+
+      // Switch to project 2 (should have default merged mode)
+      act(() => {
+        useTimeMachineStore.getState().setCurrentProject("project-2");
+      });
+
+      expect(useTimeMachineStore.getState().getViewMode()).toBe("merged");
+
+      // Switch back to project 1 (should preserve isolated mode)
+      act(() => {
+        useTimeMachineStore.getState().setCurrentProject("project-1");
+      });
+
+      expect(useTimeMachineStore.getState().getViewMode()).toBe("isolated");
+    });
+  });
+
   describe("UI State", () => {
     it("toggles expanded state", () => {
       expect(useTimeMachineStore.getState().isExpanded).toBe(false);
@@ -197,6 +250,11 @@ describe("useTimeMachineStore", () => {
       expect(state.getSelectedBranch()).toBe("main");
     });
 
+    it("returns default view mode when no project is set", () => {
+      const state = useTimeMachineStore.getState();
+      expect(state.getViewMode()).toBe("merged");
+    });
+
     it("returns project-specific settings", () => {
       const date = new Date("2025-05-20");
 
@@ -204,11 +262,13 @@ describe("useTimeMachineStore", () => {
         useTimeMachineStore.getState().setCurrentProject("project-1");
         useTimeMachineStore.getState().selectTime(date);
         useTimeMachineStore.getState().selectBranch("dev");
+        useTimeMachineStore.getState().selectViewMode("isolated");
       });
 
       const state = useTimeMachineStore.getState();
       expect(state.getSelectedTime()).toBe(date.toISOString());
       expect(state.getSelectedBranch()).toBe("dev");
+      expect(state.getViewMode()).toBe("isolated");
     });
   });
 
@@ -222,6 +282,7 @@ describe("useTimeMachineStore", () => {
         useTimeMachineStore.getState().setCurrentProject("project-1");
         useTimeMachineStore.getState().selectTime(date1);
         useTimeMachineStore.getState().selectBranch("main");
+        useTimeMachineStore.getState().selectViewMode("merged");
       });
 
       // Set up project 2
@@ -229,12 +290,14 @@ describe("useTimeMachineStore", () => {
         useTimeMachineStore.getState().setCurrentProject("project-2");
         useTimeMachineStore.getState().selectTime(date2);
         useTimeMachineStore.getState().selectBranch("feature");
+        useTimeMachineStore.getState().selectViewMode("isolated");
       });
 
       // Verify project 2 settings
       let state = useTimeMachineStore.getState();
       expect(state.getSelectedTime()).toBe(date2.toISOString());
       expect(state.getSelectedBranch()).toBe("feature");
+      expect(state.getViewMode()).toBe("isolated");
 
       // Switch back to project 1
       act(() => {
@@ -245,6 +308,7 @@ describe("useTimeMachineStore", () => {
       state = useTimeMachineStore.getState();
       expect(state.getSelectedTime()).toBe(date1.toISOString());
       expect(state.getSelectedBranch()).toBe("main");
+      expect(state.getViewMode()).toBe("merged");
     });
   });
 });

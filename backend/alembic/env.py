@@ -13,6 +13,7 @@ from app.core.config import settings
 
 # Import all models to ensure they are attached to Base.metadata
 from app.models.domain import (  # noqa: F401
+    change_order,
     cost_element,
     cost_element_type,
     department,

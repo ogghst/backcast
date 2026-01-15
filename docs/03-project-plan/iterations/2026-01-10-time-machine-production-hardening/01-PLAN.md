@@ -27,7 +27,7 @@ See [00-ANALYSIS.md](./00-ANALYSIS.md) for full context discovery including:
 
 ### Architecture Alignment
 
-- **Existing Pattern**: Fallback to main branch documented in `patterns.md` (lines 339-378)
+- **Existing Pattern**: Fallback to main branch documented in `evcs-implementation-guide.md` (lines 339-378)
 - **Protocols**: VersionableProtocol, BranchableProtocol remain unchanged
 - **Service Layer**: TemporalService to be enhanced with `branch_mode` parameter
 
@@ -85,7 +85,7 @@ See [00-ANALYSIS.md](./00-ANALYSIS.md) for full context discovery including:
 | branch_mode parameter    | Add `strict`/`merge` modes to get_as_of() |
 | Seeding enhancement      | Add entity_id fields to JSON files        |
 | Test suite               | Unit, integration, edge case tests        |
-| Documentation            | Update patterns.md, architecture.md       |
+| Documentation            | Update evcs-implementation-guide.md, architecture.md       |
 
 **Out of Scope:**
 
@@ -115,7 +115,7 @@ See [00-ANALYSIS.md](./00-ANALYSIS.md) for full context discovery including:
 | 9   | Integration tests for time-travel          | 2h     | High     | Task 4       |
 | 10  | Edge case tests                            | 2h     | High     | Task 9       |
 | 11  | Update architecture documentation          | 1h     | Medium   | All          |
-| 12  | Update patterns.md                         | 1h     | Medium   | Task 4       |
+| 12  | Update evcs-implementation-guide.md                         | 1h     | Medium   | Task 4       |
 
 **Total Estimated Effort:** 15.5 hours
 
@@ -381,7 +381,7 @@ Phase 3: Infrastructure (2h) [parallel]
 
 Phase 4: Documentation (2h)
 ├── Task 11: architecture.md
-└── Task 12: patterns.md
+└── Task 12: evcs-implementation-guide.md
 ```
 
 ---
@@ -413,5 +413,5 @@ Phase 4: Documentation (2h)
 
 - [Analysis](./00-ANALYSIS.md)
 - [EVCS Core Architecture](../../../02-architecture/backend/contexts/evcs-core/architecture.md)
-- [Temporal Patterns](../../../02-architecture/backend/contexts/evcs-core/patterns.md)
+- [Temporal Patterns](../../../02-architecture/backend/contexts/evcs-core/evcs-implementation-guide.md)
 - [ADR-005: Bitemporal Versioning](../../../02-architecture/decisions/ADR-005-bitemporal-versioning.md)

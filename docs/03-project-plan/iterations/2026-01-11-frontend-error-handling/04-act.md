@@ -15,7 +15,7 @@
 ### Actions
 
 - [x] Implemented in `src/api/client.ts`.
-- [ ] Update `docs/02-architecture/cross-cutting/api-response-patterns.md` to reflect that global error handling is now the standard (removed need for manual error handling in many cases).
+- [ ] Update `docs/02-architecture/cross-cutting/api-response-evcs-implementation-guide.md` to reflect that global error handling is now the standard (removed need for manual error handling in many cases).
 
 ---
 
@@ -23,7 +23,7 @@
 
 | Document                                                      | Update Needed                                                       | Priority |
 | :------------------------------------------------------------ | :------------------------------------------------------------------ | :------- |
-| `docs/02-architecture/cross-cutting/api-response-patterns.md` | Add section on "Global Error Handling" and the Toaster pattern.     | Medium   |
+| `docs/02-architecture/cross-cutting/api-response-evcs-implementation-guide.md` | Add section on "Global Error Handling" and the Toaster pattern.     | Medium   |
 | `docs/02-architecture/coding-standards.md`                    | Update "Frontend Error Handling" to mention the global interceptor. | Low      |
 
 ---
@@ -45,7 +45,7 @@ None.
 
 ## 10. Concrete Action Items
 
-- [ ] Update `docs/02-architecture/cross-cutting/api-response-patterns.md` with Global Error Handling patterns.
+- [ ] Update `docs/02-architecture/cross-cutting/api-response-evcs-implementation-guide.md` with Global Error Handling patterns.
 - [ ] Monitor user feedback for "toaster noise" (too many errors shown).
 
 ---

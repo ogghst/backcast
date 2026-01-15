@@ -174,7 +174,7 @@ or_(
 | TD-019 | Cross-branch discovery APIs      | Medium   | 6h     |
 | TD-020 | Comprehensive edge case tests    | Medium   | 4h     |
 | TD-021 | Database performance benchmarks  | Low      | 2h     |
-| TD-022 | Update patterns.md documentation | Medium   | 1h     |
+| TD-022 | Update evcs-implementation-guide.md documentation | Medium   | 1h     |
 
 **Total TD:** 17 hours  
 **Prioritization:** None blocking for production deployment
@@ -223,7 +223,7 @@ or_(
 ### What Could Be Better ⚠️
 
 1. **Edge case tests** - Deferred to future iteration
-2. **Documentation updates** - patterns.md not updated
+2. **Documentation updates** - evcs-implementation-guide.md not updated
 3. **Performance benchmarks** - Not measured
 
 ### Process Improvements
@@ -245,7 +245,7 @@ or_(
 ### Short Term (This Month)
 
 1. Complete edge case tests (TD-020)
-2. Update patterns.md (TD-022)
+2. Update evcs-implementation-guide.md (TD-022)
 3. Performance benchmarks (TD-021)
 
 ### Long Term (This Quarter)

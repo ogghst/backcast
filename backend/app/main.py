@@ -1,15 +1,19 @@
 """Main application entry point."""
 
+import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
 # Include routers
 from app.api.routes import (
     auth,
+    change_orders,
     cost_element_types,
     cost_elements,
     departments,
@@ -17,9 +21,12 @@ from app.api.routes import (
     users,
     wbes,
 )
+from app.core.branching.exceptions import BranchLockedException
 from app.core.config import settings
 from app.core.exceptions.filtering import FilterError
 from app.core.logging import setup_logging
+
+logger = logging.getLogger(__name__)
 
 # Import models to ensure they are registered with SQLAlchemy
 # (user_preference removed - now embedded in user table as JSON)
@@ -47,8 +54,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=settings.BACKEND_CORS_METHODS,
+    allow_headers=settings.BACKEND_CORS_HEADERS,
 )
 
 
@@ -61,6 +68,43 @@ async def filter_exception_handler(request: Request, exc: FilterError) -> JSONRe
     return JSONResponse(
         status_code=400,
         content={"detail": str(exc)},
+    )
+
+
+@app.exception_handler(BranchLockedException)
+async def branch_locked_exception_handler(request: Request, exc: BranchLockedException) -> JSONResponse:
+    """Handle branch locked exceptions by returning 403 Forbidden."""
+    return JSONResponse(
+        status_code=403,
+        content={
+            "detail": str(exc),
+            "branch": exc.branch,
+            "entity_type": exc.entity_type,
+            "entity_id": exc.entity_id,
+        },
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: ValidationError) -> JSONResponse:
+    """Handle Pydantic validation errors with detailed information."""
+    logger.error(f"Validation error on {request.url}: {exc.errors()}")
+
+    errors = exc.errors()
+    formatted_errors = []
+    for error in errors:
+        formatted_errors.append({
+            "field": " -> ".join(str(loc) for loc in error["loc"]),
+            "message": error["msg"],
+            "type": error["type"],
+        })
+
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": "Validation error",
+            "errors": formatted_errors,
+        },
     )
 
 
@@ -95,4 +139,9 @@ app.include_router(
     cost_elements.router,
     prefix=f"{settings.API_V1_STR}/cost-elements",
     tags=["Cost Elements"],
+)
+app.include_router(
+    change_orders.router,
+    prefix=f"{settings.API_V1_STR}/change-orders",
+    tags=["Change Orders"],
 )

@@ -17,7 +17,7 @@ This work significantly improves the user experience by allowing deep-linking to
 
 ### Pattern Adoption
 
-- **Artifact:** `docs/02-architecture/frontend/ui-patterns.md` created.
+- **Artifact:** `docs/02-architecture/frontend/ui-evcs-implementation-guide.md` created.
 - **Standard:** All future list views **MUST** use `StandardTable` and `useTableParams`.
 - **Search:** Global search is now a standard feature, not an optional add-on.
 

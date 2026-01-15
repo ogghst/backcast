@@ -21,7 +21,7 @@
 
 ## 3. API & Data Patterns
 
-- [ ] **Filtering**: Is [FilterParser](cross-cutting/api-response-patterns.md) used for list endpoints?
+- [ ] **Filtering**: Is [FilterParser](cross-cutting/api-response-evcs-implementation-guide.md) used for list endpoints?
 - [ ] **Security**: Are filter fields whitelisted?
 - [ ] **Pagination**: Is `PaginatedResponse` used where appropriate?
 - [ ] **Response Unwrapping**: Does the frontend correctly handle paginated responses?

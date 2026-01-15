@@ -21,7 +21,27 @@ export type Permission =
   | "department-read"
   | "department-create"
   | "department-update"
-  | "department-delete";
+  | "department-delete"
+  | "project-read"
+  | "project-create"
+  | "project-update"
+  | "project-delete"
+  | "wbe-read"
+  | "wbe-create"
+  | "wbe-update"
+  | "wbe-delete"
+  | "cost-element-read"
+  | "cost-element-create"
+  | "cost-element-update"
+  | "cost-element-delete"
+  | "cost-element-type-read"
+  | "cost-element-type-create"
+  | "cost-element-type-update"
+  | "cost-element-type-delete"
+  | "change-order-read"
+  | "change-order-create"
+  | "change-order-update"
+  | "change-order-delete";
 
 // Type alias for role strings
 export type Role = "admin" | "manager" | "viewer";

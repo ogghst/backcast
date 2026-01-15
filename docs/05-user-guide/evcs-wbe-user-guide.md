@@ -2084,7 +2084,7 @@ async def undelete_wbe(
 
 - [EVCS Core Architecture](../02-architecture/backend/contexts/evcs-core/architecture.md) - System architecture and patterns
 - [Entity Classification Guide](../02-architecture/backend/contexts/evcs-core/entity-classification.md) - Choosing entity types
-- [Temporal Patterns Reference](../02-architecture/backend/contexts/evcs-core/patterns.md) - Query patterns and recipes
+- [Temporal Patterns Reference](../02-architecture/backend/contexts/evcs-core/evcs-implementation-guide.md) - Query patterns and recipes
 - [ADR-005: Bitemporal Versioning](../02-architecture/decisions/ADR-005-bitemporal-versioning.md) - Design decision record
 - [ADR-006: Protocol-Based Type System](../02-architecture/decisions/ADR-006-protocol-based-type-system.md) - Type system design
 

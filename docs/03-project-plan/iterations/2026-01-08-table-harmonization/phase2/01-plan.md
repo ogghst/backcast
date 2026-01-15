@@ -654,7 +654,7 @@ test("should search globally across all pages", async ({ page }) => {
 **Files to Create/Update:**
 
 - `docs/02-architecture/backend/filtering-and-search.md` (create)
-- `docs/02-architecture/frontend/ui-patterns.md` (update)
+- `docs/02-architecture/frontend/ui-evcs-implementation-guide.md` (update)
 - Component JSDoc (already done in tasks above)
 
 **Subtasks:**
@@ -762,7 +762,7 @@ For each of the 3 migrated tables, verify:
 ### Documentation
 
 - [ ] `filtering-and-search.md` created
-- [ ] `ui-patterns.md` updated
+- [ ] `ui-evcs-implementation-guide.md` updated
 - [ ] Component JSDoc complete
 - [ ] Code examples provided
 

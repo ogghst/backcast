@@ -100,6 +100,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
                 getattr(self.entity_class, root_field) == root_id,
                 self.entity_class.branch == branch,  # type: ignore[attr-defined]
                 func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+                func.not_(func.isempty(self.entity_class.valid_time)),  # Exclude empty ranges
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .order_by(cast(Any, self.entity_class).valid_time.desc())
@@ -112,6 +113,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
         """Get all entities (current versions) with pagination.
 
         Filters by upper(valid_time) IS NULL (open-ended) and deleted_at IS NULL.
+        Excludes empty ranges to avoid selecting invalid versions.
         """
         from typing import Any, cast
 
@@ -124,6 +126,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
                 # The @> operator can match recently-closed versions if query runs
                 # at the exact same microsecond as the close operation
                 func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+                func.not_(func.isempty(self.entity_class.valid_time)),  # Exclude empty ranges
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .offset(skip)
@@ -216,24 +219,24 @@ class TemporalService[TVersionable: VersionableProtocol]:
         """Apply standardized bitemporal WHERE clauses to a statement.
 
         Filters for:
-        - valid_time contains as_of
-        - transaction_time contains as_of
+        - valid_time contains as_of (time travel based on business validity)
         - deleted_at IS NULL OR deleted_at > as_of
+
+        Note: Time travel queries are based on valid_time only. The transaction_time
+        dimension is used for audit/correction tracking but does not filter list results.
+        For overlapping valid_time ranges (corrections), the latest transaction_time
+        version should be used - this is handled by DISTINCT ON in branch mode filter
+        or by ordering in the specific service method.
         """
         from typing import Any, cast
 
         from sqlalchemy import func, or_
 
         return stmt.where(
-            # Check as_of is within valid_time range
+            # Check as_of is within valid_time range (time travel by business validity)
             cast(Any, self.entity_class).valid_time.op("@>")(as_of),
             # CRITICAL: Also check as_of >= lower bound (entity existed)
             func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
-
-            # TRANSACTION TIME: We use "Current Knowledge" semantics for lists.
-            # We want the latest "truth" about the 'as_of' time.
-            # So we check that the row has not been superseded (transaction_time upper bound is NULL).
-            func.upper(cast(Any, self.entity_class).transaction_time).is_(None),
 
             # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
             or_(
@@ -241,6 +244,98 @@ class TemporalService[TVersionable: VersionableProtocol]:
                 cast(Any, self.entity_class).deleted_at > as_of,
             ),
         )
+
+    def _apply_branch_mode_filter(
+        self,
+        stmt: Any,
+        branch: str,
+        branch_mode: "BranchMode | None",
+        as_of: datetime | None = None,
+    ) -> Any:
+        """Apply branch mode filtering (STRICT vs MERGE) to a statement.
+
+        For STRICT mode: Filters to only the specified branch.
+        For MERGE mode: Uses DISTINCT ON to merge main branch with specified branch,
+        with branch taking precedence over main for entities that exist in both.
+
+        Also handles deleted entities - entities deleted on current branch
+        do NOT fall back to main branch.
+
+        Args:
+            stmt: SQLAlchemy statement to filter
+            branch: Current branch name
+            branch_mode: STRICT (isolated) or MERGE (composite)
+            as_of: Optional timestamp for time-travel queries
+
+        Returns:
+            Filtered statement with DISTINCT ON applied for MERGE mode
+
+        Note:
+            This method is only applicable to entities that support branching
+            (those with a 'branch' column). For non-branchable entities, it
+            will apply STRICT filtering (branch == :branch).
+        """
+        from typing import Any, cast
+
+        from sqlalchemy import case, or_, select
+
+        # Check if entity supports branching (has 'branch' attribute)
+        if not hasattr(self.entity_class, "branch"):
+            # Non-branchable entity: apply simple branch filter (or no filter if always main)
+            return stmt.where(cast(Any, self.entity_class).branch == branch)
+
+        # Import BranchMode locally to avoid circular imports
+        from app.core.versioning.enums import BranchMode
+
+        if branch_mode is None:
+            branch_mode = BranchMode.STRICT
+
+        # Get root field name (e.g., "wbe_id", "project_id")
+        root_field = self._get_root_field_name()
+
+        if branch_mode == BranchMode.MERGE and branch != "main":
+            # MERGE MODE: Use DISTINCT ON with branch precedence
+            # Filter to include both current branch AND main
+            stmt = stmt.where(cast(Any, self.entity_class).branch.in_([branch, "main"]))
+
+            # Exclude main branch entities that were deleted on current branch
+            deleted_root_ids_subq = (
+                select(getattr(self.entity_class, root_field))
+                .where(
+                    cast(Any, self.entity_class).branch == branch,
+                    cast(Any, self.entity_class).deleted_at.is_not(None),
+                )
+                .distinct()
+            )
+
+            # Exclude main branch entities that have a deleted version on current branch
+            # Logic: Include entity if (it's on current branch) OR (root_id NOT in deleted list)
+            stmt = stmt.where(
+                or_(
+                    cast(Any, self.entity_class).branch == branch,
+                    ~getattr(self.entity_class, root_field).in_(
+                        deleted_root_ids_subq.scalar_subquery()
+                    ),
+                ),
+            )
+
+            # Apply DISTINCT ON with branch precedence ordering
+            # The CASE expression returns 0 for current branch, 1 for main
+            # We want current branch (0) to come first, then main (1)
+            stmt = stmt.order_by(
+                getattr(self.entity_class, root_field),
+                case((cast(Any, self.entity_class).branch == branch, 0), else_=1),
+                # Then by valid_time descending (newest first)
+                cast(Any, self.entity_class).valid_time.desc(),
+            )
+
+            # Apply DISTINCT ON root_id
+            stmt = stmt.distinct(getattr(self.entity_class, root_field))
+
+            return stmt
+        else:
+            # STRICT MODE: Only query the specified branch (current behavior)
+            return stmt.where(cast(Any, self.entity_class).branch == branch)
 
     def _apply_bitemporal_filter_for_time_travel(self, stmt: Any, as_of: datetime) -> Any:
         """Apply bitemporal filter for single-entity time-travel queries.

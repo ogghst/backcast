@@ -88,7 +88,7 @@
 
 ### Specific Actions
 
-- [x] Create `docs/02-architecture/api-response-patterns.md` ✅ Complete
+- [x] Create `docs/02-architecture/api-response-evcs-implementation-guide.md` ✅ Complete
 - [x] Create `docs/03-project-plan/technical-debt/TD-003-*.md` ✅ Complete
 - [x] Create `docs/.../phase2/03-check.md` ✅ Complete
 - [x] Create `docs/.../phase2/FINAL-SUMMARY.md` ✅ Complete

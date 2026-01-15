@@ -4,12 +4,14 @@
 
 ## Document Guide
 
-| Document | When to Read | Description |
-|----------|--------------|-------------|
-| [vision.md](vision.md) | Understanding project goals | High-level vision, business problem, and success criteria |
-| [functional-requirements.md](functional-requirements.md) | Implementing features | Detailed user stories and functional requirements by bounded context |
-| [evm-requirements.md](evm-requirements.md) | Working on EVM features | Earned Value Management calculations, metrics, and reporting requirements |
-| [glossary.md](glossary.md) | Clarifying terminology | Domain-specific terms and acronyms used throughout the project |
+| Document                                                               | When to Read                                     | Description                                                               |
+| ---------------------------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------- |
+| [vision.md](vision.md)                                                 | Understanding project goals                      | High-level vision, business problem, and success criteria                 |
+| [functional-requirements.md](functional-requirements.md)               | Implementing features                            | Detailed user stories and functional requirements by bounded context      |
+| [evm-requirements.md](evm-requirements.md)                             | Working on EVM features                          | Earned Value Management calculations, metrics, and reporting requirements |
+| [change-management-user-stories.md](change-management-user-stories.md) | Implementing change management features          | Detailed user stories and functional requirements by bounded context      |
+| [../02-architecture/cross-cutting/temporal-query-reference.md](../02-architecture/cross-cutting/temporal-query-reference.md) | Implementing features on branch related entities | Time travel queries and branching architecture for change orders         |
+| [glossary.md](glossary.md)                                             | Clarifying terminology                           | Domain-specific terms and acronyms used throughout the project            |
 
 ## Quick Lookup
 

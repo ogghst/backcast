@@ -162,7 +162,7 @@ Cost Elements are the leaf level of the project hierarchy where budgets are allo
 - Branch merge for approved change orders
 - Branch locking/unlocking
 
-**Documentation:** [Branching Requirements](../../01-product-scope/branching-requirements.md)
+**Documentation:** [Time Travel & Branching Architecture](cross-cutting/temporal-query-reference.md)
 
 ---
 
@@ -180,6 +180,177 @@ Cost Elements are the leaf level of the project hierarchy where budgets are allo
 - CPI, SPI, TCPI, CV, SV, VAC
 
 **Documentation:** [EVM Requirements](../../01-product-scope/evm-requirements.md)
+
+---
+
+### 9. Quality Event Management
+
+**Responsibility:** Track quality-related costs that impact project profitability without corresponding revenue increases
+**Owner:** Backend Team
+**Status:** Planned
+**Versioning:** Bitemporal with branching (via EVCS Core)
+
+**Description:**
+Quality events capture costs associated with rework, defects, warranty claims, and other quality-related issues that reduce project profitability.
+
+**Key Entities:**
+
+- `QualityEvent` - Root event record (date, description, severity, status)
+- `QualityEventCost` - Cost attribution to cost elements
+- `RootCause` - Classification system (rework, defects, warranty, design error)
+- `PreventiveAction` - Improvement tracking and verification
+
+**Key Responsibilities:**
+
+- Register quality events with detailed descriptions
+- Attribute costs to specific cost elements
+- Classify root causes for analysis
+- Track corrective and preventive actions
+- Generate quality cost analysis reports
+- Calculate quality cost as % of total project costs
+
+**Dependencies:**
+
+- Cost Element & Financial Tracking (cost attribution)
+- Project & WBE Management (project context)
+- Reporting & Analytics (quality reports)
+
+**Boundaries:**
+
+- Does NOT handle warranty claims processing (external system)
+- Does NOT handle supplier quality management (separate context)
+- Does NOT handle quality assurance planning (project management)
+
+**Documentation:** [Functional Requirements Section 9](../../01-product-scope/functional-requirements.md#9-quality-event-management)
+
+---
+
+### 10. AI/ML Integration
+
+**Responsibility:** Provide intelligent analysis and predictive capabilities for project management
+**Owner:** Backend Team
+**Status:** Planned
+**Versioning:** Not versioned (read-only analysis)
+
+**Description:**
+AI/ML Integration provides intelligent insights without write access to core data, maintaining data integrity while offering predictive analytics.
+
+**Key Entities:**
+
+- `AIAssessmentRequest` - Assessment job tracking (project_id, control_date, status)
+- `AIAssessmentResult` - Generated insights (summary, risks, recommendations)
+- `PredictionModel` - Model metadata (version, accuracy, training_date)
+- `AnomalyDetection` - Deviation alerts (metric, threshold, detected_date)
+
+**Key Responsibilities:**
+
+- Generate project assessments using AI (Section 12.6 of FR)
+- Detect anomalies in EVM metrics
+- Predict cost/schedule overruns
+- Suggest optimization opportunities
+- Analyze forecast accuracy trends
+- Provide natural language query interface (future)
+
+**Dependencies:**
+
+- EVM Calculations & Reporting (metric sources)
+- Cost Element & Financial Tracking (data access)
+- External AI Services (OpenAI, Claude, etc.)
+
+**Boundaries:**
+
+- Does NOT replace human decision-making
+- Does NOT have write access to core data
+- All AI suggestions require user confirmation
+- AI usage is audit logged
+- Project data anonymized before sending to external services
+
+**Documentation:** [Functional Requirements Section 12.6](../../01-product-scope/functional-requirements.md#126-ai-powered-project-assessment)
+
+---
+
+### 11. Reporting & Analytics
+
+**Responsibility:** Generate standard and custom reports from project data
+**Owner:** Backend Team
+**Status:** Planned
+**Versioning:** Not versioned (read-only aggregation)
+
+**Description:**
+Reporting & Analytics provides comprehensive reporting capabilities across all bounded contexts without modifying source data.
+
+**Key Entities:**
+
+- `ReportTemplate` - Reusable report definitions (name, query_spec, format)
+- `ReportSchedule` - Automated report generation (frequency, recipients)
+- `ReportInstance` - Generated report tracking (created_at, status, file_url)
+- `DashboardConfiguration` - User dashboard settings (widgets, layout, filters)
+
+**Key Responsibilities:**
+
+- Generate standard EVM reports (Section 13.1 of FR)
+- Create variance analysis reports with trends
+- Build forecast comparison reports
+- Generate baseline comparison reports
+- Support custom report builder (Section 13.3 of FR)
+- Export to CSV, Excel, PDF formats
+- Provide visual dashboards (Section 13.2 of FR)
+
+**Dependencies:**
+
+- All bounded contexts (data sources)
+- Portfolio Management (cross-project reports)
+- Authentication & Authorization (report access control)
+
+**Boundaries:**
+
+- Does NOT modify source data (read-only)
+- Does NOT handle report distribution (email, etc.)
+- Does NOT provide ad-hoc query interface (use API)
+
+**Documentation:** [Functional Requirements Sections 13.1-13.4](../../01-product-scope/functional-requirements.md#13-reporting)
+
+---
+
+### 12. Portfolio Management
+
+**Responsibility:** Aggregate and analyze data across multiple projects for executive oversight
+**Owner:** Backend Team
+**Status:** Planned
+**Versioning:** Not versioned (aggregated view)
+
+**Description:**
+Portfolio Management enables executive-level oversight by aggregating data across 50+ concurrent projects.
+
+**Key Entities:**
+
+- `Portfolio` - Project groupings (name, description, project_ids)
+- `PortfolioMetric` - Aggregated measurements (metric_name, value, calculated_at)
+- `ResourceAllocation` - Cross-project resources (resource_id, project_allocations)
+- `ExecutiveDashboard` - Portfolio view configuration (widgets, kpis, filters)
+
+**Key Responsibilities:**
+
+- Aggregate metrics across 50+ concurrent projects
+- Provide portfolio-level performance dashboards
+- Support multi-project resource allocation
+- Generate executive summary reports
+- Track portfolio-wide trends and benchmarks
+- Enable project comparison and ranking
+
+**Dependencies:**
+
+- All bounded contexts (data aggregation)
+- Reporting & Analytics (portfolio reports)
+- Authentication & Authorization (executive access)
+
+**Boundaries:**
+
+- Does NOT manage individual project details
+- Does NOT handle resource scheduling (project-level)
+- Does NOT make project-level decisions
+
+**Documentation:** [Functional Requirements Section 17](../../01-product-scope/functional-requirements.md#17-performance-and-scalability-requirements)
 
 ---
 
@@ -324,6 +495,10 @@ Cost Elements are the leaf level of the project hierarchy where budgets are allo
 6. **Project/WBE** hierarchy contains **Cost Elements** (implemented)
 7. **Financial Tracking** operates on **Cost Elements** with **Schedule Registrations** for PV calculations
 8. **Change Orders** create branches via EVCS Core affecting **Project/WBE/Cost Elements** (planned)
+9. **Quality Events** attribute costs to **Cost Elements** for profitability analysis
+10. **EVM Calculations** provide metrics for **AI/ML** analysis and **Reporting**
+11. **Reporting & Analytics** aggregates data from all bounded contexts (read-only)
+12. **Portfolio Management** aggregates metrics across all projects for executive oversight
 
 ### Frontend Interactions
 

@@ -37,7 +37,7 @@
 
 1.  **Normalization Strategy:** The decision to normalize hybrid responses (WBEs) within the hook layer proved effective. It allowed components (`ProjectDetailPage`, `WBEDetailPage`) to consume data consistently, although it required updating destructuring logic (e.g., `data?.items`).
 2.  **Generic Hooks:** Modifying `createResourceHooks` to accept `TList` was critical. It prevented breaking other hooks that might still use array returns (though none do now) and provided type safety.
-3.  **Documentation:** `api-response-patterns.md` was updated to reflect the new "Preserve Metadata" pattern, explicitly deprecating the "unwrap" anti-pattern for paginated lists.
+3.  **Documentation:** `api-response-evcs-implementation-guide.md` was updated to reflect the new "Preserve Metadata" pattern, explicitly deprecating the "unwrap" anti-pattern for paginated lists.
 
 ---
 

@@ -3,7 +3,7 @@
 **Date Created:** 2026-01-11
 **Related Technical Debt:** [TD-026](../../technical-debt-register.md#td-026-expose-get_as_of-in-service-interfaces)
 **Related Documentation:**
-- [Time Travel Architecture](../../../02-architecture/cross-cutting/time-travel.md)
+- [Time Travel Architecture](../../../02-architecture/cross-cutting/temporal-query-reference.md)
 - [ADR-005: Bitemporal Versioning](../../../02-architecture/decisions/ADR-005-bitemporal-versioning.md)
 - [Coding Standards](../../../02-architecture/coding-standards.md)
 
@@ -30,7 +30,7 @@ The `TemporalService.get_as_of()` method is fully implemented with comprehensive
 - **Type Safety:** 100% type hint coverage, MyPy strict mode compliance
 - **Code Quality:** Zero Ruff errors, Google-style docstrings
 - **Testing:** 100% coverage for new methods, including zombie check pattern tests
-- **Documentation:** Update time-travel.md to document which services support time-travel queries
+- **Documentation:** Update temporal-query-reference.md to document which services support time-travel queries
 
 **Constraints:**
 - Must maintain backward compatibility (no breaking changes to existing service methods)
@@ -164,7 +164,7 @@ class ProjectService(TemporalService[Project]):
 - Branch mode tests (STRICT vs MERGE)
 
 **Documentation Updates:**
-- Update `time-travel.md` to list services supporting time-travel queries
+- Update `temporal-query-reference.md` to list services supporting time-travel queries
 - Mark TD-026 as complete
 
 **Trade-offs:**

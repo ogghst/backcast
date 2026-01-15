@@ -4,6 +4,7 @@ Provides Project-specific operations on top of generic temporal service.
 """
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -19,6 +20,8 @@ from app.core.versioning.service import TemporalService
 from app.models.domain.project import Project
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
 
+if TYPE_CHECKING:
+    from app.models.schemas.branch import BranchPublic
 
 class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-ignore]
     """Service for Project entity operations.
@@ -35,6 +38,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         skip: int = 0,
         limit: int = 100000,
         branch: str = "main",
+        branch_mode: BranchMode = BranchMode.MERGE,
         search: str | None = None,
         filters: str | None = None,
         sort_field: str | None = None,
@@ -47,6 +51,9 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
             skip: Number of records to skip (for pagination)
             limit: Maximum number of records to return
             branch: Branch name to filter by (default: "main")
+            branch_mode: Branch resolution mode (default: MERGE)
+                - MERGE: Combine current branch with main (current branch takes precedence)
+                - STRICT: Only return entities from current branch
             search: Search term to match against code and name (case-insensitive)
             filters: Filter string in format "column:value;column:value1,value2"
                      Example: "status:Active;budget:>100000"
@@ -80,9 +87,13 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
 
         from app.core.filtering import FilterParser
 
-        # Base query: versions in specified branch, not deleted
-        # Base query: versions in specified branch
-        stmt = select(Project).where(Project.branch == branch)
+        # Base query: versions in specified branch(es)
+        stmt = select(Project)
+
+        # Apply branch mode filter (STRICT vs MERGE)
+        stmt = self._apply_branch_mode_filter(
+            stmt, branch=branch, branch_mode=branch_mode, as_of=as_of
+        )
 
         # Apply time-travel filter
         if as_of:
@@ -262,3 +273,89 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
             ... )
         """
         return await self.get_as_of(project_id, as_of, branch, branch_mode)
+
+    async def get_project_branches(self, project_id: UUID) -> list["BranchPublic"]:
+        """Get all branches for a project.
+
+        Returns:
+            List of BranchPublic objects, always including "main" plus any
+            change order branches (co-{code}) for this project.
+        """
+        from typing import Any, cast
+
+        from sqlalchemy import func
+
+        from app.models.domain.branch import Branch
+        from app.models.domain.change_order import ChangeOrder
+        from app.models.schemas.branch import BranchPublic
+
+        # Always include main branch
+        branches: list[BranchPublic] = [
+            BranchPublic(
+                name="main",
+                type="main",
+                is_default=True
+            )
+        ]
+
+        # Get all branches for this project from the branches table
+        stmt = (
+            select(Branch)
+            .where(
+                Branch.project_id == project_id,
+                Branch.deleted_at.is_(None),
+            )
+            .order_by(Branch.created_at.desc())
+        )
+
+        result = await self.session.execute(stmt)
+        branch_entities = result.scalars().all()
+
+        for branch_entity in branch_entities:
+            # Skip main branch as it's already added
+            if branch_entity.name == "main":
+                continue
+
+            # For change order branches, fetch the current status from ChangeOrder
+            change_order_status = None
+            change_order_code = None
+            change_order_id = None
+
+            if branch_entity.type == "change_order":
+                # Extract code from branch name (e.g., "co-CO-2026-001" -> "CO-2026-001")
+                code = branch_entity.name.replace("co-", "", 1)
+
+                # Get the current change order on main branch to get its status
+                co_stmt = (
+                    select(ChangeOrder)
+                    .where(
+                        ChangeOrder.project_id == project_id,
+                        ChangeOrder.code == code,
+                        ChangeOrder.branch == "main",
+                        func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
+                        func.not_(func.isempty(ChangeOrder.valid_time)),  # Exclude empty ranges
+                        cast(Any, ChangeOrder).deleted_at.is_(None),
+                    )
+                    .order_by(cast(Any, ChangeOrder).valid_time.desc())
+                    .limit(1)
+                )
+                co_result = await self.session.execute(co_stmt)
+                co = co_result.scalar_one_or_none()
+
+                if co:
+                    change_order_status = co.status
+                    change_order_code = co.code
+                    change_order_id = co.change_order_id
+
+            branches.append(
+                BranchPublic(
+                    name=branch_entity.name,
+                    type=branch_entity.type,
+                    is_default=False,
+                    change_order_id=change_order_id,
+                    change_order_code=change_order_code,
+                    change_order_status=change_order_status
+                )
+            )
+
+        return branches

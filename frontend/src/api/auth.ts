@@ -13,14 +13,14 @@ export const loginUser = async (credentials: UserLogin): Promise<Token> => {
     grant_type: "password",
   };
 
-  return await AuthenticationService.login(formData);
+  return (await AuthenticationService.login(formData)) as unknown as Token;
 };
 
 /**
  * Get current authenticated user with permissions
  */
 export const getCurrentUser = async (): Promise<UserPublic> => {
-  return await AuthenticationService.getCurrentUser();
+  return (await AuthenticationService.getCurrentUser()) as unknown as UserPublic;
 };
 
 /**
@@ -47,6 +47,6 @@ export const registerUser = async (userData: {
     is_active: true,
     is_superuser: false,
     role: userData.role as string,
-  });
+  } as any);
   return user as unknown as UserPublic;
 };
