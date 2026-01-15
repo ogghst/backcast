@@ -15,25 +15,15 @@ interface BranchSelectorProps {
   compact?: boolean;
 }
 
-// Status badge colors for change orders
-const STATUS_BADGE_COLOR: Record<string, string> = {
-  Draft: "default",
-  Submitted: "blue",
-  "Under Review": "processing",
-  Approved: "success",
-  Rejected: "error",
-  Implemented: "purple",
-  Closed: "default",
-};
-
+// Status dot colors for change order branches
 const STATUS_DOT_COLOR: Record<string, string> = {
-  Draft: "#faad14", // Amber (F59E0B equivalent)
-  Submitted: "#1890ff",
-  "Under Review": "#52c41a",
-  Approved: "#52c41a",
-  Rejected: "#ff4d4f",
-  Implemented: "#722ed1",
-  Closed: "#8c8c8c",
+  Draft: "#faad14", // Amber
+  Submitted: "#1890ff", // Blue
+  "Under Review": "#52c41a", // Green
+  Approved: "#52c41a", // Green
+  Rejected: "#ff4d4f", // Red
+  Implemented: "#722ed1", // Purple
+  Closed: "#8c8c8c", // Gray
 };
 
 /**
@@ -71,39 +61,27 @@ export function BranchSelector({
       options={branches.map((branch) => ({
         value: branch.value,
         label: (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <Space size="small">
-              {branch.isChangeOrderBranch ? (
-                <Badge
-                  color={STATUS_DOT_COLOR[branch.changeOrderStatus || "Draft"]}
-                  text={
-                    <span style={{ fontSize: compact ? 12 : 13 }}>
-                      {branch.label}
-                    </span>
-                  }
-                />
-              ) : (
-                <span style={{ fontSize: compact ? 12 : 13 }}>
-                  {branch.label}
-                </span>
-              )}
-              {branch.isDefault && (
-                <span style={{ color: "#888", marginLeft: 4, fontSize: 11 }}>
-                  (default)
-                </span>
-              )}
-            </Space>
-            {branch.isChangeOrderBranch && branch.changeOrderStatus && (
+          <Space size="small">
+            {branch.isChangeOrderBranch ? (
               <Badge
-                status={STATUS_BADGE_COLOR[branch.changeOrderStatus] as any}
+                color={STATUS_DOT_COLOR[branch.changeOrderStatus || "Draft"]}
                 text={
-                  <span style={{ fontSize: compact ? 11 : 12, color: "#888" }}>
-                    {branch.changeOrderStatus}
+                  <span style={{ fontSize: compact ? 12 : 13 }}>
+                    {branch.label}
                   </span>
                 }
               />
+            ) : (
+              <span style={{ fontSize: compact ? 12 : 13 }}>
+                {branch.label}
+              </span>
             )}
-          </div>
+            {branch.isDefault && (
+              <span style={{ color: "#888", marginLeft: 4, fontSize: 11 }}>
+                (default)
+              </span>
+            )}
+          </Space>
         ),
       }))}
     />

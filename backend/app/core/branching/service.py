@@ -10,6 +10,7 @@ from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import case, func, select
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.commands import (
@@ -19,6 +20,7 @@ from app.core.branching.commands import (
     RevertCommand,
     UpdateCommand,
 )
+from app.core.branching.exceptions import BranchLockedException
 from app.core.versioning.commands import CreateVersionCommand
 from app.core.versioning.enums import BranchMode
 from app.models.protocols import BranchableProtocol
@@ -48,6 +50,110 @@ class BranchableService[TBranchable: BranchableProtocol]:
         snake_name = re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
 
         return f"{snake_name}_id"
+
+    async def _check_branch_lock(
+        self,
+        root_id: UUID,
+        branch: str,
+        entity_id: UUID | None = None,
+    ) -> None:
+        """Check if branch is locked and raise exception if so.
+
+        This method enforces branch locks at the service level, preventing
+        modifications to entities on locked branches. Branches are typically
+        locked during Change Order review/approval to prevent concurrent
+        modifications while the change is being evaluated.
+
+        Args:
+            root_id: Root entity identifier (used to get entity and project_id)
+            branch: Branch name to check
+            entity_id: Optional entity ID for error messaging
+
+        Raises:
+            BranchLockedException: If the branch is locked
+
+        Note:
+            Main branch is never locked, so this check is skipped for branch="main".
+        """
+        # Main branch is never locked
+        if branch == "main":
+            return
+
+        # Get the current entity to extract project_id
+        entity = await self.get_current(root_id, branch)
+        if entity is None:
+            # Entity doesn't exist yet, no lock check needed
+            return
+
+        # Get project_id from entity (all branchable entities have project_id)
+        project_id = getattr(entity, "project_id", None)
+        if project_id is None:
+            # Should not happen for properly configured entities
+            return
+
+        # Check if branch is locked using BranchService
+        from app.services.branch_service import BranchService
+
+        branch_service = BranchService(self.session)
+        try:
+            db_branch = await branch_service.get_by_name_and_project(branch, project_id)
+            if db_branch.locked:
+                entity_type = self.entity_class.__name__
+                raise BranchLockedException(
+                    branch=branch,
+                    entity_type=entity_type,
+                    entity_id=str(entity_id) if entity_id else str(root_id),
+                )
+        except NoResultFound:
+            # Branch doesn't exist in database yet, allow operation
+            # (This can happen during initial branch creation)
+            pass
+
+    async def _check_branch_lock_for_create(
+        self,
+        root_id: UUID,
+        branch: str,
+        data: dict[str, Any],
+    ) -> None:
+        """Check if branch is locked during entity creation.
+
+        Similar to _check_branch_lock but extracts project_id from the
+        data dictionary rather than from an existing entity.
+
+        Args:
+            root_id: Root entity identifier
+            branch: Branch name to check
+            data: Entity data dictionary (must contain project_id)
+
+        Raises:
+            BranchLockedException: If the branch is locked
+        """
+        # Main branch is never locked
+        if branch == "main":
+            return
+
+        # Get project_id from data (all branchable entities require project_id)
+        project_id = data.get("project_id")
+        if project_id is None:
+            # No project_id in data, can't check lock
+            return
+
+        # Check if branch is locked using BranchService
+        from app.services.branch_service import BranchService
+
+        branch_service = BranchService(self.session)
+        try:
+            db_branch = await branch_service.get_by_name_and_project(branch, project_id)
+            if db_branch.locked:
+                entity_type = self.entity_class.__name__
+                raise BranchLockedException(
+                    branch=branch,
+                    entity_type=entity_type,
+                    entity_id=str(root_id),
+                )
+        except NoResultFound:
+            # Branch doesn't exist in database yet, allow operation
+            pass
 
     async def get_by_id(self, entity_id: UUID) -> TBranchable | None:
         """Get specific version by its version ID (primary key)."""
@@ -92,7 +198,14 @@ class BranchableService[TBranchable: BranchableProtocol]:
         branch: str = "main",
         **data: Any,
     ) -> TBranchable:
-        """Create the initial version of an entity (new root)."""
+        """Create the initial version of an entity (new root).
+
+        Raises:
+            BranchLockedException: If the branch is locked
+        """
+        # Check if branch is locked before allowing create
+        await self._check_branch_lock_for_create(root_id, branch, data)
+
         # Ensure root_id field is in data
         class_name = self.entity_class.__name__.lower()
         if class_name.endswith("version"):
@@ -120,6 +233,9 @@ class BranchableService[TBranchable: BranchableProtocol]:
         **updates: Any,
     ) -> TBranchable:
         """Update entity on a specific branch (creates new version)."""
+        # Check if branch is locked before allowing update
+        await self._check_branch_lock(root_id, branch, root_id)
+
         cmd = UpdateCommand(
             entity_class=self.entity_class,
             root_id=root_id,
@@ -207,7 +323,11 @@ class BranchableService[TBranchable: BranchableProtocol]:
 
         Raises:
             ValueError: If no active version found on the specified branch
+            BranchLockedException: If the branch is locked
         """
+        # Check if branch is locked before allowing delete
+        await self._check_branch_lock(root_id, branch, root_id)
+
         cmd = BranchableSoftDeleteCommand(
             entity_class=self.entity_class,
             root_id=root_id,

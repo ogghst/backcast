@@ -31,6 +31,7 @@ class BranchCommandABC(VersionedCommandABC[TBranchable]):
 
         Uses open-ended valid_time check (upper IS NULL) for reliability,
         consistent with VersionedCommandABC._get_current().
+        Excludes empty ranges to avoid selecting invalid versions.
         """
         stmt = (
             select(self.entity_class)
@@ -38,6 +39,7 @@ class BranchCommandABC(VersionedCommandABC[TBranchable]):
                 getattr(self.entity_class, self._root_field_name()) == self.root_id,
                 cast(Any, self.entity_class).branch == branch,
                 func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+                func.not_(func.isempty(self.entity_class.valid_time)),  # Exclude empty ranges
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .order_by(cast(Any, self.entity_class).valid_time.desc())

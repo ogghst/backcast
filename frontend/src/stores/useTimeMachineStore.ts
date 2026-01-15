@@ -136,9 +136,42 @@ export const useTimeMachineStore = create<TimeMachineState>()(
           );
         },
 
-        setCurrentProject: (projectId, projectStartDate) =>
+        setCurrentProject: (projectId, projectStartDate) => {
+          const state = useTimeMachineStore.getState();
+
+          // Only update if actually switching projects
+          if (state.currentProjectId === projectId) {
+            // Still initializing settings if needed (only if they don't exist)
+            if (projectId && !state.projectSettings[projectId]) {
+              set((state) => {
+                state.projectSettings[projectId] = {
+                  ...DEFAULT_PROJECT_SETTINGS,
+                  selectedTime: projectStartDate
+                    ? projectStartDate.toISOString()
+                    : null,
+                };
+              });
+            }
+            return;
+          }
+
+          // Actually switching projects - use set() to update state
           set((state) => {
             state.currentProjectId = projectId;
+
+            // Clear all other project settings to avoid stale data when switching projects
+            // Only keep settings for the current project (if it exists)
+            if (projectId) {
+              const currentSettings = state.projectSettings[projectId];
+              state.projectSettings = {};
+              if (currentSettings) {
+                state.projectSettings[projectId] = currentSettings;
+              }
+            } else {
+              // When projectId is null (leaving project), clear all settings
+              state.projectSettings = {};
+            }
+
             // Initialize settings for new projects
             if (projectId && !state.projectSettings[projectId]) {
               state.projectSettings[projectId] = {
@@ -149,7 +182,8 @@ export const useTimeMachineStore = create<TimeMachineState>()(
                   : null,
               };
             }
-          }),
+          });
+        },
 
         toggleExpanded: () =>
           set((state) => {
@@ -217,6 +251,13 @@ export const useTimeMachineStore = create<TimeMachineState>()(
         clearProjectSettings: (projectId) =>
           set((state) => {
             delete state.projectSettings[projectId];
+          }),
+
+        clearAll: () =>
+          set((state) => {
+            state.currentProjectId = null;
+            state.isExpanded = false;
+            state.projectSettings = {};
           }),
       }),
       {

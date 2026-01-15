@@ -140,7 +140,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         co_data = change_order_in.model_dump(exclude_unset=True)
         co_data.pop("control_date", None)
         code = co_data.get("code")
-        project_id = co_data.get("project_id")
+        project_id = co_data.get("project_id")  # Already a UUID from Pydantic validation
 
         # Generate a UUID for the change_order root
         root_id = uuid4()
@@ -179,6 +179,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         # Commit both CO and branch creation in single transaction
         await self.session.commit()
         await self.session.refresh(change_order)
+        await self.session.refresh(branch)
 
         return change_order
 
@@ -453,9 +454,10 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         if as_of:
             stmt = self._apply_bitemporal_filter(stmt, as_of)
         else:
-            # Get current active versions
+            # Get current active versions (exclude empty ranges)
             stmt = stmt.where(
                 func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
+                func.not_(func.isempty(ChangeOrder.valid_time)),  # Exclude empty ranges
                 cast(Any, ChangeOrder).deleted_at.is_(None),
             )
 

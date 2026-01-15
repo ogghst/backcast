@@ -1,6 +1,6 @@
 # Coding Standards
 
-**Last Updated:** 2026-01-08  
+**Last Updated:** 2026-01-15  
 **Scope:** Backend (Python/FastAPI), Frontend (TypeScript/React), Common Patterns
 
 This document consolidates coding principles for a robust, reliable, and maintainable codebase. It builds on established patterns from [ADR-004](decisions/ADR-004-quality-standards.md) and [Frontend Quality Standards](frontend/contexts/04-quality-testing.md).
@@ -882,9 +882,76 @@ tsc-files --noEmit  # Type check staged files only
 
 ---
 
-## 8. Common Pitfalls
+## 8. Navigation Patterns
 
-### 8.1 Backend
+### 8.1 Entity Detail Page Navigation
+
+For entities with multiple related views (e.g., Project → Overview, Change Orders, Settings), use URL-driven tab navigation.
+
+**When to Use:**
+
+- Entity detail pages with multiple related views
+- When views need shareable URLs
+- When browser navigation support is required
+
+**Implementation Pattern:**
+
+1. **Create a Layout Wrapper** (e.g., `ProjectLayout`)
+
+   - Renders `PageNavigation` component with configured items
+   - Provides `<Outlet />` for nested route content
+
+2. **Use Nested Routes**
+
+   ```tsx
+   {
+     path: "/projects/:projectId",
+     element: <ProjectLayout />,
+     children: [
+       { index: true, element: <ProjectOverview /> },
+       { path: "change-orders", element: <ProjectChangeOrdersPage /> },
+     ],
+   }
+   ```
+
+3. **Configure Navigation Items**
+   - Each item has: key, label, path (from current URL params)
+   - Active state determined by URL pathname
+
+**Example Layout Component:**
+
+```tsx
+export const ProjectLayout: React.FC = () => {
+  const { projectId } = useParams<{ projectId: string }>();
+  const items = [
+    { key: "overview", label: "Overview", path: `/projects/${projectId}` },
+    { key: "change-orders", label: "Change Orders", path: `/projects/${projectId}/change-orders` },
+  ];
+
+  return (
+    <>
+      <PageNavigation items={items} />
+      <Outlet />
+    </>
+  );
+};
+```
+
+**Benefits:**
+
+- Shareable URLs (e.g., `/projects/123/change-orders`)
+- Browser back/forward button support
+- Clear navigation hierarchy
+- SEO-friendly (each view has unique URL)
+- Clean state management (URL as single source of truth)
+
+**See Also:** [Navigation Patterns Guide](../../05-user-guide/navigation-patterns.md)
+
+---
+
+## 9. Common Pitfalls
+
+### 9.1 Backend
 
 ❌ **Returning ORM rows instead of domain objects**
 
@@ -908,7 +975,7 @@ return [ProjectPublic.model_validate(p) for p in projects]
 
 See: `backend/app/core/versioning/service.py` (`_get_root_field_name`)
 
-### 8.2 Frontend
+### 9.2 Frontend
 
 ❌ **Testing implementation details**
 
@@ -946,7 +1013,7 @@ const { data: projects } = useProjects.useList();
 
 ---
 
-## 9. References
+## 10. References
 
 - [ADR-004: Quality Standards](decisions/ADR-004-quality-standards.md)
 - [Frontend Quality & Testing](frontend/contexts/04-quality-testing.md)

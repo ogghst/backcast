@@ -76,9 +76,9 @@ export function TimeMachineExpanded({
   // Default date range if not provided
   // eslint-disable-next-line
   const now = React.useRef(Date.now()).current;
-  // Default date range if not provided
-  const minDate =
-    timelineData?.startDate || new Date(now - 365 * 24 * 60 * 60 * 1000);
+  // Use timeline start date if provided, otherwise default to current time
+  // (no historical viewing possible if project has no valid_time or start_date)
+  const minDate = timelineData?.startDate || new Date(now);
   const maxDate = timelineData?.endDate || new Date(now);
 
   // Handle time selection with query invalidation

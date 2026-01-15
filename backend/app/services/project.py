@@ -285,6 +285,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
 
         from sqlalchemy import func
 
+        from app.models.domain.branch import Branch
         from app.models.domain.change_order import ChangeOrder
         from app.models.schemas.branch import BranchPublic
 
@@ -297,34 +298,63 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
             )
         ]
 
-        # Get all change orders for this project to derive branches
-        # We look for the CO definition on the 'main' branch
+        # Get all branches for this project from the branches table
         stmt = (
-            select(ChangeOrder)
+            select(Branch)
             .where(
-                ChangeOrder.project_id == project_id,
-                ChangeOrder.branch == "main",
-                func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
-                cast(Any, ChangeOrder).deleted_at.is_(None),
+                Branch.project_id == project_id,
+                Branch.deleted_at.is_(None),
             )
-            .order_by(ChangeOrder.code.desc())
+            .order_by(Branch.created_at.desc())
         )
 
         result = await self.session.execute(stmt)
-        change_orders = result.scalars().all()
+        branch_entities = result.scalars().all()
 
-        for co in change_orders:
-            # Branch name convention: co-{code}
-            branch_name = f"co-{co.code}"
+        for branch_entity in branch_entities:
+            # Skip main branch as it's already added
+            if branch_entity.name == "main":
+                continue
+
+            # For change order branches, fetch the current status from ChangeOrder
+            change_order_status = None
+            change_order_code = None
+            change_order_id = None
+
+            if branch_entity.type == "change_order":
+                # Extract code from branch name (e.g., "co-CO-2026-001" -> "CO-2026-001")
+                code = branch_entity.name.replace("co-", "", 1)
+
+                # Get the current change order on main branch to get its status
+                co_stmt = (
+                    select(ChangeOrder)
+                    .where(
+                        ChangeOrder.project_id == project_id,
+                        ChangeOrder.code == code,
+                        ChangeOrder.branch == "main",
+                        func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
+                        func.not_(func.isempty(ChangeOrder.valid_time)),  # Exclude empty ranges
+                        cast(Any, ChangeOrder).deleted_at.is_(None),
+                    )
+                    .order_by(cast(Any, ChangeOrder).valid_time.desc())
+                    .limit(1)
+                )
+                co_result = await self.session.execute(co_stmt)
+                co = co_result.scalar_one_or_none()
+
+                if co:
+                    change_order_status = co.status
+                    change_order_code = co.code
+                    change_order_id = co.change_order_id
 
             branches.append(
                 BranchPublic(
-                    name=branch_name,
-                    type="change_order",
+                    name=branch_entity.name,
+                    type=branch_entity.type,
                     is_default=False,
-                    change_order_id=co.change_order_id,
-                    change_order_code=co.code,
-                    change_order_status=co.status
+                    change_order_id=change_order_id,
+                    change_order_code=change_order_code,
+                    change_order_status=change_order_status
                 )
             )
 

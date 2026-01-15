@@ -100,8 +100,8 @@ export const useCreateChangeOrder = (
       queryClient.invalidateQueries({
         queryKey: ["change-orders", { projectId: data.project_id }],
       });
-      // Invalidate branches query for this project to show the new CO branch
-      queryClient.invalidateQueries({
+      // Refetch branches query for this project to show the new CO branch immediately
+      queryClient.refetchQueries({
         queryKey: ["projects", data.project_id, "branches"],
       });
       toast.success(`Change Order ${data.code} created with branch co-${data.code}`);
@@ -143,10 +143,14 @@ export const useUpdateChangeOrder = (
       }
       return ChangeOrdersService.updateChangeOrder(id, payload as ChangeOrderUpdate);
     },
-    onSuccess: (...args) => {
+    onSuccess: (data, ...args) => {
       queryClient.invalidateQueries({ queryKey: ["change-orders"] });
+      // Invalidate branches query to update branch selector with new status
+      queryClient.invalidateQueries({
+        queryKey: ["projects", data.project_id, "branches"],
+      });
       toast.success("Updated successfully");
-      mutationOptions?.onSuccess?.(...args);
+      mutationOptions?.onSuccess?.(data, ...args);
     },
     onError: (error, ...args) => {
       toast.error(`Error updating: ${error.message}`);
@@ -182,6 +186,17 @@ export const useDeleteChangeOrder = (
     },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: ["change-orders"] });
+      // Invalidate all branch queries to remove deleted change order branch
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          // Match queries like ["projects", projectId, "branches"]
+          return (
+            Array.isArray(query.queryKey) &&
+            query.queryKey[0] === "projects" &&
+            query.queryKey[2] === "branches"
+          );
+        },
+      });
       toast.success("Deleted successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -299,8 +314,10 @@ export const useMergeChangeOrder = (
     onSuccess: (data, ...args) => {
       // Invalidate change orders queries
       queryClient.invalidateQueries({ queryKey: ["change-orders"] });
-      // Invalidate branches queries
-      queryClient.invalidateQueries({ queryKey: ["branches"] });
+      // Invalidate branches query for this project to update branch selector with new status
+      queryClient.invalidateQueries({
+        queryKey: ["projects", data.project_id, "branches"],
+      });
       queryClient.invalidateQueries({ queryKey: ["projects"] });
 
       const targetBranch = args[0]?.mergeRequest?.target_branch || "main";

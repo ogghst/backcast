@@ -51,7 +51,21 @@ axios.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // 2. Handle Generic Errors (Toaster)
+    // 2. Handle 403 Forbidden (Branch Locked)
+    if (error.response?.status === 403) {
+      // Use the detailed error message from backend
+      const detail = error.response.data?.detail;
+      if (detail) {
+        // The backend provides a detailed message with context
+        toast.error(detail, { duration: 6000 });
+      } else {
+        // Fallback to generic message
+        toast.error("Operation not permitted", { description: "You do not have permission to perform this action." });
+      }
+      return Promise.reject(error);
+    }
+
+    // 3. Handle Generic Errors (Toaster)
     const message = getErrorMessage(error);
     toast.error(message);
 

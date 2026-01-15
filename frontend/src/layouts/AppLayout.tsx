@@ -17,6 +17,7 @@ import {
 } from "@/components/time-machine";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { useProject, useProjectBranches } from "@/features/projects/api/useProjects";
+import { parseRangeLowerBound } from "@/utils/temporal";
 
 import { usePermission } from "@/hooks/usePermission";
 
@@ -46,7 +47,7 @@ const AppLayout: React.FC = () => {
   const { data: project } = useProject(projectId);
 
   // Fetch branches for the project (main + change order branches)
-  const { data: branches = ["main"] } = useProjectBranches(projectId);
+  const { data: branches = [] } = useProjectBranches(projectId);
 
   // Time machine expanded state
   const isTimeMachineExpanded = useTimeMachineStore((s) => s.isExpanded);
@@ -189,13 +190,10 @@ const AppLayout: React.FC = () => {
             projectId={projectId}
             projectName={project?.name}
             timelineData={{
-              startDate: project?.created_at
-                ? new Date(project.created_at)
-                : project?.start_date
-                  ? new Date(project.start_date)
-                  : null,
+              startDate: parseRangeLowerBound(project?.valid_time ?? null)
+                ?? (project?.start_date ? new Date(project.start_date) : null),
               endDate: project?.end_date ? new Date(project.end_date) : null,
-              branches: branches,
+              branches: branches.map(b => b.name),
               events: [], // TODO: Fetch branch events from API
             }}
           />

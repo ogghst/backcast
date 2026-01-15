@@ -7,6 +7,9 @@ import { UserList } from "@/pages/admin/UserList";
 import { DepartmentManagement } from "@/pages/admin/DepartmentManagement";
 import { CostElementTypeManagement } from "@/pages/admin/CostElementTypeManagement";
 import { ProjectList } from "@/pages/projects/ProjectList";
+import { ProjectLayout } from "@/pages/projects/ProjectLayout";
+import { ProjectOverview } from "@/pages/projects/ProjectOverview";
+import { ProjectChangeOrdersPage } from "@/pages/projects/ProjectChangeOrdersPage";
 import { ProjectDetailPage } from "@/pages/projects/ProjectDetailPage";
 import { WBEList } from "@/pages/wbes/WBEList";
 import { WBEDetailPage } from "@/pages/wbes/WBEDetailPage";
@@ -66,7 +69,17 @@ export const router = createBrowserRouter([
 
       {
         path: "/projects/:projectId",
-        element: <ProjectDetailPage />,
+        element: <ProjectLayout />,
+        children: [
+          {
+            index: true,
+            element: <ProjectOverview />,
+          },
+          {
+            path: "change-orders",
+            element: <ProjectChangeOrdersPage />,
+          },
+        ],
       },
       {
         path: "/projects/:projectId/change-orders/:changeOrderId/impact",

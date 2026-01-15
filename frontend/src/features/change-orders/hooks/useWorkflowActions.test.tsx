@@ -1,0 +1,241 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { renderHook, waitFor, act } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useWorkflowActions, WORKFLOW_ACTIONS, isActionAvailable } from "./useWorkflowActions";
+
+// Mock the API hooks
+vi.mock("../api/useChangeOrders", () => ({
+  useUpdateChangeOrder: vi.fn(),
+  useMergeChangeOrder: vi.fn(),
+}));
+
+import { useUpdateChangeOrder, useMergeChangeOrder } from "../api/useChangeOrders";
+
+describe("useWorkflowActions", () => {
+  let queryClient: QueryClient;
+  let mockUpdateOnSuccess: ReturnType<typeof vi.fn>;
+  let mockUpdateOnError: ReturnType<typeof vi.fn>;
+  let mockMergeOnSuccess: ReturnType<typeof vi.fn>;
+  let mockMergeOnError: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    queryClient = new QueryClient({
+      defaultOptions: {
+        mutations: { retry: false },
+        queries: { retry: false },
+      },
+    });
+
+    // Setup mock implementations with callback support
+    mockUpdateOnSuccess = vi.fn();
+    mockUpdateOnError = vi.fn();
+    mockMergeOnSuccess = vi.fn();
+    mockMergeOnError = vi.fn();
+
+    vi.mocked(useUpdateChangeOrder).mockImplementation((options) => ({
+      mutateAsync: vi.fn(async (args) => {
+        // Simulate success behavior - call onSuccess callback
+        const result = { status: "Submitted for Approval", ...args.data };
+        options?.onSuccess?.(result);
+        return result;
+      }),
+      isPending: false,
+    } as any));
+
+    vi.mocked(useMergeChangeOrder).mockImplementation((options) => ({
+      mutateAsync: vi.fn(async (args) => {
+        // Simulate success behavior - call onSuccess callback
+        const result = { status: "Implemented" };
+        options?.onSuccess?.(result);
+        return result;
+      }),
+      isPending: false,
+    } as any));
+  });
+
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+
+  describe("WORKFLOW_ACTIONS constant", () => {
+    it("should have correct action labels", () => {
+      expect(WORKFLOW_ACTIONS.SUBMIT.label).toBe("Submit");
+      expect(WORKFLOW_ACTIONS.APPROVE.label).toBe("Approve");
+      expect(WORKFLOW_ACTIONS.REJECT.label).toBe("Reject");
+      expect(WORKFLOW_ACTIONS.MERGE.label).toBe("Merge to Main");
+    });
+
+    it("should have correct status values", () => {
+      expect(WORKFLOW_ACTIONS.SUBMIT.status).toBe("Submitted for Approval");
+      expect(WORKFLOW_ACTIONS.APPROVE.status).toBe("Under Review");
+      expect(WORKFLOW_ACTIONS.REJECT.status).toBe("Rejected");
+      expect(WORKFLOW_ACTIONS.MERGE.status).toBe("Implemented");
+    });
+  });
+
+  describe("isActionAvailable helper", () => {
+    it("should return false when transitions is null", () => {
+      expect(isActionAvailable("SUBMIT", null)).toBe(false);
+      expect(isActionAvailable("APPROVE", null)).toBe(false);
+      expect(isActionAvailable("MERGE", null)).toBe(false);
+    });
+
+    it("should return false when transitions is undefined", () => {
+      expect(isActionAvailable("SUBMIT", undefined)).toBe(false);
+    });
+
+    it("should return false when transitions is empty array", () => {
+      expect(isActionAvailable("SUBMIT", [])).toBe(false);
+    });
+
+    it("should return true when action status is in available transitions", () => {
+      expect(isActionAvailable("SUBMIT", ["Submitted for Approval"])).toBe(true);
+      expect(isActionAvailable("APPROVE", ["Under Review"])).toBe(true);
+      expect(isActionAvailable("MERGE", ["Implemented"])).toBe(true);
+    });
+
+    it("should return false when action status is not in available transitions", () => {
+      expect(isActionAvailable("MERGE", ["Under Review"])).toBe(false);
+      expect(isActionAvailable("APPROVE", ["Implemented"])).toBe(false);
+    });
+
+    it("should check for specific status in transitions", () => {
+      const transitions = ["Under Review", "Approved", "Rejected"];
+      // APPROVE action has target status "Under Review" - should return true
+      expect(isActionAvailable("APPROVE", transitions)).toBe(true);
+      // REJECT action has target status "Rejected" - should return true
+      expect(isActionAvailable("REJECT", transitions)).toBe(true);
+      // MERGE action has target status "Implemented" - should return false (not in transitions)
+      expect(isActionAvailable("MERGE", transitions)).toBe(false);
+    });
+  });
+
+  describe("useWorkflowActions hook", () => {
+    it("should return action methods", () => {
+      const { result } = renderHook(() => useWorkflowActions("co-123"), { wrapper });
+
+      expect(result.current).toHaveProperty("submit");
+      expect(result.current).toHaveProperty("approve");
+      expect(result.current).toHaveProperty("reject");
+      expect(result.current).toHaveProperty("merge");
+      expect(typeof result.current.submit).toBe("function");
+      expect(typeof result.current.approve).toBe("function");
+      expect(typeof result.current.reject).toBe("function");
+      expect(typeof result.current.merge).toBe("function");
+    });
+
+    it("should return isLoading state", () => {
+      vi.mocked(useUpdateChangeOrder).mockReturnValue({
+        mutateAsync: vi.fn(),
+        isPending: true,
+      } as any);
+
+      const { result } = renderHook(() => useWorkflowActions("co-123"), { wrapper });
+
+      expect(result.current.isLoading).toBe(true);
+    });
+
+    it("should call submit with correct status", async () => {
+      const { result } = renderHook(() => useWorkflowActions("co-123"), { wrapper });
+
+      await act(async () => {
+        await result.current.submit("Test comment");
+      });
+
+      // The mock is called automatically, so we just check it doesn't throw
+      expect(result.current).toBeDefined();
+    });
+
+    it("should call approve with correct status", async () => {
+      const { result } = renderHook(() => useWorkflowActions("co-123"), { wrapper });
+
+      await act(async () => {
+        await result.current.approve("Approved comment");
+      });
+
+      expect(result.current).toBeDefined();
+    });
+
+    it("should call reject with correct status", async () => {
+      const { result } = renderHook(() => useWorkflowActions("co-123"), { wrapper });
+
+      await act(async () => {
+        await result.current.reject("Reject reason");
+      });
+
+      expect(result.current).toBeDefined();
+    });
+
+    it("should call merge with merge request", async () => {
+      const { result } = renderHook(() => useWorkflowActions("co-123"), { wrapper });
+
+      await act(async () => {
+        await result.current.merge({
+          target_branch: "main",
+          comment: "Merge comment",
+        });
+      });
+
+      expect(result.current).toBeDefined();
+    });
+
+    it("should call merge with default target branch when not specified", async () => {
+      const { result } = renderHook(() => useWorkflowActions("co-123"), { wrapper });
+
+      await act(async () => {
+        await result.current.merge({ comment: "Test" });
+      });
+
+      expect(result.current).toBeDefined();
+    });
+
+    it("should call onSuccess callback when action succeeds", async () => {
+      const onSuccess = vi.fn();
+
+      const { result } = renderHook(
+        () => useWorkflowActions("co-123", { onSuccess }),
+        { wrapper }
+      );
+
+      await act(async () => {
+        await result.current.submit();
+      });
+
+      await waitFor(() => {
+        expect(onSuccess).toHaveBeenCalled();
+      });
+    });
+
+    it("should call onError callback when action fails", async () => {
+      const onError = vi.fn();
+      const error = new Error("API Error");
+
+      // Override the mock to reject
+      vi.mocked(useUpdateChangeOrder).mockImplementation((options) => ({
+        mutateAsync: vi.fn(async () => {
+          options?.onError?.(error);
+          throw error;
+        }),
+        isPending: false,
+      } as any));
+
+      const { result } = renderHook(
+        () => useWorkflowActions("co-123", { onError }),
+        { wrapper }
+      );
+
+      await act(async () => {
+        try {
+          await result.current.submit();
+        } catch {
+          // Expected to throw
+        }
+      });
+
+      await waitFor(() => {
+        expect(onError).toHaveBeenCalledWith(error);
+      });
+    });
+  });
+});

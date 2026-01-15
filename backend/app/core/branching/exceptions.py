@@ -1,9 +1,57 @@
 """Exceptions for branching operations.
 
-Defines exceptions raised during branch operations like merge conflicts.
+Defines exceptions raised during branch operations like merge conflicts
+and branch lock violations.
 """
 
 from typing import Any
+
+
+class BranchLockedException(Exception):
+    """Raised when attempting to modify an entity on a locked branch.
+
+    This exception is raised when attempting to create, update, or delete
+    a branchable entity on a branch that is currently locked. Branches are
+    typically locked during Change Order review/approval to prevent
+    modifications while the change is being evaluated.
+
+    Attributes:
+        branch: Name of the locked branch.
+        entity_type: Type of entity being modified (e.g., "WBE", "CostElement").
+        entity_id: ID of the entity being modified.
+    """
+
+    def __init__(
+        self,
+        branch: str,
+        entity_type: str = "entity",
+        entity_id: str | None = None,
+    ) -> None:
+        """Initialize branch locked exception.
+
+        Args:
+            branch: Name of the locked branch.
+            entity_type: Type of entity being modified.
+            entity_id: Optional ID of the entity being modified.
+        """
+        self.branch = branch
+        self.entity_type = entity_type
+        self.entity_id = entity_id
+
+        if entity_id:
+            message = (
+                f"Cannot modify {entity_type} {entity_id}: "
+                f"Branch '{branch}' is locked. "
+                f"No modifications are allowed while a Change Order is under review."
+            )
+        else:
+            message = (
+                f"Cannot modify {entity_type}: "
+                f"Branch '{branch}' is locked. "
+                f"No modifications are allowed while a Change Order is under review."
+            )
+
+        super().__init__(message)
 
 
 class MergeConflictError(Exception):

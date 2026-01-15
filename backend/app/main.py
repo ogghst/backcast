@@ -21,6 +21,7 @@ from app.api.routes import (
     users,
     wbes,
 )
+from app.core.branching.exceptions import BranchLockedException
 from app.core.config import settings
 from app.core.exceptions.filtering import FilterError
 from app.core.logging import setup_logging
@@ -67,6 +68,20 @@ async def filter_exception_handler(request: Request, exc: FilterError) -> JSONRe
     return JSONResponse(
         status_code=400,
         content={"detail": str(exc)},
+    )
+
+
+@app.exception_handler(BranchLockedException)
+async def branch_locked_exception_handler(request: Request, exc: BranchLockedException) -> JSONResponse:
+    """Handle branch locked exceptions by returning 403 Forbidden."""
+    return JSONResponse(
+        status_code=403,
+        content={
+            "detail": str(exc),
+            "branch": exc.branch,
+            "entity_type": exc.entity_type,
+            "entity_id": exc.entity_id,
+        },
     )
 
 

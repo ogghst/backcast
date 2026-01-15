@@ -619,6 +619,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
                 func.upper(cast(Any, Project).valid_time).is_(None),
                 cast(Any, Project).deleted_at.is_(None),
             )
+            .order_by(cast(Any, Project).valid_time.desc())
             .limit(1)
         )
         project_result = await self.session.execute(project_stmt)

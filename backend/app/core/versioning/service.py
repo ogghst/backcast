@@ -100,6 +100,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
                 getattr(self.entity_class, root_field) == root_id,
                 self.entity_class.branch == branch,  # type: ignore[attr-defined]
                 func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+                func.not_(func.isempty(self.entity_class.valid_time)),  # Exclude empty ranges
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .order_by(cast(Any, self.entity_class).valid_time.desc())
@@ -112,6 +113,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
         """Get all entities (current versions) with pagination.
 
         Filters by upper(valid_time) IS NULL (open-ended) and deleted_at IS NULL.
+        Excludes empty ranges to avoid selecting invalid versions.
         """
         from typing import Any, cast
 
@@ -124,6 +126,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
                 # The @> operator can match recently-closed versions if query runs
                 # at the exact same microsecond as the close operation
                 func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+                func.not_(func.isempty(self.entity_class.valid_time)),  # Exclude empty ranges
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .offset(skip)

@@ -249,7 +249,7 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
         return new_version
 
     async def _get_current(self, session: AsyncSession) -> TVersionable | None:
-        """Get current active version (HEAD)."""
+        """Get current active version (HEAD). Excludes empty ranges."""
         stmt = (
             select(self.entity_class)
             .where(
@@ -259,6 +259,7 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
                 )
                 == self.root_id,
                 func.upper(cast(Any, self.entity_class).valid_time).is_(None),  # Use open-ended check
+                func.not_(func.isempty(self.entity_class.valid_time)),  # Exclude empty ranges
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .order_by(cast(Any, self.entity_class).valid_time.desc())
@@ -294,7 +295,7 @@ class SoftDeleteCommand(VersionedCommandABC[TVersionable]):
         return current
 
     async def _get_current(self, session: AsyncSession) -> TVersionable | None:
-        """Get current active version."""
+        """Get current active version. Excludes empty ranges."""
         # Use more robust check for current version (open-ended valid_time)
         # Consistent with TemporalService.get_all
         stmt = (
@@ -306,6 +307,7 @@ class SoftDeleteCommand(VersionedCommandABC[TVersionable]):
                 )
                 == self.root_id,
                 func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+                func.not_(func.isempty(self.entity_class.valid_time)),  # Exclude empty ranges
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .order_by(cast(Any, self.entity_class).valid_time.desc())

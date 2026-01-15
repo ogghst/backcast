@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { getCurrentUser, loginUser } from "@/api/auth";
 import type { UserLogin, UserPublic } from "@/types/auth";
 
@@ -43,6 +44,12 @@ export const useAuth = () => {
   const loginMutation = useMutation({
     mutationFn: loginUser,
     onSuccess: (data) => {
+      // Clear all cached queries to ensure fresh data after login
+      queryClient.clear();
+
+      // Reset Time Machine store: clear ALL state including current project and time travel settings
+      useTimeMachineStore.getState().clearAll();
+
       // Store token in Zustand store
       setToken(data.access_token);
       // Invalidate and refetch user data
@@ -54,6 +61,8 @@ export const useAuth = () => {
   const logout = () => {
     clearToken();
     queryClient.clear(); // Clear all cached data
+    // Clear Time Machine store settings
+    useTimeMachineStore.getState().clearAll();
   };
 
   // Login wrapper function

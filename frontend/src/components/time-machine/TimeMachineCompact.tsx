@@ -47,11 +47,13 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
   const { data: project } = useProject(projectId);
 
   // Ensure store knows about current project and initialize with start date
+  // Note: We pass null for projectStartDate to initialize at "now" instead of project start date
+  // This avoids issues where the project doesn't exist at its own start date in the bitemporal system
   React.useEffect(() => {
-    const startDate = project?.start_date ? new Date(project.start_date) : null;
-    setCurrentProject(projectId, startDate);
+    // Pass null to initialize at "now" instead of project's start_date
+    setCurrentProject(projectId, null);
     return () => setCurrentProject(null);
-  }, [projectId, project?.start_date, setCurrentProject]);
+  }, [projectId]); // Only depend on projectId, NOT on setCurrentProject (prevents infinite loop)
 
   const selectedTime = getSelectedTime();
 
