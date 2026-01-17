@@ -100,7 +100,9 @@ class TemporalService[TVersionable: VersionableProtocol]:
                 getattr(self.entity_class, root_field) == root_id,
                 self.entity_class.branch == branch,  # type: ignore[attr-defined]
                 func.upper(cast(Any, self.entity_class).valid_time).is_(None),
-                func.not_(func.isempty(self.entity_class.valid_time)),  # Exclude empty ranges
+                func.not_(
+                    func.isempty(self.entity_class.valid_time)
+                ),  # Exclude empty ranges
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .order_by(cast(Any, self.entity_class).valid_time.desc())
@@ -126,7 +128,9 @@ class TemporalService[TVersionable: VersionableProtocol]:
                 # The @> operator can match recently-closed versions if query runs
                 # at the exact same microsecond as the close operation
                 func.upper(cast(Any, self.entity_class).valid_time).is_(None),
-                func.not_(func.isempty(self.entity_class.valid_time)),  # Exclude empty ranges
+                func.not_(
+                    func.isempty(self.entity_class.valid_time)
+                ),  # Exclude empty ranges
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .offset(skip)
@@ -168,7 +172,6 @@ class TemporalService[TVersionable: VersionableProtocol]:
         as infinity, matching ANY timestamp. We must also verify as_of >= lower bound.
         """
 
-
         from app.core.versioning.enums import BranchMode
 
         # Default to STRICT mode if not specified
@@ -199,13 +202,15 @@ class TemporalService[TVersionable: VersionableProtocol]:
         """Internal: Get entity from specific branch at timestamp."""
         from typing import Any, cast
 
-
         root_field = self._get_root_field_name()
 
         stmt = select(self.entity_class).where(
             getattr(self.entity_class, root_field) == entity_id,
-            cast(Any, self.entity_class).branch == branch,
         )
+
+        # Only filter by branch if the entity has a branch attribute
+        if hasattr(self.entity_class, "branch"):
+            stmt = stmt.where(cast(Any, self.entity_class).branch == branch)
 
         # Apply bitemporal filtering for time-travel queries
         # Use System Time Travel semantics to find historical versions
@@ -237,7 +242,6 @@ class TemporalService[TVersionable: VersionableProtocol]:
             cast(Any, self.entity_class).valid_time.op("@>")(as_of),
             # CRITICAL: Also check as_of >= lower bound (entity existed)
             func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
-
             # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
             or_(
                 cast(Any, self.entity_class).deleted_at.is_(None),
@@ -337,7 +341,9 @@ class TemporalService[TVersionable: VersionableProtocol]:
             # STRICT MODE: Only query the specified branch (current behavior)
             return stmt.where(cast(Any, self.entity_class).branch == branch)
 
-    def _apply_bitemporal_filter_for_time_travel(self, stmt: Any, as_of: datetime) -> Any:
+    def _apply_bitemporal_filter_for_time_travel(
+        self, stmt: Any, as_of: datetime
+    ) -> Any:
         """Apply bitemporal filter for single-entity time-travel queries.
 
         Uses System Time Travel semantics:
@@ -357,14 +363,12 @@ class TemporalService[TVersionable: VersionableProtocol]:
             cast(Any, self.entity_class).valid_time.op("@>")(as_of),
             # CRITICAL: Also check as_of >= lower bound (entity existed)
             func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
-
             # TRANSACTION TIME: System Time Travel semantics for time-travel queries.
             # Check that as_of is within the transaction_time range, not just open-ended.
             # This allows querying historical versions that have been superseded.
             cast(Any, self.entity_class).transaction_time.op("@>")(as_of),
             # CRITICAL: Also check as_of >= lower bound (version existed)
             func.lower(cast(Any, self.entity_class).transaction_time) <= as_of,
-
             # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
             or_(
                 cast(Any, self.entity_class).deleted_at.is_(None),
@@ -378,23 +382,19 @@ class TemporalService[TVersionable: VersionableProtocol]:
         """Check if entity was explicitly deleted on branch at timestamp."""
         from typing import Any, cast
 
-        from sqlalchemy import func
-
         root_field = self._get_root_field_name()
 
-        stmt = (
-            select(self.entity_class)
-            .where(
-                getattr(self.entity_class, root_field) == entity_id,
-                cast(Any, self.entity_class).branch == branch,
-                cast(Any, self.entity_class).valid_time.op("@>")(as_of),
-                func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
-                cast(Any, self.entity_class).transaction_time.op("@>")(as_of),
-                func.lower(cast(Any, self.entity_class).transaction_time) <= as_of,
-                cast(Any, self.entity_class).deleted_at.is_not(None),  # IS deleted
-            )
-            .limit(1)
+        # Check for any deleted version on this branch
+        stmt = select(self.entity_class).where(
+            getattr(self.entity_class, root_field) == entity_id,
+            cast(Any, self.entity_class).deleted_at.is_not(None),  # IS deleted
         )
+
+        # Only filter by branch if the entity has a branch attribute
+        if hasattr(self.entity_class, "branch"):
+            stmt = stmt.where(cast(Any, self.entity_class).branch == branch)
+
+        stmt = stmt.limit(1)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none() is not None
 
@@ -403,7 +403,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
         actor_id: UUID,
         root_id: UUID | None = None,
         control_date: datetime | None = None,
-        **fields: Any
+        **fields: Any,
     ) -> TVersionable:
         """Create new versioned entity."""
         from uuid import uuid4
@@ -432,7 +432,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
             root_id=root_id,
             actor_id=actor_id,
             control_date=control_date,
-            **fields
+            **fields,
         )
         return await cmd.execute(self.session)
 
@@ -441,7 +441,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
         entity_id: UUID,
         actor_id: UUID,
         control_date: datetime | None = None,
-        **updates: Any
+        **updates: Any,
     ) -> TVersionable:
         """Update entity (creates new version)."""
         from app.core.versioning.commands import UpdateVersionCommand
@@ -456,10 +456,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
         return await cmd.execute(self.session)
 
     async def soft_delete(
-        self,
-        entity_id: UUID,
-        actor_id: UUID,
-        control_date: datetime | None = None
+        self, entity_id: UUID, actor_id: UUID, control_date: datetime | None = None
     ) -> None:
         """Soft delete entity."""
         from app.core.versioning.commands import SoftDeleteCommand

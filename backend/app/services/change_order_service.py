@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class ChangeOrderService(BranchableService[ChangeOrder]):
+class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-var]
     """Service for Change Order entity operations.
 
     Extends BranchableService with Change Order specific methods.
@@ -140,7 +140,9 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         co_data = change_order_in.model_dump(exclude_unset=True)
         co_data.pop("control_date", None)
         code = co_data.get("code")
-        project_id = co_data.get("project_id")  # Already a UUID from Pydantic validation
+        project_id = co_data.get(
+            "project_id"
+        )  # Already a UUID from Pydantic validation
 
         # Generate a UUID for the change_order root
         root_id = uuid4()
@@ -221,14 +223,17 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
 
         # First try to find the CO on any branch
         # Use control_date if provided (Time Machine), otherwise use clock_timestamp()
-        stmt = sql_select(ChangeOrder).where(
-            ChangeOrder.change_order_id == change_order_id,
-            # Check if query_timestamp is within valid_time range
-            cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp),
-            cast(Any, ChangeOrder).deleted_at.is_(None),
-        ).order_by(
-            cast(Any, ChangeOrder).valid_time.desc()
-        ).limit(1)
+        stmt = (
+            sql_select(ChangeOrder)
+            .where(
+                ChangeOrder.change_order_id == change_order_id,
+                # Check if query_timestamp is within valid_time range
+                cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp),
+                cast(Any, ChangeOrder).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, ChangeOrder).valid_time.desc())
+            .limit(1)
+        )
 
         result = await self.session.execute(stmt)
         current = result.scalar_one_or_none()
@@ -241,7 +246,9 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         # Filter None values from update data
         update_data = change_order_in.model_dump(exclude_unset=True)
         update_data.pop("control_date", None)
-        update_data.pop("branch", None)  # Remove branch from update data, we use it separately
+        update_data.pop(
+            "branch", None
+        )  # Remove branch from update data, we use it separately
 
         # Extract comment for audit log (not stored in ChangeOrder model)
         comment = update_data.pop("comment", None)
@@ -250,14 +257,17 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         target_branch = branch if branch is not None else current.branch
 
         # Check if version exists on target branch
-        stmt_target = sql_select(ChangeOrder).where(
-            ChangeOrder.change_order_id == change_order_id,
-            ChangeOrder.branch == target_branch,
-            cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp),
-            cast(Any, ChangeOrder).deleted_at.is_(None),
-        ).order_by(
-            cast(Any, ChangeOrder).valid_time.desc()
-        ).limit(1)
+        stmt_target = (
+            sql_select(ChangeOrder)
+            .where(
+                ChangeOrder.change_order_id == change_order_id,
+                ChangeOrder.branch == target_branch,
+                cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp),
+                cast(Any, ChangeOrder).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, ChangeOrder).valid_time.desc())
+            .limit(1)
+        )
 
         result_target = await self.session.execute(stmt_target)
         target_current = result_target.scalar_one_or_none()
@@ -268,14 +278,17 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         # If no version on target branch and target is not main, auto-fork from main
         if target_current is None and target_branch != "main":
             # Try to fork from main
-            stmt_main = sql_select(ChangeOrder).where(
-                ChangeOrder.change_order_id == change_order_id,
-                ChangeOrder.branch == "main",
-                cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp),
-                cast(Any, ChangeOrder).deleted_at.is_(None),
-            ).order_by(
-                cast(Any, ChangeOrder).valid_time.desc()
-            ).limit(1)
+            stmt_main = (
+                sql_select(ChangeOrder)
+                .where(
+                    ChangeOrder.change_order_id == change_order_id,
+                    ChangeOrder.branch == "main",
+                    cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp),
+                    cast(Any, ChangeOrder).deleted_at.is_(None),
+                )
+                .order_by(cast(Any, ChangeOrder).valid_time.desc())
+                .limit(1)
+            )
 
             result_main = await self.session.execute(stmt_main)
             main_version = result_main.scalar_one_or_none()
@@ -288,7 +301,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             # Fork from main to target branch
             from app.core.branching.commands import CreateBranchCommand
 
-            fork_cmd = CreateBranchCommand(
+            fork_cmd = CreateBranchCommand(  # type: ignore[type-var]
                 entity_class=ChangeOrder,
                 root_id=change_order_id,
                 actor_id=actor_id,
@@ -335,10 +348,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             for field, value in update_data.items():
                 setattr(target_current, field, value)
 
-            # Update the updated_by and updated_at fields
-            target_current.updated_by = actor_id  # type: ignore[attr-defined]
-            target_current.updated_at = datetime.now(UTC)  # type: ignore[attr-defined]
-
             await self.session.flush()
             await self.session.refresh(target_current)
             updated_co = target_current
@@ -365,7 +374,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             self.session.add(audit_entry)
 
         # Trigger branch lock/unlock based on status change
-        if old_status != new_status and updated_co.branch_name:
+        if old_status != new_status and updated_co and updated_co.branch_name:
             if await self.workflow.should_lock_on_transition(old_status, new_status):
                 await self.branch_service.lock(
                     name=updated_co.branch_name,
@@ -378,6 +387,9 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
                     name=updated_co.branch_name,
                     project_id=updated_co.project_id,
                 )
+
+        if not updated_co:
+            raise ValueError(f"Failed to update Change Order {change_order_id}")
 
         return updated_co
 
@@ -581,7 +593,9 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         # Check if source branch has active version
         source_version = await self.get_current(change_order_id, branch=source_branch)
         if not source_version:
-             raise ValueError(f"No active version found on source branch {source_branch}")
+            raise ValueError(
+                f"No active version found on source branch {source_branch}"
+            )
 
         return await self.merge_branch(
             root_id=change_order_id,

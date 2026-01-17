@@ -16,6 +16,7 @@ from app.models.domain import (  # noqa: F401
     change_order,
     cost_element,
     cost_element_type,
+    cost_registration,
     department,
     project,
     user,

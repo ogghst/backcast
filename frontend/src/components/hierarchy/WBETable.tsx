@@ -232,7 +232,6 @@ export const WBETable = ({
                 position: ["bottomRight"],
               }
         }
-        size="middle"
       />
     </div>
   );

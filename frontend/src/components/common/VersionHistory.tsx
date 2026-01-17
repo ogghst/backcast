@@ -38,7 +38,7 @@ export const VersionHistoryDrawer = ({
       placement="right"
       onClose={onClose}
       open={open}
-      width={400}
+      size={400}
     >
       <List
         loading={isLoading}

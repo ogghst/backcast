@@ -1,31 +1,28 @@
 # Current Iteration
 
-**Iteration:** User Interface Refinements
-**Start Date:** 2026-01-12
-**End Date:** 2026-01-12
-**Status:** ✅ **DONE**
+**Iteration:** Fix Overlapping Valid Time (TD-058)
+**Start Date:** 2026-01-16
+**End Date:** 2026-01-20
+**Status:** 🚀 **IN PROGRESS**
 
 ---
 
 ## Goal
 
-Improve User Experience by refining forms and automating data inference where possible.
+Fix critical technical debt regarding overlapping `valid_time` ranges to ensure data integrity for time-travel queries.
 
 **Key Focus Areas:**
 
-1.  **WBE Creation**: Automate level calculation.
-2.  **Navigation**: Refine Project Detail view to show only Root WBEs.
+1.  **Data Integrity**: Prevent creation of overlapping entity versions.
+2.  **Reliability**: Ensure time-travel queries return deterministic results.
 
 ---
 
 ## Stories in Scope
 
-| Story                        | Points | Priority | Status  | Actual Time | Dependencies |
-| :--------------------------- | :----- | :------- | :------ | :---------- | :----------- |
-| Automate WBE Level Inference | 1h     | High     | ✅ Done | 0.5h        | None         |
-| Fix WBE Root Filtering       | 1h     | High     | ✅ Done | 0.5h        | None         |
-| Analyze Branching Handling   | 2h     | Critical | ✅ Done | 0.5h        | None         |
-| Implement Branching Routes   | 4h     | Critical | ✅ Done | 1.0h        | Analysis     |
+| Story                               | Points | Priority | Status  | Actual Time | Dependencies |
+| :---------------------------------- | :----- | :------- | :------ | :---------- | :----------- |
+| Fix Overlapping valid_time (TD-058) | 2h     | Critical | ✅ Done | 2.0h        | None         |
 
 **Total Estimated Effort:** 2 hours
 
@@ -33,15 +30,15 @@ Improve User Experience by refining forms and automating data inference where po
 
 ## Success Criteria
 
-- [x] WBE Level field removed from form.
-- [x] Backend automatically calculates level from parent.
-- [x] Project Detail page shows only Root WBEs (Level 1).
-- [x] Tests verify filtering logic.
+- [x] New versions cannot overlap with existing versions on the same branch.
+- [x] Updates strictly enforce non-overlapping time ranges.
+- [ ] Comprehensive unit tests cover overlap scenarios. (Blocked by TD-060)
 
 ---
 
 ## Iteration Records
 
+- **Fix Overlapping Valid Time:** [Iteration Folder](iterations/2026-01-16-fix-overlapping-valid-time/)
 - **WBE Level Inference:** [Iteration Folder](iterations/2026-01-12-wbe-level-inference/)
 - **WBE Root Filter:** [Iteration Folder](iterations/2026-01-12-wbe-root-filter/)
 - **Branching Implementation:** [Iteration Folder](iterations/2026-01-12-branching-implementation/)
@@ -50,6 +47,7 @@ Improve User Experience by refining forms and automating data inference where po
 
 ## Previous Iterations
 
+- **[2026-01-12] User Interface Refinements:** ✅ Complete (100%)
 - **[2026-01-11] Frontend Global Error Handling:** ✅ Complete (100%)
 - **[2026-01-10] Standardize Time Travel List Operations:** ✅ Complete (100%)
 - **[2026-01-10] Control Date Implementation:** ✅ Complete (100%)

@@ -18,9 +18,7 @@ class TestImpactAnalysisServiceCompareKPIs:
     """Test ImpactAnalysisService._compare_kpis() method."""
 
     @pytest.mark.asyncio
-    async def test_compare_kpis_no_changes(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_compare_kpis_no_changes(self, db_session: AsyncSession) -> None:
         """Test KPI comparison when branches have identical data.
 
         Acceptance Criteria:
@@ -66,9 +64,7 @@ class TestImpactAnalysisServiceCompareKPIs:
         assert result.gross_margin.delta_percent == 0.0
 
     @pytest.mark.asyncio
-    async def test_compare_kpis_happy_path(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_compare_kpis_happy_path(self, db_session: AsyncSession) -> None:
         """Test KPI comparison with actual differences between branches.
 
         Acceptance Criteria:
@@ -111,9 +107,7 @@ class TestImpactAnalysisServiceCompareEntities:
     """Test ImpactAnalysisService._compare_entities() method."""
 
     @pytest.mark.asyncio
-    async def test_compare_entities_added_wbe(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_compare_entities_added_wbe(self, db_session: AsyncSession) -> None:
         """Test entity comparison when WBE is added in change branch.
 
         Acceptance Criteria:
@@ -159,9 +153,7 @@ class TestImpactAnalysisServiceCompareEntities:
         assert expected_delta == Decimal("10000.00")
 
     @pytest.mark.asyncio
-    async def test_compare_entities_removed_wbe(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_compare_entities_removed_wbe(self, db_session: AsyncSession) -> None:
         """Test entity comparison when WBE is removed in change branch.
 
         Acceptance Criteria:
@@ -182,9 +174,7 @@ class TestImpactAnalysisServiceBuildWaterfall:
     """Test ImpactAnalysisService._build_waterfall() method."""
 
     @pytest.mark.asyncio
-    async def test_build_waterfall_bridge(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_build_waterfall_bridge(self, db_session: AsyncSession) -> None:
         """Test waterfall chart construction from KPI comparison.
 
         Acceptance Criteria:
@@ -219,9 +209,7 @@ class TestImpactAnalysisServiceGenerateTimeSeries:
     """Test ImpactAnalysisService._generate_time_series() method."""
 
     @pytest.mark.asyncio
-    async def test_generate_time_series_weekly(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_generate_time_series_weekly(self, db_session: AsyncSession) -> None:
         """Test weekly time-series data generation.
 
         Acceptance Criteria:
@@ -248,9 +236,7 @@ class TestImpactAnalysisServiceEdgeCases:
     """Test edge cases and error handling."""
 
     @pytest.mark.asyncio
-    async def test_edge_cases_empty_branch(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_edge_cases_empty_branch(self, db_session: AsyncSession) -> None:
         """Test behavior when change branch has no data.
 
         Acceptance Criteria:

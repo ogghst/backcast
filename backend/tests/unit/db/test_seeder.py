@@ -240,9 +240,13 @@ class TestSeedWBEsWithRootId:
             mock_service.create_wbe.assert_called_once()
             call_args = mock_service.create_wbe.call_args
             assert call_args[0][0].code == "TEST-WBE-001"
-            assert call_args[0][0].wbe_id == UUID("3a42f62c-96f8-5392-bff1-2e16f97734f0")
+            assert call_args[0][0].wbe_id == UUID(
+                "3a42f62c-96f8-5392-bff1-2e16f97734f0"
+            )
             # Verify relationships use IDs
-            assert call_args[0][0].project_id == UUID("d54fbbe6-f3df-51db-9c3e-9408700442be")
+            assert call_args[0][0].project_id == UUID(
+                "d54fbbe6-f3df-51db-9c3e-9408700442be"
+            )
             assert call_args[0][0].parent_wbe_id is None
 
 
@@ -272,7 +276,9 @@ class TestSeedCostElementsWithRootId:
         seeder = DataSeeder(seed_dir=tmp_path)
 
         # Mock CostElementService
-        with patch("app.services.cost_element_service.CostElementService") as mock_service_class:
+        with patch(
+            "app.services.cost_element_service.CostElementService"
+        ) as mock_service_class:
             mock_service = AsyncMock()
             mock_service_class.return_value = mock_service
 
@@ -285,10 +291,16 @@ class TestSeedCostElementsWithRootId:
             mock_service.create.assert_called_once()
             call_args = mock_service.create.call_args
             assert call_args[0][0].code == "TEST-CE-001"
-            assert call_args[0][0].cost_element_id == UUID("18c26d12-9789-5004-b766-3b099405e884")
+            assert call_args[0][0].cost_element_id == UUID(
+                "18c26d12-9789-5004-b766-3b099405e884"
+            )
             # Verify relationships use IDs
-            assert call_args[0][0].wbe_id == UUID("3a42f62c-96f8-5392-bff1-2e16f97734f0")
-            assert call_args[0][0].cost_element_type_id == UUID("6a483c4e-893c-5a92-8db9-6f5ac937c63f")
+            assert call_args[0][0].wbe_id == UUID(
+                "3a42f62c-96f8-5392-bff1-2e16f97734f0"
+            )
+            assert call_args[0][0].cost_element_type_id == UUID(
+                "6a483c4e-893c-5a92-8db9-6f5ac937c63f"
+            )
 
 
 @pytest.mark.asyncio

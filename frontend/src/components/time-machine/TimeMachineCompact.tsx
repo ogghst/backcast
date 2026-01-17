@@ -44,7 +44,9 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
   } = useTimeMachineStore();
 
   // Fetch project data to get start_date
-  const { data: project } = useProject(projectId);
+  // Note: Project data is fetched but not directly used here
+  // It may be used by child components or for future enhancements
+  useProject(projectId);
 
   // Ensure store knows about current project and initialize with start date
   // Note: We pass null for projectStartDate to initialize at "now" instead of project start date
@@ -74,7 +76,7 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
     : "";
 
   return (
-    <Space size="middle" style={{ marginRight: 16 }}>
+    <Space style={{ marginRight: 16 }}>
       {/* Time indicator */}
       <Button
         type={isHistorical ? "primary" : "text"}

@@ -11,22 +11,16 @@
 
 ### High Severity
 
-#### [TD-058] Overlapping valid_time Constraint
+#### [TD-060] Backend Test Environment Subprocess Failure
 
-- **Source:** Time Travel Bug Investigation (2026-01-14)
-- **Description:** No constraint prevents overlapping `valid_time` ranges for the same entity. When using `control_date` parameter in past/future updates, or when multiple corrections happen to the same time period, overlapping `valid_time` ranges can be created. This breaks time-travel queries as multiple versions may match the same `as_of` timestamp.
-- **Impact:** Time-travel queries return incorrect/inconsistent results; entities may disappear from lists during certain time periods; zombie entities may appear
+- **Source:** Fix Overlapping Valid Time Iteration (2026-01-16)
+- **Description:** `wipe_db.py` subprocess call in `conftest.py` fails with various errors (python path, env vars) in local/agent environment, blocking test execution.
+- **Impact:** Cannot run backend tests reliably; blocks verification of fixes.
 - **Estimated Effort:** 2 hours
-- **Target Date:** 2026-01-20
+- **Target Date:** 2026-01-17
 - **Status:** 🔴 Open
-- **Owner:** Backend Developer
-- **Notes:**
-  - **Workaround:** `_apply_bitemporal_filter` now uses `valid_time` only (removed `transaction_time` filtering) to return results, but this doesn't handle duplicates
-  - **Proper Fix:** Add constraint in `CreateVersionCommand` and `UpdateVersionCommand` to prevent overlapping `valid_time` ranges
-  - **Constraint Logic:** For any new version, check that `new_valid_time` does not overlap with existing versions' `valid_time` for the same root_id and branch
-  - **Deduplication:** Add `DISTINCT ON (root_id) ORDER BY transaction_time DESC` to list queries to ensure single result per entity when overlaps do occur
-- **Documentation:** [Temporal Query Reference](../02-architecture/cross-cutting/temporal-query-reference.md), [BranchableService](../../backend/app/core/branching/service.py)
-- **Test Case:** WBE `13793446-c32b-5682-85e4-3376841003ae` has versions with valid_time ranges: [Jan 14-May 10], [May 10-Jun 6], [Jun 6-∞]. Querying with `as_of=Feb 20` should return the first version, but current implementation may return duplicates or no results depending on filter logic
+- **Owner:** DevOps / Backend Lead
+- **Notes:** Seems related to how `sys.executable` or `os.environ` behaves in `uv run` context vs direct execution.
 
 ---
 
@@ -155,7 +149,7 @@
 | TD-051 | Time Travel Parameter Type Handling          | 2026-01-12   | Updated BranchableService.get_as_of signature to accept branch_mode and implemented MERGE logic          |
 | TD-054 | Ruff Linting Errors (Branch Mode)            | 2026-01-13   | Fixed 12 auto-fixable errors (imports, whitespace)                                                       |
 | TD-055 | Unused Imports (Frontend Components)         | 2026-01-13   | Removed unused imports from ViewModeSelector, TimeMachineCompact                                         |
-| TD-056 | MyPy Query Examples Type Error               | 2026-01-13   | Removed examples parameter from Query() in projects.py and wbes.py                                       |
+| TD-058 | Overlapping valid_time Constraint            | 2026-01-16   | Implemented application-level checks in commands                                                         |
 
 ---
 
@@ -174,6 +168,7 @@
 
 **Recent Trends:**
 
+- **2026-01-16 - Fix Overlapping Valid Time:** Addressed TD-058 by implementing strict overlap checks in `branching` and `versioning` core commands. Added TD-060 due to test environment failures blocking verification.
 - **2026-01-15 - Contextual Navigation Iteration:** Completed with zero new technical debt items. All code followed best practices with ~100% test coverage. Standardized URL-driven navigation pattern for future entity detail pages.
 - **2026-01-14 - Time Travel Bug Fix:** Completed TD-058 analysis and workaround (removed `transaction_time` filtering from `_apply_bitemporal_filter`), documented in technical debt register. Updated both `BranchableService` and `TemporalService` with `valid_time`-only filtering approach.
 - **2026-01-14 - Test Suite Results:** Backend tests at 99.2% pass rate (253/255). Added TD-059 for pre-existing `test_get_wbes_param_filter` API response format issue.

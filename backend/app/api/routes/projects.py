@@ -142,7 +142,7 @@ async def create_project(
         project = await service.create_project(
             project_in=project_in,
             actor_id=current_user.user_id,
-            control_date=project_in.control_date
+            control_date=project_in.control_date,
         )
         return project
     except ValueError as e:
@@ -219,7 +219,9 @@ async def update_project(
 )
 async def delete_project(
     project_id: UUID,
-    control_date: datetime | None = Query(None, description="Optional control date for deletion"),
+    control_date: datetime | None = Query(
+        None, description="Optional control date for deletion"
+    ),
     current_user: User = Depends(get_current_active_user),
     service: ProjectService = Depends(get_project_service),
 ) -> None:
@@ -228,7 +230,7 @@ async def delete_project(
         await service.delete_project(
             project_id=project_id,
             actor_id=current_user.user_id,
-            control_date=control_date
+            control_date=control_date,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

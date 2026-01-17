@@ -4,12 +4,13 @@ Tracks status transitions for Change Orders with optional comments.
 Provides full audit trail for who changed what, when, and why.
 """
 
-from datetime import datetime, UTC
+from datetime import datetime
 from uuid import UUID
 
 import sqlalchemy as sa
 from sqlalchemy import String, Text
-from sqlalchemy.dialects.postgresql import TIMESTAMP, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import TIMESTAMP
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base.base import EntityBase
@@ -33,9 +34,7 @@ class ChangeOrderAuditLog(EntityBase):
     __tablename__ = "change_order_audit_log"
 
     # Change Order reference
-    change_order_id: Mapped[UUID] = mapped_column(
-        PG_UUID, nullable=False, index=True
-    )
+    change_order_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
 
     # Status transition tracking
     old_status: Mapped[str] = mapped_column(
@@ -51,9 +50,7 @@ class ChangeOrderAuditLog(EntityBase):
     )
 
     # Audit fields
-    changed_by: Mapped[UUID] = mapped_column(
-        PG_UUID, nullable=False, index=True
-    )
+    changed_by: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
     changed_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,

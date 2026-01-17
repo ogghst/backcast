@@ -69,7 +69,8 @@ class ImpactAnalysisService:
             select(ChangeOrder)
             .where(
                 ChangeOrder.change_order_id == change_order_id,
-                ChangeOrder.branch == "main",  # Get the change order definition from main
+                ChangeOrder.branch
+                == "main",  # Get the change order definition from main
                 func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
                 cast(Any, ChangeOrder).deleted_at.is_(None),
             )
@@ -85,27 +86,21 @@ class ImpactAnalysisService:
         project_id = change_order.project_id
 
         # Calculate KPIs from main branch
-        main_bac_stmt = (
-            select(func.sum(WBE.budget_allocation))
-            .where(
-                WBE.project_id == project_id,
-                WBE.branch == "main",
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
-            )
+        main_bac_stmt = select(func.sum(WBE.budget_allocation)).where(
+            WBE.project_id == project_id,
+            WBE.branch == "main",
+            func.upper(cast(Any, WBE).valid_time).is_(None),
+            cast(Any, WBE).deleted_at.is_(None),
         )
         main_bac_result = await self._db.execute(main_bac_stmt)
         main_bac = main_bac_result.scalar() or Decimal("0")
 
         # Calculate KPIs from change branch
-        change_bac_stmt = (
-            select(func.sum(WBE.budget_allocation))
-            .where(
-                WBE.project_id == project_id,
-                WBE.branch == branch_name,
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
-            )
+        change_bac_stmt = select(func.sum(WBE.budget_allocation)).where(
+            WBE.project_id == project_id,
+            WBE.branch == branch_name,
+            func.upper(cast(Any, WBE).valid_time).is_(None),
+            cast(Any, WBE).deleted_at.is_(None),
         )
         change_bac_result = await self._db.execute(change_bac_stmt)
         change_bac = change_bac_result.scalar() or Decimal("0")
@@ -179,6 +174,7 @@ class ImpactAnalysisService:
         Returns:
             KPIScorecard with all comparisons
         """
+
         # Helper function to calculate delta and percent
         def _calculate_metric(main: Decimal, change: Decimal) -> KPIMetric:
             delta = change - main
@@ -307,7 +303,9 @@ class ImpactAnalysisService:
 
             if main_wbe is None:
                 # Added in change branch
-                assert change_wbe is not None  # Logically: root_id in union but not in main
+                assert (
+                    change_wbe is not None
+                )  # Logically: root_id in union but not in main
                 changes.append(
                     EntityChange(
                         id=int(root_id.int >> 96),  # Simplified ID conversion
@@ -372,7 +370,9 @@ class ImpactAnalysisService:
 
             if main_ce is None:
                 # Added in change branch
-                assert change_ce is not None  # Logically: root_id in union but not in main
+                assert (
+                    change_ce is not None
+                )  # Logically: root_id in union but not in main
                 changes.append(
                     EntityChange(
                         id=int(root_id.int >> 96),
@@ -457,27 +457,21 @@ class ImpactAnalysisService:
             List of weekly TimeSeriesPoint objects
         """
         # Get total budget from main branch
-        main_budget_stmt = (
-            select(func.sum(WBE.budget_allocation))
-            .where(
-                WBE.project_id == project_id,
-                WBE.branch == "main",
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
-            )
+        main_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
+            WBE.project_id == project_id,
+            WBE.branch == "main",
+            func.upper(cast(Any, WBE).valid_time).is_(None),
+            cast(Any, WBE).deleted_at.is_(None),
         )
         main_budget_result = await self._db.execute(main_budget_stmt)
         main_total = main_budget_result.scalar() or Decimal("0")
 
         # Get total budget from change branch
-        change_budget_stmt = (
-            select(func.sum(WBE.budget_allocation))
-            .where(
-                WBE.project_id == project_id,
-                WBE.branch == branch_name,
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
-            )
+        change_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
+            WBE.project_id == project_id,
+            WBE.branch == branch_name,
+            func.upper(cast(Any, WBE).valid_time).is_(None),
+            cast(Any, WBE).deleted_at.is_(None),
         )
         change_budget_result = await self._db.execute(change_budget_stmt)
         change_total = change_budget_result.scalar() or Decimal("0")
@@ -485,7 +479,9 @@ class ImpactAnalysisService:
         # Return as a single time point (current week)
         # Note: Full implementation would aggregate historical data by week
         # For now, we return current budget totals as the latest time point
-        current_week_start = date.today().replace(day=1)  # First of current month as approximation
+        current_week_start = date.today().replace(
+            day=1
+        )  # First of current month as approximation
 
         return [
             TimeSeriesPoint(

@@ -1,8 +1,9 @@
 """Unit tests for BranchService."""
 
-import pytest
+from datetime import UTC, datetime
 from uuid import uuid4
-from datetime import datetime, timezone
+
+import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import NoResultFound
 
@@ -160,7 +161,7 @@ async def test_get_branch_excludes_soft_deleted(db_session):
         type="change_order",
         locked=False,
         created_by=user_id,
-        deleted_at=datetime.now(timezone.utc),
+        deleted_at=datetime.now(UTC),
     )
     db_session.add(deleted_branch)
     await db_session.commit()

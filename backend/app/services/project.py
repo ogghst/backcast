@@ -23,6 +23,7 @@ from app.models.schemas.project import ProjectCreate, ProjectUpdate
 if TYPE_CHECKING:
     from app.models.schemas.branch import BranchPublic
 
+
 class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-ignore]
     """Service for Project entity operations.
 
@@ -180,7 +181,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         self,
         project_in: ProjectCreate,
         actor_id: UUID,
-        control_date: datetime | None = None
+        control_date: datetime | None = None,
     ) -> Project:
         """Create new project using CreateVersionCommand."""
         project_data = project_in.model_dump(exclude_unset=True)
@@ -204,7 +205,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         project_id: UUID,
         project_in: ProjectUpdate,
         actor_id: UUID,
-        control_date: datetime | None = None
+        control_date: datetime | None = None,
     ) -> Project:
         """Update project using UpdateVersionCommand."""
         # Filter None values from update data
@@ -221,10 +222,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         return await cmd.execute(self.session)
 
     async def delete_project(
-        self,
-        project_id: UUID,
-        actor_id: UUID,
-        control_date: datetime | None = None
+        self, project_id: UUID, actor_id: UUID, control_date: datetime | None = None
     ) -> Project:
         """Soft delete project using SoftDeleteCommand."""
         cmd = SoftDeleteCommand(
@@ -291,11 +289,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
 
         # Always include main branch
         branches: list[BranchPublic] = [
-            BranchPublic(
-                name="main",
-                type="main",
-                is_default=True
-            )
+            BranchPublic(name="main", type="main", is_default=True)
         ]
 
         # Get all branches for this project from the branches table
@@ -333,7 +327,9 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
                         ChangeOrder.code == code,
                         ChangeOrder.branch == "main",
                         func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
-                        func.not_(func.isempty(ChangeOrder.valid_time)),  # Exclude empty ranges
+                        func.not_(
+                            func.isempty(ChangeOrder.valid_time)
+                        ),  # Exclude empty ranges
                         cast(Any, ChangeOrder).deleted_at.is_(None),
                     )
                     .order_by(cast(Any, ChangeOrder).valid_time.desc())
@@ -354,7 +350,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
                     is_default=False,
                     change_order_id=change_order_id,
                     change_order_code=change_order_code,
-                    change_order_status=change_order_status
+                    change_order_status=change_order_status,
                 )
             )
 

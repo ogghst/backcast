@@ -29,7 +29,9 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         """
         super().__init__(CostElement, db)
 
-    async def get_current(self, root_id: UUID, branch: str = "main") -> CostElement | None:
+    async def get_current(
+        self, root_id: UUID, branch: str = "main"
+    ) -> CostElement | None:
         """Get the current active version for a root entity on a specific branch.
 
         Override parent method to use 'cost_element_id' field instead of
@@ -75,7 +77,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         data["cost_element_id"] = root_id
 
         cmd = CreateVersionCommand(
-            entity_class=CostElement,
+            entity_class=CostElement,  # type: ignore[type-var]
             root_id=root_id,
             actor_id=actor_id,
             control_date=control_date,
@@ -155,7 +157,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 resolved.append(item)
         return resolved
 
-    async def create(  # type: ignore[override]
+    async def create(
         self,
         element_in: CostElementCreate,
         actor_id: UUID,
@@ -217,7 +219,13 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                     control_date: datetime | None = None,
                     **updates: Any,
                 ) -> None:
-                    super().__init__(entity_class, root_id, actor_id, control_date=control_date, **updates)
+                    super().__init__(
+                        entity_class,
+                        root_id,
+                        actor_id,
+                        control_date=control_date,
+                        **updates,
+                    )
                     self.branch = branch
 
                 def _root_field_name(self) -> str:
@@ -304,14 +312,14 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         cost_element_id: UUID,
         actor_id: UUID,
         branch: str = "main",
-        control_date: datetime | None = None
+        control_date: datetime | None = None,
     ) -> None:
         """Soft delete cost element using BranchableService.soft_delete.
 
         This uses the BranchableSoftDeleteCommand which is branch-aware.
         """
         # Call parent method from BranchableService
-        return await super().soft_delete(
+        await super().soft_delete(
             root_id=cost_element_id,
             actor_id=actor_id,
             branch=branch,
@@ -477,7 +485,11 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         Uses STRICT mode (only current branch) for backward compatibility.
         """
         items, _ = await self.get_cost_elements(
-            filters=filters, branch=branch, branch_mode=BranchMode.STRICT, skip=skip, limit=limit
+            filters=filters,
+            branch=branch,
+            branch_mode=BranchMode.STRICT,
+            skip=skip,
+            limit=limit,
         )
         return items
 
@@ -599,7 +611,9 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         if as_of:
             wbe_where_clauses.append(cast(Any, WBEAlias).valid_time.contains(as_of))
         else:
-            wbe_where_clauses.append(func.upper(cast(Any, WBEAlias).valid_time).is_(None))
+            wbe_where_clauses.append(
+                func.upper(cast(Any, WBEAlias).valid_time).is_(None)
+            )
 
         wbe_subq = (
             select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
@@ -611,7 +625,9 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         if as_of:
             type_where_clauses.append(cast(Any, TypeAlias).valid_time.contains(as_of))
         else:
-            type_where_clauses.append(func.upper(cast(Any, TypeAlias).valid_time).is_(None))
+            type_where_clauses.append(
+                func.upper(cast(Any, TypeAlias).valid_time).is_(None)
+            )
 
         type_subq = (
             select(
@@ -649,3 +665,88 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         result = await self.session.execute(stmt)
         resolved = await self._resolve_relations(result.all())
         return resolved[0] if resolved else None
+
+    async def get_breadcrumb(self, cost_element_id: UUID) -> dict[str, Any]:
+        """Get breadcrumb trail for a Cost Element including project and WBE.
+
+        For cost elements, the hierarchy is: Project -> WBE -> Cost Element
+        This returns the project and WBE information for navigation.
+
+        Args:
+            cost_element_id: Cost Element ID
+
+        Returns:
+            Dict with 'project', 'wbe', and 'cost_element' keys
+
+        Raises:
+            ValueError: If Cost Element not found
+        """
+        from typing import Any, cast
+
+        from sqlalchemy import func
+
+        from app.models.domain.project import Project
+        from app.models.domain.wbe import WBE
+
+        # Get the current cost element
+        current_element = await self.get_by_id(cost_element_id)
+        if not current_element:
+            raise ValueError(f"Cost Element with id {cost_element_id} not found")
+
+        # Get the WBE first (cost element only has wbe_id)
+        wbe_stmt = (
+            select(WBE)
+            .where(
+                WBE.wbe_id == current_element.wbe_id,
+                WBE.branch == current_element.branch,
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, WBE).valid_time.desc())
+            .limit(1)
+        )
+        wbe_result = await self.session.execute(wbe_stmt)
+        wbe = wbe_result.scalar_one_or_none()
+
+        if not wbe:
+            raise ValueError(f"WBE {current_element.wbe_id} not found")
+
+        # Get the project from the WBE
+        project_stmt = (
+            select(Project)
+            .where(
+                Project.project_id == wbe.project_id,
+                Project.branch == wbe.branch,
+                func.upper(cast(Any, Project).valid_time).is_(None),
+                cast(Any, Project).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, Project).valid_time.desc())
+            .limit(1)
+        )
+        project_result = await self.session.execute(project_stmt)
+        project = project_result.scalar_one_or_none()
+
+        if not project:
+            raise ValueError(f"Project {wbe.project_id} not found")
+
+        # Build breadcrumb response
+        return {
+            "project": {
+                "id": project.id,
+                "project_id": project.project_id,
+                "code": project.code,
+                "name": project.name,
+            },
+            "wbe": {
+                "id": wbe.id,
+                "wbe_id": wbe.wbe_id,
+                "code": wbe.code,
+                "name": wbe.name,
+            },
+            "cost_element": {
+                "id": current_element.id,
+                "cost_element_id": current_element.cost_element_id,
+                "code": current_element.code,
+                "name": current_element.name,
+            },
+        }

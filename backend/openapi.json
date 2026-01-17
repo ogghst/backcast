@@ -2854,6 +2854,558 @@
         }
       }
     },
+    "/api/v1/cost-elements/{cost_element_id}/breadcrumb": {
+      "get": {
+        "tags": [
+          "Cost Elements"
+        ],
+        "summary": "Get Cost Element Breadcrumb",
+        "description": "Get breadcrumb trail for a Cost Element (project + WBE + cost element).",
+        "operationId": "get_cost_element_breadcrumb",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_element_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Element Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Cost Element Breadcrumb"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cost-registrations": {
+      "get": {
+        "tags": [
+          "Cost Registrations"
+        ],
+        "summary": "Read Cost Registrations",
+        "description": "Retrieve cost registrations with server-side search, filtering, and sorting.\n\nCost registrations track actual expenditures against cost elements.\nThey are versionable but NOT branchable (costs are global facts).",
+        "operationId": "get_cost_registrations",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "cost_element_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by Cost Element ID",
+              "title": "Cost Element Id"
+            },
+            "description": "Filter by Cost Element ID"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search term (description, invoice, vendor)",
+              "title": "Search"
+            },
+            "description": "Search term (description, invoice, vendor)"
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filters in format 'column:value;column:value1,value2'",
+              "title": "Filters"
+            },
+            "description": "Filters in format 'column:value;column:value1,value2'"
+          },
+          {
+            "name": "sort_field",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Field to sort by",
+              "title": "Sort Field"
+            },
+            "description": "Field to sort by"
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(asc|desc)$",
+              "description": "Sort order (asc or desc)",
+              "default": "asc",
+              "title": "Sort Order"
+            },
+            "description": "Sort order (asc or desc)"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: get Cost Registrations as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: get Cost Registrations as of this timestamp (ISO 8601)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Cost Registrations"
+        ],
+        "summary": "Create Cost Registration",
+        "description": "Create a new cost registration.\n\nValidates that the cost does not exceed the cost element's budget.\nRaises BudgetExceededError if budget would be exceeded.",
+        "operationId": "create_cost_registration",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CostRegistrationCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostRegistrationRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cost-registrations/{cost_registration_id}": {
+      "get": {
+        "tags": [
+          "Cost Registrations"
+        ],
+        "summary": "Read Cost Registration",
+        "description": "Get a specific cost registration by id.\n\nSupports time-travel queries via the as_of parameter to view\nthe cost registration's state at any historical point in time.",
+        "operationId": "get_cost_registration",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_registration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Registration Id"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: get cost registration state as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: get cost registration state as of this timestamp (ISO 8601)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostRegistrationRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Cost Registrations"
+        ],
+        "summary": "Update Cost Registration",
+        "description": "Update a cost registration.\n\nCreates a new version of the cost registration with the updated values.\nPrevious versions are preserved in the history.",
+        "operationId": "update_cost_registration",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_registration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Registration Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CostRegistrationUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostRegistrationRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Cost Registrations"
+        ],
+        "summary": "Delete Cost Registration",
+        "description": "Soft delete a cost registration.\n\nMarks the cost registration as deleted but preserves it in the history.",
+        "operationId": "delete_cost_registration",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_registration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Registration Id"
+            }
+          },
+          {
+            "name": "control_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional control date for deletion",
+              "title": "Control Date"
+            },
+            "description": "Optional control date for deletion"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cost-registrations/{cost_registration_id}/history": {
+      "get": {
+        "tags": [
+          "Cost Registrations"
+        ],
+        "summary": "Get Cost Registration History",
+        "description": "Get full version history for a cost registration.\n\nReturns all versions of the cost registration, ordered by transaction time.\nIncludes both current and historical versions.",
+        "operationId": "get_cost_registration_history",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_registration_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Registration Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CostRegistrationRead"
+                  },
+                  "title": "Response Get Cost Registration History"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cost-registrations/budget-status/{cost_element_id}": {
+      "get": {
+        "tags": [
+          "Cost Registrations"
+        ],
+        "summary": "Get Budget Status",
+        "description": "Get budget status for a cost element.\n\nReturns the budget amount, used amount, remaining amount, and percentage used.\nUseful for displaying budget progress bars and warnings.",
+        "operationId": "get_budget_status",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_element_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Element Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Budget Status"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/change-orders": {
       "get": {
         "tags": [
@@ -3622,6 +4174,961 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ImpactAnalysisResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/forecasts": {
+      "get": {
+        "tags": [
+          "Forecasts"
+        ],
+        "summary": "Read Forecasts",
+        "description": "Retrieve forecasts with pagination.",
+        "operationId": "get_forecasts",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to query",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to query"
+          },
+          {
+            "name": "cost_element_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by Cost Element ID",
+              "title": "Cost Element Id"
+            },
+            "description": "Filter by Cost Element ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Forecasts"
+        ],
+        "summary": "Create Forecast",
+        "description": "Create a new forecast in specified branch.",
+        "operationId": "create_forecast",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForecastCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/forecasts/{forecast_id}": {
+      "get": {
+        "tags": [
+          "Forecasts"
+        ],
+        "summary": "Read Forecast",
+        "description": "Get a specific forecast by id and branch.\n\nSupports time-travel queries via the as_of parameter to view\nthe forecast's state at any historical point in time.",
+        "operationId": "get_forecast",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "forecast_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Forecast Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to query",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to query"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: get forecast state as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: get forecast state as of this timestamp (ISO 8601)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Forecasts"
+        ],
+        "summary": "Update Forecast",
+        "description": "Update a forecast. Creates new version or forks.",
+        "operationId": "update_forecast",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "forecast_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Forecast Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForecastUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Forecasts"
+        ],
+        "summary": "Delete Forecast",
+        "description": "Soft delete a forecast in a branch.",
+        "operationId": "delete_forecast",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "forecast_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Forecast Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to delete from",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to delete from"
+          },
+          {
+            "name": "control_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional control date for deletion",
+              "title": "Control Date"
+            },
+            "description": "Optional control date for deletion"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/forecasts/{forecast_id}/history": {
+      "get": {
+        "tags": [
+          "Forecasts"
+        ],
+        "summary": "Get Forecast History",
+        "description": "Get full version history for a forecast across all branches.",
+        "operationId": "get_forecast_history",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "forecast_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Forecast Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ForecastRead"
+                  },
+                  "title": "Response Get Forecast History"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/forecasts/{forecast_id}/comparison": {
+      "get": {
+        "tags": [
+          "Forecasts"
+        ],
+        "summary": "Get Forecast Comparison",
+        "description": "Get EVM comparison metrics for a forecast.\n\nReturns:\n    - BAC (Budget at Complete): From CostElement\n    - EAC (Estimate at Complete): From Forecast\n    - AC (Actual Cost): Sum of CostRegistrations\n    - VAC (Variance at Complete): BAC - EAC\n    - ETC (Estimate to Complete): EAC - AC",
+        "operationId": "get_forecast_comparison",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "forecast_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Forecast Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to query",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastComparison"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/schedule-baselines": {
+      "get": {
+        "tags": [
+          "Schedule Baselines"
+        ],
+        "summary": "Read Schedule Baselines",
+        "description": "Retrieve schedule baselines with pagination.",
+        "operationId": "get_schedule_baselines",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to query",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to query"
+          },
+          {
+            "name": "cost_element_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by Cost Element ID",
+              "title": "Cost Element Id"
+            },
+            "description": "Filter by Cost Element ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Schedule Baselines"
+        ],
+        "summary": "Create Schedule Baseline",
+        "description": "Create a new schedule baseline in specified branch.",
+        "operationId": "create_schedule_baseline",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleBaselineCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleBaselineRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/schedule-baselines/{schedule_baseline_id}": {
+      "get": {
+        "tags": [
+          "Schedule Baselines"
+        ],
+        "summary": "Read Schedule Baseline",
+        "description": "Get a specific schedule baseline by id and branch.\n\nSupports time-travel queries via the as_of parameter to view\nthe baseline's state at any historical point in time.",
+        "operationId": "get_schedule_baseline",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "schedule_baseline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Schedule Baseline Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to query",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to query"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: get baseline state as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: get baseline state as of this timestamp (ISO 8601)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleBaselineRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Schedule Baselines"
+        ],
+        "summary": "Update Schedule Baseline",
+        "description": "Update a schedule baseline. Creates new version or forks.",
+        "operationId": "update_schedule_baseline",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "schedule_baseline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Schedule Baseline Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleBaselineUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleBaselineRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Schedule Baselines"
+        ],
+        "summary": "Delete Schedule Baseline",
+        "description": "Soft delete a schedule baseline in a branch.",
+        "operationId": "delete_schedule_baseline",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "schedule_baseline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Schedule Baseline Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to delete from",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to delete from"
+          },
+          {
+            "name": "control_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional control date for deletion",
+              "title": "Control Date"
+            },
+            "description": "Optional control date for deletion"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/schedule-baselines/{schedule_baseline_id}/history": {
+      "get": {
+        "tags": [
+          "Schedule Baselines"
+        ],
+        "summary": "Get Schedule Baseline History",
+        "description": "Get full version history for a schedule baseline across all branches.",
+        "operationId": "get_schedule_baseline_history",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "schedule_baseline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Schedule Baseline Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScheduleBaselineRead"
+                  },
+                  "title": "Response Get Schedule Baseline History"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/schedule-baselines/{schedule_baseline_id}/pv": {
+      "get": {
+        "tags": [
+          "Schedule Baselines"
+        ],
+        "summary": "Calculate Planned Value",
+        "description": "Calculate Planned Value (PV) for a schedule baseline.\n\nPV = BAC \u00d7 Progress\n\nWhere Progress is calculated based on the baseline's progression type\n(LINEAR, GAUSSIAN, or LOGARITHMIC) and the current date relative to\nthe baseline's start and end dates.\n\nArgs:\n    schedule_baseline_id: The baseline to calculate PV for\n    current_date: The date to calculate progress for\n    bac: Budget at Completion (total planned budget)\n    branch: Branch to query (default: \"main\")\n\nReturns:\n    Dictionary with:\n    - schedule_baseline_id: The baseline ID\n    - current_date: The date used for calculation\n    - bac: Budget at Completion\n    - progress: Progress value (0.0 to 1.0)\n    - pv: Planned Value (BAC \u00d7 Progress)\n    - progression_type: Type of progression used",
+        "operationId": "calculate_planned_value",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "schedule_baseline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Schedule Baseline Id"
+            }
+          },
+          {
+            "name": "current_date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Date to calculate PV for (ISO 8601)",
+              "title": "Current Date"
+            },
+            "description": "Date to calculate PV for (ISO 8601)"
+          },
+          {
+            "name": "bac",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+                }
+              ],
+              "description": "Budget at Completion (BAC) amount",
+              "title": "Bac"
+            },
+            "description": "Budget at Completion (BAC) amount"
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to query",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Calculate Planned Value"
                 }
               }
             }
@@ -4652,6 +6159,346 @@
         "title": "CostElementUpdate",
         "description": "Properties that can be updated."
       },
+      "CostRegistrationCreate": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              }
+            ],
+            "title": "Amount",
+            "description": "Cost amount (must be positive)"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity",
+            "description": "Quantity of units consumed (optional)"
+          },
+          "unit_of_measure": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Of Measure",
+            "description": "Unit of measure (e.g., 'hours', 'kg', 'm', 'each')"
+          },
+          "registration_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration Date",
+            "description": "When the cost was incurred (defaults to control date if not provided)"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Optional description of the cost"
+          },
+          "invoice_number": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Number",
+            "description": "Optional invoice reference"
+          },
+          "vendor_reference": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Reference",
+            "description": "Optional vendor/supplier reference"
+          },
+          "cost_registration_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Registration Id",
+            "description": "Root Cost Registration ID (internal use only for seeding)"
+          },
+          "cost_element_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Cost Element Id",
+            "description": "ID of the cost element to charge"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount",
+          "cost_element_id"
+        ],
+        "title": "CostRegistrationCreate",
+        "description": "Properties required for creating a Cost Registration."
+      },
+      "CostRegistrationRead": {
+        "properties": {
+          "amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+            "title": "Amount",
+            "description": "Cost amount (must be positive)"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity",
+            "description": "Quantity of units consumed (optional)"
+          },
+          "unit_of_measure": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Of Measure",
+            "description": "Unit of measure (e.g., 'hours', 'kg', 'm', 'each')"
+          },
+          "registration_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration Date",
+            "description": "When the cost was incurred (defaults to control date if not provided)"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Optional description of the cost"
+          },
+          "invoice_number": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Number",
+            "description": "Optional invoice reference"
+          },
+          "vendor_reference": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Reference",
+            "description": "Optional vendor/supplier reference"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "cost_registration_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Cost Registration Id"
+          },
+          "cost_element_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Cost Element Id"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "amount",
+          "id",
+          "cost_registration_id",
+          "cost_element_id",
+          "created_by"
+        ],
+        "title": "CostRegistrationRead",
+        "description": "Properties returned to client."
+      },
+      "CostRegistrationUpdate": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "unit_of_measure": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Of Measure"
+          },
+          "registration_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration Date"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "invoice_number": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice Number"
+          },
+          "vendor_reference": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Reference"
+          }
+        },
+        "type": "object",
+        "title": "CostRegistrationUpdate",
+        "description": "Properties that can be updated on a Cost Registration."
+      },
       "DepartmentCreate": {
         "properties": {
           "name": {
@@ -4986,6 +6833,317 @@
         "type": "object",
         "title": "EntityChanges",
         "description": "Entity changes grouped by type."
+      },
+      "ForecastComparison": {
+        "properties": {
+          "forecast_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Forecast Id"
+          },
+          "cost_element_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Cost Element Id"
+          },
+          "bac_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Bac Amount",
+            "description": "Budget at Complete (from CostElement)"
+          },
+          "eac_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Eac Amount",
+            "description": "Estimate at Complete"
+          },
+          "ac_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Ac Amount",
+            "description": "Actual Cost (sum of CostRegistrations)"
+          },
+          "vac_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Vac Amount",
+            "description": "Variance at Complete (BAC - EAC)"
+          },
+          "etc_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Etc Amount",
+            "description": "Estimate to Complete (EAC - AC)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "forecast_id",
+          "cost_element_id",
+          "bac_amount",
+          "eac_amount",
+          "ac_amount",
+          "vac_amount",
+          "etc_amount"
+        ],
+        "title": "ForecastComparison",
+        "description": "EVM comparison metrics for a forecast.\n\nProvides:\n- VAC (Variance at Complete): BAC - EAC\n- ETC (Estimate to Complete): EAC - AC"
+      },
+      "ForecastCreate": {
+        "properties": {
+          "eac_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              }
+            ],
+            "title": "Eac Amount",
+            "description": "Estimate at Complete"
+          },
+          "basis_of_estimate": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Basis Of Estimate",
+            "description": "Basis for the estimate"
+          },
+          "cost_element_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Cost Element Id",
+            "description": "Parent Cost Element ID"
+          },
+          "forecast_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecast Id",
+            "description": "Root Forecast ID (internal use only for seeding)"
+          },
+          "branch": {
+            "type": "string",
+            "title": "Branch",
+            "description": "Branch name for creation (defaults to main if not specified)",
+            "default": "main"
+          },
+          "control_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Date",
+            "description": "Optional control date for creation (valid_time start)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "eac_amount",
+          "basis_of_estimate",
+          "cost_element_id"
+        ],
+        "title": "ForecastCreate",
+        "description": "Properties required for creating a Forecast."
+      },
+      "ForecastRead": {
+        "properties": {
+          "eac_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+            "title": "Eac Amount",
+            "description": "Estimate at Complete"
+          },
+          "basis_of_estimate": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Basis Of Estimate",
+            "description": "Basis for the estimate"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "forecast_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Forecast Id"
+          },
+          "cost_element_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Cost Element Id"
+          },
+          "branch": {
+            "type": "string",
+            "title": "Branch"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "approved_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved Date"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "valid_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Time"
+          },
+          "transaction_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transaction Time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "eac_amount",
+          "basis_of_estimate",
+          "id",
+          "forecast_id",
+          "cost_element_id",
+          "branch",
+          "created_by"
+        ],
+        "title": "ForecastRead",
+        "description": "Properties returned to client."
+      },
+      "ForecastUpdate": {
+        "properties": {
+          "eac_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eac Amount"
+          },
+          "basis_of_estimate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis Of Estimate"
+          },
+          "approved_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved Date"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch",
+            "description": "Branch name for update (defaults to current branch)"
+          },
+          "control_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Date",
+            "description": "Optional control date for update (valid_time start)"
+          }
+        },
+        "type": "object",
+        "title": "ForecastUpdate",
+        "description": "Properties that can be updated."
       },
       "HTTPValidationError": {
         "properties": {
@@ -5605,6 +7763,219 @@
         "type": "object",
         "title": "ProjectUpdate",
         "description": "Schema for updating an existing project."
+      },
+      "ScheduleBaselineCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Baseline name"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start Date",
+            "description": "Schedule start date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End Date",
+            "description": "Schedule end date"
+          },
+          "progression_type": {
+            "type": "string",
+            "title": "Progression Type",
+            "description": "Type of progression curve (LINEAR, GAUSSIAN, LOGARITHMIC)",
+            "default": "LINEAR"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Optional description of the baseline"
+          },
+          "schedule_baseline_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule Baseline Id",
+            "description": "Root Schedule Baseline ID (internal use only for seeding)"
+          },
+          "cost_element_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Cost Element Id",
+            "description": "ID of the cost element"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "start_date",
+          "end_date",
+          "cost_element_id"
+        ],
+        "title": "ScheduleBaselineCreate",
+        "description": "Properties required for creating a Schedule Baseline."
+      },
+      "ScheduleBaselineRead": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Baseline name"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start Date",
+            "description": "Schedule start date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End Date",
+            "description": "Schedule end date"
+          },
+          "progression_type": {
+            "type": "string",
+            "title": "Progression Type",
+            "description": "Type of progression curve (LINEAR, GAUSSIAN, LOGARITHMIC)",
+            "default": "LINEAR"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description",
+            "description": "Optional description of the baseline"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "schedule_baseline_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Schedule Baseline Id"
+          },
+          "cost_element_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Cost Element Id"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "branch": {
+            "type": "string",
+            "title": "Branch"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "start_date",
+          "end_date",
+          "id",
+          "schedule_baseline_id",
+          "cost_element_id",
+          "created_by",
+          "branch"
+        ],
+        "title": "ScheduleBaselineRead",
+        "description": "Properties returned to client."
+      },
+      "ScheduleBaselineUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "progression_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progression Type"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "title": "ScheduleBaselineUpdate",
+        "description": "Properties that can be updated on a Schedule Baseline."
       },
       "TimeSeriesData": {
         "properties": {

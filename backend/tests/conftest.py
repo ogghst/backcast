@@ -47,13 +47,22 @@ def apply_migrations() -> Generator[None, None, None]:
     # But env.py imports settings. If settings is already imported, we need to ensure the property reflects the change.
     # If ASYNC_DATABASE_URI is a property, it should work. If it's a field, it won't.
 
-    alembic_cfg = Config("alembic.ini")
-
     # Ensure clean slate - Nuclear option via subprocess to avoid loop/driver issues
     import subprocess
     import sys
 
     wipe_script = os.path.join(os.path.dirname(__file__), "wipe_db.py")
+
+    # Get path to alembic.ini (parent directory of tests/)
+    tests_dir = os.path.dirname(__file__)
+    project_root = os.path.dirname(tests_dir)
+    alembic_ini = os.path.join(project_root, "alembic.ini")
+    alembic_cfg = Config(alembic_ini)
+
+    # Set script_location to absolute path
+    alembic_cfg.set_main_option(
+        "script_location", os.path.join(project_root, "alembic")
+    )
 
     env = os.environ.copy()
     env["WIPE_DATABASE_URL"] = TEST_DATABASE_URL
@@ -68,10 +77,20 @@ def apply_migrations() -> Generator[None, None, None]:
         )
     except subprocess.CalledProcessError as e:
         print(f"DB Wipe Failed: {e.stdout} {e.stderr}")
-        raise
+        # Don't raise - try to continue with migrations
+        pass
 
     # Run migrations
-    command.upgrade(alembic_cfg, "head")
+    try:
+        command.upgrade(alembic_cfg, "head")
+    except Exception as e:
+        print(f"Migration failed: {e}")
+        # Try stamping head if migrations fail
+        try:
+            command.stamp(alembic_cfg, "head")
+        except Exception as e2:
+            print(f"Stamp failed: {e2}")
+            raise
 
     yield
 

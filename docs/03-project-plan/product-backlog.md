@@ -1,8 +1,9 @@
 # Backlog
 
-**Last Updated:** 2026-01-07
+**Last Updated:** 2026-01-15
 **Total Items:** 34
 **Total Estimated Points:** 206
+**Completed:** 12 items (66 points)
 
 ---
 
@@ -21,7 +22,7 @@
 
 ### Critical Priority
 
-#### [E06-U01] Create Change Orders
+#### [E06-U01] Create Change Orders ✅
 
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 5
@@ -33,20 +34,23 @@
   - Change order appears in list with status (Draft/Submitted/Approved/Merged)
   - RBAC: Only Project Managers can create change orders
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** Yes (E04-U02 complete)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-01-15
 
-#### [E06-U02] Automatic Branch Creation for Change Orders
+#### [E06-U02] Automatic Branch Creation for Change Orders ✅
 
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 5
 - **Business Value:** CRITICAL - Automates branch workflow
-- **Dependencies:** E06-U01
+- **Dependencies:** E06-U01 ✅
 - **Acceptance Criteria:**
   - Branch `co-{id}` created automatically when change order is saved
   - Branch initialized as copy of current main state
   - Branch metadata includes change order ID and creator
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E06-U01)
+- **Status:** ✅ Complete (implemented with E06-U01)
+- **Completed:** 2026-01-15
+- **Ready for Iteration:** No (already complete)
 
 #### [E06-U05] Merge Approved Change Orders
 
@@ -132,123 +136,126 @@
 - **Estimated Complexity:** Medium
 - **Ready for Iteration:** No (blocked by E04-U03)
 
-#### [E06-U04] Compare Branch to Main (Impact Analysis)
+#### [E06-U04] Compare Branch to Main (Impact Analysis) ✅
 
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 8
 - **Business Value:** HIGH - Change order approval decision support
-- **Dependencies:** E06-U01, E03-U04
+- **Dependencies:** E06-U01 ✅, E03-U04 ✅
 - **Acceptance Criteria:**
   - UI shows side-by-side comparison of branch vs main
   - Highlights differences in Projects, WBEs, Cost Elements
   - Shows variance in budget amounts
-  - Export comparison report as PDF
+  - Export comparison report as PDF (deferred - future enhancement)
 - **Estimated Complexity:** Medium
-- **Ready for Iteration:** No (blocked by E06-U01, E03-U04)
+- **Status:** ✅ Complete (Phase 3 - Impact Analysis & Comparison)
+- **Completed:** 2026-01-14
+- **Related Docs:** [Phase 3 ACT](iterations/2026-01-11-change-orders-implementation/phase3/04-act.md)
 
-#### [E06-U03] Modify Entities in Branch (Isolated from Main)
+#### [E06-U03] Modify Entities in Branch (Isolated from Main) ✅
 
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 8
 - **Business Value:** HIGH - Core isolation feature
-- **Dependencies:** E06-U02
+- **Dependencies:** E06-U02 ✅
 - **Acceptance Criteria:**
   - Modify entities in branch without affecting main
   - Branch isolation enforced at repository level
   - Merge conflict detection
 - **Estimated Complexity:** Medium
-- **Ready for Iteration:** No (blocked by E06-U02)
+- **Status:** ✅ Complete (Core EVCS functionality in BranchableService)
+- **Completed:** 2026-01-15 (previously implemented)
 
 #### [E05-U01] Register Actual Costs against Cost Elements
 
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 5
 - **Business Value:** HIGH - Core EVM data
-- **Dependencies:** E04-U03
+- **Dependencies:** E04-U03 ✅
 - **Acceptance Criteria:**
   - Cost registration entity with date, amount, cost_element_id
   - Validation: Cannot exceed allocated budget
   - Versioning support
   - Import from CSV
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E04-U03)
+- **Ready for Iteration:** Yes (E04-U03 complete)
 
 #### [E05-U02] Create/Update Forecasts (EAC)
 
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 5
 - **Business Value:** HIGH - Forecasting for proactive management
-- **Dependencies:** E04-U03
+- **Dependencies:** E04-U03 ✅
 - **Acceptance Criteria:**
   - Estimate at Complete (EAC) per cost element
   - Versioning support for forecast changes
   - Forecast vs actual comparison
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E04-U03)
+- **Ready for Iteration:** Yes (E04-U03 complete)
 
 #### [E05-U03] Record Earned Value (% Complete)
 
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 5
 - **Business Value:** HIGH - Core EVM metric
-- **Dependencies:** E04-U03
+- **Dependencies:** E04-U03 ✅
 - **Acceptance Criteria:**
   - Record % complete per cost element
   - Automatic EV calculation (BAC × % complete)
   - Versioning support
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E04-U03)
+- **Ready for Iteration:** Yes (E04-U03 complete)
 
 #### [E05-U05] Validate Cost Registrations against Budgets
 
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 8
 - **Business Value:** HIGH - Budget control
-- **Dependencies:** E04-U03, E05-U01
+- **Dependencies:** E04-U03 ✅, E05-U01
 - **Acceptance Criteria:**
   - Real-time validation: Total costs ≤ allocated budget
   - Warning when approaching budget limit
   - Block when exceeding budget (configurable)
 - **Estimated Complexity:** Medium
-- **Ready for Iteration:** No (blocked by E04-U03, E05-U01)
+- **Ready for Iteration:** No (blocked by E05-U01)
 
 #### [E05-U06] View Cost History and Trends
 
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 5
 - **Business Value:** HIGH - Historical analysis
-- **Dependencies:** E03-U04, E05-U01
+- **Dependencies:** E03-U04 ✅, E05-U01
 - **Acceptance Criteria:**
   - Timeline view of cost registrations
   - Trend analysis (burn rate)
   - Export to CSV
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E03-U04, E05-U01)
+- **Ready for Iteration:** No (blocked by E05-U01)
 
 #### [E08-U01] Calculate PV using Schedule Baselines
 
 - **Epic:** E008 (EVM Calculations & Reporting)
 - **Story Points:** 8
 - **Business Value:** HIGH - Core EVM calculation
-- **Dependencies:** E05-U04
+- **Dependencies:** E05-U04 ✅
 - **Acceptance Criteria:**
   - Planned Value (PV) calculation from schedule baseline
   - Time-phased budget distribution
   - PV at any point in time
 - **Estimated Complexity:** Medium
-- **Ready for Iteration:** No (blocked by E05-U04)
+- **Ready for Iteration:** Yes (E05-U04 ready)
 
 #### [E08-U02] Calculate EV from % Complete
 
 - **Epic:** E008 (EVM Calculations & Reporting)
 - **Story Points:** 5
 - **Business Value:** HIGH - Core EVM calculation
-- **Dependencies:** E05-U03
+- **Dependencies:** E05-U03 ✅
 - **Acceptance Criteria:**
   - Earned Value (EV) = BAC × % complete
   - Rollup calculation from cost elements
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E05-U03)
+- **Ready for Iteration:** Yes (E05-U03 ready)
 
 #### [E08-U03] Calculate AC from Cost Registrations
 
@@ -298,39 +305,39 @@
 - **Epic:** E004 (Project Structure Management)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Budget distribution
-- **Dependencies:** E04-U03
+- **Dependencies:** E04-U03 ✅
 - **Acceptance Criteria:**
   - Allocate budget amounts to cost elements
   - Budget validation (WBE total ≥ sum of cost elements)
   - Versioning support
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E04-U03)
+- **Ready for Iteration:** Yes (E04-U03 complete)
 
 #### [E04-U07] Tree View of Project Structure
 
 - **Epic:** E004 (Project Structure Management)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Visual hierarchy
-- **Dependencies:** E04-U03
+- **Dependencies:** E04-U03 ✅
 - **Acceptance Criteria:**
   - Tree view: Project → WBEs → Cost Elements
   - Expandable/collapsible nodes
   - Quick navigation to entity details
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E04-U03)
+- **Ready for Iteration:** Yes (E04-U03 complete)
 
 #### [E05-U04] Define Schedule Baselines with Progression Types
 
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 8
 - **Business Value:** MEDIUM - Schedule management
-- **Dependencies:** E04-U03
+- **Dependencies:** E04-U03 ✅
 - **Acceptance Criteria:**
   - Create schedule baselines with start/end dates
   - Progression types: linear/gaussian/logarithmic
   - Link to cost elements for PV calculation
 - **Estimated Complexity:** Medium
-- **Ready for Iteration:** No (blocked by E04-U03)
+- **Ready for Iteration:** Yes (E04-U03 complete)
 
 #### [E05-U07] Manage Quality Events (Track Rework Costs)
 
@@ -501,7 +508,7 @@
 
 - **Items with Estimates:** 34/34 (100%)
 - **Items with Dependencies Defined:** 34/34 (100%)
-- **Items Ready for Sprint:** 2/34 (6%)
+- **Items Ready for Sprint:** 11/34 (32%)
 - **Average Item Size:** 6.1 points
 - **Items Requiring Splitting (>13 points):** 0/34 (0%)
 
@@ -509,16 +516,20 @@
 
 ## Recently Completed (Moved from Backlog)
 
-| Date       | Item                                      | Points | Iteration         | Notes                              |
-| ---------- | ----------------------------------------- | ------ | ----------------- | ---------------------------------- |
-| 2026-01-07 | E04-U03: Create Cost Elements within WBEs | 8      | Hybrid Sprint 2/3 | Backend & Frontend Complete        |
-| 2026-01-07 | E03-U04: Entity History Viewing           | 5      | Hybrid Sprint 2/3 | Integrated for Projects, WBEs, CEs |
-| 2026-01-05 | E04-U01: Create projects with metadata    | 5      | Hybrid Sprint 2/3 | Completed early                    |
-| 2026-01-05 | E04-U02: Create WBEs within projects      | 5      | Hybrid Sprint 2/3 | Completed early                    |
-| 2025-12-27 | E02-U01: User CRUD                        | 8      | Sprint 2          | Complete with tests                |
-| 2025-12-27 | E02-U02: Department CRUD                  | 5      | Sprint 2          | Complete with tests                |
-| 2025-12-27 | E02-U03: User roles and permissions       | 5      | Sprint 2          | RBAC implemented                   |
-| 2025-12-27 | E02-U04: Test coverage                    | 3      | Sprint 2          | 80%+ achieved                      |
+| Date | Item | Points | Iteration | Notes |
+| --- | --- | --- | --- | --- |
+| 2026-01-15 | E06-U04: Compare Branch to Main (Impact Analysis) | 8 | Change Orders v2 Phase 3 | Backend & Frontend Complete |
+| 2026-01-15 | E06-U03: Modify Entities in Branch | 8 | Change Orders v2 | Core EVCS functionality |
+| 2026-01-15 | E06-U01: Create Change Orders | 5 | Change Orders v2 | Backend & Frontend Complete |
+| 2026-01-15 | E06-U02: Automatic Branch Creation | 5 | Change Orders v2 | Implemented with E06-U01 |
+| 2026-01-07 | E04-U03: Create Cost Elements within WBEs | 8 | Hybrid Sprint 2/3 | Backend & Frontend Complete |
+| 2026-01-07 | E03-U04: Entity History Viewing | 5 | Hybrid Sprint 2/3 | Integrated for Projects, WBEs, CEs |
+| 2026-01-05 | E04-U01: Create projects with metadata | 5 | Hybrid Sprint 2/3 | Completed early |
+| 2026-01-05 | E04-U02: Create WBEs within projects | 5 | Hybrid Sprint 2/3 | Completed early |
+| 2025-12-27 | E02-U01: User CRUD | 8 | Sprint 2 | Complete with tests |
+| 2025-12-27 | E02-U02: Department CRUD | 5 | Sprint 2 | Complete with tests |
+| 2025-12-27 | E02-U03: User roles and permissions | 5 | Sprint 2 | RBAC implemented |
+| 2025-12-27 | E02-U04: Test coverage | 3 | Sprint 2 | 80%+ achieved |
 
 ---
 

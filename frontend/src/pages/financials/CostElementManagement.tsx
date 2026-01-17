@@ -5,8 +5,10 @@ import {
   PlusOutlined,
   HistoryOutlined,
   SearchOutlined,
+  EyeOutlined,
 } from "@ant-design/icons";
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import type { ColumnType } from "antd/es/table";
 import {
   CostElementsService,
@@ -59,6 +61,7 @@ export const CostElementManagement = ({
   wbeId,
   wbeName,
 }: CostElementManagementProps) => {
+  const navigate = useNavigate();
   const { tableParams, handleTableChange, handleSearch } = useTableParams<
     CostElementRead,
     CostElementFilters
@@ -280,7 +283,16 @@ export const CostElementManagement = ({
       title: "Actions",
       key: "actions",
       render: (_, record) => (
-        <Space>
+        <Space onClick={stopPropagation}>
+          <Can permission="cost-element-read">
+            <Button
+              icon={<EyeOutlined />}
+              onClick={() => {
+                navigate(`/cost-elements/${record.cost_element_id}`);
+              }}
+              title="View Details"
+            />
+          </Can>
           <Can permission="cost-element-read">
             <Button
               icon={<HistoryOutlined />}
@@ -314,6 +326,16 @@ export const CostElementManagement = ({
     },
   ];
 
+  // Handle row click to navigate to cost element detail page
+  const handleRowClick = (record: CostElementRead) => {
+    navigate(`/cost-elements/${record.cost_element_id}`);
+  };
+
+  // Stop propagation on action buttons to prevent row click
+  const stopPropagation = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
   return (
     <div>
       <StandardTable<CostElementRead>
@@ -326,6 +348,10 @@ export const CostElementManagement = ({
         dataSource={costElements || []} // Use raw data - server handles filtering
         columns={columns}
         rowKey="cost_element_id"
+        onRow={(record) => ({
+          onClick: () => handleRowClick(record),
+          style: { cursor: "pointer" },
+        })}
         searchable={true}
         searchPlaceholder="Search cost elements..."
         onSearch={handleSearch}

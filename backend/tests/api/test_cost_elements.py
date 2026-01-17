@@ -148,9 +148,7 @@ async def test_create_cost_element_in_branch(
     }
 
     # Create in 'feature-1' branch directly (via request body)
-    response = await client.post(
-        "/api/v1/cost-elements", json=element_data
-    )
+    response = await client.post("/api/v1/cost-elements", json=element_data)
     assert response.status_code == 201
     data = response.json()
     assert data["branch"] == "feature-1"
@@ -169,16 +167,12 @@ async def test_update_forks_branch(
         "wbe_id": deps["wbe_id"],
         "cost_element_type_id": deps["cost_element_type_id"],
     }
-    create_res = await client.post(
-        "/api/v1/cost-elements", json=element_data
-    )
+    create_res = await client.post("/api/v1/cost-elements", json=element_data)
     element_id = create_res.json()["cost_element_id"]
 
     # 2. Update in 'feature-fork' branch (should fork) - pass branch in request body
     update_data = {"name": "Forked Element", "branch": "feature-fork"}
-    response = await client.put(
-        f"/api/v1/cost-elements/{element_id}", json=update_data
-    )
+    response = await client.put(f"/api/v1/cost-elements/{element_id}", json=update_data)
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Forked Element"

@@ -43,7 +43,9 @@ class CostElementUpdate(BaseModel):
     budget_amount: Decimal | None = Field(None, ge=0, decimal_places=2)
     description: str | None = None
     cost_element_type_id: UUID | None = None
-    branch: str | None = Field(None, description="Branch name for update (defaults to current branch)")
+    branch: str | None = Field(
+        None, description="Branch name for update (defaults to current branch)"
+    )
     control_date: datetime | None = Field(
         None, description="Optional control date for update (valid_time start)"
     )

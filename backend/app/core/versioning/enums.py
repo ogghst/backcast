@@ -12,4 +12,4 @@ class BranchMode(str, Enum):
     """
 
     STRICT = "strict"  # Only look at specified branch
-    MERGE = "merge"    # Fall back to main if not found on branch
+    MERGE = "merge"  # Fall back to main if not found on branch

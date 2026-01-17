@@ -73,7 +73,10 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         return await cmd.execute(self.session)
 
     async def soft_delete(
-        self, cost_element_type_id: UUID, actor_id: UUID, control_date: datetime | None = None
+        self,
+        cost_element_type_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None,
     ) -> None:
         """Soft delete cost element type using SoftDeleteCommand."""
 

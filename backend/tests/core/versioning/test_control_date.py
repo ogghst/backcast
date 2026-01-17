@@ -1,4 +1,3 @@
-
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -9,6 +8,7 @@ from app.core.versioning.commands import CreateVersionCommand
 from app.models.domain.project import Project
 
 UTC = UTC
+
 
 @pytest.mark.asyncio
 async def test_create_version_command_with_control_date(db_session):
@@ -36,7 +36,7 @@ async def test_create_version_command_with_control_date(db_session):
         description="Test Desc",
         # Required fields for Project might vary, guessing minimal set
         start_date=datetime.now(UTC),
-        end_date=datetime.now(UTC) + timedelta(days=30)
+        end_date=datetime.now(UTC) + timedelta(days=30),
     )
 
     # This execution should set the valid_time to control_date
@@ -59,6 +59,7 @@ async def test_create_version_command_with_control_date(db_session):
     # so transaction_time (now) < valid_time (future)
     assert project.transaction_time.lower < control_date
 
+
 @pytest.mark.asyncio
 async def test_update_version_command_with_control_date(db_session):
     """UpdateVersionCommand should close old version at control_date and start new at control_date."""
@@ -77,20 +78,16 @@ async def test_update_version_command_with_control_date(db_session):
         code="TEST-UPD-001",
         description="Desc",
         start_date=datetime.now(UTC),
-        end_date=datetime.now(UTC) + timedelta(days=5)
+        end_date=datetime.now(UTC) + timedelta(days=5),
     )
-    original_version = await cmd.execute(db_session)
+    await cmd.execute(db_session)
 
     # 2. Update with control_date (e.g., 5 days later)
     # Using specific future date to distinguish from now()
     control_date = datetime.now(UTC) + timedelta(days=5)
 
     update_cmd = UpdateVersionCommand(
-        Project,
-        root_id,
-        actor_id,
-        control_date=control_date,
-        name="Updated Name"
+        Project, root_id, actor_id, control_date=control_date, name="Updated Name"
     )
 
     try:
@@ -105,14 +102,14 @@ async def test_update_version_command_with_control_date(db_session):
 
     # Check old version closed at control_date
     stmt = select(Project).where(
-        Project.project_id == root_id,
-        Project.id != new_version.id
+        Project.project_id == root_id, Project.id != new_version.id
     )
     result = await db_session.execute(stmt)
     old_version = result.scalar_one()
 
     assert old_version.valid_time.upper is not None
     assert control_date - delta <= old_version.valid_time.upper <= control_date + delta
+
 
 @pytest.mark.asyncio
 async def test_soft_delete_command_with_control_date(db_session):
@@ -133,19 +130,14 @@ async def test_soft_delete_command_with_control_date(db_session):
         code="TEST-DEL-001",
         description="Desc",
         start_date=datetime.now(UTC),
-        end_date=datetime.now(UTC) + timedelta(days=5)
+        end_date=datetime.now(UTC) + timedelta(days=5),
     )
     await cmd.execute(db_session)
 
     # Delete with control_date (future/past)
     control_date = datetime(2027, 1, 1, tzinfo=UTC)
 
-    del_cmd = SoftDeleteCommand(
-        Project,
-        root_id,
-        actor_id,
-        control_date=control_date
-    )
+    del_cmd = SoftDeleteCommand(Project, root_id, actor_id, control_date=control_date)
 
     try:
         deleted_project = await del_cmd.execute(db_session)
@@ -154,4 +146,3 @@ async def test_soft_delete_command_with_control_date(db_session):
 
     assert deleted_project.deleted_at == control_date
     assert deleted_project.deleted_by == actor_id
-

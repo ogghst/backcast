@@ -39,9 +39,11 @@ const AppLayout: React.FC = () => {
   const location = useLocation();
   const { can, hasRole } = usePermission();
 
-  // Extract projectId from URL if on project pages
+  // Extract projectId from URL if on project pages, or use store context
   const params = useParams<{ projectId?: string }>();
-  const projectId = params.projectId;
+  const urlProjectId = params.projectId;
+  const storeProjectId = useTimeMachineStore((s) => s.currentProjectId);
+  const projectId = urlProjectId || storeProjectId;
 
   // Fetch project data for timeline
   const { data: project } = useProject(projectId);

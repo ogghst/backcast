@@ -159,20 +159,7 @@ export const useTimeMachineStore = create<TimeMachineState>()(
           set((state) => {
             state.currentProjectId = projectId;
 
-            // Clear all other project settings to avoid stale data when switching projects
-            // Only keep settings for the current project (if it exists)
-            if (projectId) {
-              const currentSettings = state.projectSettings[projectId];
-              state.projectSettings = {};
-              if (currentSettings) {
-                state.projectSettings[projectId] = currentSettings;
-              }
-            } else {
-              // When projectId is null (leaving project), clear all settings
-              state.projectSettings = {};
-            }
-
-            // Initialize settings for new projects
+            // Initialize settings for new projects (preserve existing settings)
             if (projectId && !state.projectSettings[projectId]) {
               state.projectSettings[projectId] = {
                 ...DEFAULT_PROJECT_SETTINGS,

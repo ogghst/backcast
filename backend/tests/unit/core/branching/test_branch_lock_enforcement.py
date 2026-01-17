@@ -1,15 +1,15 @@
 """Tests for branch lock enforcement in BranchableService."""
 
-import pytest
 from uuid import uuid4
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.exceptions import BranchLockedException
 from app.core.branching.service import BranchableService
 from app.models.domain.branch import Branch
-from app.models.domain.wbe import WBE
 from app.models.domain.project import Project
+from app.models.domain.wbe import WBE
 from app.services.branch_service import BranchService
 
 
@@ -42,7 +42,7 @@ class TestBranchLockEnforcement:
 
         # Create initial WBE on main branch
         wbe_root_id = uuid4()
-        wbe = await wbe_service.create_root(
+        await wbe_service.create_root(
             root_id=wbe_root_id,
             actor_id=test_user_id,
             branch="main",
@@ -111,7 +111,7 @@ class TestBranchLockEnforcement:
 
         # Create initial WBE on main branch
         wbe_root_id = uuid4()
-        wbe = await wbe_service.create_root(
+        await wbe_service.create_root(
             root_id=wbe_root_id,
             actor_id=test_user_id,
             branch="main",
@@ -199,7 +199,7 @@ class TestBranchLockEnforcement:
                 project_id=project_id,
                 code="WBE-003",
                 name="Test WBE",
-                            )
+            )
 
         # Verify exception details
         assert exc_info.value.branch == co_branch

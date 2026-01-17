@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useWorkflowActions, WORKFLOW_ACTIONS, isActionAvailable } from "./useWorkflowActions";
+import {
+  useWorkflowActions,
+  WORKFLOW_ACTIONS,
+  isActionAvailable,
+} from "./useWorkflowActions";
 
 // Mock the API hooks
 vi.mock("../api/useChangeOrders", () => ({
@@ -9,15 +13,13 @@ vi.mock("../api/useChangeOrders", () => ({
   useMergeChangeOrder: vi.fn(),
 }));
 
-import { useUpdateChangeOrder, useMergeChangeOrder } from "../api/useChangeOrders";
+import {
+  useUpdateChangeOrder,
+  useMergeChangeOrder,
+} from "../api/useChangeOrders";
 
 describe("useWorkflowActions", () => {
   let queryClient: QueryClient;
-  let mockUpdateOnSuccess: ReturnType<typeof vi.fn>;
-  let mockUpdateOnError: ReturnType<typeof vi.fn>;
-  let mockMergeOnSuccess: ReturnType<typeof vi.fn>;
-  let mockMergeOnError: ReturnType<typeof vi.fn>;
-
   beforeEach(() => {
     vi.clearAllMocks();
     queryClient = new QueryClient({
@@ -28,30 +30,31 @@ describe("useWorkflowActions", () => {
     });
 
     // Setup mock implementations with callback support
-    mockUpdateOnSuccess = vi.fn();
-    mockUpdateOnError = vi.fn();
-    mockMergeOnSuccess = vi.fn();
-    mockMergeOnError = vi.fn();
+    vi.mocked(useUpdateChangeOrder).mockImplementation(
+      (options) =>
+        ({
+          mutateAsync: vi.fn(async (args) => {
+            // Simulate success behavior - call onSuccess callback
+            const result = { status: "Submitted for Approval", ...args.data };
+            options?.onSuccess?.(result);
+            return result;
+          }),
+          isPending: false,
+        }) as unknown as ReturnType<typeof useUpdateChangeOrder>,
+    );
 
-    vi.mocked(useUpdateChangeOrder).mockImplementation((options) => ({
-      mutateAsync: vi.fn(async (args) => {
-        // Simulate success behavior - call onSuccess callback
-        const result = { status: "Submitted for Approval", ...args.data };
-        options?.onSuccess?.(result);
-        return result;
-      }),
-      isPending: false,
-    } as any));
-
-    vi.mocked(useMergeChangeOrder).mockImplementation((options) => ({
-      mutateAsync: vi.fn(async (args) => {
-        // Simulate success behavior - call onSuccess callback
-        const result = { status: "Implemented" };
-        options?.onSuccess?.(result);
-        return result;
-      }),
-      isPending: false,
-    } as any));
+    vi.mocked(useMergeChangeOrder).mockImplementation(
+      (options) =>
+        ({
+          mutateAsync: vi.fn(async () => {
+            // Simulate success behavior - call onSuccess callback
+            const result = { status: "Implemented" };
+            options?.onSuccess?.(result);
+            return result;
+          }),
+          isPending: false,
+        }) as unknown as ReturnType<typeof useMergeChangeOrder>,
+    );
   });
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (
@@ -90,7 +93,9 @@ describe("useWorkflowActions", () => {
     });
 
     it("should return true when action status is in available transitions", () => {
-      expect(isActionAvailable("SUBMIT", ["Submitted for Approval"])).toBe(true);
+      expect(isActionAvailable("SUBMIT", ["Submitted for Approval"])).toBe(
+        true,
+      );
       expect(isActionAvailable("APPROVE", ["Under Review"])).toBe(true);
       expect(isActionAvailable("MERGE", ["Implemented"])).toBe(true);
     });
@@ -113,7 +118,9 @@ describe("useWorkflowActions", () => {
 
   describe("useWorkflowActions hook", () => {
     it("should return action methods", () => {
-      const { result } = renderHook(() => useWorkflowActions("co-123"), { wrapper });
+      const { result } = renderHook(() => useWorkflowActions("co-123"), {
+        wrapper,
+      });
 
       expect(result.current).toHaveProperty("submit");
       expect(result.current).toHaveProperty("approve");
@@ -129,15 +136,19 @@ describe("useWorkflowActions", () => {
       vi.mocked(useUpdateChangeOrder).mockReturnValue({
         mutateAsync: vi.fn(),
         isPending: true,
-      } as any);
+      } as unknown as ReturnType<typeof useUpdateChangeOrder>);
 
-      const { result } = renderHook(() => useWorkflowActions("co-123"), { wrapper });
+      const { result } = renderHook(() => useWorkflowActions("co-123"), {
+        wrapper,
+      });
 
       expect(result.current.isLoading).toBe(true);
     });
 
     it("should call submit with correct status", async () => {
-      const { result } = renderHook(() => useWorkflowActions("co-123"), { wrapper });
+      const { result } = renderHook(() => useWorkflowActions("co-123"), {
+        wrapper,
+      });
 
       await act(async () => {
         await result.current.submit("Test comment");
@@ -148,7 +159,9 @@ describe("useWorkflowActions", () => {
     });
 
     it("should call approve with correct status", async () => {
-      const { result } = renderHook(() => useWorkflowActions("co-123"), { wrapper });
+      const { result } = renderHook(() => useWorkflowActions("co-123"), {
+        wrapper,
+      });
 
       await act(async () => {
         await result.current.approve("Approved comment");
@@ -158,7 +171,9 @@ describe("useWorkflowActions", () => {
     });
 
     it("should call reject with correct status", async () => {
-      const { result } = renderHook(() => useWorkflowActions("co-123"), { wrapper });
+      const { result } = renderHook(() => useWorkflowActions("co-123"), {
+        wrapper,
+      });
 
       await act(async () => {
         await result.current.reject("Reject reason");
@@ -168,7 +183,9 @@ describe("useWorkflowActions", () => {
     });
 
     it("should call merge with merge request", async () => {
-      const { result } = renderHook(() => useWorkflowActions("co-123"), { wrapper });
+      const { result } = renderHook(() => useWorkflowActions("co-123"), {
+        wrapper,
+      });
 
       await act(async () => {
         await result.current.merge({
@@ -181,7 +198,9 @@ describe("useWorkflowActions", () => {
     });
 
     it("should call merge with default target branch when not specified", async () => {
-      const { result } = renderHook(() => useWorkflowActions("co-123"), { wrapper });
+      const { result } = renderHook(() => useWorkflowActions("co-123"), {
+        wrapper,
+      });
 
       await act(async () => {
         await result.current.merge({ comment: "Test" });
@@ -195,7 +214,7 @@ describe("useWorkflowActions", () => {
 
       const { result } = renderHook(
         () => useWorkflowActions("co-123", { onSuccess }),
-        { wrapper }
+        { wrapper },
       );
 
       await act(async () => {
@@ -212,17 +231,20 @@ describe("useWorkflowActions", () => {
       const error = new Error("API Error");
 
       // Override the mock to reject
-      vi.mocked(useUpdateChangeOrder).mockImplementation((options) => ({
-        mutateAsync: vi.fn(async () => {
-          options?.onError?.(error);
-          throw error;
-        }),
-        isPending: false,
-      } as any));
+      vi.mocked(useUpdateChangeOrder).mockImplementation(
+        (options) =>
+          ({
+            mutateAsync: vi.fn(async () => {
+              options?.onError?.(error);
+              throw error;
+            }),
+            isPending: false,
+          }) as unknown as ReturnType<typeof useUpdateChangeOrder>,
+      );
 
       const { result } = renderHook(
         () => useWorkflowActions("co-123", { onError }),
-        { wrapper }
+        { wrapper },
       );
 
       await act(async () => {

@@ -3,6 +3,7 @@
 This script transforms seed files from code-based relationships to ID-based relationships
 for consistency and efficiency.
 """
+
 import json
 
 # Add parent directory to path for imports
@@ -71,7 +72,9 @@ def update_cost_elements():
 
     # Create mappings
     wbe_id_map = {wbe["code"]: wbe["wbe_id"] for wbe in wbes}
-    cet_id_map = {cet["code"]: cet["cost_element_type_id"] for cet in cost_element_types}
+    cet_id_map = {
+        cet["code"]: cet["cost_element_type_id"] for cet in cost_element_types
+    }
 
     # Update each cost element
     for ce in cost_elements:

@@ -144,7 +144,9 @@ class ImpactAnalysisResponse(BaseModel):
     model_config = ConfigDict(strict=True)
 
     change_order_id: UUID = Field(description="Change Order ID (UUID)")
-    branch_name: str = Field(description="Branch name being compared (e.g., 'co-CO-2026-001')")
+    branch_name: str = Field(
+        description="Branch name being compared (e.g., 'co-CO-2026-001')"
+    )
     main_branch_name: str = Field(description="Main branch name (always 'main')")
     kpi_scorecard: KPIScorecard = Field(description="KPI comparison")
     entity_changes: EntityChanges = Field(description="Entity changes")

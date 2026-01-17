@@ -141,7 +141,9 @@ class DataSeeder:
                     # Check if department already exists
                     existing_dept = await dept_service.get_by_code(dept_in.code)
                     if existing_dept:
-                        logger.debug(f"Department {dept_in.code} already exists, skipping")
+                        logger.debug(
+                            f"Department {dept_in.code} already exists, skipping"
+                        )
                         skipped_count += 1
                         continue
 

@@ -80,7 +80,7 @@ class BranchService:
         stmt = select(Branch).where(
             Branch.name == name,
             Branch.project_id == project_id,
-            Branch.deleted_at.is_(None)  # Only return non-deleted branches
+            Branch.deleted_at.is_(None),  # Only return non-deleted branches
         )
         result = await self.session.execute(stmt)
         branch = result.scalar_one()

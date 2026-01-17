@@ -3,6 +3,7 @@ import {
   useQueryClient,
   UseMutationOptions,
   useQuery,
+  type UseQueryOptions,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
@@ -30,7 +31,10 @@ interface CostElementListParams {
   search?: string;
   sortField?: string;
   sortOrder?: string;
-  queryOptions?: any;
+  queryOptions?: Omit<
+    UseQueryOptions<PaginatedResponse<CostElementRead>>,
+    "queryKey" | "queryFn"
+  >;
   wbe_id?: string; // Add wbe_id for direct filtering support if needed
 }
 
@@ -116,7 +120,7 @@ export const useCreateCostElement = (
   mutationOptions?: Omit<
     UseMutationOptions<CostElementRead, Error, CreateWithBranch>,
     "mutationFn"
-  >
+  >,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -156,7 +160,7 @@ export const useUpdateCostElement = (
       { id: string; data: UpdateWithBranch }
     >,
     "mutationFn"
-  >
+  >,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -172,7 +176,7 @@ export const useUpdateCostElement = (
       return CostElementsService.updateCostElement(
         id,
         payload,
-        branch || "main"
+        branch || "main",
       );
     },
     onSuccess: (...args) => {
@@ -193,7 +197,7 @@ export const useUpdateCostElement = (
  * Automatically injects control_date from TimeMachine context as a query parameter.
  */
 export const useDeleteCostElement = (
-  mutationOptions?: Omit<UseMutationOptions<void, Error, string>, "mutationFn">
+  mutationOptions?: Omit<UseMutationOptions<void, Error, string>, "mutationFn">,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -226,5 +230,47 @@ export const useDeleteCostElement = (
       mutationOptions?.onError?.(error, ...args);
     },
     ...mutationOptions,
+  });
+};
+
+/**
+ * Hook to get a single cost element by ID.
+ * @param costElementId - The cost element ID to fetch
+ * @param branch - Branch to query (default: "main")
+ * @returns TanStack Query result with cost element data
+ */
+export const useCostElement = (
+  costElementId: string,
+  branch: string = "main",
+) => {
+  const { asOf } = useTimeMachineParams();
+
+  return useQuery<CostElementRead>({
+    queryKey: ["cost_element", costElementId, branch, { asOf }],
+    queryFn: async () => {
+      return await CostElementsService.getCostElement(
+        costElementId,
+        branch,
+        asOf || undefined,
+      );
+    },
+    enabled: !!costElementId,
+  });
+};
+
+/**
+ * Hook to get breadcrumb trail for a cost element.
+ * Returns project, WBE, and cost element information for navigation.
+ *
+ * @param costElementId - The cost element ID to fetch breadcrumb for
+ * @returns TanStack Query result with breadcrumb data
+ */
+export const useCostElementBreadcrumb = (costElementId: string) => {
+  return useQuery({
+    queryKey: ["cost_element_breadcrumb", costElementId],
+    queryFn: async () => {
+      return await CostElementsService.getCostElementBreadcrumb(costElementId);
+    },
+    enabled: !!costElementId,
   });
 };

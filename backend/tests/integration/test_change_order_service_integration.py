@@ -1,16 +1,14 @@
 """Integration tests for ChangeOrderService with branch creation and workflow."""
 
-import pytest
 from uuid import uuid4
-from datetime import datetime
+
+import pytest
 
 from app.models.domain.branch import Branch
-from app.models.domain.change_order import ChangeOrder
 from app.models.domain.project import Project
 from app.models.schemas.change_order import ChangeOrderCreate, ChangeOrderUpdate
-from app.services.change_order_service import ChangeOrderService
-from app.services.change_order_workflow_service import ChangeOrderWorkflowService
 from app.services.branch_service import BranchService
+from app.services.change_order_service import ChangeOrderService
 
 
 @pytest.mark.asyncio

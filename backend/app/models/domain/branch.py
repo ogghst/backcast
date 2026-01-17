@@ -4,6 +4,7 @@ Branches are project-scoped: the same branch name can exist in different project
 Composite primary key: (name, project_id)
 """
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Boolean, DateTime, String, func
@@ -35,7 +36,7 @@ class Branch(Base):
     project_id: Mapped[UUID] = mapped_column(
         PG_UUID,
         nullable=False,
-        primary_key=True
+        primary_key=True,
         # Note: No explicit ForeignKey here because project_id is not unique in projects table
         # (it's indexed but appears across multiple versions)
         # The FK is enforced at application level via service layer validation
@@ -50,10 +51,14 @@ class Branch(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     created_by: Mapped[UUID] = mapped_column(PG_UUID, nullable=False)
-    deleted_at: Mapped[str | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[str | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Additional metadata (renamed from 'metadata' which is reserved in SQLAlchemy)
-    branch_metadata: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
+    branch_metadata: Mapped[dict[str, Any] | None] = mapped_column(
+        "metadata", JSONB, nullable=True
+    )
 
     def __repr__(self) -> str:
         return (

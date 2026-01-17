@@ -7,10 +7,11 @@ from datetime import UTC, datetime
 from typing import Any, TypeVar, cast
 from uuid import UUID
 
-from sqlalchemy import func, select, text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.commands import VersionedCommandABC
+from app.core.versioning.exceptions import OverlappingVersionError
 from app.models.protocols import BranchableProtocol
 
 TBranchable = TypeVar("TBranchable", bound=BranchableProtocol)
@@ -39,7 +40,9 @@ class BranchCommandABC(VersionedCommandABC[TBranchable]):
                 getattr(self.entity_class, self._root_field_name()) == self.root_id,
                 cast(Any, self.entity_class).branch == branch,
                 func.upper(cast(Any, self.entity_class).valid_time).is_(None),
-                func.not_(func.isempty(self.entity_class.valid_time)),  # Exclude empty ranges
+                func.not_(
+                    func.isempty(self.entity_class.valid_time)
+                ),  # Exclude empty ranges
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
             .order_by(cast(Any, self.entity_class).valid_time.desc())
@@ -47,6 +50,46 @@ class BranchCommandABC(VersionedCommandABC[TBranchable]):
         )
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def _check_overlap(
+        self,
+        session: AsyncSession,
+        start_time: datetime,
+        branch: str,
+        exclude_version_id: UUID | None = None,
+    ) -> None:
+        """Check for overlapping versions on the branch.
+
+        Ensures no active version exists that would overlap with a new version
+        starting at `start_time` and extending to infinity.
+        """
+        stmt = select(self.entity_class).where(
+            getattr(self.entity_class, self._root_field_name()) == self.root_id,
+            cast(Any, self.entity_class).branch == branch,
+            cast(Any, self.entity_class).deleted_at.is_(None),
+        )
+
+        if exclude_version_id:
+            stmt = stmt.where(cast(Any, self.entity_class).id != exclude_version_id)
+
+        # Check for any version that ends after start_time or is open-ended
+        stmt = stmt.where(
+            or_(
+                func.upper(cast(Any, self.entity_class).valid_time) > start_time,
+                func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+            )
+        )
+
+        result = await session.execute(stmt.limit(1))
+        existing = result.scalar_one_or_none()
+
+        if existing:
+            raise OverlappingVersionError(
+                root_id=str(self.root_id),
+                branch=branch,
+                new_range=f"[{start_time.isoformat()}, NULL)",
+                existing_range=getattr(existing, "valid_time", "unknown"),
+            )
 
 
 class CreateBranchCommand(BranchCommandABC[TBranchable]):
@@ -69,9 +112,12 @@ class CreateBranchCommand(BranchCommandABC[TBranchable]):
     async def execute(self, session: AsyncSession) -> TBranchable:
         """Clone current version to new branch.
 
-        Uses control_date for valid_time, and clock_timestamp() for transaction_time
+        uses control_date for valid_time, and clock_timestamp() for transaction_time
         to ensure bitemporal correctness.
         """
+        # 0. Check for overlaps on new branch
+        await self._check_overlap(session, self.control_date, self.new_branch)
+
         # Get current version from source branch
         source = await self._get_current_on_branch(session, self.from_branch)
         if not source:
@@ -87,7 +133,7 @@ class CreateBranchCommand(BranchCommandABC[TBranchable]):
         await session.flush()  # Get ID assigned
 
         # Set valid_time to control_date, transaction_time to clock_timestamp()
-        tablename = cast(str, self.entity_class.__tablename__)
+        tablename = str(getattr(self.entity_class, "__tablename__", ""))
         stmt = text(
             f"""
             UPDATE {tablename}
@@ -97,10 +143,9 @@ class CreateBranchCommand(BranchCommandABC[TBranchable]):
             WHERE id = :version_id
             """
         )
-        await session.execute(stmt, {
-            "control_date": self.control_date,
-            "version_id": branched.id
-        })
+        await session.execute(
+            stmt, {"control_date": self.control_date, "version_id": branched.id}
+        )
         await session.flush()
         await session.refresh(branched)
         return branched
@@ -140,32 +185,32 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
             )
 
         if self.control_date:
-             current_lower = cast(Any, current).valid_time.lower
-             # NOTE: Allow control_date == current_lower for Time Machine mode
-             if self.control_date < current_lower:
-                 raise ValueError(
-                     f"control_date ({self.control_date.isoformat()}) must be on or after "
-                     f"valid_time lower bound ({current_lower.isoformat()})"
-                 )
+            current_lower = cast(Any, current).valid_time.lower
+            # NOTE: Allow control_date == current_lower for Time Machine mode
+            if self.control_date < current_lower:
+                raise ValueError(
+                    f"control_date ({self.control_date.isoformat()}) must be on or after "
+                    f"valid_time lower bound ({current_lower.isoformat()})"
+                )
 
-             # SPLIT HISTORY: Only create remainder if there is an actual time gap
-             # If control_date == current_lower, the new version completely replaces the old one
-             # starting from the same time, so no "previous history" (remainder) is needed for this period.
-             if self.control_date > current_lower:
-                 # Create a remainder version for the period [current_lower, control_date)
-                 # This ensures we preserve "Current Knowledge" that the entity WAS valid during that period.
-                 # CRITICAL: The remainder is HISTORICAL data (was corrected), so its transaction_time
-                 # must be CLOSED at the update_timestamp to show it was superseded by the new version.
-                 remainder = cast(
-                     TBranchable, current.clone(parent_id=current.parent_id)
-                 )
-                 session.add(remainder)
-                 await session.flush()
+            # SPLIT HISTORY: Only create remainder if there is an actual time gap
+            # If control_date == current_lower, the new version completely replaces the old one
+            # starting from the same time, so no "previous history" (remainder) is needed for this period.
+            if self.control_date > current_lower:
+                # Create a remainder version for the period [current_lower, control_date)
+                # This ensures we preserve "Current Knowledge" that the entity WAS valid during that period.
+                # CRITICAL: The remainder is HISTORICAL data (was corrected), so its transaction_time
+                # must be CLOSED at the update_timestamp to show it was superseded by the new version.
+                remainder = cast(
+                    TBranchable, current.clone(parent_id=current.parent_id)
+                )
+                session.add(remainder)
+                await session.flush()
 
-                 # Fix Remainder Times
-                 # CRITICAL FIX: Close remainder's transaction_time to show it was corrected
-                 tablename = cast(str, self.entity_class.__tablename__)
-                 stmt_rem = text(
+                # Fix Remainder Times
+                # CRITICAL FIX: Close remainder's transaction_time to show it was corrected
+                tablename = str(getattr(self.entity_class, "__tablename__", ""))
+                stmt_rem = text(
                     f"""
                     UPDATE {tablename}
                     SET
@@ -173,23 +218,45 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
                         transaction_time = tstzrange(:tx_lower, :tx_upper, '[)')
                     WHERE id = :version_id
                     """
-                 )
-                 await session.execute(stmt_rem, {
-                     "lower": current_lower,
-                     "upper": self.control_date,
-                     "tx_lower": cast(Any, current).transaction_time.lower,
-                     "tx_upper": update_timestamp,  # Close: remainder was corrected at this time
-                     "version_id": remainder.id
-                 })
+                )
+                await session.execute(
+                    stmt_rem,
+                    {
+                        "lower": current_lower,
+                        "upper": self.control_date,
+                        "tx_lower": cast(Any, current).transaction_time.lower,
+                        "tx_upper": update_timestamp,  # Close: remainder was corrected at this time
+                        "version_id": remainder.id,
+                    },
+                )
 
         # 2. Clone and apply updates (Safe Clone via Core Select)
         # Fetch raw data to avoid ORM lazy-load triggers (MissingGreenlet)
+        # CRITICAL FIX: Store current_id before closing to avoid accessing expired entity
+        current_id = current.id
         new_version = cast(
-            TBranchable, current.clone(**self.updates, parent_id=current.id)
+            TBranchable, current.clone(**self.updates, parent_id=current_id)
         )
 
         # 3. Close current
-        await self._close_version(session, current, close_at_valid_time=self.control_date)
+        await self._close_version(
+            session, current, close_at_valid_time=self.control_date
+        )
+
+        # CRITICAL FIX: Use the same update_timestamp for both ranges to avoid empty ranges
+        # When control_date is None (normal update), use update_timestamp for valid_time lower bound
+        valid_time_lower = (
+            self.control_date if self.control_date is not None else update_timestamp
+        )
+
+        # 0. Check for overlaps on current branch (excluding the version we just closed/are closing)
+        # Note: We checked 'current' before closing, but _check_overlap logic looks for conflicts
+        # with the NEW range [valid_time_lower, Infinity).
+        # 'current' (now closed at valid_time_lower) will NOT overlap because upper=valid_time_lower.
+        # But we pass exclude_version_id just to be safe and explicit.
+        await self._check_overlap(
+            session, valid_time_lower, self.branch, exclude_version_id=current_id
+        )
 
         session.add(new_version)
         await session.flush()
@@ -197,9 +264,11 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         # 4. Set valid_time and transaction_time on new version via SQL
         # CRITICAL FIX: Use the same update_timestamp for both ranges to avoid empty ranges
         # When control_date is None (normal update), use update_timestamp for valid_time lower bound
-        valid_time_lower = self.control_date if self.control_date is not None else update_timestamp
+        valid_time_lower = (
+            self.control_date if self.control_date is not None else update_timestamp
+        )
 
-        tablename = cast(str, self.entity_class.__tablename__)
+        tablename = str(getattr(self.entity_class, "__tablename__", ""))
         stmt = text(
             f"""
             UPDATE {tablename}
@@ -209,11 +278,14 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
             WHERE id = :version_id
             """
         )
-        await session.execute(stmt, {
-            "control_date": valid_time_lower,
-            "update_timestamp": update_timestamp,
-            "version_id": new_version.id
-        })
+        await session.execute(
+            stmt,
+            {
+                "control_date": valid_time_lower,
+                "update_timestamp": update_timestamp,
+                "version_id": new_version.id,
+            },
+        )
         await session.flush()
         await session.refresh(new_version)
 
@@ -272,7 +344,7 @@ class MergeBranchCommand(BranchCommandABC[TBranchable]):
         # 5. Set valid_time and transaction_time on merged version via SQL
         # Generate timestamp in Python to avoid empty ranges from duplicate clock_timestamp() calls
         merge_timestamp = datetime.now(UTC)
-        tablename = cast(str, self.entity_class.__tablename__)
+        tablename = str(getattr(self.entity_class, "__tablename__", ""))
         stmt = text(
             f"""
             UPDATE {tablename}
@@ -282,10 +354,9 @@ class MergeBranchCommand(BranchCommandABC[TBranchable]):
             WHERE id = :version_id
             """
         )
-        await session.execute(stmt, {
-            "merge_timestamp": merge_timestamp,
-            "version_id": merged.id
-        })
+        await session.execute(
+            stmt, {"merge_timestamp": merge_timestamp, "version_id": merged.id}
+        )
         await session.flush()
         await session.refresh(merged)
 
@@ -346,7 +417,7 @@ class RevertCommand(BranchCommandABC[TBranchable]):
         # 5. Set valid_time and transaction_time on reverted version via SQL
         # Generate timestamp in Python to avoid empty ranges from duplicate clock_timestamp() calls
         revert_timestamp = datetime.now(UTC)
-        tablename = cast(str, self.entity_class.__tablename__)
+        tablename = str(getattr(self.entity_class, "__tablename__", ""))
         stmt = text(
             f"""
             UPDATE {tablename}
@@ -356,10 +427,9 @@ class RevertCommand(BranchCommandABC[TBranchable]):
             WHERE id = :version_id
             """
         )
-        await session.execute(stmt, {
-            "revert_timestamp": revert_timestamp,
-            "version_id": reverted.id
-        })
+        await session.execute(
+            stmt, {"revert_timestamp": revert_timestamp, "version_id": reverted.id}
+        )
         await session.flush()
         await session.refresh(reverted)
 
@@ -394,7 +464,7 @@ class BranchableSoftDeleteCommand(BranchCommandABC[TBranchable]):
                 f"No active version found on branch {self.branch} for {self.root_id}"
             )
 
-        current.deleted_at = self.control_date  # type: ignore[attr-defined]
-        current.deleted_by = self.actor_id  # type: ignore[attr-defined]
+        current.deleted_at = self.control_date
+        current.deleted_by = self.actor_id
         await session.flush()
         return current

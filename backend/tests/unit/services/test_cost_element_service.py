@@ -357,9 +357,7 @@ class TestCostElementServiceBranching:
         update_in = CostElementUpdate(
             budget_amount=Decimal("20000.00"),
         )
-        await service.update(
-            element_id, update_in, actor_id=uuid4(), branch="co-123"
-        )
+        await service.update(element_id, update_in, actor_id=uuid4(), branch="co-123")
 
         # Assert - Main should be unchanged
         main_latest = await service.get_by_id(element_id, branch="main")

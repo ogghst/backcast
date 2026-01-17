@@ -114,7 +114,7 @@ async def create_cost_element(
             element_in=element_in,
             actor_id=current_user.user_id,
             branch=element_in.branch,
-            control_date=element_in.control_date
+            control_date=element_in.control_date,
         )
     except Exception as e:
         raise HTTPException(
@@ -153,7 +153,8 @@ async def read_cost_element(
     if not item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Cost Element not found in branch {branch}" + (f" as of {as_of}" if as_of else ""),
+            detail=f"Cost Element not found in branch {branch}"
+            + (f" as of {as_of}" if as_of else ""),
         )
     return item
 
@@ -180,7 +181,7 @@ async def update_cost_element(
             element_in=element_in,
             actor_id=current_user.user_id,
             branch=branch,
-            control_date=element_in.control_date
+            control_date=element_in.control_date,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -195,7 +196,9 @@ async def update_cost_element(
 async def delete_cost_element(
     cost_element_id: UUID,
     branch: str = Query("main", description="Branch to delete from"),
-    control_date: datetime | None = Query(None, description="Optional control date for deletion"),
+    control_date: datetime | None = Query(
+        None, description="Optional control date for deletion"
+    ),
     current_user: User = Depends(get_current_active_user),
     service: CostElementService = Depends(get_cost_element_service),
 ) -> None:
@@ -212,7 +215,7 @@ async def delete_cost_element(
             cost_element_id=cost_element_id,
             actor_id=current_user.user_id,
             branch=branch,
-            control_date=control_date
+            control_date=control_date,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -233,3 +236,22 @@ async def get_cost_element_history(
     # TemporalService.get_history gets ALL versions by root_id.
     # This is correct for "history view".
     return await service.get_history(cost_element_id)
+
+
+@router.get(
+    "/{cost_element_id}/breadcrumb",
+    operation_id="get_cost_element_breadcrumb",
+    dependencies=[Depends(RoleChecker(required_permission="cost-element-read"))],
+)
+async def get_cost_element_breadcrumb(
+    cost_element_id: UUID,
+    service: CostElementService = Depends(get_cost_element_service),
+) -> dict[str, Any]:
+    """Get breadcrumb trail for a Cost Element (project + WBE + cost element)."""
+    try:
+        return await service.get_breadcrumb(cost_element_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e

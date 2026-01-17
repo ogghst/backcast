@@ -2,6 +2,7 @@
 
 Test module for MergeConflictError and related exceptions.
 """
+
 import pytest
 
 from app.core.branching.exceptions import MergeConflictError

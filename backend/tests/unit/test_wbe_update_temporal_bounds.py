@@ -10,17 +10,14 @@ Reference: docs/02-architecture/cross-cutting/temporal-query-reference.md
 """
 
 import asyncio
-import time
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.domain.wbe import WBE
 from app.models.schemas.wbe import WBEUpdate
 from app.services.wbe import WBEService
 
@@ -56,7 +53,9 @@ def print_temporal_bounds(
     # Check for empty or inverted ranges
     if valid_upper is not None and valid_lower is not None:
         if valid_upper <= valid_lower:
-            print(f"{indent}  ❌ ERROR: valid_time is empty or inverted [{valid_lower}, {valid_upper})")
+            print(
+                f"{indent}  ❌ ERROR: valid_time is empty or inverted [{valid_lower}, {valid_upper})"
+            )
         else:
             duration = valid_upper - valid_lower
             print(f"{indent}  ✓ valid_time duration: {duration.total_seconds():.3f}s")
@@ -66,10 +65,14 @@ def print_temporal_bounds(
 
     if tx_upper is not None and tx_lower is not None:
         if tx_upper <= tx_lower:
-            print(f"{indent}  ❌ ERROR: transaction_time is empty or inverted [{tx_lower}, {tx_upper})")
+            print(
+                f"{indent}  ❌ ERROR: transaction_time is empty or inverted [{tx_lower}, {tx_upper})"
+            )
         else:
             duration = tx_upper - tx_lower
-            print(f"{indent}  ✓ transaction_time duration: {duration.total_seconds():.3f}s")
+            print(
+                f"{indent}  ✓ transaction_time duration: {duration.total_seconds():.3f}s"
+            )
     else:
         if tx_upper is None:
             print(f"{indent}  ✓ transaction_time is open-ended (current version)")
@@ -182,7 +185,9 @@ async def test_wbe_update_temporal_bounds(db_session: AsyncSession) -> None:
 
     # Fetch v1 from DB to get actual temporal values
     versions_v1 = await get_wbe_versions_from_db(db_session, wbe_id)
-    assert len(versions_v1) == 1, f"Expected 1 version after creation, got {len(versions_v1)}"
+    assert len(versions_v1) == 1, (
+        f"Expected 1 version after creation, got {len(versions_v1)}"
+    )
 
     v1_data = versions_v1[0]
     print("\n  V1 (from DB):")
@@ -197,10 +202,18 @@ async def test_wbe_update_temporal_bounds(db_session: AsyncSession) -> None:
     )
 
     # Verify v1 initial state
-    assert v1_data["valid_lower"] is not None, "V1 valid_time lower bound should not be NULL"
-    assert v1_data["valid_upper"] is None, "V1 valid_time upper bound should be NULL (open-ended)"
-    assert v1_data["tx_lower"] is not None, "V1 transaction_time lower bound should not be NULL"
-    assert v1_data["tx_upper"] is None, "V1 transaction_time upper bound should be NULL (open-ended)"
+    assert v1_data["valid_lower"] is not None, (
+        "V1 valid_time lower bound should not be NULL"
+    )
+    assert v1_data["valid_upper"] is None, (
+        "V1 valid_time upper bound should be NULL (open-ended)"
+    )
+    assert v1_data["tx_lower"] is not None, (
+        "V1 transaction_time lower bound should not be NULL"
+    )
+    assert v1_data["tx_upper"] is None, (
+        "V1 transaction_time upper bound should be NULL (open-ended)"
+    )
     assert v1_data["deleted_at"] is None, "V1 should not be deleted"
     print("    ✓ V1 initial state validated")
 
@@ -230,7 +243,9 @@ async def test_wbe_update_temporal_bounds(db_session: AsyncSession) -> None:
         control_date=t2,
     )
 
-    print(f"  Updated WBE: id={updated_wbe.id}, code={updated_wbe.code}, name={updated_wbe.name}")
+    print(
+        f"  Updated WBE: id={updated_wbe.id}, code={updated_wbe.code}, name={updated_wbe.name}"
+    )
 
     # ========================================================================
     # STEP 4: Fetch both versions and verify temporal bounds
@@ -238,7 +253,9 @@ async def test_wbe_update_temporal_bounds(db_session: AsyncSession) -> None:
     print("\n--- STEP 4: Verifying temporal bounds ---")
 
     versions_after_update = await get_wbe_versions_from_db(db_session, wbe_id)
-    assert len(versions_after_update) == 2, f"Expected 2 versions after update, got {len(versions_after_update)}"
+    assert len(versions_after_update) == 2, (
+        f"Expected 2 versions after update, got {len(versions_after_update)}"
+    )
 
     v1_after = versions_after_update[0]
     v2_data = versions_after_update[1]
@@ -271,17 +288,35 @@ async def test_wbe_update_temporal_bounds(db_session: AsyncSession) -> None:
     print("\n--- VALIDATION: V1 (old version) ---")
 
     # V1 valid_time should be closed at T2
-    assert v1_after["valid_upper"] is not None, "V1 valid_time upper bound should be set (closed)"
-    assert v1_after["valid_upper"] == t2, f"V1 valid_time upper bound should equal T2 ({t2}), got {v1_after['valid_upper']}"
-    assert v1_after["valid_lower"] == v1_valid_lower, "V1 valid_time lower bound should not change"
-    assert v1_after["valid_lower"] < v1_after["valid_upper"], "V1 valid_time should not be empty"
-    print(f"  ✓ V1 valid_time properly closed: [{v1_after['valid_lower']}, {v1_after['valid_upper']})")
+    assert v1_after["valid_upper"] is not None, (
+        "V1 valid_time upper bound should be set (closed)"
+    )
+    assert v1_after["valid_upper"] == t2, (
+        f"V1 valid_time upper bound should equal T2 ({t2}), got {v1_after['valid_upper']}"
+    )
+    assert v1_after["valid_lower"] == v1_valid_lower, (
+        "V1 valid_time lower bound should not change"
+    )
+    assert v1_after["valid_lower"] < v1_after["valid_upper"], (
+        "V1 valid_time should not be empty"
+    )
+    print(
+        f"  ✓ V1 valid_time properly closed: [{v1_after['valid_lower']}, {v1_after['valid_upper']})"
+    )
 
     # V1 transaction_time should be closed
-    assert v1_after["tx_upper"] is not None, "V1 transaction_time upper bound should be set (closed)"
-    assert v1_after["tx_lower"] == v1_tx_lower, "V1 transaction_time lower bound should not change"
-    assert v1_after["tx_lower"] < v1_after["tx_upper"], "V1 transaction_time should not be empty"
-    print(f"  ✓ V1 transaction_time properly closed: [{v1_after['tx_lower']}, {v1_after['tx_upper']})")
+    assert v1_after["tx_upper"] is not None, (
+        "V1 transaction_time upper bound should be set (closed)"
+    )
+    assert v1_after["tx_lower"] == v1_tx_lower, (
+        "V1 transaction_time lower bound should not change"
+    )
+    assert v1_after["tx_lower"] < v1_after["tx_upper"], (
+        "V1 transaction_time should not be empty"
+    )
+    print(
+        f"  ✓ V1 transaction_time properly closed: [{v1_after['tx_lower']}, {v1_after['tx_upper']})"
+    )
 
     # V1 should not be deleted (soft delete, not temporal closure)
     assert v1_after["deleted_at"] is None, "V1 should not be soft deleted"
@@ -290,7 +325,9 @@ async def test_wbe_update_temporal_bounds(db_session: AsyncSession) -> None:
     # V1 parent_id - tracks branch hierarchy, not version chain
     # For regular updates (not branching), parent_id is not used for version chaining
     # parent_id is used in branching operations to track the source version
-    print(f"  ✓ V1 parent_id={v1_after['parent_id']} (branch hierarchy, not version chain)")
+    print(
+        f"  ✓ V1 parent_id={v1_after['parent_id']} (branch hierarchy, not version chain)"
+    )
 
     # ========================================================================
     # VALIDATION: V2 (new version) should be open-ended
@@ -298,14 +335,24 @@ async def test_wbe_update_temporal_bounds(db_session: AsyncSession) -> None:
     print("\n--- VALIDATION: V2 (new version) ---")
 
     # V2 valid_time should start at T2 and be open-ended
-    assert v2_data["valid_lower"] is not None, "V2 valid_time lower bound should not be NULL"
-    assert v2_data["valid_lower"] == t2, f"V2 valid_time lower bound should equal T2 ({t2}), got {v2_data['valid_lower']}"
-    assert v2_data["valid_upper"] is None, "V2 valid_time upper bound should be NULL (open-ended)"
+    assert v2_data["valid_lower"] is not None, (
+        "V2 valid_time lower bound should not be NULL"
+    )
+    assert v2_data["valid_lower"] == t2, (
+        f"V2 valid_time lower bound should equal T2 ({t2}), got {v2_data['valid_lower']}"
+    )
+    assert v2_data["valid_upper"] is None, (
+        "V2 valid_time upper bound should be NULL (open-ended)"
+    )
     print(f"  ✓ V2 valid_time open-ended: [{v2_data['valid_lower']}, NULL)")
 
     # V2 transaction_time should start after V1's transaction_time and be open-ended
-    assert v2_data["tx_lower"] is not None, "V2 transaction_time lower bound should not be NULL"
-    assert v2_data["tx_upper"] is None, "V2 transaction_time upper bound should be NULL (open-ended)"
+    assert v2_data["tx_lower"] is not None, (
+        "V2 transaction_time lower bound should not be NULL"
+    )
+    assert v2_data["tx_upper"] is None, (
+        "V2 transaction_time upper bound should be NULL (open-ended)"
+    )
     assert v2_data["tx_lower"] > v1_after["tx_upper"], (
         f"V2 transaction_time lower bound should be after V1's transaction_time upper bound. "
         f"Got V2.tx_lower={v2_data['tx_lower']}, V1.tx_upper={v1_after['tx_upper']}"
@@ -318,11 +365,17 @@ async def test_wbe_update_temporal_bounds(db_session: AsyncSession) -> None:
 
     # V2 parent_id - tracks branch hierarchy, not version chain
     # For regular updates (not branching), parent_id is not used for version chaining
-    print(f"  ✓ V2 parent_id={v2_data['parent_id']} (branch hierarchy, not version chain)")
+    print(
+        f"  ✓ V2 parent_id={v2_data['parent_id']} (branch hierarchy, not version chain)"
+    )
 
     # V2 should have the updated data
-    assert v2_data["name"] == "Updated WBE", f"V2 name should be 'Updated WBE', got {v2_data['name']}"
-    assert v2_data["code"] == "TEST-001", f"V2 code should remain 'TEST-001', got {v2_data['code']}"
+    assert v2_data["name"] == "Updated WBE", (
+        f"V2 name should be 'Updated WBE', got {v2_data['name']}"
+    )
+    assert v2_data["code"] == "TEST-001", (
+        f"V2 code should remain 'TEST-001', got {v2_data['code']}"
+    )
     print(f"  ✓ V2 has updated data: name={v2_data['name']}")
 
     # ========================================================================
@@ -335,14 +388,16 @@ async def test_wbe_update_temporal_bounds(db_session: AsyncSession) -> None:
         f"valid_time should be continuous: V1.upper ({v1_after['valid_upper']}) "
         f"should equal V2.lower ({v2_data['valid_lower']})"
     )
-    print(f"  ✓ valid_time is continuous: V1.upper == V2.lower == {v1_after['valid_upper']}")
+    print(
+        f"  ✓ valid_time is continuous: V1.upper == V2.lower == {v1_after['valid_upper']}"
+    )
 
     # transaction_time should not overlap (v1.upper < v2.lower)
     assert v1_after["tx_upper"] < v2_data["tx_lower"], (
         f"transaction_time should not overlap: V1.upper ({v1_after['tx_upper']}) "
         f"should be < V2.lower ({v2_data['tx_lower']})"
     )
-    print(f"  ✓ transaction_time does not overlap: V1.upper < V2.lower")
+    print("  ✓ transaction_time does not overlap: V1.upper < V2.lower")
 
     # ========================================================================
     # SUMMARY
@@ -379,7 +434,7 @@ async def test_wbe_update_without_control_date_uses_current_time(
     actor_id = uuid4()
 
     # Create initial WBE
-    wbe_v1 = await service.create_root(
+    _ = await service.create_root(
         root_id=wbe_id,
         actor_id=actor_id,
         branch="main",
@@ -393,7 +448,7 @@ async def test_wbe_update_without_control_date_uses_current_time(
 
     # Update without specifying control_date
     update_time = datetime.now(UTC)
-    updated_wbe = await service.update_wbe(
+    _ = await service.update_wbe(
         wbe_id=wbe_id,
         wbe_in=WBEUpdate(name="Updated without control_date"),
         actor_id=actor_id,
@@ -439,7 +494,9 @@ async def test_wbe_update_without_control_date_uses_current_time(
 
     # V2's valid_time lower should be close to update_time (within 1 second)
     time_diff = abs((v2["valid_lower"] - update_time).total_seconds())
-    assert time_diff < 1.0, f"V2 valid_time lower should be close to update_time, diff={time_diff}s"
+    assert time_diff < 1.0, (
+        f"V2 valid_time lower should be close to update_time, diff={time_diff}s"
+    )
 
     print(f"\n  ✓ control_date defaults to current time (diff={time_diff:.3f}s)")
     print("  ✓ ALL VALIDATIONS PASSED")

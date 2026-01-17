@@ -7,26 +7,26 @@ This test verifies that when a Change Order is updated:
 """
 
 import asyncio
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
-from sqlalchemy import select as sql_select, and_, or_
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy import func
+from sqlalchemy import select as sql_select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.models.domain.change_order import ChangeOrder
 from app.models.domain.user import User
-from typing import Any, cast
-
 
 # --- Mocks for Auth ---
 mock_admin_user = User(
-    id=UUID('00000000-0000-0000-0000-000000000001'),
-    user_id=UUID('00000000-0000-0000-0000-000000000001'),
+    id=UUID("00000000-0000-0000-0000-000000000001"),
+    user_id=UUID("00000000-0000-0000-0000-000000000001"),
     email="admin@example.com",
     is_active=True,
     role="admin",
@@ -34,11 +34,14 @@ mock_admin_user = User(
     hashed_password="hash",
 )
 
+
 def mock_get_current_user() -> User:
     return mock_admin_user
 
+
 def mock_get_current_active_user() -> User:
     return mock_admin_user
+
 
 class MockRBACService(RBACServiceABC):
     def has_role(self, user_role: str, required_roles: list[str]) -> bool:
@@ -50,15 +53,19 @@ class MockRBACService(RBACServiceABC):
     def get_user_permissions(self, user_role: str) -> list[str]:
         return ["change-order-read", "change-order-create", "change-order-update"]
 
+
 def mock_get_rbac_service() -> RBACServiceABC:
     return MockRBACService()
 
+
 @pytest.fixture(autouse=True)
 def override_auth():
-    import app.api.routes.change_orders as co_routes
     import app.main as app_main
+
     app_main.app.dependency_overrides[get_current_user] = mock_get_current_user
-    app_main.app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
+    app_main.app.dependency_overrides[get_current_active_user] = (
+        mock_get_current_active_user
+    )
     app_main.app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
     yield
     app_main.app.dependency_overrides = {}
@@ -78,9 +85,7 @@ async def test_project(client: AsyncClient) -> dict[str, Any]:
 
 
 async def print_version_details(
-    version: ChangeOrder,
-    label: str,
-    indent: str = "  "
+    version: ChangeOrder, label: str, indent: str = "  "
 ) -> None:
     """Print detailed temporal information for a version."""
     print(f"{indent}{label}:")
@@ -105,7 +110,9 @@ async def print_version_details(
         print(f"{indent}  ⚠️  WARNING: valid_time lower bound is NULL")
     if vt_upper is not None and vt_lower is not None:
         if vt_upper <= vt_lower:
-            print(f"{indent}  ❌ ERROR: valid_time is empty or inverted [{vt_lower}, {vt_upper})")
+            print(
+                f"{indent}  ❌ ERROR: valid_time is empty or inverted [{vt_lower}, {vt_upper})"
+            )
         else:
             duration = vt_upper - vt_lower
             print(f"{indent}  ✓ valid_time duration: {duration.total_seconds():.3f}s")
@@ -116,10 +123,14 @@ async def print_version_details(
         print(f"{indent}  ⚠️  WARNING: transaction_time lower bound is NULL")
     if tt_upper is not None and tt_lower is not None:
         if tt_upper <= tt_lower:
-            print(f"{indent}  ❌ ERROR: transaction_time is empty or inverted [{tt_lower}, {tt_upper})")
+            print(
+                f"{indent}  ❌ ERROR: transaction_time is empty or inverted [{tt_lower}, {tt_upper})"
+            )
         else:
             duration = tt_upper - tt_lower
-            print(f"{indent}  ✓ transaction_time duration: {duration.total_seconds():.3f}s")
+            print(
+                f"{indent}  ✓ transaction_time duration: {duration.total_seconds():.3f}s"
+            )
     else:
         print(f"{indent}  ✓ transaction_time is open-ended (current version)")
 
@@ -135,9 +146,9 @@ async def test_change_order_update_temporal_consistency(
 
     project_id = test_project["project_id"]
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("TEMPORAL CONSISTENCY TEST")
-    print("="*80)
+    print("=" * 80)
 
     # ========================================================================
     # STEP 1: Create initial Change Order
@@ -159,17 +170,21 @@ async def test_change_order_update_temporal_consistency(
     co_id = UUID(created_data["change_order_id"])
     initial_version_id = UUID(created_data["id"])
 
-    print(f"Created Change Order:")
+    print("Created Change Order:")
     print(f"  change_order_id={co_id}")
     print(f"  version_id={initial_version_id}")
     print(f"  code={created_data['code']}")
     print(f"  title={created_data['title']}")
 
     # Fetch from DB to verify temporal ranges
-    stmt = sql_select(ChangeOrder).where(
-        ChangeOrder.change_order_id == co_id,
-        ChangeOrder.branch == "main",
-    ).order_by(ChangeOrder.valid_time.desc())
+    stmt = (
+        sql_select(ChangeOrder)
+        .where(
+            ChangeOrder.change_order_id == co_id,
+            ChangeOrder.branch == "main",
+        )
+        .order_by(ChangeOrder.valid_time.desc())
+    )
     result = await db_session.execute(stmt)
     versions_after_create = result.scalars().all()
 
@@ -178,7 +193,9 @@ async def test_change_order_update_temporal_consistency(
         await print_version_details(v, f"Version [{i}]")
 
     # Verify: Should have exactly 1 version
-    assert len(versions_after_create) == 1, f"Expected 1 version after creation, got {len(versions_after_create)}"
+    assert len(versions_after_create) == 1, (
+        f"Expected 1 version after creation, got {len(versions_after_create)}"
+    )
     v1 = versions_after_create[0]
 
     # Verify: V1 should be current (open-ended ranges)
@@ -219,7 +236,7 @@ async def test_change_order_update_temporal_consistency(
     update_end_time = datetime.now(UTC)
     print(f"Update completed at: {update_end_time.isoformat()}")
 
-    print(f"Updated Change Order:")
+    print("Updated Change Order:")
     print(f"  new version_id={new_version_id}")
     print(f"  title={updated_data['title']}")
     print(f"  description={updated_data['description']}")
@@ -235,10 +252,14 @@ async def test_change_order_update_temporal_consistency(
     print("\n--- STEP 4: Verifying temporal consistency ---")
 
     # Fetch all versions (including closed ones)
-    stmt_all = sql_select(ChangeOrder).where(
-        ChangeOrder.change_order_id == co_id,
-        ChangeOrder.branch == "main",
-    ).order_by(ChangeOrder.valid_time.desc())
+    stmt_all = (
+        sql_select(ChangeOrder)
+        .where(
+            ChangeOrder.change_order_id == co_id,
+            ChangeOrder.branch == "main",
+        )
+        .order_by(ChangeOrder.valid_time.desc())
+    )
     result_all = await db_session.execute(stmt_all)
     all_versions = result_all.scalars().all()
 
@@ -247,7 +268,9 @@ async def test_change_order_update_temporal_consistency(
         await print_version_details(v, f"Version [{i}]")
 
     # Verify: Should have exactly 2 versions
-    assert len(all_versions) == 2, f"Expected 2 versions after update, got {len(all_versions)}"
+    assert len(all_versions) == 2, (
+        f"Expected 2 versions after update, got {len(all_versions)}"
+    )
 
     # Separate into old (V1) and new (V2)
     old_version = [v for v in all_versions if v.id == initial_version_id][0]
@@ -258,7 +281,9 @@ async def test_change_order_update_temporal_consistency(
 
     # Verify: V1 should be closed
     assert old_version.valid_time.upper is not None, "V1 valid_time should be closed"
-    assert old_version.transaction_time.upper is not None, "V1 transaction_time should be closed"
+    assert old_version.transaction_time.upper is not None, (
+        "V1 transaction_time should be closed"
+    )
 
     # Verify: V1 should not be empty
     vt_lower = old_version.valid_time.lower
@@ -272,26 +297,40 @@ async def test_change_order_update_temporal_consistency(
     assert tt_upper is not None, "V1 transaction_time upper bound should not be NULL"
 
     # Verify: V1 ranges should not be empty (upper > lower)
-    assert vt_upper > vt_lower, f"V1 valid_time should not be empty: [{vt_lower}, {vt_upper})"
-    assert tt_upper > tt_lower, f"V1 transaction_time should not be empty: [{tt_lower}, {tt_upper})"
+    assert vt_upper > vt_lower, (
+        f"V1 valid_time should not be empty: [{vt_lower}, {vt_upper})"
+    )
+    assert tt_upper > tt_lower, (
+        f"V1 transaction_time should not be empty: [{tt_lower}, {tt_upper})"
+    )
 
     # Verify: V1 should have the old content
     assert old_version.title == "Initial Title", "V1 should retain old title"
-    assert old_version.description == "Initial description", "V1 should retain old description"
+    assert old_version.description == "Initial description", (
+        "V1 should retain old description"
+    )
 
     # Verify: V1 valid_time should span from creation to update
     # The update happened ~3 seconds after creation, so valid_time should be ~3 seconds
     v1_duration = (vt_upper - vt_lower).total_seconds()
     print(f"\nV1 valid_time duration: {v1_duration:.3f}s")
-    assert v1_duration >= 2.5, f"V1 valid_time should span at least 2.5s, got {v1_duration:.3f}s"
-    assert v1_duration <= 5.0, f"V1 valid_time should span at most 5s, got {v1_duration:.3f}s"
+    assert v1_duration >= 2.5, (
+        f"V1 valid_time should span at least 2.5s, got {v1_duration:.3f}s"
+    )
+    assert v1_duration <= 5.0, (
+        f"V1 valid_time should span at most 5s, got {v1_duration:.3f}s"
+    )
 
     # Verify: V1 transaction_time should also be closed
     # The closing should happen very close to the update time
     v1_tx_duration = (tt_upper - tt_lower).total_seconds()
     print(f"V1 transaction_time duration: {v1_tx_duration:.3f}s")
-    assert v1_tx_duration >= 2.5, f"V1 transaction_time should span at least 2.5s, got {v1_tx_duration:.3f}s"
-    assert v1_tx_duration <= 5.0, f"V1 transaction_time should span at most 5s, got {v1_tx_duration:.3f}s"
+    assert v1_tx_duration >= 2.5, (
+        f"V1 transaction_time should span at least 2.5s, got {v1_tx_duration:.3f}s"
+    )
+    assert v1_tx_duration <= 5.0, (
+        f"V1 transaction_time should span at most 5s, got {v1_tx_duration:.3f}s"
+    )
 
     print("✓ OLD VERSION (V1) VERIFIED: Properly closed with correct temporal ranges")
 
@@ -300,11 +339,15 @@ async def test_change_order_update_temporal_consistency(
 
     # Verify: V2 should be current (open-ended)
     assert new_version.valid_time.upper is None, "V2 valid_time should be open-ended"
-    assert new_version.transaction_time.upper is None, "V2 transaction_time should be open-ended"
+    assert new_version.transaction_time.upper is None, (
+        "V2 transaction_time should be open-ended"
+    )
 
     # Verify: V2 should have the new content
     assert new_version.title == "Updated Title", "V2 should have new title"
-    assert new_version.description == "Updated description", "V2 should have new description"
+    assert new_version.description == "Updated description", (
+        "V2 should have new description"
+    )
 
     # Verify: V2 parent should be V1
     assert new_version.parent_id == initial_version_id, "V2 parent should be V1"
@@ -337,17 +380,23 @@ async def test_change_order_update_temporal_consistency(
     print("\n--- STEP 5: Verifying no duplicate current versions ---")
 
     # Fetch only current versions (valid_time upper IS NULL - matches user-facing logic)
-    stmt_current = sql_select(ChangeOrder).where(
-        ChangeOrder.change_order_id == co_id,
-        ChangeOrder.branch == "main",
-        ChangeOrder.deleted_at.is_(None),
-        func.upper(ChangeOrder.valid_time).is_(None),
-    ).order_by(ChangeOrder.valid_time.desc())
+    stmt_current = (
+        sql_select(ChangeOrder)
+        .where(
+            ChangeOrder.change_order_id == co_id,
+            ChangeOrder.branch == "main",
+            ChangeOrder.deleted_at.is_(None),
+            func.upper(ChangeOrder.valid_time).is_(None),
+        )
+        .order_by(ChangeOrder.valid_time.desc())
+    )
     result_current = await db_session.execute(stmt_current)
     current_versions = result_current.scalars().all()
 
     print(f"Current versions: {len(current_versions)}")
-    assert len(current_versions) == 1, f"Should have exactly 1 current version, got {len(current_versions)}"
+    assert len(current_versions) == 1, (
+        f"Should have exactly 1 current version, got {len(current_versions)}"
+    )
     assert current_versions[0].id == new_version_id, "Current version should be V2"
 
     print("✓ STEP 5 PASSED: No duplicate current versions")
@@ -355,9 +404,9 @@ async def test_change_order_update_temporal_consistency(
     # ========================================================================
     # FINAL SUMMARY
     # ========================================================================
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("✓ ALL CHECKS PASSED")
-    print("="*80)
+    print("=" * 80)
     print("\nSummary:")
     print("  • V1 (old version) properly closed with non-empty temporal ranges")
     print("  • V2 (new version) is current with open-ended temporal ranges")

@@ -135,9 +135,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
 
         if as_of:
             # Get parent version valid at as_of time
-            parent_where_clauses.append(
-                cast(Any, Parent).valid_time.contains(as_of)
-            )
+            parent_where_clauses.append(cast(Any, Parent).valid_time.contains(as_of))
         else:
             # Get current parent version
             parent_where_clauses.append(
@@ -365,10 +363,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         return resolved[0] if resolved else None
 
     async def create_wbe(
-        self,
-        wbe_in: WBECreate,
-        actor_id: UUID,
-        control_date: datetime | None = None
+        self, wbe_in: WBECreate, actor_id: UUID, control_date: datetime | None = None
     ) -> WBE:
         """Create new WBE using CreateVersionCommand."""
         wbe_data = wbe_in.model_dump(exclude_unset=True)
@@ -402,7 +397,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         wbe_id: UUID,
         wbe_in: WBEUpdate,
         actor_id: UUID,
-        control_date: datetime | None = None
+        control_date: datetime | None = None,
     ) -> WBE:
         """Update WBE using UpdateVersionCommand."""
         update_data = wbe_in.model_dump(exclude_unset=True)
@@ -439,10 +434,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         return await cmd.execute(self.session)
 
     async def delete_wbe(
-        self,
-        wbe_id: UUID,
-        actor_id: UUID,
-        control_date: datetime | None = None
+        self, wbe_id: UUID, actor_id: UUID, control_date: datetime | None = None
     ) -> WBE:
         """Soft delete WBE with cascade to children.
 

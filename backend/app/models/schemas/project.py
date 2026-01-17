@@ -46,7 +46,9 @@ class ProjectUpdate(BaseModel):
     start_date: datetime | None = None
     end_date: datetime | None = None
     description: str | None = Field(None, max_length=5000)
-    branch: str | None = Field(None, description="Branch name for update (defaults to current branch)")
+    branch: str | None = Field(
+        None, description="Branch name for update (defaults to current branch)"
+    )
     control_date: datetime | None = Field(
         None, description="Optional control date for update (valid_time start)"
     )
