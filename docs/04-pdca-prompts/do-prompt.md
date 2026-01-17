@@ -1,70 +1,114 @@
-# DO Phase: TDD Implementation with Daily Tracking
+# DO Phase: TDD Implementation
 
 ## Purpose
 
-Execute approved implementation using strict TDD methodology while logging progress, decisions, and deviations.
+Execute the test specifications from PLAN phase using strict **RED-GREEN-REFACTOR** methodology. This phase owns **HOW** to implement—the actual test code and production code.
+
+**Prerequisite**: Plan phase (`01-plan.md`) must be completed with test specifications.
 
 ---
 
-## Red-Green-Refactor Cycle Protocol
+## TDD Responsibility in DO Phase
+
+| DO Phase Owns            | From PLAN Phase     |
+| ------------------------ | ------------------- |
+| Test implementation code | Test specifications |
+| RED-GREEN-REFACTOR cycle | Acceptance criteria |
+| Production code          | Expected behaviors  |
+| Refactoring decisions    | Task breakdown      |
+
+---
+
+## RED-GREEN-REFACTOR Cycle
 
 ### 🔴 RED: Write a Failing Test
 
-1. Write a **single, well-named test** capturing the simplest required behavior
-2. Follow the Arrange-Act-Assert (AAA) pattern:
+1. Take the **next test specification** from `01-plan.md`
+2. Write the test following AAA pattern:
+
    ```python
-   def test_[feature]_[scenario]_[expected_outcome](self):
+   def test_[feature]_[scenario]_[expected_outcome]():
        # Arrange: Set up preconditions
        # Act: Execute the behavior under test
        # Assert: Verify the expected outcome
    ```
-3. Run the test to confirm it fails **for the expected reason**
-4. Document why this test matters for acceptance criteria
+
+3. Run the test—confirm it **fails for the expected reason**
+4. Log the failure reason in the DO document
 
 ### 🟢 GREEN: Minimal Passing Implementation
 
-1. Write the **minimum code** necessary to make the test pass
-2. Resist adding functionality not required by current tests
-3. Keep implementation intentionally simple—even "ugly" code acceptable at this stage
-4. Run all tests to confirm new test passes and no regressions
+1. Write the **minimum code** to make the test pass
+2. Resist adding functionality beyond the test scope
+3. "Ugly" code is acceptable—we refactor next
+4. Run all tests—confirm new test passes, no regressions
 
 ### 🔵 REFACTOR: Improve Design While Staying Green
 
-1. Examine production code for improvements:
+1. Improve code quality:
    - Extract methods for readability
-   - Rename variables/functions for clarity
-   - Apply design patterns (Strategy, Factory, Repository)
-   - Ensure SOLID principles adherence
-2. Run tests after **each small change** to maintain green status
+   - Rename for clarity
+   - Apply patterns (Service, Repository, Command)
+   - Ensure SOLID principles
+2. Run tests after **each small change**
 3. Document significant refactoring decisions
 
 ---
 
-## Implementation Checkpoints
+## Implementation Workflow
+
+For each task from `01-plan.md`:
+
+```text
+1. Locate test specification (Test ID, expected behavior)
+         ↓
+2. Write failing test (RED)
+         ↓
+3. Verify test fails for expected reason
+         ↓
+4. Implement minimal code (GREEN)
+         ↓
+5. Verify all tests pass
+         ↓
+6. Refactor if needed (BLUE)
+         ↓
+7. Log progress in 02-do.md
+         ↓
+8. Repeat for next test
+```
+
+---
+
+## Human Review Checkpoints
 
 After completing each logical component (3-5 test cycles):
 
-> [!IMPORTANT] > **Human Review Checkpoint**: Pause and present:
+> [!IMPORTANT] > **Pause and present:**
 >
 > - Tests written and their purpose
 > - Code coverage of current increment
 > - Design decisions or trade-offs made
-> - Identified concerns or alternatives discovered
+> - Concerns or alternatives discovered
 >
 > **Ask**: "Should I continue with current approach, or adjust direction?"
 
 ---
 
-## Large Codebase Considerations
+## Coding Standards Compliance
 
-- **Follow architecture docs** (`docs/02-architecture/README.md`):
+Follow project standards throughout (see `_references.md`):
 
-- **Follow coding standards** (`docs/02-architecture/coding-standards.md`):
+**Backend:**
 
-- Maintain consistent patterns with existing code (naming, error handling, logging)
-- Use existing utilities and helpers rather than creating duplicates
-- Ensure new code integrates cleanly with dependency injection patterns
-- Follow established module boundaries and layering
+- MyPy strict mode (`uv run mypy app --strict`)
+- Ruff linting (`uv run ruff check .`)
+- Existing patterns from architecture docs
+
+**Frontend:**
+
+- ESLint (`npm run lint`)
+- TypeScript strict (`npm run typecheck`)
+- Component patterns from existing features
 
 ---
 
@@ -74,62 +118,69 @@ After completing each logical component (3-5 test cycles):
 2. Add error handling and validation
 3. Integrate with existing services/repositories
 4. Add edge cases and boundary conditions
-5. Implement cross-cutting concerns (logging, metrics, caching)
+5. Implement cross-cutting concerns (logging, metrics)
 
 ---
 
-## Daily Implementation Log
+## Daily Log Structure
 
-### Date: YYYY-MM-DD
+Track progress continuously in the DO document:
 
-**Work Completed:**
+### Entry Format
 
-- Specific changes made
-- Files modified with brief descriptions
-- Tests added (list test names)
-- Coverage changes
+```markdown
+### YYYY-MM-DD
 
-**Technical Decisions Made:**
+**TDD Cycles Completed:**
 
-- Decision description
-- Reasoning behind decision
-- Alternatives considered
-- Impact on architecture
+| #   | Test Name    | RED Reason       | GREEN Implementation | REFACTOR Notes |
+| --- | ------------ | ---------------- | -------------------- | -------------- |
+| 1   | test\_[name] | [failure reason] | [code added]         | [improvements] |
 
-**Deviations from Plan:**
+**Files Changed:**
 
-- What changed from original plan?
-- Why did it change?
-- Impact on timeline/scope
-- Approval obtained (if significant)
+- `path/to/file.py` - [description]
 
-**Blockers and Challenges:**
+**Decisions Made:**
 
-- What's blocking progress?
-- Attempted solutions
-- Help needed
-- Resolution timeline
+- [Decision]: [Reasoning] → [Impact]
 
-**Tomorrow's Focus:**
+**Blockers:**
 
-- Next test to write
-- Component to implement
-- Preparations needed
+- [Issue] → [Resolution needed]
 
-**Integration Points:**
+**Next Session:**
 
-- Related PRs (link)
-- Architecture decisions referenced (link to ADRs)
-- Architecture docs needing updates
+- [ ] Next test to implement
+```
 
 ---
 
-## Output Format
+## Documentation References
 
-Continuously update: `docs/03-project-plan/iterations/YYYY-MM-name/02-do.md`
+See [`_references.md`](_references.md) for phase-specific documentation links.
 
-Append daily entries chronologically. Keep running totals of:
+---
+
+## Output
+
+**File**: `docs/03-project-plan/iterations/YYYY-MM-DD-{title}/02-do.md`
+
+**Template**: [`_templates/02-do-template.md`](_templates/02-do-template.md)
+
+Update continuously with daily entries. Track running totals:
 
 - Tests written: X
-- Files modified: Y
-- Coverage change: +/- Z%
+- Tests passing: Y
+- Files modified: Z
+- Coverage delta: +W%
+
+---
+
+## Key Principles
+
+1. **Test First**: Never write production code without a failing test
+2. **Minimal Implementation**: Only code needed to pass the current test
+3. **Continuous Refactoring**: Improve design while tests stay green
+4. **Document Progress**: Log every cycle for traceability
+5. **Quality Gates**: Pass mypy/ruff/eslint before CHECK phase
