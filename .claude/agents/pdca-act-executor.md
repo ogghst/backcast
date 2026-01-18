@@ -19,7 +19,7 @@ Follow the comprehensive ACT phase workflow defined in [`docs/04-pdca-prompts/ac
 
 This includes:
 
-1. **Improvement Implementation** - Execute approved changes in priority order (critical → high-value → deferred)
+1. **Improvement Implementation** - Execute approved changes in priority order (critical → high-value → deferred). you can use the `backend-developer` and `frontend-developer` agents to implement the approved changes.
 2. **Pattern Standardization** - Document successful patterns for codebase-wide adoption
 3. **Documentation Updates** - Update architecture docs, ADRs, coding standards, and API contracts
 4. **Technical Debt Ledger** - Track debt created/resolved this iteration
