@@ -6,7 +6,7 @@
  */
 
 import { useMemo } from "react";
-import { Space, Typography } from "antd";
+import { Space, Typography, theme } from "antd";
 
 const { Text } = Typography;
 
@@ -79,6 +79,8 @@ function ProgressionCurve({
   endDate,
   height = 200,
 }: ProgressionPreviewChartProps) {
+  const { token } = theme.useToken();
+
   // Generate data points for the curve
   const points = useMemo(() => {
     const start = new Date(startDate).getTime();
@@ -126,7 +128,7 @@ function ProgressionCurve({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: "#999",
+          color: token.colorTextTertiary,
         }}
       >
         Invalid date range
@@ -162,7 +164,7 @@ function ProgressionCurve({
     <div style={{ width: "100%", overflowX: "auto" }}>
       <svg width={width} height={height} style={{ display: "block" }}>
         {/* Background */}
-        <rect x={0} y={0} width={width} height={height} fill="#f5f5f5" rx={4} />
+        <rect x={0} y={0} width={width} height={height} fill={token.colorFillSecondary} rx={4} />
 
         {/* Y-axis grid lines and labels */}
         {gridY.map((y, i) => (
@@ -172,7 +174,7 @@ function ProgressionCurve({
               y1={y}
               x2={width - padding.right}
               y2={y}
-              stroke="#ddd"
+              stroke={token.colorBorderSecondary}
               strokeWidth={1}
             />
             <text
@@ -180,7 +182,7 @@ function ProgressionCurve({
               y={y + 4}
               textAnchor="end"
               fontSize={11}
-              fill="#666"
+              fill={token.colorTextSecondary}
             >
               {Math.round(gridLines[i] * 100)}%
             </text>
@@ -191,14 +193,14 @@ function ProgressionCurve({
         <path
           d={pathD}
           fill="none"
-          stroke={progressionType === "GAUSSIAN" ? "#52c41a" : progressionType === "LOGARITHMIC" ? "#fa8c16" : "#1890ff"}
+          stroke={progressionType === "GAUSSIAN" ? token.colorSuccess : progressionType === "LOGARITHMIC" ? token.colorWarning : token.colorPrimary}
           strokeWidth={2}
         />
 
         {/* Area under curve */}
         <path
           d={`${pathD} L ${width - padding.right},${padding.top + chartHeight} L ${padding.left},${padding.top + chartHeight} Z`}
-          fill={progressionType === "GAUSSIAN" ? "#52c41a" : progressionType === "LOGARITHMIC" ? "#fa8c16" : "#1890ff"}
+          fill={progressionType === "GAUSSIAN" ? token.colorSuccess : progressionType === "LOGARITHMIC" ? token.colorWarning : token.colorPrimary}
           fillOpacity={0.1}
         />
 
@@ -212,7 +214,7 @@ function ProgressionCurve({
                 cx={x}
                 cy={y}
                 r={4}
-                fill={progressionType === "GAUSSIAN" ? "#52c41a" : progressionType === "LOGARITHMIC" ? "#fa8c16" : "#1890ff"}
+                fill={progressionType === "GAUSSIAN" ? token.colorSuccess : progressionType === "LOGARITHMIC" ? token.colorWarning : token.colorPrimary}
               />
               <text
                 x={x}
@@ -233,7 +235,7 @@ function ProgressionCurve({
           y={padding.top + chartHeight / 2}
           textAnchor="middle"
           fontSize={11}
-          fill="#666"
+          fill={token.colorTextSecondary}
           transform={`rotate(-90, ${padding.left / 2}, ${padding.top + chartHeight / 2})`}
         >
           Progress
@@ -247,25 +249,27 @@ function ProgressionCurve({
  * Main component with legend and info
  */
 export const ProgressionPreviewChart: React.FC<ProgressionPreviewChartProps> = (props) => {
+  const { token } = theme.useToken();
+
   const getProgressionInfo = () => {
     switch (props.progressionType) {
       case "LINEAR":
         return {
           title: "Linear Progression",
           description: "Uniform progress over time. 50% complete at midpoint.",
-          color: "#1890ff",
+          color: token.colorPrimary,
         };
       case "GAUSSIAN":
         return {
           title: "Gaussian S-Curve",
           description: "Slow start, rapid middle acceleration, tapering at end. Realistic project pattern.",
-          color: "#52c41a",
+          color: token.colorSuccess,
         };
       case "LOGARITHMIC":
         return {
           title: "Logarithmic (Front-loaded)",
           description: "Rapid initial progress that slows over time. Good for tasks with upfront planning.",
-          color: "#fa8c16",
+          color: token.colorWarning,
         };
     }
   };

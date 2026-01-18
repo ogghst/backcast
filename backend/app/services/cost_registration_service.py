@@ -68,9 +68,16 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         super().__init__(CostRegistration, db)
 
     async def create(  # type: ignore[override]
-        self, registration_in: CostRegistrationCreate, actor_id: UUID
+        self, registration_in: CostRegistrationCreate, actor_id: UUID, control_date: datetime | None = None
     ) -> CostRegistration:
-        """Create new cost registration using CreateVersionCommand."""
+        """Create new cost registration using CreateVersionCommand.
+
+        Args:
+            registration_in: The cost registration data
+            actor_id: The user creating the registration
+            control_date: Optional control date for valid_time (defaults to now).
+                          Use this for testing time-travel scenarios or data seeding.
+        """
         registration_data = registration_in.model_dump(exclude_unset=True)
 
         # Use provided cost_registration_id (for seeding) or generate new one
@@ -111,16 +118,16 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
                     requested=new_amount,
                 )
 
-        # CRITICAL: Use registration_date as control_date for proper time travel
-        # This ensures valid_time starts from the business date (registration_date)
-        # not from the system timestamp when the record was created
-        control_date = registration_data.get("registration_date", datetime.now())
+        # CRITICAL: Use control_date for valid_time (defaults to now for production)
+        # registration_date is a business field and should NOT affect valid_time
+        # This ensures time-travel queries work correctly with as_of parameter
+        actual_control_date = control_date if control_date is not None else datetime.now()
 
         cmd = CreateVersionCommand(
             entity_class=CostRegistration,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
-            control_date=control_date,
+            control_date=actual_control_date,
             **registration_data,
         )
         return await cmd.execute(self.session)

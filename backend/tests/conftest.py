@@ -64,12 +64,19 @@ def apply_migrations() -> Generator[None, None, None]:
         "script_location", os.path.join(project_root, "alembic")
     )
 
+    # Use .venv Python explicitly to ensure dependencies are available
+    # When running via uv run, sys.executable may not have access to project packages
+    venv_python = os.path.join(project_root, ".venv", "bin", "python")
+    if not os.path.exists(venv_python):
+        # Fallback to sys.executable if .venv doesn't exist
+        venv_python = sys.executable
+
     env = os.environ.copy()
     env["WIPE_DATABASE_URL"] = TEST_DATABASE_URL
 
     try:
         subprocess.run(
-            [sys.executable, wipe_script],
+            [venv_python, wipe_script],
             env=env,
             check=True,
             capture_output=True,

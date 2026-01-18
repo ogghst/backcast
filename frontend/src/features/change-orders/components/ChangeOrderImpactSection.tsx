@@ -1,4 +1,4 @@
-import { Card, Spin, Alert, Statistic, Row, Col, Empty } from "antd";
+import { Card, Spin, Alert, Statistic, Row, Col, Empty, theme } from "antd";
 import {
   DollarOutlined,
   CalendarOutlined,
@@ -34,6 +34,7 @@ export function ChangeOrderImpactSection({
   branch,
   useCollapsibleCard = false,
 }: ChangeOrderImpactSectionProps): JSX.Element | null {
+  const { token } = theme.useToken();
   const { data, isLoading, error } = useImpactAnalysis(
     changeOrderId || undefined,
     branch || undefined,
@@ -66,7 +67,7 @@ export function ChangeOrderImpactSection({
       "Impact Analysis",
       <div style={{ textAlign: "center", padding: "40px 0" }}>
         <Spin size="large" />
-        <div style={{ marginTop: 16, color: "#8c8c8c" }}>
+        <div style={{ marginTop: 16, color: token.colorTextSecondary }}>
           Loading impact analysis...
         </div>
       </div>,
@@ -111,8 +112,8 @@ export function ChangeOrderImpactSection({
               content: {
                 color:
                   (impactData.budget_variance || 0) >= 0
-                    ? "#cf1322"
-                    : "#3f8600",
+                    ? token.colorError
+                    : token.colorSuccess,
               },
             }}
             suffix={
@@ -135,8 +136,8 @@ export function ChangeOrderImpactSection({
               content: {
                 color:
                   (impactData.schedule_variance_days || 0) >= 0
-                    ? "#cf1322"
-                    : "#3f8600",
+                    ? token.colorError
+                    : token.colorSuccess,
               },
             }}
             suffix={
@@ -159,11 +160,11 @@ export function ChangeOrderImpactSection({
         style={{
           marginTop: 24,
           padding: 16,
-          background: "#f5f5f5",
+          background: token.colorFillSecondary,
           borderRadius: 4,
         }}
       >
-        <p style={{ margin: 0, color: "#8c8c8c", textAlign: "center" }}>
+        <p style={{ margin: 0, color: token.colorTextSecondary, textAlign: "center" }}>
           Detailed impact charts will be displayed here
         </p>
       </div>

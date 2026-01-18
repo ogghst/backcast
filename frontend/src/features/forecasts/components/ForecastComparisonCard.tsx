@@ -1,4 +1,4 @@
-import { Card, Row, Col, Statistic, Tag, Tooltip, Spin, Space } from "antd";
+import { Card, Row, Col, Statistic, Tag, Tooltip, Spin, Space, theme } from "antd";
 import { InfoCircleOutlined } from "@ant-design/icons";
 import { useForecastComparison } from "@/features/forecasts/api";
 import type { ForecastRead } from "@/api/generated";
@@ -22,6 +22,8 @@ export const ForecastComparisonCard = ({
   budgetAmount,
   actualCost = 0,
 }: ForecastComparisonCardProps) => {
+  const { token } = theme.useToken();
+
   // Fetch comparison data from API
   const { data: comparisonData, isLoading: comparisonLoading } =
     useForecastComparison(forecast.forecast_id, forecast.branch);
@@ -56,7 +58,7 @@ export const ForecastComparisonCard = ({
         <Space>
           <span>EVM Analysis</span>
           <Tooltip title="Earned Value Management metrics based on current forecast">
-            <InfoCircleOutlined style={{ color: "#999" }} />
+            <InfoCircleOutlined style={{ color: token.colorTextTertiary }} />
           </Tooltip>
         </Space>
       }
@@ -194,15 +196,15 @@ export const ForecastComparisonCard = ({
           style={{
             marginTop: 16,
             padding: 12,
-            backgroundColor: "#fafafa",
+            backgroundColor: token.colorFillSecondary,
             borderRadius: 4,
-            borderLeft: "3px solid #1890ff",
+            borderLeft: `3px solid ${token.colorPrimary}`,
           }}
         >
-          <div style={{ fontSize: "12px", color: "#999", marginBottom: 4 }}>
+          <div style={{ fontSize: "12px", color: token.colorTextTertiary, marginBottom: 4 }}>
             <strong>Basis of Estimate:</strong>
           </div>
-          <div style={{ fontSize: "13px", color: "#333" }}>
+          <div style={{ fontSize: "13px", color: token.colorText }}>
             {forecast.basis_of_estimate}
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Modal, Form, Input, InputNumber } from "antd";
+import { Modal, Form, Input, InputNumber, theme } from "antd";
 import type { ForecastRead, ForecastCreate, ForecastUpdate } from "@/api/generated";
 
 interface ForecastModalProps {
@@ -25,6 +25,7 @@ export const ForecastModal = ({
   costElementName,
   budgetAmount,
 }: ForecastModalProps) => {
+  const { token } = theme.useToken();
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
 
@@ -129,16 +130,16 @@ export const ForecastModal = ({
 
         <div
           style={{
-            backgroundColor: "#f0f0f0",
+            backgroundColor: token.colorFillSecondary,
             padding: "12px",
             borderRadius: "4px",
             marginTop: "16px",
           }}
         >
-          <div style={{ fontSize: "12px", color: "#666", marginBottom: "8px" }}>
+          <div style={{ fontSize: "12px", color: token.colorTextSecondary, marginBottom: "8px" }}>
             <strong>EVM Calculations:</strong>
           </div>
-          <div style={{ fontSize: "12px", color: "#666" }}>
+          <div style={{ fontSize: "12px", color: token.colorTextSecondary }}>
             • VAC (Variance at Complete) = BAC - EAC
             <br />
             • ETC (Estimate to Complete) = EAC - AC (Actual Cost)

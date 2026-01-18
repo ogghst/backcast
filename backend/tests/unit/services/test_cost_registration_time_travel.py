@@ -36,13 +36,13 @@ class TestTimeTravelQueries:
         """Test time-travel query for historical cost totals.
 
         Acceptance Criteria:
-        - as_of parameter queries cost state as of that date
+        - as_of parameter queries cost state as of that date (by valid_time)
         - Costs created after as_of are excluded
         - Costs deleted after as_of are included
 
         Expected Behavior:
-        - Querying as_of 2026-01-10 includes only costs from 2026-01-01
-        - Costs from 2026-01-15 are excluded
+        - Querying as_of 2026-01-10 includes only costs with valid_time containing that date
+        - Costs created after 2026-01-10 are excluded
         """
         # Arrange
         service = CostRegistrationService(db_session)
@@ -51,7 +51,7 @@ class TestTimeTravelQueries:
         cost_element_id = cost_element.cost_element_id
         actor_id = uuid4()
 
-        # Create cost on Jan 1
+        # Create cost with valid_time starting Jan 1
         await service.create(
             CostRegistrationCreate(
                 cost_element_id=cost_element_id,
@@ -59,9 +59,10 @@ class TestTimeTravelQueries:
                 registration_date=datetime(2026, 1, 1, tzinfo=UTC),
             ),
             actor_id=actor_id,
+            control_date=datetime(2026, 1, 1, tzinfo=UTC),  # Sets valid_time start
         )
 
-        # Create cost on Jan 15 (should be excluded)
+        # Create cost with valid_time starting Jan 15 (should be excluded)
         await service.create(
             CostRegistrationCreate(
                 cost_element_id=cost_element_id,
@@ -69,15 +70,16 @@ class TestTimeTravelQueries:
                 registration_date=datetime(2026, 1, 15, tzinfo=UTC),
             ),
             actor_id=actor_id,
+            control_date=datetime(2026, 1, 15, tzinfo=UTC),  # Sets valid_time start
         )
 
-        # Act - Query as of Jan 10
+        # Act - Query as of Jan 10 (between Jan 1 and Jan 15)
         total = await service.get_total_for_cost_element(
             cost_element_id=cost_element_id,
             as_of=datetime(2026, 1, 10, 12, 0, 0, tzinfo=UTC),
         )
 
-        # Assert - Only Jan 1 cost included
+        # Assert - Only Jan 1 cost included (Jan 15 cost not yet valid)
         assert total == Decimal("100.00")
 
     @pytest.mark.asyncio
@@ -146,7 +148,8 @@ class TestTimeTravelQueries:
         - Demonstrates time-travel correctness
 
         Expected Behavior:
-        - Cost created Jan 1, deleted Jan 20
+        - Cost created with valid_time starting Jan 1
+        - Soft deleted on Jan 20 (sets deleted_at)
         - Query as_of Jan 10 includes the cost (not yet deleted)
         """
         # Arrange
@@ -156,7 +159,7 @@ class TestTimeTravelQueries:
         cost_element_id = cost_element.cost_element_id
         actor_id = uuid4()
 
-        # Create cost on Jan 1
+        # Create cost with valid_time starting Jan 1
         registration = await service.create(
             CostRegistrationCreate(
                 cost_element_id=cost_element_id,
@@ -164,11 +167,12 @@ class TestTimeTravelQueries:
                 registration_date=datetime(2026, 1, 1, tzinfo=UTC),
             ),
             actor_id=actor_id,
+            control_date=datetime(2026, 1, 1, tzinfo=UTC),  # Sets valid_time start
         )
         # Capture registration ID before entity might be expired
         registration_id = registration.cost_registration_id
 
-        # Soft delete on Jan 20
+        # Soft delete on Jan 20 (sets deleted_at)
         await service.soft_delete(
             registration_id,
             actor_id=actor_id,
@@ -234,14 +238,14 @@ class TestTimeTravelQueries:
         """Test getting a cost registration as it was at a specific timestamp.
 
         Acceptance Criteria:
-        - Returns version that was valid at as_of timestamp
+        - Returns version that was valid at as_of timestamp (by valid_time)
         - Handles versions created after as_of correctly
-        - Demonstrates System Time Travel semantics
+        - Demonstrates System Time Travel semantics (valid_time filtering)
 
         Expected Behavior:
-        - Create v1 with amount=100 on Jan 1
-        - Update to v2 with amount=150 on Jan 15
-        - Query as_of Jan 10 returns v1 (amount=100)
+        - Create v1 with valid_time starting Jan 1, amount=100
+        - Update to v2 with valid_time starting Jan 15, amount=150
+        - Query as_of Jan 10 returns v1 (amount=100) because v1's valid_time contains Jan 10
         """
         # Arrange
         service = CostRegistrationService(db_session)
@@ -250,7 +254,7 @@ class TestTimeTravelQueries:
         cost_element_id = cost_element.cost_element_id
         actor_id = uuid4()
 
-        # Create v1
+        # Create v1 with valid_time starting Jan 1
         v1 = await service.create(
             CostRegistrationCreate(
                 cost_element_id=cost_element_id,
@@ -258,11 +262,12 @@ class TestTimeTravelQueries:
                 registration_date=datetime(2026, 1, 1, tzinfo=UTC),
             ),
             actor_id=actor_id,
+            control_date=datetime(2026, 1, 1, tzinfo=UTC),  # Sets valid_time start
         )
         # Capture v1 ID before entity might be expired
         v1_id = v1.cost_registration_id
 
-        # Update to v2 on Jan 15
+        # Update to v2 with valid_time starting Jan 15
         from app.models.schemas.cost_registration import CostRegistrationUpdate
 
         _ = await service.update(
@@ -272,7 +277,7 @@ class TestTimeTravelQueries:
             control_date=datetime(2026, 1, 15, tzinfo=UTC),
         )
 
-        # Act - Query as of Jan 10 (before update)
+        # Act - Query as of Jan 10 (before v2's valid_time starts)
         historical = await service.get_cost_registration_as_of(
             cost_registration_id=v1_id,
             as_of=datetime(2026, 1, 10, 12, 0, 0, tzinfo=UTC),

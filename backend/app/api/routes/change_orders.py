@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
 from app.db.session import get_db
-from app.models.domain.change_order import ChangeOrder
 from app.models.domain.user import User
 from app.models.schemas.change_order import (
     ChangeOrderCreate,

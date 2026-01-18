@@ -56,7 +56,6 @@ ACT standardizes successful test patterns
 | [`_templates/`](_templates/)                 | Reusable output templates  |
 | [`_references.md`](_references.md)           | Common documentation links |
 | [`prompt-changelog.md`](prompt-changelog.md) | Version history            |
-| [`next-iteration.md`](next-iteration.md)     | Meta-prompt for next work  |
 
 ## Output Location
 

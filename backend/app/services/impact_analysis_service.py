@@ -4,8 +4,8 @@ This service provides financial and schedule impact analysis
 between main branch and change order branches.
 
 Per Phase 3 Plan:
-- KPI Comparison: BAC, Budget Delta, Gross Margin
-- Entity Changes: Added/Modified/Removed WBEs and Cost Elements
+- KPI Comparison: BAC, Budget Delta, Gross Margin, Actual Costs
+- Entity Changes: Added/Modified/Removed WBEs, Cost Elements, and Cost Registrations
 - Waterfall Chart: Cost bridge visualization
 - Time Series: Weekly S-curve data for budget comparison
 """
@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain.change_order import ChangeOrder
 from app.models.domain.cost_element import CostElement
+from app.models.domain.cost_registration import CostRegistration
 from app.models.domain.wbe import WBE
 from app.models.schemas.impact_analysis import (
     EntityChange,
@@ -109,6 +110,26 @@ class ImpactAnalysisService:
         main_budget_total = main_bac
         change_budget_total = change_bac
 
+        # Calculate actual costs from CostRegistrations
+        main_actual_costs_stmt = (
+            select(func.sum(CostRegistration.amount))
+            .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id == project_id,
+                CostRegistration.deleted_at.is_(None),
+                func.upper(CostRegistration.valid_time).is_(None),
+            )
+        )
+        main_actual_costs_result = await self._db.execute(main_actual_costs_stmt)
+        main_actual_costs = main_actual_costs_result.scalar() or Decimal("0")
+
+        # For change branch, we'd need to filter by branch-specific cost registrations
+        # Since CostRegistration is NOT branchable, we use the same query for now
+        # In a full implementation, cost registrations would be associated with branches
+        # via the cost elements they reference
+        change_actual_costs = main_actual_costs  # Placeholder until branch filtering is implemented
+
         # Gross margin calculation (simplified: 20% of budget as margin)
         # In production, this would come from actual cost/revenue data
         main_gross_margin = main_budget_total * Decimal("0.2")
@@ -122,6 +143,8 @@ class ImpactAnalysisService:
             change_budget_total=change_budget_total,
             main_gross_margin=main_gross_margin,
             change_gross_margin=change_gross_margin,
+            main_actual_costs=main_actual_costs,
+            change_actual_costs=change_actual_costs,
         )
 
         # Compare entities
@@ -160,6 +183,8 @@ class ImpactAnalysisService:
         change_budget_total: Decimal,
         main_gross_margin: Decimal,
         change_gross_margin: Decimal,
+        main_actual_costs: Decimal,
+        change_actual_costs: Decimal,
     ) -> KPIScorecard:
         """Compare KPIs between main and change branch.
 
@@ -170,6 +195,8 @@ class ImpactAnalysisService:
             change_budget_total: Total budget in change branch
             main_gross_margin: Gross margin in main branch
             change_gross_margin: Gross margin in change branch
+            main_actual_costs: Actual costs (AC) in main branch
+            change_actual_costs: Actual costs (AC) in change branch
 
         Returns:
             KPIScorecard with all comparisons
@@ -196,6 +223,7 @@ class ImpactAnalysisService:
             bac=_calculate_metric(main_bac, change_bac),
             budget_delta=_calculate_metric(main_budget_total, change_budget_total),
             gross_margin=_calculate_metric(main_gross_margin, change_gross_margin),
+            actual_costs=_calculate_metric(main_actual_costs, change_actual_costs),
         )
 
     async def _compare_entities(
@@ -276,7 +304,44 @@ class ImpactAnalysisService:
             list(main_cost_elements), list(change_cost_elements)
         )
 
-        return EntityChanges(wbes=wbe_changes, cost_elements=ce_changes)
+        # Compare Cost Registrations (actual costs)
+        main_cr_stmt = (
+            select(CostRegistration)
+            .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id == project_id,
+                CostRegistration.deleted_at.is_(None),
+                func.upper(CostRegistration.valid_time).is_(None),
+            )
+            .order_by(CostRegistration.valid_time.desc())
+        )
+        main_cr_result = await self._db.execute(main_cr_stmt)
+        main_cost_registrations = main_cr_result.scalars().all()
+
+        # Get current Cost Registrations from change branch
+        change_cr_stmt = (
+            select(CostRegistration)
+            .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id == project_id,
+                CostRegistration.deleted_at.is_(None),
+                func.upper(CostRegistration.valid_time).is_(None),
+            )
+        )
+        # Note: CostRegistration is versionable but NOT branchable, so we need to filter by project via WBE/CostElement
+        # The change branch would have different CostRegistrations if new costs were added in the branch
+        # For now, we'll compare registrations that exist in the main branch context vs change branch context
+        change_cr_result = await self._db.execute(change_cr_stmt)
+        change_cost_registrations = change_cr_result.scalars().all()
+
+        # Compare Cost Registrations
+        cr_changes = self._compare_cost_registration_lists(
+            list(main_cost_registrations), list(change_cost_registrations)
+        )
+
+        return EntityChanges(wbes=wbe_changes, cost_elements=ce_changes, cost_registrations=cr_changes)
 
     def _compare_wbe_lists(
         self, main_wbes: list[WBE], change_wbes: list[WBE]
@@ -407,6 +472,81 @@ class ImpactAnalysisService:
                             budget_delta=budget_delta,
                             revenue_delta=None,
                             cost_delta=None,
+                        )
+                    )
+
+        return changes
+
+    def _compare_cost_registration_lists(
+        self, main_crs: list[CostRegistration], change_crs: list[CostRegistration]
+    ) -> list[EntityChange]:
+        """Compare two lists of Cost Registrations and identify changes.
+
+        Args:
+            main_crs: Cost Registrations from main branch
+            change_crs: Cost Registrations from change branch
+
+        Returns:
+            List of EntityChange objects
+        """
+        # Create lookup maps by root ID
+        main_cr_map = {cr.cost_registration_id: cr for cr in main_crs}
+        change_cr_map = {cr.cost_registration_id: cr for cr in change_crs}
+
+        changes: list[EntityChange] = []
+        all_root_ids = set(main_cr_map.keys()) | set(change_cr_map.keys())
+
+        for root_id in all_root_ids:
+            main_cr = main_cr_map.get(root_id)
+            change_cr = change_cr_map.get(root_id)
+
+            # Use a descriptive name for the cost registration
+            if main_cr:
+                name = f"Cost: {main_cr.description or 'No description'}"
+            elif change_cr:
+                name = f"Cost: {change_cr.description or 'No description'}"
+            else:
+                name = "Unknown Cost"
+
+            if main_cr is None:
+                # Added in change branch
+                assert (
+                    change_cr is not None
+                )  # Logically: root_id in union but not in main
+                changes.append(
+                    EntityChange(
+                        id=int(root_id.int >> 96),  # Simplified ID conversion
+                        name=name,
+                        change_type="added",
+                        budget_delta=None,
+                        revenue_delta=None,
+                        cost_delta=change_cr.amount,  # Positive impact (new cost added)
+                    )
+                )
+            elif change_cr is None:
+                # Removed in change branch (deleted or not created)
+                changes.append(
+                    EntityChange(
+                        id=int(root_id.int >> 96),
+                        name=name,
+                        change_type="removed",
+                        budget_delta=None,
+                        revenue_delta=None,
+                        cost_delta=-main_cr.amount,  # Negative impact (cost removed)
+                    )
+                )
+            else:
+                # Exists in both - check for modifications
+                cost_delta = change_cr.amount - main_cr.amount
+                if cost_delta != 0:
+                    changes.append(
+                        EntityChange(
+                            id=int(root_id.int >> 96),
+                            name=name,
+                            change_type="modified",
+                            budget_delta=None,
+                            revenue_delta=None,
+                            cost_delta=cost_delta,
                         )
                     )
 

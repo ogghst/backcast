@@ -1,4 +1,4 @@
-import { Card, Table, Tag, Typography, Empty, Space, Tooltip } from "antd";
+import { Card, Table, Tag, Typography, Empty, Space, Tooltip, theme } from "antd";
 import { InfoCircleOutlined, ArrowUpOutlined, ArrowDownOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import type { ForecastRead } from "@/api/generated";
@@ -63,6 +63,8 @@ export const ForecastImpactList = ({
   loading,
   branchName = "feature",
 }: ForecastImpactListProps) => {
+  const { token } = theme.useToken();
+
   // Filter to only show forecasts that exist in at least one branch
   const activeForecasts = forecasts.filter(
     (f) => f.mainForecast || f.branchForecast
@@ -86,7 +88,7 @@ export const ForecastImpactList = ({
         <div>
           <div style={{ fontWeight: 500 }}>{record.costElementCode}</div>
           <div style={{ fontSize: 12, color: "#8c8c8c" }}>{record.costElementName}</div>
-          <div style={{ fontSize: 11, color: "#999" }}>BAC: {formatCurrency(record.budgetAmount)}</div>
+          <div style={{ fontSize: 11, color: token.colorTextTertiary }}>BAC: {formatCurrency(record.budgetAmount)}</div>
         </div>
       ),
     },
@@ -95,7 +97,7 @@ export const ForecastImpactList = ({
         <Space>
           <span>Main EAC</span>
           <Tooltip title="Estimate at Complete in main branch">
-            <InfoCircleOutlined style={{ color: "#999" }} />
+            <InfoCircleOutlined style={{ color: token.colorTextTertiary }} />
           </Tooltip>
         </Space>
       ),
@@ -107,7 +109,7 @@ export const ForecastImpactList = ({
           ? Number(record.mainForecast.eac_amount)
           : null;
         if (eac === null) {
-          return <span style={{ color: "#8c8c8c" }}>-</span>;
+          return <span style={{ color: token.colorTextSecondary }}>-</span>;
         }
         const vac = calculateVAC(record.budgetAmount, eac);
         const status = getVACStatus(vac);
@@ -126,7 +128,7 @@ export const ForecastImpactList = ({
         <Space>
           <span>{branchName} EAC</span>
           <Tooltip title={`Estimate at Complete in ${branchName} branch`}>
-            <InfoCircleOutlined style={{ color: "#999" }} />
+            <InfoCircleOutlined style={{ color: token.colorTextTertiary }} />
           </Tooltip>
         </Space>
       ),
@@ -138,7 +140,7 @@ export const ForecastImpactList = ({
           ? Number(record.branchForecast.eac_amount)
           : null;
         if (eac === null) {
-          return <span style={{ color: "#8c8c8c" }}>-</span>;
+          return <span style={{ color: token.colorTextSecondary }}>-</span>;
         }
         const vac = calculateVAC(record.budgetAmount, eac);
         const status = getVACStatus(vac);
@@ -166,7 +168,7 @@ export const ForecastImpactList = ({
           : null;
 
         if (mainEAC === null && branchEAC === null) {
-          return <span style={{ color: "#8c8c8c" }}>-</span>;
+          return <span style={{ color: token.colorTextSecondary }}>-</span>;
         }
 
         // New forecast in branch
@@ -191,7 +193,7 @@ export const ForecastImpactList = ({
 
         // Both exist - calculate delta
         const delta = branchEAC! - mainEAC!;
-        const color = delta > 0 ? "#cf1322" : delta < 0 ? "#3f8600" : undefined;
+        const color = delta > 0 ? token.colorError : delta < 0 ? token.colorSuccess : undefined;
         const icon =
           delta > 0 ? (
             <ArrowUpOutlined style={{ color }} />
@@ -226,7 +228,7 @@ export const ForecastImpactList = ({
           : null;
 
         if (mainEAC === null || branchEAC === null) {
-          return <span style={{ color: "#8c8c8c" }}>-</span>;
+          return <span style={{ color: token.colorTextSecondary }}>-</span>;
         }
 
         const mainVAC = calculateVAC(record.budgetAmount, mainEAC);
@@ -247,7 +249,7 @@ export const ForecastImpactList = ({
             <Tag color={mainStatus.color} style={{ fontSize: 10, margin: 0 }}>
               {mainStatus.text}
             </Tag>
-            <span style={{ fontSize: 10, color: "#999" }}>→</span>
+            <span style={{ fontSize: 10, color: token.colorTextTertiary }}>→</span>
             <Tag color={branchStatus.color} style={{ fontSize: 10, margin: 0 }}>
               {branchStatus.text}
             </Tag>
@@ -290,7 +292,7 @@ export const ForecastImpactList = ({
       <Card
         type="inner"
         size="small"
-        style={{ marginBottom: 16, backgroundColor: "#fafafa" }}
+        style={{ marginBottom: 16, backgroundColor: token.colorFillSecondary }}
       >
         <Space size="large">
           <div>
@@ -299,7 +301,7 @@ export const ForecastImpactList = ({
               style={{
                 fontSize: 18,
                 fontWeight: "bold",
-                color: totalDelta > 0 ? "#cf1322" : totalDelta < 0 ? "#3f8600" : undefined,
+                color: totalDelta > 0 ? token.colorError : totalDelta < 0 ? token.colorSuccess : undefined,
               }}
             >
               {totalDelta > 0 ? "+" : ""}
@@ -322,7 +324,7 @@ export const ForecastImpactList = ({
             </div>
           </div>
         </Space>
-        <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e8e8e8" }}>
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${token.colorBorderSecondary}` }}>
           <Space>
             <Tag color="blue">Total: {activeForecasts.length}</Tag>
             <Tag color="green">Added: {forecasterAddedCount}</Tag>

@@ -137,6 +137,8 @@ export const useCreateCostElement = (
     },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: ["cost_elements"] });
+      // Invalidate EVM analysis (forecast comparison queries)
+      queryClient.invalidateQueries({ queryKey: ["forecast_comparison"] });
       toast.success("Created successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -181,6 +183,8 @@ export const useUpdateCostElement = (
     },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: ["cost_elements"] });
+      // Invalidate EVM analysis (forecast comparison queries)
+      queryClient.invalidateQueries({ queryKey: ["forecast_comparison"] });
       toast.success("Updated successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -222,6 +226,8 @@ export const useDeleteCostElement = (
     },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: ["cost_elements"] });
+      // Invalidate EVM analysis (forecast comparison queries)
+      queryClient.invalidateQueries({ queryKey: ["forecast_comparison"] });
       toast.success("Deleted successfully");
       mutationOptions?.onSuccess?.(...args);
     },

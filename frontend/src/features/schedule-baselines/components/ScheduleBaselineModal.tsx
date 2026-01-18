@@ -16,6 +16,7 @@ import {
   Typography,
   Card,
   Alert,
+  theme,
 } from "antd";
 import { useCreateScheduleBaseline, useUpdateScheduleBaseline } from "../api/useScheduleBaselines";
 import { ProgressionPreviewChart } from "./ProgressionPreviewChart";
@@ -54,6 +55,7 @@ export const ScheduleBaselineModal: React.FC<ScheduleBaselineModalProps> = ({
   costElementId,
   baseline,
 }) => {
+  const { token } = theme.useToken();
   const isEdit = !!baseline;
   const [form] = Form.useForm();
 
@@ -198,7 +200,7 @@ export const ScheduleBaselineModal: React.FC<ScheduleBaselineModalProps> = ({
               <Select.Option key={type.value} value={type.value}>
                 <div>
                   <div style={{ fontWeight: 500 }}>{type.label}</div>
-                  <div style={{ fontSize: 12, color: "#999" }}>{type.description}</div>
+                  <div style={{ fontSize: 12, color: token.colorTextTertiary }}>{type.description}</div>
                 </div>
               </Select.Option>
             ))}

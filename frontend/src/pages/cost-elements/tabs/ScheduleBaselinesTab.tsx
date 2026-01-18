@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Table, Card, Space, Tooltip, Modal, Tag } from "antd";
+import { Button, Table, Card, Space, Tooltip, Modal, Tag, theme } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined, HistoryOutlined, CalendarOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useQueryClient } from "@tanstack/react-query";
@@ -32,6 +32,7 @@ const PROGRESSION_LABELS: Record<string, string> = {
 };
 
 export const ScheduleBaselinesTab = ({ costElement }: ScheduleBaselinesTabProps) => {
+  const { token } = theme.useToken();
   const queryClient = useQueryClient();
 
   // State for modals
@@ -187,16 +188,16 @@ export const ScheduleBaselinesTab = ({ costElement }: ScheduleBaselinesTabProps)
         {/* EVM Info */}
         <div
           style={{
-            backgroundColor: "#f0f0f0",
+            backgroundColor: token.colorFillSecondary,
             padding: "12px",
             borderRadius: "4px",
             marginBottom: 16,
           }}
         >
-          <div style={{ fontSize: "12px", color: "#666", marginBottom: "8px" }}>
+          <div style={{ fontSize: "12px", color: token.colorTextSecondary, marginBottom: "8px" }}>
             <strong>Planned Value (PV) Calculation:</strong>
           </div>
-          <div style={{ fontSize: "12px", color: "#666" }}>
+          <div style={{ fontSize: "12px", color: token.colorTextSecondary }}>
             • <strong>PV:</strong> Planned Value = BAC × Progress
             <br />
             • <strong>BAC:</strong> Budget at Complete (€{Number(costElement.budget_amount).toLocaleString()})
@@ -217,8 +218,8 @@ export const ScheduleBaselinesTab = ({ costElement }: ScheduleBaselinesTabProps)
           locale={{
             emptyText: (
               <div style={{ padding: "24px", textAlign: "center" }}>
-                <CalendarOutlined style={{ fontSize: "32px", color: "#ccc" }} />
-                <p style={{ color: "#999", marginTop: "16px" }}>
+                <CalendarOutlined style={{ fontSize: "32px", color: token.colorTextTertiary }} />
+                <p style={{ color: token.colorTextTertiary, marginTop: "16px" }}>
                   No schedule baselines found for this cost element.
                 </p>
                 <Button

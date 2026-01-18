@@ -16,7 +16,10 @@ from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base.base import EntityBase
-from app.models.mixins import BranchableMixin, VersionableMixin
+from app.models.mixins import (  # type: ignore[attr-defined]
+    BranchableMixin,
+    VersionableMixin,
+)
 
 if TYPE_CHECKING:
     pass
@@ -32,7 +35,7 @@ PROGRESSION_TYPE_ENUM = PG_ENUM(
 )
 
 
-class ScheduleBaseline(EntityBase, VersionableMixin, BranchableMixin):
+class ScheduleBaseline(EntityBase, VersionableMixin, BranchableMixin):  # type: ignore[misc]
     """Schedule Baseline - time-phased budget plan for EVM Planned Value (PV).
 
     Schedule Baselines define how budget is planned to be earned over time,

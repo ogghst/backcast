@@ -5,7 +5,7 @@ creation on CO creation and workflow-driven branch locking.
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID, uuid4
 

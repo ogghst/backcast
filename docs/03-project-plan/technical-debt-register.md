@@ -1,28 +1,13 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-01-15
-**Total Debt Items:** 8 (20 completed)
-**Total Estimated Effort:** 17 hours
-**Completed Effort:** 19.25 hours
+**Last Updated:** 2026-01-18
+**Total Debt Items:** 7 (21 completed)
+**Total Estimated Effort:** 15 hours
+**Completed Effort:** 21.25 hours
 
 ---
 
 ## Debt Items
-
-### High Severity
-
-#### [TD-060] Backend Test Environment Subprocess Failure
-
-- **Source:** Fix Overlapping Valid Time Iteration (2026-01-16)
-- **Description:** `wipe_db.py` subprocess call in `conftest.py` fails with various errors (python path, env vars) in local/agent environment, blocking test execution.
-- **Impact:** Cannot run backend tests reliably; blocks verification of fixes.
-- **Estimated Effort:** 2 hours
-- **Target Date:** 2026-01-17
-- **Status:** 🔴 Open
-- **Owner:** DevOps / Backend Lead
-- **Notes:** Seems related to how `sys.executable` or `os.environ` behaves in `uv run` context vs direct execution.
-
----
 
 ### Medium Severity
 
@@ -150,13 +135,14 @@
 | TD-054 | Ruff Linting Errors (Branch Mode)            | 2026-01-13   | Fixed 12 auto-fixable errors (imports, whitespace)                                                       |
 | TD-055 | Unused Imports (Frontend Components)         | 2026-01-13   | Removed unused imports from ViewModeSelector, TimeMachineCompact                                         |
 | TD-058 | Overlapping valid_time Constraint            | 2026-01-16   | Implemented application-level checks in commands                                                         |
+| TD-060 | Backend Test Environment Subprocess Failure  | 2026-01-18   | Fixed conftest.py to use `.venv/bin/python` explicitly for subprocess calls                              |
 
 ---
 
 ## Maintenance Notes
 
-**Last Reviewed:** 2026-01-15
-**Next Review:** 2026-01-22
+**Last Reviewed:** 2026-01-18
+**Next Review:** 2026-01-25
 
 **Process:**
 
@@ -168,10 +154,8 @@
 
 **Recent Trends:**
 
+- **2026-01-18 - TD-060 Resolution:** Fixed backend test environment subprocess failure by updating `conftest.py` to explicitly use `.venv/bin/python` for the `wipe_db.py` subprocess call. All 365 tests now pass successfully.
 - **2026-01-16 - Fix Overlapping Valid Time:** Addressed TD-058 by implementing strict overlap checks in `branching` and `versioning` core commands. Added TD-060 due to test environment failures blocking verification.
 - **2026-01-15 - Contextual Navigation Iteration:** Completed with zero new technical debt items. All code followed best practices with ~100% test coverage. Standardized URL-driven navigation pattern for future entity detail pages.
-- **2026-01-14 - Time Travel Bug Fix:** Completed TD-058 analysis and workaround (removed `transaction_time` filtering from `_apply_bitemporal_filter`), documented in technical debt register. Updated both `BranchableService` and `TemporalService` with `valid_time`-only filtering approach.
-- **2026-01-14 - Test Suite Results:** Backend tests at 99.2% pass rate (253/255). Added TD-059 for pre-existing `test_get_wbes_param_filter` API response format issue.
-- **2026-01-14 - Documentation Updates:** Updated temporal-query-reference.md and technical-debt-register.md to reflect new `valid_time`-only approach for time travel queries.
-- Net debt change: 0 items, 0 hours effort (this iteration)
-- Overall debt trend: Stable (8 open items, no new debt added)
+- Net debt change: -1 items, -2 hours effort (TD-060 completed)
+- Overall debt trend: Improving (7 open items, down from 8)

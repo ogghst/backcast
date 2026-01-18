@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Table, Card, Space, Tooltip, Modal, Tag } from "antd";
+import { Button, Table, Card, Space, Tooltip, Modal, Tag, theme } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined, HistoryOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useQueryClient } from "@tanstack/react-query";
@@ -28,6 +28,7 @@ interface ForecastWithComparison extends ForecastRead {
 }
 
 export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
+  const { token } = theme.useToken();
   // Extract time machine parameters
   // Note: asOf and mode are available for future time travel features
   const { branch: tmBranch } = useTimeMachineParams();
@@ -212,16 +213,16 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
         {/* EVM Info */}
         <div
           style={{
-            backgroundColor: "#f0f0f0",
+            backgroundColor: token.colorFillSecondary,
             padding: "12px",
             borderRadius: "4px",
             marginBottom: 16,
           }}
         >
-          <div style={{ fontSize: "12px", color: "#666", marginBottom: "8px" }}>
+          <div style={{ fontSize: "12px", color: token.colorTextSecondary, marginBottom: "8px" }}>
             <strong>EVM Metrics:</strong>
           </div>
-          <div style={{ fontSize: "12px", color: "#666" }}>
+          <div style={{ fontSize: "12px", color: token.colorTextSecondary }}>
             • <strong>BAC:</strong> Budget at Complete (€{Number(costElement.budget_amount).toLocaleString()})
             <br />
             • <strong>EAC:</strong> Estimate at Complete (Projected total cost)

@@ -53,6 +53,7 @@ class KPIScorecard(BaseModel):
     bac: KPIMetric = Field(description="Budget at Completion comparison")
     budget_delta: KPIMetric = Field(description="Total budget allocation delta")
     gross_margin: KPIMetric = Field(description="Gross margin comparison")
+    actual_costs: KPIMetric = Field(description="Actual costs (AC) comparison")
     # EVM metrics deferred to Sprint 8
     # eac: KPIMetric | None = None
     # cpi: KPIMetric | None = None
@@ -94,6 +95,10 @@ class EntityChanges(BaseModel):
     cost_elements: list[EntityChange] = Field(
         default_factory=list,
         description="Cost Element changes",
+    )
+    cost_registrations: list[EntityChange] = Field(
+        default_factory=list,
+        description="Cost Registration (actual costs) changes",
     )
 
 

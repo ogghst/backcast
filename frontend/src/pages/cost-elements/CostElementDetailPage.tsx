@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { Tabs } from "antd";
+import { Tabs, theme } from "antd";
 import { useEffect } from "react";
 import {
   useCostElement,
@@ -16,6 +16,7 @@ import {
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 
 export const CostElementDetailPage = () => {
+  const { token } = theme.useToken();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const setCurrentProject = useTimeMachineStore((s) => s.setCurrentProject);
@@ -89,7 +90,7 @@ export const CostElementDetailPage = () => {
           {costElement?.code} - {costElement?.name}
         </h1>
         {costElement?.description && (
-          <p style={{ color: "#666", margin: "8px 0 0 0" }}>
+          <p style={{ color: token.colorTextSecondary, margin: "8px 0 0 0" }}>
             {costElement.description}
           </p>
         )}

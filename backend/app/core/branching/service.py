@@ -626,7 +626,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
         root_field = self._get_root_field_name()
 
         # Build base statement - use getattr to access branch column
-        branch_column = getattr(self.entity_class, 'branch')
+        branch_column = self.entity_class.branch
         stmt = select(branch_column).where(
             getattr(self.entity_class, root_field) == root_id,
         )
