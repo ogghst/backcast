@@ -19,28 +19,30 @@
 
 ### Analysis Phase
 
-| Document           | When to Read              | Path                                          |
-| ------------------ | ------------------------- | --------------------------------------------- |
-| Product Scope      | Requirements overview     | `docs/01-product-scope/README.md`             |
-| Vision             | Business goals (core doc) | `docs/01-product-scope/vision.md`             |
-| Bounded Contexts   | System boundaries         | `docs/02-architecture/01-bounded-contexts.md` |
-| Architecture Index | Patterns & decisions      | `docs/02-architecture/README.md`              |
+| Document           | When to Read              | Path                                               |
+| ------------------ | ------------------------- | -------------------------------------------------- |
+| Product Scope      | Requirements overview     | `docs/01-product-scope/README.md`                  |
+| Vision             | Business goals (core doc) | `docs/01-product-scope/vision.md`                  |
+| Bounded Contexts   | System boundaries         | `docs/02-architecture/01-bounded-contexts.md`      |
+| Architecture Index | Patterns & decisions      | `docs/02-architecture/README.md`                   |
+| Temporal Query     | Access as-of data         | `docs/02-architecture/temporal-query-reference.md` |
 
 ### Plan Phase
 
-| Document       | When to Read            | Path                                        |
-| -------------- | ----------------------- | ------------------------------------------- |
-| ADR Index      | Architectural decisions | `docs/02-architecture/decisions/README.md`  |
-| Test Fixtures  | Available test setup    | `backend/tests/conftest.py`                 |
-| Technical Debt | Existing debt items     | `docs/02-architecture/02-technical-debt.md` |
+| Document         | When to Read            | Path                                        |
+| ---------------- | ----------------------- | ------------------------------------------- |
+| ADR Index        | Architectural decisions | `docs/02-architecture/decisions/README.md`  |
+| Test Fixtures    | Available test setup    | `backend/tests/conftest.py`                 |
+| Technical Debt   | Existing debt items     | `docs/02-architecture/02-technical-debt.md` |
+| Current Analysis | Analysis                | Current iteration's `01-analysis.md`        |
 
 ### Do Phase
 
-| Document         | When to Read           | Path                                                              |
-| ---------------- | ---------------------- | ----------------------------------------------------------------- |
-| Coding Standards | Implementation quality | `docs/02-architecture/coding-standards.md`                        |
-| EVCS Core        | Versioning patterns    | `docs/02-architecture/backend/contexts/evcs-core/architecture.md` |
-| Current Plan     | Task specifications    | Current iteration's `01-plan.md`                                  |
+| Document           | When to Read           | Path                                       |
+| ------------------ | ---------------------- | ------------------------------------------ |
+| Coding Standards   | Implementation quality | `docs/02-architecture/coding-standards.md` |
+| Architecture Index | Patterns & decisions   | `docs/02-architecture/README.md`           |
+| Current Plan       | Task specifications    | Current iteration's `01-plan.md`           |
 
 ### Check Phase
 

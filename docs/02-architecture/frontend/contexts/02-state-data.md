@@ -14,12 +14,48 @@ This context governs how data flows through the application, distinguishing clea
 
 ### 3.1 Server State (TanStack Query)
 
-We prefer **Servers State** over generic global stores.
+We prefer **Server State** over generic global stores.
 
 - **Pattern**: Custom hooks for every API resource (e.g., `useProjects`, `useUpdateProject`).
 - **Caching**: Stale-while-revalidate strategy.
 - **Optimistic Updates**: UI updates immediately before the server response confirms success (critical for "snappy" feel).
 - **DevTools**: Enabled in development to debug cache states.
+
+#### 3.1.1 Query Keys & Context Isolation
+
+We strictly enforce a centralized Query Key factory to ensure cache consistency and type safety.
+
+- **Factory**: All keys are defined in `src/api/queryKeys.ts` using `createQueryKeys`.
+- **Naming**: Keys follow a kebab-case hierarchical structure (e.g., `['cost-elements', 'detail', id]`).
+- **Context Isolation**: For branchable or temporal entities, the Query Key **MUST** include context parameters to prevent stale data when switching contexts.
+  - **Wrong**: `['cost-elements', 'detail', id]` (Cached shared across branches)
+  - **Correct**: `['cost-elements', 'detail', id, { branch: 'main', asOf: '2024-01-01' }]`
+
+#### 3.1.2 Invalidation Strategy
+
+Mutations must trigger invalidation not just for the modified entity but for **all dependent data**.
+
+- **Example**: Creating a _Schedule Baseline_ affects _Planned Value_, which affects _Forecasts_ (EVM Metrics).
+- **Rule**: A mutation hook should invalidate `queryKeys.forecasts.all` if it touches cost or schedule data.
+- **Implementation**: Use the `queryKeys` factory for invalidations to match the query generation.
+
+#### 3.1.3 Optimistic Updates
+
+Optimistic updates are **required** for high-frequency user actions (e.g., renaming, status changes).
+
+```typescript
+// Example: useUpdateCostElement.ts
+onMutate: async ({ id, data }) => {
+  await queryClient.cancelQueries({ queryKey: queryKeys.costElements.detail(id) });
+  const previous = queryClient.getQueryData(queryKeys.costElements.detail(id));
+  queryClient.setQueryData(queryKeys.costElements.detail(id), (old: any) => ({ ...old, ...data }));
+  return { previous };
+},
+onError: (err, vars, context) => {
+    // Rollback
+    queryClient.setQueryData(queryKeys.costElements.detail(vars.id), context.previous);
+}
+```
 
 ### 3.2 Client State (Zustand)
 
@@ -42,7 +78,7 @@ export const useStore = create<State>()(
       set((state) => {
         state.items.push(item); // Direct mutation (immer handles immutability)
       }),
-  }))
+  })),
 );
 ```
 
@@ -64,9 +100,9 @@ export const useAuthStore = create<State>()(
       {
         name: "auth-storage",
         partialize: (state) => ({ token: state.token }),
-      }
-    )
-  )
+      },
+    ),
+  ),
 );
 ```
 
@@ -141,4 +177,5 @@ The factory automatically detects which pattern you're using and routes accordin
 - **Do** use immer middleware for all Zustand stores.
 - **Do** use draft mutations (direct assignments) within immer `set` callbacks.
 - **Do** use named methods pattern with `createResourceHooks` for new code.
+- **Do** include `{ branch, asOf }` in Query Keys for all versioned entities.
 - **Do** wrap `persist` middleware with `immer` when combining them.
