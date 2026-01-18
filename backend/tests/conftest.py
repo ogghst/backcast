@@ -3,6 +3,7 @@
 Provides database fixtures and test utilities.
 """
 
+import asyncio
 import os
 from collections.abc import AsyncGenerator, Generator
 from typing import Any, cast
@@ -85,19 +86,49 @@ def apply_migrations() -> Generator[None, None, None]:
     except subprocess.CalledProcessError as e:
         print(f"DB Wipe Failed: {e.stdout} {e.stderr}")
         # Don't raise - try to continue with migrations
-        pass
 
     # Run migrations
-    try:
-        command.upgrade(alembic_cfg, "head")
-    except Exception as e:
-        print(f"Migration failed: {e}")
-        # Try stamping head if migrations fail
+    command.upgrade(alembic_cfg, "head")
+
+    # Verify critical tables were created
+    # This ensures migrations executed successfully before running tests
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    async def verify_tables():
+        engine = create_async_engine(TEST_DATABASE_URL, echo=False)
         try:
-            command.stamp(alembic_cfg, "head")
-        except Exception as e2:
-            print(f"Stamp failed: {e2}")
-            raise
+            async with engine.connect() as conn:
+                # List of critical tables that must exist after migrations
+                required_tables = [
+                    "users",
+                    "departments",
+                    "projects",
+                    "wbes",
+                    "cost_element_types",
+                    "cost_elements",
+                    "cost_registrations",
+                    "progress_entries",  # Critical: Added in this iteration
+                    "schedule_baselines",
+                ]
+
+                for table_name in required_tables:
+                    result = await conn.execute(
+                        text(
+                            f"SELECT EXISTS (SELECT FROM information_schema.tables "
+                            f"WHERE table_schema = 'public' AND table_name = '{table_name}')"
+                        )
+                    )
+                    exists = result.scalar_one()
+                    if not exists:
+                        raise RuntimeError(
+                            f"Critical table '{table_name}' not found after migrations! "
+                            f"Migration may have failed silently."
+                        )
+        finally:
+            await engine.dispose()
+
+    # Run the async verification in the sync fixture
+    asyncio.run(verify_tables())
 
     yield
 
@@ -141,13 +172,18 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
             try:
                 await session.execute(
                     text(
-                        "TRUNCATE TABLE cost_elements, cost_element_types, wbes, projects, departments, users RESTART IDENTITY CASCADE"
+                        "TRUNCATE TABLE cost_elements, cost_element_types, wbes, projects, departments, users, cost_registrations, progress_entries, schedule_baselines RESTART IDENTITY CASCADE"
                     )
                 )
                 await session.commit()
-            except Exception:
-                # Tables might not exist yet (first test run), that's okay
+            except Exception as e:
+                # Tables might not exist yet (first test run), fail fast
+                print(f"Error truncating tables: {e}")
                 await session.rollback()
+                raise RuntimeError(
+                    f"Database tables do not exist. Migration may have failed. "
+                    f"Error: {e}"
+                )
 
             yield session
 

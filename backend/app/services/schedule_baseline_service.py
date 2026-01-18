@@ -17,6 +17,32 @@ from app.models.domain.schedule_baseline import ScheduleBaseline
 from app.models.schemas.schedule_baseline import ScheduleBaselineCreate
 
 
+class BaselineAlreadyExistsError(Exception):
+    """Exception raised when attempting to create a duplicate schedule baseline for a cost element.
+
+    Each cost element can have exactly one schedule baseline. This exception is raised when
+    attempting to create a second baseline for a cost element that already has one.
+
+    Attributes:
+        cost_element_id: The UUID of the cost element that already has a baseline
+        branch: The branch where the duplicate was detected (default: "main")
+    """
+
+    def __init__(self, cost_element_id: UUID, branch: str = "main") -> None:
+        """Initialize the exception with cost element ID and branch.
+
+        Args:
+            cost_element_id: The UUID of the cost element with existing baseline
+            branch: The branch where the duplicate was detected
+        """
+        self.cost_element_id = cost_element_id
+        self.branch = branch
+        super().__init__(
+            f"Schedule baseline already exists for cost element {cost_element_id} "
+            f"in branch '{branch}'. Each cost element can have exactly one baseline."
+        )
+
+
 class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ignore[type-var,unused-ignore]
     """Service for Schedule Baseline management (branchable + versionable).
 
@@ -123,7 +149,6 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             actor_id=actor_id,
             control_date=control_date,
             branch=branch,
-            cost_element_id=create_schema.cost_element_id,
             name=create_schema.name,
             start_date=create_schema.start_date,
             end_date=create_schema.end_date,
@@ -163,6 +188,182 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             branch=branch,
             control_date=control_date,
         )
+
+    async def get_for_cost_element(
+        self, cost_element_id: UUID, branch: str = "main"
+    ) -> ScheduleBaseline | None:
+        """Get the schedule baseline for a specific cost element.
+
+        Uses the inverted relationship (cost_elements.schedule_baseline_id)
+        to find the single baseline associated with the cost element.
+
+        Args:
+            cost_element_id: The UUID of the cost element
+            branch: Branch name (default: "main")
+
+        Returns:
+            ScheduleBaseline if found, None otherwise
+        """
+        # First, get the cost element's schedule_baseline_id
+        ce_stmt = select(CostElement.schedule_baseline_id).where(
+            CostElement.cost_element_id == cost_element_id,
+            CostElement.branch == branch,
+            func.upper(cast(Any, CostElement).valid_time).is_(None),
+            cast(Any, CostElement).deleted_at.is_(None),
+        )
+        ce_result = await self.session.execute(ce_stmt)
+        schedule_baseline_id = ce_result.scalar_one_or_none()
+
+        # If no baseline ID, return None
+        if schedule_baseline_id is None:
+            return None
+
+        # Get the baseline using the ID
+        return await self.get_by_id(schedule_baseline_id, branch=branch)
+
+    async def ensure_exists(
+        self,
+        cost_element_id: UUID,
+        actor_id: UUID,
+        branch: str = "main",
+        control_date: datetime | None = None,
+    ) -> ScheduleBaseline:
+        """Ensure a schedule baseline exists for the cost element.
+
+        Creates a default baseline if none exists, otherwise returns the existing one.
+
+        Args:
+            cost_element_id: The UUID of the cost element
+            actor_id: User creating the baseline if needed
+            branch: Branch name (default: "main")
+            control_date: Optional control date for valid_time
+
+        Returns:
+            ScheduleBaseline (existing or newly created)
+        """
+        # Check if baseline already exists
+        existing = await self.get_for_cost_element(cost_element_id, branch=branch)
+        if existing is not None:
+            return existing
+
+        # Create default baseline
+        from datetime import UTC, timedelta
+        from uuid import uuid4
+
+        now = control_date or datetime.now(UTC)
+        baseline_id = uuid4()
+
+        baseline = await self.create_root(
+            root_id=baseline_id,
+            actor_id=actor_id,
+            control_date=control_date,
+            branch=branch,
+            cost_element_id=cost_element_id,
+            name="Default Schedule",
+            start_date=now,
+            end_date=now + timedelta(days=90),
+            progression_type="LINEAR",
+        )
+
+        # Update cost element to reference the new baseline
+        ce_stmt = (
+            select(CostElement)
+            .where(
+                CostElement.cost_element_id == cost_element_id,
+                CostElement.branch == branch,
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, CostElement).valid_time.desc())
+            .limit(1)
+        )
+        ce_result = await self.session.execute(ce_stmt)
+        cost_element = ce_result.scalar_one_or_none()
+
+        if cost_element:
+            cost_element.schedule_baseline_id = baseline_id
+            await self.session.flush()
+
+        return baseline
+
+    async def create_for_cost_element(
+        self,
+        cost_element_id: UUID,
+        actor_id: UUID,
+        name: str,
+        start_date: datetime,
+        end_date: datetime,
+        progression_type: str = "LINEAR",
+        description: str | None = None,
+        branch: str = "main",
+        control_date: datetime | None = None,
+    ) -> ScheduleBaseline:
+        """Create a schedule baseline for a specific cost element.
+
+        Validates that no duplicate baseline exists for the cost element
+        in the specified branch before creating.
+
+        Args:
+            cost_element_id: The UUID of the cost element
+            actor_id: User creating the baseline
+            name: Baseline name
+            start_date: Schedule start date
+            end_date: Schedule end date
+            progression_type: Type of progression curve (default: "LINEAR")
+            description: Optional description
+            branch: Branch name (default: "main")
+            control_date: Optional control date for valid_time
+
+        Returns:
+            Created ScheduleBaseline
+
+        Raises:
+            BaselineAlreadyExistsError: If a baseline already exists for this cost element
+        """
+        # Check for existing baseline
+        existing = await self.get_for_cost_element(cost_element_id, branch=branch)
+        if existing is not None:
+            raise BaselineAlreadyExistsError(
+                cost_element_id=cost_element_id, branch=branch
+            )
+
+        # Create the baseline
+        from uuid import uuid4
+
+        baseline_id = uuid4()
+        baseline = await self.create_root(
+            root_id=baseline_id,
+            actor_id=actor_id,
+            control_date=control_date,
+            branch=branch,
+            cost_element_id=cost_element_id,
+            name=name,
+            start_date=start_date,
+            end_date=end_date,
+            progression_type=progression_type,
+            description=description,
+        )
+
+        # Update cost element to reference the new baseline
+        ce_stmt = (
+            select(CostElement)
+            .where(
+                CostElement.cost_element_id == cost_element_id,
+                CostElement.branch == branch,
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, CostElement).valid_time.desc())
+            .limit(1)
+        )
+        ce_result = await self.session.execute(ce_stmt)
+        cost_element = ce_result.scalar_one_or_none()
+
+        if cost_element:
+            cost_element.schedule_baseline_id = baseline_id
+            await self.session.flush()
+
+        return baseline
 
     def _get_base_stmt(self) -> Any:
         """Get base select statement with Cost Element name join.

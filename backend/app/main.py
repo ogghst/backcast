@@ -19,6 +19,7 @@ from app.api.routes import (
     cost_registrations,
     departments,
     forecasts,
+    progress_entries,
     projects,
     schedule_baselines,
     users,
@@ -168,4 +169,9 @@ app.include_router(
     schedule_baselines.router,
     prefix=f"{settings.API_V1_STR}/schedule-baselines",
     tags=["Schedule Baselines"],
+)
+app.include_router(
+    progress_entries.router,
+    prefix=f"{settings.API_V1_STR}/progress-entries",
+    tags=["Progress Entries"],
 )

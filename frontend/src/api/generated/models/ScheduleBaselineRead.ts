@@ -1,7 +1,7 @@
 /* generated using openapi-typescript-codegen -- do not edit */
 /* istanbul ignore file */
 /* tslint:disable */
- 
+/* eslint-disable */
 /**
  * Properties returned to client.
  */
@@ -31,5 +31,7 @@ export type ScheduleBaselineRead = {
     cost_element_id: string;
     created_by: string;
     branch: string;
+    cost_element_code?: (string | null);
+    cost_element_name?: (string | null);
 };
 

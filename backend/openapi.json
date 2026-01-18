@@ -2905,6 +2905,378 @@
         }
       }
     },
+    "/api/v1/cost-elements/{cost_element_id}/schedule-baseline": {
+      "get": {
+        "tags": [
+          "Cost Elements"
+        ],
+        "summary": "Get Cost Element Schedule Baseline",
+        "description": "Get the schedule baseline for a specific cost element.\n\nReturns the single schedule baseline associated with this cost element\nin the specified branch. Returns 404 if no baseline exists.",
+        "operationId": "get_cost_element_schedule_baseline",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_element_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Element Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to query",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Cost Element Schedule Baseline"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Cost Elements"
+        ],
+        "summary": "Create Cost Element Schedule Baseline",
+        "description": "Create a schedule baseline for a cost element.\n\nCreates a new schedule baseline and associates it with the cost element.\nEach cost element can have only one schedule baseline per branch.\n\nRaises 400 if a baseline already exists for this cost element.",
+        "operationId": "create_cost_element_schedule_baseline",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_element_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Element Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to create in",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to create in"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Baseline In"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Create Cost Element Schedule Baseline"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cost-elements/{cost_element_id}/schedule-baseline/{baseline_id}": {
+      "put": {
+        "tags": [
+          "Cost Elements"
+        ],
+        "summary": "Update Cost Element Schedule Baseline",
+        "description": "Update the schedule baseline for a cost element.\n\nUpdates the specified baseline. Creates a new version with the changes.\nOnly the fields provided in the request body are updated.",
+        "operationId": "update_cost_element_schedule_baseline",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_element_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Element Id"
+            }
+          },
+          {
+            "name": "baseline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Baseline Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to update in",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to update in"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Baseline In"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update Cost Element Schedule Baseline"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Cost Elements"
+        ],
+        "summary": "Delete Cost Element Schedule Baseline",
+        "description": "Soft delete the schedule baseline for a cost element.\n\nSoft deletes the specified baseline. The baseline is marked as deleted\nbut remains in the database for audit purposes.",
+        "operationId": "delete_cost_element_schedule_baseline",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_element_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Element Id"
+            }
+          },
+          {
+            "name": "baseline_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Baseline Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to delete from",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to delete from"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cost-elements/{cost_element_id}/evm": {
+      "get": {
+        "tags": [
+          "Cost Elements"
+        ],
+        "summary": "Read Evm Metrics",
+        "description": "Calculate EVM (Earned Value Management) metrics for a cost element.\n\nReturns comprehensive EVM analysis including:\n- BAC: Budget at Completion (total planned budget)\n- PV: Planned Value (budgeted cost of work scheduled)\n- AC: Actual Cost (cost incurred to date)\n- EV: Earned Value (budgeted cost of work performed)\n- CV: Cost Variance (EV - AC, negative = over budget)\n- SV: Schedule Variance (EV - PV, negative = behind schedule)\n- CPI: Cost Performance Index (EV / AC, < 1.0 = over budget)\n- SPI: Schedule Performance Index (EV / PV, < 1.0 = behind schedule)\n\nTime-Travel & Branching:\n- All metrics respect time-travel: entities are fetched as they were at control_date\n- Cost elements and schedule baselines are fetched at the correct valid_time\n- Branch mode (ISOLATED/MERGE) controls parent branch fallback behavior\n- Cost registrations and progress entries are global facts (not branchable)\n\nWarning: Returns EV = 0 with warning message if no progress has been reported.",
+        "operationId": "get_evm_metrics",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_element_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Element Id"
+            }
+          },
+          {
+            "name": "control_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Control date for time-travel query (ISO 8601, defaults to now). All entities are fetched as they were at this valid_time.",
+              "title": "Control Date"
+            },
+            "description": "Control date for time-travel query (ISO 8601, defaults to now). All entities are fetched as they were at this valid_time."
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to query",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to query"
+          },
+          {
+            "name": "branch_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/BranchMode",
+              "description": "Branch mode: ISOLATED (only this branch) or MERGE (fall back to parent branches)",
+              "default": "merge"
+            },
+            "description": "Branch mode: ISOLATED (only this branch) or MERGE (fall back to parent branches)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/cost-registrations": {
       "get": {
         "tags": [
@@ -3389,6 +3761,230 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Get Budget Status"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cost-registrations/aggregated": {
+      "get": {
+        "tags": [
+          "Cost Registrations"
+        ],
+        "summary": "Get Aggregated Costs",
+        "description": "Get cost aggregations by time period.\n\nReturns costs aggregated by day, week, or month for a cost element.\nUseful for generating cost charts and trend analysis.\n\nExample:\n    - period=daily: One row per day with total costs\n    - period=weekly: One row per week (starts Monday) with total costs\n    - period=monthly: One row per month (starts 1st) with total costs\n\nAll costs respect time-travel queries via the as_of parameter.",
+        "operationId": "get_aggregated_costs",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_element_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Cost Element ID to aggregate costs for",
+              "title": "Cost Element Id"
+            },
+            "description": "Cost Element ID to aggregate costs for"
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(daily|weekly|monthly)$",
+              "description": "Aggregation period (daily, weekly, or monthly)",
+              "title": "Period"
+            },
+            "description": "Aggregation period (daily, weekly, or monthly)"
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Start date for aggregation (ISO 8601)",
+              "title": "Start Date"
+            },
+            "description": "Start date for aggregation (ISO 8601)"
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "End date for aggregation (ISO 8601, defaults to now)",
+              "title": "End Date"
+            },
+            "description": "End date for aggregation (ISO 8601, defaults to now)"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: get costs as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: get costs as of this timestamp (ISO 8601)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Get Aggregated Costs"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cost-registrations/cumulative": {
+      "get": {
+        "tags": [
+          "Cost Registrations"
+        ],
+        "summary": "Get Cumulative Costs",
+        "description": "Get cumulative costs over time.\n\nReturns a time series of costs with running cumulative totals.\nUseful for S-curve charts and cumulative cost tracking.\n\nEach entry includes:\n- registration_date: Date of the cost registration\n- amount: Cost amount for that registration\n- cumulative_amount: Running total of all costs to date\n\nAll costs respect time-travel queries via the as_of parameter.",
+        "operationId": "get_cumulative_costs",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_element_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Cost Element ID to get cumulative costs for",
+              "title": "Cost Element Id"
+            },
+            "description": "Cost Element ID to get cumulative costs for"
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Start date for calculation (ISO 8601)",
+              "title": "Start Date"
+            },
+            "description": "Start date for calculation (ISO 8601)"
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "End date for calculation (ISO 8601, defaults to now)",
+              "title": "End Date"
+            },
+            "description": "End date for calculation (ISO 8601, defaults to now)"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: get costs as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: get costs as of this timestamp (ISO 8601)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Get Cumulative Costs"
                 }
               }
             }
@@ -5145,6 +5741,466 @@
           }
         }
       }
+    },
+    "/api/v1/progress-entries": {
+      "get": {
+        "tags": [
+          "Progress Entries"
+        ],
+        "summary": "Read Progress Entries",
+        "description": "Retrieve progress entries with filtering and pagination.\n\nProgress entries track work completion percentage for cost elements.\nThey are versionable but NOT branchable (progress is global facts).",
+        "operationId": "get_progress_entries",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "cost_element_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by Cost Element ID",
+              "title": "Cost Element Id"
+            },
+            "description": "Filter by Cost Element ID"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: get Progress Entries as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: get Progress Entries as of this timestamp (ISO 8601)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Progress Entries"
+        ],
+        "summary": "Create Progress Entry",
+        "description": "Create a new progress entry.\n\nProgress entries track work completion percentage (0-100%) for cost elements.\nThis enables Earned Value Management (EVM) calculations.\n\nValidation:\n- progress_percentage must be between 0 and 100\n- cost_element_id must reference an existing cost element\n- reported_by_user_id must reference an existing user",
+        "operationId": "create_progress_entry",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgressEntryCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgressEntryRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/progress-entries/{progress_entry_id}": {
+      "get": {
+        "tags": [
+          "Progress Entries"
+        ],
+        "summary": "Read Progress Entry",
+        "description": "Retrieve a specific progress entry by ID.\n\nSupports time-travel queries via the as_of parameter.",
+        "operationId": "get_progress_entry",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "progress_entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Progress Entry Id"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: get Progress Entry as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: get Progress Entry as of this timestamp (ISO 8601)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgressEntryRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Progress Entries"
+        ],
+        "summary": "Update Progress Entry",
+        "description": "Update a progress entry.\n\nCreates a new version of the progress entry with the updated values.\nProgress can be increased or decreased (decreases should include justification in notes).\n\nThe system will maintain full version history for audit trails.",
+        "operationId": "update_progress_entry",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "progress_entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Progress Entry Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgressEntryUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgressEntryRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Progress Entries"
+        ],
+        "summary": "Delete Progress Entry",
+        "description": "Soft delete a progress entry.\n\nMarks the progress entry as deleted but preserves it in the database\nfor audit purposes. The entry can be restored if needed.",
+        "operationId": "delete_progress_entry",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "progress_entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Progress Entry Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/progress-entries/cost-element/{cost_element_id}/latest": {
+      "get": {
+        "tags": [
+          "Progress Entries"
+        ],
+        "summary": "Read Latest Progress",
+        "description": "Retrieve the latest progress entry for a cost element.\n\nReturns the most recent progress entry based on reported_date.\nSupports time-travel queries via the as_of parameter.\n\nReturns None if no progress has been reported for the cost element.",
+        "operationId": "get_latest_progress",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_element_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Element Id"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: get latest progress as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: get latest progress as of this timestamp (ISO 8601)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProgressEntryRead"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Latest Progress"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/progress-entries/cost-element/{cost_element_id}/history": {
+      "get": {
+        "tags": [
+          "Progress Entries"
+        ],
+        "summary": "Read Progress History",
+        "description": "Retrieve progress history for a cost element.\n\nReturns all progress entries for the specified cost element,\nordered by reported_date descending (most recent first).\n\nUseful for generating progress charts and historical analysis.",
+        "operationId": "get_progress_history",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cost_element_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Cost Element Id"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5207,6 +6263,15 @@
           "password"
         ],
         "title": "Body_login"
+      },
+      "BranchMode": {
+        "type": "string",
+        "enum": [
+          "strict",
+          "merge"
+        ],
+        "title": "BranchMode",
+        "description": "Branch resolution mode for time-travel queries.\n\nControls how entity lookups handle branch isolation:\n- STRICT: Only return entities from the specified branch\n- MERGE: Fall back to main branch if entity not found on specified branch"
       },
       "BranchPublic": {
         "properties": {
@@ -6828,6 +7893,14 @@
             "type": "array",
             "title": "Cost Elements",
             "description": "Cost Element changes"
+          },
+          "cost_registrations": {
+            "items": {
+              "$ref": "#/components/schemas/EntityChange"
+            },
+            "type": "array",
+            "title": "Cost Registrations",
+            "description": "Cost Registration (actual costs) changes"
           }
         },
         "type": "object",
@@ -7277,13 +8350,18 @@
           "gross_margin": {
             "$ref": "#/components/schemas/KPIMetric",
             "description": "Gross margin comparison"
+          },
+          "actual_costs": {
+            "$ref": "#/components/schemas/KPIMetric",
+            "description": "Actual costs (AC) comparison"
           }
         },
         "type": "object",
         "required": [
           "bac",
           "budget_delta",
-          "gross_margin"
+          "gross_margin",
+          "actual_costs"
         ],
         "title": "KPIScorecard",
         "description": "KPI comparison scorecard for impact analysis."
@@ -7312,6 +8390,189 @@
         "type": "object",
         "title": "MergeRequest",
         "description": "Schema for merge operation request.\n\nAll fields are optional."
+      },
+      "ProgressEntryCreate": {
+        "properties": {
+          "progress_percentage": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              }
+            ],
+            "title": "Progress Percentage",
+            "description": "Work completion percentage (0.00 to 100.00)"
+          },
+          "reported_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Reported Date",
+            "description": "When progress was measured (business date)"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes",
+            "description": "Optional notes about progress (e.g., justification for decrease)"
+          },
+          "progress_entry_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Entry Id",
+            "description": "Root Progress Entry ID (internal use only for seeding)"
+          },
+          "cost_element_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Cost Element Id",
+            "description": "ID of the cost element to track progress for"
+          },
+          "reported_by_user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Reported By User Id",
+            "description": "ID of the user reporting the progress"
+          }
+        },
+        "type": "object",
+        "required": [
+          "progress_percentage",
+          "reported_date",
+          "cost_element_id",
+          "reported_by_user_id"
+        ],
+        "title": "ProgressEntryCreate",
+        "description": "Properties required for creating a Progress Entry."
+      },
+      "ProgressEntryRead": {
+        "properties": {
+          "progress_percentage": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+            "title": "Progress Percentage",
+            "description": "Work completion percentage (0.00 to 100.00)"
+          },
+          "reported_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Reported Date",
+            "description": "When progress was measured (business date)"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes",
+            "description": "Optional notes about progress (e.g., justification for decrease)"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "progress_entry_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Progress Entry Id"
+          },
+          "cost_element_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Cost Element Id"
+          },
+          "reported_by_user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Reported By User Id"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "progress_percentage",
+          "reported_date",
+          "id",
+          "progress_entry_id",
+          "cost_element_id",
+          "reported_by_user_id",
+          "created_by"
+        ],
+        "title": "ProgressEntryRead",
+        "description": "Properties returned to client."
+      },
+      "ProgressEntryUpdate": {
+        "properties": {
+          "progress_percentage": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Percentage"
+          },
+          "reported_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reported Date"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "ProgressEntryUpdate",
+        "description": "Properties that can be updated on a Progress Entry."
       },
       "ProjectBreadcrumbItem": {
         "properties": {
@@ -7815,23 +9076,16 @@
             ],
             "title": "Schedule Baseline Id",
             "description": "Root Schedule Baseline ID (internal use only for seeding)"
-          },
-          "cost_element_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Cost Element Id",
-            "description": "ID of the cost element"
           }
         },
         "type": "object",
         "required": [
           "name",
           "start_date",
-          "end_date",
-          "cost_element_id"
+          "end_date"
         ],
         "title": "ScheduleBaselineCreate",
-        "description": "Properties required for creating a Schedule Baseline."
+        "description": "Properties required for creating a Schedule Baseline.\n\nNote: cost_element_id is obtained from the URL path when creating\na baseline for a specific cost element, not from the request body."
       },
       "ScheduleBaselineRead": {
         "properties": {
@@ -7895,6 +9149,28 @@
           "branch": {
             "type": "string",
             "title": "Branch"
+          },
+          "cost_element_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Element Code"
+          },
+          "cost_element_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Element Name"
           }
         },
         "type": "object",

@@ -72,6 +72,18 @@ asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+markers = [
+    "performance: Marks tests as performance tests (may take longer)",
+    "migration: Marks tests as migration verification tests",
+    "slow: Marks tests as slow-running tests"
+]
+addopts = [
+    "--cov=app",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-context=test",
+    "--cov-fail-under=80"
+]
 
 [tool.coverage.run]
 source = ["app"]

@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { BranchMode } from '../models/BranchMode';
 import type { CostElementCreate } from '../models/CostElementCreate';
 import type { CostElementRead } from '../models/CostElementRead';
 import type { CostElementUpdate } from '../models/CostElementUpdate';
@@ -199,6 +200,188 @@ export class CostElementsService {
             url: '/api/v1/cost-elements/{cost_element_id}/breadcrumb',
             path: {
                 'cost_element_id': costElementId,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Get Cost Element Schedule Baseline
+     * Get the schedule baseline for a specific cost element.
+     *
+     * Returns the single schedule baseline associated with this cost element
+     * in the specified branch. Returns 404 if no baseline exists.
+     * @param costElementId
+     * @param branch Branch to query
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static getCostElementScheduleBaseline(
+        costElementId: string,
+        branch: string = 'main',
+    ): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/cost-elements/{cost_element_id}/schedule-baseline',
+            path: {
+                'cost_element_id': costElementId,
+            },
+            query: {
+                'branch': branch,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Create Cost Element Schedule Baseline
+     * Create a schedule baseline for a cost element.
+     *
+     * Creates a new schedule baseline and associates it with the cost element.
+     * Each cost element can have only one schedule baseline per branch.
+     *
+     * Raises 400 if a baseline already exists for this cost element.
+     * @param costElementId
+     * @param requestBody
+     * @param branch Branch to create in
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static createCostElementScheduleBaseline(
+        costElementId: string,
+        requestBody: Record<string, any>,
+        branch: string = 'main',
+    ): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/cost-elements/{cost_element_id}/schedule-baseline',
+            path: {
+                'cost_element_id': costElementId,
+            },
+            query: {
+                'branch': branch,
+            },
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Update Cost Element Schedule Baseline
+     * Update the schedule baseline for a cost element.
+     *
+     * Updates the specified baseline. Creates a new version with the changes.
+     * Only the fields provided in the request body are updated.
+     * @param costElementId
+     * @param baselineId
+     * @param requestBody
+     * @param branch Branch to update in
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static updateCostElementScheduleBaseline(
+        costElementId: string,
+        baselineId: string,
+        requestBody: Record<string, any>,
+        branch: string = 'main',
+    ): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/cost-elements/{cost_element_id}/schedule-baseline/{baseline_id}',
+            path: {
+                'cost_element_id': costElementId,
+                'baseline_id': baselineId,
+            },
+            query: {
+                'branch': branch,
+            },
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Delete Cost Element Schedule Baseline
+     * Soft delete the schedule baseline for a cost element.
+     *
+     * Soft deletes the specified baseline. The baseline is marked as deleted
+     * but remains in the database for audit purposes.
+     * @param costElementId
+     * @param baselineId
+     * @param branch Branch to delete from
+     * @returns void
+     * @throws ApiError
+     */
+    public static deleteCostElementScheduleBaseline(
+        costElementId: string,
+        baselineId: string,
+        branch: string = 'main',
+    ): CancelablePromise<void> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/cost-elements/{cost_element_id}/schedule-baseline/{baseline_id}',
+            path: {
+                'cost_element_id': costElementId,
+                'baseline_id': baselineId,
+            },
+            query: {
+                'branch': branch,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Read Evm Metrics
+     * Calculate EVM (Earned Value Management) metrics for a cost element.
+     *
+     * Returns comprehensive EVM analysis including:
+     * - BAC: Budget at Completion (total planned budget)
+     * - PV: Planned Value (budgeted cost of work scheduled)
+     * - AC: Actual Cost (cost incurred to date)
+     * - EV: Earned Value (budgeted cost of work performed)
+     * - CV: Cost Variance (EV - AC, negative = over budget)
+     * - SV: Schedule Variance (EV - PV, negative = behind schedule)
+     * - CPI: Cost Performance Index (EV / AC, < 1.0 = over budget)
+     * - SPI: Schedule Performance Index (EV / PV, < 1.0 = behind schedule)
+     *
+     * Time-Travel & Branching:
+     * - All metrics respect time-travel: entities are fetched as they were at control_date
+     * - Cost elements and schedule baselines are fetched at the correct valid_time
+     * - Branch mode (ISOLATED/MERGE) controls parent branch fallback behavior
+     * - Cost registrations and progress entries are global facts (not branchable)
+     *
+     * Warning: Returns EV = 0 with warning message if no progress has been reported.
+     * @param costElementId
+     * @param controlDate Control date for time-travel query (ISO 8601, defaults to now). All entities are fetched as they were at this valid_time.
+     * @param branch Branch to query
+     * @param branchMode Branch mode: ISOLATED (only this branch) or MERGE (fall back to parent branches)
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static getEvmMetrics(
+        costElementId: string,
+        controlDate?: (string | null),
+        branch: string = 'main',
+        branchMode: BranchMode = 'merge',
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/cost-elements/{cost_element_id}/evm',
+            path: {
+                'cost_element_id': costElementId,
+            },
+            query: {
+                'control_date': controlDate,
+                'branch': branch,
+                'branch_mode': branchMode,
             },
             errors: {
                 422: `Validation Error`,

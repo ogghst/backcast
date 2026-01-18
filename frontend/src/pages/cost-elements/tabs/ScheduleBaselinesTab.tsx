@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { Button, Table, Card, Space, Tooltip, Modal, Tag, theme } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined, HistoryOutlined, CalendarOutlined } from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
+import { Button, Card, Space, Tooltip, Modal, Tag, theme, Empty, Spin } from "antd";
+import { PlusOutlined, EditOutlined, DeleteOutlined, HistoryOutlined, CalendarOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CostElementRead } from "@/api/generated";
 import {
-  useScheduleBaselines,
-  useDeleteScheduleBaseline,
-  useScheduleBaselineHistory,
-} from "@/features/schedule-baselines/api/useScheduleBaselines";
+  useCostElementScheduleBaseline,
+  useCreateCostElementScheduleBaseline,
+  useUpdateCostElementScheduleBaseline,
+  useDeleteCostElementScheduleBaseline,
+} from "@/features/schedule-baselines/api";
 import { ScheduleBaselineModal } from "@/features/schedule-baselines/components/ScheduleBaselineModal";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import type { ScheduleBaselineRead } from "@/features/schedule-baselines/api/useScheduleBaselines";
@@ -39,42 +39,72 @@ export const ScheduleBaselinesTab = ({ costElement }: ScheduleBaselinesTabProps)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingBaseline, setEditingBaseline] = useState<ScheduleBaselineRead | null>(null);
   const [showHistory, setShowHistory] = useState(false);
-  const [selectedBaseline, setSelectedBaseline] = useState<ScheduleBaselineRead | null>(null);
 
   const { modal } = Modal;
 
-  // Fetch schedule baselines for this cost element
-  const { data: baselinesData, isLoading, refetch } = useScheduleBaselines({
-    cost_element_id: costElement.cost_element_id,
-    pagination: { current: 1, pageSize: 100 },
-  });
+  // Fetch the single schedule baseline for this cost element (1:1 relationship)
+  const {
+    data: baseline,
+    isLoading,
+    isError,
+    refetch,
+  } = useCostElementScheduleBaseline(
+    costElement.cost_element_id,
+    costElement.branch || "main"
+  );
 
-  const baselines = baselinesData?.items || [];
-
-  const { mutate: deleteScheduleBaseline } = useDeleteScheduleBaseline({
+  useCreateCostElementScheduleBaseline({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["schedule_baselines"] });
+      queryClient.invalidateQueries({ queryKey: ["cost_element_schedule_baseline"] });
+      refetch();
     },
   });
 
-  const { data: history, isLoading: historyLoading } = useScheduleBaselineHistory(
-    selectedBaseline?.schedule_baseline_id || "",
-    !!selectedBaseline?.schedule_baseline_id && showHistory
-  );
+  useUpdateCostElementScheduleBaseline({
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cost_element_schedule_baseline"] });
+      refetch();
+    },
+  });
 
-  const handleEdit = (baseline: ScheduleBaselineRead) => {
-    setEditingBaseline(baseline);
-    setIsCreateModalOpen(true);
+  const { mutate: deleteBaseline, isPending: isDeleting } = useDeleteCostElementScheduleBaseline({
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cost_element_schedule_baseline"] });
+      refetch();
+    },
+  });
+
+  const handleEdit = () => {
+    if (baseline) {
+      setEditingBaseline(baseline);
+      setIsCreateModalOpen(true);
+    }
   };
 
-  const handleDelete = (baseline: ScheduleBaselineRead) => {
-    modal.confirm({
-      title: "Delete Schedule Baseline",
-      content: `Are you sure you want to delete schedule baseline "${baseline.name}"? This action cannot be undone.`,
-      okText: "Yes, Delete",
-      okType: "danger",
-      onOk: () => deleteScheduleBaseline({ id: baseline.schedule_baseline_id }),
-    });
+  const handleDelete = () => {
+    if (baseline) {
+      modal.confirm({
+        title: "Delete Schedule Baseline",
+        content: (
+          <div>
+            <p>
+              Are you sure you want to delete schedule baseline <strong>"{baseline.name}"</strong>?
+            </p>
+            <p style={{ color: token.colorError, marginTop: 8 }}>
+              ⚠️ This action cannot be undone. The cost element will have no schedule baseline after deletion.
+            </p>
+          </div>
+        ),
+        okText: "Yes, Delete",
+        okType: "danger",
+        onOk: () => {
+          deleteBaseline({
+            costElementId: costElement.cost_element_id,
+            baselineId: baseline.schedule_baseline_id,
+          });
+        },
+      });
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -85,106 +115,66 @@ export const ScheduleBaselinesTab = ({ costElement }: ScheduleBaselinesTabProps)
     });
   };
 
-  const columns: ColumnsType<ScheduleBaselineRead> = [
-    {
-      title: "Name",
-      dataIndex: "name",
-      key: "name",
-      render: (name: string) => <span style={{ fontWeight: 500 }}>{name}</span>,
-    },
-    {
-      title: "Progression Type",
-      dataIndex: "progression_type",
-      key: "progression_type",
-      width: 180,
-      render: (type: string) => (
-        <Tag color={PROGRESSION_COLORS[type]}>
-          {PROGRESSION_LABELS[type] || type}
-        </Tag>
-      ),
-    },
-    {
-      title: "Start Date",
-      dataIndex: "start_date",
-      key: "start_date",
-      width: 140,
-      render: (date: string) => formatDate(date),
-    },
-    {
-      title: "End Date",
-      dataIndex: "end_date",
-      key: "end_date",
-      width: 140,
-      render: (date: string) => formatDate(date),
-    },
-    {
-      title: "Branch",
-      dataIndex: "branch",
-      key: "branch",
-      width: 100,
-      render: (branch: string) => {
-        const isMain = branch === "main";
-        return (
-          <Tag color={isMain ? "blue" : "orange"}>
-            {isMain ? "Main" : branch}
-          </Tag>
-        );
-      },
-    },
-    {
-      title: "Actions",
-      key: "actions",
-      width: 150,
-      render: (_, record: ScheduleBaselineRead) => (
-        <Space>
-          <Tooltip title="Edit Baseline">
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
-            />
-          </Tooltip>
-          <Tooltip title="View History">
-            <Button
-              type="text"
-              icon={<HistoryOutlined />}
-              onClick={() => {
-                setSelectedBaseline(record);
-                setShowHistory(true);
-              }}
-            />
-          </Tooltip>
-          <Tooltip title="Delete Baseline">
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => handleDelete(record)}
-            />
-          </Tooltip>
-        </Space>
-      ),
-    },
-  ];
+  const handleCreateNew = () => {
+    setEditingBaseline(null);
+    setIsCreateModalOpen(true);
+  };
 
-  return (
-    <div>
-      {/* Header */}
+  const handleModalClose = () => {
+    setIsCreateModalOpen(false);
+    setEditingBaseline(null);
+  };
+
+  const handleModalSuccess = () => {
+    refetch();
+    setIsCreateModalOpen(false);
+    setEditingBaseline(null);
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <Card title="Schedule Baseline">
+        <div style={{ textAlign: "center", padding: "40px" }}>
+          <Spin size="large" />
+          <p style={{ marginTop: 16, color: token.colorTextSecondary }}>
+            Loading schedule baseline...
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
+  // Error state
+  if (isError) {
+    return (
       <Card
-        title="Schedule Baselines"
+        title="Schedule Baseline"
         extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setEditingBaseline(null);
-              setIsCreateModalOpen(true);
-            }}
-          >
-            Create Schedule Baseline
+          <Button icon={<ReloadOutlined />} onClick={() => refetch()}>
+            Retry
           </Button>
         }
       >
+        <Empty
+          description={
+            <div>
+              <p>Failed to load schedule baseline</p>
+              <Button type="primary" onClick={() => refetch()}>
+                Try Again
+              </Button>
+            </div>
+          }
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+        />
+      </Card>
+    );
+  }
+
+  // No baseline state (404 from API)
+  if (!baseline) {
+    return (
+      <Card title="Schedule Baseline">
         {/* EVM Info */}
         <div
           style={{
@@ -203,52 +193,155 @@ export const ScheduleBaselinesTab = ({ costElement }: ScheduleBaselinesTabProps)
             • <strong>BAC:</strong> Budget at Complete (€{Number(costElement.budget_amount).toLocaleString()})
             <br />
             • <strong>Progress:</strong> Determined by progression type (Linear, Gaussian S-Curve, or Logarithmic)
-            <br />
-            • <strong>Progression Types:</strong> Linear (uniform), Gaussian (slow start/fast middle/tapering end), Logarithmic (front-loaded)
+            <br />• <strong>1:1 Relationship:</strong> Each cost element has exactly one schedule baseline
           </div>
         </div>
 
-        {/* Schedule Baselines Table */}
-        <Table
-          columns={columns}
-          dataSource={baselines}
-          rowKey="schedule_baseline_id"
-          loading={isLoading}
-          pagination={false}
-          locale={{
-            emptyText: (
-              <div style={{ padding: "24px", textAlign: "center" }}>
-                <CalendarOutlined style={{ fontSize: "32px", color: token.colorTextTertiary }} />
-                <p style={{ color: token.colorTextTertiary, marginTop: "16px" }}>
-                  No schedule baselines found for this cost element.
-                </p>
-                <Button
-                  type="link"
-                  onClick={() => {
-                    setEditingBaseline(null);
-                    setIsCreateModalOpen(true);
-                  }}
-                >
-                  Create the first schedule baseline
-                </Button>
-              </div>
-            ),
-          }}
+        <Empty
+          description={
+            <div>
+              <CalendarOutlined style={{ fontSize: "48px", color: token.colorTextTertiary }} />
+              <p style={{ color: token.colorTextTertiary, marginTop: 16, fontSize: 16 }}>
+                No schedule baseline found for this cost element.
+              </p>
+              <p style={{ color: token.colorTextSecondary, marginBottom: 16 }}>
+                Create a schedule baseline to enable Planned Value (PV) calculations and EVM tracking.
+              </p>
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateNew}>
+                Create Schedule Baseline
+              </Button>
+            </div>
+          }
         />
+
+        {/* Create Modal */}
+        <ScheduleBaselineModal
+          visible={isCreateModalOpen}
+          onClose={handleModalClose}
+          onSuccess={handleModalSuccess}
+          costElementId={costElement.cost_element_id}
+          baseline={editingBaseline || undefined}
+        />
+      </Card>
+    );
+  }
+
+  // Display single baseline
+  return (
+    <div>
+      {/* Header */}
+      <Card
+        title="Schedule Baseline"
+        extra={
+          <Space>
+            <Tooltip title="View History">
+              <Button
+                type="text"
+                icon={<HistoryOutlined />}
+                onClick={() => setShowHistory(true)}
+              />
+            </Tooltip>
+            <Tooltip title="Edit Baseline">
+              <Button type="text" icon={<EditOutlined />} onClick={handleEdit} />
+            </Tooltip>
+            <Tooltip title="Delete Baseline">
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={handleDelete}
+                loading={isDeleting}
+              />
+            </Tooltip>
+          </Space>
+        }
+      >
+        {/* EVM Info */}
+        <div
+          style={{
+            backgroundColor: token.colorFillSecondary,
+            padding: "12px",
+            borderRadius: "4px",
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ fontSize: "12px", color: token.colorTextSecondary, marginBottom: "8px" }}>
+            <strong>Planned Value (PV) Calculation:</strong>
+          </div>
+          <div style={{ fontSize: "12px", color: token.colorTextSecondary }}>
+            • <strong>PV:</strong> Planned Value = BAC × Progress
+            <br />
+            • <strong>BAC:</strong> Budget at Complete (€{Number(costElement.budget_amount).toLocaleString()})
+            <br />• <strong>Progress:</strong> Determined by progression type (Linear, Gaussian S-Curve, or Logarithmic)
+            <br />• <strong>1:1 Relationship:</strong> Each cost element has exactly one schedule baseline
+          </div>
+        </div>
+
+        {/* Single Baseline Display */}
+        <div
+          style={{
+            padding: "16px",
+            backgroundColor: token.colorBgContainer,
+            border: `1px solid ${token.colorBorder}`,
+            borderRadius: "4px",
+          }}
+        >
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ color: token.colorTextSecondary, fontSize: 12, display: "block", marginBottom: 4 }}>
+              Name
+            </label>
+            <span style={{ fontSize: 16, fontWeight: 500 }}>{baseline.name}</span>
+          </div>
+
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ color: token.colorTextSecondary, fontSize: 12, display: "block", marginBottom: 4 }}>
+              Progression Type
+            </label>
+            <Tag color={PROGRESSION_COLORS[baseline.progression_type]}>
+              {PROGRESSION_LABELS[baseline.progression_type] || baseline.progression_type}
+            </Tag>
+          </div>
+
+          <div style={{ display: "flex", gap: 24 }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ color: token.colorTextSecondary, fontSize: 12, display: "block", marginBottom: 4 }}>
+                Start Date
+              </label>
+              <span>{formatDate(baseline.start_date)}</span>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ color: token.colorTextSecondary, fontSize: 12, display: "block", marginBottom: 4 }}>
+                End Date
+              </label>
+              <span>{formatDate(baseline.end_date)}</span>
+            </div>
+          </div>
+
+          {baseline.description && (
+            <div style={{ marginTop: 12 }}>
+              <label style={{ color: token.colorTextSecondary, fontSize: 12, display: "block", marginBottom: 4 }}>
+                Description
+              </label>
+              <span style={{ color: token.colorText }}>{baseline.description}</span>
+            </div>
+          )}
+
+          <div style={{ marginTop: 12 }}>
+            <label style={{ color: token.colorTextSecondary, fontSize: 12, display: "block", marginBottom: 4 }}>
+              Branch
+            </label>
+            <Tag color={baseline.branch === "main" ? "blue" : "orange"}>
+              {baseline.branch === "main" ? "Main" : baseline.branch}
+            </Tag>
+          </div>
+        </div>
       </Card>
 
       {/* Create/Edit Modal */}
       <ScheduleBaselineModal
         visible={isCreateModalOpen}
-        onClose={() => {
-          setIsCreateModalOpen(false);
-          setEditingBaseline(null);
-        }}
-        onSuccess={() => {
-          refetch();
-          setIsCreateModalOpen(false);
-          setEditingBaseline(null);
-        }}
+        onClose={handleModalClose}
+        onSuccess={handleModalSuccess}
         costElementId={costElement.cost_element_id}
         baseline={editingBaseline || undefined}
       />
@@ -256,30 +349,17 @@ export const ScheduleBaselinesTab = ({ costElement }: ScheduleBaselinesTabProps)
       {/* Version History Drawer */}
       <VersionHistoryDrawer
         open={showHistory}
-        onClose={() => {
-          setShowHistory(false);
-          setSelectedBaseline(null);
-        }}
-        versions={(history || []).map((v, idx, arr) => {
-          const item = v as ScheduleBaselineRead & {
-            valid_time?: string[] | string;
-            transaction_time?: string[] | string;
-            created_by_name?: string;
-          };
-          return {
-            ...item,
-            id: `v${arr.length - idx}`,
-            valid_from: Array.isArray(item.valid_time)
-              ? item.valid_time[0]
-              : (item.valid_time as string) || new Date().toISOString(),
-            transaction_time: Array.isArray(item.transaction_time)
-              ? item.transaction_time[0]
-              : (item.transaction_time as string) || new Date().toISOString(),
-            changed_by: item.created_by_name || "System",
-          };
-        })}
-        entityName={`Schedule Baseline: ${selectedBaseline?.name || ""}`}
-        isLoading={historyLoading}
+        onClose={() => setShowHistory(false)}
+        versions={[
+          {
+            id: "v1",
+            valid_from: baseline.start_date,
+            transaction_time: new Date().toISOString(),
+            changed_by: "System",
+          },
+        ]}
+        entityName={`Schedule Baseline: ${baseline.name}`}
+        isLoading={false}
       />
     </div>
   );

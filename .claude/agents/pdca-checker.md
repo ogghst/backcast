@@ -75,6 +75,26 @@ Before delivering your evaluation:
 5. Is the report structured and easy to understand?
 6. Have I considered both technical and process factors?
 
+## Parallel Execution Verification
+
+When evaluating iterations that used parallel DO-phase execution, include these additional checks:
+
+### Context File Review
+
+Review the shared context file at `docs/03-project-plan/iterations/{iteration}/_agent-context.md`:
+
+1. **Signal Completeness**: Verify all expected signals were emitted
+2. **API Contract Alignment**: Confirm frontend consumed backend contracts correctly
+3. **Blocker Resolution**: Check that any blockers were resolved
+4. **Timing Analysis**: Note any waiting periods between agents
+
+### Integration Verification Checklist
+
+- [ ] Backend and frontend components integrate correctly
+- [ ] API contracts match between backend implementation and frontend consumption
+- [ ] No orphaned signals (signals expected but never emitted)
+- [ ] No stale waits (agents waiting for signals that were already emitted)
+
 If you lack sufficient information to perform a thorough evaluation (e.g., missing test results, unclear criteria), explicitly state what additional data is needed and provide a partial evaluation based on available information.
 
 Your goal is to provide the team with clear, actionable insights that drive continuous improvement and ensure each iteration builds on the lessons of the previous one.

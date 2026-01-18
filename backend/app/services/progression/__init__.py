@@ -14,4 +14,33 @@ __all__ = [
     "LinearProgression",
     "GaussianProgression",
     "LogarithmicProgression",
+    "get_progression_strategy",
 ]
+
+
+def get_progression_strategy(progression_type: str) -> ProgressionStrategy:
+    """Get the appropriate progression strategy based on type string.
+
+    Args:
+        progression_type: The type of progression ("LINEAR", "GAUSSIAN", "LOGARITHMIC")
+
+    Returns:
+        ProgressionStrategy instance
+
+    Raises:
+        ValueError: If progression_type is unknown
+    """
+    strategies = {
+        "LINEAR": LinearProgression(),
+        "GAUSSIAN": GaussianProgression(),
+        "LOGARITHMIC": LogarithmicProgression(),
+    }
+
+    strategy = strategies.get(progression_type.upper())
+    if strategy is None:
+        raise ValueError(
+            f"Unknown progression type: {progression_type}. "
+            f"Must be one of: {', '.join(strategies.keys())}"
+        )
+
+    return strategy

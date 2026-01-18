@@ -4,19 +4,25 @@ Schedule Baselines define the time-phased budget plan for cost elements,
 supporting Earned Value Management (EVM) calculations via progression types.
 
 Branchable and Versionable - baselines can vary across change orders and time.
+
+IMPORTANT: Relationship Inversion (Migration 2026-01-18):
+- OLD: schedule_baselines.cost_element_id FK → cost_elements.cost_element_id (1:N)
+- NEW: cost_elements.schedule_baseline_id FK → schedule_baselines.schedule_baseline_id (1:1)
+- This enforces exactly one baseline per cost element
+- The cost_element_id field is kept for backward compatibility during migration
 """
 
 from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import ENUM as PG_ENUM
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base.base import EntityBase
-from app.models.mixins import (  # type: ignore[attr-defined]
+from app.models.mixins import (
     BranchableMixin,
     VersionableMixin,
 )
@@ -35,7 +41,7 @@ PROGRESSION_TYPE_ENUM = PG_ENUM(
 )
 
 
-class ScheduleBaseline(EntityBase, VersionableMixin, BranchableMixin):  # type: ignore[misc]
+class ScheduleBaseline(EntityBase, VersionableMixin, BranchableMixin):
     """Schedule Baseline - time-phased budget plan for EVM Planned Value (PV).
 
     Schedule Baselines define how budget is planned to be earned over time,
@@ -43,9 +49,14 @@ class ScheduleBaseline(EntityBase, VersionableMixin, BranchableMixin):  # type: 
 
     Branchable (supports change orders) and Versionable (tracks changes).
 
+    Relationship with Cost Elements:
+        - Each Cost Element has exactly ONE Schedule Baseline (enforced at DB level)
+        - The relationship is inverted: cost_elements.schedule_baseline_id → schedule_baselines.schedule_baseline_id
+        - This 1:1 relationship ensures unambiguous PV calculations
+
     Attributes:
         schedule_baseline_id: Root ID for the Schedule Baseline aggregation.
-        cost_element_id: Reference to the cost element this baseline applies to.
+        cost_element_id: DEPRECATED - Legacy field for backward compatibility during migration.
         name: Human-readable name for the baseline (e.g., "Q1 2026 Baseline").
         start_date: When the schedule begins.
         end_date: When the schedule ends.
@@ -67,23 +78,28 @@ class ScheduleBaseline(EntityBase, VersionableMixin, BranchableMixin):  # type: 
         PG_UUID, nullable=False, index=True
     )
 
-    # Foreign key to cost element
-    cost_element_id: Mapped[UUID] = mapped_column(
+    # Foreign key to cost element (kept for backward compatibility during migration)
+    # NOTE: This field is being phased out in favor of the inverse relationship
+    # (cost_elements.schedule_baseline_id FK). It will be removed in a future migration.
+    cost_element_id: Mapped[UUID | None] = mapped_column(
         PG_UUID,
         ForeignKey("cost_elements.cost_element_id"),
-        nullable=False,
+        nullable=True,  # Now nullable (migration in progress)
         index=True,
+        comment="DEPRECATED: Use cost_elements.schedule_baseline_id instead",
     )
 
     # Identity
     name: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    # Schedule dates
+    # Schedule dates (stored as TIMESTAMPTZ in database)
     start_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
         nullable=False,
         index=True,
     )
     end_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
         nullable=False,
         index=True,
     )

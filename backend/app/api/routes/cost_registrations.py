@@ -283,3 +283,93 @@ async def get_budget_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
         ) from e
+
+
+@router.get(
+    "/aggregated",
+    operation_id="get_aggregated_costs",
+    dependencies=[Depends(RoleChecker(required_permission="cost-registration-read"))],
+)
+async def get_aggregated_costs(
+    cost_element_id: UUID = Query(..., description="Cost Element ID to aggregate costs for"),
+    period: str = Query(
+        ...,
+        pattern="^(daily|weekly|monthly)$",
+        description="Aggregation period (daily, weekly, or monthly)",
+    ),
+    start_date: datetime = Query(..., description="Start date for aggregation (ISO 8601)"),
+    end_date: datetime | None = Query(None, description="End date for aggregation (ISO 8601, defaults to now)"),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get costs as of this timestamp (ISO 8601)",
+    ),
+    service: CostRegistrationService = Depends(get_cost_registration_service),
+) -> list[dict[str, Any]]:
+    """Get cost aggregations by time period.
+
+    Returns costs aggregated by day, week, or month for a cost element.
+    Useful for generating cost charts and trend analysis.
+
+    Example:
+        - period=daily: One row per day with total costs
+        - period=weekly: One row per week (starts Monday) with total costs
+        - period=monthly: One row per month (starts 1st) with total costs
+
+    All costs respect time-travel queries via the as_of parameter.
+    """
+    try:
+        costs = await service.get_costs_by_period(
+            cost_element_id=cost_element_id,
+            period=period,
+            start_date=start_date,
+            end_date=end_date,
+            as_of=as_of,
+        )
+        return costs
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+
+@router.get(
+    "/cumulative",
+    operation_id="get_cumulative_costs",
+    dependencies=[Depends(RoleChecker(required_permission="cost-registration-read"))],
+)
+async def get_cumulative_costs(
+    cost_element_id: UUID = Query(..., description="Cost Element ID to get cumulative costs for"),
+    start_date: datetime = Query(..., description="Start date for calculation (ISO 8601)"),
+    end_date: datetime | None = Query(None, description="End date for calculation (ISO 8601, defaults to now)"),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get costs as of this timestamp (ISO 8601)",
+    ),
+    service: CostRegistrationService = Depends(get_cost_registration_service),
+) -> list[dict[str, Any]]:
+    """Get cumulative costs over time.
+
+    Returns a time series of costs with running cumulative totals.
+    Useful for S-curve charts and cumulative cost tracking.
+
+    Each entry includes:
+    - registration_date: Date of the cost registration
+    - amount: Cost amount for that registration
+    - cumulative_amount: Running total of all costs to date
+
+    All costs respect time-travel queries via the as_of parameter.
+    """
+    try:
+        costs = await service.get_cumulative_costs(
+            cost_element_id=cost_element_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of=as_of,
+        )
+        return costs
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e

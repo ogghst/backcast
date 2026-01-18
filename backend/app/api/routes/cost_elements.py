@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.core.versioning.enums import BranchMode
 from app.db.session import get_db
 from app.models.domain.cost_element import CostElement
 from app.models.domain.user import User
@@ -16,6 +17,7 @@ from app.models.schemas.cost_element import (
     CostElementUpdate,
 )
 from app.services.cost_element_service import CostElementService
+from app.services.evm_service import EVMService
 
 router = APIRouter()
 
@@ -250,6 +252,290 @@ async def get_cost_element_breadcrumb(
     """Get breadcrumb trail for a Cost Element (project + WBE + cost element)."""
     try:
         return await service.get_breadcrumb(cost_element_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
+
+
+# Schedule Baseline nested endpoints (1:1 relationship)
+
+
+def get_schedule_baseline_service(
+    session: AsyncSession = Depends(get_db),
+) -> Any:
+    from app.services.schedule_baseline_service import ScheduleBaselineService
+
+    return ScheduleBaselineService(session)
+
+
+@router.get(
+    "/{cost_element_id}/schedule-baseline",
+    response_model=dict,  # ScheduleBaselineRead with cost element details
+    operation_id="get_cost_element_schedule_baseline",
+    dependencies=[Depends(RoleChecker(required_permission="schedule-baseline-read"))],
+)
+async def get_cost_element_schedule_baseline(
+    cost_element_id: UUID,
+    branch: str = Query("main", description="Branch to query"),
+    baseline_service: Any = Depends(get_schedule_baseline_service),
+) -> dict[str, Any]:
+    """Get the schedule baseline for a specific cost element.
+
+    Returns the single schedule baseline associated with this cost element
+    in the specified branch. Returns 404 if no baseline exists.
+    """
+    baseline = await baseline_service.get_for_cost_element(
+        cost_element_id=cost_element_id,
+        branch=branch,
+    )
+
+    if not baseline:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Schedule baseline not found for cost element {cost_element_id} "
+            f"in branch '{branch}'",
+        )
+
+    # Convert to dict with cost element details
+    from app.models.schemas.schedule_baseline import ScheduleBaselineRead
+
+    baseline_dict = ScheduleBaselineRead.model_validate(baseline).model_dump()
+
+    # Add cost element details if available
+    from sqlalchemy import select
+
+    from app.models.domain.cost_element import CostElement
+
+    stmt = select(CostElement.code, CostElement.name).where(
+        CostElement.cost_element_id == cost_element_id,
+        CostElement.branch == branch,
+    )
+    result = await baseline_service.session.execute(stmt)
+    ce_row = result.first()
+
+    if ce_row:
+        baseline_dict["cost_element_code"] = ce_row.code
+        baseline_dict["cost_element_name"] = ce_row.name
+
+    return baseline_dict
+
+
+@router.post(
+    "/{cost_element_id}/schedule-baseline",
+    response_model=dict,  # ScheduleBaselineRead
+    status_code=status.HTTP_201_CREATED,
+    operation_id="create_cost_element_schedule_baseline",
+    dependencies=[Depends(RoleChecker(required_permission="schedule-baseline-create"))],
+)
+async def create_cost_element_schedule_baseline(
+    cost_element_id: UUID,
+    baseline_in: dict[str, Any],  # ScheduleBaselineBase without cost_element_id
+    current_user: User = Depends(get_current_active_user),
+    branch: str = Query("main", description="Branch to create in"),
+    baseline_service: Any = Depends(get_schedule_baseline_service),
+) -> dict[str, Any]:
+    """Create a schedule baseline for a cost element.
+
+    Creates a new schedule baseline and associates it with the cost element.
+    Each cost element can have only one schedule baseline per branch.
+
+    Raises 400 if a baseline already exists for this cost element.
+    """
+    from datetime import datetime
+
+    from app.services.schedule_baseline_service import BaselineAlreadyExistsError
+
+    try:
+        baseline = await baseline_service.create_for_cost_element(
+            cost_element_id=cost_element_id,
+            actor_id=current_user.user_id,
+            name=baseline_in.get("name", "Default Schedule"),
+            start_date=datetime.fromisoformat(baseline_in["start_date"])
+            if isinstance(baseline_in.get("start_date"), str)
+            else baseline_in["start_date"],
+            end_date=datetime.fromisoformat(baseline_in["end_date"])
+            if isinstance(baseline_in.get("end_date"), str)
+            else baseline_in["end_date"],
+            progression_type=baseline_in.get("progression_type", "LINEAR"),
+            description=baseline_in.get("description"),
+            branch=branch,
+            control_date=None,
+        )
+
+        # Convert to dict
+        from app.models.schemas.schedule_baseline import ScheduleBaselineRead
+
+        return ScheduleBaselineRead.model_validate(baseline).model_dump()
+
+    except BaselineAlreadyExistsError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+
+@router.put(
+    "/{cost_element_id}/schedule-baseline/{baseline_id}",
+    response_model=dict,  # ScheduleBaselineRead
+    operation_id="update_cost_element_schedule_baseline",
+    dependencies=[Depends(RoleChecker(required_permission="schedule-baseline-update"))],
+)
+async def update_cost_element_schedule_baseline(
+    cost_element_id: UUID,
+    baseline_id: UUID,
+    baseline_in: dict[str, Any],  # ScheduleBaselineUpdate
+    current_user: User = Depends(get_current_active_user),
+    branch: str = Query("main", description="Branch to update in"),
+    baseline_service: Any = Depends(get_schedule_baseline_service),
+) -> dict[str, Any]:
+    """Update the schedule baseline for a cost element.
+
+    Updates the specified baseline. Creates a new version with the changes.
+    Only the fields provided in the request body are updated.
+    """
+    from datetime import datetime
+
+    # Verify baseline exists and belongs to this cost element
+    baseline = await baseline_service.get_by_id(baseline_id, branch=branch)
+    if not baseline or baseline.cost_element_id != cost_element_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Schedule baseline {baseline_id} not found for cost element "
+            f"{cost_element_id} in branch '{branch}'",
+        )
+
+    # Build update data - only include fields that were actually provided
+    update_data = {}
+    if "name" in baseline_in and baseline_in["name"] is not None:
+        update_data["name"] = baseline_in["name"]
+    if "start_date" in baseline_in and baseline_in["start_date"] is not None:
+        # Handle both string and datetime objects (database uses TIMESTAMPTZ)
+        start_date = baseline_in["start_date"]
+        if isinstance(start_date, str):
+            start_date = datetime.fromisoformat(start_date.replace("Z", "+00:00"))
+        update_data["start_date"] = start_date
+    if "end_date" in baseline_in and baseline_in["end_date"] is not None:
+        # Handle both string and datetime objects (database uses TIMESTAMPTZ)
+        end_date = baseline_in["end_date"]
+        if isinstance(end_date, str):
+            end_date = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
+        update_data["end_date"] = end_date
+    if "progression_type" in baseline_in and baseline_in["progression_type"] is not None:
+        update_data["progression_type"] = baseline_in["progression_type"]
+    if "description" in baseline_in:
+        update_data["description"] = baseline_in["description"]
+
+    # Update baseline
+    updated_baseline = await baseline_service.update(
+        root_id=baseline_id,
+        actor_id=current_user.user_id,
+        branch=branch,
+        control_date=None,
+        **update_data,
+    )
+
+    # Convert to dict
+    from app.models.schemas.schedule_baseline import ScheduleBaselineRead
+
+    return ScheduleBaselineRead.model_validate(updated_baseline).model_dump()
+
+
+@router.delete(
+    "/{cost_element_id}/schedule-baseline/{baseline_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    operation_id="delete_cost_element_schedule_baseline",
+    dependencies=[Depends(RoleChecker(required_permission="schedule-baseline-delete"))],
+)
+async def delete_cost_element_schedule_baseline(
+    cost_element_id: UUID,
+    baseline_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    branch: str = Query("main", description="Branch to delete from"),
+    baseline_service: Any = Depends(get_schedule_baseline_service),
+) -> None:
+    """Soft delete the schedule baseline for a cost element.
+
+    Soft deletes the specified baseline. The baseline is marked as deleted
+    but remains in the database for audit purposes.
+    """
+    # Verify baseline exists and belongs to this cost element
+    baseline = await baseline_service.get_by_id(baseline_id, branch=branch)
+    if not baseline or baseline.cost_element_id != cost_element_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Schedule baseline {baseline_id} not found for cost element "
+            f"{cost_element_id} in branch '{branch}'",
+        )
+
+    # Soft delete baseline
+    await baseline_service.soft_delete(
+        root_id=baseline_id,
+        actor_id=current_user.user_id,
+        branch=branch,
+        control_date=None,
+    )
+
+
+def get_evm_service(
+    session: AsyncSession = Depends(get_db),
+) -> EVMService:
+    """Dependency to get EVMService instance."""
+    return EVMService(session)
+
+
+@router.get(
+    "/{cost_element_id}/evm",
+    response_model=None,  # EVMMetricsRead
+    operation_id="get_evm_metrics",
+    dependencies=[Depends(RoleChecker(required_permission="cost-element-read"))],
+)
+async def read_evm_metrics(
+    cost_element_id: UUID,
+    control_date: datetime | None = Query(
+        None,
+        description="Control date for time-travel query (ISO 8601, defaults to now). "
+        "All entities are fetched as they were at this valid_time.",
+    ),
+    branch: str = Query("main", description="Branch to query"),
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGE,
+        description="Branch mode: ISOLATED (only this branch) or MERGE (fall back to parent branches)",
+    ),
+    service: EVMService = Depends(get_evm_service),
+) -> dict[str, Any]:
+    """Calculate EVM (Earned Value Management) metrics for a cost element.
+
+    Returns comprehensive EVM analysis including:
+    - BAC: Budget at Completion (total planned budget)
+    - PV: Planned Value (budgeted cost of work scheduled)
+    - AC: Actual Cost (cost incurred to date)
+    - EV: Earned Value (budgeted cost of work performed)
+    - CV: Cost Variance (EV - AC, negative = over budget)
+    - SV: Schedule Variance (EV - PV, negative = behind schedule)
+    - CPI: Cost Performance Index (EV / AC, < 1.0 = over budget)
+    - SPI: Schedule Performance Index (EV / PV, < 1.0 = behind schedule)
+
+    Time-Travel & Branching:
+    - All metrics respect time-travel: entities are fetched as they were at control_date
+    - Cost elements and schedule baselines are fetched at the correct valid_time
+    - Branch mode (ISOLATED/MERGE) controls parent branch fallback behavior
+    - Cost registrations and progress entries are global facts (not branchable)
+
+    Warning: Returns EV = 0 with warning message if no progress has been reported.
+    """
+    if control_date is None:
+        control_date = datetime.now()
+
+    try:
+        metrics = await service.calculate_evm_metrics(
+            cost_element_id=cost_element_id,
+            control_date=control_date,
+            branch=branch,
+            branch_mode=branch_mode,
+        )
+        return metrics.model_dump()
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

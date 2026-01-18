@@ -77,6 +77,15 @@ class CostElement(EntityBase, VersionableMixin, BranchableMixin):
         DECIMAL(15, 2), default=0, nullable=False
     )
 
+    # Schedule Baseline (1:1 relationship - inverse FK)
+    schedule_baseline_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID,
+        ForeignKey("schedule_baselines.schedule_baseline_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Reference to the single schedule baseline for this cost element",
+    )
+
     # Metadata
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 

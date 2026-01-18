@@ -1,9 +1,12 @@
 /* generated using openapi-typescript-codegen -- do not edit */
 /* istanbul ignore file */
 /* tslint:disable */
- 
+/* eslint-disable */
 /**
  * Properties required for creating a Schedule Baseline.
+ *
+ * Note: cost_element_id is obtained from the URL path when creating
+ * a baseline for a specific cost element, not from the request body.
  */
 export type ScheduleBaselineCreate = {
     /**
@@ -30,9 +33,5 @@ export type ScheduleBaselineCreate = {
      * Root Schedule Baseline ID (internal use only for seeding)
      */
     schedule_baseline_id?: (string | null);
-    /**
-     * ID of the cost element
-     */
-    cost_element_id: string;
 };
 

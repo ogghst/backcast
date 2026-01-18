@@ -77,7 +77,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         data["cost_element_id"] = root_id
 
         cmd = CreateVersionCommand(
-            entity_class=CostElement,  # type: ignore[type-var]
+            entity_class=CostElement,
             root_id=root_id,
             actor_id=actor_id,
             control_date=control_date,
@@ -164,7 +164,10 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         branch: str | None = None,
         control_date: datetime | None = None,
     ) -> CostElement:
-        """Create new cost element using CreateVersionCommand."""
+        """Create new cost element using CreateVersionCommand.
+
+        Auto-creates a default schedule baseline for the cost element.
+        """
         element_data = element_in.model_dump(exclude_unset=True)
         element_data.pop("control_date", None)
 
@@ -173,9 +176,11 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         element_data["cost_element_id"] = root_id
 
         # Use schema branch if provided, otherwise use parameter (for backward compatibility)
+        target_branch = branch or "main"
         if "branch" not in element_data or element_data["branch"] == "main":
-            element_data["branch"] = branch or "main"
+            element_data["branch"] = target_branch
 
+        # Create the cost element
         cmd = CreateVersionCommand(
             entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
@@ -183,7 +188,24 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             control_date=control_date,
             **element_data,
         )
-        return await cmd.execute(self.session)
+        cost_element = await cmd.execute(self.session)
+
+        # Auto-create default schedule baseline
+        from app.services.schedule_baseline_service import ScheduleBaselineService
+
+        sb_service = ScheduleBaselineService(self.session)
+        baseline = await sb_service.ensure_exists(
+            cost_element_id=root_id,
+            actor_id=actor_id,
+            branch=target_branch,
+            control_date=control_date,
+        )
+
+        # Update cost element with baseline reference
+        cost_element.schedule_baseline_id = baseline.schedule_baseline_id
+        await self.session.flush()
+
+        return cost_element
 
     async def update(  # type: ignore[override]
         self,
@@ -286,6 +308,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 "deleted_by",
                 "deleted_at",
                 "id",  # New version needs new ID
+                "schedule_baseline_id",  # Don't copy baseline ID - will create new one
             ]
             for field in system_fields:
                 data.pop(field, None)
@@ -305,7 +328,24 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 control_date=control_date,
                 **data,
             )
-            return await create_cmd.execute(self.session)
+            new_element = await create_cmd.execute(self.session)
+
+            # Auto-create schedule baseline for the new branch
+            from app.services.schedule_baseline_service import ScheduleBaselineService
+
+            sb_service = ScheduleBaselineService(self.session)
+            baseline = await sb_service.ensure_exists(
+                cost_element_id=cost_element_id,
+                actor_id=actor_id,
+                branch=target_branch,
+                control_date=control_date,
+            )
+
+            # Update cost element with baseline reference
+            new_element.schedule_baseline_id = baseline.schedule_baseline_id
+            await self.session.flush()
+
+            return new_element
 
     async def soft_delete(  # type: ignore[override]
         self,
@@ -316,8 +356,25 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
     ) -> None:
         """Soft delete cost element using BranchableService.soft_delete.
 
+        Cascades the delete to the associated schedule baseline.
+
         This uses the BranchableSoftDeleteCommand which is branch-aware.
         """
+        # Get the cost element to find its schedule baseline
+        cost_element = await self.get_by_id(cost_element_id, branch=branch)
+
+        if cost_element and cost_element.schedule_baseline_id:
+            # Cascade delete to schedule baseline
+            from app.services.schedule_baseline_service import ScheduleBaselineService
+
+            sb_service = ScheduleBaselineService(self.session)
+            await sb_service.soft_delete(
+                root_id=cost_element.schedule_baseline_id,
+                actor_id=actor_id,
+                branch=branch,
+                control_date=control_date,
+            )
+
         # Call parent method from BranchableService
         await super().soft_delete(
             root_id=cost_element_id,

@@ -1,7 +1,7 @@
 /* generated using openapi-typescript-codegen -- do not edit */
 /* istanbul ignore file */
 /* tslint:disable */
- 
+/* eslint-disable */
 import type { EntityChanges } from './EntityChanges';
 import type { KPIScorecard } from './KPIScorecard';
 import type { TimeSeriesData } from './TimeSeriesData';

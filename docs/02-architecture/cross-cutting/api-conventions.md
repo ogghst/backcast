@@ -1,6 +1,6 @@
 # API Conventions
 
-**Last Updated:** 2026-01-10
+**Last Updated:** 2026-01-18
 
 ## REST Principles
 
@@ -303,3 +303,67 @@ FastAPI automatically generates:
 - All endpoints must have description
 - All request/response models documented via Pydantic schemas
 - Examples provided for complex endpoints
+
+---
+
+## 1:1 Relationship Endpoints
+
+### Nested Resource Pattern
+
+When a resource has a strict 1:1 relationship with another resource, use nested endpoints:
+
+```
+/api/v1/cost-elements/{cost_element_id}/schedule-baseline
+```
+
+**Characteristics:**
+- Single resource per parent (no collection endpoints)
+- Parent ID in URL path, not request body
+- Cannot create multiple instances (400 error if already exists)
+- Cascade delete from parent to child
+
+**Example: Schedule Baseline (1:1 with Cost Element)**
+
+```bash
+# GET - Retrieve the single schedule baseline for a cost element
+GET /api/v1/cost-elements/{cost_element_id}/schedule-baseline?branch=main
+
+# POST - Create a schedule baseline (fails if one already exists)
+POST /api/v1/cost-elements/{cost_element_id}/schedule-baseline?branch=main
+{
+  "name": "Q1 2026 Baseline",
+  "start_date": "2026-01-01T00:00:00Z",
+  "end_date": "2026-03-31T23:59:59Z",
+  "progression_type": "LINEAR",
+  "description": "Initial schedule baseline"
+}
+
+# PUT - Update the schedule baseline
+PUT /api/v1/cost-elements/{cost_element_id}/schedule-baseline/{baseline_id}?branch=main
+{
+  "name": "Q1 2026 Baseline (Revised)",
+  "end_date": "2026-04-15T23:59:59Z"
+}
+
+# DELETE - Soft delete the schedule baseline
+DELETE /api/v1/cost-elements/{cost_element_id}/schedule-baseline/{baseline_id}?branch=main
+```
+
+**Response includes parent context:**
+
+```json
+{
+  "schedule_baseline_id": "uuid",
+  "name": "Q1 2026 Baseline",
+  "start_date": "2026-01-01T00:00:00Z",
+  "end_date": "2026-03-31T23:59:59Z",
+  "progression_type": "LINEAR",
+  "cost_element_code": "MECH-001",
+  "cost_element_name": "Phase 1 Mechanical"
+}
+```
+
+**Error Cases:**
+
+- `404 Not Found`: No schedule baseline exists for this cost element
+- `400 Bad Request`: Attempting to create duplicate baseline (BaselineAlreadyExistsError)

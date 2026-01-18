@@ -1,7 +1,7 @@
 /* generated using openapi-typescript-codegen -- do not edit */
 /* istanbul ignore file */
 /* tslint:disable */
- 
+/* eslint-disable */
 import type { KPIMetric } from './KPIMetric';
 /**
  * KPI comparison scorecard for impact analysis.
@@ -19,5 +19,9 @@ export type KPIScorecard = {
      * Gross margin comparison
      */
     gross_margin: KPIMetric;
+    /**
+     * Actual costs (AC) comparison
+     */
+    actual_costs: KPIMetric;
 };
 

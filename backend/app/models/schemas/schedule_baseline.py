@@ -37,14 +37,17 @@ class ScheduleBaselineBase(BaseModel):
 
 
 class ScheduleBaselineCreate(ScheduleBaselineBase):
-    """Properties required for creating a Schedule Baseline."""
+    """Properties required for creating a Schedule Baseline.
+
+    Note: cost_element_id is obtained from the URL path when creating
+    a baseline for a specific cost element, not from the request body.
+    """
 
     schedule_baseline_id: UUID | None = Field(
         None,
         description="Root Schedule Baseline ID (internal use only for seeding)",
         exclude=True,  # Exclude from OpenAPI docs
     )
-    cost_element_id: UUID = Field(..., description="ID of the cost element")
 
 
 class ScheduleBaselineUpdate(BaseModel):
@@ -67,3 +70,5 @@ class ScheduleBaselineRead(ScheduleBaselineBase):
     cost_element_id: UUID
     created_by: UUID
     branch: str
+    cost_element_code: str | None = None
+    cost_element_name: str | None = None

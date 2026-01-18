@@ -1,7 +1,7 @@
 /* generated using openapi-typescript-codegen -- do not edit */
 /* istanbul ignore file */
 /* tslint:disable */
- 
+/* eslint-disable */
 import type { TimeSeriesPoint } from './TimeSeriesPoint';
 /**
  * Weekly time-series data for S-curve comparison.

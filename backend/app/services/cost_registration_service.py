@@ -361,3 +361,139 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             remaining=remaining,
             percentage=percentage,
         )
+
+    async def get_costs_by_period(
+        self,
+        cost_element_id: UUID,
+        period: str,  # "daily", "weekly", "monthly"
+        start_date: datetime,
+        end_date: datetime | None = None,
+        as_of: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get cost aggregations by time period.
+
+        Args:
+            cost_element_id: The cost element to aggregate costs for
+            period: Period type ("daily", "weekly", "monthly")
+            start_date: Start date for aggregation
+            end_date: End date for aggregation (defaults to now)
+            as_of: Optional timestamp for time-travel query
+
+        Returns:
+            List of dicts with period_start and total_amount
+
+        Example:
+            >>> costs = await service.get_costs_by_period(
+            ...     cost_element_id,
+            ...     period="weekly",
+            ...     start_date=datetime(2026, 1, 1),
+            ...     end_date=datetime(2026, 1, 31)
+            ... )
+            >>> # Returns: [
+            ... #   {"period_start": "2026-01-01", "total_amount": 1500.00},
+            ... #   {"period_start": "2026-01-08", "total_amount": 2000.00},
+            ... #   ...
+            ... # ]
+        """
+        from sqlalchemy import func, or_
+
+        if end_date is None:
+            end_date = datetime.now()
+
+        # Build base query with time-travel support
+        stmt = select(
+            func.date_trunc(period, CostRegistration.registration_date).label("period_start"),
+            func.sum(CostRegistration.amount).label("total_amount"),
+        ).where(
+            CostRegistration.cost_element_id == cost_element_id,
+            CostRegistration.registration_date >= start_date,
+            CostRegistration.registration_date <= end_date,
+        )
+
+        # Time-travel filter
+        if as_of is not None:
+            stmt = stmt.where(CostRegistration.valid_time.op("@>")(as_of))
+            stmt = stmt.where(
+                or_(
+                    CostRegistration.deleted_at.is_(None),
+                    CostRegistration.deleted_at > as_of,
+                )
+            )
+        else:
+            stmt = stmt.where(func.upper(CostRegistration.valid_time).is_(None))
+            stmt = stmt.where(CostRegistration.deleted_at.is_(None))
+
+        # Group by period and order
+        stmt = stmt.group_by("period_start").order_by("period_start")
+
+        result = await self.session.execute(stmt)
+        return [
+            {"period_start": row.period_start.isoformat(), "total_amount": float(row.total_amount)}
+            for row in result.all()
+        ]
+
+    async def get_cumulative_costs(
+        self,
+        cost_element_id: UUID,
+        start_date: datetime,
+        end_date: datetime | None = None,
+        as_of: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get cumulative costs over time.
+
+        Args:
+            cost_element_id: The cost element to get cumulative costs for
+            start_date: Start date for calculation
+            end_date: End date for calculation (defaults to now)
+            as_of: Optional timestamp for time-travel query
+
+        Returns:
+            List of dicts with registration_date and cumulative_amount
+        """
+        from sqlalchemy import or_, window
+
+        if end_date is None:
+            end_date = datetime.now()
+
+        # Build base query with time-travel support
+        stmt = select(
+            CostRegistration.registration_date,
+            CostRegistration.amount,
+        ).where(
+            CostRegistration.cost_element_id == cost_element_id,
+            CostRegistration.registration_date >= start_date,
+            CostRegistration.registration_date <= end_date,
+        )
+
+        # Time-travel filter
+        if as_of is not None:
+            stmt = stmt.where(CostRegistration.valid_time.op("@>")(as_of))
+            stmt = stmt.where(
+                or_(
+                    CostRegistration.deleted_at.is_(None),
+                    CostRegistration.deleted_at > as_of,
+                )
+            )
+        else:
+            stmt = stmt.where(func.upper(CostRegistration.valid_time).is_(None))
+            stmt = stmt.where(CostRegistration.deleted_at.is_(None))
+
+        # Order by date for cumulative calculation
+        stmt = stmt.order_by(CostRegistration.registration_date)
+
+        # Execute query
+        result = await self.session.execute(stmt)
+        rows = result.all()
+
+        # Calculate cumulative sum
+        cumulative_amount = Decimal("0")
+        cumulative_costs = []
+        for row in rows:
+            cumulative_amount += row.amount
+            cumulative_costs.append({
+                "registration_date": row.registration_date.isoformat(),
+                "amount": float(row.amount),
+                "cumulative_amount": float(cumulative_amount),
+            })
+
+        return cumulative_costs

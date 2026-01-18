@@ -18,7 +18,10 @@ import {
   Alert,
   theme,
 } from "antd";
-import { useCreateScheduleBaseline, useUpdateScheduleBaseline } from "../api/useScheduleBaselines";
+import {
+  useCreateCostElementScheduleBaseline,
+  useUpdateCostElementScheduleBaseline,
+} from "../api/useCostElementScheduleBaseline";
 import { ProgressionPreviewChart } from "./ProgressionPreviewChart";
 import type { ScheduleBaselineRead } from "../api/useScheduleBaselines";
 
@@ -70,7 +73,7 @@ export const ScheduleBaselineModal: React.FC<ScheduleBaselineModalProps> = ({
     return end.toISOString().split("T")[0];
   }, [defaultStartDate]);
 
-  const createMutation = useCreateScheduleBaseline({
+  const createMutation = useCreateCostElementScheduleBaseline({
     onSuccess: (data) => {
       form.resetFields();
       onSuccess?.(data);
@@ -78,7 +81,7 @@ export const ScheduleBaselineModal: React.FC<ScheduleBaselineModalProps> = ({
     },
   });
 
-  const updateMutation = useUpdateScheduleBaseline({
+  const updateMutation = useUpdateCostElementScheduleBaseline({
     onSuccess: (data) => {
       form.resetFields();
       onSuccess?.(data);
@@ -95,12 +98,10 @@ export const ScheduleBaselineModal: React.FC<ScheduleBaselineModalProps> = ({
           end_date: baseline.end_date,
           progression_type: baseline.progression_type,
           description: baseline.description || "",
-          cost_element_id: baseline.cost_element_id,
         });
       } else {
         form.resetFields();
         form.setFieldsValue({
-          cost_element_id: costElementId,
           start_date: defaultStartDate,
           end_date: defaultEndDate,
           progression_type: "LINEAR",
@@ -123,18 +124,20 @@ export const ScheduleBaselineModal: React.FC<ScheduleBaselineModalProps> = ({
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      const data = {
-        ...values,
-        cost_element_id: costElementId,
-      };
 
       if (isEdit && baseline) {
+        // Update using nested endpoint
         await updateMutation.mutateAsync({
-          id: baseline.id,
-          data,
+          costElementId: costElementId,
+          baselineId: baseline.schedule_baseline_id,
+          data: values,
         });
       } else {
-        await createMutation.mutateAsync(data);
+        // Create using nested endpoint (cost element ID is in URL)
+        await createMutation.mutateAsync({
+          costElementId: costElementId,
+          ...values,
+        });
       }
     } catch (error) {
       console.error("Form submission error:", error);
@@ -217,9 +220,7 @@ export const ScheduleBaselineModal: React.FC<ScheduleBaselineModalProps> = ({
           />
         </Form.Item>
 
-        <Form.Item name="cost_element_id" hidden>
-          <Input />
-        </Form.Item>
+        {/* cost_element_id is no longer needed - it's in the URL for nested endpoint */}
 
         {/* Progression Preview */}
         <Card

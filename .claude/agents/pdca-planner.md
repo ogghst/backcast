@@ -50,6 +50,38 @@ This is the **Backcast EVS (Entity Versioning System)** project:
    - Phase 5: Prerequisites & Dependencies
 4. **Use the Template**: Generate output using the template at `docs/04-pdca-prompts/_templates/01-plan-template.md`
 
+## Task Dependency Graph Output
+
+When creating plans that involve both backend and frontend work, you MUST output a task dependency graph to enable parallel execution by the orchestrator.
+
+### Required Format
+
+```yaml
+# Task Dependency Graph
+tasks:
+  - id: BE-001
+    name: "Descriptive task name"
+    agent: pdca-backend-do-executor
+    dependencies: [] # Empty = can run immediately
+
+  - id: FE-001
+    name: "Frontend task that needs backend API"
+    agent: pdca-frontend-do-executor
+    dependencies: [BE-001] # Must wait for BE-001
+
+  - id: FE-002
+    name: "Independent frontend task"
+    agent: pdca-frontend-do-executor
+    dependencies: [] # Can run in parallel with BE-001
+```
+
+### Dependency Rules
+
+1. Tasks with empty `dependencies: []` can run in parallel (Level-0)
+2. Tasks referencing other task IDs must wait for those to complete
+3. Frontend tasks that consume API contracts should depend on backend tasks
+4. Independent UI components can run in parallel with backend work
+
 ## Key Principles
 
 - **Define WHAT, not HOW**: Specify test cases and acceptance criteria, not implementation code
