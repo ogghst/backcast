@@ -138,13 +138,13 @@ export const useCreateCostElementScheduleBaseline = (
     }) => {
       const payload = {
         ...data,
+        branch: branch || "main",
         control_date: asOf || null,
       };
 
       return (await __request(OpenAPI, {
         method: "POST",
         url: `/api/v1/cost-elements/${costElementId}/schedule-baseline`,
-        query: { branch: branch || "main" },
         body: payload,
       })) as Promise<ScheduleBaselineRead>;
     },
@@ -210,13 +210,13 @@ export const useUpdateCostElementScheduleBaseline = (
     }) => {
       const payload = {
         ...data,
+        branch: branch || "main",
         control_date: asOf || null,
       };
 
       return (await __request(OpenAPI, {
         method: "PUT",
         url: `/api/v1/cost-elements/${costElementId}/schedule-baseline/${baselineId}`,
-        query: { branch: branch || "main" },
         body: payload,
       })) as Promise<ScheduleBaselineRead>;
     },

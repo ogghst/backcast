@@ -356,7 +356,6 @@ async def create_cost_element_schedule_baseline(
     cost_element_id: UUID,
     baseline_in: dict[str, Any],  # ScheduleBaselineBase without cost_element_id
     current_user: User = Depends(get_current_active_user),
-    branch: str = Query("main", description="Branch to create in"),
     baseline_service: Any = Depends(get_schedule_baseline_service),
 ) -> dict[str, Any]:
     """Create a schedule baseline for a cost element.
@@ -369,6 +368,15 @@ async def create_cost_element_schedule_baseline(
     from datetime import datetime
 
     from app.services.schedule_baseline_service import BaselineAlreadyExistsError
+
+    # Extract branch and control_date from request body
+    # Note: branch is hardcoded to "main" per "create on main first" policy
+    # The schema has a default of "main" but we enforce it here to prevent circumvention
+    branch = "main"  # Always create on main first
+    control_date = baseline_in.get("control_date")
+    # Convert control_date from string to datetime if needed
+    if control_date and isinstance(control_date, str):
+        control_date = datetime.fromisoformat(control_date.replace("Z", "+00:00"))
 
     try:
         baseline = await baseline_service.create_for_cost_element(
@@ -384,7 +392,7 @@ async def create_cost_element_schedule_baseline(
             progression_type=baseline_in.get("progression_type", "LINEAR"),
             description=baseline_in.get("description"),
             branch=branch,
-            control_date=None,
+            control_date=control_date,
         )
 
         # Convert to dict
@@ -410,7 +418,6 @@ async def update_cost_element_schedule_baseline(
     baseline_id: UUID,
     baseline_in: dict[str, Any],  # ScheduleBaselineUpdate
     current_user: User = Depends(get_current_active_user),
-    branch: str = Query("main", description="Branch to update in"),
     baseline_service: Any = Depends(get_schedule_baseline_service),
 ) -> dict[str, Any]:
     """Update the schedule baseline for a cost element.
@@ -419,6 +426,13 @@ async def update_cost_element_schedule_baseline(
     Only the fields provided in the request body are updated.
     """
     from datetime import datetime
+
+    # Extract branch and control_date from request body
+    branch = baseline_in.get("branch", "main")
+    control_date = baseline_in.get("control_date")
+    # Convert control_date from string to datetime if needed
+    if control_date and isinstance(control_date, str):
+        control_date = datetime.fromisoformat(control_date.replace("Z", "+00:00"))
 
     # Verify baseline exists and belongs to this cost element
     baseline = await baseline_service.get_by_id(baseline_id, branch=branch)
@@ -455,7 +469,7 @@ async def update_cost_element_schedule_baseline(
         root_id=baseline_id,
         actor_id=current_user.user_id,
         branch=branch,
-        control_date=None,
+        control_date=control_date,
         **update_data,
     )
 
@@ -642,13 +656,6 @@ async def update_cost_element_forecast(
     cost_element_id: UUID,
     forecast_in: dict[str, Any],  # ForecastUpdate
     current_user: User = Depends(get_current_active_user),
-    branch: str = Query("main", description="Branch to update in"),
-    control_date: datetime | None = Query(
-        None,
-        description="Control date for valid_time (ISO 8601). "
-        "Sets when the forecast becomes valid in the real world. "
-        "Defaults to current time if not provided.",
-    ),
     forecast_service: ForecastService = Depends(get_forecast_service),
 ) -> dict[str, Any]:
     """Update the forecast for a cost element.
@@ -663,6 +670,13 @@ async def update_cost_element_forecast(
 
     from app.models.domain.cost_element import CostElement
     from app.services.forecast_service import ForecastAlreadyExistsError
+
+    # Extract branch and control_date from request body
+    branch = forecast_in.get("branch", "main")
+    control_date = forecast_in.get("control_date")
+    # Convert control_date from string to datetime if needed
+    if control_date and isinstance(control_date, str):
+        control_date = datetime.fromisoformat(control_date.replace("Z", "+00:00"))
 
     # Check if forecast exists
     existing_forecast = await forecast_service.get_for_cost_element(

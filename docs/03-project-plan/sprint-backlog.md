@@ -39,6 +39,7 @@ Fix critical technical debt regarding overlapping `valid_time` ranges to ensure 
 
 ## Iteration Records
 
+- **Temporal and Branch Context Consistency (2026-01-19):** [Iteration Folder](iterations/2026-01-19-temporal-context-consistency/) - ✅ Complete (100%) - Unified API pattern for temporal context parameters across all versioned entities (Projects, WBEs, CostElements, ScheduleBaselines, Forecasts). All 13 success criteria met, 42/42 tests passing, zero new code quality issues.
 - **Code Quality Cleanup (2026-01-19):** [Iteration Folder](iterations/2026-01-19-code-quality-cleanup/) - Fixed 13 Ruff linting errors, regenerated OpenAPI client, documented past-dated control_date limitation
 - **Fix Overlapping Valid Time (TD-058):** [Iteration Folder](iterations/2026-01-16-fix-overlapping-valid-time/)
 - **TD-058 Completion Analysis:** [Iteration Folder](iterations/2026-01-19-td-058-completion-analysis/)

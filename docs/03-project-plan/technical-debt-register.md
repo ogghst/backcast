@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-01-18
-**Total Debt Items:** 8 (21 completed)
-**Total Estimated Effort:** 20 hours
+**Last Updated:** 2026-01-19
+**Total Debt Items:** 10 (21 completed)
+**Total Estimated Effort:** 25 hours
 **Completed Effort:** 21.25 hours
 
 ---
@@ -78,6 +78,28 @@
 - **Status:** 🔴 Open
 - **Owner:** QA Engineer
 - **Notes:** Should be added for Projects, WBEs, CostElements, ScheduleBaselines, and other versioned entities. Pattern documented in temporal-query-reference.md
+
+#### [TD-064] Docker Compose for Local Development
+
+- **Source:** Temporal Context Consistency ACT phase (2026-01-19)
+- **Description:** OpenAPI client regeneration failed during frontend implementation due to backend server inaccessibility (port 8000 conflict or server configuration issue). A standardized Docker Compose setup would provide consistent local development environment with backend, frontend, and database services.
+- **Impact:** Prevents development blockages, ensures backend dev server is always accessible for frontend work
+- **Estimated Effort:** 3 hours
+- **Target Date:** 2026-01-22
+- **Status:** 🔴 Open
+- **Owner:** Tech Lead
+- **Notes:** Should include backend (FastAPI), frontend (Vite dev server), and PostgreSQL services. Document standard startup sequence in developer onboarding guide.
+
+#### [TD-065] Automate OpenAPI Client Generation in CI/CD
+
+- **Source:** Temporal Context Consistency ACT phase (2026-01-19)
+- **Description:** Manual type update was required when OpenAPI spec regeneration failed (backend server returned 404). An automated process to regenerate frontend types from backend OpenAPI spec would prevent contract misalignment.
+- **Impact:** Ensures frontend-backend contract alignment, reduces manual work
+- **Estimated Effort:** 2 hours
+- **Target Date:** 2026-01-23
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Notes:** Add npm script to regenerate types from running backend, integrate into CI pipeline to run on every backend commit. Fail build if contract changes detected.
 
 ---
 
@@ -177,7 +199,7 @@
 **Last Reviewed:** 2026-01-19
 **Next Review:** 2026-01-26
 **Total Debt Items:** 10 (21 completed)
-**Total Estimated Effort:** 23 hours
+**Total Estimated Effort:** 25 hours
 **Completed Effort:** 21.25 hours
 
 **Process:**
@@ -190,11 +212,11 @@
 
 **Recent Trends:**
 
+- **2026-01-19 - Temporal Context Consistency:** Unified API pattern for temporal context parameters across all versioned entities (Projects, WBEs, CostElements, ScheduleBaselines, Forecasts). All 13 success criteria met, 42/42 tests passing, zero new code quality issues. Added TD-064 (Docker Compose) and TD-065 (OpenAPI automation) to prevent future environment issues. Net debt change: +2 items.
 - **2026-01-19 - Code Quality Cleanup:** Fixed 13 Ruff linting errors in cost_elements route and test files. Regenerated frontend OpenAPI client. Documented past-dated control_date limitation. Added TD-062 (pre-commit hooks) and TD-063 (zombie check tests). Net debt change: +2 items.
 - **2026-01-19 - TD-058 ACT Phase Complete:** Formal ACT phase completed for TD-058. Updated coding standards with SQLAlchemy async patterns and timestamp generation best practices. Sprint backlog updated to mark iteration as complete. Zero new technical debt created. Net debt change: -1 items.
 - **2026-01-19 - TD-058 Completion:** Completed TD-058 by adding overlap checks to MergeBranchCommand and RevertCommand. Added 6 comprehensive unit tests achieving 86.21% coverage for branching commands. All tests pass following TDD methodology (RED-GREEN-REFACTOR).
 - **2026-01-18 - TD-060 Resolution:** Fixed backend test environment subprocess failure by updating `conftest.py` to explicitly use `.venv/bin/python` for the `wipe_db.py` subprocess call. All 365 tests now pass successfully.
 - **2026-01-16 - Fix Overlapping Valid Time:** Initial implementation of overlap checks in CreateVersionCommand and UpdateCommand.
 - **2026-01-15 - Contextual Navigation Iteration:** Completed with zero new technical debt items. All code followed best practices with ~100% test coverage. Standardized URL-driven navigation pattern for future entity detail pages.
-- Net debt change: +2 items, +3 hours effort (TD-062, TD-063 added)
 - Overall debt trend: Increasing (10 open items, up from 8)

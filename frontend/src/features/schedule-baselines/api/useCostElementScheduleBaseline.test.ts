@@ -168,12 +168,13 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
         expect.objectContaining({
           method: "POST",
           url: "/api/v1/cost-elements/ce-123/schedule-baseline",
-          query: { branch: "main" },
           body: expect.objectContaining({
             name: "New Schedule",
             start_date: "2026-01-01T00:00:00",
             end_date: "2026-04-01T00:00:00",
             progression_type: "LINEAR",
+            branch: "main",
+            control_date: null,
           }),
         })
       );
@@ -241,10 +242,11 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
         expect.objectContaining({
           method: "PUT",
           url: "/api/v1/cost-elements/ce-123/schedule-baseline/baseline-123",
-          query: { branch: "main" },
           body: expect.objectContaining({
             name: "Updated Schedule",
             progression_type: "GAUSSIAN",
+            branch: "main",
+            control_date: null,
           }),
         })
       );
@@ -286,6 +288,8 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
         expect.objectContaining({
           body: expect.objectContaining({
             name: "Only Name Changed",
+            branch: "main",
+            control_date: null,
           }),
         })
       );
@@ -376,7 +380,9 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
       expect(__request).toHaveBeenCalledWith(
         OpenAPI,
         expect.objectContaining({
-          query: { branch: "feature-branch" },
+          body: expect.objectContaining({
+            branch: "feature-branch",
+          }),
         })
       );
     });

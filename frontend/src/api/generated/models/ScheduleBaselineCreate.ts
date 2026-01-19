@@ -33,5 +33,13 @@ export type ScheduleBaselineCreate = {
      * Root Schedule Baseline ID (internal use only for seeding)
      */
     schedule_baseline_id?: (string | null);
+    /**
+     * Branch name for creation (defaults to main, not configurable by API consumer)
+     */
+    branch?: string;
+    /**
+     * Optional control date for creation (valid_time start)
+     */
+    control_date?: (string | null);
 };
 

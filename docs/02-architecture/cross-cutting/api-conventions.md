@@ -139,16 +139,71 @@ Standard parameters used to define the "view" of the data or the context of an o
 
 | Parameter      | Location   | Type   | Default    | Description                                                                                 |
 | -------------- | ---------- | ------ | ---------- | ------------------------------------------------------------------------------------------- |
-| `branch`       | Query      | string | `"main"`   | The branch to read from or write to.                                                        |
+| `branch`       | Query/Body | string | `"main"`   | The branch to read from (Query) or write to (Body for POST/PUT/PATCH).                     |
 | `mode`         | Query      | string | `"merged"` | **Branch Mode**: `merged` (include parent branch data) or `isolated` (current branch only). |
 | `as_of`        | Query      | string | `null`     | **Read Context**: ISO 8601 timestamp for Time-Travel (historical view).                     |
-| `control_date` | Body/Query | string | `null`     | **Write Context**: Effective date for the operation (affects `valid_time`).                 |
+| `control_date` | Body       | string | `null`     | **Write Context**: Effective date for the operation (affects `valid_time`).                 |
+
+> [!NOTE]
+> **Parameter Location Pattern:**
+>
+> - **Read Operations (GET)**: Context parameters (`branch`, `as_of`) go in **query parameters**
+> - **Write Operations (POST/PUT/PATCH)**: Context parameters (`branch`, `control_date`) go in **request body**
+> - **DELETE Operations**: Context parameters (`branch`, `control_date`) go in **query parameters** (exception due to HTTP/1.1 constraints)
+>
+> This pattern ensures:
+> - Type safety via Pydantic schemas for write operations
+> - Clear separation between filtering (query) and operation context (body)
+> - Consistency with REST principles (body for mutation, query for filtering)
 
 > [!NOTE]
 > **Difference between `as_of` and `control_date`:**
 >
 > - **`as_of` (Read)**: "Show me the state of the world _at_ this time." (Time Travel)
 > - **`control_date` (Write)**: "Make this change _effective from_ this time." (Valid Time start)
+
+### Write Operation Pattern (POST/PUT/PATCH)
+
+**Context in Request Body:**
+
+For write operations, `branch` and `control_date` are included in the request body to ensure type safety and validation:
+
+```json
+{
+  "name": "Q1 2026 Baseline",
+  "start_date": "2026-01-01T00:00:00Z",
+  "end_date": "2026-03-31T23:59:59Z",
+  "branch": "main",
+  "control_date": "2026-01-15T10:00:00Z"
+}
+```
+
+**Benefits:**
+- Type safety via Pydantic schema validation
+- Consistent with other request fields
+- Clear API contract via OpenAPI documentation
+- Easier client-side type generation
+
+### DELETE Exception
+
+**Why DELETE uses query parameters:**
+
+DELETE operations continue using query parameters for `branch` and `control_date` due to HTTP/1.1 constraints:
+
+```
+DELETE /api/v1/schedule-baselines/{id}?branch=main&control_date=2026-01-15T10:00:00Z
+```
+
+**Rationale:**
+- HTTP/1.1 doesn't support request bodies for DELETE (many clients prohibit it)
+- Maintains consistency with filtering operations (which use query parameters)
+- Avoids breaking changes for existing clients
+
+**Example:**
+```bash
+# DELETE with query parameters
+DELETE /api/v1/cost-elements/{ce_id}/schedule-baseline/{baseline_id}?branch=main
+```
 
 ### Time-Travel Queries
 
@@ -351,20 +406,23 @@ When a resource has a strict 1:1 relationship with another resource, use nested 
 GET /api/v1/cost-elements/{cost_element_id}/schedule-baseline?branch=main
 
 # POST - Create a schedule baseline (fails if one already exists)
-POST /api/v1/cost-elements/{cost_element_id}/schedule-baseline?branch=main
+POST /api/v1/cost-elements/{cost_element_id}/schedule-baseline
 {
   "name": "Q1 2026 Baseline",
   "start_date": "2026-01-01T00:00:00Z",
   "end_date": "2026-03-31T23:59:59Z",
   "progression_type": "LINEAR",
-  "description": "Initial schedule baseline"
+  "branch": "main",
+  "control_date": null
 }
 
 # PUT - Update the schedule baseline
-PUT /api/v1/cost-elements/{cost_element_id}/schedule-baseline/{baseline_id}?branch=main
+PUT /api/v1/cost-elements/{cost_element_id}/schedule-baseline/{baseline_id}
 {
   "name": "Q1 2026 Baseline (Revised)",
-  "end_date": "2026-04-15T23:59:59Z"
+  "end_date": "2026-04-15T23:59:59Z",
+  "branch": "main",
+  "control_date": null
 }
 
 # DELETE - Soft delete the schedule baseline

@@ -11,5 +11,13 @@ export type ScheduleBaselineUpdate = {
     end_date?: (string | null);
     progression_type?: (string | null);
     description?: (string | null);
+    /**
+     * Branch name for update (defaults to main)
+     */
+    branch?: (string | null);
+    /**
+     * Optional control date for update (valid_time start)
+     */
+    control_date?: (string | null);
 };
 

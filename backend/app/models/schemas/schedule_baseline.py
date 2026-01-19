@@ -78,7 +78,7 @@ class ScheduleBaselineRead(ScheduleBaselineBase):
 
     id: UUID
     schedule_baseline_id: UUID
-    cost_element_id: UUID
+    cost_element_id: UUID | None = None  # Optional for baselines created without cost element
     created_by: UUID
     branch: str
     cost_element_code: str | None = None

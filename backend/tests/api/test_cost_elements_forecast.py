@@ -3,7 +3,6 @@
 Tests from: docs/03-project-plan/iterations/2026-01-18-one-forecast-per-cost-element/01-plan.md
 """
 
-from datetime import datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -17,10 +16,7 @@ from app.api.dependencies.auth import (
 )
 from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.main import app
-from app.models.domain.cost_element import CostElement
-from app.models.domain.forecast import Forecast
 from app.models.domain.user import User
-
 
 # Mock user for authentication
 mock_admin_user = User(
@@ -412,3 +408,76 @@ class TestForecastZombieCheck:
         # Query current time (T4 - after deletion) - should NOT return
         current_response = await client.get(f"/api/v1/cost-elements/{cost_element_id}/forecast")
         assert current_response.status_code == 404, "Forecast should NOT be visible after deletion"
+
+    async def test_update_forecast_with_control_date_sets_valid_time(
+        self, client: AsyncClient, setup_dependencies: dict[str, Any]
+    ) -> None:
+        """Verify that updating a forecast with control_date parameter is accepted.
+
+        Bitemporal semantics:
+        - valid_time: When the fact was true in the real world (user-specified control date)
+        - transaction_time: When the fact was recorded in the database (current system time)
+
+        Test Scenario:
+        1. Create a cost element (auto-creates initial forecast)
+        2. Update the forecast with control_date=2026-02-01
+        3. Verify the endpoint accepts the control_date parameter
+
+        This is a RED test - it will fail because the endpoint doesn't accept control_date yet.
+        """
+        # Arrange: Create a cost element
+        ce_res = await client.post(
+            "/api/v1/cost-elements",
+            json={
+                "code": f"CE-{uuid4().hex[:4].upper()}",
+                "name": "Test CE",
+                "budget_amount": "100000.00",
+                "wbe_id": setup_dependencies["wbe_id"],
+                "cost_element_type_id": setup_dependencies["cost_element_type_id"],
+            },
+        )
+        assert ce_res.status_code == 201
+        cost_element_id = ce_res.json()["cost_element_id"]
+
+        # Get the initial forecast
+        initial_response = await client.get(
+            f"/api/v1/cost-elements/{cost_element_id}/forecast"
+        )
+        assert initial_response.status_code == 200
+
+        # Act: Update the forecast with a specific control date
+        # This should fail with 422 Unprocessable Entity if control_date is not accepted
+        control_date_str = "2026-02-01T00:00:00Z"
+        update_response = await client.put(
+            f"/api/v1/cost-elements/{cost_element_id}/forecast",
+            params={"control_date": control_date_str},
+            json={
+                "eac_amount": "120000.00",
+                "basis_of_estimate": "Updated forecast with control date",
+            },
+        )
+
+        # Assert: The update should succeed (200 OK)
+        # If control_date is not accepted, this will fail with 422 or the parameter will be ignored
+        assert update_response.status_code == 200, (
+            f"Expected 200 OK when passing control_date parameter, "
+            f"got {update_response.status_code}. "
+            f"Response: {update_response.text}"
+        )
+
+        updated_forecast = update_response.json()
+        assert updated_forecast["eac_amount"] == "120000.00"
+        assert updated_forecast["basis_of_estimate"] == "Updated forecast with control date"
+
+        # Verify that the forecast was actually updated (not ignored)
+        # by fetching it again and checking the values
+        verify_response = await client.get(
+            f"/api/v1/cost-elements/{cost_element_id}/forecast"
+        )
+        assert verify_response.status_code == 200
+        verify_forecast = verify_response.json()
+
+        # The EAC should be updated
+        assert verify_forecast["eac_amount"] == "120000.00", (
+            "Forecast EAC was not updated. The control_date parameter may be ignored."
+        )

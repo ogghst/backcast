@@ -209,16 +209,10 @@ export const useCreateScheduleBaseline = (
   return useMutation({
     mutationFn: (data: CreateWithBranch) => {
       const { branch, ...rest } = data;
-      // Inject control_date if needed (though API doesn't seem to take it in body per Service)
-      // Actually ScheduleBaselineCreate doesn't have control_date usually.
-      // But let's assume standard payload construction.
-      // Service.createScheduleBaseline check: only requestBody.
-      // We assume separate branch arg support via wrapper or body.
-      // Wait, Service createScheduleBaseline checks showed only requestBody.
-      // If branch is needed, it must be in body.
-      const payload: ScheduleBaselineCreate & { branch?: string } = {
+      const payload: ScheduleBaselineCreate = {
         ...rest,
         branch: branch || "main",
+        control_date: asOf || undefined,
       };
       return ScheduleBaselinesService.createScheduleBaseline(payload);
     },
@@ -260,8 +254,9 @@ export const useUpdateScheduleBaseline = (
       const { branch, ...rest } = data;
       const payload: ScheduleBaselineUpdate = {
         ...rest,
+        branch: branch || "main",
+        control_date: asOf || undefined,
       };
-      // updateScheduleBaseline(id, body) - branching via ID or implicit?
       return ScheduleBaselinesService.updateScheduleBaseline(id, payload);
     },
     onSuccess: (...args) => {

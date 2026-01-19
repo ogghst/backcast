@@ -104,11 +104,16 @@ async def create_schedule_baseline(
 ) -> ScheduleBaseline:
     """Create a new schedule baseline in specified branch."""
     try:
+        # Extract branch and control_date from request body
+        # Note: Schema defaults branch to "main", but we enforce it here per "create on main first" policy
+        branch = "main"  # Always create on main first
+        control_date = baseline_in.control_date
+
         return await service.create(
             create_schema=baseline_in,
             actor_id=current_user.user_id,
-            branch="main",  # Always create on main first
-            control_date=None,
+            branch=branch,
+            control_date=control_date,
         )
     except Exception as e:
         raise HTTPException(
@@ -171,22 +176,26 @@ async def update_schedule_baseline(
 ) -> ScheduleBaseline:
     """Update a schedule baseline. Creates new version or forks."""
     try:
+        # Extract branch and control_date from request body
+        branch = baseline_in.branch or "main"
+        control_date = baseline_in.control_date
+
         # Get current version to check if it exists
-        current = await service.get_by_id(schedule_baseline_id, branch="main")
+        current = await service.get_by_id(schedule_baseline_id, branch=branch)
         if not current:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Schedule Baseline not found",
             )
 
-        # Convert ScheduleBaselineUpdate to dict for update
-        update_data = baseline_in.model_dump(exclude_unset=True)
+        # Convert ScheduleBaselineUpdate to dict for update, excluding branch and control_date
+        update_data = baseline_in.model_dump(exclude_unset=True, exclude={"branch", "control_date"})
 
         return await service.update(
             root_id=schedule_baseline_id,
             actor_id=current_user.user_id,
-            branch="main",
-            control_date=None,
+            branch=branch,
+            control_date=control_date,
             **update_data,
         )
     except ValueError as e:
