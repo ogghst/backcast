@@ -129,6 +129,27 @@ GET /api/v1/users?role=admin&is_active=true&department=Engineering
 GET /api/v1/users?sort=created_at&order=desc
 ```
 
+---
+
+## Branching and Context
+
+### Context Parameters
+
+Standard parameters used to define the "view" of the data or the context of an operation:
+
+| Parameter      | Location   | Type   | Default    | Description                                                                                 |
+| -------------- | ---------- | ------ | ---------- | ------------------------------------------------------------------------------------------- |
+| `branch`       | Query      | string | `"main"`   | The branch to read from or write to.                                                        |
+| `mode`         | Query      | string | `"merged"` | **Branch Mode**: `merged` (include parent branch data) or `isolated` (current branch only). |
+| `as_of`        | Query      | string | `null`     | **Read Context**: ISO 8601 timestamp for Time-Travel (historical view).                     |
+| `control_date` | Body/Query | string | `null`     | **Write Context**: Effective date for the operation (affects `valid_time`).                 |
+
+> [!NOTE]
+> **Difference between `as_of` and `control_date`:**
+>
+> - **`as_of` (Read)**: "Show me the state of the world _at_ this time." (Time Travel)
+> - **`control_date` (Write)**: "Make this change _effective from_ this time." (Valid Time start)
+
 ### Time-Travel Queries
 
 **Purpose:** View historical state of resources using bitemporal versioning.
@@ -317,6 +338,7 @@ When a resource has a strict 1:1 relationship with another resource, use nested 
 ```
 
 **Characteristics:**
+
 - Single resource per parent (no collection endpoints)
 - Parent ID in URL path, not request body
 - Cannot create multiple instances (400 error if already exists)
