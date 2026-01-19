@@ -550,6 +550,104 @@ function ProjectList() {
 
 See: `frontend/src/hooks/useCrud.ts` for full pattern
 
+### 4.4.1 Query Key Factory Pattern
+
+**Rule: ALL query keys MUST use the centralized factory in `src/api/queryKeys.ts`.**
+
+**Enforcement:**
+- ESLint rule `custom-rules/no-manual-query-keys` prevents manual query key construction
+- Manual query keys (e.g., `queryKey: ["pattern"]`) will cause build failures
+- Exceptions: Only `useCrud.ts` and `useEntityHistory.ts` may use manual keys for generic patterns
+
+**✅ Correct - Using Factory:**
+
+```typescript
+import { queryKeys } from "@/api/queryKeys";
+
+// Versioned entities (include Time Machine context)
+export const useCostElement = (id: string) => {
+  const { asOf, branch } = useTimeMachineParams();
+  return useQuery({
+    queryKey: queryKeys.costElements.detail(id, { branch, asOf }),
+    queryFn: () => fetchCostElement(id, branch, asOf),
+  });
+};
+
+// Non-versioned entities (no context needed)
+export const useCurrentUser = () => {
+  return useQuery({
+    queryKey: queryKeys.users.me,
+    queryFn: fetchCurrentUser,
+  });
+};
+
+// Mutation invalidations
+const mutation = useMutation({
+  mutationFn: updateCostElement,
+  onSuccess: () => {
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.costElements.detail(id, { branch, asOf })
+    });
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.costRegistrations.budgetStatus(id, { asOf })
+    });
+  },
+});
+```
+
+**❌ Incorrect - Manual Construction:**
+
+```typescript
+// DON'T: Manual arrays violate cache consistency
+queryKey: ["cost-element", id]
+queryKey: ["users", "me"]
+queryKey: ["projects", projectId]
+
+// DON'T: Template literals in keys
+queryKey: [`cost-element-${id}`]
+```
+
+**Context Isolation for Versioned Entities:**
+
+Versioned entities MUST include Time Machine context (`{ branch, asOf, mode }`):
+
+- Cost Elements
+- Work Breakdown Elements (WBEs)
+- Forecasts
+- Projects
+- Schedule Baselines
+- Change Orders
+
+**Non-Versioned Entities** (no context needed):
+
+- Users
+- Departments
+- Cost Element Types
+
+**Dependent Query Invalidation:**
+
+Mutations MUST invalidate all dependent queries:
+
+```typescript
+// Cost element changes affect forecasts and budget status
+onSuccess: () => {
+  queryClient.invalidateQueries({
+    queryKey: queryKeys.costElements.all
+  });
+  queryClient.invalidateQueries({
+    queryKey: queryKeys.forecasts.all  // Dependent EVM data
+  });
+  queryClient.invalidateQueries({
+    queryKey: queryKeys.costRegistrations.budgetStatus(id, { asOf })
+  });
+}
+```
+
+**Documentation:**
+- See `docs/02-architecture/frontend/contexts/02-state-data.md` for full query key architecture
+- See `frontend/src/api/queryKeys.ts` for factory implementation
+- See ADR-XXX (pending) for architectural decision record
+
 ### 4.5 State Management
 
 **Global State:** Zustand for stores (`@/stores/`)
