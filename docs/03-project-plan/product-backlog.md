@@ -3,7 +3,7 @@
 **Last Updated:** 2026-01-19
 **Total Items:** 34
 **Total Estimated Points:** 206
-**Completed:** 13 items (71 points)
+**Completed:** 14 items (76 points)
 
 ---
 
@@ -166,7 +166,7 @@
 - **Status:** ✅ Complete (Core EVCS functionality in BranchableService)
 - **Completed:** 2026-01-15 (previously implemented)
 
-#### [E05-U01] Register Actual Costs against Cost Elements
+#### [E05-U01] Register Actual Costs against Cost Elements ✅
 
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 5
@@ -176,9 +176,12 @@
   - Cost registration entity with date, amount, cost_element_id
   - Validation: Cannot exceed allocated budget
   - Versioning support
-  - Import from CSV
+  - Import from CSV (deferred to new story)
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** Yes (E04-U03 complete)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-01-19
+- **Notes:** Core functionality delivered. CSV import deferred to [E05-U01-CSV].
+- **Ready for Iteration:** No (already complete)
 
 #### [E05-U02] Create/Update Forecasts (EAC) ✅
 
@@ -500,6 +503,21 @@
 - **Estimated Complexity:** Simple
 - **Ready for Iteration:** No (blocked by E07-U01)
 
+#### [E05-U01-CSV] Import Cost Registrations from CSV
+
+- **Epic:** E005 (Financial Data Management)
+- **Story Points:** 3
+- **Business Value:** LOW - Bulk data entry convenience
+- **Dependencies:** E05-U01 ✅
+- **Acceptance Criteria:**
+  - Import cost registrations from CSV file
+  - Validation of CSV format and data integrity
+  - Rollback on failure (atomic batch)
+- **Estimated Complexity:** Simple
+- **Ready for Iteration:** Yes (E05-U01 complete)
+
+---
+
 #### [E08-U08] Time Machine Control for Historical Metrics
 
 - **Epic:** E008 (EVM Calculations & Reporting)
@@ -516,9 +534,9 @@
 
 ## Backlog Health Metrics
 
-- **Items with Estimates:** 34/34 (100%)
-- **Items with Dependencies Defined:** 34/34 (100%)
-- **Items Ready for Sprint:** 11/34 (32%)
+- **Items with Estimates:** 35/35 (100%)
+- **Items with Dependencies Defined:** 35/35 (100%)
+- **Items Ready for Sprint:** 11/35 (31%)
 - **Average Item Size:** 6.1 points
 - **Items Requiring Splitting (>13 points):** 0/34 (0%)
 
@@ -526,20 +544,21 @@
 
 ## Recently Completed (Moved from Backlog)
 
-| Date | Item | Points | Iteration | Notes |
-| --- | --- | --- | --- | --- |
-| 2026-01-15 | E06-U04: Compare Branch to Main (Impact Analysis) | 8 | Change Orders v2 Phase 3 | Backend & Frontend Complete |
-| 2026-01-15 | E06-U03: Modify Entities in Branch | 8 | Change Orders v2 | Core EVCS functionality |
-| 2026-01-15 | E06-U01: Create Change Orders | 5 | Change Orders v2 | Backend & Frontend Complete |
-| 2026-01-15 | E06-U02: Automatic Branch Creation | 5 | Change Orders v2 | Implemented with E06-U01 |
-| 2026-01-07 | E04-U03: Create Cost Elements within WBEs | 8 | Hybrid Sprint 2/3 | Backend & Frontend Complete |
-| 2026-01-07 | E03-U04: Entity History Viewing | 5 | Hybrid Sprint 2/3 | Integrated for Projects, WBEs, CEs |
-| 2026-01-05 | E04-U01: Create projects with metadata | 5 | Hybrid Sprint 2/3 | Completed early |
-| 2026-01-05 | E04-U02: Create WBEs within projects | 5 | Hybrid Sprint 2/3 | Completed early |
-| 2025-12-27 | E02-U01: User CRUD | 8 | Sprint 2 | Complete with tests |
-| 2025-12-27 | E02-U02: Department CRUD | 5 | Sprint 2 | Complete with tests |
-| 2025-12-27 | E02-U03: User roles and permissions | 5 | Sprint 2 | RBAC implemented |
-| 2025-12-27 | E02-U04: Test coverage | 3 | Sprint 2 | 80%+ achieved |
+| Date       | Item                                              | Points | Iteration                | Notes                              |
+| ---------- | ------------------------------------------------- | ------ | ------------------------ | ---------------------------------- |
+| 2026-01-19 | E05-U01: Register Actual Costs                    | 5      | N/A                      | Core functionality delivered       |
+| 2026-01-15 | E06-U04: Compare Branch to Main (Impact Analysis) | 8      | Change Orders v2 Phase 3 | Backend & Frontend Complete        |
+| 2026-01-15 | E06-U03: Modify Entities in Branch                | 8      | Change Orders v2         | Core EVCS functionality            |
+| 2026-01-15 | E06-U01: Create Change Orders                     | 5      | Change Orders v2         | Backend & Frontend Complete        |
+| 2026-01-15 | E06-U02: Automatic Branch Creation                | 5      | Change Orders v2         | Implemented with E06-U01           |
+| 2026-01-07 | E04-U03: Create Cost Elements within WBEs         | 8      | Hybrid Sprint 2/3        | Backend & Frontend Complete        |
+| 2026-01-07 | E03-U04: Entity History Viewing                   | 5      | Hybrid Sprint 2/3        | Integrated for Projects, WBEs, CEs |
+| 2026-01-05 | E04-U01: Create projects with metadata            | 5      | Hybrid Sprint 2/3        | Completed early                    |
+| 2026-01-05 | E04-U02: Create WBEs within projects              | 5      | Hybrid Sprint 2/3        | Completed early                    |
+| 2025-12-27 | E02-U01: User CRUD                                | 8      | Sprint 2                 | Complete with tests                |
+| 2025-12-27 | E02-U02: Department CRUD                          | 5      | Sprint 2                 | Complete with tests                |
+| 2025-12-27 | E02-U03: User roles and permissions               | 5      | Sprint 2                 | RBAC implemented                   |
+| 2025-12-27 | E02-U04: Test coverage                            | 3      | Sprint 2                 | 80%+ achieved                      |
 
 ---
 

@@ -283,3 +283,34 @@ return [ProjectPublic.model_validate(p) for p in projects]
 ❌ **Not using snake_case for field names**
 
 Use `project_id`, not `projectId`.
+
+❌ **Accessing SQLAlchemy async object attributes after session operations**
+
+```python
+# Bad - May cause MissingGreenlet errors
+wbe = await CreateVersionCommand(...).execute(session)
+# ... some SQL operations ...
+wbe_id = created_wbe.wbe_id  # Object may have expired
+
+# Good - Capture IDs immediately after creation
+wbe = await CreateVersionCommand(...).execute(session)
+wbe_id = wbe.wbe_id  # Capture ID before object expires
+# ... subsequent operations ...
+```
+
+**Rationale:** SQLAlchemy async objects can expire after session flush/refresh operations. Capture IDs immediately after object creation as a defensive pattern.
+
+❌ **Generating timestamps multiple times for the same operation**
+
+```python
+# Bad - May create empty ranges if datetime.now() is called twice
+await self._check_overlap(session, datetime.now(UTC), branch)
+await self._close_version(session, version, datetime.now(UTC))
+
+# Good - Generate timestamp once
+timestamp = datetime.now(UTC)
+await self._check_overlap(session, timestamp, branch)
+await self._close_version(session, version, timestamp)
+```
+
+**Rationale:** Calling `datetime.now(UTC)` multiple times within the same operation can create empty temporal ranges if the calls happen within the same microsecond. Generate timestamps once and reuse them.

@@ -335,15 +335,21 @@ class MergeBranchCommand(BranchCommandABC[TBranchable]):
             ),
         )
 
-        # 4. Close Target
+        # 4. Check for overlap on target branch BEFORE closing target
+        # Generate timestamp in Python to avoid empty ranges
+        merge_timestamp = datetime.now(UTC)
+        # Exclude target version since it will be closed before the merged version is created
+        await self._check_overlap(
+            session, merge_timestamp, self.target_branch, exclude_version_id=target.id
+        )
+
+        # 5. Close Target
         await self._close_version(session, target)
 
         session.add(merged)
         await session.flush()  # Get ID assigned
 
-        # 5. Set valid_time and transaction_time on merged version via SQL
-        # Generate timestamp in Python to avoid empty ranges from duplicate clock_timestamp() calls
-        merge_timestamp = datetime.now(UTC)
+        # 6. Set valid_time and transaction_time on merged version via SQL
         tablename = str(getattr(self.entity_class, "__tablename__", ""))
         stmt = text(
             f"""
@@ -408,15 +414,21 @@ class RevertCommand(BranchCommandABC[TBranchable]):
             ),
         )
 
-        # 4. Close Current
+        # 4. Check for overlap on current branch BEFORE closing current
+        # Generate timestamp in Python to avoid empty ranges
+        revert_timestamp = datetime.now(UTC)
+        # Exclude current version since it will be closed before the new version is created
+        await self._check_overlap(
+            session, revert_timestamp, self.branch, exclude_version_id=current.id
+        )
+
+        # 5. Close Current
         await self._close_version(session, current)
 
         session.add(reverted)
         await session.flush()  # Get ID assigned
 
-        # 5. Set valid_time and transaction_time on reverted version via SQL
-        # Generate timestamp in Python to avoid empty ranges from duplicate clock_timestamp() calls
-        revert_timestamp = datetime.now(UTC)
+        # 6. Set valid_time and transaction_time on reverted version via SQL
         tablename = str(getattr(self.entity_class, "__tablename__", ""))
         stmt = text(
             f"""

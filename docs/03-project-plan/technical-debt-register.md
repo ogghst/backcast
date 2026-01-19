@@ -1,8 +1,8 @@
 # Technical Debt Register
 
 **Last Updated:** 2026-01-18
-**Total Debt Items:** 7 (21 completed)
-**Total Estimated Effort:** 15 hours
+**Total Debt Items:** 8 (21 completed)
+**Total Estimated Effort:** 20 hours
 **Completed Effort:** 21.25 hours
 
 ---
@@ -45,6 +45,17 @@
 - **Notes:** Expected behavior: deleted entities on a branch should NOT fall back to main during MERGE mode queries. The `_is_deleted_on_branch()` method in TemporalService/BranchableService needs investigation.
 - **Documentation:** [EVCS Implementation Guide](../02-architecture/backend/contexts/evcs-core/evcs-implementation-guide.md), [Temporal Query Reference](../02-architecture/cross-cutting/temporal-query-reference.md)
 - **Test File:** [tests/unit/test_zombie_checks.py](../../backend/tests/unit/test_zombie_checks.py)
+
+#### [TD-061] Refactor Client-Side EVM Metrics to Backend
+
+- **Source:** User Request (2026-01-19)
+- **Description:** EVM metrics (CV, SV, CPI, SPI, VAC) are currently calculated client-side in the Cost Element page. This logic should be moved to a centralized backend endpoint (`/api/v1/evm/metrics`) configurable for project, WBE, and cost element levels, respecting `control_date`, `branch`, and `branch_mode`.
+- **Impact:** Inconsistent calculations potential; client performance load; lacks centralization.
+- **Estimated Effort:** 5 hours
+- **Target Date:** 2026-02-15
+- **Status:** 🔴 Open
+- **Owner:** Backend Developer
+- **Notes:** Needs new endpoint supporting hierarchical aggregation and time-travel contexts.
 
 ---
 
@@ -134,15 +145,15 @@
 | TD-051 | Time Travel Parameter Type Handling          | 2026-01-12   | Updated BranchableService.get_as_of signature to accept branch_mode and implemented MERGE logic          |
 | TD-054 | Ruff Linting Errors (Branch Mode)            | 2026-01-13   | Fixed 12 auto-fixable errors (imports, whitespace)                                                       |
 | TD-055 | Unused Imports (Frontend Components)         | 2026-01-13   | Removed unused imports from ViewModeSelector, TimeMachineCompact                                         |
-| TD-058 | Overlapping valid_time Constraint            | 2026-01-16   | Implemented application-level checks in commands                                                         |
+| TD-058 | Overlapping valid_time Constraint            | 2026-01-19   | Completed: Added overlap checks to MergeBranchCommand and RevertCommand, plus comprehensive test coverage (6 new tests, 86.21% coverage)         |
 | TD-060 | Backend Test Environment Subprocess Failure  | 2026-01-18   | Fixed conftest.py to use `.venv/bin/python` explicitly for subprocess calls                              |
 
 ---
 
 ## Maintenance Notes
 
-**Last Reviewed:** 2026-01-18
-**Next Review:** 2026-01-25
+**Last Reviewed:** 2026-01-19
+**Next Review:** 2026-01-26
 
 **Process:**
 
@@ -154,8 +165,10 @@
 
 **Recent Trends:**
 
+- **2026-01-19 - TD-058 ACT Phase Complete:** Formal ACT phase completed for TD-058. Updated coding standards with SQLAlchemy async patterns and timestamp generation best practices. Sprint backlog updated to mark iteration as complete. Zero new technical debt created. Net debt change: -1 items.
+- **2026-01-19 - TD-058 Completion:** Completed TD-058 by adding overlap checks to MergeBranchCommand and RevertCommand. Added 6 comprehensive unit tests achieving 86.21% coverage for branching commands. All tests pass following TDD methodology (RED-GREEN-REFACTOR).
 - **2026-01-18 - TD-060 Resolution:** Fixed backend test environment subprocess failure by updating `conftest.py` to explicitly use `.venv/bin/python` for the `wipe_db.py` subprocess call. All 365 tests now pass successfully.
-- **2026-01-16 - Fix Overlapping Valid Time:** Addressed TD-058 by implementing strict overlap checks in `branching` and `versioning` core commands. Added TD-060 due to test environment failures blocking verification.
+- **2026-01-16 - Fix Overlapping Valid Time:** Initial implementation of overlap checks in CreateVersionCommand and UpdateCommand.
 - **2026-01-15 - Contextual Navigation Iteration:** Completed with zero new technical debt items. All code followed best practices with ~100% test coverage. Standardized URL-driven navigation pattern for future entity detail pages.
-- Net debt change: -1 items, -2 hours effort (TD-060 completed)
-- Overall debt trend: Improving (7 open items, down from 8)
+- Net debt change: +1 items, +5 hours effort (TD-061 added)
+- Overall debt trend: Improving (7 open items, down from 8) -> New debt added (8 open items)
