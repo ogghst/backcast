@@ -1,27 +1,84 @@
-import { Card, Row, Col, Statistic, Tag, Tooltip, Space, theme } from "antd";
+import { Card, Row, Col, Statistic, Tag, Tooltip, Space, theme, Empty } from "antd";
 import { InfoCircleOutlined } from "@ant-design/icons";
-import type { ForecastRead } from "@/api/generated";
+import { useCostElementEvmMetrics } from "@/features/cost-elements/api/useCostElements";
 
 interface ForecastComparisonCardProps {
-  forecast: ForecastRead;
+  costElementId: string;
   budgetAmount: number; // BAC
-  actualCost?: number; // AC (if available)
+}
+
+interface EVMMetricsData {
+  bac: number;
+  pv: number;
+  ac: number;
+  ev: number;
+  cv: number;
+  sv: number;
+  cpi: number | null;
+  spi: number | null;
+  eac: number | null;
+  vac: number | null;
+  etc: number | null;
 }
 
 export const ForecastComparisonCard = ({
-  forecast,
+  costElementId,
   budgetAmount,
-  actualCost = 0,
 }: ForecastComparisonCardProps) => {
   const { token } = theme.useToken();
 
-  // Calculate EVM metrics locally from forecast data
-  // With 1:1 relationship, the forecast has all the data we need
-  const bac = budgetAmount;
-  const eac = Number(forecast.eac_amount);
-  const ac = actualCost;
-  const vac = bac - eac; // VAC = BAC - EAC
-  const etc = eac - ac; // ETC = EAC - AC
+  // Fetch EVM metrics from the new endpoint
+  const { data: evmMetrics, isLoading: evmLoading } =
+    useCostElementEvmMetrics(costElementId);
+
+  const metrics = evmMetrics as EVMMetricsData | undefined;
+
+  if (evmLoading) {
+    return (
+      <Card
+        title={
+          <Space>
+            <span>EVM Analysis</span>
+            <Tooltip title="Earned Value Management metrics based on current forecast">
+              <InfoCircleOutlined style={{ color: token.colorTextTertiary }} />
+            </Tooltip>
+          </Space>
+        }
+        style={{ marginTop: 16 }}
+      >
+        <Empty description="Loading EVM metrics..." image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      </Card>
+    );
+  }
+
+  if (!metrics) {
+    return (
+      <Card
+        title={
+          <Space>
+            <span>EVM Analysis</span>
+            <Tooltip title="Earned Value Management metrics based on current forecast">
+              <InfoCircleOutlined style={{ color: token.colorTextTertiary }} />
+            </Tooltip>
+          </Space>
+        }
+        style={{ marginTop: 16 }}
+      >
+        <Empty
+          description="No forecast created yet. Create a forecast to see EVM analysis."
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+        />
+      </Card>
+    );
+  }
+
+  // Use metrics from API with fallback to calculated values
+  const bac = metrics.bac ?? budgetAmount;
+  const eac = metrics.eac ?? (bac > 0 && metrics.cpi ? bac / (metrics.cpi / 100) : 0);
+  const ac = metrics.ac ?? 0;
+  const vac = metrics.vac ?? (bac - eac);
+  const etc = metrics.etc ?? (eac - ac);
+  const cpi = metrics.cpi ?? (bac > 0 && eac > 0 ? (bac / eac) * 100 : null);
 
   // Determine status colors
   const getVACStatus = () => {
@@ -43,11 +100,6 @@ export const ForecastComparisonCard = ({
         </Space>
       }
       style={{ marginTop: 16 }}
-      extra={
-        <Tag color={forecast.branch === "main" ? "blue" : "orange"}>
-          {forecast.branch === "main" ? "Main" : forecast.branch}
-        </Tag>
-      }
     >
       <Row gutter={[16, 16]}>
           {/* BAC - Budget at Complete */}
@@ -143,44 +195,28 @@ export const ForecastComparisonCard = ({
                   <span>CPI</span>
                 </Tooltip>
               }
-              value={bac > 0 ? (bac / eac).toFixed(2) : "0.00"}
+              value={cpi !== null ? (cpi / 100).toFixed(2) : "0.00"}
               valueStyle={{
                 color:
-                  bac > eac ? "#52c41a" : bac < eac ? "#ff4d4f" : "#1890ff",
+                  cpi && cpi > 100 ? "#52c41a" : cpi && cpi < 100 ? "#ff4d4f" : "#1890ff",
               }}
               suffix={
-                <Tag
-                  color={bac > eac ? "green" : bac < eac ? "red" : "blue"}
-                  style={{ marginLeft: 8, fontSize: "12px" }}
-                >
-                  {bac > eac
-                    ? "Efficient"
-                    : bac < eac
-                      ? "Inefficient"
-                      : "Neutral"}
-                </Tag>
+                cpi !== null ? (
+                  <Tag
+                    color={cpi > 100 ? "green" : cpi < 100 ? "red" : "blue"}
+                    style={{ marginLeft: 8, fontSize: "12px" }}
+                  >
+                    {cpi > 100
+                      ? "Efficient"
+                      : cpi < 100
+                        ? "Inefficient"
+                        : "Neutral"}
+                  </Tag>
+                ) : null
               }
             />
           </Col>
         </Row>
-
-      {/* Basis of Estimate */}
-      <div
-        style={{
-          marginTop: 16,
-          padding: 12,
-          backgroundColor: token.colorFillSecondary,
-          borderRadius: 4,
-          borderLeft: `3px solid ${token.colorPrimary}`,
-        }}
-      >
-        <div style={{ fontSize: "12px", color: token.colorTextTertiary, marginBottom: 4 }}>
-          <strong>Basis of Estimate:</strong>
-        </div>
-        <div style={{ fontSize: "13px", color: token.colorText }}>
-          {forecast.basis_of_estimate}
-        </div>
-      </div>
     </Card>
   );
 };

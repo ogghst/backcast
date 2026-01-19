@@ -39,7 +39,9 @@ Fix critical technical debt regarding overlapping `valid_time` ranges to ensure 
 
 ## Iteration Records
 
-- **Fix Overlapping Valid Time:** [Iteration Folder](iterations/2026-01-16-fix-overlapping-valid-time/)
+- **Code Quality Cleanup (2026-01-19):** [Iteration Folder](iterations/2026-01-19-code-quality-cleanup/) - Fixed 13 Ruff linting errors, regenerated OpenAPI client, documented past-dated control_date limitation
+- **Fix Overlapping Valid Time (TD-058):** [Iteration Folder](iterations/2026-01-16-fix-overlapping-valid-time/)
+- **TD-058 Completion Analysis:** [Iteration Folder](iterations/2026-01-19-td-058-completion-analysis/)
 - **WBE Level Inference:** [Iteration Folder](iterations/2026-01-12-wbe-level-inference/)
 - **WBE Root Filter:** [Iteration Folder](iterations/2026-01-12-wbe-root-filter/)
 - **Branching Implementation:** [Iteration Folder](iterations/2026-01-12-branching-implementation/)

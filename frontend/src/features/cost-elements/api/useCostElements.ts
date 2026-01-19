@@ -392,15 +392,12 @@ export const useUpdateCostElementForecast = (
       data: Record<string, any>;
       branch?: string;
     }) => {
-      // Inject control_date into data if not present
-      const payload = {
-        ...data,
-        control_date: asOf || data.control_date,
-      };
+      // Pass control_date as query parameter (4th argument)
       return CostElementsService.updateCostElementForecast(
         costElementId,
-        payload,
+        data,
         branch || "main",
+        asOf || undefined,
       );
     },
     onSuccess: (...args) => {
@@ -459,5 +456,36 @@ export const useDeleteCostElementForecast = (
       mutationOptions?.onError?.(error, ...args);
     },
     ...mutationOptions,
+  });
+};
+
+/**
+ * Hook to get EVM (Earned Value Management) metrics for a cost element.
+ * Uses the new EVM metrics endpoint (GET /cost-elements/{id}/evm).
+ *
+ * @param costElementId - The cost element ID to fetch EVM metrics for
+ * @param branch - Branch to query (default: from TimeMachine context)
+ * @returns TanStack Query result with EVM metrics data
+ */
+export const useCostElementEvmMetrics = (
+  costElementId: string,
+  branch?: string,
+) => {
+  const { branch: tmBranch, asOf } = useTimeMachineParams();
+
+  return useQuery({
+    queryKey: queryKeys.costElements.evmMetrics(
+      costElementId,
+      { branch: branch || tmBranch, asOf }
+    ),
+    queryFn: async () => {
+      return await CostElementsService.getEvmMetrics(
+        costElementId,
+        asOf || undefined,
+        branch || tmBranch || "main",
+        "merge",
+      );
+    },
+    enabled: !!costElementId,
   });
 };

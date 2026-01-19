@@ -16,6 +16,7 @@ export class CostElementsService {
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param branch Branch to query
+     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param wbeId Filter by WBE ID
      * @param costElementTypeId Filter by Cost Element Type ID
      * @param search Search term (code, name)
@@ -30,6 +31,7 @@ export class CostElementsService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
+        mode: string = 'merged',
         wbeId?: (string | null),
         costElementTypeId?: (string | null),
         search?: (string | null),
@@ -45,6 +47,7 @@ export class CostElementsService {
                 'page': page,
                 'per_page': perPage,
                 'branch': branch,
+                'mode': mode,
                 'wbe_id': wbeId,
                 'cost_element_type_id': costElementTypeId,
                 'search': search,
@@ -432,6 +435,7 @@ export class CostElementsService {
      * @param costElementId
      * @param requestBody
      * @param branch Branch to update in
+     * @param controlDate Control date for valid_time (ISO 8601). Sets when the forecast becomes valid in the real world. Defaults to current time if not provided.
      * @returns any Successful Response
      * @throws ApiError
      */
@@ -439,6 +443,7 @@ export class CostElementsService {
         costElementId: string,
         requestBody: Record<string, any>,
         branch: string = 'main',
+        controlDate?: (string | null),
     ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'PUT',
@@ -448,6 +453,7 @@ export class CostElementsService {
             },
             query: {
                 'branch': branch,
+                'control_date': controlDate,
             },
             body: requestBody,
             mediaType: 'application/json',

@@ -46,6 +46,11 @@ async def read_cost_elements(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch to query"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
     wbe_id: UUID | None = Query(None, description="Filter by WBE ID"),
     cost_element_type_id: UUID | None = Query(
         None, description="Filter by Cost Element Type ID"
@@ -68,8 +73,12 @@ async def read_cost_elements(
     service: CostElementService = Depends(get_cost_element_service),
 ) -> dict[str, Any]:
     """Retrieve cost elements with server-side search, filtering, and sorting."""
+    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
     from app.models.schemas.cost_element import CostElementRead
+
+    # Parse mode string to BranchMode enum
+    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     # Legacy filters support
     legacy_filters = {}
@@ -83,6 +92,7 @@ async def read_cost_elements(
     items, total = await service.get_cost_elements(
         filters=legacy_filters,
         branch=branch,
+        branch_mode=branch_mode,
         skip=skip,
         limit=per_page,
         search=search,
@@ -633,6 +643,12 @@ async def update_cost_element_forecast(
     forecast_in: dict[str, Any],  # ForecastUpdate
     current_user: User = Depends(get_current_active_user),
     branch: str = Query("main", description="Branch to update in"),
+    control_date: datetime | None = Query(
+        None,
+        description="Control date for valid_time (ISO 8601). "
+        "Sets when the forecast becomes valid in the real world. "
+        "Defaults to current time if not provided.",
+    ),
     forecast_service: ForecastService = Depends(get_forecast_service),
 ) -> dict[str, Any]:
     """Update the forecast for a cost element.
@@ -675,7 +691,7 @@ async def update_cost_element_forecast(
             root_id=existing_forecast.forecast_id,
             actor_id=current_user.user_id,
             branch=branch,
-            control_date=None,
+            control_date=control_date,
             **update_data,
         )
     else:
@@ -717,7 +733,7 @@ async def update_cost_element_forecast(
                 cost_element_id=cost_element_id,
                 actor_id=current_user.user_id,
                 branch=branch,
-                control_date=None,
+                control_date=control_date,
                 **create_data,
             )
         except ForecastAlreadyExistsError as e:

@@ -63,7 +63,7 @@
 [Describe user experience]
 
 **Implementation:**
-[Key technical details]
+[Key technical details, avoid to include code snippets]
 
 **Trade-offs:**
 

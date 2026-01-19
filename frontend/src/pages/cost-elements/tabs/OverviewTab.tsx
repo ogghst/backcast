@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Descriptions, Card, Progress, Statistic, Row, Col, Alert, Button, Empty } from "antd";
+import { Descriptions, Card, Progress, Statistic, Row, Col, Alert, Button } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import type { CostElementRead } from "@/api/generated";
 import { useBudgetStatus } from "@/features/cost-registration/api/useCostRegistrations";
@@ -25,11 +25,7 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
   );
 
   // Fetch forecast for this cost element (1:1 relationship)
-  const { data: forecastData } = useCostElementForecast(costElement.cost_element_id);
-
-  // Get the forecast (if any)
-  const latestForecast = forecastData;
-  const actualCost = budgetStatus?.used ? Number(budgetStatus.used) : 0;
+  useCostElementForecast(costElement.cost_element_id);
 
   const updateMutation = useUpdateCostElement({
     onSuccess: () => {
@@ -172,23 +168,10 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
       </Card>
 
       {/* EVM Forecast Comparison Section */}
-      {latestForecast ? (
-        <ForecastComparisonCard
-          forecast={latestForecast}
-          budgetAmount={Number(costElement.budget_amount)}
-          actualCost={actualCost}
-        />
-      ) : (
-        <Card
-          title="EVM Analysis"
-          style={{ marginTop: 16 }}
-        >
-          <Empty
-            description="No forecast created yet. Create a forecast to see EVM analysis."
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-          />
-        </Card>
-      )}
+      <ForecastComparisonCard
+        costElementId={costElement.cost_element_id}
+        budgetAmount={Number(costElement.budget_amount)}
+      />
 
       {/* Cost Element Details Section */}
       <Card

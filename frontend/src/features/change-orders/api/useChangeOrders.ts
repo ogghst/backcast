@@ -46,7 +46,10 @@ export const useChangeOrders = (params: ChangeOrderListParams) => {
   const { asOf } = useTimeMachineParams();
 
   return useQuery({
-    queryKey: queryKeys.changeOrders.list(params.projectId, { ...params, asOf }),
+    queryKey: queryKeys.changeOrders.list(params.projectId, {
+      ...params,
+      asOf,
+    }),
     queryFn: async () => {
       const serverParams = getPaginationParams(params);
 
@@ -76,7 +79,7 @@ export const useCreateChangeOrder = (
   mutationOptions?: Omit<
     UseMutationOptions<ChangeOrderPublic, Error, ChangeOrderCreate>,
     "mutationFn"
-  >
+  >,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -85,7 +88,10 @@ export const useCreateChangeOrder = (
     mutationFn: (data: ChangeOrderCreate) => {
       // Only include control_date if asOf is set (not null/undefined)
       // Remove effective_date if not set
-      const payload: Record<string, string | number | boolean | null | undefined> = { ...data };
+      const payload: Record<
+        string,
+        string | number | boolean | null | undefined
+      > = { ...data };
       if (asOf) {
         payload.control_date = asOf;
       } else {
@@ -94,7 +100,9 @@ export const useCreateChangeOrder = (
       if (!payload.effective_date) {
         delete payload.effective_date;
       }
-      return ChangeOrdersService.createChangeOrder(payload as ChangeOrderCreate);
+      return ChangeOrdersService.createChangeOrder(
+        payload as ChangeOrderCreate,
+      );
     },
     onSuccess: (data, ...args) => {
       // Invalidate change orders queries for this project
@@ -105,7 +113,9 @@ export const useCreateChangeOrder = (
       queryClient.refetchQueries({
         queryKey: queryKeys.projects.branches(data.project_id.toString()),
       });
-      toast.success(`Change Order ${data.code} created with branch co-${data.code}`);
+      toast.success(
+        `Change Order ${data.code} created with branch co-${data.code}`,
+      );
       mutationOptions?.onSuccess?.(data, ...args);
     },
     onError: (error, ...args) => {
@@ -128,7 +138,7 @@ export const useUpdateChangeOrder = (
       { id: string; data: ChangeOrderUpdate }
     >,
     "mutationFn"
-  >
+  >,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -136,13 +146,19 @@ export const useUpdateChangeOrder = (
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: ChangeOrderUpdate }) => {
       // Remove control_date if not set
-      const payload: Record<string, string | number | boolean | null | undefined> = { ...data };
+      const payload: Record<
+        string,
+        string | number | boolean | null | undefined
+      > = { ...data };
       if (asOf) {
         payload.control_date = asOf;
       } else {
         delete payload.control_date;
       }
-      return ChangeOrdersService.updateChangeOrder(id, payload as ChangeOrderUpdate);
+      return ChangeOrdersService.updateChangeOrder(
+        id,
+        payload as ChangeOrderUpdate,
+      );
     },
     onSuccess: (data, ...args) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
@@ -166,10 +182,7 @@ export const useUpdateChangeOrder = (
  * Soft deletes the current version.
  */
 export const useDeleteChangeOrder = (
-  mutationOptions?: Omit<
-    UseMutationOptions<void, Error, string>,
-    "mutationFn"
-  >
+  mutationOptions?: Omit<UseMutationOptions<void, Error, string>, "mutationFn">,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -214,7 +227,7 @@ export const useDeleteChangeOrder = (
  */
 export const useChangeOrder = (
   id: string | undefined,
-  queryOptions?: Omit<UseQueryOptions<ChangeOrderPublic, Error>, "queryKey">
+  queryOptions?: Omit<UseQueryOptions<ChangeOrderPublic, Error>, "queryKey">,
 ) => {
   const { asOf } = useTimeMachineParams();
 
@@ -239,7 +252,7 @@ export const useChangeOrder = (
  */
 export const useChangeOrderHistory = (
   id: string | undefined,
-  enabled = true
+  enabled = true,
 ) => {
   return useQuery({
     queryKey: queryKeys.changeOrders.detail(id!, { history: true }),
@@ -272,17 +285,21 @@ export const useCheckMergeConflicts = (
   changeOrderId: string | undefined,
   sourceBranch: string,
   targetBranch: string = "main",
-  options?: Omit<UseQueryOptions<MergeConflict[], Error>, "queryKey">
+  options?: Omit<UseQueryOptions<MergeConflict[], Error>, "queryKey">,
 ) => {
   return useQuery({
-    queryKey: queryKeys.changeOrders.mergeConflicts(changeOrderId || "", sourceBranch, targetBranch),
+    queryKey: queryKeys.changeOrders.mergeConflicts(
+      changeOrderId || "",
+      sourceBranch,
+      targetBranch,
+    ),
     queryFn: async () => {
       if (!changeOrderId) throw new Error("Change Order ID is required");
       if (!sourceBranch) throw new Error("Source branch is required");
       const result = await ChangeOrdersService.getMergeConflicts(
         changeOrderId,
         sourceBranch,
-        targetBranch
+        targetBranch,
       );
       return result as unknown as MergeConflict[];
     },
@@ -304,12 +321,18 @@ export const useMergeChangeOrder = (
       { id: string; mergeRequest: MergeRequest }
     >,
     "mutationFn"
-  >
+  >,
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, mergeRequest }: { id: string; mergeRequest: MergeRequest }) => {
+    mutationFn: ({
+      id,
+      mergeRequest,
+    }: {
+      id: string;
+      mergeRequest: MergeRequest;
+    }) => {
       return ChangeOrdersService.mergeChangeOrder(id, mergeRequest);
     },
     onSuccess: (data, ...args) => {
@@ -323,11 +346,17 @@ export const useMergeChangeOrder = (
 
       const targetBranch = args[0]?.mergeRequest?.target_branch || "main";
       toast.success(
-        `Change Order merged successfully to ${targetBranch}. Status: ${data.status}`
+        `Change Order merged successfully to ${targetBranch}. Status: ${data.status}`,
       );
       mutationOptions?.onSuccess?.(data, ...args);
     },
-    onError: (error: Error & { status?: number; detail?: { conflicts?: MergeConflict[] } }, ...args) => {
+    onError: (
+      error: Error & {
+        status?: number;
+        detail?: { conflicts?: MergeConflict[] };
+      },
+      ...args
+    ) => {
       // Handle 409 Conflict error with conflict details
       if (error?.status === 409 && error?.detail?.conflicts) {
         const conflicts = error.detail.conflicts as MergeConflict[];
@@ -336,10 +365,11 @@ export const useMergeChangeOrder = (
           .slice(0, 3)
           .map((c) => `${c.entity_type}.${c.field}`)
           .join(", ");
-        const moreText = conflictCount > 3 ? ` and ${conflictCount - 3} more` : "";
+        const moreText =
+          conflictCount > 3 ? ` and ${conflictCount - 3} more` : "";
 
         toast.error(
-          `Merge blocked: ${conflictCount} conflict${conflictCount > 1 ? "s" : ""} detected. ${conflictSummary}${moreText}.`
+          `Merge blocked: ${conflictCount} conflict${conflictCount > 1 ? "s" : ""} detected. ${conflictSummary}${moreText}.`,
         );
       } else {
         toast.error(`Error merging change order: ${error.message}`);

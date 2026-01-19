@@ -107,8 +107,12 @@ export const useForecast = (forecastId: string, branch?: string) => {
 
 /**
  * Hook to get forecast comparison metrics (EVM calculations).
+ * @deprecated Use useCostElementEvmMetrics from useCostElements instead.
  */
 export const useForecastComparison = (forecastId: string, branch?: string) => {
+  console.warn(
+    "useForecastComparison is deprecated. Use useCostElementEvmMetrics from useCostElements instead."
+  );
   const { branch: tmBranch } = useTimeMachineParams();
 
   return useQuery({

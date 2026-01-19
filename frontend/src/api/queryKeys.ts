@@ -84,6 +84,8 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     detail: (id: string, context?: any) =>
       ["cost-elements", "detail", id, context] as const,
     breadcrumb: (costElementId: string) => ["cost_element_breadcrumb", costElementId] as const,
+    evmMetrics: (costElementId: string, context?: any) =>
+      ["cost-elements", "evm", costElementId, context] as const,
   },
 
   // Cost Registrations

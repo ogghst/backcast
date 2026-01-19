@@ -57,6 +57,28 @@
 - **Owner:** Backend Developer
 - **Notes:** Needs new endpoint supporting hierarchical aggregation and time-travel contexts.
 
+#### [TD-062] Configure Pre-commit Hooks for Ruff Auto-fix
+
+- **Source:** Code Quality Cleanup ACT phase (2026-01-19)
+- **Description:** Ruff linting errors accumulated in codebase due to lack of automated checks before commits. Pre-commit hooks should automatically run `ruff check --fix` to catch and fix linting issues before they enter the codebase.
+- **Impact:** Prevents linting errors from accumulating, reduces manual cleanup effort
+- **Estimated Effort:** 2 hours
+- **Target Date:** 2026-01-20
+- **Status:** 🔴 Open
+- **Owner:** Tech Lead
+- **Notes:** Should be configured to run on Python files only, with `--fix` option for auto-correctable issues
+
+#### [TD-063] Add Zombie Check Tests for All Versioned Entities
+
+- **Source:** Code Quality Cleanup ACT phase (2026-01-19)
+- **Description:** Zombie check tests verify that soft-deleted entities correctly disappear from time-travel queries after their deletion timestamp, but remain visible for queries before deletion. Currently only implemented for forecasts.
+- **Impact:** Ensures data integrity for time-travel queries across all versioned entities
+- **Estimated Effort:** 1 day
+- **Target Date:** 2026-01-22
+- **Status:** 🔴 Open
+- **Owner:** QA Engineer
+- **Notes:** Should be added for Projects, WBEs, CostElements, ScheduleBaselines, and other versioned entities. Pattern documented in temporal-query-reference.md
+
 ---
 
 ### Low Severity
@@ -154,6 +176,9 @@
 
 **Last Reviewed:** 2026-01-19
 **Next Review:** 2026-01-26
+**Total Debt Items:** 10 (21 completed)
+**Total Estimated Effort:** 23 hours
+**Completed Effort:** 21.25 hours
 
 **Process:**
 
@@ -165,10 +190,11 @@
 
 **Recent Trends:**
 
+- **2026-01-19 - Code Quality Cleanup:** Fixed 13 Ruff linting errors in cost_elements route and test files. Regenerated frontend OpenAPI client. Documented past-dated control_date limitation. Added TD-062 (pre-commit hooks) and TD-063 (zombie check tests). Net debt change: +2 items.
 - **2026-01-19 - TD-058 ACT Phase Complete:** Formal ACT phase completed for TD-058. Updated coding standards with SQLAlchemy async patterns and timestamp generation best practices. Sprint backlog updated to mark iteration as complete. Zero new technical debt created. Net debt change: -1 items.
 - **2026-01-19 - TD-058 Completion:** Completed TD-058 by adding overlap checks to MergeBranchCommand and RevertCommand. Added 6 comprehensive unit tests achieving 86.21% coverage for branching commands. All tests pass following TDD methodology (RED-GREEN-REFACTOR).
 - **2026-01-18 - TD-060 Resolution:** Fixed backend test environment subprocess failure by updating `conftest.py` to explicitly use `.venv/bin/python` for the `wipe_db.py` subprocess call. All 365 tests now pass successfully.
 - **2026-01-16 - Fix Overlapping Valid Time:** Initial implementation of overlap checks in CreateVersionCommand and UpdateCommand.
 - **2026-01-15 - Contextual Navigation Iteration:** Completed with zero new technical debt items. All code followed best practices with ~100% test coverage. Standardized URL-driven navigation pattern for future entity detail pages.
-- Net debt change: +1 items, +5 hours effort (TD-061 added)
-- Overall debt trend: Improving (7 open items, down from 8) -> New debt added (8 open items)
+- Net debt change: +2 items, +3 hours effort (TD-062, TD-063 added)
+- Overall debt trend: Increasing (10 open items, up from 8)

@@ -2402,6 +2402,19 @@
             "description": "Branch to query"
           },
           {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(merged|isolated)$",
+              "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
+              "default": "merged",
+              "title": "Mode"
+            },
+            "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
+          },
+          {
             "name": "wbe_id",
             "in": "query",
             "required": false,
@@ -3373,6 +3386,25 @@
               "title": "Branch"
             },
             "description": "Branch to update in"
+          },
+          {
+            "name": "control_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Control date for valid_time (ISO 8601). Sets when the forecast becomes valid in the real world. Defaults to current time if not provided.",
+              "title": "Control Date"
+            },
+            "description": "Control date for valid_time (ISO 8601). Sets when the forecast becomes valid in the real world. Defaults to current time if not provided."
           }
         ],
         "requestBody": {

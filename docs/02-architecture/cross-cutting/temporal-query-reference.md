@@ -258,7 +258,35 @@ result = await service.get_as_of(
 
 ## Common Pitfalls
 
-### 1. Using `@>` Operator Alone
+### 1. Past-Dated `control_date` Creates Inverted Ranges
+
+```python
+# ❌ Wrong: control_date in the past creates inverted valid_time range
+# If today is 2026-01-19 and control_date is set to 2026-02-01:
+# valid_time = [2026-02-01, 2026-01-19) → INVALID (inverted range)
+await service.update(
+    root_id=entity_id,
+    actor_id=user_id,
+    branch="main",
+    control_date=datetime(2026, 2, 1),  # Future date when today is 2026-01-19
+    **update_data,
+)
+
+# ✅ Correct: control_date should be current or past
+await service.update(
+    root_id=entity_id,
+    actor_id=user_id,
+    branch="main",
+    control_date=datetime.now(UTC),  # Current time
+    **update_data,
+)
+```
+
+**Impact:** Past-dated `control_date` values (earlier than the current system time) will create inverted `valid_time` ranges when the new version's `valid_time` upper bound is set to the current time. This violates PostgreSQL range constraints and can cause query failures or unexpected behavior.
+
+**Recommendation:** Always use `datetime.now(UTC)` or allow the system to default to current time for `control_date` unless you have a specific requirement for backdating. If backdating is required, ensure the date is not in the future relative to the current system time.
+
+### 2. Using `@>` Operator Alone
 
 ```python
 # ❌ Wrong: @> treats NULL upper bound as infinity
@@ -271,7 +299,7 @@ stmt.where(
 )
 ```
 
-### 2. Forgetting `deleted_at` in Time Travel
+### 3. Forgetting `deleted_at` in Time Travel
 
 ```python
 # ❌ Wrong: Deleted entities invisible in ALL time travel queries
@@ -290,7 +318,7 @@ stmt.where(
 )
 ```
 
-### 3. Ad-Hoc Filter Implementations
+### 4. Ad-Hoc Filter Implementations
 
 ```python
 # ❌ Wrong: Custom filter logic in each service

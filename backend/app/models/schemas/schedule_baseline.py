@@ -48,6 +48,13 @@ class ScheduleBaselineCreate(ScheduleBaselineBase):
         description="Root Schedule Baseline ID (internal use only for seeding)",
         exclude=True,  # Exclude from OpenAPI docs
     )
+    branch: str = Field(
+        "main",
+        description="Branch name for creation (defaults to main, not configurable by API consumer)",
+    )
+    control_date: datetime | None = Field(
+        None, description="Optional control date for creation (valid_time start)"
+    )
 
 
 class ScheduleBaselineUpdate(BaseModel):
@@ -58,6 +65,10 @@ class ScheduleBaselineUpdate(BaseModel):
     end_date: datetime | None = None
     progression_type: str | None = None
     description: str | None = None
+    branch: str | None = Field(None, description="Branch name for update (defaults to main)")
+    control_date: datetime | None = Field(
+        None, description="Optional control date for update (valid_time start)"
+    )
 
 
 class ScheduleBaselineRead(ScheduleBaselineBase):
