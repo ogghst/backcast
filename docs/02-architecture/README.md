@@ -4,17 +4,17 @@ Quick reference for AI agents to find relevant architecture documents.
 
 ## By Task Type
 
-| I need to...                        | Read this file                                                                                                                                              |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Understand the overall system       | [`00-system-map.md`](00-system-map.md)                                                                                                                      |
-| Understand domain boundaries        | [`01-bounded-contexts.md`](01-bounded-contexts.md)                                                                                                          |
-| Write code (backend or frontend)    | [`coding-standards.md`](coding-standards.md) - Core principles, type safety, patterns, quality gates                                                        |
-| Work with versioning/branching      | [`backend/contexts/evcs-core/`](backend/contexts/evcs-core/)                                                                                                |
+| I need to...                        | Read this file                                                                                                                                                                                |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Understand the overall system       | [`00-system-map.md`](00-system-map.md)                                                                                                                                                        |
+| Understand domain boundaries        | [`01-bounded-contexts.md`](01-bounded-contexts.md)                                                                                                                                            |
+| Write code (backend or frontend)    | [`backend/coding-standards.md`](backend/coding-standards.md) / [`frontend/coding-standards.md`](frontend/coding-standards.md) - Core principles, type safety, patterns, quality gates         |
+| Work with versioning/branching      | [`backend/contexts/evcs-core/`](backend/contexts/evcs-core/)                                                                                                                                  |
 | Implement API endpoints             | [`cross-cutting/api-conventions.md`](cross-cutting/api-conventions.md) + [`cross-cutting/api-response-evcs-implementation-guide.md`](cross-cutting/api-response-evcs-implementation-guide.md) |
-| Write database queries              | [`cross-cutting/database-strategy.md`](cross-cutting/database-strategy.md)                                                                                  |
-| Handle authentication/authorization | [`cross-cutting/security-practices.md`](cross-cutting/security-practices.md) + [`decisions/ADR-007-rbac-service.md`](decisions/ADR-007-rbac-service.md)     |
-| Understand a design decision        | [`decisions/adr-index.md`](decisions/adr-index.md) + [`decisions/ADR-008-server-side-filtering.md`](decisions/ADR-008-server-side-filtering.md)             |
-| Implement feature X                 | Look in `backend/contexts/x-*/` or `frontend/contexts/`                                                                                                     |
+| Write database queries              | [`cross-cutting/database-strategy.md`](cross-cutting/database-strategy.md)                                                                                                                    |
+| Handle authentication/authorization | [`cross-cutting/security-practices.md`](cross-cutting/security-practices.md) + [`decisions/ADR-007-rbac-service.md`](decisions/ADR-007-rbac-service.md)                                       |
+| Understand a design decision        | [`decisions/adr-index.md`](decisions/adr-index.md) + [`decisions/ADR-008-server-side-filtering.md`](decisions/ADR-008-server-side-filtering.md)                                               |
+| Implement feature X                 | Look in `backend/contexts/x-*/` or `frontend/contexts/`                                                                                                                                       |
 
 ## Folder Structure
 

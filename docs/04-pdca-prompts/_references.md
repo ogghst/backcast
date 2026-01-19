@@ -8,10 +8,11 @@
 
 ## Core Documentation (Always Read)
 
-| Document             | Purpose                    | Path                                       |
-| -------------------- | -------------------------- | ------------------------------------------ |
-| **Coding Standards** | Quality gates, type safety | `docs/02-architecture/coding-standards.md` |
-| **System Map**       | Architecture overview      | `docs/02-architecture/00-system-map.md`    |
+| Document                      | Purpose                    | Path                                                |
+| ----------------------------- | -------------------------- | --------------------------------------------------- |
+| **Frontend Coding Standards** | Quality gates, type safety | `docs/02-architecture/frontend/coding-standards.md` |
+| **Backend Coding Standards**  | Quality gates, type safety | `docs/02-architecture/backend/coding-standards.md`  |
+| **System Map**                | Architecture overview      | `docs/02-architecture/00-system-map.md`             |
 
 ---
 
@@ -38,11 +39,12 @@
 
 ### Do Phase
 
-| Document           | When to Read           | Path                                       |
-| ------------------ | ---------------------- | ------------------------------------------ |
-| Coding Standards   | Implementation quality | `docs/02-architecture/coding-standards.md` |
-| Architecture Index | Patterns & decisions   | `docs/02-architecture/README.md`           |
-| Current Plan       | Task specifications    | Current iteration's `01-plan.md`           |
+| Document                  | When to Read           | Path                                                |
+| ------------------------- | ---------------------- | --------------------------------------------------- |
+| Frontend Coding Standards | Implementation quality | `docs/02-architecture/frontend/coding-standards.md` |
+| Backend Coding Standards  | Implementation quality | `docs/02-architecture/backend/coding-standards.md`  |
+| Architecture Index        | Patterns & decisions   | `docs/02-architecture/README.md`                    |
+| Current Plan              | Task specifications    | Current iteration's `01-plan.md`                    |
 
 ### Check Phase
 
@@ -53,11 +55,12 @@
 
 ### Act Phase
 
-| Document            | When to Read             | Path                                       |
-| ------------------- | ------------------------ | ------------------------------------------ |
-| Cross-Cutting Index | Pattern documentation    | `docs/02-architecture/cross-cutting/`      |
-| Coding Standards    | Update with new patterns | `docs/02-architecture/coding-standards.md` |
-| Project Plan        | Update backlog           | `docs/03-project-plan/README.md`           |
+| Document                  | When to Read             | Path                                                |
+| ------------------------- | ------------------------ | --------------------------------------------------- |
+| Cross-Cutting Index       | Pattern documentation    | `docs/02-architecture/cross-cutting/`               |
+| Frontend Coding Standards | Update with new patterns | `docs/02-architecture/frontend/coding-standards.md` |
+| Backend Coding Standards  | Update with new patterns | `docs/02-architecture/backend/coding-standards.md`  |
+| Project Plan              | Update backlog           | `docs/03-project-plan/README.md`                    |
 
 ---
 

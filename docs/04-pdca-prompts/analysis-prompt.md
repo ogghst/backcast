@@ -38,7 +38,9 @@ Read and analyze relevant documentation (see [`_references.md`](_references.md) 
 - Bounded contexts involved (`01-bounded-contexts.md`)
 - Temporal query reference (`temporal-query-reference.md`)
 - Existing patterns and conventions
-- Coding Standards (`coding-standards.md`): Core principles, type safety, quality requirements
+- Coding Standards: Core principles, type safety, quality requirements
+  - [`backend/coding-standards.md`](../02-architecture/backend/coding-standards.md)
+  - [`frontend/coding-standards.md`](../02-architecture/frontend/coding-standards.md)
 - Architectural constraints and decisions (ADRs)
 - Integration points
 
