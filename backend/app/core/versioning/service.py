@@ -235,17 +235,24 @@ class TemporalService[TVersionable: VersionableProtocol]:
         """
         from typing import Any, cast
 
+        from sqlalchemy import cast as sql_cast
         from sqlalchemy import func, or_
+        from sqlalchemy.dialects.postgresql import TIMESTAMP
+
+        # CRITICAL FIX: Cast as_of to TIMESTAMP(timezone=True) to ensure proper timezone handling
+        # when comparing with TSTZRANGE columns. Without this, PostgreSQL treats
+        # the datetime as "timestamp without time zone" and comparison fails.
+        as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
 
         return stmt.where(
             # Check as_of is within valid_time range (time travel by business validity)
-            cast(Any, self.entity_class).valid_time.op("@>")(as_of),
+            cast(Any, self.entity_class).valid_time.op("@>")(as_of_tstz),
             # CRITICAL: Also check as_of >= lower bound (entity existed)
-            func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
+            func.lower(cast(Any, self.entity_class).valid_time) <= as_of_tstz,
             # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
             or_(
                 cast(Any, self.entity_class).deleted_at.is_(None),
-                cast(Any, self.entity_class).deleted_at > as_of,
+                cast(Any, self.entity_class).deleted_at > as_of_tstz,
             ),
         )
 
@@ -356,23 +363,30 @@ class TemporalService[TVersionable: VersionableProtocol]:
         """
         from typing import Any, cast
 
+        from sqlalchemy import cast as sql_cast
         from sqlalchemy import func, or_
+        from sqlalchemy.dialects.postgresql import TIMESTAMP
+
+        # CRITICAL FIX: Cast as_of to TIMESTAMP(timezone=True) to ensure proper timezone handling
+        # when comparing with TSTZRANGE columns. Without this, PostgreSQL treats
+        # the datetime as "timestamp without time zone" and comparison fails.
+        as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
 
         return stmt.where(
             # Check as_of is within valid_time range
-            cast(Any, self.entity_class).valid_time.op("@>")(as_of),
+            cast(Any, self.entity_class).valid_time.op("@>")(as_of_tstz),
             # CRITICAL: Also check as_of >= lower bound (entity existed)
-            func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
+            func.lower(cast(Any, self.entity_class).valid_time) <= as_of_tstz,
             # TRANSACTION TIME: System Time Travel semantics for time-travel queries.
             # Check that as_of is within the transaction_time range, not just open-ended.
             # This allows querying historical versions that have been superseded.
-            cast(Any, self.entity_class).transaction_time.op("@>")(as_of),
+            cast(Any, self.entity_class).transaction_time.op("@>")(as_of_tstz),
             # CRITICAL: Also check as_of >= lower bound (version existed)
-            func.lower(cast(Any, self.entity_class).transaction_time) <= as_of,
+            func.lower(cast(Any, self.entity_class).transaction_time) <= as_of_tstz,
             # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
             or_(
                 cast(Any, self.entity_class).deleted_at.is_(None),
-                cast(Any, self.entity_class).deleted_at > as_of,
+                cast(Any, self.entity_class).deleted_at > as_of_tstz,
             ),
         )
 

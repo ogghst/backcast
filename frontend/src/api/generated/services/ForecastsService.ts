@@ -2,9 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { ForecastComparison } from '../models/ForecastComparison';
 import type { ForecastCreate } from '../models/ForecastCreate';
-import type { ForecastRead } from '../models/ForecastRead';
 import type { ForecastUpdate } from '../models/ForecastUpdate';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
@@ -13,6 +11,14 @@ export class ForecastsService {
     /**
      * Read Forecasts
      * Retrieve forecasts with pagination.
+     *
+     * **DEPRECATED**: This endpoint is deprecated as of 2026-01-18.
+     *
+     * Forecasts now have a 1:1 relationship with Cost Elements.
+     * Use the cost element endpoints instead:
+     * - GET /api/v1/cost-elements/{cost_element_id}/forecast
+     * - PUT /api/v1/cost-elements/{cost_element_id}/forecast
+     * - DELETE /api/v1/cost-elements/{cost_element_id}/forecast
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param branch Branch to query
@@ -43,19 +49,25 @@ export class ForecastsService {
     /**
      * Create Forecast
      * Create a new forecast in specified branch.
+     *
+     * **DEPRECATED**: This endpoint is deprecated as of 2026-01-18.
+     *
+     * Forecasts now have a 1:1 relationship with Cost Elements.
+     * Use: PUT /api/v1/cost-elements/{cost_element_id}/forecast
      * @param requestBody
-     * @returns ForecastRead Successful Response
+     * @returns void
      * @throws ApiError
      */
     public static createForecast(
         requestBody: ForecastCreate,
-    ): CancelablePromise<ForecastRead> {
+    ): CancelablePromise<void> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/forecasts',
             body: requestBody,
             mediaType: 'application/json',
             errors: {
+                410: `Successful Response`,
                 422: `Validation Error`,
             },
         });
@@ -64,19 +76,21 @@ export class ForecastsService {
      * Read Forecast
      * Get a specific forecast by id and branch.
      *
-     * Supports time-travel queries via the as_of parameter to view
-     * the forecast's state at any historical point in time.
+     * **DEPRECATED**: This endpoint is deprecated as of 2026-01-18.
+     *
+     * Forecasts now have a 1:1 relationship with Cost Elements.
+     * Use: GET /api/v1/cost-elements/{cost_element_id}/forecast
      * @param forecastId
      * @param branch Branch to query
      * @param asOf Time travel: get forecast state as of this timestamp (ISO 8601)
-     * @returns ForecastRead Successful Response
+     * @returns any Successful Response
      * @throws ApiError
      */
     public static getForecast(
         forecastId: string,
         branch: string = 'main',
         asOf?: (string | null),
-    ): CancelablePromise<ForecastRead> {
+    ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/forecasts/{forecast_id}',
@@ -95,15 +109,20 @@ export class ForecastsService {
     /**
      * Update Forecast
      * Update a forecast. Creates new version or forks.
+     *
+     * **DEPRECATED**: This endpoint is deprecated as of 2026-01-18.
+     *
+     * Forecasts now have a 1:1 relationship with Cost Elements.
+     * Use: PUT /api/v1/cost-elements/{cost_element_id}/forecast
      * @param forecastId
      * @param requestBody
-     * @returns ForecastRead Successful Response
+     * @returns any Successful Response
      * @throws ApiError
      */
     public static updateForecast(
         forecastId: string,
         requestBody: ForecastUpdate,
-    ): CancelablePromise<ForecastRead> {
+    ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'PUT',
             url: '/api/v1/forecasts/{forecast_id}',
@@ -120,6 +139,11 @@ export class ForecastsService {
     /**
      * Delete Forecast
      * Soft delete a forecast in a branch.
+     *
+     * **DEPRECATED**: This endpoint is deprecated as of 2026-01-18.
+     *
+     * Forecasts now have a 1:1 relationship with Cost Elements.
+     * Use: DELETE /api/v1/cost-elements/{cost_element_id}/forecast
      * @param forecastId
      * @param branch Branch to delete from
      * @param controlDate Optional control date for deletion
@@ -142,6 +166,7 @@ export class ForecastsService {
                 'control_date': controlDate,
             },
             errors: {
+                410: `Successful Response`,
                 422: `Validation Error`,
             },
         });
@@ -149,13 +174,18 @@ export class ForecastsService {
     /**
      * Get Forecast History
      * Get full version history for a forecast across all branches.
+     *
+     * **DEPRECATED**: This endpoint is deprecated as of 2026-01-18.
+     *
+     * Forecast history is still available via the cost element history endpoint.
+     * Use: GET /api/v1/cost-elements/{cost_element_id}/history
      * @param forecastId
-     * @returns ForecastRead Successful Response
+     * @returns any Successful Response
      * @throws ApiError
      */
     public static getForecastHistory(
         forecastId: string,
-    ): CancelablePromise<Array<ForecastRead>> {
+    ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/forecasts/{forecast_id}/history',
@@ -171,21 +201,19 @@ export class ForecastsService {
      * Get Forecast Comparison
      * Get EVM comparison metrics for a forecast.
      *
-     * Returns:
-     * - BAC (Budget at Complete): From CostElement
-     * - EAC (Estimate at Complete): From Forecast
-     * - AC (Actual Cost): Sum of CostRegistrations
-     * - VAC (Variance at Complete): BAC - EAC
-     * - ETC (Estimate to Complete): EAC - AC
+     * **DEPRECATED**: This endpoint is deprecated as of 2026-01-18.
+     *
+     * EVM metrics are now calculated via the cost element EVM endpoint.
+     * Use: GET /api/v1/cost-elements/{cost_element_id}/evm-metrics
      * @param forecastId
      * @param branch Branch to query
-     * @returns ForecastComparison Successful Response
+     * @returns any Successful Response
      * @throws ApiError
      */
     public static getForecastComparison(
         forecastId: string,
         branch: string = 'main',
-    ): CancelablePromise<ForecastComparison> {
+    ): CancelablePromise<any> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/forecasts/{forecast_id}/comparison',

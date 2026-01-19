@@ -77,13 +77,26 @@ class CostElement(EntityBase, VersionableMixin, BranchableMixin):
         DECIMAL(15, 2), default=0, nullable=False
     )
 
-    # Schedule Baseline (1:1 relationship - inverse FK)
+    # Schedule Baseline (1:1 relationship - no FK constraint, enforced by unique index)
+    # NOTE: No FK constraint defined because schedule_baseline_id is not unique across
+    # version rows in the bitemporal schedule_baselines table. Referential integrity
+    # is enforced at the application level via the unique index uq_cost_elements_schedule_baseline_id.
     schedule_baseline_id: Mapped[UUID | None] = mapped_column(
         PG_UUID,
-        ForeignKey("schedule_baselines.schedule_baseline_id", ondelete="SET NULL"),
         nullable=True,
         index=True,
         comment="Reference to the single schedule baseline for this cost element",
+    )
+
+    # Forecast (1:1 relationship - no FK constraint, enforced by unique index)
+    # NOTE: No FK constraint defined because forecast_id is not unique across
+    # version rows in the bitemporal forecasts table. Referential integrity
+    # is enforced at the application level via the unique index uq_cost_elements_forecast_id.
+    forecast_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID,
+        nullable=True,
+        index=True,
+        comment="Reference to the single forecast for this cost element",
     )
 
     # Metadata

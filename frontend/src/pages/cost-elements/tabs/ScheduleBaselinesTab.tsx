@@ -12,6 +12,7 @@ import {
 import { ScheduleBaselineModal } from "@/features/schedule-baselines/components/ScheduleBaselineModal";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import type { ScheduleBaselineRead } from "@/features/schedule-baselines/api/useScheduleBaselines";
+import { queryKeys } from "@/api/queryKeys";
 
 interface ScheduleBaselinesTabProps {
   costElement: CostElementRead;
@@ -55,21 +56,27 @@ export const ScheduleBaselinesTab = ({ costElement }: ScheduleBaselinesTabProps)
 
   useCreateCostElementScheduleBaseline({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cost_element_schedule_baseline"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.scheduleBaselines.byCostElement(costElement.cost_element_id)
+      });
       refetch();
     },
   });
 
   useUpdateCostElementScheduleBaseline({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cost_element_schedule_baseline"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.scheduleBaselines.byCostElement(costElement.cost_element_id)
+      });
       refetch();
     },
   });
 
   const { mutate: deleteBaseline, isPending: isDeleting } = useDeleteCostElementScheduleBaseline({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["cost_element_schedule_baseline"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.scheduleBaselines.byCostElement(costElement.cost_element_id)
+      });
       refetch();
     },
   });

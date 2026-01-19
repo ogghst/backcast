@@ -1,20 +1,11 @@
-import { Card, Row, Col, Statistic, Tag, Tooltip, Spin, Space, theme } from "antd";
+import { Card, Row, Col, Statistic, Tag, Tooltip, Space, theme } from "antd";
 import { InfoCircleOutlined } from "@ant-design/icons";
-import { useForecastComparison } from "@/features/forecasts/api";
 import type { ForecastRead } from "@/api/generated";
 
 interface ForecastComparisonCardProps {
   forecast: ForecastRead;
   budgetAmount: number; // BAC
   actualCost?: number; // AC (if available)
-}
-
-interface ComparisonData {
-  bac_amount: string;
-  eac_amount: string;
-  ac_amount: string;
-  vac_amount: string;
-  etc_amount: string;
 }
 
 export const ForecastComparisonCard = ({
@@ -24,24 +15,13 @@ export const ForecastComparisonCard = ({
 }: ForecastComparisonCardProps) => {
   const { token } = theme.useToken();
 
-  // Fetch comparison data from API
-  const { data: comparisonData, isLoading: comparisonLoading } =
-    useForecastComparison(forecast.forecast_id, forecast.branch);
-
-  const comparison = comparisonData as ComparisonData | undefined;
-
-  // Calculate locally if API data not available (fallback)
-  const bac = comparison?.bac_amount
-    ? Number(comparison.bac_amount)
-    : budgetAmount;
-  const eac = comparison?.eac_amount
-    ? Number(comparison.eac_amount)
-    : Number(forecast.eac_amount);
-  const ac = comparison?.ac_amount ? Number(comparison.ac_amount) : actualCost;
-  const vac = comparison?.vac_amount
-    ? Number(comparison.vac_amount)
-    : bac - eac;
-  const etc = comparison?.etc_amount ? Number(comparison.etc_amount) : eac - ac;
+  // Calculate EVM metrics locally from forecast data
+  // With 1:1 relationship, the forecast has all the data we need
+  const bac = budgetAmount;
+  const eac = Number(forecast.eac_amount);
+  const ac = actualCost;
+  const vac = bac - eac; // VAC = BAC - EAC
+  const etc = eac - ac; // ETC = EAC - AC
 
   // Determine status colors
   const getVACStatus = () => {
@@ -69,12 +49,7 @@ export const ForecastComparisonCard = ({
         </Tag>
       }
     >
-      {comparisonLoading ? (
-        <div style={{ textAlign: "center", padding: "24px" }}>
-          <Spin />
-        </div>
-      ) : (
-        <Row gutter={[16, 16]}>
+      <Row gutter={[16, 16]}>
           {/* BAC - Budget at Complete */}
           <Col xs={12} sm={8}>
             <Statistic
@@ -188,27 +163,24 @@ export const ForecastComparisonCard = ({
             />
           </Col>
         </Row>
-      )}
 
       {/* Basis of Estimate */}
-      {!comparisonLoading && (
-        <div
-          style={{
-            marginTop: 16,
-            padding: 12,
-            backgroundColor: token.colorFillSecondary,
-            borderRadius: 4,
-            borderLeft: `3px solid ${token.colorPrimary}`,
-          }}
-        >
-          <div style={{ fontSize: "12px", color: token.colorTextTertiary, marginBottom: 4 }}>
-            <strong>Basis of Estimate:</strong>
-          </div>
-          <div style={{ fontSize: "13px", color: token.colorText }}>
-            {forecast.basis_of_estimate}
-          </div>
+      <div
+        style={{
+          marginTop: 16,
+          padding: 12,
+          backgroundColor: token.colorFillSecondary,
+          borderRadius: 4,
+          borderLeft: `3px solid ${token.colorPrimary}`,
+        }}
+      >
+        <div style={{ fontSize: "12px", color: token.colorTextTertiary, marginBottom: 4 }}>
+          <strong>Basis of Estimate:</strong>
         </div>
-      )}
+        <div style={{ fontSize: "13px", color: token.colorText }}>
+          {forecast.basis_of_estimate}
+        </div>
+      </div>
     </Card>
   );
 };

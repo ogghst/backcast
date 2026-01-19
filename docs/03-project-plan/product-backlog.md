@@ -1,9 +1,9 @@
 # Backlog
 
-**Last Updated:** 2026-01-15
+**Last Updated:** 2026-01-19
 **Total Items:** 34
 **Total Estimated Points:** 206
-**Completed:** 12 items (66 points)
+**Completed:** 13 items (71 points)
 
 ---
 
@@ -180,7 +180,7 @@
 - **Estimated Complexity:** Simple
 - **Ready for Iteration:** Yes (E04-U03 complete)
 
-#### [E05-U02] Create/Update Forecasts (EAC)
+#### [E05-U02] Create/Update Forecasts (EAC) ✅
 
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 5
@@ -190,8 +190,18 @@
   - Estimate at Complete (EAC) per cost element
   - Versioning support for forecast changes
   - Forecast vs actual comparison
+  - One forecast per cost element (1:1 relationship enforced)
+  - Auto-creation of forecast when cost element is created
+  - Cascade delete of forecast when cost element is soft deleted
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** Yes (E04-U03 complete)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-01-19
+- **Implementation Notes:**
+  - Implemented 1:1 relationship using inverted FK pattern (cost_element.forecast_id)
+  - Old /forecasts endpoints deprecated (410 Gone)
+  - New nested endpoints: GET/PUT/DELETE /cost-elements/{id}/forecast
+  - Followed schedule baseline 1:1 implementation pattern
+- **Ready for Iteration:** No (already complete)
 
 #### [E05-U03] Record Earned Value (% Complete)
 

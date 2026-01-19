@@ -16,6 +16,7 @@ import {
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
 import type { PaginatedResponse } from "@/types/api";
+import { queryKeys } from "@/api/queryKeys";
 
 // Custom params interface
 export interface WBEListParams {
@@ -42,10 +43,16 @@ export interface WBEListParams {
 
 // Custom useWBEs list hook with Time Machine integration
 export const useWBEs = (params?: WBEListParams) => {
-  const { asOf, mode, branch } = useTimeMachineParams();
+  const { asOf, mode, branch: tmBranch } = useTimeMachineParams();
+  const branch = params?.branch || tmBranch;
 
   return useQuery<PaginatedResponse<WBERead>>({
-    queryKey: ["wbes", params, { asOf, mode, branch }],
+    queryKey: queryKeys.wbes.list(params?.projectId || "", {
+      ...params,
+      asOf,
+      mode,
+      branch,
+    }),
     queryFn: async () => {
       const current = params?.pagination?.current || 1;
       const pageSize = params?.pagination?.pageSize || 20;
@@ -128,7 +135,7 @@ export const useCreateWBE = (
       return WbEsService.createWbe(payload);
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["wbes"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.wbes.all });
       toast.success("Created successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -159,7 +166,7 @@ export const useUpdateWBE = (
       return WbEsService.updateWbe(id, payload);
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["wbes"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.wbes.all });
       toast.success("Updated successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -194,7 +201,7 @@ export const useDeleteWBE = (
       }) as Promise<void>;
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["wbes"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.wbes.all });
       toast.success("Deleted successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -214,10 +221,10 @@ export const useWBE = (
   id: string | undefined,
   queryOptions?: Omit<UseQueryOptions<WBERead, Error>, "queryKey">
 ) => {
-  const { asOf } = useTimeMachineParams();
+  const { asOf, branch } = useTimeMachineParams();
 
   return useQuery({
-    queryKey: ["wbes", "detail", id, { asOf }],
+    queryKey: queryKeys.wbes.detail(id, { branch, asOf }),
     queryFn: async () => {
       if (!id) throw new Error("WBE ID is required");
 
@@ -236,7 +243,7 @@ export const useWBE = (
 // Breadcrumb hook
 export const useWBEBreadcrumb = (wbeId: string | undefined) => {
   return useQuery({
-    queryKey: ["wbes", wbeId, "breadcrumb"],
+    queryKey: queryKeys.wbes.breadcrumb(wbeId!),
     queryFn: () => WbEsService.getWbeBreadcrumb(wbeId!),
     enabled: !!wbeId,
   });

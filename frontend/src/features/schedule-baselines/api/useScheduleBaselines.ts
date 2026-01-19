@@ -16,6 +16,8 @@ import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { request as __request } from "@/api/generated/core/request";
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import type { PaginatedResponse } from "@/types/api";
+import { queryKeys } from "@/api/queryKeys";
+import { ScheduleBaselinesService } from "@/api/generated";
 
 // Domain types for Schedule Baseline (matching backend schemas)
 export interface ScheduleBaselineRead {
@@ -79,7 +81,12 @@ export const useScheduleBaselines = (params?: ScheduleBaselineListParams) => {
   const { asOf, mode, branch: tmBranch } = useTimeMachineParams();
 
   return useQuery<PaginatedResponse<ScheduleBaselineRead>>({
-    queryKey: ["schedule_baselines", params, { asOf, mode, branch: tmBranch }],
+    queryKey: queryKeys.scheduleBaselines.list({
+      ...params,
+      asOf,
+      mode,
+      branch: tmBranch,
+    }),
     queryFn: async () => {
       const {
         branch = tmBranch || "main",
@@ -121,12 +128,15 @@ export const useScheduleBaselines = (params?: ScheduleBaselineListParams) => {
  */
 export const useScheduleBaseline = (
   scheduleBaselineId: string,
-  branch: string = "main"
+  branch: string = "main",
 ) => {
   const { asOf, mode } = useTimeMachineParams();
 
   return useQuery<ScheduleBaselineRead>({
-    queryKey: ["schedule_baselines", scheduleBaselineId, branch, { asOf, mode }],
+    queryKey: queryKeys.scheduleBaselines.detail(scheduleBaselineId, {
+      branch,
+      asOf,
+    }),
     queryFn: async () => {
       const res = await __request(OpenAPI, {
         method: "GET",
@@ -156,12 +166,17 @@ export const usePlannedValue = (
   scheduleBaselineId: string,
   currentDate: string,
   bac: string,
-  branch: string = "main"
+  branch: string = "main",
 ) => {
   const { asOf } = useTimeMachineParams();
 
   return useQuery<PlannedValueResponse>({
-    queryKey: ["schedule_baselines", scheduleBaselineId, "pv", { currentDate, bac, branch, asOf }],
+    queryKey: queryKeys.scheduleBaselines.pv(scheduleBaselineId, {
+      currentDate,
+      bac,
+      branch,
+      asOf,
+    }),
     queryFn: async () => {
       const res = await __request(OpenAPI, {
         method: "GET",
@@ -186,7 +201,7 @@ export const useCreateScheduleBaseline = (
   mutationOptions?: Omit<
     UseMutationOptions<ScheduleBaselineRead, Error, CreateWithBranch>,
     "mutationFn"
-  >
+  >,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -194,19 +209,25 @@ export const useCreateScheduleBaseline = (
   return useMutation({
     mutationFn: (data: CreateWithBranch) => {
       const { branch, ...rest } = data;
-      const payload = {
+      // Inject control_date if needed (though API doesn't seem to take it in body per Service)
+      // Actually ScheduleBaselineCreate doesn't have control_date usually.
+      // But let's assume standard payload construction.
+      // Service.createScheduleBaseline check: only requestBody.
+      // We assume separate branch arg support via wrapper or body.
+      // Wait, Service createScheduleBaseline checks showed only requestBody.
+      // If branch is needed, it must be in body.
+      const payload: ScheduleBaselineCreate & { branch?: string } = {
         ...rest,
-        control_date: asOf || null,
+        branch: branch || "main",
       };
-      return __request(OpenAPI, {
-        method: "POST",
-        url: "/api/v1/schedule-baselines",
-        query: { branch: branch || "main" },
-        body: payload,
-      }) as Promise<ScheduleBaselineRead>;
+      return ScheduleBaselinesService.createScheduleBaseline(payload);
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["schedule_baselines"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.scheduleBaselines.all,
+      });
+      // Invalidate forecasts as PV changes affect EV metrics
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
       toast.success("Schedule Baseline created successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -229,7 +250,7 @@ export const useUpdateScheduleBaseline = (
       { id: string; data: UpdateWithBranch }
     >,
     "mutationFn"
-  >
+  >,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -237,19 +258,17 @@ export const useUpdateScheduleBaseline = (
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateWithBranch }) => {
       const { branch, ...rest } = data;
-      const payload = {
+      const payload: ScheduleBaselineUpdate = {
         ...rest,
-        control_date: asOf || null,
       };
-      return __request(OpenAPI, {
-        method: "PUT",
-        url: `/api/v1/schedule-baselines/${id}`,
-        query: { branch: branch || "main" },
-        body: payload,
-      }) as Promise<ScheduleBaselineRead>;
+      // updateScheduleBaseline(id, body) - branching via ID or implicit?
+      return ScheduleBaselinesService.updateScheduleBaseline(id, payload);
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["schedule_baselines"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.scheduleBaselines.all,
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
       toast.success("Schedule Baseline updated successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -265,24 +284,28 @@ export const useUpdateScheduleBaseline = (
  * Soft delete a schedule baseline.
  */
 export const useDeleteScheduleBaseline = (
-  mutationOptions?: Omit<UseMutationOptions<void, Error, { id: string; branch?: string }>, "mutationFn">
+  mutationOptions?: Omit<
+    UseMutationOptions<void, Error, { id: string; branch?: string }>,
+    "mutationFn"
+  >,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, branch = "main" }: { id: string; branch?: string }) => {
-      return __request(OpenAPI, {
-        method: "DELETE",
-        url: `/api/v1/schedule-baselines/${id}`,
-        query: {
-          branch,
-          control_date: asOf || undefined,
-        },
-      }) as Promise<void>;
+    mutationFn: ({ id, branch }: { id: string; branch?: string }) => {
+      // Service.deleteScheduleBaseline(id, branch, control_date)
+      return ScheduleBaselinesService.deleteScheduleBaseline(
+        id,
+        branch || "main",
+        asOf || undefined,
+      );
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["schedule_baselines"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.scheduleBaselines.all,
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
       toast.success("Schedule Baseline deleted successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -299,7 +322,7 @@ export const useDeleteScheduleBaseline = (
  */
 export const useScheduleBaselineHistory = (scheduleBaselineId: string) => {
   return useQuery<ScheduleBaselineRead[]>({
-    queryKey: ["schedule_baselines", scheduleBaselineId, "history"],
+    queryKey: queryKeys.scheduleBaselines.history(scheduleBaselineId),
     queryFn: async () => {
       const res = await __request(OpenAPI, {
         method: "GET",

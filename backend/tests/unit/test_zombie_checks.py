@@ -189,3 +189,24 @@ async def test_wbe_zombie_check_merge_mode_no_fallback(db_session):
         entity_id=wbe_id, as_of=datetime.now(UTC) + timedelta(seconds=1), branch="main"
     )
     assert result_main is not None, "Entity on main branch should still be visible"
+
+
+# ============================================================================
+# Note: Progress Entry and Cost Registration Zombie Check Tests
+# ============================================================================
+#
+# Zombie check tests for progress entries and cost registrations already exist
+# in their respective time-travel test files:
+#
+# - tests/integration/test_progress_time_travel.py::TestProgressTimeTravel::test_time_travel_with_deleted_entry
+# - tests/unit/services/test_cost_registration_time_travel.py::TestTimeTravelQueries::test_get_total_for_cost_element_includes_costs_soft_deleted_after_as_of
+# - tests/unit/services/test_cost_registration_time_travel.py::TestTimeTravelQueries::test_get_total_for_cost_element_excludes_costs_soft_deleted_before_as_of
+#
+# These tests verify the Zombie Check TDD pattern:
+# - Create → Delete → Query Past
+# - Deleted entities are NOT visible when querying after their deleted_at timestamp
+# - Deleted entities ARE visible when querying before their deleted_at timestamp
+#
+# Reference: docs/02-architecture/cross-cutting/temporal-query-reference.md
+# ============================================================================
+

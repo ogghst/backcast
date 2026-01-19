@@ -110,11 +110,15 @@ async def create_cost_registration(
 
     Validates that the cost does not exceed the cost element's budget.
     Raises BudgetExceededError if budget would be exceeded.
+
+    The control_date parameter allows setting the valid_time start date,
+    useful for backdated cost registrations or testing time-travel scenarios.
     """
     try:
         return await service.create(
             registration_in=registration_in,
             actor_id=current_user.user_id,
+            control_date=registration_in.control_date,
         )
     except BudgetExceededError as e:
         raise HTTPException(
@@ -133,126 +137,8 @@ async def create_cost_registration(
         ) from e
 
 
-@router.get(
-    "/{cost_registration_id}",
-    response_model=CostRegistrationRead,
-    operation_id="get_cost_registration",
-    dependencies=[Depends(RoleChecker(required_permission="cost-registration-read"))],
-)
-async def read_cost_registration(
-    cost_registration_id: UUID,
-    as_of: datetime | None = Query(
-        None,
-        description="Time travel: get cost registration state as of this timestamp (ISO 8601)",
-    ),
-    service: CostRegistrationService = Depends(get_cost_registration_service),
-) -> CostRegistration:
-    """Get a specific cost registration by id.
-
-    Supports time-travel queries via the as_of parameter to view
-    the cost registration's state at any historical point in time.
-    """
-    if as_of:
-        # Time travel query
-        item = await service.get_cost_registration_as_of(
-            cost_registration_id=cost_registration_id,
-            as_of=as_of,
-        )
-    else:
-        # Current version
-        item = await service.get_by_id(cost_registration_id)
-
-    if not item:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cost Registration not found" + (f" as of {as_of}" if as_of else ""),
-        )
-    return item
-
-
-@router.put(
-    "/{cost_registration_id}",
-    response_model=CostRegistrationRead,
-    operation_id="update_cost_registration",
-    dependencies=[Depends(RoleChecker(required_permission="cost-registration-update"))],
-)
-async def update_cost_registration(
-    cost_registration_id: UUID,
-    registration_in: CostRegistrationUpdate,
-    current_user: User = Depends(get_current_active_user),
-    service: CostRegistrationService = Depends(get_cost_registration_service),
-) -> CostRegistration:
-    """Update a cost registration.
-
-    Creates a new version of the cost registration with the updated values.
-    Previous versions are preserved in the history.
-    """
-    try:
-        return await service.update(
-            cost_registration_id=cost_registration_id,
-            registration_in=registration_in,
-            actor_id=current_user.user_id,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
-
-
-@router.delete(
-    "/{cost_registration_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    operation_id="delete_cost_registration",
-    dependencies=[Depends(RoleChecker(required_permission="cost-registration-delete"))],
-)
-async def delete_cost_registration(
-    cost_registration_id: UUID,
-    control_date: datetime | None = Query(
-        None, description="Optional control date for deletion"
-    ),
-    current_user: User = Depends(get_current_active_user),
-    service: CostRegistrationService = Depends(get_cost_registration_service),
-) -> None:
-    """Soft delete a cost registration.
-
-    Marks the cost registration as deleted but preserves it in the history.
-    """
-    try:
-        item = await service.get_by_id(cost_registration_id)
-        if not item:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Cost Registration not found",
-            )
-
-        await service.soft_delete(
-            cost_registration_id=cost_registration_id,
-            actor_id=current_user.user_id,
-            control_date=control_date,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-
-
-@router.get(
-    "/{cost_registration_id}/history",
-    response_model=list[CostRegistrationRead],
-    operation_id="get_cost_registration_history",
-    dependencies=[Depends(RoleChecker(required_permission="cost-registration-read"))],
-)
-async def get_cost_registration_history(
-    cost_registration_id: UUID,
-    service: CostRegistrationService = Depends(get_cost_registration_service),
-) -> Sequence[CostRegistration]:
-    """Get full version history for a cost registration.
-
-    Returns all versions of the cost registration, ordered by transaction time.
-    Includes both current and historical versions.
-    """
-    return await service.get_history(cost_registration_id)
+# CRITICAL: Specific routes must be defined BEFORE the generic /{cost_registration_id} route
+# to avoid FastAPI matching "aggregated" or "cumulative" as a cost_registration_id UUID.
 
 
 @router.get(
@@ -373,3 +259,132 @@ async def get_cumulative_costs(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         ) from e
+
+
+# Generic routes with path parameters must come AFTER specific routes
+
+
+@router.get(
+    "/{cost_registration_id}",
+    response_model=CostRegistrationRead,
+    operation_id="get_cost_registration",
+    dependencies=[Depends(RoleChecker(required_permission="cost-registration-read"))],
+)
+async def read_cost_registration(
+    cost_registration_id: UUID,
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get cost registration state as of this timestamp (ISO 8601)",
+    ),
+    service: CostRegistrationService = Depends(get_cost_registration_service),
+) -> CostRegistration:
+    """Get a specific cost registration by id.
+
+    Supports time-travel queries via the as_of parameter to view
+    the cost registration's state at any historical point in time.
+    """
+    if as_of:
+        # Time travel query
+        item = await service.get_cost_registration_as_of(
+            cost_registration_id=cost_registration_id,
+            as_of=as_of,
+        )
+    else:
+        # Current version
+        item = await service.get_by_id(cost_registration_id)
+
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cost Registration not found" + (f" as of {as_of}" if as_of else ""),
+        )
+    return item
+
+
+@router.put(
+    "/{cost_registration_id}",
+    response_model=CostRegistrationRead,
+    operation_id="update_cost_registration",
+    dependencies=[Depends(RoleChecker(required_permission="cost-registration-update"))],
+)
+async def update_cost_registration(
+    cost_registration_id: UUID,
+    registration_in: CostRegistrationUpdate,
+    current_user: User = Depends(get_current_active_user),
+    service: CostRegistrationService = Depends(get_cost_registration_service),
+) -> CostRegistration:
+    """Update a cost registration.
+
+    Creates a new version of the cost registration with the updated values.
+    Previous versions are preserved in the history.
+
+    The control_date parameter allows setting the valid_time start date for
+    the new version, useful for backdating updates or testing time-travel.
+    """
+    try:
+        return await service.update(
+            cost_registration_id=cost_registration_id,
+            registration_in=registration_in,
+            actor_id=current_user.user_id,
+            control_date=registration_in.control_date,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+
+@router.delete(
+    "/{cost_registration_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    operation_id="delete_cost_registration",
+    dependencies=[Depends(RoleChecker(required_permission="cost-registration-delete"))],
+)
+async def delete_cost_registration(
+    cost_registration_id: UUID,
+    control_date: datetime | None = Query(
+        None, description="Optional control date for deletion"
+    ),
+    current_user: User = Depends(get_current_active_user),
+    service: CostRegistrationService = Depends(get_cost_registration_service),
+) -> None:
+    """Soft delete a cost registration.
+
+    Marks the cost registration as deleted but preserves it in the history.
+    """
+    try:
+        item = await service.get_by_id(cost_registration_id)
+        if not item:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Cost Registration not found",
+            )
+
+        await service.soft_delete(
+            cost_registration_id=cost_registration_id,
+            actor_id=current_user.user_id,
+            control_date=control_date,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get(
+    "/{cost_registration_id}/history",
+    response_model=list[CostRegistrationRead],
+    operation_id="get_cost_registration_history",
+    dependencies=[Depends(RoleChecker(required_permission="cost-registration-read"))],
+)
+async def get_cost_registration_history(
+    cost_registration_id: UUID,
+    service: CostRegistrationService = Depends(get_cost_registration_service),
+) -> Sequence[CostRegistration]:
+    """Get full version history for a cost registration.
+
+    Returns all versions of the cost registration, ordered by transaction time.
+    Includes both current and historical versions.
+    """
+    return await service.get_history(cost_registration_id)

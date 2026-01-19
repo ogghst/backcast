@@ -17,6 +17,7 @@ import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
 import type { PaginatedResponse } from "@/types/api";
 import type { Branch } from "@/types/branch";
+import { queryKeys } from "@/api/queryKeys";
 // Custom params interface
 export interface ProjectListParams {
   pagination?: {
@@ -85,7 +86,7 @@ export const useProjects = (params?: ProjectListParams) => {
   const { asOf, mode } = useTimeMachineParams();
 
   return useQuery<PaginatedResponse<ProjectRead>>({
-    queryKey: ["projects", params, { asOf, mode }],
+    queryKey: queryKeys.projects.list({ ...params, asOf, mode }),
     queryFn: async () => {
       const serverParams = getPaginationParams(params);
 
@@ -123,7 +124,7 @@ export const useCreateProject = (
       return ProjectsService.createProject(payload);
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
       toast.success("Created successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -154,7 +155,7 @@ export const useUpdateProject = (
       return ProjectsService.updateProject(id, payload);
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
       toast.success("Updated successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -188,7 +189,7 @@ export const useDeleteProject = (
       }) as Promise<void>;
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
       toast.success("Deleted successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -211,7 +212,7 @@ export const useProject = (
   const { asOf } = useTimeMachineParams();
 
   return useQuery({
-    queryKey: ["projects", "detail", id, { asOf }],
+    queryKey: queryKeys.projects.detail(id),
     queryFn: async () => {
       if (!id) throw new Error("Project ID is required");
 
@@ -240,7 +241,7 @@ export const useProjectBranches = (
   queryOptions?: Omit<UseQueryOptions<Branch[], Error>, "queryKey">
 ) => {
   return useQuery<Branch[]>({
-    queryKey: ["projects", projectId, "branches"],
+    queryKey: queryKeys.projects.branches(projectId || ""),
     queryFn: async () => {
       if (!projectId) throw new Error("Project ID is required");
 

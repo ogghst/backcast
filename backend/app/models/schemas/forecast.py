@@ -21,7 +21,6 @@ class ForecastBase(BaseModel):
 class ForecastCreate(ForecastBase):
     """Properties required for creating a Forecast."""
 
-    cost_element_id: UUID = Field(..., description="Parent Cost Element ID")
     forecast_id: UUID | None = Field(
         None,
         description="Root Forecast ID (internal use only for seeding)",
@@ -58,13 +57,17 @@ class ForecastRead(ForecastBase):
 
     id: UUID
     forecast_id: UUID
-    cost_element_id: UUID
     branch: str
     created_by: UUID
     approved_date: datetime | None = None
     approved_by: UUID | None = None
     valid_time: str | None = None
     transaction_time: str | None = None
+    # Cost element information (included when queried via cost element endpoint)
+    cost_element_id: UUID | None = None
+    cost_element_code: str | None = None
+    cost_element_name: str | None = None
+    cost_element_budget_amount: Decimal | None = None
 
     @field_validator("valid_time", "transaction_time", mode="before")
     @classmethod
@@ -85,7 +88,6 @@ class ForecastComparison(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     forecast_id: UUID
-    cost_element_id: UUID
     bac_amount: Decimal = Field(
         ..., description="Budget at Complete (from CostElement)"
     )

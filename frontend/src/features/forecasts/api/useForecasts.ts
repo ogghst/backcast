@@ -16,6 +16,7 @@ import {
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
 import type { PaginatedResponse } from "@/types/api";
+import { queryKeys } from "@/api/queryKeys";
 
 // Extended types for Branch support
 export type CreateWithBranch = ForecastCreate & { branch?: string };
@@ -38,7 +39,12 @@ export const useForecasts = (params?: ForecastListParams) => {
   const { asOf, mode, branch: tmBranch } = useTimeMachineParams();
 
   return useQuery<PaginatedResponse<ForecastRead>>({
-    queryKey: ["forecasts", params, { asOf, mode, branch: tmBranch }],
+    queryKey: queryKeys.forecasts.list(params?.cost_element_id, {
+      ...params,
+      asOf,
+      mode,
+      branch: tmBranch,
+    }),
     queryFn: async () => {
       const {
         branch = tmBranch || "main",
@@ -83,7 +89,11 @@ export const useForecast = (forecastId: string, branch?: string) => {
   const { asOf, mode, branch: tmBranch } = useTimeMachineParams();
 
   return useQuery<ForecastRead>({
-    queryKey: ["forecast", forecastId, branch, { asOf, mode }],
+    queryKey: queryKeys.forecasts.detail(forecastId, {
+      branch: branch || tmBranch,
+      asOf,
+      mode,
+    }),
     queryFn: async () => {
       return ForecastsService.getForecast(
         forecastId,
@@ -102,7 +112,7 @@ export const useForecastComparison = (forecastId: string, branch?: string) => {
   const { branch: tmBranch } = useTimeMachineParams();
 
   return useQuery({
-    queryKey: ["forecast_comparison", forecastId, branch || tmBranch],
+    queryKey: queryKeys.forecasts.comparison(forecastId, branch || tmBranch),
     queryFn: async () => {
       return __request(OpenAPI, {
         method: "GET",
@@ -139,7 +149,7 @@ export const useCreateForecast = (
       return ForecastsService.createForecast(payload, branch || "main");
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["forecasts"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
       toast.success("Forecast created successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -183,7 +193,7 @@ export const useUpdateForecast = (
       );
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["forecasts"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
       toast.success("Forecast updated successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -224,7 +234,7 @@ export const useDeleteForecast = (
       }) as Promise<void>;
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["forecasts"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
       toast.success("Forecast deleted successfully");
       mutationOptions?.onSuccess?.(...args);
     },

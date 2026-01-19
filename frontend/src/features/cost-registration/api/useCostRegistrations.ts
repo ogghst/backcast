@@ -12,6 +12,7 @@ import {
   useQuery,
   type UseQueryOptions,
 } from "@tanstack/react-query";
+import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { toast } from "sonner";
 import {
   CostRegistrationsService,
@@ -20,6 +21,7 @@ import {
   type CostRegistrationUpdate,
 } from "@/api/generated";
 import type { PaginatedResponse } from "@/types/api";
+import { queryKeys } from "@/api/queryKeys";
 
 /**
  * Cost Registration API parameters for filtering, pagination, and sorting.
@@ -45,7 +47,10 @@ interface CostRegistrationListParams {
  */
 export const useCostRegistrations = (params?: CostRegistrationListParams) => {
   return useQuery<PaginatedResponse<CostRegistrationRead>>({
-    queryKey: ["cost_registrations", params],
+    queryKey: queryKeys.costRegistrations.list(
+      params?.cost_element_id || "",
+      params,
+    ), // Expecting cost_element_id
     queryFn: async () => {
       const {
         cost_element_id,
@@ -98,9 +103,12 @@ export const useCostRegistrations = (params?: CostRegistrationListParams) => {
  * @returns TanStack Query result with budget status (budget, used, remaining, percentage)
  */
 export const useBudgetStatus = (costElementId: string) => {
+  const { asOf } = useTimeMachineParams();
   return useQuery({
-    queryKey: ["budget_status", costElementId],
+    queryKey: queryKeys.costRegistrations.budgetStatus(costElementId, { asOf }),
     queryFn: async () => {
+      // If service supports as_of, pass it here. Assuming currently it might not,
+      // but key isolation is safe practice.
       return await CostRegistrationsService.getBudgetStatus(costElementId);
     },
     enabled: !!costElementId,
@@ -115,7 +123,7 @@ export const useBudgetStatus = (costElementId: string) => {
  */
 export const useCostRegistrationHistory = (costRegistrationId: string) => {
   return useQuery({
-    queryKey: ["cost_registration_history", costRegistrationId],
+    queryKey: queryKeys.costRegistrations.history(costRegistrationId),
     queryFn: async () => {
       return await CostRegistrationsService.getCostRegistrationHistory(
         costRegistrationId,
@@ -145,12 +153,22 @@ export const useCreateCostRegistration = (
     onSuccess: (...args) => {
       // Invalidate related queries
       const costElementId = args[0].cost_element_id;
+      // Invalidate list for this cost element
       queryClient.invalidateQueries({
-        queryKey: ["cost_registrations"],
+        queryKey: queryKeys.costRegistrations.list(costElementId),
       });
+      // Invalidate general list/search?
       queryClient.invalidateQueries({
-        queryKey: ["budget_status", costElementId],
+        queryKey: queryKeys.costRegistrations.all,
       });
+
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.costRegistrations.budgetStatus(costElementId),
+      });
+
+      // Invalidate forecasts because actual costs affect EVM metrics
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
+
       toast.success("Cost registration created successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -177,7 +195,7 @@ export const useUpdateCostRegistration = (
     UseMutationOptions<
       CostRegistrationRead,
       Error,
-      { id: string; data: CostRegistrationUpdate }
+      { id: string; data: CostRegistrationUpdate; costElementId: string }
     >,
     "mutationFn"
   >,
@@ -191,16 +209,28 @@ export const useUpdateCostRegistration = (
     }: {
       id: string;
       data: CostRegistrationUpdate;
+      costElementId: string;
     }) => {
       return CostRegistrationsService.updateCostRegistration(id, data);
     },
     onSuccess: (...args) => {
+      // costElementId helps precise invalidation
+      const variables = args[1]; // Mutation variables
+      const costElementId = variables.costElementId;
+
       queryClient.invalidateQueries({
-        queryKey: ["cost_registrations"],
+        queryKey: queryKeys.costRegistrations.all,
       });
-      queryClient.invalidateQueries({
-        queryKey: ["budget_status"],
-      });
+      if (costElementId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.costRegistrations.budgetStatus(costElementId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.costRegistrations.list(costElementId),
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
+
       toast.success("Cost registration updated successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -218,21 +248,34 @@ export const useUpdateCostRegistration = (
  * Automatically invalidates cost_registrations queries on success.
  */
 export const useDeleteCostRegistration = (
-  mutationOptions?: Omit<UseMutationOptions<void, Error, string>, "mutationFn">,
+  mutationOptions?: Omit<
+    UseMutationOptions<void, Error, { id: string; costElementId: string }>,
+    "mutationFn"
+  >,
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => {
+    mutationFn: ({ id }: { id: string; costElementId: string }) => {
       return CostRegistrationsService.deleteCostRegistration(id);
     },
     onSuccess: (...args) => {
+      const variables = args[1];
+      const costElementId = variables.costElementId;
+
       queryClient.invalidateQueries({
-        queryKey: ["cost_registrations"],
+        queryKey: queryKeys.costRegistrations.all,
       });
-      queryClient.invalidateQueries({
-        queryKey: ["budget_status"],
-      });
+      if (costElementId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.costRegistrations.budgetStatus(costElementId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.costRegistrations.list(costElementId),
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
+
       toast.success("Cost registration deleted successfully");
       mutationOptions?.onSuccess?.(...args);
     },

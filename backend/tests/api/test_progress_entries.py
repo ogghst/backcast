@@ -157,7 +157,7 @@ class TestProgressEntriesAPI:
         # Assert
         assert response.status_code == 201
         data = response.json()
-        assert data["progress_percentage"] == 50.0
+        assert data["progress_percentage"] == "50.00"
         assert data["cost_element_id"] == str(cost_element_id)
         assert data["notes"] == "Foundation complete"
         assert "progress_entry_id" in data
@@ -187,7 +187,7 @@ class TestProgressEntriesAPI:
 
         # Assert
         assert response.status_code == 201
-        assert response.json()["progress_percentage"] == 0.0
+        assert response.json()["progress_percentage"] == "0.00"
 
     @pytest.mark.asyncio
     async def test_create_progress_entry_with_hundred_percentage(
@@ -213,7 +213,7 @@ class TestProgressEntriesAPI:
 
         # Assert
         assert response.status_code == 201
-        assert response.json()["progress_percentage"] == 100.0
+        assert response.json()["progress_percentage"] == "100.00"
 
     @pytest.mark.asyncio
     async def test_create_progress_entry_with_negative_percentage_fails(
@@ -238,7 +238,7 @@ class TestProgressEntriesAPI:
         )
 
         # Assert
-        assert response.status_code == 400
+        assert response.status_code == 422  # Pydantic validation returns 422
 
     @pytest.mark.asyncio
     async def test_create_progress_entry_with_over_hundred_percentage_fails(
@@ -263,7 +263,7 @@ class TestProgressEntriesAPI:
         )
 
         # Assert
-        assert response.status_code == 400
+        assert response.status_code == 422  # Pydantic validation returns 422
 
     @pytest.mark.asyncio
     async def test_get_progress_entry_by_id(
@@ -290,7 +290,7 @@ class TestProgressEntriesAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["progress_entry_id"] == progress_entry_id
-        assert data["progress_percentage"] == 50.0
+        assert data["progress_percentage"] == "50.00"
 
     @pytest.mark.asyncio
     async def test_update_progress_entry_increase(
@@ -321,7 +321,7 @@ class TestProgressEntriesAPI:
 
         # Assert
         assert response.status_code == 200
-        assert response.json()["progress_percentage"] == 75.0
+        assert response.json()["progress_percentage"] == "75.00"
 
     @pytest.mark.asyncio
     async def test_update_progress_entry_decrease(
@@ -356,7 +356,7 @@ class TestProgressEntriesAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["progress_percentage"] == 50.0
+        assert data["progress_percentage"] == "50.00"
         assert data["notes"] == "Work undone - inspection failed"
 
     @pytest.mark.asyncio
@@ -420,7 +420,7 @@ class TestProgressEntriesAPI:
         # Assert
         assert response.status_code == 200
         data = response.json()
-        assert data["progress_percentage"] == 50.0
+        assert data["progress_percentage"] == "50.00"
 
     @pytest.mark.asyncio
     async def test_get_progress_history(

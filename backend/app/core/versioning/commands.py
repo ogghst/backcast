@@ -10,7 +10,7 @@ Note: Branching commands have been moved to app.core.branching.commands.
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from typing import Any, TypeVar, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import sqlalchemy
 from sqlalchemy import func, or_, select, text
@@ -241,64 +241,97 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
         CRITICAL: Uses clock_timestamp() for new version to ensure bitemporal
         correctness. PostgreSQL's now()/current_timestamp() is transaction-scoped
         and returns the same value throughout the transaction.
+
+        CRITICAL FIX: Uses raw SQL INSERT to bypass database DEFAULT values
+        and prevent exclusion constraint violations.
         """
         # Get current version
         current = await self._get_current(session)
         if not current:
             raise ValueError(f"No active version found for {self.root_id}")
 
-        # VALIDATION: Ensure control_date is not before current version's valid_time lower bound
-        # This prevents PostgreSQL range constraint violations
-        # NOTE: control_date can be equal to current_lower (Time Machine mode: updating at same timestamp)
-        if self.control_date:
-            current_lower = cast(Any, current).valid_time.lower
+        # CRITICAL FIX: Close current version FIRST to get its upper bound
+        # This ensures we know exactly when the closed version ends
+        await self._close_version(
+            session, current, close_at_valid_time=self.control_date
+        )
 
-            # Validate control_date is >= lower bound (allowing equal for Time Machine updates)
-            if self.control_date < current_lower:
-                raise ValueError(
-                    f"control_date ({self.control_date.isoformat()}) must be on or after "
-                    f"the current version's valid_time lower bound ({current_lower.isoformat()}). "
-                    f"This ensures bitemporal range constraints are satisfied."
-                )
+        # Refresh to get the updated valid_time (now closed)
+        await session.refresh(current)
+        closed_upper = cast(Any, current).valid_time.upper
 
-        # Clone and apply updates (must happen before close due to expire)
+        # Clone and apply updates (must happen after close due to expire)
         new_version = cast(
             TVersionable,
             current.clone(created_by=self.actor_id, **self.updates),
         )
 
-        # Close current - this sets upper bounds using control_date (for valid_time)
-        await self._close_version(
-            session, current, close_at_valid_time=self.control_date
-        )
+        # Determine valid_time lower bound
+        # If control_date was provided and is later, use it; otherwise use the closed upper bound
+        if self.control_date and self.control_date > closed_upper:
+            new_valid_lower = self.control_date
+        else:
+            new_valid_lower = closed_upper
 
-        # CRITICAL: Set transaction_time explicitly using clock_timestamp()
-        # to ensure the new version's lower bound is AFTER the closed version's upper bound
-        from sqlalchemy import text
+        # CRITICAL FIX: Use raw SQL INSERT to bypass database DEFAULT values
+        # This prevents exclusion constraint violations by setting valid_time explicitly
+        from sqlalchemy import inspect, text
 
-        session.add(new_version)
-        await session.flush()  # Flush to get the ID
-
-        # Set valid_time to control_date, transaction_time to clock_timestamp()
-        # Use getattr to safely access __tablename__ from the protocol
         tablename = str(getattr(self.entity_class, "__tablename__", ""))
-        stmt_fix_time = text(
+
+        # Get all column names and values from the new_version object
+        mapper = inspect(type(new_version))
+
+        # Build column and value lists
+        # CRITICAL: Include ALL columns (except valid_time, transaction_time) regardless of value
+        # This ensures NOT NULL columns are properly set, even if they have None values
+        column_names = []
+        value_placeholders = []
+        values = {}
+
+        for col in mapper.columns:
+            col_name = col.key
+            # Skip valid_time and transaction_time (set explicitly below)
+            if col_name in ("valid_time", "transaction_time"):
+                continue
+
+            value = getattr(new_version, col_name, None)
+
+            # CRITICAL: Generate UUID for id column since we're using raw SQL
+            # The Python-level default=uuid4 doesn't work with raw SQL
+            if col_name == "id":
+                if value is None:
+                    value = uuid4()
+
+            column_names.append(col_name)
+            placeholder = f":{col_name}"
+            value_placeholders.append(placeholder)
+            values[col_name] = value
+
+        # Build and execute the raw SQL INSERT
+        # CRITICAL: Set valid_time explicitly using tstzrange() with the new_valid_lower
+        # This bypasses the database DEFAULT value and prevents exclusion constraint violations
+        cols_str = ", ".join(column_names)
+        placeholders_str = ", ".join(value_placeholders)
+
+        stmt = text(
             f"""
-            UPDATE {tablename}
-            SET
-                valid_time = tstzrange(:control_date, NULL, '[]'),
-                transaction_time = tstzrange(clock_timestamp(), NULL, '[]')
-            WHERE id = :version_id
+            INSERT INTO {tablename} ({cols_str}, valid_time, transaction_time)
+            VALUES ({placeholders_str}, tstzrange(:valid_lower, NULL, '[]'), tstzrange(clock_timestamp(), NULL, '[]'))
+            RETURNING id
             """
         )
-        await session.execute(
-            stmt_fix_time,
-            {"control_date": self.control_date, "version_id": new_version.id},
-        )
-        await session.flush()
-        await session.refresh(new_version)
+        result = await session.execute(stmt, {**values, "valid_lower": new_valid_lower})
+        new_version_id = result.scalar_one()
 
-        return new_version
+        # Fetch the newly created version from the database
+        stmt_new = select(self.entity_class).where(
+            getattr(self.entity_class, "id") == new_version_id
+        )
+        result_new = await session.execute(stmt_new)
+        created_version = result_new.scalar_one()
+
+        return cast(TVersionable, created_version)
 
     async def _get_current(self, session: AsyncSession) -> TVersionable | None:
         """Get current active version (HEAD). Excludes empty ranges."""

@@ -1,6 +1,6 @@
 """Cost Registration Service - versionable cost tracking management."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
@@ -78,7 +78,14 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             control_date: Optional control date for valid_time (defaults to now).
                           Use this for testing time-travel scenarios or data seeding.
         """
-        registration_data = registration_in.model_dump(exclude_unset=True)
+        # Extract control_date from request if provided, otherwise use parameter
+        request_control_date = registration_in.control_date or control_date
+
+        # Dump registration data and exclude control_date (not a model field)
+        registration_data = registration_in.model_dump(
+            exclude_unset=True,
+            exclude={"control_date"},  # Exclude from entity fields
+        )
 
         # Use provided cost_registration_id (for seeding) or generate new one
         root_id = registration_in.cost_registration_id or uuid4()
@@ -89,7 +96,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             "registration_date" not in registration_data
             or registration_data["registration_date"] is None
         ):
-            registration_data["registration_date"] = datetime.now()
+            registration_data["registration_date"] = datetime.now(tz=UTC)
 
         # Budget validation
         cost_element_id = registration_in.cost_element_id
@@ -121,7 +128,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         # CRITICAL: Use control_date for valid_time (defaults to now for production)
         # registration_date is a business field and should NOT affect valid_time
         # This ensures time-travel queries work correctly with as_of parameter
-        actual_control_date = control_date if control_date is not None else datetime.now()
+        actual_control_date = request_control_date if request_control_date is not None else datetime.now(UTC)
 
         cmd = CreateVersionCommand(
             entity_class=CostRegistration,  # type: ignore[type-var,unused-ignore]
@@ -147,7 +154,14 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             actor_id: The user making the update
             control_date: Optional control date for valid_time (defaults to now)
         """
-        update_data = registration_in.model_dump(exclude_unset=True)
+        # Extract control_date from request if provided, otherwise use parameter
+        request_control_date = registration_in.control_date or control_date
+
+        # Dump update data and exclude control_date (not a model field)
+        update_data = registration_in.model_dump(
+            exclude_unset=True,
+            exclude={"control_date"},  # Exclude from entity fields
+        )
 
         # Custom command class to handle multi-word entity name
         class CostRegistrationUpdateCommand(UpdateVersionCommand[CostRegistration]):  # type: ignore[type-var,unused-ignore]
@@ -158,7 +172,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             entity_class=CostRegistration,  # type: ignore[type-var,unused-ignore]
             root_id=cost_registration_id,
             actor_id=actor_id,
-            control_date=control_date,
+            control_date=request_control_date,
             **update_data,
         )
         return await cmd.execute(self.session)
@@ -289,9 +303,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         """Get cost registration as it was at specific timestamp.
 
         Provides Business Time Travel semantics (valid_time only) for cost registrations.
-        Unlike System Time Travel, this does NOT check transaction_time, because costs
-        are recorded as they happen, and we want to query based on when the cost was
-        incurred, not when it was recorded in the system.
+        Uses standardized bitemporal filter for temporal queries.
 
         Args:
             cost_registration_id: The unique identifier of the cost registration
@@ -302,21 +314,13 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         Returns:
             CostRegistration if found at the specified timestamp, None otherwise
         """
-        from sqlalchemy import or_
-
-        # Build query with valid_time filtering only (not transaction_time)
+        # Build base query
         stmt = select(CostRegistration).where(
             CostRegistration.cost_registration_id == cost_registration_id,
-            # Check as_of is within valid_time range
-            CostRegistration.valid_time.op("@>")(as_of),
-            # CRITICAL: Also check as_of >= lower bound (entity existed)
-            func.lower(CostRegistration.valid_time) <= as_of,
-            # Include records that were not deleted before as_of
-            or_(
-                CostRegistration.deleted_at.is_(None),
-                CostRegistration.deleted_at > as_of,
-            ),
-        ).limit(1)
+        )
+
+        # Apply standardized bitemporal filter (Valid Time Travel semantics)
+        stmt = self._apply_bitemporal_filter(stmt, as_of)
 
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
@@ -398,11 +402,21 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         from sqlalchemy import func, or_
 
         if end_date is None:
-            end_date = datetime.now()
+            end_date = datetime.now(tz=UTC)
+
+        # Map API period names to PostgreSQL date_trunc units
+        # API uses: "daily", "weekly", "monthly"
+        # PostgreSQL expects: "day", "week", "month"
+        period_mapping = {
+            "daily": "day",
+            "weekly": "week",
+            "monthly": "month",
+        }
+        pg_period = period_mapping.get(period, period)
 
         # Build base query with time-travel support
         stmt = select(
-            func.date_trunc(period, CostRegistration.registration_date).label("period_start"),
+            func.date_trunc(pg_period, CostRegistration.registration_date).label("period_start"),
             func.sum(CostRegistration.amount).label("total_amount"),
         ).where(
             CostRegistration.cost_element_id == cost_element_id,
@@ -450,10 +464,10 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         Returns:
             List of dicts with registration_date and cumulative_amount
         """
-        from sqlalchemy import or_, window
+        from sqlalchemy import func, or_
 
         if end_date is None:
-            end_date = datetime.now()
+            end_date = datetime.now(tz=UTC)
 
         # Build base query with time-travel support
         stmt = select(

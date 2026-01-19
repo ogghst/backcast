@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { request as __request } from "@/api/generated/core/request";
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
+import { queryKeys } from "@/api/queryKeys";
 
 // Domain types for Schedule Baseline (matching backend schemas)
 export interface ScheduleBaselineRead {
@@ -67,12 +68,16 @@ export const useCostElementScheduleBaseline = (
   queryOptions?: Omit<
     UseQueryOptions<ScheduleBaselineRead>,
     "queryKey" | "queryFn"
-  >
+  >,
 ) => {
   const { asOf } = useTimeMachineParams();
 
   return useQuery<ScheduleBaselineRead>({
-    queryKey: ["cost_element_schedule_baseline", costElementId, branch, { asOf }],
+    queryKey: queryKeys.scheduleBaselines.byCostElement(
+      costElementId,
+      branch,
+      asOf,
+    ),
     queryFn: async () => {
       const res = await __request(OpenAPI, {
         method: "GET",
@@ -112,7 +117,7 @@ export const useCreateCostElementScheduleBaseline = (
       }
     >,
     "mutationFn"
-  >
+  >,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -136,18 +141,25 @@ export const useCreateCostElementScheduleBaseline = (
         control_date: asOf || null,
       };
 
-      return await __request(OpenAPI, {
+      return (await __request(OpenAPI, {
         method: "POST",
         url: `/api/v1/cost-elements/${costElementId}/schedule-baseline`,
         query: { branch: branch || "main" },
         body: payload,
-      }) as Promise<ScheduleBaselineRead>;
+      })) as Promise<ScheduleBaselineRead>;
     },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
-        queryKey: ["cost_element_schedule_baseline"],
+        queryKey: queryKeys.scheduleBaselines.byCostElement(
+          args[1].costElementId,
+        ),
       });
-      queryClient.invalidateQueries({ queryKey: ["cost_elements"] });
+      // Invalidate general baselines and forecasts
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.scheduleBaselines.all,
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
+
       toast.success("Schedule Baseline created successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -179,7 +191,7 @@ export const useUpdateCostElementScheduleBaseline = (
       }
     >,
     "mutationFn"
-  >
+  >,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -201,18 +213,24 @@ export const useUpdateCostElementScheduleBaseline = (
         control_date: asOf || null,
       };
 
-      return await __request(OpenAPI, {
+      return (await __request(OpenAPI, {
         method: "PUT",
         url: `/api/v1/cost-elements/${costElementId}/schedule-baseline/${baselineId}`,
         query: { branch: branch || "main" },
         body: payload,
-      }) as Promise<ScheduleBaselineRead>;
+      })) as Promise<ScheduleBaselineRead>;
     },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
-        queryKey: ["cost_element_schedule_baseline"],
+        queryKey: queryKeys.scheduleBaselines.byCostElement(
+          args[1].costElementId,
+        ),
       });
-      queryClient.invalidateQueries({ queryKey: ["cost_elements"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.scheduleBaselines.all,
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
+
       toast.success("Schedule Baseline updated successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -243,7 +261,7 @@ export const useDeleteCostElementScheduleBaseline = (
       }
     >,
     "mutationFn"
-  >
+  >,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -258,20 +276,26 @@ export const useDeleteCostElementScheduleBaseline = (
       baselineId: string;
       branch?: string;
     }) => {
-      await __request(OpenAPI, {
+      (await __request(OpenAPI, {
         method: "DELETE",
         url: `/api/v1/cost-elements/${costElementId}/schedule-baseline/${baselineId}`,
         query: {
           branch: branch || "main",
           control_date: asOf || undefined,
         },
-      }) as Promise<void>;
+      })) as Promise<void>;
     },
     onSuccess: (...args) => {
       queryClient.invalidateQueries({
-        queryKey: ["cost_element_schedule_baseline"],
+        queryKey: queryKeys.scheduleBaselines.byCostElement(
+          args[1].costElementId,
+        ),
       });
-      queryClient.invalidateQueries({ queryKey: ["cost_elements"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.scheduleBaselines.all,
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
+
       toast.success("Schedule Baseline deleted successfully");
       mutationOptions?.onSuccess?.(...args);
     },

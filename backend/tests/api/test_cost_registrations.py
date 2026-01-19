@@ -391,6 +391,100 @@ class TestCostRegistrationsAPI:
         assert response.status_code in (200, 404)
 
     @pytest.mark.asyncio
+    async def test_create_cost_registration_with_control_date(
+        self, client: AsyncClient, setup_dependencies: dict[str, Any]
+    ) -> None:
+        """Test creating a cost registration with control_date parameter.
+
+        Verifies that control_date sets the valid_time start date for bitemporal tracking.
+        This is critical for time-travel queries and historical cost analysis.
+        """
+        deps = setup_dependencies
+        # Create a cost registration with control_date set to Jan 1, 2026
+        control_date_str = "2026-01-01T00:00:00Z"
+        registration_data = {
+            "cost_element_id": deps["cost_element_id"],
+            "amount": 100.00,
+            "description": "Test cost with control_date",
+            "control_date": control_date_str,
+        }
+
+        response = await client.post(
+            "/api/v1/cost-registrations",
+            json=registration_data,
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["amount"] == "100.00"
+        assert data["description"] == "Test cost with control_date"
+        assert "cost_registration_id" in data
+
+        # Verify that time-travel query as of the control_date returns this cost
+        reg_id = data["cost_registration_id"]
+        response = await client.get(
+            f"/api/v1/cost-registrations/{reg_id}?as_of={control_date_str}"
+        )
+        # Should return 200 because the cost is valid as of the control_date
+        assert response.status_code == 200
+        historical_data = response.json()
+        assert historical_data["cost_registration_id"] == reg_id
+        assert historical_data["amount"] == "100.00"
+
+    @pytest.mark.asyncio
+    async def test_update_cost_registration_with_control_date(
+        self, client: AsyncClient, setup_dependencies: dict[str, Any]
+    ) -> None:
+        """Test updating a cost registration with control_date parameter.
+
+        Verifies that control_date sets the valid_time start date for the new version.
+        """
+        deps = setup_dependencies
+        # Create initial version with control_date set to Jan 1, 2026
+        create_control_date = "2026-01-01T00:00:00Z"
+        create_res = await client.post(
+            "/api/v1/cost-registrations",
+            json={
+                "cost_element_id": deps["cost_element_id"],
+                "amount": 100.00,
+                "description": "Original",
+                "control_date": create_control_date,
+            },
+        )
+        reg_id = create_res.json()["cost_registration_id"]
+
+        # Update with control_date set to Jan 15, 2026 (after creation)
+        update_control_date = "2026-01-15T00:00:00Z"
+        update_res = await client.put(
+            f"/api/v1/cost-registrations/{reg_id}",
+            json={
+                "amount": 150.00,
+                "description": "Updated with control_date",
+                "control_date": update_control_date,
+            },
+        )
+        assert update_res.status_code == 200
+        data = update_res.json()
+        assert data["amount"] == "150.00"
+        assert data["description"] == "Updated with control_date"
+
+        # Verify time-travel query as of Jan 10 returns original version
+        response = await client.get(
+            f"/api/v1/cost-registrations/{reg_id}?as_of=2026-01-10T12:00:00Z"
+        )
+        # Should return 200 with original amount (100.00)
+        assert response.status_code == 200
+        historical_data = response.json()
+        assert historical_data["amount"] == "100.00"
+        assert historical_data["description"] == "Original"
+
+        # Verify current query returns updated version
+        response = await client.get(f"/api/v1/cost-registrations/{reg_id}")
+        assert response.status_code == 200
+        current_data = response.json()
+        assert current_data["amount"] == "150.00"
+        assert current_data["description"] == "Updated with control_date"
+
+    @pytest.mark.asyncio
     async def test_cost_registration_with_all_fields(
         self, client: AsyncClient, setup_dependencies: dict[str, Any]
     ) -> None:

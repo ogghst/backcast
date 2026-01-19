@@ -38,12 +38,9 @@ export const ForecastModal = ({
         });
       } else {
         form.resetFields();
-        if (costElementId) {
-          form.setFieldValue("cost_element_id", costElementId);
-        }
       }
     }
-  }, [open, initialValues, form, costElementId]);
+  }, [open, initialValues, form]);
 
   const handleSubmit = async () => {
     try {
@@ -70,10 +67,6 @@ export const ForecastModal = ({
       width={600}
     >
       <Form form={form} layout="vertical" name="forecast_form">
-        <Form.Item name="cost_element_id" hidden>
-          <Input />
-        </Form.Item>
-
         <Form.Item
           label="Cost Element"
           tooltip="Context inherited from parent Cost Element"

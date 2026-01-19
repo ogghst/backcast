@@ -15,7 +15,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Numeric, Text
+from sqlalchemy import Numeric, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -34,7 +34,6 @@ class Forecast(EntityBase, VersionableMixin, BranchableMixin):
 
     Attributes:
         forecast_id: Root ID for the Forecast aggregation.
-        cost_element_id: Reference to the cost element being forecasted.
         eac_amount: Estimate at Complete - projected total cost (decimal with 2 precision).
         basis_of_estimate: Explanation of how the EAC was calculated.
         approved_date: When this forecast was officially approved (optional).
@@ -51,14 +50,6 @@ class Forecast(EntityBase, VersionableMixin, BranchableMixin):
 
     # Root ID (stable identity across versions)
     forecast_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
-
-    # Foreign key to cost element
-    cost_element_id: Mapped[UUID] = mapped_column(
-        PG_UUID,
-        ForeignKey("cost_elements.cost_element_id"),
-        nullable=False,
-        index=True,
-    )
 
     # Estimate at Complete (decimal with 2 decimal places for currency)
     eac_amount: Mapped[Decimal] = mapped_column(
@@ -90,7 +81,6 @@ class Forecast(EntityBase, VersionableMixin, BranchableMixin):
         return (
             f"<Forecast(id={self.id}, "
             f"forecast_id={self.forecast_id}, "
-            f"cost_element_id={self.cost_element_id}, "
             f"eac_amount={self.eac_amount}, "
             f"branch={self.branch})>"
         )

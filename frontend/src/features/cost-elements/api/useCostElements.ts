@@ -16,6 +16,7 @@ import {
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
 import type { PaginatedResponse } from "@/types/api";
+import { queryKeys } from "@/api/queryKeys";
 
 // Extended types for Branch support
 export type CreateWithBranch = CostElementCreate & { branch?: string };
@@ -40,10 +41,15 @@ interface CostElementListParams {
 
 // Custom useCostElements list hook with Time Machine integration
 export const useCostElements = (params?: CostElementListParams) => {
-  const { asOf, mode, branch: tmBranch } = useTimeMachineParams();
+  const { mode, branch: tmBranch, asOf } = useTimeMachineParams();
 
   return useQuery<PaginatedResponse<CostElementRead>>({
-    queryKey: ["cost_elements", params, { asOf, mode, branch: tmBranch }],
+    queryKey: queryKeys.costElements.list({
+      ...params,
+      mode,
+      branch: tmBranch,
+      asOf, // FIX: Include asOf in query key for proper cache isolation
+    }),
     queryFn: async () => {
       const {
         branch = tmBranch || "main",
@@ -131,14 +137,17 @@ export const useCreateCostElement = (
       // Inject control_date
       const payload: CostElementCreate = {
         ...rest,
+        branch: branch || "main",
         control_date: asOf || null,
       };
-      return CostElementsService.createCostElement(payload, branch || "main");
+      return CostElementsService.createCostElement(payload);
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["cost_elements"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.costElements.lists(),
+      });
       // Invalidate EVM analysis (forecast comparison queries)
-      queryClient.invalidateQueries({ queryKey: ["forecast_comparison"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
       toast.success("Created successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -159,38 +168,79 @@ export const useUpdateCostElement = (
     UseMutationOptions<
       CostElementRead,
       Error,
-      { id: string; data: UpdateWithBranch }
+      { id: string; data: UpdateWithBranch },
+      { previousElement?: CostElementRead }
     >,
     "mutationFn"
   >,
 ) => {
-  const { asOf } = useTimeMachineParams();
+  const { asOf, branch: tmBranch } = useTimeMachineParams();
   const queryClient = useQueryClient();
 
-  return useMutation({
+  return useMutation<
+    CostElementRead,
+    Error,
+    { id: string; data: UpdateWithBranch },
+    { previousElement?: CostElementRead }
+  >({
     mutationFn: ({ id, data }: { id: string; data: UpdateWithBranch }) => {
       const { branch, ...rest } = data;
       // Inject control_date
       const payload: CostElementUpdate = {
         ...rest,
         control_date: asOf || null,
+        // branch field might not exist on Update model, sticking to rest.
+        // If update doesn't support moving branch, we don't send it.
       };
-      return CostElementsService.updateCostElement(
-        id,
-        payload,
-        branch || "main",
+      return CostElementsService.updateCostElement(id, payload);
+    },
+    onMutate: async ({ id, data }) => {
+      const branch = data.branch || tmBranch;
+
+      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+      await queryClient.cancelQueries({
+        queryKey: queryKeys.costElements.detail(id, { branch, asOf }),
+      });
+      await queryClient.cancelQueries({
+        queryKey: queryKeys.costElements.lists(),
+      });
+
+      // Snapshot the previous value
+      const previousElement = queryClient.getQueryData(
+        queryKeys.costElements.detail(id, { branch, asOf }),
       );
+
+      // Optimistically update to the new value
+      if (previousElement) {
+        queryClient.setQueryData(
+          queryKeys.costElements.detail(id, { branch, asOf }),
+          (old: CostElementRead) => ({
+            ...old,
+            ...data,
+          }),
+        );
+      }
+
+      return { previousElement };
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["cost_elements"] });
-      // Invalidate EVM analysis (forecast comparison queries)
-      queryClient.invalidateQueries({ queryKey: ["forecast_comparison"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.costElements.all });
+      // Invalidate EVM analysis
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
       toast.success("Updated successfully");
       mutationOptions?.onSuccess?.(...args);
     },
-    onError: (error, ...args) => {
+    onError: (error, variables, context: any) => {
+      // Rollback
+      if (context?.previousElement) {
+        const branch = variables.data.branch || tmBranch;
+        queryClient.setQueryData(
+          queryKeys.costElements.detail(variables.id, { branch, asOf }),
+          context.previousElement,
+        );
+      }
       toast.error(`Error updating: ${error.message}`);
-      mutationOptions?.onError?.(error, ...args);
+      mutationOptions?.onError?.(error, variables, context, undefined);
     },
     ...mutationOptions,
   });
@@ -225,9 +275,11 @@ export const useDeleteCostElement = (
       }) as Promise<void>;
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["cost_elements"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.costElements.lists(),
+      });
       // Invalidate EVM analysis (forecast comparison queries)
-      queryClient.invalidateQueries({ queryKey: ["forecast_comparison"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
       toast.success("Deleted successfully");
       mutationOptions?.onSuccess?.(...args);
     },
@@ -252,7 +304,7 @@ export const useCostElement = (
   const { asOf } = useTimeMachineParams();
 
   return useQuery<CostElementRead>({
-    queryKey: ["cost_element", costElementId, branch, { asOf }],
+    queryKey: queryKeys.costElements.detail(costElementId, { branch, asOf }),
     queryFn: async () => {
       return await CostElementsService.getCostElement(
         costElementId,
@@ -273,10 +325,139 @@ export const useCostElement = (
  */
 export const useCostElementBreadcrumb = (costElementId: string) => {
   return useQuery({
-    queryKey: ["cost_element_breadcrumb", costElementId],
+    queryKey: queryKeys.costElements.breadcrumb(costElementId),
     queryFn: async () => {
       return await CostElementsService.getCostElementBreadcrumb(costElementId);
     },
     enabled: !!costElementId,
+  });
+};
+
+/**
+ * Hook to get the forecast for a specific cost element.
+ * Uses the new 1:1 relationship endpoint (GET /cost-elements/{id}/forecast).
+ *
+ * @param costElementId - The cost element ID to fetch forecast for
+ * @param branch - Branch to query (default: from TimeMachine context)
+ * @returns TanStack Query result with forecast data
+ */
+export const useCostElementForecast = (
+  costElementId: string,
+  branch?: string,
+) => {
+  const { branch: tmBranch, asOf } = useTimeMachineParams();
+
+  return useQuery({
+    queryKey: queryKeys.forecasts.byCostElement(
+      costElementId,
+      branch || tmBranch,
+      { asOf },
+    ),
+    queryFn: async () => {
+      return await CostElementsService.getCostElementForecast(
+        costElementId,
+        branch || tmBranch || "main",
+      );
+    },
+    enabled: !!costElementId,
+  });
+};
+
+/**
+ * Hook to update the forecast for a cost element.
+ * Uses the new 1:1 relationship endpoint (PUT /cost-elements/{id}/forecast).
+ *
+ * Automatically injects control_date from TimeMachine context.
+ */
+export const useUpdateCostElementForecast = (
+  mutationOptions?: Omit<
+    UseMutationOptions<
+      Record<string, any>,
+      Error,
+      { costElementId: string; data: Record<string, any>; branch?: string }
+    >,
+    "mutationFn"
+  >,
+) => {
+  const { asOf } = useTimeMachineParams();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      costElementId,
+      data,
+      branch,
+    }: {
+      costElementId: string;
+      data: Record<string, any>;
+      branch?: string;
+    }) => {
+      // Inject control_date into data if not present
+      const payload = {
+        ...data,
+        control_date: asOf || data.control_date,
+      };
+      return CostElementsService.updateCostElementForecast(
+        costElementId,
+        payload,
+        branch || "main",
+      );
+    },
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.forecasts.byCostElement(args[0].costElementId),
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
+      toast.success("Forecast updated successfully");
+      mutationOptions?.onSuccess?.(...args);
+    },
+    onError: (error, ...args) => {
+      toast.error(`Error updating forecast: ${error.message}`);
+      mutationOptions?.onError?.(error, ...args);
+    },
+    ...mutationOptions,
+  });
+};
+
+/**
+ * Hook to delete the forecast for a cost element.
+ * Uses the new 1:1 relationship endpoint (DELETE /cost-elements/{id}/forecast).
+ *
+ * Automatically injects control_date from TimeMachine context.
+ */
+export const useDeleteCostElementForecast = (
+  mutationOptions?: Omit<
+    UseMutationOptions<void, Error, { costElementId: string; branch?: string }>,
+    "mutationFn"
+  >,
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      costElementId,
+      branch,
+    }: {
+      costElementId: string;
+      branch?: string;
+    }) => {
+      return CostElementsService.deleteCostElementForecast(
+        costElementId,
+        branch || "main",
+      );
+    },
+    onSuccess: (_data, variables, _context) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.forecasts.byCostElement(variables.costElementId),
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.forecasts.all });
+      toast.success("Forecast deleted successfully");
+      mutationOptions?.onSuccess?.(_data, variables, _context, undefined);
+    },
+    onError: (error, ...args) => {
+      toast.error(`Error deleting forecast: ${error.message}`);
+      mutationOptions?.onError?.(error, ...args);
+    },
+    ...mutationOptions,
   });
 };

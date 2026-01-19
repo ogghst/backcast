@@ -1,9 +1,6 @@
 """API routes for Forecast management."""
 
-from collections.abc import Sequence
 from datetime import datetime
-from decimal import Decimal
-from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -11,14 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
 from app.db.session import get_db
-from app.models.domain.forecast import Forecast
 from app.models.domain.user import User
-from app.models.schemas.forecast import (
-    ForecastComparison,
-    ForecastCreate,
-    ForecastRead,
-    ForecastUpdate,
-)
+from app.models.schemas.forecast import ForecastCreate, ForecastUpdate
 from app.services.forecast_service import ForecastService
 
 router = APIRouter()
@@ -32,7 +23,7 @@ def get_forecast_service(
 
 @router.get(
     "",
-    response_model=None,  # Will be PaginatedResponse[ForecastRead]
+    response_model=None,
     operation_id="get_forecasts",
     dependencies=[Depends(RoleChecker(required_permission="forecast-read"))],
 )
@@ -42,47 +33,35 @@ async def read_forecasts(
     branch: str = Query("main", description="Branch to query"),
     cost_element_id: UUID | None = Query(None, description="Filter by Cost Element ID"),
     service: ForecastService = Depends(get_forecast_service),
-) -> dict[str, Any]:
-    """Retrieve forecasts with pagination."""
-    from app.models.schemas.common import PaginatedResponse
+) -> None:
+    """Retrieve forecasts with pagination.
 
-    skip = (page - 1) * per_page
+    **DEPRECATED**: This endpoint is deprecated as of 2026-01-18.
 
-    # Build filters
-    filters = {}
-    if cost_element_id:
-        filters["cost_element_id"] = cost_element_id
-
-    # Get all forecasts with filters (using BranchableService base methods)
-    items = await service.list(
-        filters=filters,
-        branch=branch,
-        skip=skip,
-        limit=per_page,
+    Forecasts now have a 1:1 relationship with Cost Elements.
+    Use the cost element endpoints instead:
+    - GET /api/v1/cost-elements/{cost_element_id}/forecast
+    - PUT /api/v1/cost-elements/{cost_element_id}/forecast
+    - DELETE /api/v1/cost-elements/{cost_element_id}/forecast
+    """
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail={
+            "message": "This endpoint is deprecated. Forecasts now have a 1:1 relationship with Cost Elements.",
+            "new_endpoints": {
+                "get": "GET /api/v1/cost-elements/{cost_element_id}/forecast",
+                "update": "PUT /api/v1/cost-elements/{cost_element_id}/forecast",
+                "delete": "DELETE /api/v1/cost-elements/{cost_element_id}/forecast",
+            },
+            "deprecated_since": "2026-01-18",
+        },
     )
-
-    # For now, total count requires a separate query
-    # TODO: Add get_forecasts() method with count return to ForecastService
-    total = len(items)
-
-    # Convert to Pydantic models
-    items_out = [ForecastRead.model_validate(i) for i in items]
-
-    # Return paginated response
-    response = PaginatedResponse[ForecastRead](
-        items=items_out,
-        total=total,
-        page=page,
-        per_page=per_page,
-    )
-
-    return response.model_dump()
 
 
 @router.post(
     "",
-    response_model=ForecastRead,
-    status_code=status.HTTP_201_CREATED,
+    response_model=None,
+    status_code=status.HTTP_410_GONE,
     operation_id="create_forecast",
     dependencies=[Depends(RoleChecker(required_permission="forecast-create"))],
 )
@@ -90,25 +69,27 @@ async def create_forecast(
     forecast_in: ForecastCreate,
     current_user: User = Depends(get_current_active_user),
     service: ForecastService = Depends(get_forecast_service),
-) -> Forecast:
-    """Create a new forecast in specified branch."""
-    try:
-        return await service.create(
-            forecast_in=forecast_in,
-            actor_id=current_user.user_id,
-            branch=forecast_in.branch,
-            control_date=forecast_in.control_date,
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
+) -> None:
+    """Create a new forecast in specified branch.
+
+    **DEPRECATED**: This endpoint is deprecated as of 2026-01-18.
+
+    Forecasts now have a 1:1 relationship with Cost Elements.
+    Use: PUT /api/v1/cost-elements/{cost_element_id}/forecast
+    """
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail={
+            "message": "This endpoint is deprecated. Use the cost element forecast endpoint instead.",
+            "new_endpoint": "PUT /api/v1/cost-elements/{cost_element_id}/forecast",
+            "deprecated_since": "2026-01-18",
+        },
+    )
 
 
 @router.get(
     "/{forecast_id}",
-    response_model=ForecastRead,
+    response_model=None,
     operation_id="get_forecast",
     dependencies=[Depends(RoleChecker(required_permission="forecast-read"))],
 )
@@ -120,35 +101,27 @@ async def read_forecast(
         description="Time travel: get forecast state as of this timestamp (ISO 8601)",
     ),
     service: ForecastService = Depends(get_forecast_service),
-) -> Forecast:
+) -> None:
     """Get a specific forecast by id and branch.
 
-    Supports time-travel queries via the as_of parameter to view
-    the forecast's state at any historical point in time.
-    """
-    if as_of:
-        # Time travel query
-        item = await service.get_as_of(
-            entity_id=forecast_id,
-            as_of=as_of,
-            branch=branch,
-        )
-    else:
-        # Current version
-        item = await service.get_by_id(forecast_id, branch=branch)
+    **DEPRECATED**: This endpoint is deprecated as of 2026-01-18.
 
-    if not item:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Forecast not found in branch {branch}"
-            + (f" as of {as_of}" if as_of else ""),
-        )
-    return item
+    Forecasts now have a 1:1 relationship with Cost Elements.
+    Use: GET /api/v1/cost-elements/{cost_element_id}/forecast
+    """
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail={
+            "message": "This endpoint is deprecated. Use the cost element forecast endpoint instead.",
+            "new_endpoint": "GET /api/v1/cost-elements/{cost_element_id}/forecast",
+            "deprecated_since": "2026-01-18",
+        },
+    )
 
 
 @router.put(
     "/{forecast_id}",
-    response_model=ForecastRead,
+    response_model=None,
     operation_id="update_forecast",
     dependencies=[Depends(RoleChecker(required_permission="forecast-update"))],
 )
@@ -157,32 +130,27 @@ async def update_forecast(
     forecast_in: ForecastUpdate,
     current_user: User = Depends(get_current_active_user),
     service: ForecastService = Depends(get_forecast_service),
-) -> Forecast:
-    """Update a forecast. Creates new version or forks."""
-    try:
-        # Use branch from schema if provided, otherwise default to main
-        branch = forecast_in.branch or "main"
+) -> None:
+    """Update a forecast. Creates new version or forks.
 
-        # Convert ForecastUpdate to dict for update
-        update_data = forecast_in.model_dump(exclude_unset=True)
-        # Remove fields that should be passed as named arguments, not in updates
-        update_data.pop("control_date", None)
-        update_data.pop("branch", None)
+    **DEPRECATED**: This endpoint is deprecated as of 2026-01-18.
 
-        return await service.update(
-            root_id=forecast_id,
-            actor_id=current_user.user_id,
-            branch=branch,
-            control_date=forecast_in.control_date,
-            **update_data,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+    Forecasts now have a 1:1 relationship with Cost Elements.
+    Use: PUT /api/v1/cost-elements/{cost_element_id}/forecast
+    """
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail={
+            "message": "This endpoint is deprecated. Use the cost element forecast endpoint instead.",
+            "new_endpoint": "PUT /api/v1/cost-elements/{cost_element_id}/forecast",
+            "deprecated_since": "2026-01-18",
+        },
+    )
 
 
 @router.delete(
     "/{forecast_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_410_GONE,
     operation_id="delete_forecast",
     dependencies=[Depends(RoleChecker(required_permission="forecast-delete"))],
 )
@@ -195,42 +163,53 @@ async def delete_forecast(
     current_user: User = Depends(get_current_active_user),
     service: ForecastService = Depends(get_forecast_service),
 ) -> None:
-    """Soft delete a forecast in a branch."""
-    try:
-        item = await service.get_by_id(forecast_id, branch=branch)
-        if not item:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Forecast not found in branch {branch}",
-            )
+    """Soft delete a forecast in a branch.
 
-        await service.soft_delete(
-            forecast_id=forecast_id,
-            actor_id=current_user.user_id,
-            branch=branch,
-            control_date=control_date,
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    **DEPRECATED**: This endpoint is deprecated as of 2026-01-18.
+
+    Forecasts now have a 1:1 relationship with Cost Elements.
+    Use: DELETE /api/v1/cost-elements/{cost_element_id}/forecast
+    """
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail={
+            "message": "This endpoint is deprecated. Use the cost element forecast endpoint instead.",
+            "new_endpoint": "DELETE /api/v1/cost-elements/{cost_element_id}/forecast",
+            "deprecated_since": "2026-01-18",
+        },
+    )
 
 
 @router.get(
     "/{forecast_id}/history",
-    response_model=list[ForecastRead],
+    response_model=None,
     operation_id="get_forecast_history",
     dependencies=[Depends(RoleChecker(required_permission="forecast-read"))],
 )
 async def get_forecast_history(
     forecast_id: UUID,
     service: ForecastService = Depends(get_forecast_service),
-) -> Sequence[Forecast]:
-    """Get full version history for a forecast across all branches."""
-    return await service.get_history(forecast_id)
+) -> None:
+    """Get full version history for a forecast across all branches.
+
+    **DEPRECATED**: This endpoint is deprecated as of 2026-01-18.
+
+    Forecast history is still available via the cost element history endpoint.
+    Use: GET /api/v1/cost-elements/{cost_element_id}/history
+    """
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail={
+            "message": "This endpoint is deprecated. Use the cost element history endpoint instead.",
+            "new_endpoint": "GET /api/v1/cost-elements/{cost_element_id}/history",
+            "deprecated_since": "2026-01-18",
+        },
+    )
 
 
 @router.get(
     "/{forecast_id}/comparison",
-    response_model=ForecastComparison,
+    response_model=None,
     operation_id="get_forecast_comparison",
     dependencies=[Depends(RoleChecker(required_permission="forecast-read"))],
 )
@@ -238,61 +217,19 @@ async def get_forecast_comparison(
     forecast_id: UUID,
     branch: str = Query("main", description="Branch to query"),
     service: ForecastService = Depends(get_forecast_service),
-) -> dict[str, Any]:
+) -> None:
     """Get EVM comparison metrics for a forecast.
 
-    Returns:
-        - BAC (Budget at Complete): From CostElement
-        - EAC (Estimate at Complete): From Forecast
-        - AC (Actual Cost): Sum of CostRegistrations
-        - VAC (Variance at Complete): BAC - EAC
-        - ETC (Estimate to Complete): EAC - AC
+    **DEPRECATED**: This endpoint is deprecated as of 2026-01-18.
+
+    EVM metrics are now calculated via the cost element EVM endpoint.
+    Use: GET /api/v1/cost-elements/{cost_element_id}/evm-metrics
     """
-    # Get the forecast
-    forecast = await service.get_by_id(forecast_id, branch=branch)
-    if not forecast:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Forecast not found in branch {branch}",
-        )
-
-    # Get Cost Element for BAC
-    from app.services.cost_element_service import CostElementService
-
-    element_service = CostElementService(service.session)
-    cost_element = await element_service.get_by_id(
-        forecast.cost_element_id, branch=branch
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail={
+            "message": "This endpoint is deprecated. Use the cost element EVM metrics endpoint instead.",
+            "new_endpoint": "GET /api/v1/cost-elements/{cost_element_id}/evm-metrics",
+            "deprecated_since": "2026-01-18",
+        },
     )
-    if not cost_element:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Cost Element not found in branch {branch}",
-        )
-
-    # Get AC (Actual Cost) from CostRegistrations
-    # Note: CostRegistrations are versionable but NOT branchable
-    # They are global facts across all branches
-    from app.services.cost_registration_service import CostRegistrationService
-
-    reg_service = CostRegistrationService(service.session)
-
-    # Get total actual cost from registrations for this cost element
-    # CostRegistrations are versionable but NOT branchable (global facts)
-    ac_total = await reg_service.get_total_for_cost_element(forecast.cost_element_id)
-    ac_amount = Decimal(str(ac_total)) if ac_total else Decimal("0.00")
-
-    # Calculate EVM metrics
-    bac_amount = cost_element.budget_amount
-    eac_amount = forecast.eac_amount
-    vac_amount = bac_amount - eac_amount  # VAC = BAC - EAC
-    etc_amount = eac_amount - ac_amount  # ETC = EAC - AC
-
-    return {
-        "forecast_id": forecast_id,
-        "cost_element_id": forecast.cost_element_id,
-        "bac_amount": bac_amount,
-        "eac_amount": eac_amount,
-        "ac_amount": ac_amount,
-        "vac_amount": vac_amount,
-        "etc_amount": etc_amount,
-    }

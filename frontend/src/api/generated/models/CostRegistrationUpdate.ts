@@ -13,5 +13,9 @@ export type CostRegistrationUpdate = {
     description?: (string | null);
     invoice_number?: (string | null);
     vendor_reference?: (string | null);
+    /**
+     * Optional control date for update (valid_time start)
+     */
+    control_date?: (string | null);
 };
 

@@ -388,4 +388,104 @@ export class CostElementsService {
             },
         });
     }
+    /**
+     * Get Cost Element Forecast
+     * Get the forecast for a specific cost element.
+     *
+     * Returns the single forecast associated with this cost element
+     * in the specified branch. Returns 404 if no forecast exists.
+     *
+     * This endpoint follows the inverted FK pattern, querying via
+     * cost_element.forecast_id instead of forecast.cost_element_id.
+     * @param costElementId
+     * @param branch Branch to query
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static getCostElementForecast(
+        costElementId: string,
+        branch: string = 'main',
+    ): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/cost-elements/{cost_element_id}/forecast',
+            path: {
+                'cost_element_id': costElementId,
+            },
+            query: {
+                'branch': branch,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Update Cost Element Forecast
+     * Update the forecast for a cost element.
+     *
+     * Updates the existing forecast or creates a new one if none exists.
+     * Creates a new version with the changes.
+     * Only the fields provided in the request body are updated.
+     *
+     * Raises 400 if a forecast already exists (when creating new).
+     * @param costElementId
+     * @param requestBody
+     * @param branch Branch to update in
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static updateCostElementForecast(
+        costElementId: string,
+        requestBody: Record<string, any>,
+        branch: string = 'main',
+    ): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/cost-elements/{cost_element_id}/forecast',
+            path: {
+                'cost_element_id': costElementId,
+            },
+            query: {
+                'branch': branch,
+            },
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Delete Cost Element Forecast
+     * Delete the forecast for a cost element.
+     *
+     * Soft deletes the forecast associated with this cost element.
+     * The forecast remains in the database for audit/history but is marked as deleted.
+     *
+     * Note: This does NOT cascade to delete the cost element. The cost element
+     * remains, but without an associated forecast. A new forecast can be created later.
+     * @param costElementId
+     * @param branch Branch to delete from
+     * @returns void
+     * @throws ApiError
+     */
+    public static deleteCostElementForecast(
+        costElementId: string,
+        branch: string = 'main',
+    ): CancelablePromise<void> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/cost-elements/{cost_element_id}/forecast',
+            path: {
+                'cost_element_id': costElementId,
+            },
+            query: {
+                'branch': branch,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
 }

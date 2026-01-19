@@ -39,6 +39,34 @@ Mutations must trigger invalidation not just for the modified entity but for **a
 - **Rule**: A mutation hook should invalidate `queryKeys.forecasts.all` if it touches cost or schedule data.
 - **Implementation**: Use the `queryKeys` factory for invalidations to match the query generation.
 
+**Dependent Invalidation Patterns:**
+
+| Primary Entity | Dependent Entities | Rationale |
+| -------------- | ------------------ | --------- |
+| Cost Elements | `forecasts.all`, `forecast_comparison` | Cost element changes affect EVM calculations |
+| Cost Registrations | `forecasts.all`, `forecast_comparison`, `budgetStatus` | Actual costs affect EVM metrics and budget tracking |
+| Schedule Baselines | `forecasts.all`, `forecast_comparison` | Planned Value changes affect EVM calculations |
+| Change Orders | `projects.*.branches`, `projects` | Branch creation/updates affect project branch lists |
+
+**Implementation Example:**
+
+```typescript
+// In mutation onSuccess callback
+onSuccess: (...args) => {
+  // Invalidate the modified entity
+  queryClient.invalidateQueries({
+    queryKey: queryKeys.costElements.all,
+  });
+
+  // Invalidate dependent EVM data
+  queryClient.invalidateQueries({
+    queryKey: queryKeys.forecasts.all,
+  });
+
+  toast.success("Created successfully");
+}
+```
+
 #### 3.1.3 Optimistic Updates
 
 Optimistic updates are **required** for high-frequency user actions (e.g., renaming, status changes).
@@ -114,6 +142,164 @@ export const useAuthStore = create<State>()(
 - Prevents accidental mutations
 - Easier to work with nested objects/arrays
 - Type-safe draft mutations
+
+---
+
+## 5. Query Key Factory Best Practices
+
+### 5.1 Centralized Factory Usage
+
+**Rule:** All query keys MUST be defined in `src/api/queryKeys.ts` using the centralized factory.
+
+**What to centralize:**
+- All list, detail, and mutation query keys
+- Context-aware keys for versioned entities (include `{ branch, asOf, mode }`)
+- Specialized query keys (e.g., breadcrumbs, comparisons, history)
+
+**Example:**
+
+```typescript
+// ✅ CORRECT - Use factory
+export const useCostElement = (id: string) => {
+  const { asOf, branch } = useTimeMachineParams();
+  return useQuery({
+    queryKey: queryKeys.costElements.detail(id, { branch, asOf }),
+    queryFn: () => fetchCostElement(id, branch, asOf),
+  });
+};
+
+// ❌ WRONG - Manual key construction
+export const useCostElement = (id: string) => {
+  return useQuery({
+    queryKey: ["cost-elements", id], // Missing context, not using factory
+    queryFn: () => fetchCostElement(id),
+  });
+};
+```
+
+### 5.2 Context Isolation for Versioned Entities
+
+**Rule:** All versioned entity query keys MUST include context parameters to prevent stale data when switching contexts.
+
+**Versioned Entities:**
+- Cost Elements
+- Work Breakdown Elements (WBEs)
+- Forecasts
+- Projects
+- Schedule Baselines
+- Change Orders
+
+**Non-Versioned Entities:**
+- Users
+- Departments
+- Cost Element Types
+- Breadcrumbs (navigation data, not business data)
+
+**Example:**
+
+```typescript
+// ✅ CORRECT - Context included
+queryKey: queryKeys.costElements.detail(id, { branch: "main", asOf: "2024-01-01" })
+
+// ❌ WRONG - Context missing
+queryKey: ["cost-elements", id] // Will cache data across branches
+```
+
+### 5.3 Testing Query Keys
+
+**Integration Tests:**
+- Test cache invalidation patterns (e.g., cost element mutation → forecast invalidation)
+- Verify context isolation (branch switches trigger refetch)
+- Test optimistic updates with context-aware keys
+
+**E2E Tests:**
+- Verify Time Machine context switches invalidate caches
+- Test cross-branch data leakage prevention
+- Validate dependent query invalidation in real scenarios
+
+**Test Examples:**
+- `frontend/tests/integration/cache-invalidation.test.ts` - Cache invalidation patterns
+- `frontend/tests/e2e/time-machine-context.spec.ts` - Context isolation in browser
+
+---
+
+## 6. Migration Patterns
+
+### 6.1 Migrating to Query Key Factory
+
+When migrating existing code to use the query key factory:
+
+1. **Add query key methods to factory** (if not already present):
+   ```typescript
+   // In src/api/queryKeys.ts
+   breadcrumbs: (id: string) => ["resource", id, "breadcrumb"] as const,
+   ```
+
+2. **Update hook to use factory**:
+   ```typescript
+   // Before
+   queryKey: ["resource", id, "breadcrumb"]
+
+   // After
+   queryKey: queryKeys.resource.breadcrumb(id)
+   ```
+
+3. **Update all invalidations**:
+   ```typescript
+   // Before
+   queryClient.invalidateQueries({ queryKey: ["resource"] })
+
+   // After
+   queryClient.invalidateQueries({ queryKey: queryKeys.resource.all })
+   ```
+
+4. **Add tests** for cache behavior (integration tests for invalidation, E2E for context isolation)
+
+### 6.2 Special Cases
+
+**Change Orders:** While change orders are versioned entities, they have specialized workflow requirements (branch creation, merge operations). Ensure invalidations include `queryKeys.projects.branches(projectId)` to keep branch selectors up-to-date.
+
+**Breadcrumbs:** Navigation breadcrumbs don't require context isolation (they're hierarchical, not temporal), but should still use the factory for consistency.
+
+---
+
+## 7. Common Pitfalls
+
+### 7.1 Missing Context in Query Keys
+
+**Problem:** Query keys without context parameters cache data across branches/time periods.
+
+**Solution:** Always include `{ branch, asOf, mode }` in query keys for versioned entities.
+
+### 7.2 Incomplete Dependent Invalidation
+
+**Problem:** Mutations don't invalidate dependent queries, causing stale EVM data.
+
+**Solution:** Document dependent entity relationships and add invalidations in `onSuccess` callbacks.
+
+### 7.3 Manual Key Construction
+
+**Problem:** Manual query keys scattered across codebases make refactoring difficult.
+
+**Solution:** Always use `queryKeys` factory; add new keys to factory if missing.
+
+---
+
+## 8. Performance Considerations
+
+### 8.1 Cache Efficiency
+
+- **Context isolation** prevents cache pollution when switching branches
+- **Dependent invalidation** ensures EVM data stays consistent
+- **Optimistic updates** improve perceived performance for user actions
+
+### 8.2 Monitoring
+
+- Use TanStack Query DevTools in development to inspect cache state
+- Monitor cache hit/miss ratios in production
+- Set up performance budgets for query execution time
+
+---
 
 ### 3.3 API Layer
 

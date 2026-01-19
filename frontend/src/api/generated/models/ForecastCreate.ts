@@ -15,10 +15,6 @@ export type ForecastCreate = {
      */
     basis_of_estimate: string;
     /**
-     * Parent Cost Element ID
-     */
-    cost_element_id: string;
-    /**
      * Root Forecast ID (internal use only for seeding)
      */
     forecast_id?: (string | null);

@@ -48,6 +48,9 @@ class CostRegistrationCreate(CostRegistrationBase):
         exclude=True,  # Exclude from OpenAPI docs
     )
     cost_element_id: UUID = Field(..., description="ID of the cost element to charge")
+    control_date: datetime | None = Field(
+        None, description="Optional control date for creation (valid_time start)"
+    )
 
 
 class CostRegistrationUpdate(BaseModel):
@@ -60,6 +63,9 @@ class CostRegistrationUpdate(BaseModel):
     description: str | None = None
     invoice_number: str | None = Field(None, max_length=100)
     vendor_reference: str | None = Field(None, max_length=255)
+    control_date: datetime | None = Field(
+        None, description="Optional control date for update (valid_time start)"
+    )
 
 
 class CostRegistrationRead(CostRegistrationBase):

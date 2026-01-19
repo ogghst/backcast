@@ -203,6 +203,20 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
 
         # Update cost element with baseline reference
         cost_element.schedule_baseline_id = baseline.schedule_baseline_id
+
+        # Auto-create default forecast
+        from app.services.forecast_service import ForecastService
+
+        forecast_service = ForecastService(self.session)
+        forecast = await forecast_service.ensure_exists(
+            cost_element_id=root_id,
+            actor_id=actor_id,
+            branch=target_branch,
+            budget_amount=cost_element.budget_amount,
+        )
+
+        # Update cost element with forecast reference
+        cost_element.forecast_id = forecast.forecast_id
         await self.session.flush()
 
         return cost_element
@@ -343,6 +357,20 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
 
             # Update cost element with baseline reference
             new_element.schedule_baseline_id = baseline.schedule_baseline_id
+
+            # Auto-create forecast for the new branch
+            from app.services.forecast_service import ForecastService
+
+            forecast_service = ForecastService(self.session)
+            forecast = await forecast_service.ensure_exists(
+                cost_element_id=cost_element_id,
+                actor_id=actor_id,
+                branch=target_branch,
+                budget_amount=new_element.budget_amount,
+            )
+
+            # Update cost element with forecast reference
+            new_element.forecast_id = forecast.forecast_id
             await self.session.flush()
 
             return new_element
@@ -356,11 +384,11 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
     ) -> None:
         """Soft delete cost element using BranchableService.soft_delete.
 
-        Cascades the delete to the associated schedule baseline.
+        Cascades the delete to the associated schedule baseline and forecast.
 
         This uses the BranchableSoftDeleteCommand which is branch-aware.
         """
-        # Get the cost element to find its schedule baseline
+        # Get the cost element to find its schedule baseline and forecast
         cost_element = await self.get_by_id(cost_element_id, branch=branch)
 
         if cost_element and cost_element.schedule_baseline_id:
@@ -370,6 +398,18 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             sb_service = ScheduleBaselineService(self.session)
             await sb_service.soft_delete(
                 root_id=cost_element.schedule_baseline_id,
+                actor_id=actor_id,
+                branch=branch,
+                control_date=control_date,
+            )
+
+        if cost_element and cost_element.forecast_id:
+            # Cascade delete to forecast
+            from app.services.forecast_service import ForecastService
+
+            forecast_service = ForecastService(self.session)
+            await forecast_service.soft_delete(
+                forecast_id=cost_element.forecast_id,
                 actor_id=actor_id,
                 branch=branch,
                 control_date=control_date,

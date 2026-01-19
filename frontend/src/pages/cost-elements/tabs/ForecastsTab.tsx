@@ -1,23 +1,31 @@
 import { useState } from "react";
-import { Button, Table, Card, Space, Tooltip, Modal, Tag, theme } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined, HistoryOutlined } from "@ant-design/icons";
+import { Button, Card, Table, Space, Tooltip, Modal, Tag, theme, Alert } from "antd";
+import { PlusOutlined, EditOutlined, DeleteOutlined, HistoryOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useQueryClient } from "@tanstack/react-query";
-import type { CostElementRead, ForecastRead } from "@/api/generated";
+import type { CostElementRead } from "@/api/generated";
 import {
-  useForecasts,
-  useCreateForecast,
-  useUpdateForecast,
-  useDeleteForecast,
-} from "@/features/forecasts/api";
+  useCostElementForecast,
+  useUpdateCostElementForecast,
+  useDeleteCostElementForecast,
+} from "@/features/cost-elements/api/useCostElements";
 import { ForecastModal, ForecastHistoryView } from "@/features/forecasts/components";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
+import { queryKeys } from "@/api/queryKeys";
 
 interface ForecastsTabProps {
   costElement: CostElementRead;
 }
 
-interface ForecastWithComparison extends ForecastRead {
+interface ForecastWithComparison {
+  forecast_id: string;
+  eac_amount: string | number;
+  basis_of_estimate: string;
+  branch: string;
+  created_at: string;
+  updated_at: string;
+  approved_date?: string;
+  approved_by?: string;
   comparison?: {
     bac_amount: string;
     eac_amount: string;
@@ -29,80 +37,73 @@ interface ForecastWithComparison extends ForecastRead {
 
 export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
   const { token } = theme.useToken();
-  // Extract time machine parameters
-  // Note: asOf and mode are available for future time travel features
-  const { branch: tmBranch } = useTimeMachineParams();
+  const { branch: tmBranch, asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
   const currentBranch = tmBranch || costElement.branch || "main";
 
   // State for modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editingForecast, setEditingForecast] = useState<ForecastRead | null>(null);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [editingForecast, setEditingForecast] = useState<ForecastWithComparison | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [showHistoryView, setShowHistoryView] = useState(false);
 
-  // Fetch forecasts for this cost element
-  const { data: forecastsData, isLoading } = useForecasts({
-    cost_element_id: costElement.cost_element_id,
-    branch: currentBranch,
-    pagination: { current: 1, pageSize: 100 },
-  });
+  // Fetch the single forecast for this cost element (1:1 relationship)
+  const { data: forecastData, isLoading, error, isError } = useCostElementForecast(
+    costElement.cost_element_id,
+    currentBranch
+  );
 
-  // Get comparison data for each forecast
-  const forecastsWithComparison: ForecastWithComparison[] =
-    forecastsData?.items?.map((forecast: ForecastRead) => ({
-      ...forecast,
-      comparison: undefined, // Will be fetched on demand
-    })) || [];
+  const forecast = forecastData as ForecastWithComparison | null;
 
   // Mutations
-  const createMutation = useCreateForecast({
+  const updateMutation = useUpdateCostElementForecast({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["forecasts"] });
-      setIsCreateModalOpen(false);
-    },
-  });
-
-  const updateMutation = useUpdateForecast({
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["forecasts"] });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.forecasts.byCostElement(costElement.cost_element_id, currentBranch, { asOf })
+      });
       setEditingForecast(null);
     },
   });
 
-  const deleteMutation = useDeleteForecast({
+  const deleteMutation = useDeleteCostElementForecast({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["forecasts"] });
-      setDeleteConfirmId(null);
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.forecasts.byCostElement(costElement.cost_element_id, currentBranch, { asOf })
+      });
+      setDeleteConfirmOpen(false);
     },
   });
 
   const handleCreate = (values: any) => {
-    createMutation.mutate({
-      ...values,
-      cost_element_id: costElement.cost_element_id,
+    // For 1:1 relationship, we use the update endpoint which creates if doesn't exist
+    updateMutation.mutate({
+      costElementId: costElement.cost_element_id,
+      data: values,
       branch: currentBranch,
     });
+    setIsCreateModalOpen(false);
   };
 
   const handleUpdate = (values: any) => {
     if (!editingForecast) return;
     updateMutation.mutate({
-      id: editingForecast.forecast_id,
-      data: {
-        ...values,
-        branch: currentBranch,
-      },
+      costElementId: costElement.cost_element_id,
+      data: values,
+      branch: currentBranch,
     });
   };
 
-  const handleDelete = (forecast: ForecastRead) => {
-    const compositeId = `${forecast.forecast_id}:::${forecast.branch}`;
-    deleteMutation.mutate(compositeId);
+  const handleDelete = () => {
+    deleteMutation.mutate({
+      costElementId: costElement.cost_element_id,
+      branch: currentBranch,
+    });
   };
 
   // Calculate EVM metrics for display
-  const getEVMMetrics = (forecast: ForecastRead) => {
+  const getEVMMetrics = () => {
+    if (!forecast) return null;
+
     const bac = Number(costElement.budget_amount);
     const eac = Number(forecast.eac_amount);
     const vac = bac - eac; // VAC = BAC - EAC
@@ -113,16 +114,21 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
     return { vac, vacStatus, vacText, bac, eac };
   };
 
+  const evmMetrics = getEVMMetrics();
+
   const columns: ColumnsType<ForecastWithComparison> = [
     {
       title: "EAC (Estimate at Complete)",
       dataIndex: "eac_amount",
       key: "eac_amount",
-      render: (eac: string, record: ForecastWithComparison) => {
-        const { vac, vacStatus, vacText } = getEVMMetrics(record);
+      render: (eac: string | number) => {
+        if (!evmMetrics) return null;
+        const { vac, vacStatus, vacText } = evmMetrics;
         return (
           <div>
-            <div style={{ fontWeight: "bold" }}>€{Number(eac).toLocaleString()}</div>
+            <div style={{ fontWeight: "bold" }}>
+              €{Number(eac).toLocaleString()}
+            </div>
             <Tag color={vacStatus} style={{ marginTop: 4 }}>
               {vacText} (VAC: €{vac.toLocaleString()})
             </Tag>
@@ -187,7 +193,7 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
               type="text"
               danger
               icon={<DeleteOutlined />}
-              onClick={() => setDeleteConfirmId(record.forecast_id)}
+              onClick={() => setDeleteConfirmOpen(true)}
             />
           </Tooltip>
         </Space>
@@ -199,17 +205,29 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
     <div>
       {/* Header */}
       <Card
-        title="Forecasts"
+        title="Forecast"
         extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setIsCreateModalOpen(true)}
-          >
-            Create Forecast
-          </Button>
+          !forecast && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setIsCreateModalOpen(true)}
+            >
+              Create Forecast
+            </Button>
+          )
         }
       >
+        {/* Info Alert about 1:1 Relationship */}
+        <Alert
+          message="One Forecast Per Cost Element"
+          description="Each cost element can have only one forecast. Updating or creating a new forecast will replace any existing forecast for this cost element in the current branch."
+          type="info"
+          showIcon
+          icon={<InfoCircleOutlined />}
+          style={{ marginBottom: 16 }}
+        />
+
         {/* EVM Info */}
         <div
           style={{
@@ -233,29 +251,39 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
           </div>
         </div>
 
-        {/* Forecasts Table */}
-        <Table
-          columns={columns}
-          dataSource={forecastsWithComparison}
-          rowKey="forecast_id"
-          loading={isLoading}
-          pagination={false}
-          locale={{
-            emptyText: (
-              <div style={{ padding: "24px", textAlign: "center" }}>
+        {/* Forecast Table or Empty State */}
+        {forecast ? (
+          <Table
+            columns={columns}
+            dataSource={[forecast]}
+            rowKey="forecast_id"
+            loading={isLoading}
+            pagination={false}
+          />
+        ) : (
+          <div style={{ padding: "24px", textAlign: "center" }}>
+            {isError ? (
+              <p style={{ color: "#ff4d4f" }}>
+                Error loading forecast. Please try again.
+              </p>
+            ) : isLoading ? (
+              <p style={{ color: "#999" }}>Loading forecast...</p>
+            ) : (
+              <>
                 <p style={{ color: "#999" }}>
-                  No forecasts found for this cost element.
+                  No forecast found for this cost element.
                 </p>
                 <Button
-                  type="link"
+                  type="primary"
+                  icon={<PlusOutlined />}
                   onClick={() => setIsCreateModalOpen(true)}
                 >
-                  Create the first forecast
+                  Create Forecast
                 </Button>
-              </div>
-            ),
-          }}
-        />
+              </>
+            )}
+          </div>
+        )}
       </Card>
 
       {/* Create Modal */}
@@ -263,7 +291,7 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
         open={isCreateModalOpen}
         onCancel={() => setIsCreateModalOpen(false)}
         onOk={handleCreate}
-        confirmLoading={createMutation.isPending}
+        confirmLoading={updateMutation.isPending}
         currentBranch={currentBranch}
         costElementId={costElement.cost_element_id}
         costElementName={`${costElement.code} - ${costElement.name}`}
@@ -286,20 +314,16 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
       {/* Delete Confirmation Modal */}
       <Modal
         title="Delete Forecast"
-        open={!!deleteConfirmId}
-        onOk={() => {
-          const forecast = forecastsData?.items?.find(
-            (f: ForecastRead) => f.forecast_id === deleteConfirmId
-          );
-          if (forecast) handleDelete(forecast);
-        }}
-        onCancel={() => setDeleteConfirmId(null)}
+        open={deleteConfirmOpen}
+        onOk={handleDelete}
+        onCancel={() => setDeleteConfirmOpen(false)}
         confirmLoading={deleteMutation.isPending}
         okText="Delete"
         okButtonProps={{ danger: true }}
       >
         <p>Are you sure you want to delete this forecast?</p>
         <p style={{ color: "#999", fontSize: "12px" }}>
+          The cost element will remain without a forecast. You can create a new forecast later.
           This action can be recovered through time travel if needed.
         </p>
       </Modal>

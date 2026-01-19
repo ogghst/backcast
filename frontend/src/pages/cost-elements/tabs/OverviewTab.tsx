@@ -3,11 +3,12 @@ import { Descriptions, Card, Progress, Statistic, Row, Col, Alert, Button, Empty
 import { EditOutlined } from "@ant-design/icons";
 import type { CostElementRead } from "@/api/generated";
 import { useBudgetStatus } from "@/features/cost-registration/api/useCostRegistrations";
-import { useUpdateCostElement } from "@/features/cost-elements/api/useCostElements";
+import { useUpdateCostElement, useCostElementForecast } from "@/features/cost-elements/api/useCostElements";
 import { CostElementModal } from "@/features/cost-elements/components/CostElementModal";
-import { useForecasts } from "@/features/forecasts/api";
 import { ForecastComparisonCard } from "@/features/forecasts/components";
 import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/api/queryKeys";
+import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 
 interface OverviewTabProps {
   costElement: CostElementRead;
@@ -16,35 +17,37 @@ interface OverviewTabProps {
 export const OverviewTab = ({ costElement }: OverviewTabProps) => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const queryClient = useQueryClient();
+  const { branch, asOf } = useTimeMachineParams();
+  const currentBranch = branch || costElement.branch || "main";
 
   const { data: budgetStatus, isLoading } = useBudgetStatus(
     costElement.cost_element_id
   );
 
-  // Fetch forecasts for this cost element (for EVM comparison)
-  const { data: forecastsData } = useForecasts({
-    cost_element_id: costElement.cost_element_id,
-    branch: costElement.branch || "main",
-    pagination: { current: 1, pageSize: 1 }, // Only need the latest forecast
-  });
+  // Fetch forecast for this cost element (1:1 relationship)
+  const { data: forecastData } = useCostElementForecast(costElement.cost_element_id);
 
-  // Get the latest forecast (if any)
-  const latestForecast = forecastsData?.items?.[0];
+  // Get the forecast (if any)
+  const latestForecast = forecastData;
   const actualCost = budgetStatus?.used ? Number(budgetStatus.used) : 0;
 
   const updateMutation = useUpdateCostElement({
     onSuccess: () => {
+      // Invalidate cost element detail with Time Machine context
       queryClient.invalidateQueries({
-        queryKey: ["cost_element", costElement.cost_element_id]
+        queryKey: queryKeys.costElements.detail(costElement.cost_element_id, { branch: currentBranch, asOf })
       });
+      // Invalidate breadcrumb
       queryClient.invalidateQueries({
-        queryKey: ["cost_element_breadcrumb", costElement.cost_element_id]
+        queryKey: queryKeys.costElements.breadcrumb(costElement.cost_element_id)
       });
+      // Invalidate budget status with Time Machine context
       queryClient.invalidateQueries({
-        queryKey: ["budget_status", costElement.cost_element_id]
+        queryKey: queryKeys.costRegistrations.budgetStatus(costElement.cost_element_id, { asOf })
       });
+      // Invalidate forecast for this cost element (1:1 relationship)
       queryClient.invalidateQueries({
-        queryKey: ["forecasts"]
+        queryKey: queryKeys.forecasts.byCostElement(costElement.cost_element_id, currentBranch, { asOf })
       });
       setIsEditModalOpen(false);
     },

@@ -25,7 +25,8 @@ async def wipe() -> None:
         try:
             await conn.execute(text("DROP SCHEMA public CASCADE"))
             await conn.execute(text("CREATE SCHEMA public"))
-            await conn.execute(text("GRANT ALL ON SCHEMA public TO postgres"))
+            # Grant permissions to current database user (backcast), not postgres
+            await conn.execute(text("GRANT ALL ON SCHEMA public TO current_user"))
             await conn.execute(text("GRANT ALL ON SCHEMA public TO public"))
             print("Dropped and recreated public schema")
         except Exception as e:

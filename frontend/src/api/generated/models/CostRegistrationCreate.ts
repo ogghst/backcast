@@ -42,5 +42,9 @@ export type CostRegistrationCreate = {
      * ID of the cost element to charge
      */
     cost_element_id: string;
+    /**
+     * Optional control date for creation (valid_time start)
+     */
+    control_date?: (string | null);
 };
 

@@ -17,6 +17,7 @@ import {
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
 import type { PaginatedResponse } from "@/types/api";
+import { queryKeys } from "@/api/queryKeys";
 
 export interface ChangeOrderListParams {
   pagination?: {
@@ -45,7 +46,7 @@ export const useChangeOrders = (params: ChangeOrderListParams) => {
   const { asOf } = useTimeMachineParams();
 
   return useQuery({
-    queryKey: ["change-orders", params, { asOf }],
+    queryKey: queryKeys.changeOrders.list(params.projectId, { ...params, asOf }),
     queryFn: async () => {
       const serverParams = getPaginationParams(params);
 
@@ -98,11 +99,11 @@ export const useCreateChangeOrder = (
     onSuccess: (data, ...args) => {
       // Invalidate change orders queries for this project
       queryClient.invalidateQueries({
-        queryKey: ["change-orders", { projectId: data.project_id }],
+        queryKey: queryKeys.changeOrders.list(data.project_id.toString()),
       });
       // Refetch branches query for this project to show the new CO branch immediately
       queryClient.refetchQueries({
-        queryKey: ["projects", data.project_id, "branches"],
+        queryKey: queryKeys.projects.branches(data.project_id.toString()),
       });
       toast.success(`Change Order ${data.code} created with branch co-${data.code}`);
       mutationOptions?.onSuccess?.(data, ...args);
@@ -144,10 +145,10 @@ export const useUpdateChangeOrder = (
       return ChangeOrdersService.updateChangeOrder(id, payload as ChangeOrderUpdate);
     },
     onSuccess: (data, ...args) => {
-      queryClient.invalidateQueries({ queryKey: ["change-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
       // Invalidate branches query to update branch selector with new status
       queryClient.invalidateQueries({
-        queryKey: ["projects", data.project_id, "branches"],
+        queryKey: queryKeys.projects.branches(data.project_id.toString()),
       });
       toast.success("Updated successfully");
       mutationOptions?.onSuccess?.(data, ...args);
@@ -185,7 +186,7 @@ export const useDeleteChangeOrder = (
       }) as Promise<void>;
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["change-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
       // Invalidate all branch queries to remove deleted change order branch
       queryClient.invalidateQueries({
         predicate: (query) => {
@@ -218,7 +219,7 @@ export const useChangeOrder = (
   const { asOf } = useTimeMachineParams();
 
   return useQuery({
-    queryKey: ["change-orders", "detail", id, { asOf }],
+    queryKey: queryKeys.changeOrders.detail(id!, { asOf }),
     queryFn: async () => {
       if (!id) throw new Error("Change Order ID is required");
 
@@ -241,7 +242,7 @@ export const useChangeOrderHistory = (
   enabled = true
 ) => {
   return useQuery({
-    queryKey: ["change-orders", "history", id],
+    queryKey: queryKeys.changeOrders.detail(id!, { history: true }),
     queryFn: async () => {
       if (!id) throw new Error("Change Order ID is required");
       return ChangeOrdersService.getChangeOrderHistory(id);
@@ -274,7 +275,7 @@ export const useCheckMergeConflicts = (
   options?: Omit<UseQueryOptions<MergeConflict[], Error>, "queryKey">
 ) => {
   return useQuery({
-    queryKey: ["change-orders", "merge-conflicts", changeOrderId, sourceBranch, targetBranch],
+    queryKey: queryKeys.changeOrders.mergeConflicts(changeOrderId || "", sourceBranch, targetBranch),
     queryFn: async () => {
       if (!changeOrderId) throw new Error("Change Order ID is required");
       if (!sourceBranch) throw new Error("Source branch is required");
@@ -313,12 +314,12 @@ export const useMergeChangeOrder = (
     },
     onSuccess: (data, ...args) => {
       // Invalidate change orders queries
-      queryClient.invalidateQueries({ queryKey: ["change-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
       // Invalidate branches query for this project to update branch selector with new status
       queryClient.invalidateQueries({
-        queryKey: ["projects", data.project_id, "branches"],
+        queryKey: queryKeys.projects.branches(data.project_id.toString()),
       });
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
 
       const targetBranch = args[0]?.mergeRequest?.target_branch || "main";
       toast.success(

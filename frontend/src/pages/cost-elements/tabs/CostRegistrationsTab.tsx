@@ -28,6 +28,8 @@ import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
+import { queryKeys } from "@/api/queryKeys";
+import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 
 interface CostRegistrationsTabProps {
   costElement: CostElementRead;
@@ -51,6 +53,7 @@ export const CostRegistrationsTab = ({
     Record<string, FilterValue | null>
   >();
   const queryClient = useQueryClient();
+  const { asOf } = useTimeMachineParams();
 
   // Build query params
   const queryParams: CostRegistrationApiParams = {
@@ -77,14 +80,14 @@ export const CostRegistrationsTab = ({
       entityId: selectedRegistration?.cost_registration_id,
       fetchFn: (id) => CostRegistrationsService.getCostRegistrationHistory(id),
       enabled: historyOpen,
-    }
+    },
   );
 
   const { mutateAsync: createCostRegistration } = useCreateCostRegistration({
     onSuccess: () => {
       refetch();
       queryClient.invalidateQueries({
-        queryKey: ["budget_status", costElement.cost_element_id],
+        queryKey: queryKeys.costRegistrations.budgetStatus(costElement.cost_element_id, { asOf }),
       });
       setModalOpen(false);
     },
@@ -94,7 +97,7 @@ export const CostRegistrationsTab = ({
     onSuccess: () => {
       refetch();
       queryClient.invalidateQueries({
-        queryKey: ["budget_status", costElement.cost_element_id],
+        queryKey: queryKeys.costRegistrations.budgetStatus(costElement.cost_element_id, { asOf }),
       });
       setModalOpen(false);
     },
@@ -104,7 +107,7 @@ export const CostRegistrationsTab = ({
     onSuccess: () => {
       refetch();
       queryClient.invalidateQueries({
-        queryKey: ["budget_status", costElement.cost_element_id],
+        queryKey: queryKeys.costRegistrations.budgetStatus(costElement.cost_element_id, { asOf }),
       });
     },
   });
@@ -118,12 +121,16 @@ export const CostRegistrationsTab = ({
         "This will soft delete the cost registration. It will be preserved in history.",
       okText: "Yes, Delete",
       okType: "danger",
-      onOk: () => deleteCostRegistration(id),
+      onOk: () =>
+        deleteCostRegistration({
+          id,
+          costElementId: costElement.cost_element_id,
+        }),
     });
   };
 
   const getColumnSearchProps = (
-    dataIndex: keyof CostRegistrationRead
+    dataIndex: keyof CostRegistrationRead,
   ): ColumnType<CostRegistrationRead> => ({
     filterDropdown: ({
       setSelectedKeys,
@@ -184,7 +191,10 @@ export const CostRegistrationsTab = ({
       sorter: true,
       render: (amount) => (
         <span>
-          €{Number(amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          €
+          {Number(amount).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+          })}
         </span>
       ),
     },
@@ -207,8 +217,7 @@ export const CostRegistrationsTab = ({
       dataIndex: "registration_date",
       key: "registration_date",
       sorter: true,
-      render: (date) =>
-        date ? dayjs(date).format("YYYY-MM-DD HH:mm") : "-",
+      render: (date) => (date ? dayjs(date).format("YYYY-MM-DD HH:mm") : "-"),
     },
     {
       title: "Description",
@@ -272,7 +281,7 @@ export const CostRegistrationsTab = ({
   // Calculate total costs
   const totalCosts = costRegistrations.reduce(
     (sum, registration) => sum + Number(registration.amount),
-    0
+    0,
   );
 
   return (
@@ -304,7 +313,10 @@ export const CostRegistrationsTab = ({
                 Cost Registrations
               </div>
               <Tag color="blue">
-                Total: €{totalCosts.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                Total: €
+                {totalCosts.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                })}
               </Tag>
             </Space>
 
@@ -332,6 +344,7 @@ export const CostRegistrationsTab = ({
             await updateCostRegistration({
               id: selectedRegistration.cost_registration_id,
               data: values,
+              costElementId: costElement.cost_element_id,
             });
           } else {
             // Filter out undefined values and ensure required fields are present
@@ -339,7 +352,7 @@ export const CostRegistrationsTab = ({
             const createData: Parameters<typeof createCostRegistration>[0] = {
               cost_element_id: costElement.cost_element_id,
               amount: amount ?? 0,
-              ...(rest && typeof rest === 'object' ? rest : {}),
+              ...(rest && typeof rest === "object" ? rest : {}),
             };
             await createCostRegistration(createData);
           }

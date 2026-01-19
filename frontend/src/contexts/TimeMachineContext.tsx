@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useMemo, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTimeMachineStore, type BranchMode } from "@/stores/useTimeMachineStore";
+import { queryKeys } from "@/api/queryKeys";
 
 /**
  * Time Machine context value providing as_of, branch, and mode parameters
@@ -73,11 +74,11 @@ export function TimeMachineProvider({ children }: TimeMachineProviderProps) {
 
   // Invalidate queries when time or branch changes
   const invalidateQueries = useCallback(() => {
-    // Invalidate all project-related queries
-    queryClient.invalidateQueries({ queryKey: ["projects"] });
-    queryClient.invalidateQueries({ queryKey: ["wbes"] });
-    queryClient.invalidateQueries({ queryKey: ["cost-elements"] });
-    queryClient.invalidateQueries({ queryKey: ["cost-element-types"] });
+    // Invalidate all project-related queries using factory all keys
+    queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.wbes.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.costElements.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.costElementTypes.all });
   }, [queryClient]);
 
   const value = useMemo<TimeMachineContextValue>(

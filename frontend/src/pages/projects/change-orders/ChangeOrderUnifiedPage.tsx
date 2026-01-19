@@ -15,6 +15,7 @@ import {
 import { useProject } from "@/features/projects/api/useProjects";
 import type { ChangeOrderCreate, ChangeOrderUpdate } from "@/api/generated";
 import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/api/queryKeys";
 
 /**
  * ChangeOrderUnifiedPage - Single page for change order create/edit/view.
@@ -165,7 +166,7 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
       <ChangeOrderWorkflowSection
         changeOrder={changeOrder || null}
         onActionSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ["change-orders"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
         }}
         useCollapsibleCard
       />

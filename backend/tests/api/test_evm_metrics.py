@@ -211,19 +211,19 @@ class TestEVMMetricsAPI:
         assert "cpi" in data
         assert "spi" in data
 
-        # Verify values
-        assert data["bac"] == 100000  # Budget
-        assert data["ac"] == 60000  # Sum of costs
-        assert data["ev"] == 50000  # BAC × 50%
+        # Verify values (Decimal fields are serialized as strings)
+        assert data["bac"] == "100000.00"  # Budget
+        assert data["ac"] == "60000.00"  # Sum of costs
+        assert data["ev"] == "50000.0000"  # BAC × 50% (4 decimal places for calculated values)
 
         # Verify variances
-        assert data["cv"] == -10000  # EV - AC = 50000 - 60000
+        assert data["cv"] == "-10000.0000"  # EV - AC = 50000 - 60000
         # Note: PV depends on date calculation, may vary
 
         # Verify metadata
         assert data["cost_element_id"] == str(cost_element_id)
         assert "control_date" in data
-        assert data["progress_percentage"] == 50.0
+        assert data["progress_percentage"] == "50.00"
         assert data.get("warning") is None  # No warning (progress exists)
 
     @pytest.mark.asyncio
@@ -294,8 +294,8 @@ class TestEVMMetricsAPI:
         assert response.status_code == 200
         data = response.json()
 
-        # EV should be 0
-        assert data["ev"] == 0
+        # EV should be 0 (Decimal serialized as string, note: zero may be "0" not "0.00")
+        assert data["ev"] in ("0", "0.00")
 
         # Warning should be present
         assert data["warning"] is not None

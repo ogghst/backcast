@@ -60,6 +60,9 @@ export class CostRegistrationsService {
      *
      * Validates that the cost does not exceed the cost element's budget.
      * Raises BudgetExceededError if budget would be exceeded.
+     *
+     * The control_date parameter allows setting the valid_time start date,
+     * useful for backdated cost registrations or testing time-travel scenarios.
      * @param requestBody
      * @returns CostRegistrationRead Successful Response
      * @throws ApiError
@@ -72,115 +75,6 @@ export class CostRegistrationsService {
             url: '/api/v1/cost-registrations',
             body: requestBody,
             mediaType: 'application/json',
-            errors: {
-                422: `Validation Error`,
-            },
-        });
-    }
-    /**
-     * Read Cost Registration
-     * Get a specific cost registration by id.
-     *
-     * Supports time-travel queries via the as_of parameter to view
-     * the cost registration's state at any historical point in time.
-     * @param costRegistrationId
-     * @param asOf Time travel: get cost registration state as of this timestamp (ISO 8601)
-     * @returns CostRegistrationRead Successful Response
-     * @throws ApiError
-     */
-    public static getCostRegistration(
-        costRegistrationId: string,
-        asOf?: (string | null),
-    ): CancelablePromise<CostRegistrationRead> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/cost-registrations/{cost_registration_id}',
-            path: {
-                'cost_registration_id': costRegistrationId,
-            },
-            query: {
-                'as_of': asOf,
-            },
-            errors: {
-                422: `Validation Error`,
-            },
-        });
-    }
-    /**
-     * Update Cost Registration
-     * Update a cost registration.
-     *
-     * Creates a new version of the cost registration with the updated values.
-     * Previous versions are preserved in the history.
-     * @param costRegistrationId
-     * @param requestBody
-     * @returns CostRegistrationRead Successful Response
-     * @throws ApiError
-     */
-    public static updateCostRegistration(
-        costRegistrationId: string,
-        requestBody: CostRegistrationUpdate,
-    ): CancelablePromise<CostRegistrationRead> {
-        return __request(OpenAPI, {
-            method: 'PUT',
-            url: '/api/v1/cost-registrations/{cost_registration_id}',
-            path: {
-                'cost_registration_id': costRegistrationId,
-            },
-            body: requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: `Validation Error`,
-            },
-        });
-    }
-    /**
-     * Delete Cost Registration
-     * Soft delete a cost registration.
-     *
-     * Marks the cost registration as deleted but preserves it in the history.
-     * @param costRegistrationId
-     * @param controlDate Optional control date for deletion
-     * @returns void
-     * @throws ApiError
-     */
-    public static deleteCostRegistration(
-        costRegistrationId: string,
-        controlDate?: (string | null),
-    ): CancelablePromise<void> {
-        return __request(OpenAPI, {
-            method: 'DELETE',
-            url: '/api/v1/cost-registrations/{cost_registration_id}',
-            path: {
-                'cost_registration_id': costRegistrationId,
-            },
-            query: {
-                'control_date': controlDate,
-            },
-            errors: {
-                422: `Validation Error`,
-            },
-        });
-    }
-    /**
-     * Get Cost Registration History
-     * Get full version history for a cost registration.
-     *
-     * Returns all versions of the cost registration, ordered by transaction time.
-     * Includes both current and historical versions.
-     * @param costRegistrationId
-     * @returns CostRegistrationRead Successful Response
-     * @throws ApiError
-     */
-    public static getCostRegistrationHistory(
-        costRegistrationId: string,
-    ): CancelablePromise<Array<CostRegistrationRead>> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/cost-registrations/{cost_registration_id}/history',
-            path: {
-                'cost_registration_id': costRegistrationId,
-            },
             errors: {
                 422: `Validation Error`,
             },
@@ -287,6 +181,118 @@ export class CostRegistrationsService {
                 'start_date': startDate,
                 'end_date': endDate,
                 'as_of': asOf,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Read Cost Registration
+     * Get a specific cost registration by id.
+     *
+     * Supports time-travel queries via the as_of parameter to view
+     * the cost registration's state at any historical point in time.
+     * @param costRegistrationId
+     * @param asOf Time travel: get cost registration state as of this timestamp (ISO 8601)
+     * @returns CostRegistrationRead Successful Response
+     * @throws ApiError
+     */
+    public static getCostRegistration(
+        costRegistrationId: string,
+        asOf?: (string | null),
+    ): CancelablePromise<CostRegistrationRead> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/cost-registrations/{cost_registration_id}',
+            path: {
+                'cost_registration_id': costRegistrationId,
+            },
+            query: {
+                'as_of': asOf,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Update Cost Registration
+     * Update a cost registration.
+     *
+     * Creates a new version of the cost registration with the updated values.
+     * Previous versions are preserved in the history.
+     *
+     * The control_date parameter allows setting the valid_time start date for
+     * the new version, useful for backdating updates or testing time-travel.
+     * @param costRegistrationId
+     * @param requestBody
+     * @returns CostRegistrationRead Successful Response
+     * @throws ApiError
+     */
+    public static updateCostRegistration(
+        costRegistrationId: string,
+        requestBody: CostRegistrationUpdate,
+    ): CancelablePromise<CostRegistrationRead> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/cost-registrations/{cost_registration_id}',
+            path: {
+                'cost_registration_id': costRegistrationId,
+            },
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Delete Cost Registration
+     * Soft delete a cost registration.
+     *
+     * Marks the cost registration as deleted but preserves it in the history.
+     * @param costRegistrationId
+     * @param controlDate Optional control date for deletion
+     * @returns void
+     * @throws ApiError
+     */
+    public static deleteCostRegistration(
+        costRegistrationId: string,
+        controlDate?: (string | null),
+    ): CancelablePromise<void> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/cost-registrations/{cost_registration_id}',
+            path: {
+                'cost_registration_id': costRegistrationId,
+            },
+            query: {
+                'control_date': controlDate,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Get Cost Registration History
+     * Get full version history for a cost registration.
+     *
+     * Returns all versions of the cost registration, ordered by transaction time.
+     * Includes both current and historical versions.
+     * @param costRegistrationId
+     * @returns CostRegistrationRead Successful Response
+     * @throws ApiError
+     */
+    public static getCostRegistrationHistory(
+        costRegistrationId: string,
+    ): CancelablePromise<Array<CostRegistrationRead>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/cost-registrations/{cost_registration_id}/history',
+            path: {
+                'cost_registration_id': costRegistrationId,
             },
             errors: {
                 422: `Validation Error`,

@@ -7,6 +7,49 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+/**
+ * @fileoverview Generic CRUD Hook Factory
+ *
+ * **WHEN TO USE THIS GENERIC HOOK:**
+ *
+ * ✅ **USE FOR:** Simple, non-versioned entities (departments, cost element types, users)
+ *    - Entities WITHOUT Time Machine context (no branch/asOf/mode parameters)
+ *    - Entities WITHOUT versioning requirements (no history tracking)
+ *    - Standard CRUD operations only (create, read, update, delete)
+ *
+ * ❌ **DO NOT USE FOR:** Versioned entities (projects, WBEs, cost elements, forecasts)
+ *    - These should use `useVersionedCrud` from `@/hooks/useVersionedCrud.ts`
+ *    - Versioned entities require Time Machine context and special cache keys
+ *    - Always prefer domain-specific hooks from `@/features/{domain}/api/`
+ *
+ * **QUERY KEY PATTERN:**
+ *
+ * This generic hook creates query keys like: `[resourceName, "list", filters]`
+ * This is acceptable for simple entities but does NOT integrate with the centralized
+ * `queryKeys` factory at `@/api/queryKeys.ts`.
+ *
+ * For new code, prefer using the queryKeys factory directly:
+ *
+ * @example
+ * ```typescript
+ * // ❌ AVOID: Generic useCrud for versioned entities
+ * const { useList, useCreate } = createResourceHooks(
+ *   "projects",  // Wrong! Projects are versioned
+ *   ProjectService
+ * );
+ *
+ * // ✅ CORRECT: Use domain-specific hooks with factory keys
+ * import { useProjects, useCreateProject } from "@/features/projects/api/useProjects";
+ * // These hooks use queryKeys.projects.list() with Time Machine context
+ *
+ * // ✅ ACCEPTABLE: Generic useCrud for simple entities
+ * const { useList, useCreate } = createResourceHooks(
+ *   "departments",  // OK! Departments are not versioned
+ *   DepartmentService
+ * );
+ * ```
+ */
+
 export interface CrudOptions {
   invalidation?: {
     create?: string[];

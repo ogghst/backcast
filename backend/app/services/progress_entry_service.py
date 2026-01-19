@@ -155,29 +155,23 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         Returns:
             Latest ProgressEntry for the cost element, or None if no progress reported
         """
-        from sqlalchemy import or_
+        from sqlalchemy import func
 
-        # Build query for time-travel support
-        stmt = (
-            select(ProgressEntry)
-            .where(ProgressEntry.cost_element_id == cost_element_id)
+        # Build base query
+        stmt = select(ProgressEntry).where(
+            ProgressEntry.cost_element_id == cost_element_id
         )
 
-        # Time-travel filter
+        # Use standardized bitemporal filter for time-travel support
         if as_of is not None:
-            # Valid at the specified time (contains operator: range @> timestamp)
-            stmt = stmt.where(ProgressEntry.valid_time.op("@>")(as_of))
-            # Include records that were not deleted before as_of
-            # (deleted_at IS NULL OR deleted_at > as_of)
-            stmt = stmt.where(
-                or_(
-                    ProgressEntry.deleted_at.is_(None),
-                    ProgressEntry.deleted_at > as_of,
-                )
-            )
+            # Apply standardized filter (Valid Time Travel semantics)
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
         else:
             # Current versions only (open-ended valid_time and not deleted)
-            stmt = stmt.where(ProgressEntry.deleted_at.is_(None))
+            stmt = stmt.where(
+                func.upper(ProgressEntry.valid_time).is_(None),
+                ProgressEntry.deleted_at.is_(None),
+            )
 
         # Order by reported_date descending (most recent first)
         stmt = stmt.order_by(ProgressEntry.reported_date.desc()).limit(1)
@@ -228,9 +222,7 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         """Get progress entry as it was at specific timestamp.
 
         Provides Business Time Travel semantics (valid_time only) for progress entries.
-        Unlike System Time Travel, this does NOT check transaction_time, because progress
-        is reported as it happens, and we want to query based on when the progress was
-        reported, not when it was recorded in the system.
+        Uses standardized bitemporal filter for temporal queries.
 
         Args:
             progress_entry_id: The unique identifier of the progress entry
@@ -241,21 +233,13 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         Returns:
             ProgressEntry if found at the specified timestamp, None otherwise
         """
-        # Build query with valid_time filtering only (not transaction_time)
-        from sqlalchemy import func, or_
-
+        # Build base query
         stmt = select(ProgressEntry).where(
             ProgressEntry.progress_entry_id == progress_entry_id,
-            # Check as_of is within valid_time range
-            ProgressEntry.valid_time.op("@>")(as_of),
-            # CRITICAL: Also check as_of >= lower bound (entity existed)
-            func.lower(ProgressEntry.valid_time) <= as_of,
-            # Include records that were not deleted before as_of
-            or_(
-                ProgressEntry.deleted_at.is_(None),
-                ProgressEntry.deleted_at > as_of,
-            ),
-        ).limit(1)
+        )
+
+        # Apply standardized bitemporal filter (Valid Time Travel semantics)
+        stmt = self._apply_bitemporal_filter(stmt, as_of)
 
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
