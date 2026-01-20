@@ -10,6 +10,7 @@ from app.core.versioning.enums import BranchMode
 from app.models.schemas.evm import EVMMetricsRead
 from app.services.cost_element_service import CostElementService
 from app.services.cost_registration_service import CostRegistrationService
+from app.services.forecast_service import ForecastService
 from app.services.progress_entry_service import ProgressEntryService
 from app.services.schedule_baseline_service import ScheduleBaselineService
 
@@ -22,6 +23,9 @@ class EVMService:
     - PV (Planned Value)
     - AC (Actual Cost)
     - EV (Earned Value)
+    - EAC (Estimate at Completion) - from forecast
+    - VAC (Variance at Completion) - BAC - EAC
+    - ETC (Estimate to Complete) - EAC - AC
     - CV, SV (Variances)
     - CPI, SPI (Performance Indices)
 
@@ -39,6 +43,7 @@ class EVMService:
         self.sb_service = ScheduleBaselineService(db)
         self.cr_service = CostRegistrationService(db)
         self.pe_service = ProgressEntryService(db)
+        self.f_service = ForecastService(db)
 
     async def calculate_evm_metrics(
         self,
@@ -91,6 +96,18 @@ class EVMService:
         # Calculate performance indices
         cpi, spi = self._calculate_indices(ev, ac, pv)
 
+        # Get EAC (Estimate at Completion) from forecast with time-travel and branch mode
+        eac = await self._get_eac_as_of(cost_element_id, control_date, branch, branch_mode)
+
+        # Calculate VAC (Variance at Completion) and ETC (Estimate to Complete)
+        # VAC = BAC - EAC (negative = over budget, positive = under budget)
+        # ETC = EAC - AC (remaining work cost)
+        vac = None
+        etc = None
+        if eac is not None:
+            vac = bac - eac
+            etc = eac - ac
+
         return EVMMetricsRead(
             bac=bac,
             pv=pv,
@@ -100,6 +117,9 @@ class EVMService:
             sv=sv,
             cpi=cpi,
             spi=spi,
+            eac=eac,
+            vac=vac,
+            etc=etc,
             cost_element_id=cost_element_id,
             control_date=control_date,
             branch=branch,
@@ -240,6 +260,51 @@ class EVMService:
         ev = bac * progress_percentage / Decimal("100")
 
         return ev, progress_percentage, None
+
+    async def _get_eac_as_of(
+        self, cost_element_id: UUID, as_of: datetime, branch: str, branch_mode: BranchMode
+    ) -> Decimal | None:
+        """Get Estimate at Completion (EAC) from forecast.
+
+        Fetches the forecast associated with the cost element using time-travel.
+        The forecast provides the EAC (Estimate at Completion) value.
+
+        Uses Valid Time Travel semantics:
+        - Only checks valid_time (when the forecast was valid in the real world)
+        - Does NOT check transaction_time (when recorded in database)
+
+        Args:
+            cost_element_id: The cost element to get EAC for
+            as_of: Time-travel query date (fetches forecast at correct valid_time)
+            branch: Branch name
+            branch_mode: Branch isolation mode (STRICT or MERGE)
+
+        Returns:
+            EAC value or None if forecast not found
+        """
+        # First, get the cost element to find its forecast_id
+        cost_element = await self.ce_service.get_as_of(
+            entity_id=cost_element_id, as_of=as_of, branch=branch, branch_mode=branch_mode
+        )
+
+        if cost_element is None or cost_element.forecast_id is None:
+            # No cost element or no forecast associated
+            return None
+
+        # Get the forecast as of the control date (time-travel)
+        # This uses Valid Time Travel semantics via BranchableService.get_as_of()
+        forecast = await self.f_service.get_as_of(
+            entity_id=cost_element.forecast_id,
+            as_of=as_of,
+            branch=branch,
+            branch_mode=branch_mode,
+        )
+
+        if forecast is None:
+            # No forecast found at this control_date
+            return None
+
+        return forecast.eac_amount
 
     def _calculate_variances(
         self, ev: Decimal, ac: Decimal, pv: Decimal

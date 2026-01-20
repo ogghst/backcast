@@ -73,6 +73,22 @@ class EVMMetricsRead(BaseModel):
         None, description="Schedule Performance Index (EV / PV, < 1.0 = behind schedule)"
     )
 
+    # Forecast-based metrics (from forecast entity)
+    eac: Decimal | None = Field(
+        None,
+        description="Estimate at Completion (from forecast.eac_amount, "
+        "projected total cost at completion)",
+    )
+    vac: Decimal | None = Field(
+        None,
+        description="Variance at Completion = BAC - EAC (negative = over budget, "
+        "positive = under budget)",
+    )
+    etc: Decimal | None = Field(
+        None,
+        description="Estimate to Complete = EAC - AC (remaining work cost)",
+    )
+
     # Metadata
     cost_element_id: UUID = Field(..., description="Cost Element ID")
     control_date: datetime = Field(
