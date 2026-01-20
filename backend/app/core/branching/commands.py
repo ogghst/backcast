@@ -184,6 +184,9 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
                 f"No active version on branch {self.branch} for {self.root_id}"
             )
 
+        # CRITICAL: Store current_id before any modifications for use in parent_id
+        current_id = current.id
+
         if self.control_date:
             current_lower = cast(Any, current).valid_time.lower
             # NOTE: Allow control_date == current_lower for Time Machine mode
@@ -197,18 +200,9 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
             # If control_date == current_lower, the new version completely replaces the old one
             # starting from the same time, so no "previous history" (remainder) is needed for this period.
             if self.control_date > current_lower:
-                # Create a remainder version for the period [current_lower, control_date)
-                # This ensures we preserve "Current Knowledge" that the entity WAS valid during that period.
-                # CRITICAL: The remainder is HISTORICAL data (was corrected), so its transaction_time
-                # must be CLOSED at the update_timestamp to show it was superseded by the new version.
-                remainder = cast(
-                    TBranchable, current.clone(parent_id=current.parent_id)
-                )
-                session.add(remainder)
-                await session.flush()
-
-                # Fix Remainder Times
-                # CRITICAL FIX: Close remainder's transaction_time to show it was corrected
+                # EVCS FIX: Modify current row in-place to become the remainder
+                # instead of creating a new row. This prevents duplicate rows with
+                # identical data, which violates EVCS temporal patterns.
                 tablename = str(getattr(self.entity_class, "__tablename__", ""))
                 stmt_rem = text(
                     f"""
@@ -226,22 +220,27 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
                         "upper": self.control_date,
                         "tx_lower": cast(Any, current).transaction_time.lower,
                         "tx_upper": update_timestamp,  # Close: remainder was corrected at this time
-                        "version_id": remainder.id,
+                        "version_id": current.id,
                     },
                 )
+                await session.flush()
+                # Skip the _close_version call below since we already closed it
+                current = None
 
         # 2. Clone and apply updates (Safe Clone via Core Select)
         # Fetch raw data to avoid ORM lazy-load triggers (MissingGreenlet)
-        # CRITICAL FIX: Store current_id before closing to avoid accessing expired entity
-        current_id = current.id
+        # If current was converted to remainder above, we need to refresh it first
+        if current is None:
+            current = await session.get(self.entity_class, current_id)
         new_version = cast(
             TBranchable, current.clone(**self.updates, parent_id=current_id)
         )
 
-        # 3. Close current
-        await self._close_version(
-            session, current, close_at_valid_time=self.control_date
-        )
+        # 3. Close current (only if not already closed as remainder)
+        if current is not None:
+            await self._close_version(
+                session, current, close_at_valid_time=self.control_date
+            )
 
         # CRITICAL FIX: Use the same update_timestamp for both ranges to avoid empty ranges
         # When control_date is None (normal update), use update_timestamp for valid_time lower bound

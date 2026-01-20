@@ -17,6 +17,7 @@ from app.models.schemas.cost_element import (
     CostElementRead,
     CostElementUpdate,
 )
+from app.models.schemas.forecast import ForecastUpdate
 from app.services.cost_element_service import CostElementService
 from app.services.evm_service import EVMService
 from app.services.forecast_service import ForecastService
@@ -249,13 +250,15 @@ async def delete_cost_element(
 )
 async def get_cost_element_history(
     cost_element_id: UUID,
+    branch: str = Query("main", description="Branch to query history from"),
     service: CostElementService = Depends(get_cost_element_service),
 ) -> Sequence[CostElement]:
-    """Get full version history for a cost element across all branches."""
-    # TODO: History might need branch filtering too?
-    # TemporalService.get_history gets ALL versions by root_id.
-    # This is correct for "history view".
-    return await service.get_history(cost_element_id)
+    """Get full version history for a cost element in a specific branch.
+
+    Returns all versions of the cost element in the specified branch,
+    ordered by transaction_time descending (most recent first).
+    """
+    return await service.get_history(cost_element_id, branch=branch)
 
 
 @router.get(
@@ -593,26 +596,71 @@ async def read_evm_metrics(
 async def get_cost_element_forecast(
     cost_element_id: UUID,
     branch: str = Query("main", description="Branch to query"),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get forecast state as of this timestamp (ISO 8601)",
+    ),
     forecast_service: ForecastService = Depends(get_forecast_service),
+    cost_element_service: CostElementService = Depends(get_cost_element_service),
 ) -> dict[str, Any]:
     """Get the forecast for a specific cost element.
 
     Returns the single forecast associated with this cost element
     in the specified branch. Returns 404 if no forecast exists.
 
+    Supports time-travel queries via the as_of parameter to view
+    the forecast's state at any historical point in time.
+
     This endpoint follows the inverted FK pattern, querying via
     cost_element.forecast_id instead of forecast.cost_element_id.
     """
-    forecast = await forecast_service.get_for_cost_element(
-        cost_element_id=cost_element_id,
-        branch=branch,
-    )
+    # Get the cost element using service layer
+    if as_of:
+        # Time travel query
+        cost_element = await cost_element_service.get_cost_element_as_of(
+            cost_element_id, as_of, branch=branch
+        )
+    else:
+        # Current version
+        cost_element = await cost_element_service.get_by_id(
+            cost_element_id, branch=branch
+        )
+
+    if not cost_element:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Cost element {cost_element_id} not found in branch '{branch}'"
+            + (f" as of {as_of}" if as_of else ""),
+        )
+
+    if not cost_element.forecast_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Forecast not found for cost element {cost_element_id} "
+            f"in branch '{branch}'"
+            + (f" as of {as_of}" if as_of else ""),
+        )
+
+    # Get forecast using the service layer
+    if as_of:
+        # Time-travel query using service method
+        forecast = await forecast_service.get_as_of(
+            entity_id=cost_element.forecast_id,
+            as_of=as_of,
+            branch=branch,
+        )
+    else:
+        # Current version using service method
+        forecast = await forecast_service.get_by_id(
+            cost_element.forecast_id, branch=branch
+        )
 
     if not forecast:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Forecast not found for cost element {cost_element_id} "
-            f"in branch '{branch}'",
+            f"in branch '{branch}'"
+            + (f" as of {as_of}" if as_of else ""),
         )
 
     # Convert to dict with cost element details
@@ -620,28 +668,11 @@ async def get_cost_element_forecast(
 
     forecast_dict = ForecastRead.model_validate(forecast).model_dump()
 
-    # Add cost element details if available
-
-    stmt = select(
-        CostElement.cost_element_id,
-        CostElement.code,
-        CostElement.name,
-        CostElement.budget_amount,
-    ).where(
-        CostElement.cost_element_id == cost_element_id,
-        CostElement.branch == branch,
-        # "Current" filter - get current version only
-        func.upper(CostElement.valid_time).is_(None),
-        CostElement.deleted_at.is_(None),
-    )
-    result = await forecast_service.session.execute(stmt)
-    ce_row = result.first()
-
-    if ce_row:
-        forecast_dict["cost_element_id"] = ce_row.cost_element_id
-        forecast_dict["cost_element_code"] = ce_row.code
-        forecast_dict["cost_element_name"] = ce_row.name
-        forecast_dict["cost_element_budget_amount"] = ce_row.budget_amount
+    # Add cost element details
+    forecast_dict["cost_element_id"] = cost_element.cost_element_id
+    forecast_dict["cost_element_code"] = cost_element.code
+    forecast_dict["cost_element_name"] = cost_element.name
+    forecast_dict["cost_element_budget_amount"] = cost_element.budget_amount
 
     return forecast_dict
 
@@ -654,7 +685,7 @@ async def get_cost_element_forecast(
 )
 async def update_cost_element_forecast(
     cost_element_id: UUID,
-    forecast_in: dict[str, Any],  # ForecastUpdate
+    forecast_in: "ForecastUpdate",
     current_user: User = Depends(get_current_active_user),
     forecast_service: ForecastService = Depends(get_forecast_service),
 ) -> dict[str, Any]:
@@ -671,12 +702,9 @@ async def update_cost_element_forecast(
     from app.models.domain.cost_element import CostElement
     from app.services.forecast_service import ForecastAlreadyExistsError
 
-    # Extract branch and control_date from request body
-    branch = forecast_in.get("branch", "main")
-    control_date = forecast_in.get("control_date")
-    # Convert control_date from string to datetime if needed
-    if control_date and isinstance(control_date, str):
-        control_date = datetime.fromisoformat(control_date.replace("Z", "+00:00"))
+    # Extract branch and control_date from Pydantic model
+    branch = forecast_in.branch if forecast_in.branch is not None else "main"
+    control_date = forecast_in.control_date
 
     # Check if forecast exists
     existing_forecast = await forecast_service.get_for_cost_element(
@@ -687,18 +715,15 @@ async def update_cost_element_forecast(
     if existing_forecast:
         # Update existing forecast
         # Build update data - only include fields that were actually provided
-        update_data = {}
-        if "eac_amount" in forecast_in and forecast_in["eac_amount"] is not None:
-            update_data["eac_amount"] = Decimal(str(forecast_in["eac_amount"]))
-        if "basis_of_estimate" in forecast_in:
-            update_data["basis_of_estimate"] = forecast_in["basis_of_estimate"]
-        if "approved_date" in forecast_in:
-            approved_date = forecast_in["approved_date"]
-            if isinstance(approved_date, str):
-                approved_date = datetime.fromisoformat(approved_date.replace("Z", "+00:00"))
-            update_data["approved_date"] = approved_date
-        if "approved_by" in forecast_in:
-            update_data["approved_by"] = forecast_in["approved_by"]
+        update_data: dict[str, Any] = {}
+        if forecast_in.eac_amount is not None:
+            update_data["eac_amount"] = forecast_in.eac_amount
+        if forecast_in.basis_of_estimate is not None:
+            update_data["basis_of_estimate"] = forecast_in.basis_of_estimate
+        if forecast_in.approved_date is not None:
+            update_data["approved_date"] = forecast_in.approved_date
+        if forecast_in.approved_by is not None:
+            update_data["approved_by"] = forecast_in.approved_by
 
         # Update forecast using standard update method
         updated_forecast = await forecast_service.update(
@@ -712,8 +737,8 @@ async def update_cost_element_forecast(
         # Create new forecast
         # Build create data
         create_data: dict[str, Any] = {}
-        if "eac_amount" in forecast_in and forecast_in["eac_amount"] is not None:
-            create_data["eac_amount"] = Decimal(str(forecast_in["eac_amount"]))
+        if forecast_in.eac_amount is not None:
+            create_data["eac_amount"] = forecast_in.eac_amount
         else:
             # Get budget from cost element as default
             from sqlalchemy import func, select
@@ -729,18 +754,15 @@ async def update_cost_element_forecast(
             ce_row = ce_result.first()
             create_data["eac_amount"] = ce_row.budget_amount if ce_row else Decimal("0.00")
 
-        if "basis_of_estimate" in forecast_in:
-            create_data["basis_of_estimate"] = forecast_in["basis_of_estimate"]
+        if forecast_in.basis_of_estimate is not None:
+            create_data["basis_of_estimate"] = forecast_in.basis_of_estimate
         else:
             create_data["basis_of_estimate"] = "Initial forecast"
 
-        if "approved_date" in forecast_in:
-            approved_date = forecast_in["approved_date"]
-            if isinstance(approved_date, str):
-                approved_date = datetime.fromisoformat(approved_date.replace("Z", "+00:00"))
-            create_data["approved_date"] = approved_date
-        if "approved_by" in forecast_in:
-            create_data["approved_by"] = forecast_in["approved_by"]
+        if forecast_in.approved_date is not None:
+            create_data["approved_date"] = forecast_in.approved_date
+        if forecast_in.approved_by is not None:
+            create_data["approved_by"] = forecast_in.approved_by
 
         try:
             updated_forecast = await forecast_service.create_for_cost_element(

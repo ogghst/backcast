@@ -323,6 +323,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 "deleted_at",
                 "id",  # New version needs new ID
                 "schedule_baseline_id",  # Don't copy baseline ID - will create new one
+                "forecast_id",  # Don't copy forecast ID - will create new one
             ]
             for field in system_fields:
                 data.pop(field, None)
@@ -590,8 +591,18 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         )
         return items
 
-    async def get_history(self, root_id: UUID) -> builtins.list[CostElement]:
-        """Get all versions of a cost element with creator, WBE name, and type info."""
+    async def get_history(
+        self, root_id: UUID, branch: str = "main"
+    ) -> builtins.list[CostElement]:
+        """Get all versions of a cost element with creator, WBE name, and type info.
+
+        Args:
+            root_id: Root cost_element_id
+            branch: Branch to query history from (default: "main")
+
+        Returns:
+            List of cost element versions in the specified branch, ordered by transaction_time descending
+        """
         from sqlalchemy.orm import aliased
 
         from app.models.domain.user import User
@@ -647,6 +658,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             )
             .where(
                 CostElement.cost_element_id == root_id,
+                CostElement.branch == branch,
                 cast(Any, CostElement).deleted_at.is_(None),
             )
             .order_by(cast(Any, CostElement).transaction_time.desc())

@@ -231,3 +231,72 @@ async def test_delete_cost_element_branch(
     # Verify deleted in main
     get_res = await client.get(f"/api/v1/cost-elements/{element_id}?branch=main")
     assert get_res.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_history_filters_by_branch(
+    client: AsyncClient, setup_dependencies: dict[str, Any]
+) -> None:
+    """Test that get_history correctly filters versions by branch."""
+    deps = setup_dependencies
+    
+    # 1. Create cost element in main
+    element_data = {
+        "code": f"CE-HIST-{uuid4().hex[:4].upper()}",
+        "name": "Original in Main",
+        "budget_amount": 1000.00,
+        "wbe_id": deps["wbe_id"],
+        "cost_element_type_id": deps["cost_element_type_id"],
+    }
+    create_res = await client.post("/api/v1/cost-elements", json=element_data)
+    assert create_res.status_code == 201
+    element_id = create_res.json()["cost_element_id"]
+    
+    # 2. Update in main (creates second version in main)
+    update_res = await client.put(
+        f"/api/v1/cost-elements/{element_id}",
+        json={"name": "Updated in Main", "branch": "main"}
+    )
+    assert update_res.status_code == 200
+    
+    # 3. Create version in feature branch (fork)
+    feature_update_res = await client.put(
+        f"/api/v1/cost-elements/{element_id}",
+        json={"name": "Feature Branch Version", "branch": "feature-1"}
+    )
+    assert feature_update_res.status_code == 200
+    
+    # 4. Get history for main branch
+    main_history_res = await client.get(
+        f"/api/v1/cost-elements/{element_id}/history?branch=main"
+    )
+    assert main_history_res.status_code == 200
+    main_history = main_history_res.json()
+    
+    # Should have 2 versions in main (original + update)
+    assert len(main_history) == 2
+    assert all(v["branch"] == "main" for v in main_history)
+    # Most recent first (transaction_time desc)
+    assert main_history[0]["name"] == "Updated in Main"
+    assert main_history[1]["name"] == "Original in Main"
+    
+    # 5. Get history for feature-1 branch
+    feature_history_res = await client.get(
+        f"/api/v1/cost-elements/{element_id}/history?branch=feature-1"
+    )
+    assert feature_history_res.status_code == 200
+    feature_history = feature_history_res.json()
+    
+    # Should have 1 version in feature-1 (the fork)
+    assert len(feature_history) == 1
+    assert feature_history[0]["branch"] == "feature-1"
+    assert feature_history[0]["name"] == "Feature Branch Version"
+    
+    # 6. Verify default branch is main
+    default_history_res = await client.get(
+        f"/api/v1/cost-elements/{element_id}/history"
+    )
+    assert default_history_res.status_code == 200
+    default_history = default_history_res.json()
+    assert len(default_history) == 2
+    assert all(v["branch"] == "main" for v in default_history)

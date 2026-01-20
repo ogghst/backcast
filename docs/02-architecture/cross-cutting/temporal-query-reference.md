@@ -42,38 +42,55 @@ This document is the **definitive reference** for bitemporal queries and time tr
 
 ---
 
-## Two Types of Time Travel
+## Time Travel Semantics
 
-### 1. Valid Time Travel (List Queries)
+> [!IMPORTANT]
+> **ALWAYS use Valid Time Travel semantics. NEVER use System Time Travel semantics.**
+>
+> All time-travel queries MUST only filter by `valid_time`. The `transaction_time` dimension is used for audit/correction tracking but MUST NOT be used for filtering query results.
 
-**Use Case:** "Show me the list of projects as they were valid on Jan 1st."
-**Context:** List views, reports, history browsing.
+### Valid Time Travel (THE ONLY SUPPORTED SEMANTIC)
+
+**Use Case:** "Show me entities as they were valid at a specific point in time."
+
+**Context:** All time-travel queries, including:
+
+- List views and reports
+- History browsing
+- Forward-looking scenarios (e.g., forecasts with future `control_date`)
+- Branch-aware queries
+- Single-entity `get_as_of()` queries
 
 **Semantics:**
 
 - `valid_time` must contain the target `as_of` timestamp
-- `transaction_time` is **not used for filtering** (used only for audit/correction tracking)
+- `transaction_time` is **NEVER used for filtering** (only for audit/correction tracking)
 - `deleted_at`: If the entity was logically deleted _after_ `as_of`, it should appear. If deleted _before_ `as_of`, it should not.
 
 **Why This Matters:**
 
-List queries filter by `valid_time` only to show what business facts were valid at the specified time. The `transaction_time` dimension tracks when corrections were made but does not filter results. If overlapping `valid_time` ranges exist (due to corrections), the latest version by `transaction_time` should be used - this is handled by `DISTINCT ON` in branch mode filtering or by ordering in service methods.
+Queries filter by `valid_time` only to show what business facts were valid at the specified time. This allows:
+
+- **Historical queries**: "What was the forecast on Feb 10th?"
+- **Forward-looking queries**: "What will the forecast be on Mar 15th?" (when `control_date > now()`)
+- **Consistent semantics**: All time-travel queries work the same way
+
+The `transaction_time` dimension tracks when corrections were made but does not filter results. If overlapping `valid_time` ranges exist (due to corrections), the latest version by `transaction_time` should be used - this is handled by `DISTINCT ON` in branch mode filtering or by ordering in service methods.
 
 > **Note:** Overlapping `valid_time` ranges should be prevented at create/update time. See [Technical Debt Register](../../03-project-plan/technical-debt-register.md#td-058-overlapping-valid_time-constraint) for details.
 
-### 2. System Time Travel (Audit / Reproducibility)
+### ~~System Time Travel~~ (DEPRECATED - DO NOT USE)
 
-**Use Case:** "Show me exactly what the system returned on Jan 1st at 12:00 PM." (Undoing a mistake, debugging a past bug).
-**Context:** Audit logs, debugging, strict reproducibility.
+> [!CAUTION]
+> **System Time Travel is DEPRECATED and must NOT be used.**
+>
+> Previous implementations that checked both `valid_time` AND `transaction_time` have been removed. This semantic was problematic because:
+>
+> - It prevented forward-looking queries (future `as_of` dates)
+> - It was inconsistent with business requirements
+> - It conflated "when it was valid" with "when it was recorded"
 
-**Semantics:**
-
-- `valid_time` must contain `as_of`
-- `transaction_time` must contain `as_of` (ignores corrections made after the fact)
-
-**Why This Matters:**
-
-For audit compliance, you may need to prove what the system actually showed at a specific moment, regardless of later corrections.
+If you need audit/reproducibility features, implement them separately without mixing temporal dimensions in query filters.
 
 ---
 

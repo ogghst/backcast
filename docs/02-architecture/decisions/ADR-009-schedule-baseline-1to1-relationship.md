@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Rejected
 
 ## Context
 
@@ -18,6 +18,7 @@ The system originally allowed multiple schedule baselines to exist for a single 
 ### Original Architecture
 
 The original relationship was:
+
 - **schedule_baselines.cost_element_id** (FK) → **cost_elements.cost_element_id**
 - This was a 1:N relationship (one cost element could have many schedule baselines)
 - Schedule baselines were branchable and versionable
@@ -172,11 +173,13 @@ Invert the relationship between Cost Elements and Schedule Baselines to enforce 
 Allow multiple schedule baselines per cost element, but designate one as "active" via a boolean flag.
 
 **Pros**:
+
 - Preserves all historical baselines without archiving
 - Flexibility to switch active baseline
 - Clearer migration path (just add flag)
 
 **Cons**:
+
 - Ambiguity risk (users may not know which is active)
 - Complex validation (ensure only one active)
 - UI complexity (need to manage multiple baselines)
@@ -189,11 +192,13 @@ Allow multiple schedule baselines per cost element, but designate one as "active
 Make schedule baseline a child entity of cost element, not independently branchable. Inherits branch from cost element.
 
 **Pros**:
+
 - Simpler model (no independent branching)
 - Consistent lifecycle (follows cost element)
 - Cleaner API (nested endpoints)
 
 **Cons**:
+
 - Loses independent branching (cannot what-if schedule alone)
 - Tight coupling (schedule cannot exist without cost element)
 - Reduced flexibility (change orders affect entire cost element)
@@ -205,11 +210,13 @@ Make schedule baseline a child entity of cost element, not independently brancha
 Embed schedule baseline data directly in cost element, with versioning tracked within cost element history.
 
 **Pros**:
+
 - Maximum simplicity (no separate entity)
 - Atomic updates (schedule and cost element together)
 - Best performance (no joins required)
 
 **Cons**:
+
 - Loses schedule independence (cannot manage separately)
 - Bloats cost element (mixing concerns)
 - Harder to query (schedule-specific queries become complex)
@@ -237,6 +244,7 @@ Embed schedule baseline data directly in cost element, with versioning tracked w
 ### Implementation Details
 
 **Database Schema Changes**:
+
 ```sql
 -- Added to cost_elements table
 ALTER TABLE cost_elements
@@ -251,6 +259,7 @@ WHERE schedule_baseline_id IS NOT NULL;
 ```
 
 **PV Calculation (Simplified)**:
+
 ```python
 async def calculate_pv(
     cost_element_id: UUID,
@@ -288,6 +297,7 @@ async def calculate_pv(
 ### Review Date
 
 This ADR should be reviewed after 6 months of production use to assess:
+
 - User feedback on the 1:1 relationship model
 - Performance of PV calculations
 - Need for additional features (historical comparison, templates)

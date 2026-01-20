@@ -199,7 +199,15 @@ class TemporalService[TVersionable: VersionableProtocol]:
     async def _get_as_of_from_branch(
         self, entity_id: UUID, as_of: datetime, branch: str
     ) -> TVersionable | None:
-        """Internal: Get entity from specific branch at timestamp."""
+        """Internal: Get entity from specific branch at timestamp.
+        
+        Uses Valid Time Travel semantics:
+        - Only checks valid_time (when the fact was valid in the real world)
+        - Does NOT check transaction_time (when recorded in database)
+        
+        This allows querying historical states and forward-looking scenarios
+        (e.g., forecasts with future control_dates).
+        """
         from typing import Any, cast
 
         root_field = self._get_root_field_name()
@@ -212,9 +220,8 @@ class TemporalService[TVersionable: VersionableProtocol]:
         if hasattr(self.entity_class, "branch"):
             stmt = stmt.where(cast(Any, self.entity_class).branch == branch)
 
-        # Apply bitemporal filtering for time-travel queries
-        # Use System Time Travel semantics to find historical versions
-        stmt = self._apply_bitemporal_filter_for_time_travel(stmt, as_of)
+        # Apply Valid Time Travel filter (only checks valid_time, not transaction_time)
+        stmt = self._apply_bitemporal_filter(stmt, as_of)
 
         stmt = stmt.limit(1)
         result = await self.session.execute(stmt)

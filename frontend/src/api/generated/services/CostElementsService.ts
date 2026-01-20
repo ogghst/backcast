@@ -6,6 +6,7 @@ import type { BranchMode } from '../models/BranchMode';
 import type { CostElementCreate } from '../models/CostElementCreate';
 import type { CostElementRead } from '../models/CostElementRead';
 import type { CostElementUpdate } from '../models/CostElementUpdate';
+import type { ForecastUpdate } from '../models/ForecastUpdate';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
@@ -169,19 +170,27 @@ export class CostElementsService {
     }
     /**
      * Get Cost Element History
-     * Get full version history for a cost element across all branches.
+     * Get full version history for a cost element in a specific branch.
+     *
+     * Returns all versions of the cost element in the specified branch,
+     * ordered by transaction_time descending (most recent first).
      * @param costElementId
+     * @param branch Branch to query history from
      * @returns CostElementRead Successful Response
      * @throws ApiError
      */
     public static getCostElementHistory(
         costElementId: string,
+        branch: string = 'main',
     ): CancelablePromise<Array<CostElementRead>> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/cost-elements/{cost_element_id}/history',
             path: {
                 'cost_element_id': costElementId,
+            },
+            query: {
+                'branch': branch,
             },
             errors: {
                 422: `Validation Error`,
@@ -248,23 +257,18 @@ export class CostElementsService {
      * Raises 400 if a baseline already exists for this cost element.
      * @param costElementId
      * @param requestBody
-     * @param branch Branch to create in
      * @returns any Successful Response
      * @throws ApiError
      */
     public static createCostElementScheduleBaseline(
         costElementId: string,
         requestBody: Record<string, any>,
-        branch: string = 'main',
     ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/cost-elements/{cost_element_id}/schedule-baseline',
             path: {
                 'cost_element_id': costElementId,
-            },
-            query: {
-                'branch': branch,
             },
             body: requestBody,
             mediaType: 'application/json',
@@ -282,7 +286,6 @@ export class CostElementsService {
      * @param costElementId
      * @param baselineId
      * @param requestBody
-     * @param branch Branch to update in
      * @returns any Successful Response
      * @throws ApiError
      */
@@ -290,7 +293,6 @@ export class CostElementsService {
         costElementId: string,
         baselineId: string,
         requestBody: Record<string, any>,
-        branch: string = 'main',
     ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'PUT',
@@ -298,9 +300,6 @@ export class CostElementsService {
             path: {
                 'cost_element_id': costElementId,
                 'baseline_id': baselineId,
-            },
-            query: {
-                'branch': branch,
             },
             body: requestBody,
             mediaType: 'application/json',
@@ -398,16 +397,21 @@ export class CostElementsService {
      * Returns the single forecast associated with this cost element
      * in the specified branch. Returns 404 if no forecast exists.
      *
+     * Supports time-travel queries via the as_of parameter to view
+     * the forecast's state at any historical point in time.
+     *
      * This endpoint follows the inverted FK pattern, querying via
      * cost_element.forecast_id instead of forecast.cost_element_id.
      * @param costElementId
      * @param branch Branch to query
+     * @param asOf Time travel: get forecast state as of this timestamp (ISO 8601)
      * @returns any Successful Response
      * @throws ApiError
      */
     public static getCostElementForecast(
         costElementId: string,
         branch: string = 'main',
+        asOf?: (string | null),
     ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -417,6 +421,7 @@ export class CostElementsService {
             },
             query: {
                 'branch': branch,
+                'as_of': asOf,
             },
             errors: {
                 422: `Validation Error`,
@@ -434,26 +439,18 @@ export class CostElementsService {
      * Raises 400 if a forecast already exists (when creating new).
      * @param costElementId
      * @param requestBody
-     * @param branch Branch to update in
-     * @param controlDate Control date for valid_time (ISO 8601). Sets when the forecast becomes valid in the real world. Defaults to current time if not provided.
      * @returns any Successful Response
      * @throws ApiError
      */
     public static updateCostElementForecast(
         costElementId: string,
-        requestBody: Record<string, any>,
-        branch: string = 'main',
-        controlDate?: (string | null),
+        requestBody: ForecastUpdate,
     ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'PUT',
             url: '/api/v1/cost-elements/{cost_element_id}/forecast',
             path: {
                 'cost_element_id': costElementId,
-            },
-            query: {
-                'branch': branch,
-                'control_date': controlDate,
             },
             body: requestBody,
             mediaType: 'application/json',

@@ -484,6 +484,12 @@ class BranchableService[TBranchable: BranchableProtocol]:
         branch_mode: BranchMode | None = None,
     ) -> TBranchable | None:
         """Time travel: Get active version at specific timestamp on a branch.
+        
+        Uses Valid Time Travel semantics:
+        - Only checks valid_time (when the fact was valid in the real world)
+        - Does NOT check transaction_time (when recorded in database)
+        
+        This allows querying historical states and forward-looking scenarios.
 
         Args:
             entity_id: Root entity ID
@@ -494,16 +500,13 @@ class BranchableService[TBranchable: BranchableProtocol]:
         # Helper to get root field name
         root_field = self._get_root_field_name()
 
-        # Base conditions for ID and Time
+        # Base conditions for ID and Valid Time (not transaction time!)
         conditions = [
             getattr(self.entity_class, root_field) == entity_id,
             # Valid Time Coverage
             cast(Any, self.entity_class).valid_time.op("@>")(as_of),
             func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
-            # Transaction Time Coverage
-            cast(Any, self.entity_class).transaction_time.op("@>")(as_of),
-            func.lower(cast(Any, self.entity_class).transaction_time) <= as_of,
-            # Deleted At Check
+            # Deleted At Check (respect temporal deletion)
             func.coalesce(cast(Any, self.entity_class).deleted_at, datetime.max)
             > as_of,
         ]

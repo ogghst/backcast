@@ -357,6 +357,7 @@ export const useCostElementForecast = (
       return await CostElementsService.getCostElementForecast(
         costElementId,
         branch || tmBranch || "main",
+        asOf || undefined,
       );
     },
     enabled: !!costElementId,
@@ -392,12 +393,15 @@ export const useUpdateCostElementForecast = (
       data: Record<string, any>;
       branch?: string;
     }) => {
-      // Pass control_date as query parameter (4th argument)
+      // Include branch and control_date in request body (as per API conventions for write operations)
+      const payload = {
+        ...data,
+        branch: branch || "main",
+        control_date: asOf || null,
+      };
       return CostElementsService.updateCostElementForecast(
         costElementId,
-        data,
-        branch || "main",
-        asOf || undefined,
+        payload,
       );
     },
     onSuccess: (...args) => {
@@ -474,10 +478,10 @@ export const useCostElementEvmMetrics = (
   const { branch: tmBranch, asOf } = useTimeMachineParams();
 
   return useQuery({
-    queryKey: queryKeys.costElements.evmMetrics(
-      costElementId,
-      { branch: branch || tmBranch, asOf }
-    ),
+    queryKey: queryKeys.costElements.evmMetrics(costElementId, {
+      branch: branch || tmBranch,
+      asOf,
+    }),
     queryFn: async () => {
       return await CostElementsService.getEvmMetrics(
         costElementId,

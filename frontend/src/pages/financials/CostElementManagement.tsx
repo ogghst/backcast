@@ -142,9 +142,10 @@ export const CostElementManagement = ({
     {
       resource: "cost_elements",
       entityId: selectedElement?.cost_element_id,
-      fetchFn: (id) => CostElementsService.getCostElementHistory(id),
+      fetchFn: (id) =>
+        CostElementsService.getCostElementHistory(id, currentBranch),
       enabled: historyOpen,
-    }
+    },
   );
 
   const { mutateAsync: createCostElement } = useCreateCostElement({
@@ -178,7 +179,7 @@ export const CostElementManagement = ({
   };
 
   const getColumnSearchProps = (
-    dataIndex: keyof CostElementRead
+    dataIndex: keyof CostElementRead,
   ): ColumnType<CostElementRead> => ({
     filterDropdown: ({
       setSelectedKeys,

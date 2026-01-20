@@ -77,10 +77,12 @@ class CostElement(EntityBase, VersionableMixin, BranchableMixin):
         DECIMAL(15, 2), default=0, nullable=False
     )
 
-    # Schedule Baseline (1:1 relationship - no FK constraint, enforced by unique index)
+    # Schedule Baseline (1:1 relationship per version)
     # NOTE: No FK constraint defined because schedule_baseline_id is not unique across
-    # version rows in the bitemporal schedule_baselines table. Referential integrity
-    # is enforced at the application level via the unique index uq_cost_elements_schedule_baseline_id.
+    # version rows in the bitemporal schedule_baselines table.
+    # PREVIOUSLY: Referential integrity was enforced by uq_cost_elements_schedule_baseline_id.
+    # NOW: This unique constraint was removed to allow multiple CostElement versions to
+    # share the same ScheduleBaseline root ID (stable identity).
     schedule_baseline_id: Mapped[UUID | None] = mapped_column(
         PG_UUID,
         nullable=True,
@@ -88,10 +90,12 @@ class CostElement(EntityBase, VersionableMixin, BranchableMixin):
         comment="Reference to the single schedule baseline for this cost element",
     )
 
-    # Forecast (1:1 relationship - no FK constraint, enforced by unique index)
+    # Forecast (1:1 relationship per version)
     # NOTE: No FK constraint defined because forecast_id is not unique across
-    # version rows in the bitemporal forecasts table. Referential integrity
-    # is enforced at the application level via the unique index uq_cost_elements_forecast_id.
+    # version rows in the bitemporal forecasts table.
+    # PREVIOUSLY: Referential integrity was enforced by uq_cost_elements_forecast_id.
+    # NOW: This unique constraint was removed to allow multiple CostElement versions to
+    # share the same Forecast root ID (stable identity).
     forecast_id: Mapped[UUID | None] = mapped_column(
         PG_UUID,
         nullable=True,
