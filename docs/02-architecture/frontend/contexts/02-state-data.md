@@ -41,12 +41,12 @@ Mutations must trigger invalidation not just for the modified entity but for **a
 
 **Dependent Invalidation Patterns:**
 
-| Primary Entity | Dependent Entities | Rationale |
-| -------------- | ------------------ | --------- |
-| Cost Elements | `forecasts.all`, `forecast_comparison` | Cost element changes affect EVM calculations |
+| Primary Entity     | Dependent Entities                                     | Rationale                                           |
+| ------------------ | ------------------------------------------------------ | --------------------------------------------------- |
+| Cost Elements      | `forecasts.all`, `forecast_comparison`                 | Cost element changes affect EVM calculations        |
 | Cost Registrations | `forecasts.all`, `forecast_comparison`, `budgetStatus` | Actual costs affect EVM metrics and budget tracking |
-| Schedule Baselines | `forecasts.all`, `forecast_comparison` | Planned Value changes affect EVM calculations |
-| Change Orders | `projects.*.branches`, `projects` | Branch creation/updates affect project branch lists |
+| Schedule Baselines | `forecasts.all`, `forecast_comparison`                 | Planned Value changes affect EVM calculations       |
+| Change Orders      | `projects.*.branches`, `projects`                      | Branch creation/updates affect project branch lists |
 
 **Implementation Example:**
 
@@ -64,7 +64,7 @@ onSuccess: (...args) => {
   });
 
   toast.success("Created successfully");
-}
+};
 ```
 
 #### 3.1.3 Optimistic Updates
@@ -145,81 +145,167 @@ export const useAuthStore = create<State>()(
 
 ---
 
+### 3.3 API Layer
+
+- **Client**: Single Axios instance (`src/api/client.ts`) handles:
+  - Base URL configuration.
+  - Auth token injection (Interceptors).
+  - Global error handling (401 redirects).
+- **Standardization**: All API calls must return typed responses matching Backend Pydantic schemas.
+
+### 3.4 CRUD Hook Factories
+
+We provide two distinct factories for generating CRUD hooks, enforcing separation between simple data and versioned application state.
+
+#### 3.4.1 Versioned Entities (`createVersionedResourceHooks`)
+
+**Used for**: Entities that support Time Machine (branches, history, time-travel).
+
+- **Entities**: Projects, WBEs, Cost Elements, Forecasts, Change Orders.
+- **Path**: `src/hooks/useVersionedCrud.ts`
+
+This factory automatically injects `TimeMachineContext` ({ `branch`, `asOf`, `mode` }) into all query keys and API calls.
+
+```typescript
+import { createVersionedResourceHooks } from "@/hooks/useVersionedCrud";
+import { queryKeys } from "@/api/queryKeys"; // Must use factory!
+import { CostElementsService } from "@/api/generated";
+
+export const {
+  useList: useCostElements,
+  useDetail: useCostElement,
+  useCreate: useCreateCostElement,
+  useUpdate: useUpdateCostElement,
+  useDelete: useDeleteCostElement,
+} = createVersionedResourceHooks(
+  "cost-elements",
+  queryKeys.costElements, // Pass the specific sub-factory
+  {
+    list: CostElementsService.getCostElements,
+    detail: CostElementsService.getCostElement,
+    create: CostElementsService.createCostElement,
+    update: CostElementsService.updateCostElement,
+    delete: CostElementsService.deleteCostElement,
+  },
+  {
+    // Auto-invalidate dependent data (e.g., Forecasts depend on Cost Elements)
+    invalidation: {
+      create: [queryKeys.forecasts.all],
+      update: [queryKeys.forecasts.all],
+      delete: [queryKeys.forecasts.all],
+    },
+  },
+);
+```
+
+#### 3.4.2 Simple Entities (`createResourceHooks`)
+
+**Used for**: Global settings or non-temporal resources.
+
+- **Entities**: Users, Departments, Cost Element Types.
+- **Path**: `src/hooks/useCrud.ts`
+
+**Warning**: Do NOT use this for versioned entities, as it creates query keys WITHOUT context, leading thereto potential data leakage across branches.
+
+```typescript
+import { createResourceHooks } from "@/hooks/useCrud";
+import { UsersService } from "@/api/generated";
+
+export const { useList: useUsers } = createResourceHooks("users", {
+  list: UsersService.getUsers,
+  detail: UsersService.getUser,
+});
+```
+
+---
+
+## 4. Implementation Guidelines
+
+- **Do not** store API data in Zustand. Use `useQuery`.
+- **Do not** use `useEffect` for data fetching.
+- **Do** type all API responses.
+- **Do** use immer middleware for all Zustand stores.
+- **Do** use draft mutations (direct assignments) within immer `set` callbacks.
+- **Do** use named methods pattern with hook factories for new code.
+- **Do** use `createVersionedResourceHooks` for any entity that supports branching or history.
+- **Do** include `{ branch, asOf }` in Query Keys for all versioned entities if manually constructing queries.
+
+---
+
 ## 5. Query Key Factory Best Practices
 
 ### 5.1 Centralized Factory Usage
 
 **Rule:** All query keys MUST be defined in `src/api/queryKeys.ts` using the centralized factory.
 
-**What to centralize:**
-- All list, detail, and mutation query keys
-- Context-aware keys for versioned entities (include `{ branch, asOf, mode }`)
-- Specialized query keys (e.g., breadcrumbs, comparisons, history)
-
-**Example:**
+**Structure:**
+The factory matches the domain structure of the application.
 
 ```typescript
-// ✅ CORRECT - Use factory
-export const useCostElement = (id: string) => {
-  const { asOf, branch } = useTimeMachineParams();
-  return useQuery({
-    queryKey: queryKeys.costElements.detail(id, { branch, asOf }),
-    queryFn: () => fetchCostElement(id, branch, asOf),
-  });
-};
+// src/api/queryKeys.ts
+export const queryKeys = createQueryKeys("backcast-evs", {
+  // Versioned Entity with Context
+  costElements: {
+    all: null as QueryKey,
+    // Context is REQUIRED for details to ensure isolation
+    detail: (id: string, context?: any) =>
+      ["cost-elements", "detail", id, context] as const,
+    // Dependent metrics
+    evmMetrics: (id: string, context?: any) =>
+      ["cost-elements", "evm", id, context] as const,
+  },
 
-// ❌ WRONG - Manual key construction
-export const useCostElement = (id: string) => {
-  return useQuery({
-    queryKey: ["cost-elements", id], // Missing context, not using factory
-    queryFn: () => fetchCostElement(id),
-  });
-};
+  // Simple Entity
+  users: {
+    detail: (id: string) => ["users", "detail", id] as const,
+  },
+});
 ```
 
 ### 5.2 Context Isolation for Versioned Entities
 
 **Rule:** All versioned entity query keys MUST include context parameters to prevent stale data when switching contexts.
 
-**Versioned Entities:**
-- Cost Elements
-- Work Breakdown Elements (WBEs)
-- Forecasts
-- Projects
-- Schedule Baselines
-- Change Orders
+**Context Object:**
+The `context` object typically comes from `useTimeMachineParams()` and contains:
 
-**Non-Versioned Entities:**
-- Users
-- Departments
-- Cost Element Types
-- Breadcrumbs (navigation data, not business data)
+- `branch`: string (e.g., 'main', 'feature-1')
+- `asOf`: string | undefined (ISO timestamp)
+- `mode`: string ('merged' | 'isolated')
 
-**Example:**
+**Correct Usage:**
 
 ```typescript
-// ✅ CORRECT - Context included
-queryKey: queryKeys.costElements.detail(id, { branch: "main", asOf: "2024-01-01" })
+// ✅ CORRECT - Use factory with properties from TimeMachineContext
+const { branch, asOf } = useTimeMachineParams();
 
-// ❌ WRONG - Context missing
-queryKey: ["cost-elements", id] // Will cache data across branches
+useQuery({
+  queryKey: queryKeys.costElements.detail(id, { branch, asOf }),
+  queryFn: () => fetchCostElement(id, branch, asOf),
+});
 ```
 
-### 5.3 Testing Query Keys
+**Incorrect Usage:**
 
-**Integration Tests:**
-- Test cache invalidation patterns (e.g., cost element mutation → forecast invalidation)
-- Verify context isolation (branch switches trigger refetch)
-- Test optimistic updates with context-aware keys
+```typescript
+// ❌ WRONG - Manual key construction
+useQuery({
+  queryKey: ["cost-elements", id], // Will show same data across all branches!
+  queryFn: ...
+});
+```
 
-**E2E Tests:**
-- Verify Time Machine context switches invalidate caches
-- Test cross-branch data leakage prevention
-- Validate dependent query invalidation in real scenarios
+### 5.3 Invalidation Chains
 
-**Test Examples:**
-- `frontend/tests/integration/cache-invalidation.test.ts` - Cache invalidation patterns
-- `frontend/tests/e2e/time-machine-context.spec.ts` - Context isolation in browser
+When mutating data, you must consider the "ripple effect" of changes.
+
+| Mutation                | Direct Invalidation        | Dependent Invalidation                                     |
+| ----------------------- | -------------------------- | ---------------------------------------------------------- |
+| **Create Cost Element** | `costElements.all`         | `forecasts.all` (New element needs forecast)               |
+| **Update Schedule**     | `scheduleBaselines.detail` | `forecasts.all` (PV changes affect SV/SPI)                 |
+| **Register Cost**       | `costRegistrations.all`    | `budgetStatus`, `forecasts.all` (AC changes affect CV/CPI) |
+
+These invalidations should be configured in the `createVersionedResourceHooks` options or manually in `onSuccess` handlers.
 
 ---
 
@@ -230,27 +316,30 @@ queryKey: ["cost-elements", id] // Will cache data across branches
 When migrating existing code to use the query key factory:
 
 1. **Add query key methods to factory** (if not already present):
+
    ```typescript
    // In src/api/queryKeys.ts
    breadcrumbs: (id: string) => ["resource", id, "breadcrumb"] as const,
    ```
 
 2. **Update hook to use factory**:
+
    ```typescript
    // Before
-   queryKey: ["resource", id, "breadcrumb"]
+   queryKey: ["resource", id, "breadcrumb"];
 
    // After
-   queryKey: queryKeys.resource.breadcrumb(id)
+   queryKey: queryKeys.resource.breadcrumb(id);
    ```
 
 3. **Update all invalidations**:
+
    ```typescript
    // Before
-   queryClient.invalidateQueries({ queryKey: ["resource"] })
+   queryClient.invalidateQueries({ queryKey: ["resource"] });
 
    // After
-   queryClient.invalidateQueries({ queryKey: queryKeys.resource.all })
+   queryClient.invalidateQueries({ queryKey: queryKeys.resource.all });
    ```
 
 4. **Add tests** for cache behavior (integration tests for invalidation, E2E for context isolation)
@@ -298,70 +387,3 @@ When migrating existing code to use the query key factory:
 - Use TanStack Query DevTools in development to inspect cache state
 - Monitor cache hit/miss ratios in production
 - Set up performance budgets for query execution time
-
----
-
-### 3.3 API Layer
-
-- **Client**: Single Axios instance (`src/api/client.ts`) handles:
-  - Base URL configuration.
-  - Auth token injection (Interceptors).
-  - Global error handling (401 redirects).
-- **Standardization**: All API calls must return typed responses matching Backend Pydantic schemas.
-
-### 3.4 CRUD Hook Factory
-
-The `createResourceHooks` factory in `src/hooks/useCrud.ts` provides a consistent pattern for CRUD operations. It supports two patterns:
-
-**Named Methods Pattern (Recommended):**
-
-Direct usage of service methods without adapters:
-
-```typescript
-import { createResourceHooks } from "@/hooks/useCrud";
-import { ProjectsService } from "@/api/generated";
-
-export const {
-  useList: useProjects,
-  useDetail: useProject,
-  useCreate: useCreateProject,
-  useUpdate: useUpdateProject,
-  useDelete: useDeleteProject,
-} = createResourceHooks("projects", {
-  list: ProjectsService.getProjects,
-  detail: ProjectsService.getProject,
-  create: ProjectsService.createProject,
-  update: ProjectsService.updateProject,
-  delete: ProjectsService.deleteProject,
-});
-```
-
-**Legacy Adapter Pattern (Backward Compatible):**
-
-For existing code using adapters:
-
-```typescript
-const adapter = {
-  getUsers: (params) => ProjectsService.getProjects(...),
-  getUser: (id) => ProjectsService.getProject(id),
-  createUser: (data) => ProjectsService.createProject(data),
-  updateUser: (id, data) => ProjectsService.updateProject(id, data),
-  deleteUser: (id) => ProjectsService.deleteProject(id),
-};
-const { useList } = createResourceHooks("projects", adapter);
-```
-
-The factory automatically detects which pattern you're using and routes accordingly.
-
----
-
-## 4. Implementation Guidelines
-
-- **Do not** store API data in Zustand. Use `useQuery`.
-- **Do not** use `useEffect` for data fetching.
-- **Do** type all API responses.
-- **Do** use immer middleware for all Zustand stores.
-- **Do** use draft mutations (direct assignments) within immer `set` callbacks.
-- **Do** use named methods pattern with `createResourceHooks` for new code.
-- **Do** include `{ branch, asOf }` in Query Keys for all versioned entities.
-- **Do** wrap `persist` middleware with `immer` when combining them.

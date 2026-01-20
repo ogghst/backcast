@@ -157,12 +157,15 @@ class VersionableProtocol(EntityProtocol, Protocol):
     valid_time: TSTZRANGE
     transaction_time: TSTZRANGE
     deleted_at: datetime | None
+    created_by: UUID
+    deleted_by: UUID | None
 
     @property
     def is_deleted(self) -> bool: ...
 
     def soft_delete(self) -> None: ...
     def undelete(self) -> None: ...
+    def clone(self, **overrides: Any) -> Self: ...
 ```
 
 **Use for:** Audit logs, immutable records without branching needs.
@@ -183,8 +186,6 @@ class BranchableProtocol(VersionableProtocol, Protocol):
 
     @property
     def is_current(self) -> bool: ...
-
-    def clone(self, **overrides: Any) -> Self: ...
 ```
 
 **Use for:** Business entities requiring change orders, drafts, or parallel development (Projects, WBEs, Cost Elements).
@@ -340,13 +341,14 @@ class UserPreferences(SimpleEntityBase):
 #### Versioned Entity (No Branching)
 
 ```python
-class AuditEntry(EntityBase, VersionableMixin):
-    """Audit log - versioned but no branching needed."""
-    __tablename__ = "audit_entries"
+class CostElementType(EntityBase, VersionableMixin):
+    """Cost Element Type - versioned reference data (no branching)."""
+    __tablename__ = "cost_element_types"
 
-    action: Mapped[str] = mapped_column(String(100))
-    details: Mapped[dict] = mapped_column(JSONB, default=dict)
-    user_id: Mapped[UUID] = mapped_column(PG_UUID)
+    cost_element_type_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
+    department_id: Mapped[UUID] = mapped_column(PG_UUID, ForeignKey("departments.department_id"))
+    code: Mapped[str] = mapped_column(String(50), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
 ```
 
 **Satisfies:** `VersionableProtocol` ✓
@@ -378,13 +380,13 @@ All commands implement this base protocol:
 
 ```python
 from typing import Protocol, TypeVar, Generic
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 T = TypeVar('T')
 
 class CommandProtocol(Protocol[T]):
     """Base protocol for all commands."""
-    def execute(self, session: Session) -> T:
+    async def execute(self, session: AsyncSession) -> T:
         """Execute the command and return the result."""
         ...
 ```
@@ -395,7 +397,7 @@ class CommandProtocol(Protocol[T]):
 classDiagram
     class CommandProtocol {
         <<Protocol>>
-        +execute(session: Session) T
+        +execute(session: AsyncSession) T
     }
 
     class SimpleCommandABC {
@@ -431,8 +433,8 @@ For non-versioned entities (satisfy `SimpleEntityProtocol`):
 
 ```python
 from abc import ABC, abstractmethod
-
-from typing import TypeVar
+from typing import TypeVar, Any
+from sqlalchemy.ext.asyncio import AsyncSession
 
 TSimple = TypeVar('TSimple', bound=SimpleEntityProtocol)
 
@@ -441,7 +443,7 @@ class SimpleCommandABC(ABC, Generic[TSimple]):
     entity_class: type[TSimple]
 
     @abstractmethod
-    def execute(self, session: Session) -> TSimple: ...
+    async def execute(self, session: AsyncSession) -> TSimple | bool: ...
 ```
 
 #### SimpleCreateCommand
@@ -454,9 +456,10 @@ class SimpleCreateCommand(SimpleCommandABC[TSimple]):
         self.entity_class = entity_class
         self.fields = fields
 
-    def execute(self, session: Session) -> TSimple:
+    async def execute(self, session: AsyncSession) -> TSimple:
         entity = self.entity_class(**self.fields)
         session.add(entity)
+        await session.flush()
         return entity
 ```
 
@@ -471,11 +474,13 @@ class SimpleUpdateCommand(SimpleCommandABC[TSimple]):
         self.entity_id = entity_id
         self.updates = updates
 
-    def execute(self, session: Session) -> TSimple | None:
-        entity = session.get(self.entity_class, self.entity_id)
-        if entity:
-            for key, value in self.updates.items():
-                setattr(entity, key, value)
+    async def execute(self, session: AsyncSession) -> TSimple:
+        entity = await session.get(self.entity_class, self.entity_id)
+        if not entity:
+            raise ValueError(f"Entity {self.entity_id} not found")
+        for key, value in self.updates.items():
+            setattr(entity, key, value)
+        await session.flush()
         return entity
 ```
 
@@ -489,10 +494,11 @@ class SimpleDeleteCommand(SimpleCommandABC[TSimple]):
         self.entity_class = entity_class
         self.entity_id = entity_id
 
-    def execute(self, session: Session) -> bool:
-        entity = session.get(self.entity_class, self.entity_id)
+    async def execute(self, session: AsyncSession) -> bool:
+        entity = await session.get(self.entity_class, self.entity_id)
         if entity:
-            session.delete(entity)
+            await session.delete(entity)
+            await session.flush()
             return True
         return False
 ```
@@ -512,9 +518,15 @@ class VersionedCommandABC(ABC, Generic[TVersionable]):
     """ABC for versioned entity commands (no branching)."""
     entity_class: type[TVersionable]
     root_id: UUID
+    actor_id: UUID
+
+    def __init__(self, entity_class: type[TVersionable], root_id: UUID, actor_id: UUID) -> None:
+        self.entity_class = entity_class
+        self.root_id = root_id
+        self.actor_id = actor_id
 
     @abstractmethod
-    def execute(self, session: Session) -> TVersionable: ...
+    async def execute(self, session: AsyncSession) -> TVersionable: ...
 ```
 
 #### CreateVersionCommand
@@ -523,13 +535,21 @@ class VersionedCommandABC(ABC, Generic[TVersionable]):
 class CreateVersionCommand(VersionedCommandABC[TVersionable]):
     """Create initial version of a versioned entity."""
 
-    def __init__(self, entity_class: type[TVersionable], root_id: UUID, **fields: Any) -> None:
-        self.entity_class = entity_class
-        self.root_id = root_id
+    def __init__(
+        self,
+        entity_class: type[TVersionable],
+        root_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None,
+        **fields: Any
+    ) -> None:
+        super().__init__(entity_class, root_id, actor_id)
         self.fields = fields
+        self.control_date = control_date
 
-    def execute(self, session: Session) -> TVersionable:
-        # Create new version with open-ended valid_time
+    async def execute(self, session: AsyncSession) -> TVersionable:
+        # Create new version with proper bitemporal timestamps
+        # valid_time based on control_date, transaction_time based on clock_timestamp
         version = self.entity_class(**self.fields)
         session.add(version)
         return version
@@ -541,22 +561,23 @@ class CreateVersionCommand(VersionedCommandABC[TVersionable]):
 class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
     """Update versioned entity - closes current, creates new."""
 
-    def __init__(self, entity_class: type[TVersionable], root_id: UUID, **updates: Any) -> None:
-        self.entity_class = entity_class
-        self.root_id = root_id
+    def __init__(
+        self,
+        entity_class: type[TVersionable],
+        root_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None,
+        **updates: Any
+    ) -> None:
+        super().__init__(entity_class, root_id, actor_id)
         self.updates = updates
+        self.control_date = control_date
 
-    def execute(self, session: Session) -> TVersionable:
-        # Close current version
-        current = self.entity_class.close_current(
-            session,
-            where={"root_id": self.root_id}
-        )
-
-        # Clone and apply updates
-        new_version = current.clone(**self.updates)
-        session.add(new_version)
-        return new_version
+    async def execute(self, session: AsyncSession) -> TVersionable:
+        # Close current version with valid_time upper bound = control_date
+        # Create new version with valid_time lower bound = control_date
+        # Maintains contiguous history
+        ...
 ```
 
 #### SoftDeleteCommand
@@ -565,14 +586,19 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
 class SoftDeleteCommand(VersionedCommandABC[TVersionable]):
     """Soft delete a versioned entity."""
 
-    def execute(self, session: Session) -> TVersionable | None:
-        current = self.entity_class.current_for(
-            session,
-            where={"root_id": self.root_id}
-        )
-        if current:
-            current.soft_delete()
-        return current
+    def __init__(
+        self,
+        entity_class: type[TVersionable],
+        root_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None
+    ) -> None:
+        super().__init__(entity_class, root_id, actor_id)
+        self.control_date = control_date
+
+    async def execute(self, session: AsyncSession) -> TVersionable | None:
+        # Mark current version as deleted at control_date
+        ...
 ```
 
 ---
@@ -591,30 +617,6 @@ class BranchCommandABC(VersionedCommandABC[TBranchable]):
     branch: str = "main"
 ```
 
-#### CreateCommand
-
-```python
-class CreateCommand(BranchCommandABC[TBranchable]):
-    """Create a new branchable entity."""
-
-    def __init__(
-        self,
-        entity_class: type[TBranchable],
-        root_id: UUID,
-        branch: str = "main",
-        **fields: Any
-    ) -> None:
-        self.entity_class = entity_class
-        self.root_id = root_id
-        self.branch = branch
-        self.fields = fields
-
-    def execute(self, session: Session) -> TBranchable:
-        version = self.entity_class(branch=self.branch, **self.fields)
-        session.add(version)
-        return version
-```
-
 #### UpdateCommand
 
 ```python
@@ -625,25 +627,20 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         self,
         entity_class: type[TBranchable],
         root_id: UUID,
+        actor_id: UUID,
         updates: dict[str, Any],
-        branch: str = "main"
+        branch: str = "main",
+        control_date: datetime | None = None
     ) -> None:
-        self.entity_class = entity_class
-        self.root_id = root_id
+        super().__init__(entity_class, root_id, actor_id)
         self.updates = updates
         self.branch = branch
+        self.control_date = control_date
 
-    def execute(self, session: Session) -> TBranchable:
-        # Close current on branch
-        current = self.entity_class.close_current(
-            session,
-            where={"root_id": self.root_id, "branch": self.branch}
-        )
-
-        # Clone and apply updates
-        new_version = current.clone(**self.updates, parent_id=current.id)
-        session.add(new_version)
-        return new_version
+    async def execute(self, session: AsyncSession) -> TBranchable:
+        # Close current on branch and create new version
+        # Handles remainder creation for retro-active updates (Split History)
+        ...
 ```
 
 #### CreateBranchCommand
@@ -656,25 +653,19 @@ class CreateBranchCommand(BranchCommandABC[TBranchable]):
         self,
         entity_class: type[TBranchable],
         root_id: UUID,
+        actor_id: UUID,
         new_branch: str,
-        from_branch: str = "main"
+        from_branch: str = "main",
+        control_date: datetime | None = None
     ) -> None:
-        self.entity_class = entity_class
-        self.root_id = root_id
+        super().__init__(entity_class, root_id, actor_id)
         self.new_branch = new_branch
         self.from_branch = from_branch
+        self.control_date = control_date
 
-    def execute(self, session: Session) -> TBranchable:
-        # Get current version from source branch
-        source = self.entity_class.current_for(
-            session,
-            where={"root_id": self.root_id, "branch": self.from_branch}
-        )
-
-        # Clone to new branch
-        branched = source.clone(branch=self.new_branch, parent_id=source.id)
-        session.add(branched)
-        return branched
+    async def execute(self, session: AsyncSession) -> TBranchable:
+        # Clone current version from source branch to new branch
+        ...
 ```
 
 #### MergeBranchCommand
@@ -687,35 +678,18 @@ class MergeBranchCommand(BranchCommandABC[TBranchable]):
         self,
         entity_class: type[TBranchable],
         root_id: UUID,
+        actor_id: UUID,
         source_branch: str,
         target_branch: str = "main"
     ) -> None:
-        self.entity_class = entity_class
-        self.root_id = root_id
+        super().__init__(entity_class, root_id, actor_id)
         self.source_branch = source_branch
         self.target_branch = target_branch
 
-    def execute(self, session: Session) -> TBranchable:
-        # Get source version
-        source = self.entity_class.current_for(
-            session,
-            where={"root_id": self.root_id, "branch": self.source_branch}
-        )
-
-        # Close target version
-        self.entity_class.close_current(
-            session,
-            where={"root_id": self.root_id, "branch": self.target_branch}
-        )
-
-        # Clone source to target with merge tracking
-        merged = source.clone(
-            branch=self.target_branch,
-            merge_from_branch=self.source_branch,
-            parent_id=source.id
-        )
-        session.add(merged)
-        return merged
+    async def execute(self, session: AsyncSession) -> TBranchable:
+        # Clone source active version to target branch
+        # Records merge_from_branch for lineage
+        ...
 ```
 
 #### RevertCommand
@@ -728,54 +702,51 @@ class RevertCommand(BranchCommandABC[TBranchable]):
         self,
         entity_class: type[TBranchable],
         root_id: UUID,
+        actor_id: UUID,
         branch: str = "main",
         to_version_id: UUID | None = None
     ) -> None:
-        self.entity_class = entity_class
-        self.root_id = root_id
+        super().__init__(entity_class, root_id, actor_id)
         self.branch = branch
         self.to_version_id = to_version_id
 
-    def execute(self, session: Session) -> TBranchable | None:
-        # Get current version
-        current = self.entity_class.current_for(
-            session,
-            where={"root_id": self.root_id, "branch": self.branch}
-        )
+    async def execute(self, session: AsyncSession) -> TBranchable:
+        # Clone target historical version to be the new active head
+        ...
+```
 
-        if not current:
-            return None
+#### BranchableSoftDeleteCommand
 
-        # Get target version (parent or specific)
-        if self.to_version_id:
-            target = session.get(self.entity_class, self.to_version_id)
-        else:
-            target = session.get(self.entity_class, current.parent_id)
+```python
+class BranchableSoftDeleteCommand(BranchCommandABC[TBranchable]):
+    """Soft delete a branchable entity on a specific branch."""
 
-        if not target:
-            return None
+    def __init__(
+        self,
+        entity_class: type[TBranchable],
+        root_id: UUID,
+        actor_id: UUID,
+        branch: str = "main",
+        control_date: datetime | None = None
+    ) -> None:
+        super().__init__(entity_class, root_id, actor_id)
+        self.branch = branch
+        self.control_date = control_date
 
-        # Close current
-        self.entity_class.close_current(
-            session,
-            where={"root_id": self.root_id, "branch": self.branch}
-        )
-
-        # Clone target state as new version
-        reverted = target.clone(parent_id=current.id)
-        session.add(reverted)
-        return reverted
+    async def execute(self, session: AsyncSession) -> TBranchable:
+        # Mark current version on branch as deleted
+        ...
 ```
 
 ---
 
 ### Command Composition Summary
 
-| Entity Type       | Protocol               | Command ABC           | Example Commands                                                                               |
-| ----------------- | ---------------------- | --------------------- | ---------------------------------------------------------------------------------------------- |
-| **Non-versioned** | `SimpleEntityProtocol` | `SimpleCommandABC`    | `SimpleCreateCommand`, `SimpleUpdateCommand`, `SimpleDeleteCommand`                            |
-| **Versioned**     | `VersionableProtocol`  | `VersionedCommandABC` | `CreateVersionCommand`, `UpdateVersionCommand`, `SoftDeleteCommand`                            |
-| **Branchable**    | `BranchableProtocol`   | `BranchCommandABC`    | `CreateCommand`, `UpdateCommand`, `CreateBranchCommand`, `MergeBranchCommand`, `RevertCommand` |
+| Entity Type       | Protocol               | Command ABC           | Example Commands                                                                                             |
+| ----------------- | ---------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Non-versioned** | `SimpleEntityProtocol` | `SimpleCommandABC`    | `SimpleCreateCommand`, `SimpleUpdateCommand`, `SimpleDeleteCommand`                                          |
+| **Versioned**     | `VersionableProtocol`  | `VersionedCommandABC` | `CreateVersionCommand`, `UpdateVersionCommand`, `SoftDeleteCommand`                                          |
+| **Branchable**    | `BranchableProtocol`   | `BranchCommandABC`    | `UpdateCommand`, `CreateBranchCommand`, `MergeBranchCommand`, `RevertCommand`, `BranchableSoftDeleteCommand` |
 
 ---
 
@@ -791,39 +762,34 @@ For non-versioned entities (`SimpleEntityProtocol`):
 class SimpleService(Generic[TSimple]):
     """Service for non-versioned entities (config, preferences, etc)."""
 
-    def __init__(self, session: Session, entity_class: type[TSimple]) -> None:
+    def __init__(self, session: AsyncSession, entity_class: type[TSimple]) -> None:
         self.session = session
         self.entity_class = entity_class
 
-    def get(self, entity_id: UUID) -> TSimple | None:
+    async def get(self, entity_id: UUID) -> TSimple | None:
         """Get entity by ID."""
-        return self.session.get(self.entity_class, entity_id)
+        return await self.session.get(self.entity_class, entity_id)
 
-    def get_all(self, skip: int = 0, limit: int = 100) -> list[TSimple]:
+    async def list_all(self, skip: int = 0, limit: int = 100) -> list[TSimple]:
         """Get paginated list of entities."""
         stmt = select(self.entity_class).offset(skip).limit(limit)
-        return list(self.session.scalars(stmt).all())
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
-    def create(self, **fields: Any) -> TSimple:
+    async def create(self, **fields: Any) -> TSimple:
         """Create new entity using SimpleCreateCommand."""
         cmd = SimpleCreateCommand(self.entity_class, **fields)
-        entity = cmd.execute(self.session)
-        self.session.flush()
-        return entity
+        return await cmd.execute(self.session)
 
-    def update(self, entity_id: UUID, **updates: Any) -> TSimple | None:
+    async def update(self, entity_id: UUID, **updates: Any) -> TSimple | None:
         """Update entity in place using SimpleUpdateCommand."""
         cmd = SimpleUpdateCommand(self.entity_class, entity_id, **updates)
-        entity = cmd.execute(self.session)
-        self.session.flush()
-        return entity
+        return await cmd.execute(self.session)
 
-    def delete(self, entity_id: UUID) -> bool:
+    async def delete(self, entity_id: UUID) -> bool:
         """Hard delete entity using SimpleDeleteCommand."""
         cmd = SimpleDeleteCommand(self.entity_class, entity_id)
-        result = cmd.execute(self.session)
-        self.session.flush()
-        return result
+        return await cmd.execute(self.session)
 ```
 
 ### TemporalService[TVersionable]
@@ -834,55 +800,86 @@ For versioned entities without branching (`VersionableProtocol`):
 class TemporalService(Generic[TVersionable]):
     """Service for versioned entities without branching."""
 
-    def __init__(self, session: Session, entity_class: type[TVersionable]) -> None:
-        self.session = session
+    def __init__(self, entity_class: type[TVersionable], session: AsyncSession) -> None:
         self.entity_class = entity_class
-        self.root_field = f\"{entity_class.__name__.lower().removesuffix('version')}_id\"
+        self.session = session
 
-    def create(self, root_id: UUID, **fields: Any) -> TVersionable:
+    async def get_by_id(self, entity_id: UUID) -> TVersionable | None:
+        """Get entity by ID (returns specific version by PK)."""
+        return await self.session.get(self.entity_class, entity_id)
+
+    async def get_current_version(
+        self, root_id: UUID, branch: str = "main"
+    ) -> TVersionable | None:
+        """Get current active version of entity by its root ID."""
+        # Filters by root_id, valid_time (upper IS NULL), and deleted_at (IS NULL)
+        ...
+
+    async def get_all(self, skip: int = 0, limit: int = 100000) -> list[TVersionable]:
+        """Get all entities (current versions) with pagination."""
+        ...
+
+    async def get_as_of(
+        self,
+        entity_id: UUID,
+        as_of: datetime,
+        branch: str = "main",
+        branch_mode: BranchMode | None = None
+    ) -> TVersionable | None:
+        """Time travel: Get entity as it was at specific timestamp.
+
+        Implements bitemporal time travel (valid_time and transaction_time).
+        """
+        ...
+
+    async def create(
+        self,
+        actor_id: UUID,
+        root_id: UUID | None = None,
+        control_date: datetime | None = None,
+        **fields: Any
+    ) -> TVersionable:
         """Create initial version using CreateVersionCommand."""
-        cmd = CreateVersionCommand(self.entity_class, root_id, **fields)
-        version = cmd.execute(self.session)
-        self.session.flush()
-        return version
-
-    def get_current(self, root_id: UUID, include_deleted: bool = False) -> TVersionable | None:
-        """Get current version of entity."""
-        now = func.now()
-        stmt = (
-            select(self.entity_class)
-            .where(
-                getattr(self.entity_class, self.root_field) == root_id,
-                self.entity_class.valid_time.op("@>")(now),
-                self.entity_class.transaction_time.op("@>")(now)
-            )
+        cmd = CreateVersionCommand(
+            self.entity_class,
+            root_id=root_id,
+            actor_id=actor_id,
+            control_date=control_date,
+            **fields
         )
-        if not include_deleted:
-            stmt = stmt.where(self.entity_class.deleted_at.is_(None))
+        return await cmd.execute(self.session)
 
-        return self.session.scalar(stmt)
-
-    def update(self, root_id: UUID, **updates: Any) -> TVersionable:
+    async def update(
+        self,
+        entity_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None,
+        **updates: Any
+    ) -> TVersionable:
         """Update entity using UpdateVersionCommand."""
-        cmd = UpdateVersionCommand(self.entity_class, root_id, **updates)
-        version = cmd.execute(self.session)
-        self.session.flush()
-        return version
+        cmd = UpdateVersionCommand(
+            self.entity_class,
+            root_id=entity_id,
+            actor_id=actor_id,
+            control_date=control_date,
+            **updates
+        )
+        return await cmd.execute(self.session)
 
-    def soft_delete(self, root_id: UUID) -> TVersionable | None:
+    async def soft_delete(
+        self,
+        entity_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None
+    ) -> None:
         """Soft delete entity using SoftDeleteCommand."""
-        cmd = SoftDeleteCommand(self.entity_class, root_id)
-        version = cmd.execute(self.session)
-        self.session.flush()
-        return version
-
-    def undelete(self, root_id: UUID) -> TVersionable | None:
-        """Restore soft-deleted entity."""
-        current = self.get_current(root_id, include_deleted=True)
-        if current and current.is_deleted:
-            current.undelete()
-            self.session.flush()
-        return current
+        cmd = SoftDeleteCommand(
+            self.entity_class,
+            root_id=entity_id,
+            actor_id=actor_id,
+            control_date=control_date
+        )
+        await cmd.execute(self.session)
 ```
 
 ### BranchableService[TBranchable]
@@ -890,111 +887,210 @@ class TemporalService(Generic[TVersionable]):
 For full EVCS entities with branching (`BranchableProtocol`):
 
 ```python
-class BranchableService(Generic[TVersionable]):
+class BranchableService(Generic[TBranchable]):
     """Service for branchable entities (full EVCS)."""
 
-    def __init__(self, session: Session, entity_class: type[TBranchable]) -> None:
-        self.session = session
+    def __init__(self, entity_class: type[TBranchable], session: AsyncSession) -> None:
         self.entity_class = entity_class
-        self.root_field = f\"{entity_class.__name__.lower().removesuffix('version')}_id\"
+        self.session = session
 
-    def create(self, root_id: UUID, branch: str = "main", **fields: Any) -> TBranchable:
-        """Create entity using CreateCommand."""
-        cmd = CreateCommand(self.entity_class, root_id, branch, **fields)
-        version = cmd.execute(self.session)
-        self.session.flush()
-        return version
+    async def get_by_id(self, entity_id: UUID) -> TBranchable | None:
+        """Get specific version by its version ID (primary key)."""
+        return await self.session.get(self.entity_class, entity_id)
 
-    def get_current(
+    async def get_current(
+        self, root_id: UUID, branch: str = "main"
+    ) -> TBranchable | None:
+        """Get the current active version for a root entity on a specific branch.
+
+        Uses clock_timestamp() for accurate current version detection within transactions.
+        """
+        ...
+
+    async def get_as_of(
+        self,
+        entity_id: UUID,
+        as_of: datetime,
+        branch: str = "main",
+        branch_mode: BranchMode | None = None,
+    ) -> TBranchable | None:
+        """Time travel: Get active version at specific timestamp on a branch.
+
+        Args:
+            entity_id: Root entity ID
+            as_of: Timestamp to query
+            branch: Branch name (default: main)
+            branch_mode: Resolution mode (STRICT=only branch, MERGE=fallback to main)
+
+        Returns:
+            Entity version that was active at the specified timestamp, or None
+        """
+        # Implementation uses bitemporal filtering on valid_time and transaction_time
+        # with support for branch fallback in MERGE mode
+        ...
+
+    async def create_root(
         self,
         root_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None,
         branch: str = "main",
-        include_deleted: bool = False
-    ) -> TBranchable | None:
-        """Get current version on specific branch."""
-        now = func.now()
-        stmt = (
-            select(self.entity_class)
-            .where(
-                getattr(self.entity_class, self.root_field) == root_id,
-                self.entity_class.branch == branch,
-                self.entity_class.valid_time.op("@>")(now),
-                self.entity_class.transaction_time.op("@>")(now)
-            )
+        **data: Any,
+    ) -> TBranchable:
+        """Create the initial version of an entity (new root).
+
+        Raises:
+            BranchLockedException: If the branch is locked
+        """
+        cmd = CreateVersionCommand(
+            entity_class=self.entity_class,
+            root_id=root_id,
+            actor_id=actor_id,
+            control_date=control_date,
+            branch=branch,
+            **data,
         )
-        if not include_deleted:
-            stmt = stmt.where(self.entity_class.deleted_at.is_(None))
+        return await cmd.execute(self.session)
 
-        return self.session.scalar(stmt)
-
-    def update(self, root_id: UUID, updates: dict, branch: str = "main") -> TBranchable:
-        """Update entity on specific branch using UpdateCommand."""
-        cmd = UpdateCommand(self.entity_class, root_id, updates, branch)
-        version = cmd.execute(self.session)
-        self.session.flush()
-        return version
-
-    def soft_delete(self, root_id: UUID, branch: str = "main") -> TBranchable | None:
-        """Soft delete entity on specific branch."""
-        cmd = SoftDeleteCommand(self.entity_class, root_id, branch)
-        version = cmd.execute(self.session)
-        self.session.flush()
-        return version
-
-    def undelete(self, root_id: UUID, branch: str = "main") -> TBranchable | None:
-        """Restore deleted entity on specific branch."""
-        current = self.get_current(root_id, branch, include_deleted=True)
-        if current and current.is_deleted:
-            current.undelete()
-            self.session.flush()
-        return current
-
-    def create_branch(
+    async def update(
         self,
         root_id: UUID,
+        actor_id: UUID,
+        branch: str,
+        control_date: datetime | None = None,
+        **updates: Any,
+    ) -> TBranchable:
+        """Update entity on a specific branch (creates new version)."""
+        cmd = UpdateCommand(
+            entity_class=self.entity_class,
+            root_id=root_id,
+            actor_id=actor_id,
+            branch=branch,
+            control_date=control_date,
+            updates=updates,
+        )
+        return await cmd.execute(self.session)
+
+    async def create_branch(
+        self,
+        root_id: UUID,
+        actor_id: UUID,
         new_branch: str,
-        from_branch: str = "main"
+        from_branch: str = "main",
+        control_date: datetime | None = None,
     ) -> TBranchable:
-        """Create new branch using CreateBranchCommand."""
-        cmd = CreateBranchCommand(self.entity_class, root_id, new_branch, from_branch)
-        version = cmd.execute(self.session)
-        self.session.flush()
-        return version
+        """Create a new branch from an existing branch."""
+        cmd = CreateBranchCommand(
+            entity_class=self.entity_class,
+            root_id=root_id,
+            actor_id=actor_id,
+            new_branch=new_branch,
+            from_branch=from_branch,
+            control_date=control_date,
+        )
+        return await cmd.execute(self.session)
 
-    def merge_branch(
+    async def merge_branch(
+        self, root_id: UUID, actor_id: UUID, source_branch: str, target_branch: str
+    ) -> TBranchable:
+        """Merge source branch into target branch."""
+        cmd = MergeBranchCommand(
+            entity_class=self.entity_class,
+            root_id=root_id,
+            actor_id=actor_id,
+            source_branch=source_branch,
+            target_branch=target_branch,
+        )
+        return await cmd.execute(self.session)
+
+    async def revert(
         self,
         root_id: UUID,
-        source_branch: str,
-        target_branch: str = "main"
+        actor_id: UUID,
+        branch: str,
+        to_version_id: UUID | None = None,
     ) -> TBranchable:
-        """Merge branches using MergeBranchCommand."""
-        cmd = MergeBranchCommand(self.entity_class, root_id, source_branch, target_branch)
-        version = cmd.execute(self.session)
-        self.session.flush()
-        return version
+        """Revert branch to a previous state."""
+        cmd = RevertCommand(
+            entity_class=self.entity_class,
+            root_id=root_id,
+            actor_id=actor_id,
+            branch=branch,
+            to_version_id=to_version_id,
+        )
+        return await cmd.execute(self.session)
 
-    def revert(
+    async def soft_delete(
         self,
         root_id: UUID,
+        actor_id: UUID,
         branch: str = "main",
-        to_version_id: UUID | None = None
-    ) -> TBranchable | None:
-        """Revert to previous version using RevertCommand."""
-        cmd = RevertCommand(self.entity_class, root_id, branch, to_version_id)
-        version = cmd.execute(self.session)
-        self.session.flush()
-        return version
+        control_date: datetime | None = None,
+    ) -> TBranchable:
+        """Soft delete a branchable entity on a specific branch.
+
+        Args:
+            root_id: Root entity identifier
+            actor_id: User performing the deletion
+            branch: Branch to delete from (default: "main")
+            control_date: Optional control date for deletion timestamp
+
+        Returns:
+            The deleted entity (marked with deleted_at)
+
+        Raises:
+            ValueError: If no active version found on the specified branch
+            BranchLockedException: If the branch is locked
+        """
+        cmd = BranchableSoftDeleteCommand(
+            entity_class=self.entity_class,
+            root_id=root_id,
+            actor_id=actor_id,
+            branch=branch,
+            control_date=control_date,
+        )
+        return await cmd.execute(self.session)
+
+    async def get_history(self, root_id: UUID) -> list[TBranchable]:
+        """Get all versions of an entity with joined creator name."""
+        ...
+
+    async def list_branches(
+        self,
+        root_id: UUID,
+        as_of: datetime | None = None,
+    ) -> list[str]:
+        """Get all branch names for an entity."""
+        ...
+
+    async def compare_branches(
+        self,
+        root_id: UUID,
+        branch_a: str,
+        branch_b: str,
+        as_of: datetime | None = None,
+    ) -> dict[str, TBranchable | None]:
+            version_a = await self.get_current(root_id, branch_a)
+            version_b = await self.get_current(root_id, branch_b)
+
+        return {
+            "branch_a": version_a,
+            "branch_b": version_b
+        }
 ```
 
 ### Service Composition Summary
 
-| Entity Type       | Protocol Satisfied     | Service Class                    | Key Methods                                                            |
-| ----------------- | ---------------------- | -------------------------------- | ---------------------------------------------------------------------- |
-| **Non-versioned** | `SimpleEntityProtocol` | `SimpleService[TSimple]`         | `get()`, `create()`, `update()`, `delete()`                            |
-| **Versioned**     | `VersionableProtocol`  | `TemporalService[TVersionable]`  | `get_current()`, `create()`, `update()`, `soft_delete()`, `undelete()` |
-| **Branchable**    | `BranchableProtocol`   | `BranchableService[TBranchable]` | All temporal methods + `create_branch()`, `merge_branch()`, `revert()` |
+| Entity Type       | Protocol Satisfied     | Service Class                    | Key Methods                                                                                                                                                    |
+| ----------------- | ---------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Non-versioned** | `SimpleEntityProtocol` | `SimpleService[TSimple]`         | `get()`, `create()`, `update()`, `delete()`                                                                                                                    |
+| **Versioned**     | `VersionableProtocol`  | `TemporalService[TVersionable]`  | `get_current()`, `create()`, `update()`, `soft_delete()`, `undelete()`                                                                                         |
+| **Branchable**    | `BranchableProtocol`   | `BranchableService[TBranchable]` | All temporal methods + `get_by_id()`, `get_as_of()`, `create_branch()`, `merge_branch()`, `revert()`, `get_history()`, `list_branches()`, `compare_branches()` |
 
-````
+```python
+# Note: The actual implementation is in AsyncSession context
+# All methods use 'await' for async operations
+```
 
 ---
 
@@ -1033,7 +1129,7 @@ CREATE UNIQUE INDEX uq_{table}_current_branch ON {table} ({entity}_id, branch)
 WHERE upper(valid_time) IS NULL
   AND upper(transaction_time) IS NULL
   AND deleted_at IS NULL;
-````
+```
 
 ---
 

@@ -27,8 +27,8 @@ This guide provides practical code patterns for implementing EVCS (Entity Versio
 Retrieve the current active version of an entity:
 
 ```python
-def get_current(
-    session: Session,
+async def get_current(
+    session: AsyncSession,
     entity_class: Type[T],
     root_id: UUID,
     branch: str = "main"
@@ -49,7 +49,7 @@ def get_current(
         .order_by(entity_class.valid_time.desc())
         .limit(1)
     )
-    result = session.execute(stmt)
+    result = await session.execute(stmt)
     return result.scalar_one_or_none()
 ```
 
@@ -73,8 +73,8 @@ LIMIT 1;
 Query entity state at a specific point in time:
 
 ```python
-def get_at_time(
-    session: Session,
+async def get_at_time(
+    session: AsyncSession,
     entity_class: Type[T],
     root_id: UUID,
     as_of: datetime,
@@ -95,7 +95,7 @@ def get_at_time(
         .order_by(entity_class.valid_time.desc())
         .limit(1)
     )
-    result = session.execute(stmt)
+    result = await session.execute(stmt)
     return result.scalar_one_or_none()
 ```
 
@@ -104,7 +104,7 @@ def get_at_time(
 ```python
 # Get project state as of last month
 last_month = datetime(2025, 12, 1, tzinfo=UTC)
-project = get_at_time(session, ProjectVersion, project_id, last_month)
+project = await get_at_time(session, ProjectVersion, project_id, last_month)
 ```
 
 > **For more details on time travel semantics and standardized filters, see [Temporal Query Reference](../../../cross-cutting/temporal-query-reference.md).**
@@ -116,8 +116,8 @@ project = get_at_time(session, ProjectVersion, project_id, last_month)
 Get complete version history for an entity:
 
 ```python
-def get_history(
-    session: Session,
+async def get_history(
+    session: AsyncSession,
     entity_class: Type[T],
     root_id: UUID,
     branch: str = "main",
@@ -139,7 +139,7 @@ def get_history(
         .where(*filters)
         .order_by(entity_class.valid_time.asc())
     )
-    result = session.execute(stmt)
+    result = await session.execute(stmt)
     return list(result.scalars().all())
 ```
 
@@ -150,8 +150,8 @@ def get_history(
 Get all branches for an entity:
 
 ```python
-def list_branches(
-    session: Session,
+async def list_branches(
+    session: AsyncSession,
     entity_class: Type[T],
     root_id: UUID
 ) -> list[str]:
@@ -168,7 +168,7 @@ def list_branches(
         )
         .distinct()
     )
-    result = session.execute(stmt)
+    result = await session.execute(stmt)
     return [row[0] for row in result.all()]
 ```
 
@@ -179,16 +179,16 @@ def list_branches(
 Compare current state between two branches:
 
 ```python
-def compare_branches(
-    session: Session,
+async def compare_branches(
+    session: AsyncSession,
     entity_class: Type[T],
     root_id: UUID,
     branch_a: str,
     branch_b: str
 ) -> dict[str, tuple[T | None, T | None]]:
     """Compare entity state between branches."""
-    version_a = get_current(session, entity_class, root_id, branch_a)
-    version_b = get_current(session, entity_class, root_id, branch_b)
+    version_a = await get_current(session, entity_class, root_id, branch_a)
+    version_b = await get_current(session, entity_class, root_id, branch_b)
 
     return {
         "branch_a": (branch_a, version_a),
@@ -203,40 +203,46 @@ def compare_branches(
 ### Create Entity
 
 ```python
-# Create new project
+# Create new project (branchable root)
 root_id = uuid4()
 service = ProjectService(session)
-project = service.create(
+project = await service.create_root(
     root_id=root_id,
+    actor_id=user_id,
     branch="main",
     name="New Project",
     description="Project description"
 )
-session.commit()
+await session.commit()
 ```
 
 ### Update Entity
 
 ```python
 # Update creates new version, closes old
-project = service.update(
+project = await service.update(
     root_id=project_id,
+    actor_id=user_id,
     updates={"name": "Updated Name", "description": "New desc"},
     branch="main"
 )
-session.commit()
+await session.commit()
 ```
 
 ### Soft Delete
 
 ```python
 # Soft delete (reversible)
-deleted = service.soft_delete(root_id=project_id, branch="main")
-session.commit()
+deleted = await service.soft_delete(
+    root_id=project_id,
+    actor_id=user_id,
+    branch="main"
+)
+await session.commit()
 
 # Undelete
-restored = service.undelete(root_id=project_id, branch="main")
-session.commit()
+restored = await service.undelete(root_id=project_id, branch="main")
+await session.commit()
 ```
 
 ---
@@ -247,36 +253,39 @@ session.commit()
 
 ```python
 # Create change order branch from main
-branched = service.create_branch(
+branched = await service.create_branch(
     root_id=project_id,
+    actor_id=user_id,
     new_branch="co-123",
     from_branch="main"
 )
-session.commit()
+await session.commit()
 ```
 
 ### Work on Branch
 
 ```python
 # Updates on branch don't affect main
-service.update(
+await service.update(
     root_id=project_id,
+    actor_id=user_id,
     updates={"budget": Decimal("150000")},
     branch="co-123"
 )
-session.commit()
+await session.commit()
 ```
 
 ### Merge Branch
 
 ```python
 # Merge change order to main (overwrites main state)
-merged = service.merge_branch(
+merged = await service.merge_branch(
     root_id=project_id,
+    actor_id=user_id,
     source_branch="co-123",
     target_branch="main"
 )
-session.commit()
+await session.commit()
 ```
 
 > **For complete branching documentation (branch types, operations, locking), see [Temporal Query Reference](../../../cross-cutting/temporal-query-reference.md#branch-mode-behavior).**
@@ -314,8 +323,8 @@ class ProjectVersion(TemporalBase):
 For relationships that should fall back to main if not found on branch:
 
 ```python
-def get_wbes_with_fallback(
-    session: Session,
+async def get_wbes_with_fallback(
+    session: AsyncSession,
     project_id: UUID,
     branch: str
 ) -> list[WBEVersion]:
@@ -323,7 +332,7 @@ def get_wbes_with_fallback(
     now = func.now()
 
     # Get WBEs on requested branch
-    branch_wbes = session.scalars(
+    branch_wbes_result = await session.scalars(
         select(WBEVersion)
         .where(
             WBEVersion.project_id == project_id,
@@ -331,12 +340,13 @@ def get_wbes_with_fallback(
             WBEVersion.valid_time.op("@>")(now),
             WBEVersion.deleted_at.is_(None),
         )
-    ).all()
+    )
+    branch_wbes = branch_wbes_result.all()
 
     branch_wbe_ids = {w.wbe_id for w in branch_wbes}
 
     # Get main branch WBEs not on target branch
-    main_fallback = session.scalars(
+    main_fallback_result = await session.scalars(
         select(WBEVersion)
         .where(
             WBEVersion.project_id == project_id,
@@ -345,7 +355,8 @@ def get_wbes_with_fallback(
             WBEVersion.deleted_at.is_(None),
             ~WBEVersion.wbe_id.in_(branch_wbe_ids),
         )
-    ).all()
+    )
+    main_fallback = main_fallback_result.all()
 
     return list(branch_wbes) + list(main_fallback)
 ```
@@ -358,20 +369,25 @@ def get_wbes_with_fallback(
 
 ```python
 # Revert to immediate parent
-reverted = service.revert(root_id=project_id, branch="main")
-session.commit()
+reverted = await service.revert(
+    root_id=project_id,
+    actor_id=user_id,
+    branch="main"
+)
+await session.commit()
 ```
 
 ### Revert to Specific Version
 
 ```python
 # Revert to specific historical version
-reverted = service.revert(
+reverted = await service.revert(
     root_id=project_id,
+    actor_id=user_id,
     branch="main",
     to_version_id=target_version_id
 )
-session.commit()
+await session.commit()
 ```
 
 ---
@@ -399,11 +415,12 @@ CREATE INDEX ix_versions_entity_id ON versions (entity_id);
 ```python
 # Bad: N+1 queries
 for project in projects:
-    wbes = project.wbes  # Lazy load each
+    wbes = await project.awaitable_attrs.wbes  # Lazy load each (if async attrs enabled)
 
 # Good: Eager loading
 stmt = select(ProjectVersion).options(selectinload(ProjectVersion.wbes))
-projects = session.execute(stmt).scalars().all()
+result = await session.execute(stmt)
+projects = result.scalars().all()
 ```
 
 ---
@@ -418,19 +435,19 @@ For entities that don't require temporal versioning (preferences, configuration)
 class UserPreferencesService(SimpleService[UserPreferences]):
     """Service for non-versioned user preferences."""
 
-    def __init__(self, session: Session):
+    def __init__(self, session: AsyncSession):
         super().__init__(session, UserPreferences)
 
-    def get_for_user(self, user_id: UUID) -> UserPreferences | None:
-        return self.session.scalar(
+    async def get_for_user(self, user_id: UUID) -> UserPreferences | None:
+        return await self.session.scalar(
             select(UserPreferences).where(UserPreferences.user_id == user_id)
         )
 
-    def upsert(self, user_id: UUID, **prefs) -> UserPreferences:
-        existing = self.get_for_user(user_id)
+    async def upsert(self, user_id: UUID, **prefs) -> UserPreferences:
+        existing = await self.get_for_user(user_id)
         if existing:
-            return self.update(existing.id, **prefs)
-        return self.create(user_id=user_id, **prefs)
+            return await self.update(existing.id, **prefs)
+        return await self.create(user_id=user_id, **prefs)
 ```
 
 ### Service Comparison by Entity Type
@@ -448,17 +465,21 @@ class UserPreferencesService(SimpleService[UserPreferences]):
 ## See Also
 
 ### Architecture & Design
+
 - [EVCS Core Architecture](architecture.md) - Complete EVCS system architecture
 - [Entity Classification Guide](entity-classification.md) - Choosing Simple/Versionable/Branchable entity types
 - [ADR-005: Bitemporal Versioning](../../decisions/ADR-005-bitemporal-versioning.md) - Architecture decision record
 - [ADR-006: Protocol-Based Type System](../../decisions/ADR-006-protocol-based-type-system.md) - Type system design
 
 ### Query References
+
 - [Temporal Query Reference](../../../cross-cutting/temporal-query-reference.md) - Bitemporal queries and time travel semantics
 
 ### Database
+
 - [Database Strategy](../../../cross-cutting/database-strategy.md) - TSTZRANGE usage and indexing
 
 ### Source Code
+
 - [TemporalService Implementation](../../../../app/core/versioning/service.py) - Core service with temporal support
 - [BranchableService Implementation](../../../../app/core/branching/service.py) - Branch-aware service operations

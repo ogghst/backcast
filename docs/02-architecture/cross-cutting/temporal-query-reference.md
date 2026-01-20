@@ -14,6 +14,7 @@ This document is the **definitive reference** for bitemporal queries and time tr
 - **TDD Patterns:** Zombie check tests for temporal deletion
 
 **Key Capabilities:**
+
 - **Time Travel:** Reconstruct entity state at any historical point
 - **Complete History:** Immutable audit trail of all entity changes
 - **Branch-Aware Queries:** STRICT and MERGE modes for different use cases
@@ -26,9 +27,9 @@ This document is the **definitive reference** for bitemporal queries and time tr
 
 ### Two Time Dimensions
 
-| Dimension         | Purpose                                         | Example                                                      |
-| ----------------- | ----------------------------------------------- | ------------------------------------------------------------ |
-| **Valid Time**    | When the fact was true in the real world        | A project budget was valid from Jan 1 to Mar 31              |
+| Dimension            | Purpose                                    | Example                                                    |
+| -------------------- | ------------------------------------------ | ---------------------------------------------------------- |
+| **Valid Time**       | When the fact was true in the real world   | A project budget was valid from Jan 1 to Mar 31            |
 | **Transaction Time** | When the fact was recorded in the database | The budget was entered on Feb 15, then corrected on Feb 20 |
 
 **Implementation:** PostgreSQL `TSTZRANGE` types for both dimensions.
@@ -340,14 +341,14 @@ stmt = self._apply_bitemporal_filter(stmt, as_of)
 
 The following services expose `get_as_of` methods for single-entity time-travel queries:
 
-| Service                    | Method                               | Branch Modes   | Relations Included      |
-| ------------------------- | ------------------------------------ | -------------- | ---------------------- |
-| ProjectService            | `get_project_as_of()`                | STRICT, MERGE  | -                      |
-| WBEService                | `get_wbe_as_of()`                    | STRICT, MERGE  | -                      |
-| CostElementService        | `get_cost_element_as_of()`           | STRICT, MERGE  | parent_name, type_name |
-| CostElementTypeService    | `get_cost_element_type_as_of()`      | STRICT, MERGE  | -                      |
-| DepartmentService         | `get_department_as_of()`             | STRICT, MERGE  | -                      |
-| UserService               | `get_user_as_of()`                   | STRICT, MERGE  | -                      |
+| Service                | Method                          | Branch Modes  | Relations Included     |
+| ---------------------- | ------------------------------- | ------------- | ---------------------- |
+| ProjectService         | `get_project_as_of()`           | STRICT, MERGE | -                      |
+| WBEService             | `get_wbe_as_of()`               | STRICT, MERGE | -                      |
+| CostElementService     | `get_cost_element_as_of()`      | STRICT, MERGE | parent_name, type_name |
+| CostElementTypeService | `get_cost_element_type_as_of()` | STRICT, MERGE | -                      |
+| DepartmentService      | `get_department_as_of()`        | STRICT, MERGE | -                      |
+| UserService            | `get_user_as_of()`              | STRICT, MERGE | -                      |
 
 **Usage Example:**
 
@@ -386,6 +387,7 @@ project = await service.get_project_as_of(
 The zombie check pattern documented above is a best-practice TDD pattern for verifying bitemporal deletion behavior. However, this specific test pattern has not yet been implemented in the test suite.
 
 **Recommended:** Add zombie check tests to verify that soft-deleted entities:
+
 1. Remain visible for queries targeting timestamps before their deletion
 2. Disappear for queries targeting timestamps after their deletion
 
@@ -408,9 +410,9 @@ WHERE project_id = :id
 
 ```python
 # Try target branch first, fall back to main if not found
-version = get_current(root_id, branch="co-123")
+version = await get_current(root_id, branch="co-123")
 if version is None:
-    version = get_current(root_id, branch="main")
+    version = await get_current(root_id, branch="main")
 ```
 
 ### Time Travel on Branch
@@ -429,17 +431,21 @@ WHERE project_id = :id
 ## Related Documentation
 
 ### Architecture & Design
+
 - [ADR-005: Bitemporal Versioning](../decisions/ADR-005-bitemporal-versioning.md) - Architecture decision record
 - [ADR-006: Protocol-Based Type System](../decisions/ADR-006-protocol-based-type-system.md) - Type system design
 - [EVCS Core Architecture](../backend/contexts/evcs-core/architecture.md) - Complete EVCS system architecture
 
 ### Implementation Guides
+
 - [EVCS Implementation Guide](../backend/contexts/evcs-core/evcs-implementation-guide.md) - Code patterns and recipes (CRUD, branching, relationships)
 - [Entity Classification Guide](../backend/contexts/evcs-core/entity-classification.md) - Choosing Simple/Versionable/Branchable entity types
 
 ### User Guides
+
 - [EVCS User Guide](../../05-user-guide/evcs-wbe-user-guide.md) - Working with versioned entities (API consumers)
 
 ### Source Code
+
 - [TemporalService Implementation](../../../backend/app/core/versioning/service.py) - Core service with time travel support
 - [BranchableService Implementation](../../../backend/app/core/branching/service.py) - Branch-aware service operations
