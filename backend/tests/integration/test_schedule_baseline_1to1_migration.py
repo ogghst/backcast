@@ -73,8 +73,18 @@ async def test_schedule_baselines_missing_cost_element_id_fk(db_session: AsyncSe
 
 @pytest.mark.asyncio
 async def test_unique_constraint_on_schedule_baseline_id(db_session: AsyncSession):
-    """Test that unique index exists on cost_elements.schedule_baseline_id."""
-    # Check for unique index (partial index for non-null values)
+    """Test that unique index was removed from cost_elements.schedule_baseline_id.
+
+    In a bitemporal versioned system, we cannot have a unique constraint on a
+    foreign key column because:
+    1. The same entity (schedule baseline) can be referenced by multiple historical
+       versions of a cost element
+    2. The 1:1 relationship is enforced at the application layer (service layer)
+    3. Only the application layer can distinguish between current and historical versions
+
+    Migration 4295c725f05f removed the unique index to support proper versioning.
+    """
+    # Check that unique index does NOT exist
     result = await db_session.execute(
         text("""
             SELECT indexname, indexdef
@@ -85,21 +95,23 @@ async def test_unique_constraint_on_schedule_baseline_id(db_session: AsyncSessio
     )
     index = result.fetchone()
 
-    assert index is not None, "Should have unique index on schedule_baseline_id"
-    assert "unique" in index[1].lower(), "Index should be unique"
-    assert "where" in index[1].lower() and "schedule_baseline_id is not null" in index[1].lower(), \
-        "Index should be partial (only non-null values)"
+    assert index is None, "Unique index should NOT exist on schedule_baseline_id (removed for versioning support)"
 
 
 @pytest.mark.asyncio
 async def test_foreign_key_constraint_on_schedule_baseline_id(db_session: AsyncSession):
-    """Test that relationship integrity is enforced via unique index.
+    """Test that relationship integrity is enforced at application layer.
 
     Note: In a bitemporal versioned system, we cannot use a traditional FK constraint
-    because schedule_baseline_id appears in multiple version rows. Instead, we enforce
-    the 1:1 relationship via a unique partial index and application-level validation.
+    or unique index because schedule_baseline_id appears in multiple version rows.
+    Instead, we enforce the 1:1 relationship at the application layer (service layer).
+
+    This test verifies:
+    1. The unique index was removed (to allow versioning)
+    2. The regular performance index still exists (for query optimization)
+    3. Application-level validation is documented
     """
-    # Verify that the unique index exists (tested above)
+    # Verify that the unique index does NOT exist
     result = await db_session.execute(
         text("""
             SELECT indexname
@@ -110,7 +122,7 @@ async def test_foreign_key_constraint_on_schedule_baseline_id(db_session: AsyncS
     )
     index = result.fetchone()
 
-    assert index is not None, "Unique index should exist for 1:1 enforcement"
+    assert index is None, "Unique index should NOT exist (removed for versioning support)"
 
     # Verify that regular index exists for query performance
     result = await db_session.execute(
@@ -183,10 +195,18 @@ async def test_migration_preserves_existing_data(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_enforces_1to1_relationship_at_db_level(db_session: AsyncSession):
-    """Test that database enforces 1:1 relationship via unique constraint."""
-    # This test verifies the constraint works by attempting to violate it
-    # We'll use a transaction that we expect to fail
+    """Test that database does NOT enforce 1:1 relationship (application layer does).
 
+    In a bitemporal versioned system, the database cannot enforce a 1:1 relationship
+    via unique constraints because:
+    - Multiple historical versions of a cost element can reference the same baseline
+    - Only current versions should have the 1:1 constraint
+    - The database cannot distinguish between current and historical versions
+
+    Therefore, this test verifies that:
+    1. The database ALLOWS multiple cost elements to reference the same baseline
+    2. Application-layer logic (in services) enforces the 1:1 constraint for current versions
+    """
     # Create a test schedule baseline
     baseline_id = uuid4()
     await db_session.execute(
@@ -217,7 +237,7 @@ async def test_enforces_1to1_relationship_at_db_level(db_session: AsyncSession):
     await db_session.commit()
 
     # Try to create two cost elements referencing the same baseline
-    # This should fail due to unique constraint
+    # This should SUCCEED at the database level (no unique constraint)
     ce1_id = uuid4()
     ce2_id = uuid4()
 
@@ -250,38 +270,51 @@ async def test_enforces_1to1_relationship_at_db_level(db_session: AsyncSession):
     )
     await db_session.commit()
 
-    # Second cost element with same baseline should fail
-    with pytest.raises(Exception) as exc_info:
-        await db_session.execute(
-            text("""
-                INSERT INTO cost_elements (
-                    id, cost_element_id, wbe_id, cost_element_type_id,
-                    code, name, budget_amount, schedule_baseline_id,
-                    valid_time, transaction_time, created_by, branch
-                ) VALUES (
-                    :id, :cost_element_id, :wbe_id, :cost_element_type_id,
-                    :code, :name, :budget_amount, :schedule_baseline_id,
-                    tstzrange(now(), NULL), tstzrange(now(), NULL),
-                    :created_by, :branch
-                )
-            """),
-            {
-                "id": uuid4(),
-                "cost_element_id": ce2_id,
-                "wbe_id": uuid4(),
-                "cost_element_type_id": uuid4(),
-                "code": "CE-002",
-                "name": "Cost Element 2",
-                "budget_amount": 200000,
-                "schedule_baseline_id": baseline_id,  # Same baseline!
-                "created_by": uuid4(),
-                "branch": "main"
-            }
-        )
-        await db_session.commit()
+    # Second cost element with same baseline should ALSO succeed at DB level
+    # (The unique constraint was removed to support versioning)
+    await db_session.execute(
+        text("""
+            INSERT INTO cost_elements (
+                id, cost_element_id, wbe_id, cost_element_type_id,
+                code, name, budget_amount, schedule_baseline_id,
+                valid_time, transaction_time, created_by, branch
+            ) VALUES (
+                :id, :cost_element_id, :wbe_id, :cost_element_type_id,
+                :code, :name, :budget_amount, :schedule_baseline_id,
+                tstzrange(now(), NULL), tstzrange(now(), NULL),
+                :created_by, :branch
+            )
+        """),
+        {
+            "id": uuid4(),
+            "cost_element_id": ce2_id,
+            "wbe_id": uuid4(),
+            "cost_element_type_id": uuid4(),
+            "code": "CE-002",
+            "name": "Cost Element 2",
+            "budget_amount": 200000,
+            "schedule_baseline_id": baseline_id,  # Same baseline!
+            "created_by": uuid4(),
+            "branch": "main"
+        }
+    )
+    await db_session.commit()
 
-    # Should get a unique constraint violation
-    assert "unique" in str(exc_info.value).lower() or "duplicate" in str(exc_info.value).lower()
+    # Verify both cost elements were created successfully
+    result = await db_session.execute(
+        text("""
+            SELECT cost_element_id, code, schedule_baseline_id
+            FROM cost_elements
+            WHERE schedule_baseline_id = :baseline_id
+            AND deleted_at IS NULL
+        """),
+        {"baseline_id": baseline_id}
+    )
+    rows = result.fetchall()
+
+    # Database allows multiple cost elements to reference the same baseline
+    # The 1:1 constraint is enforced at the application layer
+    assert len(rows) == 2, "Database should allow multiple cost elements to reference the same baseline"
 
 
 @pytest.mark.asyncio

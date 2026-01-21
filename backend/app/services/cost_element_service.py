@@ -6,7 +6,9 @@ from datetime import datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
+from sqlalchemy import cast as sql_cast
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.service import BranchableService
@@ -718,7 +720,9 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         # Subqueries for parent versions (as of specific time)
         wbe_where_clauses = [cast(Any, WBEAlias).deleted_at.is_(None)]
         if as_of:
-            wbe_where_clauses.append(cast(Any, WBEAlias).valid_time.contains(as_of))
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            wbe_where_clauses.append(cast(Any, WBEAlias).valid_time.op("@>")(as_of_tstz))
+            wbe_where_clauses.append(func.lower(cast(Any, WBEAlias).valid_time) <= as_of_tstz)
         else:
             wbe_where_clauses.append(
                 func.upper(cast(Any, WBEAlias).valid_time).is_(None)
@@ -732,7 +736,9 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
 
         type_where_clauses = [cast(Any, TypeAlias).deleted_at.is_(None)]
         if as_of:
-            type_where_clauses.append(cast(Any, TypeAlias).valid_time.contains(as_of))
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            type_where_clauses.append(cast(Any, TypeAlias).valid_time.op("@>")(as_of_tstz))
+            type_where_clauses.append(func.lower(cast(Any, TypeAlias).valid_time) <= as_of_tstz)
         else:
             type_where_clauses.append(
                 func.upper(cast(Any, TypeAlias).valid_time).is_(None)

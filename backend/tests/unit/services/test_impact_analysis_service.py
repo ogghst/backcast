@@ -36,6 +36,8 @@ class TestImpactAnalysisServiceCompareKPIs:
         change_budget = Decimal("100000.00")
         main_margin = Decimal("20000.00")
         change_margin = Decimal("20000.00")
+        main_actual_costs = Decimal("80000.00")
+        change_actual_costs = Decimal("80000.00")
 
         # Act
         result = service._compare_kpis(
@@ -45,6 +47,8 @@ class TestImpactAnalysisServiceCompareKPIs:
             change_budget_total=change_budget,
             main_gross_margin=main_margin,
             change_gross_margin=change_margin,
+            main_actual_costs=main_actual_costs,
+            change_actual_costs=change_actual_costs,
         )
 
         # Assert - All deltas are zero, delta_percent is 0.0
@@ -81,6 +85,8 @@ class TestImpactAnalysisServiceCompareKPIs:
         change_bac = Decimal("120000.00")
         change_budget = Decimal("120000.00")
         change_margin = Decimal("25000.00")
+        main_actual_costs = Decimal("80000.00")
+        change_actual_costs = Decimal("95000.00")
 
         # Act
         result = service._compare_kpis(
@@ -90,6 +96,8 @@ class TestImpactAnalysisServiceCompareKPIs:
             change_budget_total=change_budget,
             main_gross_margin=main_margin,
             change_gross_margin=change_margin,
+            main_actual_costs=main_actual_costs,
+            change_actual_costs=change_actual_costs,
         )
 
         # Assert - Delta and percent calculated correctly

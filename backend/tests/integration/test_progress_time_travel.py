@@ -16,6 +16,7 @@ from app.api.dependencies.auth import (
 from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.main import app
 from app.models.domain.user import User
+from app.models.schemas.progress_entry import ProgressEntryCreate, ProgressEntryUpdate
 from app.services.progress_entry_service import ProgressEntryService
 
 mock_admin_user = User(
@@ -152,26 +153,26 @@ class TestProgressTimeTravel:
 
         # Create progress entry on Day 1
         await service.create(
-            progress_in={
-                "cost_element_id": cost_element_id,
-                "progress_percentage": Decimal("25.00"),
-                "reported_date": day_1,
-                "reported_by_user_id": user_id,
-                "notes": "Day 1 progress",
-            },
+            progress_in=ProgressEntryCreate(
+                cost_element_id=cost_element_id,
+                progress_percentage=Decimal("25.00"),
+                reported_date=day_1,
+                reported_by_user_id=user_id,
+                notes="Day 1 progress",
+            ),
             actor_id=user_id,
             control_date=day_1,
         )
 
         # Create progress entry on Day 5
         await service.create(
-            progress_in={
-                "cost_element_id": cost_element_id,
-                "progress_percentage": Decimal("50.00"),
-                "reported_date": day_5,
-                "reported_by_user_id": user_id,
-                "notes": "Day 5 progress",
-            },
+            progress_in=ProgressEntryCreate(
+                cost_element_id=cost_element_id,
+                progress_percentage=Decimal("50.00"),
+                reported_date=day_5,
+                reported_by_user_id=user_id,
+                notes="Day 5 progress",
+            ),
             actor_id=user_id,
             control_date=day_5,
         )
@@ -217,12 +218,12 @@ class TestProgressTimeTravel:
 
         # Create progress entry
         progress = await service.create(
-            progress_in={
-                "cost_element_id": cost_element_id,
-                "progress_percentage": Decimal("25.00"),
-                "reported_date": day_1,
-                "reported_by_user_id": user_id,
-            },
+            progress_in=ProgressEntryCreate(
+                cost_element_id=cost_element_id,
+                progress_percentage=Decimal("25.00"),
+                reported_date=day_1,
+                reported_by_user_id=user_id,
+            ),
             actor_id=user_id,
             control_date=day_1,
         )
@@ -276,12 +277,12 @@ class TestProgressTimeTravel:
 
         # Create initial version
         progress = await service.create(
-            progress_in={
-                "cost_element_id": cost_element_id,
-                "progress_percentage": Decimal("25.00"),
-                "reported_date": datetime(2026, 1, 10, tzinfo=UTC),
-                "reported_by_user_id": user_id,
-            },
+            progress_in=ProgressEntryCreate(
+                cost_element_id=cost_element_id,
+                progress_percentage=Decimal("25.00"),
+                reported_date=datetime(2026, 1, 10, tzinfo=UTC),
+                reported_by_user_id=user_id,
+            ),
             actor_id=user_id,
         )
         progress_entry_id = progress.progress_entry_id
@@ -289,14 +290,14 @@ class TestProgressTimeTravel:
         # Update to 50%
         await service.update(
             progress_entry_id=progress_entry_id,
-            progress_in={"progress_percentage": Decimal("50.00")},
+            progress_in=ProgressEntryUpdate(progress_percentage=Decimal("50.00")),
             actor_id=user_id,
         )
 
         # Update to 75%
         await service.update(
             progress_entry_id=progress_entry_id,
-            progress_in={"progress_percentage": Decimal("75.00")},
+            progress_in=ProgressEntryUpdate(progress_percentage=Decimal("75.00")),
             actor_id=user_id,
         )
 
@@ -336,12 +337,12 @@ class TestProgressTimeTravel:
 
         # Create progress on Day 1
         progress = await service.create(
-            progress_in={
-                "cost_element_id": cost_element_id,
-                "progress_percentage": Decimal("25.00"),
-                "reported_date": day_1,
-                "reported_by_user_id": user_id,
-            },
+            progress_in=ProgressEntryCreate(
+                cost_element_id=cost_element_id,
+                progress_percentage=Decimal("25.00"),
+                reported_date=day_1,
+                reported_by_user_id=user_id,
+            ),
             actor_id=user_id,
             control_date=day_1,
         )
@@ -349,7 +350,7 @@ class TestProgressTimeTravel:
         # Update on Day 5
         await service.update(
             progress_entry_id=progress.progress_entry_id,
-            progress_in={"progress_percentage": Decimal("50.00")},
+            progress_in=ProgressEntryUpdate(progress_percentage=Decimal("50.00")),
             actor_id=user_id,
             control_date=day_5,
         )
@@ -387,23 +388,23 @@ class TestProgressTimeTravel:
 
         # Create initial progress
         progress = await service.create(
-            progress_in={
-                "cost_element_id": cost_element_id,
-                "progress_percentage": Decimal("75.00"),
-                "reported_date": datetime(2026, 1, 15, tzinfo=UTC),
-                "reported_by_user_id": user_id,
-                "notes": "Excellent progress",
-            },
+            progress_in=ProgressEntryCreate(
+                cost_element_id=cost_element_id,
+                progress_percentage=Decimal("75.00"),
+                reported_date=datetime(2026, 1, 15, tzinfo=UTC),
+                reported_by_user_id=user_id,
+                notes="Excellent progress",
+            ),
             actor_id=user_id,
         )
 
         # Decrease with justification
         updated = await service.update(
             progress_entry_id=progress.progress_entry_id,
-            progress_in={
-                "progress_percentage": Decimal("50.00"),
-                "notes": "Work undone - inspection failed, rework required",
-            },
+            progress_in=ProgressEntryUpdate(
+                progress_percentage=Decimal("50.00"),
+                notes="Work undone - inspection failed, rework required",
+            ),
             actor_id=user_id,
         )
 

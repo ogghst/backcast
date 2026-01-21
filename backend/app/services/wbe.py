@@ -8,7 +8,9 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import cast as sql_cast
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -38,7 +40,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import cast as type_cast
 
-        from sqlalchemy import func
 
         stmt = (
             select(WBE)
@@ -126,7 +127,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import Any, cast
 
-        from sqlalchemy import func
 
         Parent = aliased(WBE, name="parent_wbe")
 
@@ -135,7 +135,9 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
 
         if as_of:
             # Get parent version valid at as_of time
-            parent_where_clauses.append(cast(Any, Parent).valid_time.contains(as_of))
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            parent_where_clauses.append(cast(Any, Parent).valid_time.op("@>")(as_of_tstz))
+            parent_where_clauses.append(func.lower(cast(Any, Parent).valid_time) <= as_of_tstz)
         else:
             # Get current parent version
             parent_where_clauses.append(
@@ -191,7 +193,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import Any, cast
 
-        from sqlalchemy import and_, func, or_
+        from sqlalchemy import and_, or_
 
         from app.core.filtering import FilterParser
 
@@ -281,7 +283,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """Get all WBEs for a specific project (current versions)."""
         from typing import Any, cast
 
-        from sqlalchemy import func
 
         stmt = (
             self._get_base_stmt()
@@ -314,7 +315,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import Any, cast
 
-        from sqlalchemy import func
 
         # Build base query
         conditions = [
@@ -345,7 +345,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """Get WBE by code within a project (current version)."""
         from typing import Any, cast
 
-        from sqlalchemy import func
 
         stmt = (
             self._get_base_stmt()
@@ -492,7 +491,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import Any, cast
 
-        from sqlalchemy import func, literal_column, select
+        from sqlalchemy import literal_column, select
         from sqlalchemy.orm import aliased
 
         # Build recursive CTE to get all descendants
@@ -561,7 +560,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import Any, cast
 
-        from sqlalchemy import func, select
+        from sqlalchemy import select
 
         stmt = (
             select(func.count())
@@ -592,7 +591,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import Any, cast
 
-        from sqlalchemy import func, literal_column, select
+        from sqlalchemy import literal_column, select
         from sqlalchemy.orm import aliased
 
         from app.models.domain.project import Project
@@ -686,7 +685,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """Override to include parent_name."""
         from typing import Any, cast
 
-        from sqlalchemy import func
 
         stmt = (
             self._get_base_stmt()
@@ -711,7 +709,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """Get all versions of a WBE by root wbe_id (with creator and parent name)."""
         from typing import Any, cast
 
-        from sqlalchemy import func
         from sqlalchemy.orm import aliased
 
         # User lookup subquery

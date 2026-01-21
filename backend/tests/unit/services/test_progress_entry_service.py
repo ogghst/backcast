@@ -108,47 +108,46 @@ class TestProgressEntryServiceCreate:
     async def test_create_progress_entry_with_negative_percentage_raises_error(
         self, db_session: AsyncSession
     ) -> None:
-        """Test creating progress entry with negative percentage raises ValueError.
+        """Test creating progress entry with negative percentage raises ValidationError.
 
         Test ID: T-003
         """
         # Arrange
         service = ProgressEntryService(db_session)
         cost_element_id = uuid4()
-        progress_in = ProgressEntryCreate(
-            cost_element_id=cost_element_id,
-            progress_percentage=Decimal("-1.00"),
-            reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-            reported_by_user_id=uuid4(),
-        )
         actor_id = uuid4()
 
-        # Act & Assert
-        with pytest.raises(ValueError, match="Progress percentage must be between 0 and 100"):
-            await service.create(progress_in, actor_id=actor_id)
+        # Act & Assert - Pydantic validates before service is called
+        from pydantic import ValidationError as PydanticValidationError
+        with pytest.raises(PydanticValidationError, match="greater_than_equal"):
+            ProgressEntryCreate(
+                cost_element_id=cost_element_id,
+                progress_percentage=Decimal("-1.00"),
+                reported_date=datetime(2026, 1, 15, tzinfo=UTC),
+                reported_by_user_id=uuid4(),
+            )
 
     @pytest.mark.asyncio
     async def test_create_progress_entry_with_over_hundred_percentage_raises_error(
         self, db_session: AsyncSession
     ) -> None:
-        """Test creating progress entry with >100% raises ValueError.
+        """Test creating progress entry with >100% raises ValidationError.
 
         Test ID: T-004
         """
         # Arrange
         service = ProgressEntryService(db_session)
         cost_element_id = uuid4()
-        progress_in = ProgressEntryCreate(
-            cost_element_id=cost_element_id,
-            progress_percentage=Decimal("101.00"),
-            reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-            reported_by_user_id=uuid4(),
-        )
-        actor_id = uuid4()
 
-        # Act & Assert
-        with pytest.raises(ValueError, match="Progress percentage must be between 0 and 100"):
-            await service.create(progress_in, actor_id=actor_id)
+        # Act & Assert - Pydantic validates before service is called
+        from pydantic import ValidationError as PydanticValidationError
+        with pytest.raises(PydanticValidationError, match="less_than_equal"):
+            ProgressEntryCreate(
+                cost_element_id=cost_element_id,
+                progress_percentage=Decimal("101.00"),
+                reported_date=datetime(2026, 1, 15, tzinfo=UTC),
+                reported_by_user_id=uuid4(),
+            )
 
 
 class TestProgressEntryServiceUpdate:

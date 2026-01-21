@@ -326,7 +326,7 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
 
         # Fetch the newly created version from the database
         stmt_new = select(self.entity_class).where(
-            getattr(self.entity_class, "id") == new_version_id
+            self.entity_class.id == new_version_id
         )
         result_new = await session.execute(stmt_new)
         created_version = result_new.scalar_one()

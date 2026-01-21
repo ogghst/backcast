@@ -371,6 +371,50 @@ else:
 
 ---
 
+## Compliance Validation
+
+### Detection Pattern
+
+Use these grep patterns to find non-compliant custom temporal filters:
+
+```bash
+# Find @> operator without lower bound check
+grep -rn "valid_time.*@>" backend/app/services/ | grep -v "func.lower.*valid_time"
+
+# Find .contains() usage (non-standard pattern)
+grep -rn "\.valid_time\.contains(" backend/app/services/
+```
+
+### Justified Deviations
+
+The following custom implementations are justified and documented:
+
+1. **CostElementService.get_cost_element_as_of()** (lines 679-750)
+   - **Justification**: Complex query with joins to WBE and CostElementType for resolving parent_name and type_name
+   - **Compliance**: Uses custom filters for related entities (WBE, CostElementType) with proper temporal checks
+
+2. **ChangeOrderService.get_current()** (line 70)
+   - **Justification**: Uses `clock_timestamp()` instead of `current_timestamp()` for proper transaction-scoped time handling
+   - **Compliance**: Fixed with TIMESTAMP cast and lower bound check
+
+3. **ChangeOrderService.get_current_by_code()** (line 548)
+   - **Justification**: Uses `clock_timestamp()` for proper transaction-scoped time handling
+   - **Compliance**: Fixed with TIMESTAMP cast and lower bound check
+
+4. **ChangeOrderService.update_change_order()** (lines 226-299)
+   - **Justification**: Handles Time Machine mode with `control_date` parameter for querying historical state
+   - **Compliance**: Fixed with TIMESTAMP cast and lower bound check for all query statements
+
+5. **WBEService._get_base_stmt()** (lines 122-154)
+   - **Justification**: Provides parent name resolution for WBE hierarchy queries
+   - **Compliance**: Fixed with TIMESTAMP cast and lower bound check
+
+**Note**: All justified deviations have been remediated to include:
+- `TIMESTAMP(timezone=True)` casting for proper timezone handling
+- `func.lower(valid_time) <= as_of_tstz` to prevent future entities from leaking into historical queries
+
+---
+
 ## Service-Level Time Travel Support
 
 The following services expose `get_as_of` methods for single-entity time-travel queries:

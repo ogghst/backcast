@@ -154,22 +154,30 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
         return await self.get_as_of(user_id, as_of, branch, branch_mode)
 
     async def get_user_preferences(self, user_id: UUID) -> dict[str, Any]:
-        """Get user preferences from JSON column."""
+        """Get user preferences from JSON column.
+
+        Returns an empty dict if preferences is None or not set.
+        """
         user = await self.get_user(user_id)
         if not user:
             raise ValueError(f"User {user_id} not found")
-        return user.preferences or {}
+        # Handle None by returning empty dict (preferences is nullable in DB)
+        return user.preferences if user.preferences is not None else {}
 
     async def update_user_preferences(
         self, user_id: UUID, preferences_data: dict[str, Any]
     ) -> dict[str, Any]:
-        """Update user preferences in JSON column."""
+        """Update user preferences in JSON column.
+
+        Merges the provided preferences_data with existing preferences.
+        If no preferences exist, creates a new preferences dict.
+        """
         user = await self.get_user(user_id)
         if not user:
             raise ValueError(f"User {user_id} not found")
 
-        # Merge with existing preferences
-        current_prefs = user.preferences or {}
+        # Merge with existing preferences (handle None case)
+        current_prefs = user.preferences if user.preferences is not None else {}
         updated_prefs = {**current_prefs, **preferences_data}
 
         # Update the user entity directly (no versioning for preferences)

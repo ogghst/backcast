@@ -9,7 +9,9 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID, uuid4
 
+from sqlalchemy import cast as sql_cast
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.service import BranchableService
@@ -60,6 +62,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         a transaction, current_timestamp() returns the transaction start time,
         which may be before the valid_time lower bound of recently created records.
         """
+        # Cast clock_timestamp() to TIMESTAMP for proper temporal comparison
+        as_of_tstz = sql_cast(func.clock_timestamp(), TIMESTAMP(timezone=True))
         stmt = (
             select(ChangeOrder)
             .where(
@@ -67,7 +71,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                 ChangeOrder.branch == branch,
                 # Check if current actual timestamp is within valid_time range
                 # clock_timestamp() returns the actual current time, not transaction start time
-                cast(Any, ChangeOrder).valid_time.op("@>")(func.clock_timestamp()),
+                cast(Any, ChangeOrder).valid_time.op("@>")(as_of_tstz),
+                func.lower(cast(Any, ChangeOrder).valid_time) <= as_of_tstz,
                 cast(Any, ChangeOrder).deleted_at.is_(None),
             )
             .order_by(cast(Any, ChangeOrder).valid_time.desc())
@@ -220,6 +225,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # CRITICAL FIX: When control_date is provided (Time Machine mode), use it instead of clock_timestamp()
         # This ensures we find the Change Order that exists at the control_date, not at current time
         query_timestamp = control_date if control_date else func.clock_timestamp()
+        query_timestamp_tstz = sql_cast(query_timestamp, TIMESTAMP(timezone=True))
 
         # First try to find the CO on any branch
         # Use control_date if provided (Time Machine), otherwise use clock_timestamp()
@@ -228,7 +234,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             .where(
                 ChangeOrder.change_order_id == change_order_id,
                 # Check if query_timestamp is within valid_time range
-                cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp),
+                cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp_tstz),
+                func.lower(cast(Any, ChangeOrder).valid_time) <= query_timestamp_tstz,
                 cast(Any, ChangeOrder).deleted_at.is_(None),
             )
             .order_by(cast(Any, ChangeOrder).valid_time.desc())
@@ -262,7 +269,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             .where(
                 ChangeOrder.change_order_id == change_order_id,
                 ChangeOrder.branch == target_branch,
-                cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp),
+                cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp_tstz),
+                func.lower(cast(Any, ChangeOrder).valid_time) <= query_timestamp_tstz,
                 cast(Any, ChangeOrder).deleted_at.is_(None),
             )
             .order_by(cast(Any, ChangeOrder).valid_time.desc())
@@ -283,7 +291,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                 .where(
                     ChangeOrder.change_order_id == change_order_id,
                     ChangeOrder.branch == "main",
-                    cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp),
+                    cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp_tstz),
+                    func.lower(cast(Any, ChangeOrder).valid_time) <= query_timestamp_tstz,
                     cast(Any, ChangeOrder).deleted_at.is_(None),
                 )
                 .order_by(cast(Any, ChangeOrder).valid_time.desc())
@@ -537,13 +546,16 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         Returns:
             Current ChangeOrder or None
         """
+        # Cast clock_timestamp() to TIMESTAMP for proper temporal comparison
+        as_of_tstz = sql_cast(func.clock_timestamp(), TIMESTAMP(timezone=True))
         stmt = (
             select(ChangeOrder)
             .where(
                 ChangeOrder.code == code,
                 ChangeOrder.branch == branch,
                 # Check if actual current timestamp is within valid_time range
-                cast(Any, ChangeOrder).valid_time.op("@>")(func.clock_timestamp()),
+                cast(Any, ChangeOrder).valid_time.op("@>")(as_of_tstz),
+                func.lower(cast(Any, ChangeOrder).valid_time) <= as_of_tstz,
                 cast(Any, ChangeOrder).deleted_at.is_(None),
             )
             .order_by(cast(Any, ChangeOrder).valid_time.desc())
