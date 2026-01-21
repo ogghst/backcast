@@ -9,6 +9,7 @@ import { OverviewTab } from "./tabs/OverviewTab";
 import { CostRegistrationsTab } from "./tabs/CostRegistrationsTab";
 import { ForecastsTab } from "./tabs/ForecastsTab";
 import { ScheduleBaselinesTab } from "./tabs/ScheduleBaselinesTab";
+import { ProgressEntriesTab } from "@/features/progress-entries/components/ProgressEntriesTab";
 import {
   CostElementBreadcrumbBuilder,
   type CostElementBreadcrumb,
@@ -72,6 +73,13 @@ export const CostElementDetailPage = () => {
       label: "Cost Registrations",
       children: costElement ? (
         <CostRegistrationsTab costElement={costElement} />
+      ) : null,
+    },
+    {
+      key: "progress",
+      label: "Progress",
+      children: costElement ? (
+        <ProgressEntriesTab costElement={costElement} />
       ) : null,
     },
   ];
