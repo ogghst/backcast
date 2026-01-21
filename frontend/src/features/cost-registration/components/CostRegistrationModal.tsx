@@ -6,6 +6,7 @@ import type {
   CostRegistrationUpdate,
 } from "@/api/generated";
 import dayjs from "dayjs";
+import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 
 interface CostRegistrationModalProps {
   open: boolean;
@@ -36,6 +37,7 @@ export const CostRegistrationModal = ({
   initialValues,
 }: CostRegistrationModalProps) => {
   const [form] = Form.useForm();
+  const { asOf } = useTimeMachineParams();
   const isEdit = !!initialValues;
 
   useEffect(() => {
@@ -58,7 +60,7 @@ export const CostRegistrationModal = ({
         // Reset form for create mode with default date
         form.resetFields();
         form.setFieldsValue({
-          registration_date: dayjs(),
+          registration_date: asOf ? dayjs(asOf) : dayjs(),
         });
       }
     }

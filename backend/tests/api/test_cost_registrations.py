@@ -512,3 +512,202 @@ class TestCostRegistrationsAPI:
         assert data["unit_of_measure"] == "hours"
         assert data["invoice_number"] == "INV-2026-001"
         assert data["vendor_reference"] == "Acme Consulting Inc."
+
+    @pytest.mark.asyncio
+    async def test_cost_registration_zombie_check_past_view(
+        self, client: AsyncClient, setup_dependencies: dict[str, Any]
+    ) -> None:
+        """Verify deleted cost registrations respect time travel boundaries.
+
+        Zombie Check Pattern:
+        1. Create cost registration at T1 (Feb 1)
+        2. Delete at T3 (Feb 10)
+        3. Query at T2 (Feb 5) - should return entity (was not deleted yet)
+        4. Query at T4 (Feb 15) - should NOT return entity (was deleted)
+        """
+        deps = setup_dependencies
+
+        # T1: Create cost registration on Feb 1
+        t1_control_date = "2026-02-01T00:00:00Z"
+        create_res = await client.post(
+            "/api/v1/cost-registrations",
+            json={
+                "cost_element_id": deps["cost_element_id"],
+                "amount": 100.00,
+                "description": "Zombie test registration",
+                "control_date": t1_control_date,
+            },
+        )
+        assert create_res.status_code == 201
+        reg_id = create_res.json()["cost_registration_id"]
+
+        # T3: Delete on Feb 10
+        t3_control_date = "2026-02-10T00:00:00Z"
+        delete_res = await client.delete(
+            f"/api/v1/cost-registrations/{reg_id}?control_date={t3_control_date}"
+        )
+        assert delete_res.status_code == 204
+
+        # T2: Query at Feb 5 (before deletion) - should return entity
+        t2_as_of = "2026-02-05T12:00:00Z"
+        response = await client.get(
+            f"/api/v1/cost-registrations/{reg_id}?as_of={t2_as_of}"
+        )
+        # Zombie Check: Entity should be visible (was alive at T2)
+        assert response.status_code == 200, "Entity should be visible before deletion date"
+        data = response.json()
+        assert data["cost_registration_id"] == reg_id
+        assert data["amount"] == "100.00"
+
+        # T4: Query at Feb 15 (after deletion) - should NOT return entity
+        t4_as_of = "2026-02-15T12:00:00Z"
+        response = await client.get(
+            f"/api/v1/cost-registrations/{reg_id}?as_of={t4_as_of}"
+        )
+        # Zombie Check: Entity should NOT be visible (was deleted at T3)
+        assert response.status_code == 404, "Entity should not be visible after deletion date"
+
+    @pytest.mark.asyncio
+    async def test_cost_registration_future_valid_time_not_visible(
+        self, client: AsyncClient, setup_dependencies: dict[str, Any]
+    ) -> None:
+        """Verify cost registrations with future valid_time are not visible at past control_date.
+
+        Test scenario:
+        1. Create cost registration with valid_time starting Feb 20
+        2. Query at Feb 16 - should return empty (registration not yet valid)
+        3. Query at Feb 25 - should return the registration (registration is valid)
+        """
+        deps = setup_dependencies
+
+        # Create cost registration with valid_time starting Feb 20
+        future_control_date = "2026-02-20T00:00:00Z"
+        create_res = await client.post(
+            "/api/v1/cost-registrations",
+            json={
+                "cost_element_id": deps["cost_element_id"],
+                "amount": 200.00,
+                "description": "Future cost registration",
+                "control_date": future_control_date,
+            },
+        )
+        assert create_res.status_code == 201
+        reg_id = create_res.json()["cost_registration_id"]
+
+        # Query at Feb 16 (before valid_time start) - should NOT return
+        past_as_of = "2026-02-16T12:00:00Z"
+        response = await client.get(
+            f"/api/v1/cost-registrations/{reg_id}?as_of={past_as_of}"
+        )
+        assert response.status_code == 404, "Registration should not be visible before valid_time"
+
+        # Query at Feb 25 (after valid_time start) - should return
+        future_as_of = "2026-02-25T12:00:00Z"
+        response = await client.get(
+            f"/api/v1/cost-registrations/{reg_id}?as_of={future_as_of}"
+        )
+        assert response.status_code == 200, "Registration should be visible after valid_time"
+        data = response.json()
+        assert data["cost_registration_id"] == reg_id
+        assert data["amount"] == "200.00"
+
+    @pytest.mark.asyncio
+    async def test_cost_registration_list_respects_control_date(
+        self, client: AsyncClient, setup_dependencies: dict[str, Any]
+    ) -> None:
+        """Verify cost registration list endpoint respects as_of parameter.
+
+        Test scenario:
+        1. Create cost registration with valid_time starting Feb 20
+        2. Query list at Feb 16 - should not include the registration
+        3. Query list at Feb 25 - should include the registration
+        """
+        deps = setup_dependencies
+
+        # Create cost registration with valid_time starting Feb 20
+        future_control_date = "2026-02-20T00:00:00Z"
+        await client.post(
+            "/api/v1/cost-registrations",
+            json={
+                "cost_element_id": deps["cost_element_id"],
+                "amount": 300.00,
+                "description": "Future list test",
+                "control_date": future_control_date,
+            },
+        )
+
+        # Query list at Feb 16 (before valid_time) - should be empty
+        past_as_of = "2026-02-16T12:00:00Z"
+        response = await client.get(
+            f"/api/v1/cost-registrations?cost_element_id={deps['cost_element_id']}&as_of={past_as_of}"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["items"]) == 0, "List should be empty when viewing before valid_time"
+
+        # Query list at Feb 25 (after valid_time) - should include the registration
+        future_as_of = "2026-02-25T12:00:00Z"
+        response = await client.get(
+            f"/api/v1/cost-registrations?cost_element_id={deps['cost_element_id']}&as_of={future_as_of}"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["items"]) == 1, "List should include registration when viewing after valid_time"
+        # Amount may be string or float depending on serialization
+        amount = data["items"][0]["amount"]
+        if isinstance(amount, str):
+            assert amount == "300.00"
+        else:
+            assert float(amount) == 300.0
+
+    @pytest.mark.asyncio
+    async def test_budget_status_respects_control_date(
+        self, client: AsyncClient, setup_dependencies: dict[str, Any]
+    ) -> None:
+        """Verify budget status excludes future cost registrations.
+
+        Test scenario:
+        1. Create cost element with budget of 5000
+        2. Create cost registration with valid_time starting Feb 20, amount 1000
+        3. Get budget status at Feb 16 - used should be 0
+        4. Get budget status at Feb 25 - used should be 1000
+        """
+        deps = setup_dependencies
+        budget_amount = 5000.00
+
+        # Create cost registration with valid_time starting Feb 20
+        future_control_date = "2026-02-20T00:00:00Z"
+        registration_amount = 1000.00
+        await client.post(
+            "/api/v1/cost-registrations",
+            json={
+                "cost_element_id": deps["cost_element_id"],
+                "amount": registration_amount,
+                "description": "Budget status test",
+                "control_date": future_control_date,
+            },
+        )
+
+        # Get budget status at Feb 16 (before valid_time) - used should be 0
+        past_as_of = "2026-02-16T12:00:00Z"
+        response = await client.get(
+            f"/api/v1/cost-registrations/budget-status/{deps['cost_element_id']}?as_of={past_as_of}"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["budget"] == "5000.00", f"Budget should be {budget_amount}"
+        assert data["used"] == "0", "Used should be 0 when viewing before valid_time"
+        assert data["remaining"] == "5000.00", f"Remaining should be full budget {budget_amount}"
+        assert data["percentage"] == 0.0, "Percentage used should be 0%"
+
+        # Get budget status at Feb 25 (after valid_time) - used should be 1000
+        future_as_of = "2026-02-25T12:00:00Z"
+        response = await client.get(
+            f"/api/v1/cost-registrations/budget-status/{deps['cost_element_id']}?as_of={future_as_of}"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["budget"] == "5000.00", f"Budget should be {budget_amount}"
+        assert data["used"] == "1000.00", f"Used should be {registration_amount}"
+        assert data["remaining"] == "4000.00", f"Remaining should be {budget_amount - registration_amount}"
+        assert data["percentage"] == 20.0, "Percentage used should be 20%"

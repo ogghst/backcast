@@ -291,3 +291,151 @@ class TestTimeTravelQueries:
         current = await service.get_by_id(v1_id)
         assert current is not None
         assert current.amount == Decimal("150.00")
+
+    @pytest.mark.asyncio
+    async def test_get_total_zombie_check_cost_deleted_before_as_of_excluded(
+        self, db_session: AsyncSession, sample_cost_element_with_budget
+    ) -> None:
+        """Verify cost registrations respect temporal deletion boundaries.
+
+        Pattern: Create -> Delete -> Query Past
+
+        Cost created at T1, deleted at T2:
+        - Query at T3 < T2: cost INCLUDED
+        - Query at T4 > T2: cost EXCLUDED
+
+        This test verifies the fix for the custom temporal filter bug where
+        func.lower(valid_time) <= as_of was missing, causing incorrect results.
+        """
+        # Arrange
+        service = CostRegistrationService(db_session)
+        cost_element = sample_cost_element_with_budget
+        cost_element_id = cost_element.cost_element_id
+        actor_id = uuid4()
+
+        # T1: Create cost with valid_time starting Jan 1
+        registration = await service.create(
+            CostRegistrationCreate(
+                cost_element_id=cost_element_id,
+                amount=Decimal("100.00"),
+                registration_date=datetime(2026, 1, 1, tzinfo=UTC),
+            ),
+            actor_id=actor_id,
+            control_date=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+        registration_id = registration.cost_registration_id
+
+        # T2: Soft delete on Jan 15 (sets deleted_at)
+        await service.soft_delete(
+            registration_id,
+            actor_id=actor_id,
+            control_date=datetime(2026, 1, 15, tzinfo=UTC),
+        )
+
+        # Act - Query at T3 = Jan 10 (before deletion)
+        total_before_deletion = await service.get_total_for_cost_element(
+            cost_element_id=cost_element_id,
+            as_of=datetime(2026, 1, 10, 12, 0, 0, tzinfo=UTC),
+        )
+
+        # Act - Query at T4 = Jan 20 (after deletion)
+        total_after_deletion = await service.get_total_for_cost_element(
+            cost_element_id=cost_element_id,
+            as_of=datetime(2026, 1, 20, 12, 0, 0, tzinfo=UTC),
+        )
+
+        # Assert - Cost included before deletion, excluded after
+        assert total_before_deletion == Decimal("100.00"), \
+            f"Cost should be included when querying before deletion date (T3 < T2)"
+        assert total_after_deletion == 0, \
+            f"Cost should be excluded when querying after deletion date (T4 > T2)"
+
+    @pytest.mark.asyncio
+    async def test_get_total_excludes_costs_with_future_valid_time_start(
+        self, db_session: AsyncSession, sample_cost_element_with_budget
+    ) -> None:
+        """Verify that costs created AFTER as_of are excluded.
+
+        The func.lower(valid_time) <= as_of check is critical.
+        Without it, the @> operator alone may match future costs.
+
+        This test verifies the fix for the custom temporal filter bug.
+        """
+        # Arrange
+        service = CostRegistrationService(db_session)
+        cost_element = sample_cost_element_with_budget
+        cost_element_id = cost_element.cost_element_id
+        actor_id = uuid4()
+
+        # Create cost with valid_time starting Jan 1
+        await service.create(
+            CostRegistrationCreate(
+                cost_element_id=cost_element_id,
+                amount=Decimal("100.00"),
+                registration_date=datetime(2026, 1, 1, tzinfo=UTC),
+            ),
+            actor_id=actor_id,
+            control_date=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+
+        # Create cost with valid_time starting Jan 20 (future from query perspective)
+        await service.create(
+            CostRegistrationCreate(
+                cost_element_id=cost_element_id,
+                amount=Decimal("200.00"),
+                registration_date=datetime(2026, 1, 20, tzinfo=UTC),
+            ),
+            actor_id=actor_id,
+            control_date=datetime(2026, 1, 20, tzinfo=UTC),
+        )
+
+        # Act - Query as of Jan 10 (before second cost's valid_time starts)
+        total = await service.get_total_for_cost_element(
+            cost_element_id=cost_element_id,
+            as_of=datetime(2026, 1, 10, 12, 0, 0, tzinfo=UTC),
+        )
+
+        # Assert - Only first cost included (second cost's valid_time starts after as_of)
+        assert total == Decimal("100.00"), \
+            f"Only costs with lower(valid_time) <= as_of should be included. " \
+            f"Got {total}, expected 100.00"
+
+        # Verify current total includes both
+        current_total = await service.get_total_for_cost_element(cost_element_id)
+        assert current_total == Decimal("300.00")
+
+    @pytest.mark.asyncio
+    async def test_get_total_handles_timezone_aware_as_of(
+        self, db_session: AsyncSession, sample_cost_element_with_budget
+    ) -> None:
+        """Verify TIMESTAMP casting handles timezone-aware datetimes correctly.
+
+        The standardized filter casts as_of to TIMESTAMP(timezone=True) to ensure
+        proper comparison with TSTZRANGE columns. This test verifies the fix works.
+        """
+        # Arrange
+        service = CostRegistrationService(db_session)
+        cost_element = sample_cost_element_with_budget
+        cost_element_id = cost_element.cost_element_id
+        actor_id = uuid4()
+
+        # Create cost with timezone-aware datetime
+        await service.create(
+            CostRegistrationCreate(
+                cost_element_id=cost_element_id,
+                amount=Decimal("100.00"),
+                registration_date=datetime(2026, 1, 1, tzinfo=UTC),
+            ),
+            actor_id=actor_id,
+            control_date=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+
+        # Act - Query with timezone-aware as_of
+        total = await service.get_total_for_cost_element(
+            cost_element_id=cost_element_id,
+            as_of=datetime(2026, 1, 10, 12, 0, 0, tzinfo=UTC),
+        )
+
+        # Assert - Should handle timezone conversion correctly
+        assert total == Decimal("100.00"), \
+            "TIMESTAMP casting should handle timezone-aware datetimes correctly"

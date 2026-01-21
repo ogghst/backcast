@@ -82,22 +82,30 @@ export class CostRegistrationsService {
     }
     /**
      * Get Budget Status
-     * Get budget status for a cost element.
+     * Get budget status for a cost element with time-travel support.
      *
      * Returns the budget amount, used amount, remaining amount, and percentage used.
      * Useful for displaying budget progress bars and warnings.
+     *
+     * The as_of parameter allows viewing the budget status at any historical point in time,
+     * showing only cost registrations that were valid as of that timestamp.
      * @param costElementId
+     * @param asOf Time travel: get budget status as of this timestamp (ISO 8601)
      * @returns any Successful Response
      * @throws ApiError
      */
     public static getBudgetStatus(
         costElementId: string,
+        asOf?: (string | null),
     ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/cost-registrations/budget-status/{cost_element_id}',
             path: {
                 'cost_element_id': costElementId,
+            },
+            query: {
+                'as_of': asOf,
             },
             errors: {
                 422: `Validation Error`,

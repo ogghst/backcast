@@ -78,6 +78,7 @@ async def read_cost_registrations(
         filters=query_filters,
         skip=skip,
         limit=per_page,
+        as_of=as_of,
     )
 
     # Convert to Pydantic models
@@ -148,15 +149,22 @@ async def create_cost_registration(
 )
 async def get_budget_status(
     cost_element_id: UUID,
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get budget status as of this timestamp (ISO 8601)",
+    ),
     service: CostRegistrationService = Depends(get_cost_registration_service),
 ) -> dict[str, Any]:
-    """Get budget status for a cost element.
+    """Get budget status for a cost element with time-travel support.
 
     Returns the budget amount, used amount, remaining amount, and percentage used.
     Useful for displaying budget progress bars and warnings.
+
+    The as_of parameter allows viewing the budget status at any historical point in time,
+    showing only cost registrations that were valid as of that timestamp.
     """
     try:
-        budget_status = await service.get_budget_status(cost_element_id)
+        budget_status = await service.get_budget_status(cost_element_id, as_of=as_of)
         return {
             "cost_element_id": str(budget_status.cost_element_id),
             "budget": str(budget_status.budget),

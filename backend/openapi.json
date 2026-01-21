@@ -3690,7 +3690,7 @@
           "Cost Registrations"
         ],
         "summary": "Get Budget Status",
-        "description": "Get budget status for a cost element.\n\nReturns the budget amount, used amount, remaining amount, and percentage used.\nUseful for displaying budget progress bars and warnings.",
+        "description": "Get budget status for a cost element with time-travel support.\n\nReturns the budget amount, used amount, remaining amount, and percentage used.\nUseful for displaying budget progress bars and warnings.\n\nThe as_of parameter allows viewing the budget status at any historical point in time,\nshowing only cost registrations that were valid as of that timestamp.",
         "operationId": "get_budget_status",
         "security": [
           {
@@ -3707,6 +3707,25 @@
               "format": "uuid",
               "title": "Cost Element Id"
             }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: get budget status as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: get budget status as of this timestamp (ISO 8601)"
           }
         ],
         "responses": {

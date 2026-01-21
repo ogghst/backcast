@@ -14,6 +14,8 @@ import {
 } from "@tanstack/react-query";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { toast } from "sonner";
+import { OpenAPI } from "@/api/generated/core/OpenAPI";
+import { request as __request } from "@/api/generated/core/request";
 import {
   CostRegistrationsService,
   type CostRegistrationRead,
@@ -46,11 +48,13 @@ interface CostRegistrationListParams {
  * @returns TanStack Query result with paginated cost registrations
  */
 export const useCostRegistrations = (params?: CostRegistrationListParams) => {
+  const { asOf } = useTimeMachineParams();
+
   return useQuery<PaginatedResponse<CostRegistrationRead>>({
     queryKey: queryKeys.costRegistrations.list(
       params?.cost_element_id || "",
-      params,
-    ), // Expecting cost_element_id
+      { ...params, asOf },
+    ),
     queryFn: async () => {
       const {
         cost_element_id,
@@ -78,7 +82,7 @@ export const useCostRegistrations = (params?: CostRegistrationListParams) => {
         null, // filters string - can be enhanced later
         sortField || null,
         serverSortOrder,
-        undefined, // as_of - time travel not needed for current view
+        asOf || undefined, // as_of - pass time machine context for time-travel queries
       );
 
       if (Array.isArray(result)) {
@@ -107,9 +111,12 @@ export const useBudgetStatus = (costElementId: string) => {
   return useQuery({
     queryKey: queryKeys.costRegistrations.budgetStatus(costElementId, { asOf }),
     queryFn: async () => {
-      // If service supports as_of, pass it here. Assuming currently it might not,
-      // but key isolation is safe practice.
-      return await CostRegistrationsService.getBudgetStatus(costElementId);
+      // Pass as_of parameter for time-travel queries
+      // FIX: Use undefined instead of null so the request function doesn't filter it out
+      return await CostRegistrationsService.getBudgetStatus(
+        costElementId,
+        asOf || undefined,
+      );
     },
     enabled: !!costElementId,
   });
@@ -137,6 +144,7 @@ export const useCostRegistrationHistory = (costRegistrationId: string) => {
  * Hook to create a new cost registration.
  *
  * Automatically invalidates cost_registrations queries on success.
+ * Automatically injects control_date from TimeMachine context.
  */
 export const useCreateCostRegistration = (
   mutationOptions?: Omit<
@@ -144,11 +152,13 @@ export const useCreateCostRegistration = (
     "mutationFn"
   >,
 ) => {
+  const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (data: CostRegistrationCreate) => {
-      return CostRegistrationsService.createCostRegistration(data);
+      const payload = { ...data, control_date: asOf || null };
+      return CostRegistrationsService.createCostRegistration(payload);
     },
     onSuccess: (...args) => {
       // Invalidate related queries
@@ -189,6 +199,7 @@ export const useCreateCostRegistration = (
  * Hook to update an existing cost registration.
  *
  * Automatically invalidates cost_registrations queries on success.
+ * Automatically injects control_date from TimeMachine context.
  */
 export const useUpdateCostRegistration = (
   mutationOptions?: Omit<
@@ -200,6 +211,7 @@ export const useUpdateCostRegistration = (
     "mutationFn"
   >,
 ) => {
+  const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -211,7 +223,8 @@ export const useUpdateCostRegistration = (
       data: CostRegistrationUpdate;
       costElementId: string;
     }) => {
-      return CostRegistrationsService.updateCostRegistration(id, data);
+      const payload = { ...data, control_date: asOf || null };
+      return CostRegistrationsService.updateCostRegistration(id, payload);
     },
     onSuccess: (...args) => {
       // costElementId helps precise invalidation
@@ -246,6 +259,7 @@ export const useUpdateCostRegistration = (
  * Hook to delete (soft delete) a cost registration.
  *
  * Automatically invalidates cost_registrations queries on success.
+ * Automatically injects control_date from TimeMachine context as a query parameter.
  */
 export const useDeleteCostRegistration = (
   mutationOptions?: Omit<
@@ -253,11 +267,18 @@ export const useDeleteCostRegistration = (
     "mutationFn"
   >,
 ) => {
+  const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ id }: { id: string; costElementId: string }) => {
-      return CostRegistrationsService.deleteCostRegistration(id);
+      // Manual request to support control_date query param
+      return __request(OpenAPI, {
+        method: "DELETE",
+        url: "/api/v1/cost-registrations/{cost_registration_id}",
+        path: { cost_registration_id: id },
+        query: asOf ? { control_date: asOf } : undefined,
+      }) as Promise<void>;
     },
     onSuccess: (...args) => {
       const variables = args[1];

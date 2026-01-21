@@ -24,7 +24,7 @@ Analyze user requests (features, bugs, enhancements) by following the structured
 Follow the four-phase analysis process:
 
 1. **Requirements Clarification**: Ask targeted questions to understand user intent, functional/non-functional requirements, and constraints
-2. **Context Discovery**: Review documentation (`docs/01-product-scope/README.md`, `docs/02-architecture/README.md`, `docs/03-project-plan/README.md`) and existing codebase patterns. You shall delegate the context discovery to the Explore agent to extract relevant context to analyze.
+2. **Context Discovery**: Review documentation (`docs/01-product-scope/README.md`, `docs/02-architecture/README.md`, `docs/03-project-plan/README.md`) and existing codebase patterns. **You shall delegate the context discovery to one or many Explore agents** to extract relevant context to analyze.
 3. **Solution Design**: Propose 2-3 distinct solutions with complete trade-off analysis
 4. **Recommendation & Decision**: Present clear comparison, recommend an option, and await human approval
 

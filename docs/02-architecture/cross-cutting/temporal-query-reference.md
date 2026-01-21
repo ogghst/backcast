@@ -336,21 +336,38 @@ stmt.where(
 )
 ```
 
-### 4. Ad-Hoc Filter Implementations
+### 4. Custom Temporal Filter Implementations (CRITICAL BUG RISK)
+
+> [!WARNING]
+> **NEVER implement custom temporal filters. ALWAYS use `TemporalService._apply_bitemporal_filter()`.**
+>
+> The standardized filter includes critical components that custom implementations often miss:
+> - `func.lower(valid_time) <= as_of` - Prevents future entities from being included
+> - TIMESTAMP casting - Ensures proper timezone handling
+>
+> Custom filters will produce incorrect results in time-travel queries.
 
 ```python
-# ❌ Wrong: Custom filter logic in each service
-if as_of:
-    stmt = stmt.where(
-        and_(
-            entity.valid_time.contains(as_of),
-            entity.deleted_at.is_(None),
-        )
-    )
+# ❌ WRONG: Custom filter implementation (BUGGY!)
+if as_of is not None:
+    stmt = stmt.where(entity.valid_time.op("@>")(as_of))
+    stmt = stmt.where(or_(entity.deleted_at.is_(None), entity.deleted_at > as_of))
+# This misses func.lower(valid_time) <= as_of and TIMESTAMP casting!
 
-# ✅ Correct: Use standardized method
-stmt = self._apply_bitemporal_filter(stmt, as_of)
+# ✅ CORRECT: Use the standardized method
+if as_of is not None:
+    stmt = self._apply_bitemporal_filter(stmt, as_of)
+else:
+    stmt = stmt.where(func.upper(entity.valid_time).is_(None))
+    stmt = stmt.where(entity.deleted_at.is_(None))
 ```
+
+**Real-World Impact:**
+- Cost element metrics (`used`, `remaining`, `AC`, `ETC`) were incorrect
+- Historical cost analysis produced wrong sums
+- Budget status calculations were unreliable
+
+**See Also:** [ADR-005: Bitemporal Versioning](../decisions/ADR-005-bitemporal-versioning.md) | [TemporalService Implementation](../../../backend/app/core/versioning/service.py) (lines 230-264)
 
 ---
 

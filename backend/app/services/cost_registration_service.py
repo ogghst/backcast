@@ -217,12 +217,31 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         filters: dict[str, Any] | None = None,
         skip: int = 0,
         limit: int = 100,
+        as_of: datetime | None = None,
     ) -> tuple[list[CostRegistration], int]:
-        """Get cost registrations with filtering and pagination."""
-        stmt = select(CostRegistration).where(
-            func.upper(CostRegistration.valid_time).is_(None),
-            CostRegistration.deleted_at.is_(None),
-        )
+        """Get cost registrations with filtering, pagination, and time-travel support.
+
+        Args:
+            filters: Optional filters dict (e.g., {"cost_element_id": UUID})
+            skip: Number of records to skip (for pagination)
+            limit: Maximum number of records to return
+            as_of: Optional timestamp for time-travel query (Valid Time Travel semantics)
+
+        Returns:
+            Tuple of (list of cost registrations, total count)
+        """
+        # Build base query
+        stmt = select(CostRegistration).where(CostRegistration.cost_element_id.isnot(None))
+
+        # FIX: Use standardized bitemporal filter instead of custom implementation
+        # The custom filter was missing:
+        # - func.lower(valid_time) <= as_of (prevents future entities from being included)
+        # - TIMESTAMP casting (ensures proper timezone handling)
+        if as_of is not None:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            stmt = stmt.where(func.upper(CostRegistration.valid_time).is_(None))
+            stmt = stmt.where(CostRegistration.deleted_at.is_(None))
 
         # Apply filters
         if filters:
@@ -266,27 +285,18 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             ...     cost_element_id, as_of=as_of
             ... )
         """
-        from sqlalchemy import or_
-
         # Build query for time-travel support
         stmt = select(func.sum(CostRegistration.amount)).where(
             CostRegistration.cost_element_id == cost_element_id,
         )
 
-        # Time-travel filter
+        # FIX: Use standardized bitemporal filter instead of custom implementation
+        # The custom filter was missing:
+        # - func.lower(valid_time) <= as_of (prevents future entities from being included)
+        # - TIMESTAMP casting (ensures proper timezone handling)
         if as_of is not None:
-            # Valid at the specified time (contains operator: range @> timestamp)
-            stmt = stmt.where(CostRegistration.valid_time.op("@>")(as_of))
-            # Include records that were not deleted before as_of
-            # (deleted_at IS NULL OR deleted_at > as_of)
-            stmt = stmt.where(
-                or_(
-                    CostRegistration.deleted_at.is_(None),
-                    CostRegistration.deleted_at > as_of,
-                )
-            )
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
         else:
-            # Current versions only (open-ended valid_time and not deleted)
             stmt = stmt.where(func.upper(CostRegistration.valid_time).is_(None))
             stmt = stmt.where(CostRegistration.deleted_at.is_(None))
 
@@ -325,18 +335,23 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_budget_status(self, cost_element_id: UUID) -> BudgetStatus:
-        """Get budget status for a cost element.
+    async def get_budget_status(
+        self, cost_element_id: UUID, as_of: datetime | None = None
+    ) -> BudgetStatus:
+        """Get budget status for a cost element with time-travel support.
 
         Returns budget, used, remaining, and percentage used.
+        Respects time-travel queries via the as_of parameter for Valid Time Travel.
 
         Args:
             cost_element_id: The cost element to get status for
+            as_of: Optional timestamp for time-travel query (historical view)
 
         Returns:
             BudgetStatus with budget, used, remaining, percentage
         """
-        # Get the cost element's budget
+        # Get the cost element's budget (current budget, not time-traveled)
+        # Note: CostElement budget itself could be time-traveled in future iterations
         stmt = select(CostElement).where(
             CostElement.cost_element_id == cost_element_id,
             func.upper(CostElement.valid_time).is_(None),
@@ -350,8 +365,8 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
 
         budget = cost_element.budget_amount
 
-        # Get total costs for this cost element
-        used = await self.get_total_for_cost_element(cost_element_id)
+        # Get total costs for this cost element (time-travel aware)
+        used = await self.get_total_for_cost_element(cost_element_id, as_of=as_of)
         used = Decimal(str(used)) if used else Decimal("0")
 
         # Calculate remaining and percentage
@@ -399,8 +414,6 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             ... #   ...
             ... # ]
         """
-        from sqlalchemy import func, or_
-
         if end_date is None:
             end_date = datetime.now(tz=UTC)
 
@@ -424,15 +437,12 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             CostRegistration.registration_date <= end_date,
         )
 
-        # Time-travel filter
+        # FIX: Use standardized bitemporal filter instead of custom implementation
+        # The custom filter was missing:
+        # - func.lower(valid_time) <= as_of (prevents future entities from being included)
+        # - TIMESTAMP casting (ensures proper timezone handling)
         if as_of is not None:
-            stmt = stmt.where(CostRegistration.valid_time.op("@>")(as_of))
-            stmt = stmt.where(
-                or_(
-                    CostRegistration.deleted_at.is_(None),
-                    CostRegistration.deleted_at > as_of,
-                )
-            )
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
         else:
             stmt = stmt.where(func.upper(CostRegistration.valid_time).is_(None))
             stmt = stmt.where(CostRegistration.deleted_at.is_(None))
@@ -464,8 +474,6 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         Returns:
             List of dicts with registration_date and cumulative_amount
         """
-        from sqlalchemy import func, or_
-
         if end_date is None:
             end_date = datetime.now(tz=UTC)
 
@@ -479,15 +487,12 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             CostRegistration.registration_date <= end_date,
         )
 
-        # Time-travel filter
+        # FIX: Use standardized bitemporal filter instead of custom implementation
+        # The custom filter was missing:
+        # - func.lower(valid_time) <= as_of (prevents future entities from being included)
+        # - TIMESTAMP casting (ensures proper timezone handling)
         if as_of is not None:
-            stmt = stmt.where(CostRegistration.valid_time.op("@>")(as_of))
-            stmt = stmt.where(
-                or_(
-                    CostRegistration.deleted_at.is_(None),
-                    CostRegistration.deleted_at > as_of,
-                )
-            )
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
         else:
             stmt = stmt.where(func.upper(CostRegistration.valid_time).is_(None))
             stmt = stmt.where(CostRegistration.deleted_at.is_(None))
