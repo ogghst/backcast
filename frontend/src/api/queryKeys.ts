@@ -101,6 +101,21 @@ export const queryKeys = createQueryKeys("backcast-evs", {
       ["budget-status", costElementId, context] as const,
   },
 
+  // Progress Entries
+  progressEntries: {
+    all: null as QueryKey,
+    lists: () => ["progress-entries", "list"] as const,
+    list: (costElementId: string, context?: any) =>
+      ["progress-entries", "list", costElementId, context] as const,
+    details: () => ["progress-entries", "detail"] as const,
+    detail: (id: string, context?: any) =>
+      ["progress-entries", "detail", id, context] as const,
+    history: (costElementId: string) =>
+      ["progress-entries", "history", costElementId] as const,
+    latest: (costElementId: string, context?: any) =>
+      ["progress-entries", "latest", costElementId, context] as const,
+  },
+
   // Change Orders
   changeOrders: {
     all: null as QueryKey,
