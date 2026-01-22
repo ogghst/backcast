@@ -104,9 +104,15 @@ class EVMService:
         # ETC = EAC - AC (remaining work cost)
         vac = None
         etc = None
+        cpi_forecast = None
+
         if eac is not None:
             vac = bac - eac
             etc = eac - ac
+            
+            # Forecast-based efficiency (BAC / EAC)
+            if eac > 0 and bac is not None:
+                cpi_forecast = bac / eac
 
         return EVMMetricsRead(
             bac=bac,
@@ -126,6 +132,7 @@ class EVMService:
             branch_mode=branch_mode,
             progress_percentage=progress_percentage,
             warning=warning,
+            cpi_forecast=cpi_forecast
         )
 
     async def _get_bac_as_of(

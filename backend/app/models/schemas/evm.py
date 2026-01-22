@@ -73,6 +73,11 @@ class EVMMetricsRead(BaseModel):
         None, description="Schedule Performance Index (EV / PV, < 1.0 = behind schedule)"
     )
 
+    # Forecast-based performance metrics (New)
+    cpi_forecast: Decimal | None = Field(
+        None, description="Implied cost efficiency to meet forecast (BAC / EAC)"
+    )
+
     # Forecast-based metrics (from forecast entity)
     eac: Decimal | None = Field(
         None,
