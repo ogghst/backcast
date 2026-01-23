@@ -8,12 +8,10 @@ Tests verify that:
 5. Rollback restores original schema
 """
 
-import asyncio
 from datetime import datetime, timedelta
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
-import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 

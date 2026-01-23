@@ -1,6 +1,6 @@
 # ADR Index
 
-**Last Updated:** 2026-01-18
+**Last Updated:** 2026-01-23
 
 ## Creating New ADRs
 
@@ -64,3 +64,5 @@ Additional information, links, or future review dates
 | [ADR-008](ADR-008-server-side-filtering.md)               | Server-Side Filtering, Search, and Sorting   | Accepted | 2026-01-08 |
 | [ADR-009](ADR-009-schedule-baseline-1to1-relationship.md) | Schedule Baseline 1:1 Relationship Inversion | Rejected | 2026-01-18 |
 | [ADR-010](ADR-010-query-key-factory.md)                   | Query Key Factory                            | Accepted | 2026-01-19 |
+| [ADR-011](ADR-011-generic-evm-metric-system.md)          | Generic EVM Metric System                     | Accepted | 2026-01-22 |
+| [ADR-012](ADR-012-evm-time-series-data-strategy.md)      | EVM Time-Series Data Strategy                 | Accepted | 2026-01-22 |

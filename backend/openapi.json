@@ -6405,6 +6405,264 @@
           }
         }
       }
+    },
+    "/api/v1/evm/{entity_type}/{entity_id}/metrics": {
+      "get": {
+        "tags": [
+          "EVM"
+        ],
+        "summary": "Get Evm Metrics",
+        "description": "Get EVM metrics for any entity type.\n\nReturns comprehensive EVM analysis including:\n- BAC: Budget at Completion (total planned budget)\n- PV: Planned Value (budgeted cost of work scheduled)\n- AC: Actual Cost (cost incurred to date)\n- EV: Earned Value (budgeted cost of work performed)\n- CV: Cost Variance (EV - AC, negative = over budget)\n- SV: Schedule Variance (EV - PV, negative = behind schedule)\n- CPI: Cost Performance Index (EV / AC, < 1.0 = over budget)\n- SPI: Schedule Performance Index (EV / PV, < 1.0 = behind schedule)\n- EAC: Estimate at Completion (from forecast)\n- VAC: Variance at Completion (BAC - EAC)\n- ETC: Estimate to Complete (EAC - AC)\n\nTime-Travel & Branching:\n- All metrics respect time-travel: entities are fetched as they were at control_date\n- Branch mode (STRICT/MERGE) controls parent branch fallback behavior\n- Cost registrations and progress entries are global facts (not branchable)\n\nSupports entity types:\n- cost_element: Individual cost element metrics\n- wbe: Work Breakdown Element (aggregated from child cost elements)\n- project: Project-level metrics (aggregated from all child elements)\n\nWarning: Returns EV = 0 with warning message if no progress has been reported.",
+        "operationId": "get_generic_evm_metrics",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "entity_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/EntityType"
+            }
+          },
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "control_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Control date for time-travel query (ISO 8601, defaults to now). All entities are fetched as they were at this valid_time.",
+              "title": "Control Date"
+            },
+            "description": "Control date for time-travel query (ISO 8601, defaults to now). All entities are fetched as they were at this valid_time."
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to query",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to query"
+          },
+          {
+            "name": "branch_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/BranchMode",
+              "description": "Branch mode: STRICT (only this branch) or MERGE (fall back to parent branches)",
+              "default": "merge"
+            },
+            "description": "Branch mode: STRICT (only this branch) or MERGE (fall back to parent branches)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EVMMetricsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evm/{entity_type}/{entity_id}/timeseries": {
+      "get": {
+        "tags": [
+          "EVM"
+        ],
+        "summary": "Get Evm Timeseries",
+        "description": "Get historical EVM metrics as time-series data for charts.\n\nGenerates a time-series of EVM metrics (PV, EV, AC) over a date range\nwith server-side aggregation at the specified granularity (day, week, month).\n\nThe date range is context-dependent:\n- Cost element: Uses its schedule baseline date range\n- Project: From project start to max(project end, control_date)\n\nTime-Travel & Branching:\n- All metrics respect time-travel: entities are fetched as they were at control_date\n- Branch mode (ISOLATED/MERGE) controls parent branch fallback behavior\n\nSupports entity types:\n- cost_element: Individual cost element time-series\n- wbe: Work Breakdown Element (aggregated from children)\n- project: Project-level time-series\n\nReturns:\n    EVMTimeSeriesResponse with aggregated time-series data",
+        "operationId": "get_generic_evm_timeseries",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "entity_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/EntityType"
+            }
+          },
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "granularity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/EVMTimeSeriesGranularity",
+              "description": "Time granularity for aggregation (day, week, month)",
+              "default": "week"
+            },
+            "description": "Time granularity for aggregation (day, week, month)"
+          },
+          {
+            "name": "control_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Control date for time-travel query (ISO 8601, defaults to now).",
+              "title": "Control Date"
+            },
+            "description": "Control date for time-travel query (ISO 8601, defaults to now)."
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to query",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to query"
+          },
+          {
+            "name": "branch_mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/BranchMode",
+              "description": "Branch mode: STRICT (only this branch) or MERGE (fall back to parent branches)",
+              "default": "merge"
+            },
+            "description": "Branch mode: STRICT (only this branch) or MERGE (fall back to parent branches)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EVMTimeSeriesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evm/batch": {
+      "post": {
+        "tags": [
+          "EVM"
+        ],
+        "summary": "Get Evm Batch",
+        "description": "Get aggregated EVM metrics for multiple entities.\n\nCalculates EVM metrics for each entity individually, then aggregates them:\n- Sums amount fields (BAC, PV, AC, EV, CV, SV, EAC, VAC, ETC)\n- Calculates BAC-weighted average for indices (CPI, SPI)\n\nRequest body:\n    entity_type: Type of entities (cost_element, wbe, project)\n    entity_ids: List of entity IDs to calculate metrics for\n    control_date: Optional control date for time-travel (defaults to now)\n    branch: Branch name (defaults to \"main\")\n    branch_mode: Branch isolation mode (defaults to \"merge\")\n\nSupports entity types:\n- cost_element: Aggregate multiple cost elements\n- wbe: Aggregate multiple WBEs (not yet implemented)\n- project: Aggregate multiple projects (not yet implemented)\n\nReturns:\n    EVMMetricsResponse with aggregated metrics",
+        "operationId": "get_evm_batch_metrics",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Request Data"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EVMMetricsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -8033,6 +8291,269 @@
         "type": "object",
         "title": "DepartmentUpdate"
       },
+      "EVMMetricsResponse": {
+        "properties": {
+          "entity_type": {
+            "$ref": "#/components/schemas/EntityType",
+            "description": "Entity type (cost_element, wbe, or project)"
+          },
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id",
+            "description": "Entity ID (cost element, WBE, or project)"
+          },
+          "bac": {
+            "type": "number",
+            "title": "Bac",
+            "description": "Budget at Completion (total planned budget)"
+          },
+          "pv": {
+            "type": "number",
+            "title": "Pv",
+            "description": "Planned Value (budgeted cost of work scheduled)"
+          },
+          "ac": {
+            "type": "number",
+            "title": "Ac",
+            "description": "Actual Cost (cost incurred to date)"
+          },
+          "ev": {
+            "type": "number",
+            "title": "Ev",
+            "description": "Earned Value (budgeted cost of work performed)"
+          },
+          "cv": {
+            "type": "number",
+            "title": "Cv",
+            "description": "Cost Variance (EV - AC, negative = over budget)"
+          },
+          "sv": {
+            "type": "number",
+            "title": "Sv",
+            "description": "Schedule Variance (EV - PV, negative = behind schedule)"
+          },
+          "cpi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpi",
+            "description": "Cost Performance Index (EV / AC, < 1.0 = over budget)"
+          },
+          "spi": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spi",
+            "description": "Schedule Performance Index (EV / PV, < 1.0 = behind schedule)"
+          },
+          "eac": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eac",
+            "description": "Estimate at Completion (projected total cost at completion)"
+          },
+          "vac": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vac",
+            "description": "Variance at Completion = BAC - EAC (negative = over budget)"
+          },
+          "etc": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Etc",
+            "description": "Estimate to Complete = EAC - AC (remaining work cost)"
+          },
+          "control_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Control Date",
+            "description": "Control date for time-travel query"
+          },
+          "branch": {
+            "type": "string",
+            "title": "Branch",
+            "description": "Branch name"
+          },
+          "branch_mode": {
+            "$ref": "#/components/schemas/BranchMode",
+            "description": "Branch mode (ISOLATED or MERGE)"
+          },
+          "progress_percentage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Percentage",
+            "description": "Progress percentage (0-100)"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning",
+            "description": "Warning message (e.g., no progress reported)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entity_type",
+          "entity_id",
+          "bac",
+          "pv",
+          "ac",
+          "ev",
+          "cv",
+          "sv",
+          "control_date",
+          "branch",
+          "branch_mode"
+        ],
+        "title": "EVMMetricsResponse",
+        "description": "Generic EVM metrics response for any entity type.\n\nProvides a flat structure with all EVM metrics explicitly defined.\nSupports cost_element, wbe, and project entity types.\n\nMetrics:\n- BAC: Budget at Completion (total planned budget)\n- PV: Planned Value (budgeted cost of work scheduled)\n- AC: Actual Cost (actual cost incurred)\n- EV: Earned Value (budgeted cost of work performed)\n- CV: Cost Variance (EV - AC)\n- SV: Schedule Variance (EV - PV)\n- CPI: Cost Performance Index (EV / AC)\n- SPI: Schedule Performance Index (EV / PV)\n- EAC: Estimate at Completion\n- VAC: Variance at Completion (BAC - EAC)\n- ETC: Estimate to Complete (EAC - AC)\n\nThis schema uses a flat structure with all metrics as individual fields,\nnot a list-based approach, for better type safety and API clarity."
+      },
+      "EVMTimeSeriesGranularity": {
+        "type": "string",
+        "enum": [
+          "day",
+          "week",
+          "month"
+        ],
+        "title": "EVMTimeSeriesGranularity",
+        "description": "Time granularity for EVM time-series aggregation.\n\nDefines the time interval for data point aggregation:\n- DAY: Daily data points\n- WEEK: Weekly data points (default)\n- MONTH: Monthly data points"
+      },
+      "EVMTimeSeriesPoint": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Date",
+            "description": "Date of the data point"
+          },
+          "pv": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Pv",
+            "description": "Planned Value at this date"
+          },
+          "ev": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Ev",
+            "description": "Earned Value at this date"
+          },
+          "ac": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Ac",
+            "description": "Actual Cost at this date"
+          },
+          "forecast": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Forecast",
+            "description": "Forecast value at this date"
+          },
+          "actual": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Actual",
+            "description": "Actual value at this date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "pv",
+          "ev",
+          "ac",
+          "forecast",
+          "actual"
+        ],
+        "title": "EVMTimeSeriesPoint",
+        "description": "Single data point for EVM time-series charts.\n\nRepresents EVM metrics at a specific point in time for charting.\nUsed in time-series responses for trend visualization."
+      },
+      "EVMTimeSeriesResponse": {
+        "properties": {
+          "granularity": {
+            "$ref": "#/components/schemas/EVMTimeSeriesGranularity",
+            "description": "Time granularity (day, week, month)"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/EVMTimeSeriesPoint"
+            },
+            "type": "array",
+            "title": "Points",
+            "description": "List of time-series data points"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start Date",
+            "description": "Start date of the time series"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End Date",
+            "description": "End date of the time series"
+          },
+          "total_points": {
+            "type": "integer",
+            "title": "Total Points",
+            "description": "Total number of data points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "granularity",
+          "points",
+          "start_date",
+          "end_date",
+          "total_points"
+        ],
+        "title": "EVMTimeSeriesResponse",
+        "description": "EVM time-series data for charts.\n\nContains aggregated EVM metrics over a time range with specified granularity.\nUsed for rendering trend charts and performance curves.\n\nServer-side aggregation is performed based on the requested granularity."
+      },
       "EntityChange": {
         "properties": {
           "id": {
@@ -8136,6 +8657,16 @@
         "type": "object",
         "title": "EntityChanges",
         "description": "Entity changes grouped by type."
+      },
+      "EntityType": {
+        "type": "string",
+        "enum": [
+          "cost_element",
+          "wbe",
+          "project"
+        ],
+        "title": "EntityType",
+        "description": "Entity type for EVM metrics.\n\nDefines the granularity level for EVM calculations:\n- COST_ELEMENT: Individual cost element (leaf node)\n- WBE: Work Breakdown Element (intermediate node)\n- PROJECT: Project level (root node)"
       },
       "ForecastCreate": {
         "properties": {
@@ -8518,6 +9049,19 @@
             "format": "uuid",
             "title": "Reported By User Id",
             "description": "ID of the user reporting the progress"
+          },
+          "control_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Date",
+            "description": "Optional control date for time travel (valid_time defaults to now if not provided)"
           }
         },
         "type": "object",
@@ -8636,6 +9180,19 @@
               }
             ],
             "title": "Notes"
+          },
+          "control_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Date",
+            "description": "Optional control date for time travel (valid_time defaults to now if not provided)"
           }
         },
         "type": "object",

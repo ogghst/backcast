@@ -1,6 +1,6 @@
 # Frontend Coding Standards (TypeScript/React)
 
-**Last Updated:** 2026-01-19
+**Last Updated:** 2026-01-23
 **Scope:** Frontend (TypeScript/React), State Management, Validation
 
 This document consolidates coding principles for a robust, reliable, and maintainable frontend codebase.
@@ -85,6 +85,9 @@ See Section 4.6 for implementation.
 ### 2.4 Documentation
 
 - **Comments:** Explain _why_, not _what_
+- **Technical Debt:** Document pre-existing quality issues in the Technical Debt Register before adding new code
+  - See: `docs/03-project-plan/technical-debt-register.md`
+  - Document severity, estimated effort, and target resolution date
 
 ---
 
@@ -233,21 +236,87 @@ describe("ProjectList", () => {
 
 ### 5.1 Pre-commit
 
+**Required checks before committing:**
+
 ```bash
-eslint --fix src/**/*.{ts,tsx}
-tsc-files --noEmit
+# Run ESLint with auto-fix
+npm run lint
+
+# Type check
+npm run type-check
+
+# Run tests
+npm test
 ```
+
+**Pre-commit Hooks (Recommended):**
+
+Configure pre-commit hooks to enforce quality automatically:
+
+```json
+// .husky/pre-commit
+npm run lint-staged
+```
+
+```json
+// package.json - lint-staged configuration
+"lint-staged": {
+  "src/**/*.{ts,tsx}": [
+    "eslint --fix",
+    "tsc-files --noEmit"
+  ]
+}
+```
+
+**Rationale:** Pre-commit hooks prevent linting errors from accumulating and reduce manual cleanup effort. (See TD-062 and TD-066 in Technical Debt Register)
 
 ### 5.2 CI Pipeline
 
 - ✅ Type check (TypeScript)
-- ✅ Linting (ESLint)
+- ✅ Linting (ESLint) - Gate on modified files only
 - ✅ Unit tests (Vitest)
 - ✅ Test coverage ≥80%
+- ✅ E2E tests (Playwright) for critical paths
+
+**ESLint Policy:**
+
+- **New files:** Must pass ESLint with zero errors
+- **Modified files:** Must not introduce new ESLint errors
+- **Pre-existing debt:** Incrementally fix during feature work (see TD-066)
+
+### 5.3 Code Review Checklist
+
+When reviewing pull requests, verify:
+
+- [ ] No `any` types (use `unknown` or generics instead)
+- [ ] No unused variables or imports
+- [ ] ESLint passes on modified files
+- [ ] TypeScript strict mode compliance
+- [ ] Tests added for new logic
+- [ ] Coverage maintained ≥80%
 
 ---
 
 ## 6. Common Pitfalls
+
+❌ **Using `any` type**
+Avoid `any` at all costs. Use `unknown` for truly unknown types, or generics. The codebase has 130+ `any` type errors (TD-066) - do not add to this debt.
+
+```typescript
+// ❌ Bad
+function process(data: any) { ... }
+
+// ✅ Good - use unknown for truly unknown data
+function process(data: unknown) {
+  if (isValidData(data)) {
+    return data as ProcessedData;
+  }
+  throw new Error('Invalid data');
+}
+
+// ✅ Good - use generics
+function process<T extends Data>(data: T): ProcessedData { ... }
+```
 
 ❌ **Testing implementation details**
 Use `getByRole`, not class names or implementation details.
@@ -257,3 +326,6 @@ Verify side effects (table data, URL change), not transient UI.
 
 ❌ **Duplicating server state in Zustand**
 Use `useQuery` hooks directly in components.
+
+❌ **Skipping pre-commit hooks**
+Always run `npm run lint` before committing. Pre-commit hooks prevent accumulation of technical debt.

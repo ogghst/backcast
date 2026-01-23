@@ -63,6 +63,10 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         # This ensures time-travel queries work correctly with as_of parameter
         actual_control_date = control_date if control_date is not None else datetime.now()
 
+        # Remove control_date from progress_data if present to avoid duplicate kwarg error
+        if "control_date" in progress_data:
+            del progress_data["control_date"]
+
         cmd = CreateVersionCommand(
             entity_class=ProgressEntry,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,

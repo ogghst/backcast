@@ -12,6 +12,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.domain.forecast import Forecast
 from app.models.schemas.cost_element import CostElementCreate
 from app.models.schemas.cost_element_type import CostElementTypeCreate
 from app.models.schemas.department import DepartmentCreate
@@ -21,7 +22,6 @@ from app.models.schemas.wbe import WBECreate
 from app.services.cost_element_service import CostElementService
 from app.services.cost_element_type_service import CostElementTypeService
 from app.services.department import DepartmentService
-from app.models.domain.forecast import Forecast
 from app.services.forecast_service import ForecastService
 from app.services.project import ProjectService
 from app.services.wbe import WBEService
@@ -132,8 +132,8 @@ class TestForecastServiceCreate:
             await db_session.flush()
 
             # Clear the forecast_id on the cost element
-            from sqlalchemy import select, func
-            from typing import cast
+
+            from sqlalchemy import func, select
             ce_stmt = (
                 select(type(cost_element))
                 .where(
@@ -173,7 +173,7 @@ class TestForecastServiceCreate:
         assert created_forecast.forecast_id is not None
 
         # Verify cost element's forecast_id was set
-        from sqlalchemy import select, func
+        from sqlalchemy import func, select
         ce_stmt = (
             select(type(cost_element))
             .where(
@@ -482,8 +482,8 @@ class TestForecastService1to1Relationship:
         await db_session.flush()
 
         # Also need to clear the forecast_id on the cost element
-        from sqlalchemy import select, func
-        from typing import cast
+
+        from sqlalchemy import func, select
         ce_stmt = (
             select(type(cost_element))
             .where(
@@ -592,6 +592,7 @@ class TestForecastService1to1Relationship:
 
         # Update cost element with forecast_id
         from typing import cast
+
         from sqlalchemy import func, select
 
         ce_stmt = (

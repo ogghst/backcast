@@ -30,5 +30,9 @@ export type ProgressEntryCreate = {
      * ID of the user reporting the progress
      */
     reported_by_user_id: string;
+    /**
+     * Optional control date for time travel (valid_time defaults to now if not provided)
+     */
+    control_date?: (string | null);
 };
 

@@ -484,11 +484,11 @@ class BranchableService[TBranchable: BranchableProtocol]:
         branch_mode: BranchMode | None = None,
     ) -> TBranchable | None:
         """Time travel: Get active version at specific timestamp on a branch.
-        
+
         Uses Valid Time Travel semantics:
         - Only checks valid_time (when the fact was valid in the real world)
         - Does NOT check transaction_time (when recorded in database)
-        
+
         This allows querying historical states and forward-looking scenarios.
 
         Args:

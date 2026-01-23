@@ -41,7 +41,15 @@
         "schedule-baseline-read",
         "schedule-baseline-create",
         "schedule-baseline-update",
-        "schedule-baseline-delete"
+        "schedule-baseline-delete",
+        "progress-entry-read",
+        "progress-entry-create",
+        "progress-entry-update",
+        "progress-entry-delete",
+        "evm-read",
+        "evm-create",
+        "evm-update",
+        "evm-delete"
       ]
     },
     "manager": {
@@ -72,7 +80,16 @@
         "forecast-update",
         "schedule-baseline-read",
         "schedule-baseline-create",
-        "schedule-baseline-update"
+        "schedule-baseline-update",
+        "schedule-baseline-delete",
+        "progress-entry-read",
+        "progress-entry-create",
+        "progress-entry-update",
+        "progress-entry-delete",
+        "evm-read",
+        "evm-create",
+        "evm-update",
+        "evm-delete"
       ]
     },
     "viewer": {

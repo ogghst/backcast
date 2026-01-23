@@ -22,7 +22,8 @@ test.describe("Time Machine Context Isolation", () => {
 
     // Wait for dashboard to load
     await page.waitForURL("http://localhost:5173/");
-    await expect(page.locator("h1")).toContainText("Dashboard");
+    await expect(
+page.locator("h1")).toContainText("Dashboard");
   });
 
   test("should invalidate all versioned queries when switching branches", async ({ page }) => {
@@ -31,17 +32,20 @@ test.describe("Time Machine Context Isolation", () => {
     await page.waitForURL("http://localhost:5173/cost-elements");
 
     // Wait for initial data to load
-    await expect(page.locator("table")).toBeVisible();
+    await expect(
+page.locator("table")).toBeVisible();
 
     // Get initial count of cost elements
-    const initialCount = await page.locator("table tbody tr").count();
+    const initialCount = await 
+page.locator("table tbody tr").count();
 
     // Switch to a different branch using Time Machine
     await page.click('[data-testid="time-machine-toggle"]');
     await page.click('[data-testid="branch-selector"]');
 
     // Select or create a feature branch
-    const branchOption = page.locator('[data-testid="branch-option"]').first();
+    const branchOption = 
+page.locator('[data-testid="branch-option"]').first();
     if (await branchOption.isVisible()) {
       await branchOption.click();
     } else {
@@ -53,13 +57,16 @@ test.describe("Time Machine Context Isolation", () => {
     await page.click('[data-testid="time-machine-toggle"]');
 
     // Verify that data is refetched (loading state should be visible)
-    await expect(page.locator('[data-testid="loading-spinner"]')).toBeVisible({ timeout: 5000 });
+    await expect(
+page.locator('[data-testid="loading-spinner"]')).toBeVisible({ timeout: 5000 });
 
     // Wait for new data to load
-    await expect(page.locator("table")).toBeVisible();
+    await expect(
+page.locator("table")).toBeVisible();
 
     // Verify data loaded (may be same or different count depending on branch data)
-    const newCount = await page.locator("table tbody tr").count();
+    const newCount = await 
+page.locator("table tbody tr").count();
     expect(newCount).toBeGreaterThanOrEqual(0);
 
     // Network verification: check that new API calls were made after branch switch
@@ -71,16 +78,19 @@ test.describe("Time Machine Context Isolation", () => {
     await page.goto("http://localhost:5173/cost-elements");
 
     // Wait for table to load
-    await expect(page.locator("table")).toBeVisible();
+    await expect(
+page.locator("table")).toBeVisible();
 
     // Click on first cost element
-    await page.locator("table tbody tr").first().click();
+    await 
+page.locator("table tbody tr").first().click();
 
     // Wait for detail page to load
     await page.waitForURL(/\/cost-elements\/[a-f0-9-]+/);
 
     // Get initial data from detail page
-    const initialName = await page.locator('[data-testid="cost-element-name"]').textContent();
+    const initialName = await 
+page.locator('[data-testid="cost-element-name"]').textContent();
 
     // Switch branch using Time Machine
     await page.click('[data-testid="time-machine-toggle"]');
@@ -90,13 +100,16 @@ test.describe("Time Machine Context Isolation", () => {
     await page.click('[data-testid="branch-option-main"]');
 
     // Verify that the page shows loading state
-    await expect(page.locator('[data-testid="loading-spinner"]")).toBeVisible({ timeout: 5000 });
+    await expect(
+page.locator('[data-testid="loading-spinner"]')).toBeVisible({ timeout: 5000 });
 
     // Wait for new data to load
-    await expect(page.locator('[data-testid="cost-element-name"]")).toBeVisible({ timeout: 10000 });
+    await expect(
+page.locator('[data-testid="cost-element-name"]")).toBeVisible({ timeout: 10000 });
 
     // Verify data is from the new branch (may be different or not exist)
-    const newName = await page.locator('[data-testid="cost-element-name"]').textContent();
+    const newName = await 
+page.locator('[data-testid="cost-element-name"]').textContent();
 
     // Either the data is different, or the element doesn't exist in this branch
     // Both outcomes are valid and demonstrate context isolation
@@ -109,7 +122,8 @@ test.describe("Time Machine Context Isolation", () => {
     await page.waitForURL("http://localhost:5173/forecasts");
 
     // Wait for data to load
-    await expect(page.locator("table")).toBeVisible();
+    await expect(
+page.locator("table")).toBeVisible();
 
     // Open Time Machine
     await page.click('[data-testid="time-machine-toggle"]');
@@ -121,10 +135,12 @@ test.describe("Time Machine Context Isolation", () => {
     await page.click('[data-testid="time-machine-toggle"]');
 
     // Verify that data is refetched
-    await expect(page.locator('[data-testid="loading-spinner"]")).toBeVisible({ timeout: 5000 });
+    await expect(
+page.locator('[data-testid="loading-spinner"]")).toBeVisible({ timeout: 5000 });
 
     // Wait for new data to load
-    await expect(page.locator("table")).toBeVisible();
+    await expect(
+page.locator("table")).toBeVisible();
 
     // Verify that the data reflects the historical state
     // (This may show different values or empty results if no data existed then)
@@ -136,10 +152,12 @@ test.describe("Time Machine Context Isolation", () => {
     await page.waitForURL("http://localhost:5173/wbes");
 
     // Wait for tree to load
-    await expect(page.locator('[data-testid="wbe-tree"]')).toBeVisible();
+    await expect(
+page.locator('[data-testid="wbe-tree"]')).toBeVisible();
 
     // Get initial tree state
-    const initialTreeNodes = await page.locator('[data-testid="wbe-tree-node"]').count();
+    const initialTreeNodes = await 
+page.locator('[data-testid="wbe-tree-node"]').count();
 
     // Switch branch
     await page.click('[data-testid="time-machine-toggle"]');
@@ -148,11 +166,14 @@ test.describe("Time Machine Context Isolation", () => {
     await page.click('[data-testid="time-machine-toggle"]');
 
     // Verify tree is refreshed
-    await expect(page.locator('[data-testid="loading-spinner"]")).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('[data-testid="wbe-tree"]')).toBeVisible();
+    await expect(
+page.locator('[data-testid="loading-spinner"]")).toBeVisible({ timeout: 5000 });
+    await expect(
+page.locator('[data-testid="wbe-tree"]')).toBeVisible();
 
     // Get new tree state
-    const newTreeNodes = await page.locator('[data-testid="wbe-tree-node"]').count();
+    const newTreeNodes = await 
+page.locator('[data-testid="wbe-tree-node"]').count();
 
     // Tree structure should be loaded (may be same or different)
     expect(newTreeNodes).toBeGreaterThanOrEqual(0);
@@ -164,16 +185,19 @@ test.describe("Time Machine Context Isolation", () => {
     await page.waitForURL("http://localhost:5173/cost-elements");
 
     // Get initial count
-    const initialCount = await page.locator("table tbody tr").count();
+    const initialCount = await 
+page.locator("table tbody tr").count();
 
     // Switch to a feature branch (if available)
     await page.click('[data-testid="time-machine-toggle"]');
     await page.click('[data-testid="branch-selector"]');
 
-    const featureBranchExists = await page.locator('[data-testid="branch-option"]:not([data-testid="branch-option-main"])').count();
+    const featureBranchExists = await 
+page.locator('[data-testid="branch-option"]:not([data-testid="branch-option-main"])').count();
 
     if (featureBranchExists > 0) {
-      await page.locator('[data-testid="branch-option"]:not([data-testid="branch-option-main"])').first().click();
+      await 
+page.locator('[data-testid="branch-option"]:not([data-testid="branch-option-main"])').first().click();
     }
 
     await page.click('[data-testid="time-machine-toggle"]');
@@ -190,7 +214,8 @@ test.describe("Time Machine Context Isolation", () => {
     await page.click('a[href="/cost-elements"]');
 
     // Verify new element exists in current branch
-    await expect(page.locator("table tbody tr")).toHaveCount(initialCount + 1);
+    await expect(
+page.locator("table tbody tr")).toHaveCount(initialCount + 1);
 
     // Switch back to main branch
     await page.click('[data-testid="time-machine-toggle"]');
@@ -199,10 +224,12 @@ test.describe("Time Machine Context Isolation", () => {
     await page.click('[data-testid="time-machine-toggle"]');
 
     // Wait for data to reload
-    await expect(page.locator('[data-testid="loading-spinner"]")).toBeVisible({ timeout: 5000 });
+    await expect(
+page.locator('[data-testid="loading-spinner"]")).toBeVisible({ timeout: 5000 });
 
     // Verify the new element is NOT in main branch (data isolation)
-    const mainBranchCount = await page.locator("table tbody tr").count();
+    const mainBranchCount = await 
+page.locator("table tbody tr").count();
     expect(mainBranchCount).toBe(initialCount);
   });
 
@@ -212,10 +239,12 @@ test.describe("Time Machine Context Isolation", () => {
     await page.waitForURL("http://localhost:5173/forecasts");
 
     // Wait for forecasts to load
-    await expect(page.locator("table")).toBeVisible();
+    await expect(
+page.locator("table")).toBeVisible();
 
     // Get initial forecast values
-    const initialPV = await page.locator('[data-testid="forecast-pv"]').first().textContent();
+    const initialPV = await 
+page.locator('[data-testid="forecast-pv"]').first().textContent();
 
     // Navigate to cost elements
     await page.click('a[href="/cost-elements"]');
@@ -231,13 +260,16 @@ test.describe("Time Machine Context Isolation", () => {
     await page.waitForURL("http://localhost:5173/forecasts");
 
     // Verify forecasts are recalculated (cache was invalidated)
-    await expect(page.locator('[data-testid="loading-spinner"]")).toBeVisible({ timeout: 5000 });
+    await expect(
+page.locator('[data-testid="loading-spinner"]")).toBeVisible({ timeout: 5000 });
 
     // Wait for new forecast data
-    await expect(page.locator("table")).toBeVisible();
+    await expect(
+page.locator("table")).toBeVisible();
 
     // Forecast values should be updated
-    const newPV = await page.locator('[data-testid="forecast-pv"]').first().textContent();
+    const newPV = await 
+page.locator('[data-testid="forecast-pv"]').first().textContent();
 
     // PV should have increased (new cost element added)
     expect(parseFloat(newPV || "0")).toBeGreaterThan(parseFloat(initialPV || "0"));
@@ -261,7 +293,8 @@ test.describe("Query Key Factory Usage", () => {
     });
 
     // Wait for initial data load
-    await expect(page.locator("table")).toBeVisible();
+    await expect(
+page.locator("table")).toBeVisible();
 
     // Verify that requests include context parameters
     const apiRequests = requests.filter((r) => r.includes("/cost-elements"));

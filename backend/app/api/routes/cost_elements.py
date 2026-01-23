@@ -575,7 +575,9 @@ async def read_evm_metrics(
             branch=branch,
             branch_mode=branch_mode,
         )
-        return metrics.model_dump(mode='json')
+        # FastAPI will serialize the Pydantic model to JSON
+        # Decimal values in float fields will be converted to numbers
+        return metrics  # type: ignore[return-value]
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

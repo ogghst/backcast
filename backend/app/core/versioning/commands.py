@@ -281,6 +281,8 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
 
         # Get all column names and values from the new_version object
         mapper = inspect(type(new_version))
+        if mapper is None:
+            raise ValueError(f"Could not get mapper for {type(new_version)}")
 
         # Build column and value lists
         # CRITICAL: Include ALL columns (except valid_time, transaction_time) regardless of value
@@ -331,7 +333,7 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
         result_new = await session.execute(stmt_new)
         created_version = result_new.scalar_one()
 
-        return cast(TVersionable, created_version)
+        return created_version
 
     async def _get_current(self, session: AsyncSession) -> TVersionable | None:
         """Get current active version (HEAD). Excludes empty ranges."""

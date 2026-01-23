@@ -16,16 +16,14 @@
 
 ---
 
-## Daily Log
-
-### YYYY-MM-DD
+## Log
 
 **TDD Cycle:**
 
-| Cycle | Test Name    | RED Reason      | GREEN Implementation | REFACTOR Notes |
-| ----- | ------------ | --------------- | -------------------- | -------------- |
-| 1     | test\_[name] | [why it failed] | [what was added]     | [improvements] |
-| 2     | test\_[name] | [why it failed] | [what was added]     | [improvements] |
+| Cycle | Test Name    | RED Reason      | GREEN Implementation | REFACTOR Notes | Date         |
+| ----- | ------------ | --------------- | -------------------- | -------------- | ------------ |
+| 1     | test\_[name] | [why it failed] | [what was added]     | [improvements] | [YYYY-MM-DD] |
+| 2     | test\_[name] | [why it failed] | [what was added]     | [improvements] | [YYYY-MM-DD] |
 
 **Files Changed:**
 
@@ -44,14 +42,6 @@
 
 - [ ] Next test to write
 - [ ] Component to implement
-
----
-
-### YYYY-MM-DD (Day 2)
-
-[Same structure as above]
-
----
 
 ## Integration Notes
 

@@ -18,6 +18,7 @@ from app.api.routes import (
     cost_elements,
     cost_registrations,
     departments,
+    evm,
     forecasts,
     progress_entries,
     projects,
@@ -174,4 +175,9 @@ app.include_router(
     progress_entries.router,
     prefix=f"{settings.API_V1_STR}/progress-entries",
     tags=["Progress Entries"],
+)
+app.include_router(
+    evm.router,
+    prefix=f"{settings.API_V1_STR}/evm",
+    tags=["EVM"],
 )

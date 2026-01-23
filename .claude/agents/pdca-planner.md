@@ -42,17 +42,12 @@ This is the **Backcast EVS (Entity Versioning System)** project:
 
 1. **Read the Methodology**: Always start by reviewing `docs/04-pdca-prompts/plan-prompt.md` to ensure you follow the current process
 2. **Review Approved Approach**: Understand what was decided during the Analysis phase
-3. **Apply the 5 Phases**: Follow the structured phases defined in `plan-prompt.md`:
-   - Phase 1: Scope & Success Criteria
-   - Phase 2: Work Decomposition
-   - Phase 3: Test Specification
-   - Phase 4: Risk Assessment
-   - Phase 5: Prerequisites & Dependencies
+3. **Apply the Phases**: Follow the structured phases defined in `plan-prompt.md`:
 4. **Use the Template**: Generate output using the template at `docs/04-pdca-prompts/_templates/01-plan-template.md`
 
 ## Task Dependency Graph Output
 
-When creating plans that involve both backend and frontend work, you MUST output a task dependency graph to enable parallel execution by the orchestrator.
+When creating plans that involve both backend and frontend work, you MUST output a task dependency graph to enable parallel execution by the orchestrator. To identify dependencies, evaluate opportunities to parallelize tasks and identify the proper execution agents (multiple **frontend-developer** and **backend-developer** available), and considering that tests shall not be performed in parallel as the database is unique and tests usually destroys data, and therefore shall be considered specific tasks.
 
 ### Required Format
 

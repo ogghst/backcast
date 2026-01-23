@@ -189,6 +189,17 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     detail: (id: string, context?: any) =>
       ["test-resource", "detail", id, context] as const,
   },
+
+  // EVM (Earned Value Management)
+  evm: {
+    all: null as QueryKey,
+    metrics: (entityType: string, entityId: string, context?: any) =>
+      ["evm", "metrics", entityType, entityId, context] as const,
+    timeSeries: (entityType: string, entityId: string, context?: any) =>
+      ["evm", "timeseries", entityType, entityId, context] as const,
+    batch: (entityType: string, entityIds: string[], context?: any) =>
+      ["evm", "batch", entityType, entityIds, context] as const,
+  },
 });
 
 /**

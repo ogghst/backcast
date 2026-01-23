@@ -4,14 +4,12 @@ Tests verify that the service raises appropriate exceptions for error conditions
 """
 
 from datetime import datetime, timedelta
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
-import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain.cost_element import CostElement
-from app.models.domain.schedule_baseline import ScheduleBaseline
 from app.services.schedule_baseline_service import BaselineAlreadyExistsError
 
 

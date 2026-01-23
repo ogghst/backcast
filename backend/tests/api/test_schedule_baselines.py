@@ -3,7 +3,7 @@
 Tests CRUD operations for schedule baselines with temporal context consistency.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -17,10 +17,7 @@ from app.api.dependencies.auth import (
 )
 from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.main import app
-from app.models.domain.cost_element import CostElement
-from app.models.domain.schedule_baseline import ScheduleBaseline
 from app.models.domain.user import User
-
 
 # Mock user for authentication
 mock_admin_user = User(
@@ -153,7 +150,7 @@ class TestScheduleBaselineCreate:
         """
         # Arrange
         cost_element_id = setup_dependencies["cost_element_id"]
-        start_date = datetime.now(timezone.utc)
+        start_date = datetime.now(UTC)
         end_date = start_date + timedelta(days=365)
 
         # Act - Try to create with branch in body (using nested endpoint)
@@ -192,9 +189,9 @@ class TestScheduleBaselineCreate:
         """
         # Arrange
         cost_element_id = setup_dependencies["cost_element_id"]
-        start_date = datetime.now(timezone.utc)
+        start_date = datetime.now(UTC)
         end_date = start_date + timedelta(days=365)
-        control_date = datetime(2026, 1, 19, tzinfo=timezone.utc)
+        control_date = datetime(2026, 1, 19, tzinfo=UTC)
 
         # Act - Try to create with control_date in body (using nested endpoint)
         response = await client.post(
@@ -228,7 +225,7 @@ class TestScheduleBaselineCreate:
         """
         # Arrange
         cost_element_id = setup_dependencies["cost_element_id"]
-        start_date = datetime.now(timezone.utc)
+        start_date = datetime.now(UTC)
         end_date = start_date + timedelta(days=365)
 
         # Act - Try to create without branch field (should default to main)
@@ -262,7 +259,7 @@ class TestScheduleBaselineCreate:
         """
         # Arrange
         cost_element_id = setup_dependencies["cost_element_id"]
-        start_date = datetime.now(timezone.utc)
+        start_date = datetime.now(UTC)
         end_date = start_date + timedelta(days=365)
 
         # Act - Try to create with non-main branch value
@@ -348,7 +345,7 @@ class TestScheduleBaselineUpdate:
         cost_element_id = setup_dependencies["cost_element_id"]
         baseline_id = await self._get_baseline_id(client, cost_element_id)
         # Use a future date for control_date (must be >= valid_time lower bound)
-        control_date = datetime.now(timezone.utc) + timedelta(days=1)
+        control_date = datetime.now(UTC) + timedelta(days=1)
 
         # Act - Update with control_date in body (using nested endpoint)
         update_response = await client.put(
@@ -439,7 +436,7 @@ class TestScheduleBaselineDirectEndpoints:
         - Endpoint extracts branch from baseline_in.branch instead of hardcoded value
         """
         # Arrange
-        start_date = datetime.now(timezone.utc)
+        start_date = datetime.now(UTC)
         end_date = start_date + timedelta(days=365)
 
         # Act - Create using direct endpoint with branch in body
@@ -474,9 +471,9 @@ class TestScheduleBaselineDirectEndpoints:
         - No validation error for control_date in body
         """
         # Arrange
-        start_date = datetime.now(timezone.utc)
+        start_date = datetime.now(UTC)
         end_date = start_date + timedelta(days=365)
-        control_date = datetime.now(timezone.utc) + timedelta(hours=1)
+        control_date = datetime.now(UTC) + timedelta(hours=1)
 
         # Act - Create using direct endpoint with control_date in body
         response = await client.post(
@@ -543,7 +540,7 @@ class TestScheduleBaselineDirectEndpoints:
         cost_element_id = setup_dependencies["cost_element_id"]
         baseline_id = await self._get_baseline_id(client, cost_element_id)
         # Use a future date for control_date (must be >= valid_time lower bound)
-        control_date = datetime.now(timezone.utc) + timedelta(days=1)
+        control_date = datetime.now(UTC) + timedelta(days=1)
 
         # Act - Update using direct endpoint with control_date in body
         update_response = await client.put(

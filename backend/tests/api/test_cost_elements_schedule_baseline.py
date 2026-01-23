@@ -18,10 +18,7 @@ from app.api.dependencies.auth import (
 from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.main import app
 from app.models.domain.cost_element import CostElement
-from app.models.domain.schedule_baseline import ScheduleBaseline
 from app.models.domain.user import User
-from app.services.schedule_baseline_service import BaselineAlreadyExistsError
-
 
 # Mock user for authentication
 mock_admin_user = User(
@@ -132,7 +129,6 @@ async def test_cost_element_with_baseline(
     Note: The baseline is auto-created by the cost element service,
     so we don't need to create it manually.
     """
-    from sqlalchemy.ext.asyncio import AsyncSession
 
     from app.services.cost_element_service import CostElementService
     from app.services.schedule_baseline_service import ScheduleBaselineService
@@ -152,7 +148,6 @@ async def test_cost_element_with_baseline(
     # Create cost element (this auto-creates a baseline)
     from app.models.schemas.cost_element import CostElementCreate
 
-    now = datetime.utcnow()
     create_schema = CostElementCreate(
         cost_element_id=None,  # Auto-generated
         wbe_id=wbe_id,
@@ -218,7 +213,6 @@ class TestGetScheduleBaseline:
         setup_dependencies,
     ) -> None:
         """Test getting schedule baseline for cost element without one."""
-        from sqlalchemy.ext.asyncio import AsyncSession
 
         from app.services.cost_element_service import CostElementService
         from app.services.schedule_baseline_service import ScheduleBaselineService
@@ -285,7 +279,6 @@ class TestCreateScheduleBaseline:
         setup_dependencies,
     ) -> None:
         """Test creating schedule baseline for a cost element."""
-        from sqlalchemy.ext.asyncio import AsyncSession
 
         from app.services.cost_element_service import CostElementService
         from app.services.schedule_baseline_service import ScheduleBaselineService
@@ -484,9 +477,9 @@ class TestBranchIsolation:
         NOTE: This test creates a cost element in a different branch with a different baseline,
         demonstrating that baselines are branch-isolated.
         """
+        from app.models.schemas.cost_element import CostElementCreate
         from app.services.cost_element_service import CostElementService
         from app.services.schedule_baseline_service import ScheduleBaselineService
-        from app.models.schemas.cost_element import CostElementCreate
 
         cost_element_service: CostElementService = CostElementService(
             db_session  # type: ignore[arg-type]
@@ -524,7 +517,7 @@ class TestBranchIsolation:
             control_date=None,
         )
 
-        cost_element_co = await cost_element_service.create(
+        _ = await cost_element_service.create(
             element_in=create_schema,
             actor_id=mock_admin_user.user_id,
             branch="change-order-1",
@@ -541,7 +534,7 @@ class TestBranchIsolation:
 
         # Update the baseline to have a custom name
         now = datetime.utcnow()
-        updated_baseline = await baseline_service.update(
+        _ = await baseline_service.update(
             root_id=baseline_co.schedule_baseline_id,
             actor_id=mock_admin_user.user_id,
             branch="change-order-1",

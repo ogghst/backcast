@@ -71,6 +71,7 @@ Analyze existing implementations:
 - Reusable components and patterns
 - Established conventions to follow
 - Technical constraints or debt
+- Opportunities to refactor existing code to align with the new request and established patterns and documented architecture
 
 ---
 

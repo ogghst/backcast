@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { Modal, Form, InputNumber, DatePicker, Input, Alert, Space } from "antd";
+import {
+  Modal,
+  Form,
+  InputNumber,
+  DatePicker,
+  Input,
+  Alert,
+  Space,
+} from "antd";
 import type {
   ProgressEntryRead,
   ProgressEntryCreate,
@@ -7,6 +15,7 @@ import type {
 } from "@/api/generated";
 import { useLatestProgress } from "../api/useProgressEntries";
 import dayjs from "dayjs";
+import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 
 interface ProgressEntryModalProps {
   open: boolean;
@@ -36,6 +45,7 @@ export const ProgressEntryModal = ({
 }: ProgressEntryModalProps) => {
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
+  const { asOf } = useTimeMachineParams();
 
   // Get latest progress for comparison (to warn on decreases)
   const { data: latestProgress } = useLatestProgress(costElementId);
@@ -51,7 +61,7 @@ export const ProgressEntryModal = ({
         notes: initialValues.notes || "",
       }
     : {
-        reported_date: dayjs(),
+        reported_date: asOf ? dayjs(asOf) : dayjs(),
       };
 
   // Check if progress is decreasing
@@ -62,7 +72,11 @@ export const ProgressEntryModal = ({
     }
 
     // Show warning if new progress is less than latest (only for create mode)
-    if (!isEdit && latestProgress && value < parseFloat(latestProgress.progress_percentage)) {
+    if (
+      !isEdit &&
+      latestProgress &&
+      value < parseFloat(latestProgress.progress_percentage)
+    ) {
       setShowDecreaseWarning(true);
     } else {
       setShowDecreaseWarning(false);
@@ -82,7 +96,8 @@ export const ProgressEntryModal = ({
 
       // Add cost_element_id for create only
       if (!isEdit) {
-        (formattedValues as ProgressEntryCreate).cost_element_id = costElementId;
+        (formattedValues as ProgressEntryCreate).cost_element_id =
+          costElementId;
         // Note: reported_by_user_id is auto-injected in the API hook
       }
 
@@ -139,9 +154,7 @@ export const ProgressEntryModal = ({
             step={0.01}
             precision={2}
             formatter={(value) => `${value}%`}
-            parser={(value) =>
-              value?.replace("%", "") as unknown as number
-            }
+            parser={(value) => value?.replace("%", "") as unknown as number}
             onChange={checkProgressDecrease}
           />
         </Form.Item>
@@ -187,7 +200,11 @@ export const ProgressEntryModal = ({
                 <span>Latest Progress: </span>
                 <strong>{latestProgress.progress_percentage}%</strong>
                 <span>
-                  ({dayjs(latestProgress.reported_date).format("YYYY-MM-DD HH:mm")})
+                  (
+                  {dayjs(latestProgress.reported_date).format(
+                    "YYYY-MM-DD HH:mm",
+                  )}
+                  )
                 </span>
               </Space>
             }

@@ -22,8 +22,39 @@ The system provides:
 
 - **Git-like Versioning:** Complete entity history with branching and time-travel capabilities
 - **EVM Compliance:** Full Earned Value Management per ANSI/EIA-748
+- **EVM Analyzer UI:** Interactive master-detail interface for EVM analysis at all aggregation levels
 - **Change Order Isolation:** Test modifications in branches before merging
 - **Audit Trail:** Immutable history for compliance and analysis
+
+## Key Features
+
+### EVM Analyzer Master-Detail UI
+
+**Latest Feature (2026-01-22):** Generic EVM Analyzer supporting multiple entity types with comprehensive visualizations.
+
+**Capabilities:**
+
+- **Multi-Level Analysis:** View EVM metrics for Cost Elements, WBEs, and Projects
+- **Summary View:** Quick overview with organized metric categories (Schedule, Cost, Performance, Forecast)
+- **Advanced Analysis Modal:** Detailed EVM analysis with:
+  - Performance gauges (CPI, SPI) with traditional semi-circle display
+  - Time-series charts (PV/EV/AC progression, Forecast vs. Actual)
+  - Granularity selector (Day/Week/Month)
+  - Historical trend analysis
+- **Time-Travel Support:** All queries respect control date, branch, and mode settings
+- **Generic Components:** Reusable UI components work across all entity types
+- **Batch Aggregation:** Server-side aggregation for WBEs and Projects (sum + weighted average)
+
+**Documentation:**
+- [EVM API Guide](docs/02-architecture/evm-api-guide.md) - API endpoint reference
+- [EVM Components Guide](docs/02-architecture/evm-components-guide.md) - Component usage
+- [EVM Time-Travel Semantics](docs/02-architecture/evm-time-travel-semantics.md) - Time-travel behavior
+- [EVM Calculation Guide](docs/02-architecture/evm-calculation-guide.md) - Formulas and interpretation
+
+**Performance:**
+- Summary view renders in <500ms
+- Modal with charts renders in <2s
+- Time-series queries complete in <1s for 1-year ranges
 
 ## Quick Start
 
@@ -83,6 +114,9 @@ uv run mypy app/
 
 - [Product Vision](docs/01-product-scope/vision.md) - Business goals
 - [System Map](docs/02-architecture/00-system-map.md) - Architecture overview
+- [EVM API Guide](docs/02-architecture/evm-api-guide.md) - EVM API reference
+- [EVM Components Guide](docs/02-architecture/evm-components-guide.md) - EVM UI components
+- [EVM Calculation Guide](docs/02-architecture/evm-calculation-guide.md) - EVM formulas
 - [PDCA Prompts](docs/04-pdca-prompts/) - AI collaboration templates
 - [Docker Deployment Guide](docs/05-user-guide/docker-deployment-guide.md) - Production deployment
 

@@ -2,9 +2,39 @@
 
 ## Purpose
 
-Execute the test specifications from PLAN phase using strict **RED-GREEN-REFACTOR** methodology. This phase owns **HOW** to implement—the actual test code and production code.
+Execute the requested tasks using strict **RED-GREEN-REFACTOR** methodology. This phase owns **HOW** to implement—the actual test code and production code.
 
-**Prerequisite**: Plan phase (`01-plan.md`) must be completed with test specifications.
+**Prerequisite**: Plan phase must be completed with test specifications for the required tasks.
+
+---
+
+## Context Loading
+
+The **user prompt** defines which specific tasks to implement. Use iteration artifacts as references:
+
+**Iteration Folder**: `docs/03-project-plan/iterations/YYYY-MM-DD-{title}/`
+
+### 1. Parse User Request
+
+Identify the specific tasks/features requested. These typically correspond to a subset of tasks from the plan.
+
+### 2. Reference Analysis (`00-analysis.md`)
+
+Look up context for the requested work:
+
+- **Approved Solution**: Architecture and approach decisions
+- **Scope Boundaries**: What's in/out of scope
+- **Key Decisions**: UX and technical choices already made
+
+### 3. Reference Plan (`01-plan.md`)
+
+Find details for the tasks mentioned in the user prompt:
+
+- **Task Details**: Dependencies, files to modify, complexity
+- **Test Specifications**: Test IDs, names, and expected behaviors
+- **Acceptance Criteria**: Measurable success conditions for the specific tasks
+
+If the task is not found in the plan, notify the user and ask for clarification.
 
 ---
 
@@ -23,7 +53,7 @@ Execute the test specifications from PLAN phase using strict **RED-GREEN-REFACTO
 
 ### 🔴 RED: Write a Failing Test
 
-1. Take the **next test specification** from `01-plan.md`
+1. Take the **test specification** of the required work from `01-plan.md`
 2. Write the test following AAA pattern:
 
    ```python
@@ -57,10 +87,10 @@ Execute the test specifications from PLAN phase using strict **RED-GREEN-REFACTO
 
 ## Implementation Workflow
 
-For each task from `01-plan.md`:
+For each task mentioned in the user prompt:
 
 ```text
-1. Locate test specification (Test ID, expected behavior)
+1. Read task details from 01-plan.md (Test ID, expected behavior)
          ↓
 2. Write failing test (RED)
          ↓
@@ -122,37 +152,17 @@ Follow project standards throughout (see `_references.md`):
 
 ---
 
-## Daily Log Structure
+## Progress Log Structure
 
-Track progress continuously in the DO document:
+Track progress in `02-do.md` using the template from [`_templates/02-do-template.md`](_templates/02-do-template.md).
 
-### Entry Format
+Key sections:
 
-```markdown
-### YYYY-MM-DD
-
-**TDD Cycles Completed:**
-
-| #   | Test Name    | RED Reason       | GREEN Implementation | REFACTOR Notes |
-| --- | ------------ | ---------------- | -------------------- | -------------- |
-| 1   | test\_[name] | [failure reason] | [code added]         | [improvements] |
-
-**Files Changed:**
-
-- `path/to/file.py` - [description]
-
-**Decisions Made:**
-
-- [Decision]: [Reasoning] → [Impact]
-
-**Blockers:**
-
-- [Issue] → [Resolution needed]
-
-**Next Session:**
-
-- [ ] Next test to implement
-```
+- **Progress Summary**: Running totals (tests written, passing, files modified, coverage)
+- **TDD Cycle Log**: Table with Test Name, RED Reason, GREEN Implementation, REFACTOR Notes, Date
+- **Files Changed**: List of modified files with descriptions
+- **Decisions Made**: Design decisions with reasoning and impact
+- **Next Steps**: Remaining work items
 
 ---
 

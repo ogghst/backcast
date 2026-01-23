@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-01-19
-**Total Debt Items:** 10 (21 completed)
-**Total Estimated Effort:** 25 hours
+**Last Updated:** 2026-01-23
+**Total Debt Items:** 11 (21 completed)
+**Total Estimated Effort:** 33 hours
 **Completed Effort:** 21.25 hours
 
 ---
@@ -101,6 +101,25 @@
 - **Owner:** Frontend Developer
 - **Notes:** Add npm script to regenerate types from running backend, integrate into CI pipeline to run on every backend commit. Fail build if contract changes detected.
 
+#### [TD-066] Frontend ESLint Errors
+
+- **Source:** EVM Analyzer Master-Detail UI ACT phase (2026-01-23)
+- **Description:** 146 ESLint errors across multiple frontend files. None are in EVM feature code (`src/features/evm/`), which has 0 errors. All errors are in pre-existing legacy code.
+- **Error Breakdown:**
+  - `@typescript-eslint/no-explicit-any`: ~130 (Medium severity)
+  - `@typescript-eslint/no-unused-vars`: ~10 (Low severity)
+  - `react-refresh/only-export-components`: ~4 (Low severity)
+  - `react-hooks/exhaustive-deps`: ~2 (Low severity)
+- **Affected Files:** `src/api/client.ts`, `src/features/projects/`, `src/features/wbes/`, and various utility files
+- **Impact:** `any` types reduce type safety; noisy error output makes it harder to spot new issues
+- **Estimated Effort:** ~1 week
+- **Target Date:** Post-E05-U04 iteration
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Resolution Strategy:** Incremental refactor - fix errors file-by-file during feature work, enforce zero new errors
+- **Prevention:** Pre-commit hooks for ESLint, CI/CD gate for modified files, code review checklist item
+- **Documentation:** [EVM Analyzer CHECK phase](./iterations/2026-01-22-evm-analyzer-master-detail-ui/03-check.md), [Frontend Coding Standards](../../02-architecture/frontend/coding-standards.md)
+
 ---
 
 ### Low Severity
@@ -196,10 +215,10 @@
 
 ## Maintenance Notes
 
-**Last Reviewed:** 2026-01-19
-**Next Review:** 2026-01-26
-**Total Debt Items:** 10 (21 completed)
-**Total Estimated Effort:** 25 hours
+**Last Reviewed:** 2026-01-23
+**Next Review:** 2026-01-30
+**Total Debt Items:** 11 (21 completed)
+**Total Estimated Effort:** 33 hours
 **Completed Effort:** 21.25 hours
 
 **Process:**
@@ -212,6 +231,7 @@
 
 **Recent Trends:**
 
+- **2026-01-23 - EVM Analyzer Master-Detail UI:** Completed EVM feature with generic polymorphic metric system supporting cost elements, WBEs, and projects. 217 tests passing (165 backend, 107 frontend), 96.8% query reduction achieved. Fixed type mismatches (float → Decimal for financial precision), 2 MyPy errors, and 5 Ruff errors. EVM feature code has 0 ESLint errors. Documented 146 pre-existing ESLint errors as TD-066. Net debt change: +1 item.
 - **2026-01-19 - Temporal Context Consistency:** Unified API pattern for temporal context parameters across all versioned entities (Projects, WBEs, CostElements, ScheduleBaselines, Forecasts). All 13 success criteria met, 42/42 tests passing, zero new code quality issues. Added TD-064 (Docker Compose) and TD-065 (OpenAPI automation) to prevent future environment issues. Net debt change: +2 items.
 - **2026-01-19 - Code Quality Cleanup:** Fixed 13 Ruff linting errors in cost_elements route and test files. Regenerated frontend OpenAPI client. Documented past-dated control_date limitation. Added TD-062 (pre-commit hooks) and TD-063 (zombie check tests). Net debt change: +2 items.
 - **2026-01-19 - TD-058 ACT Phase Complete:** Formal ACT phase completed for TD-058. Updated coding standards with SQLAlchemy async patterns and timestamp generation best practices. Sprint backlog updated to mark iteration as complete. Zero new technical debt created. Net debt change: -1 items.
@@ -219,4 +239,4 @@
 - **2026-01-18 - TD-060 Resolution:** Fixed backend test environment subprocess failure by updating `conftest.py` to explicitly use `.venv/bin/python` for the `wipe_db.py` subprocess call. All 365 tests now pass successfully.
 - **2026-01-16 - Fix Overlapping Valid Time:** Initial implementation of overlap checks in CreateVersionCommand and UpdateCommand.
 - **2026-01-15 - Contextual Navigation Iteration:** Completed with zero new technical debt items. All code followed best practices with ~100% test coverage. Standardized URL-driven navigation pattern for future entity detail pages.
-- Overall debt trend: Increasing (10 open items, up from 8)
+- Overall debt trend: Increasing (11 open items, up from 10)

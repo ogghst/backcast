@@ -346,9 +346,9 @@ class TestTimeTravelQueries:
 
         # Assert - Cost included before deletion, excluded after
         assert total_before_deletion == Decimal("100.00"), \
-            f"Cost should be included when querying before deletion date (T3 < T2)"
+            "Cost should be included when querying before deletion date (T3 < T2)"
         assert total_after_deletion == 0, \
-            f"Cost should be excluded when querying after deletion date (T4 > T2)"
+            "Cost should be excluded when querying after deletion date (T4 > T2)"
 
     @pytest.mark.asyncio
     async def test_get_total_excludes_costs_with_future_valid_time_start(

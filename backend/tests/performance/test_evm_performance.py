@@ -9,11 +9,11 @@ to properly set temporal ranges (valid_time, transaction_time).
 """
 
 import time
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from datetime import datetime, timedelta, timezone
 
 from app.models.schemas.cost_element import CostElementCreate
 from app.models.schemas.cost_registration import CostRegistrationCreate
@@ -82,7 +82,6 @@ async def create_test_entities(
     await db_session.flush()
 
     # Create WBE through service layer (uses CreateVersionCommand)
-    from app.models.schemas.wbe import WBECreate
     wbe_service = WBEService(db_session)
     wbe = await wbe_service.create_root(
         root_id=uuid4(),
@@ -130,7 +129,7 @@ async def test_evm_calculation_performance_with_10_elements(db_session):
     """
     # Setup: Create test data using proper EVCS service layer
     actor_id = uuid4()
-    control_date = datetime.now(timezone.utc)
+    control_date = datetime.now(UTC)
 
     wbe_id, cost_element_type_id, created_by_id = await create_test_entities(
         db_session, actor_id, control_date
@@ -191,7 +190,7 @@ async def test_evm_calculation_performance_with_10_elements(db_session):
     # For performance testing, query current versions (no time-travel)
     # Using a far future date ensures all current entities are valid
     from datetime import timedelta
-    query_date = datetime.now(timezone.utc) + timedelta(days=1)
+    query_date = datetime.now(UTC) + timedelta(days=1)
 
     start_time = time.time()
     results = []
@@ -233,7 +232,7 @@ async def test_cost_aggregation_performance_with_1000_entries(db_session):
     """
     # Setup: Create test data using proper EVCS service layer
     actor_id = uuid4()
-    control_date = datetime.now(timezone.utc)
+    control_date = datetime.now(UTC)
 
     wbe_id, cost_element_type_id, created_by_id = await create_test_entities(
         db_session, actor_id, control_date
@@ -264,7 +263,7 @@ async def test_cost_aggregation_performance_with_1000_entries(db_session):
 
     # Create 1000 cost registrations (100 per cost element) through service layer
     # Use small amounts to avoid exceeding budget (budget is 10000 per element)
-    base_date = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    base_date = datetime(2026, 1, 1, tzinfo=UTC)
     for cost_element in cost_elements:
         for i in range(100):
             await cr_service.create(
@@ -314,7 +313,7 @@ async def test_evm_query_with_complex_filters_performance(db_session):
     """
     # Setup: Create test data with historical versions using proper EVCS patterns
     actor_id = uuid4()
-    control_date = datetime.now(timezone.utc)
+    control_date = datetime.now(UTC)
 
     wbe_id, cost_element_type_id, created_by_id = await create_test_entities(
         db_session, actor_id, control_date
@@ -339,7 +338,7 @@ async def test_evm_query_with_complex_filters_performance(db_session):
     # Create 50 historical cost registrations through service layer
     # Use small amounts to avoid exceeding budget (sum of 1 to 50 * 5 = 6375, well under 10000)
     cr_service = CostRegistrationService(db_session)
-    base_date = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    base_date = datetime(2026, 1, 1, tzinfo=UTC)
     for i in range(50):
         await cr_service.create(
             CostRegistrationCreate(

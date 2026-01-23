@@ -5,17 +5,15 @@ Revises: 20260118_forecast_1to1
 Create Date: 2026-01-20 07:25:24.132486
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
-import sqlalchemy as sa
-
 
 # revision identifiers, used by Alembic.
 revision: str = '4295c725f05f'
-down_revision: Union[str, Sequence[str], None] = '20260118_forecast_1to1'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | Sequence[str] | None = '20260118_forecast_1to1'
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

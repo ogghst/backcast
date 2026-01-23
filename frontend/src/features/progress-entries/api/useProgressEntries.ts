@@ -39,10 +39,9 @@ export const useProgressEntries = (params?: ProgressEntryListParams) => {
   const { asOf } = useTimeMachineParams();
 
   return useQuery<PaginatedResponse<ProgressEntryRead>>({
-    queryKey: queryKeys.progressEntries.list(
-      params?.cost_element_id || "",
-      { asOf: params?.asOf || asOf },
-    ),
+    queryKey: queryKeys.progressEntries.list(params?.cost_element_id || "", {
+      asOf: params?.asOf || asOf,
+    }),
     queryFn: async () => {
       const { cost_element_id, page = 1, perPage = 20 } = params || {};
 
@@ -72,10 +71,7 @@ export const useProgressEntries = (params?: ProgressEntryListParams) => {
  * Hook to get a single progress entry by ID.
  * Supports time-travel queries via asOf parameter.
  */
-export const useProgressEntry = (
-  progressEntryId: string,
-  asOf?: string,
-) => {
+export const useProgressEntry = (progressEntryId: string, asOf?: string) => {
   const { asOf: tmAsOf } = useTimeMachineParams();
 
   return useQuery<ProgressEntryRead>({
@@ -96,10 +92,7 @@ export const useProgressEntry = (
  * Hook to get the latest progress entry for a cost element.
  * Supports time-travel queries via asOf parameter.
  */
-export const useLatestProgress = (
-  costElementId: string,
-  asOf?: string,
-) => {
+export const useLatestProgress = (costElementId: string, asOf?: string) => {
   const { asOf: tmAsOf } = useTimeMachineParams();
 
   return useQuery<ProgressEntryRead | null>({
@@ -162,6 +155,7 @@ export const useCreateProgressEntry = (
 ) => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { asOf } = useTimeMachineParams();
 
   return useMutation<ProgressEntryRead, Error, ProgressEntryCreate>({
     mutationFn: (data: ProgressEntryCreate) => {
@@ -169,6 +163,7 @@ export const useCreateProgressEntry = (
       const payload: ProgressEntryCreate = {
         ...data,
         reported_by_user_id: user?.user_id || "",
+        control_date: asOf || null,
       };
       return ProgressEntriesService.createProgressEntry(payload);
     },
@@ -178,10 +173,16 @@ export const useCreateProgressEntry = (
         queryKey: queryKeys.progressEntries.all,
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.progressEntries.latest(variables.cost_element_id, {}),
+        queryKey: queryKeys.progressEntries.latest(
+          variables.cost_element_id,
+          {},
+        ),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.costElements.evmMetrics(variables.cost_element_id, {}),
+        queryKey: queryKeys.costElements.evmMetrics(
+          variables.cost_element_id,
+          {},
+        ),
       });
       toast.success("Progress entry created successfully");
       mutationOptions?.onSuccess?.(data, variables, undefined);
@@ -220,7 +221,12 @@ export const useUpdateProgressEntry = (
     { previousEntry?: ProgressEntryRead }
   >({
     mutationFn: ({ id, data }: { id: string; data: ProgressEntryUpdate }) => {
-      return ProgressEntriesService.updateProgressEntry(id, data);
+      // Add control_date to data
+      const payload: ProgressEntryUpdate = {
+        ...data,
+        control_date: asOf || null,
+      };
+      return ProgressEntriesService.updateProgressEntry(id, payload);
     },
     onMutate: async ({ id, data }) => {
       // Cancel outgoing refetches

@@ -49,6 +49,10 @@ class ProgressEntryCreate(ProgressEntryBase):
     reported_by_user_id: UUID = Field(
         ..., description="ID of the user reporting the progress"
     )
+    control_date: datetime | None = Field(
+        None,
+        description="Optional control date for time travel (valid_time defaults to now if not provided)",
+    )
 
 
 class ProgressEntryUpdate(BaseModel):
@@ -62,6 +66,10 @@ class ProgressEntryUpdate(BaseModel):
     )
     reported_date: datetime | None = None
     notes: str | None = None
+    control_date: datetime | None = Field(
+        None,
+        description="Optional control date for time travel (valid_time defaults to now if not provided)",
+    )
 
 
 class ProgressEntryRead(ProgressEntryBase):

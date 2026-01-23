@@ -18,7 +18,6 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.enums import BranchMode
@@ -54,7 +53,7 @@ class TestPVCalculationPerformance:
         """
         # Arrange: Create minimal test data
         creator_id = uuid4()
-        
+
         # Create schedule baseline
         baseline = ScheduleBaseline(
             schedule_baseline_id=uuid4(),
@@ -144,7 +143,7 @@ class TestPVCalculationPerformance:
         # Arrange: Create 10 cost elements with baselines
         creator_id = uuid4()
         cost_elements = []
-        
+
         for i in range(10):
             # Create baseline
             baseline = ScheduleBaseline(
@@ -221,7 +220,7 @@ class TestPVCalculationPerformance:
         # Arrange: Create 100 cost elements with baselines
         creator_id = uuid4()
         cost_elements = []
-        
+
         for i in range(100):
             # Create baseline
             baseline = ScheduleBaseline(
@@ -376,7 +375,7 @@ class TestPVCalculationPerformance:
         """
         # Arrange: Create cost element WITHOUT schedule baseline
         creator_id = uuid4()
-        
+
         cost_element = CostElement(
             cost_element_id=uuid4(),
             wbe_id=uuid4(),

@@ -153,7 +153,7 @@ async def test_forecast_time_travel_with_future_control_date(
     # Bug: Returns 404 instead of old version
     assert query_res.status_code == 200, \
         f"Expected 200, got {query_res.status_code}. Forecast should be visible at as_of date before control_date. Response: {query_res.text}"
-    
+
     forecast_data = query_res.json()
     assert forecast_data["eac_amount"] == "1000.00", \
         f"Expected old forecast (1000.00), got {forecast_data['eac_amount']}"
