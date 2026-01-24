@@ -493,3 +493,38 @@ export const useCostElementEvmMetrics = (
     enabled: !!costElementId,
   });
 };
+
+/**
+ * Hook to get historical EVM metrics (Time Series) for a cost element.
+ * Uses the new EVM history endpoint (GET /cost-elements/{id}/evm-history).
+ *
+ * @param costElementId - The cost element ID
+ * @param granularity - Time interval (day, week, month)
+ * @param branch - Branch to query
+ * @returns TanStack Query result with time-series data
+ */
+export const useCostElementEvmHistory = (
+  costElementId: string,
+  granularity: "day" | "week" | "month" = "week",
+  branch?: string,
+) => {
+  const { branch: tmBranch, asOf } = useTimeMachineParams();
+
+  return useQuery({
+    queryKey: queryKeys.evm.timeSeries("cost_element", costElementId, {
+      branch: branch || tmBranch,
+      asOf,
+      granularity,
+    }),
+    queryFn: async () => {
+      return await CostElementsService.getEvmHistory(
+        costElementId,
+        granularity,
+        asOf || undefined,
+        branch || tmBranch || "main",
+        "merge",
+      );
+    },
+    enabled: !!costElementId,
+  });
+};

@@ -533,9 +533,9 @@ class TestEVMServiceAggregation:
         # expected_cpi = (100*0.75 + 200*1.056) / 300 ≈ 0.954
         # expected_spi = (100*0.9 + 200*0.95) / 300 ≈ 0.933
         assert result.cpi is not None
-        assert abs(result.cpi - Decimal("0.954")) < Decimal("0.001")
+        assert abs(Decimal(str(result.cpi)) - Decimal("0.954")) < Decimal("0.001")
         assert result.spi is not None
-        assert abs(result.spi - Decimal("0.933")) < Decimal("0.001")
+        assert abs(Decimal(str(result.spi)) - Decimal("0.933")) < Decimal("0.001")
 
 
 class TestEVMServiceProjectSupport:
@@ -651,3 +651,71 @@ class TestEVMServiceProjectSupport:
         # This would require full integration setup
         # Skip for now - integration tests would cover this
         pytest.skip("Requires full integration setup")
+
+
+class TestEVMServiceTimeSeries:
+    """Test EVM time-series calculation logic."""
+
+    @pytest.mark.asyncio
+    async def test_calculate_time_series_date_range(self) -> None:
+        """Test date range generation for time series.
+
+        Test ID: T-001 (from Plan)
+
+        Scenario:
+        - Start Date: 2024-01-01
+        - End Date: 2024-01-10
+        - Granularity: DAY
+        - Expected: 10 points (inclusive)
+        """
+        # Arrange
+        service = EVMService(None)
+        start_date = datetime(2024, 1, 1)
+        end_date = datetime(2024, 1, 10)
+        
+        # Act
+        # We need to expose the date generation method or test it via the main public method
+        # For this test, we'll assume we can call the internal helper _generate_date_range 
+        # or verify the result of the public method with mocked dependencies.
+        # Let's test the public method but mock the internal metric calculation for now
+        # to focus on the structure/dates.
+        
+        # Since we can't easily mock the internal `calculate_evm_metrics` calls without proper DI,
+        # we will test a new helper method `_generate_time_series_dates` that we will implement.
+        
+        dates = service._generate_date_intervals(
+            start_date=start_date,
+            end_date=end_date,
+            granularity=EVMTimeSeriesGranularity.DAY
+        )
+
+        # Assert
+        assert len(dates) == 10
+        assert dates[0] == start_date
+        assert dates[-1] == end_date  # Expect 00:00:00 as per implementation
+
+    @pytest.mark.asyncio
+    async def test_calculate_time_series_granularity_week(self) -> None:
+        """Test weekly granularity generation.
+
+        Test ID: T-002 (from Plan)
+        """
+        # Arrange
+        service = EVMService(None)
+        start_date = datetime(2024, 1, 1)  # Monday
+        end_date = datetime(2024, 1, 15)   # Monday (+2 weeks)
+        
+        # Act
+        dates = service._generate_date_intervals(
+            start_date=start_date,
+            end_date=end_date,
+            granularity=EVMTimeSeriesGranularity.WEEK
+        )
+
+        # Assert
+        # Should include start date + points every 7 days until end date
+        assert len(dates) >= 3 
+        # Check interval is roughly 7 days
+        delta = dates[1] - dates[0]
+        assert delta.days == 7
+

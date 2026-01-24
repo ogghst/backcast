@@ -56,7 +56,17 @@ function transformEVMMetricsResponse(data: unknown): EVMMetricsResponse {
 
   // Convert numeric fields that may come as strings from Python Decimal serialization
   const numericFields: (keyof EVMMetricsResponse)[] = [
-    "bac", "pv", "ac", "ev", "cv", "sv", "cpi", "spi", "eac", "vac", "etc"
+    "bac",
+    "pv",
+    "ac",
+    "ev",
+    "cv",
+    "sv",
+    "cpi",
+    "spi",
+    "eac",
+    "vac",
+    "etc",
   ];
 
   const transformed = { ...response };
@@ -65,7 +75,9 @@ function transformEVMMetricsResponse(data: unknown): EVMMetricsResponse {
     const value = transformed[field];
     if (value !== null && typeof value === "string") {
       // Convert string to number
-      transformed[field] = parseFloat(value) as EVMMetricsResponse[typeof field];
+      transformed[field] = parseFloat(
+        value,
+      ) as EVMMetricsResponse[typeof field];
     }
   }
 
@@ -81,7 +93,15 @@ interface EVMMetricsBatchResponse {
   /** Individual entity metrics */
   metrics: Array<Omit<EVMMetricsResponse, "entity_type">>;
   /** Aggregated metrics across all entities */
-  aggregated: Omit<EVMMetricsResponse, "entity_type" | "entity_id" | "control_date" | "branch" | "branch_mode" | "warning">;
+  aggregated: Omit<
+    EVMMetricsResponse,
+    | "entity_type"
+    | "entity_id"
+    | "control_date"
+    | "branch"
+    | "branch_mode"
+    | "warning"
+  >;
 }
 
 /**
@@ -100,7 +120,7 @@ interface EVMMetricsBatchResponse {
 export function useEVMMetrics(
   entityType: EntityType,
   entityId: string,
-  params?: UseEVMMetricsParams
+  params?: UseEVMMetricsParams,
 ) {
   const { mode: tmMode, branch: tmBranch, asOf } = useTimeMachineParams();
 
@@ -116,32 +136,33 @@ export function useEVMMetrics(
       // For cost elements, use the existing endpoint
       // For WBE and project, we'll need to check if those endpoints exist
       // and fall back to the appropriate endpoint or throw an error
-      const data = entityType === "cost_element"
-        ? await __request(OpenAPI, {
-            method: "GET",
-            url: "/api/v1/cost-elements/{cost_element_id}/evm",
-            path: {
-              cost_element_id: entityId,
-            },
-            query: {
-              control_date: controlDate || undefined,
-              branch,
-              branch_mode: tmMode || "merge",
-            },
-          })
-        : await __request(OpenAPI, {
-            method: "GET",
-            url: "/api/v1/evm/{entity_type}/{entity_id}/metrics",
-            path: {
-              entity_type: entityType,
-              entity_id: entityId,
-            },
-            query: {
-              control_date: controlDate || undefined,
-              branch,
-              branch_mode: tmMode || "merge",
-            },
-          });
+      const data =
+        entityType === "cost_element"
+          ? await __request(OpenAPI, {
+              method: "GET",
+              url: "/api/v1/cost-elements/{cost_element_id}/evm",
+              path: {
+                cost_element_id: entityId,
+              },
+              query: {
+                control_date: controlDate || undefined,
+                branch,
+                branch_mode: tmMode === "merged" ? "merge" : "strict",
+              },
+            })
+          : await __request(OpenAPI, {
+              method: "GET",
+              url: "/api/v1/evm/{entity_type}/{entity_id}/metrics",
+              path: {
+                entity_type: entityType,
+                entity_id: entityId,
+              },
+              query: {
+                control_date: controlDate || undefined,
+                branch,
+                branch_mode: tmMode === "merged" ? "merge" : "strict",
+              },
+            });
 
       return transformEVMMetricsResponse(data);
     },
@@ -185,7 +206,7 @@ export function useEVMTimeSeries(
   entityType: EntityType,
   entityId: string,
   granularity: EVMTimeSeriesGranularity,
-  params?: EVMTimeSeriesParams
+  params?: EVMTimeSeriesParams,
 ) {
   const { mode: tmMode, branch: tmBranch, asOf } = useTimeMachineParams();
 
@@ -203,7 +224,7 @@ export function useEVMTimeSeries(
       if (entityType === "cost_element") {
         return await __request(OpenAPI, {
           method: "GET",
-          url: "/api/v1/cost-elements/{cost_element_id}/evm/timeseries",
+          url: "/api/v1/cost-elements/{cost_element_id}/evm-history",
           path: {
             cost_element_id: entityId,
           },
@@ -211,7 +232,7 @@ export function useEVMTimeSeries(
             granularity,
             control_date: controlDate || undefined,
             branch,
-            branch_mode: tmMode || "merge",
+            branch_mode: tmMode === "merged" ? "merge" : "strict",
           },
         });
       }
@@ -228,7 +249,7 @@ export function useEVMTimeSeries(
           granularity,
           control_date: controlDate || undefined,
           branch,
-          branch_mode: tmMode || "merge",
+          branch_mode: tmMode === "merged" ? "merge" : "strict",
         },
       });
     },
@@ -267,7 +288,7 @@ interface EVMMetricsBatchParams extends EVMQueryParams {
 export function useEVMMetricsBatch(
   entityType: EntityType,
   entityIds: string[] | undefined,
-  params?: EVMMetricsBatchParams
+  params?: EVMMetricsBatchParams,
 ) {
   const { mode: tmMode, branch: tmBranch, asOf } = useTimeMachineParams();
 
@@ -290,7 +311,7 @@ export function useEVMMetricsBatch(
         query: {
           control_date: controlDate || undefined,
           branch,
-          branch_mode: tmMode || "merge",
+          branch_mode: tmMode === "merged" ? "merge" : "strict",
         },
         body: {
           entity_ids: entityIds || [],

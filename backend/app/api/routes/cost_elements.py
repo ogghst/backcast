@@ -585,6 +585,52 @@ async def read_evm_metrics(
         ) from e
 
 
+@router.get(
+    "/{cost_element_id}/evm-history",
+    response_model=None,  # EVMTimeSeriesResponse
+    operation_id="get_evm_history",
+    dependencies=[Depends(RoleChecker(required_permission="cost-element-read"))],
+)
+async def read_evm_history(
+    cost_element_id: UUID,
+    granularity: str = Query(
+        "week",
+        pattern="^(day|week|month)$",
+        description="Time granularity",
+    ),
+    control_date: datetime | None = Query(
+        None,
+        description="Control date for time-travel query. ",
+    ),
+    branch: str = Query("main", description="Branch to query"),
+    branch_mode: BranchMode = Query(
+        BranchMode.MERGE,
+        description="Branch mode",
+    ),
+    service: EVMService = Depends(get_evm_service),
+) -> dict[str, Any]:
+    """Get historical EVM metrics (PV/EV/AC) for a cost element."""
+    from app.models.schemas.evm import EntityType, EVMTimeSeriesGranularity
+
+    if control_date is None:
+        control_date = datetime.now(tz=UTC)
+
+    try:
+        response = await service.get_evm_timeseries(
+            entity_type=EntityType.COST_ELEMENT,
+            entity_id=cost_element_id,
+            granularity=EVMTimeSeriesGranularity(granularity),
+            control_date=control_date,
+            branch=branch,
+            branch_mode=branch_mode,
+        )
+        return response  # type: ignore[return-value]
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
+
 # ============================================================================
 # Forecast Endpoints (1:1 Relationship with Cost Elements)
 # ============================================================================

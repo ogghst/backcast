@@ -391,6 +391,41 @@ export class CostElementsService {
         });
     }
     /**
+     * Read Evm History
+     * Get historical EVM metrics (PV/EV/AC) for a cost element.
+     * @param costElementId
+     * @param granularity Time granularity
+     * @param controlDate Control date for time-travel query.
+     * @param branch Branch to query
+     * @param branchMode Branch mode
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static getEvmHistory(
+        costElementId: string,
+        granularity: string = 'week',
+        controlDate?: (string | null),
+        branch: string = 'main',
+        branchMode: BranchMode = 'merge',
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/cost-elements/{cost_element_id}/evm-history',
+            path: {
+                'cost_element_id': costElementId,
+            },
+            query: {
+                'granularity': granularity,
+                'control_date': controlDate,
+                'branch': branch,
+                'branch_mode': branchMode,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
      * Get Cost Element Forecast
      * Get the forecast for a specific cost element.
      *

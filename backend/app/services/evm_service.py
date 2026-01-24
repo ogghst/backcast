@@ -803,10 +803,10 @@ class EVMService:
         branch_mode = first.branch_mode
 
         # Sum amount fields
-        bac: Decimal = sum(m.bac for m in metrics_list)  # type: ignore[assignment]
-        pv: Decimal = sum(m.pv for m in metrics_list)  # type: ignore[assignment]
-        ac: Decimal = sum(m.ac for m in metrics_list)  # type: ignore[assignment]
-        ev: Decimal = sum(m.ev for m in metrics_list)  # type: ignore[assignment]
+        bac: Decimal = sum(Decimal(str(m.bac)) for m in metrics_list)
+        pv: Decimal = sum(Decimal(str(m.pv)) for m in metrics_list)
+        ac: Decimal = sum(Decimal(str(m.ac)) for m in metrics_list)
+        ev: Decimal = sum(Decimal(str(m.ev)) for m in metrics_list)
 
         # Calculate variances from summed values
         cv = ev - ac
@@ -817,13 +817,13 @@ class EVMService:
         spi = self._calculate_weighted_index(metrics_list, "spi", bac)
 
         # Sum forecast-based fields (if all have values)
-        eac_list = [m.eac for m in metrics_list if m.eac is not None]
+        eac_list = [Decimal(str(m.eac)) for m in metrics_list if m.eac is not None]
         eac = sum(eac_list) if len(eac_list) == len(metrics_list) else None
 
-        vac_list = [m.vac for m in metrics_list if m.vac is not None]
+        vac_list = [Decimal(str(m.vac)) for m in metrics_list if m.vac is not None]
         vac = sum(vac_list) if len(vac_list) == len(metrics_list) else None
 
-        etc_list = [m.etc for m in metrics_list if m.etc is not None]
+        etc_list = [Decimal(str(m.etc)) for m in metrics_list if m.etc is not None]
         etc = sum(etc_list) if len(etc_list) == len(metrics_list) else None
 
         # Aggregate progress percentage (weighted by BAC)
@@ -831,7 +831,7 @@ class EVMService:
         progress_percentage = None
         if total_bac > 0:
             weighted_progress = sum(
-                (m.progress_percentage or Decimal("0")) * m.bac
+                Decimal(str(m.progress_percentage or 0)) * Decimal(str(m.bac))
                 for m in metrics_list
             )
             progress_percentage = weighted_progress / total_bac

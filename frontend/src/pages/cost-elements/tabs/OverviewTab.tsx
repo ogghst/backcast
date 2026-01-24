@@ -1,14 +1,27 @@
 import { useState } from "react";
-import { Descriptions, Card, Progress, Statistic, Row, Col, Alert, Button } from "antd";
+import {
+  Descriptions,
+  Progress,
+  Statistic,
+  Row,
+  Col,
+  Alert,
+  Button,
+} from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import type { CostElementRead } from "@/api/generated";
 import { useBudgetStatus } from "@/features/cost-registration/api/useCostRegistrations";
-import { useUpdateCostElement, useCostElementForecast } from "@/features/cost-elements/api/useCostElements";
+import {
+  useUpdateCostElement,
+  useCostElementForecast,
+} from "@/features/cost-elements/api/useCostElements";
 import { CostElementModal } from "@/features/cost-elements/components/CostElementModal";
+import { EVMTimeHistoryChart } from "@/features/cost-elements/components/EVMTimeHistoryChart";
 import { ForecastComparisonCard } from "@/features/forecasts/components";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
+import { CollapsibleCard } from "@/components/common/CollapsibleCard";
 
 interface OverviewTabProps {
   costElement: CostElementRead;
@@ -21,7 +34,7 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
   const currentBranch = branch || costElement.branch || "main";
 
   const { data: budgetStatus, isLoading } = useBudgetStatus(
-    costElement.cost_element_id
+    costElement.cost_element_id,
   );
 
   // Fetch forecast for this cost element (1:1 relationship)
@@ -31,19 +44,31 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
     onSuccess: () => {
       // Invalidate cost element detail with Time Machine context
       queryClient.invalidateQueries({
-        queryKey: queryKeys.costElements.detail(costElement.cost_element_id, { branch: currentBranch, asOf })
+        queryKey: queryKeys.costElements.detail(costElement.cost_element_id, {
+          branch: currentBranch,
+          asOf,
+        }),
       });
       // Invalidate breadcrumb
       queryClient.invalidateQueries({
-        queryKey: queryKeys.costElements.breadcrumb(costElement.cost_element_id)
+        queryKey: queryKeys.costElements.breadcrumb(
+          costElement.cost_element_id,
+        ),
       });
       // Invalidate budget status with Time Machine context
       queryClient.invalidateQueries({
-        queryKey: queryKeys.costRegistrations.budgetStatus(costElement.cost_element_id, { asOf })
+        queryKey: queryKeys.costRegistrations.budgetStatus(
+          costElement.cost_element_id,
+          { asOf },
+        ),
       });
       // Invalidate forecast for this cost element (1:1 relationship)
       queryClient.invalidateQueries({
-        queryKey: queryKeys.forecasts.byCostElement(costElement.cost_element_id, currentBranch, { asOf })
+        queryKey: queryKeys.forecasts.byCostElement(
+          costElement.cost_element_id,
+          currentBranch,
+          { asOf },
+        ),
       });
       setIsEditModalOpen(false);
     },
@@ -90,7 +115,11 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
   return (
     <div>
       {/* Budget Section */}
-      <Card title="Budget Status" style={{ marginBottom: 16 }}>
+      <CollapsibleCard
+        id="budget-status-card"
+        title="Budget Status"
+        style={{ marginBottom: 16 }}
+      >
         {isLoading ? (
           <Progress percent={0} />
         ) : (
@@ -111,7 +140,11 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
                   value={used}
                   precision={2}
                   prefix="€"
-                  styles={{ content: { color: percentage >= 100 ? "#ff4d4f" : "#52c41a" } }}
+                  styles={{
+                    content: {
+                      color: percentage >= 100 ? "#ff4d4f" : "#52c41a",
+                    },
+                  }}
                 />
               </Col>
               <Col span={6}>
@@ -120,7 +153,9 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
                   value={remaining}
                   precision={2}
                   prefix="€"
-                  styles={{ content: { color: remaining < 0 ? "#ff4d4f" : "#52c41a" } }}
+                  styles={{
+                    content: { color: remaining < 0 ? "#ff4d4f" : "#52c41a" },
+                  }}
                 />
               </Col>
               <Col span={6}>
@@ -165,16 +200,11 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
             )}
           </>
         )}
-      </Card>
-
-      {/* EVM Forecast Comparison Section */}
-      <ForecastComparisonCard
-        costElementId={costElement.cost_element_id}
-        budgetAmount={Number(costElement.budget_amount)}
-      />
+      </CollapsibleCard>
 
       {/* Cost Element Details Section */}
-      <Card
+      <CollapsibleCard
+        id="cost-element-details-card"
         title="Cost Element Details"
         extra={
           <Button
@@ -186,10 +216,7 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
           </Button>
         }
       >
-        <Descriptions
-          bordered
-          column={{ xs: 1, sm: 1, md: 2, lg: 2 }}
-        >
+        <Descriptions bordered column={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
           <Descriptions.Item label="Code">{costElement.code}</Descriptions.Item>
           <Descriptions.Item label="Name">{costElement.name}</Descriptions.Item>
           <Descriptions.Item label="Description" span={2}>
@@ -219,7 +246,20 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
             {costElement.transaction_time ?? "-"}
           </Descriptions.Item>
         </Descriptions>
-      </Card>
+      </CollapsibleCard>
+
+      {/* EVM Time History Chart */}
+      {/*
+      <div style={{ marginBottom: 16 }}>
+        <EVMTimeHistoryChart costElementId={costElement.cost_element_id} />
+      </div>
+      */}
+
+      {/* EVM Forecast Comparison Section */}
+      <ForecastComparisonCard
+        costElementId={costElement.cost_element_id}
+        budgetAmount={Number(costElement.budget_amount)}
+      />
 
       <CostElementModal
         open={isEditModalOpen}

@@ -1,10 +1,13 @@
-import { Card, Space, Tooltip, theme, Empty } from "antd";
+import { Space, Tooltip, theme, Empty } from "antd";
 import { InfoCircleOutlined } from "@ant-design/icons";
 import { useState } from "react";
 import { useCostElementEvmMetrics } from "@/features/cost-elements/api/useCostElements";
 import { EVMSummaryView } from "@/features/evm/components/EVMSummaryView";
 import { EVMAnalyzerModal } from "@/features/evm/components/EVMAnalyzerModal";
 import type { EVMMetricsResponse } from "@/features/evm/types";
+import { CollapsibleCard } from "@/components/common/CollapsibleCard";
+import { useEVMTimeSeries } from "@/features/evm/api/useEVMMetrics";
+import { EntityType, EVMTimeSeriesGranularity } from "@/features/evm/types";
 
 interface ForecastComparisonCardProps {
   costElementId: string;
@@ -17,12 +20,25 @@ export const ForecastComparisonCard = ({
 }: ForecastComparisonCardProps) => {
   const { token } = theme.useToken();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [granularity, setGranularity] = useState<EVMTimeSeriesGranularity>(
+    EVMTimeSeriesGranularity.WEEK,
+  );
 
   // Fetch EVM metrics from the new endpoint
   const { data: evmMetrics, isLoading: evmLoading } =
     useCostElementEvmMetrics(costElementId);
 
   const metrics = evmMetrics as EVMMetricsResponse | undefined;
+
+  // Fetch time-series data for the modal
+  const { data: timeSeries, isLoading: timeSeriesLoading } = useEVMTimeSeries(
+    EntityType.COST_ELEMENT,
+    costElementId,
+    granularity,
+    {
+      enabled: isModalOpen, // Only fetch when modal is open
+    },
+  );
 
   // Handle opening the modal
   const handleAdvancedClick = () => {
@@ -36,7 +52,8 @@ export const ForecastComparisonCard = ({
 
   if (evmLoading) {
     return (
-      <Card
+      <CollapsibleCard
+        id="evm-analysis-loading"
         title={
           <Space>
             <span>EVM Analysis</span>
@@ -51,13 +68,14 @@ export const ForecastComparisonCard = ({
           description="Loading EVM metrics..."
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         />
-      </Card>
+      </CollapsibleCard>
     );
   }
 
   if (!metrics) {
     return (
-      <Card
+      <CollapsibleCard
+        id="evm-analysis-empty"
         title={
           <Space>
             <span>EVM Analysis</span>
@@ -72,13 +90,14 @@ export const ForecastComparisonCard = ({
           description="No forecast created yet. Create a forecast to see EVM analysis."
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         />
-      </Card>
+      </CollapsibleCard>
     );
   }
 
   return (
     <>
-      <Card
+      <CollapsibleCard
+        id="evm-analysis-card"
         title={
           <Space>
             <span>EVM Analysis</span>
@@ -90,15 +109,15 @@ export const ForecastComparisonCard = ({
         style={{ marginTop: 16 }}
       >
         <EVMSummaryView metrics={metrics} onAdvanced={handleAdvancedClick} />
-      </Card>
+      </CollapsibleCard>
 
       <EVMAnalyzerModal
         open={isModalOpen}
         onClose={handleCloseModal}
         evmMetrics={metrics}
-        timeSeries={undefined}
-        loading={false}
-        onGranularityChange={() => {}}
+        timeSeries={timeSeries}
+        loading={timeSeriesLoading}
+        onGranularityChange={setGranularity}
       />
     </>
   );
