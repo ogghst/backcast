@@ -47,188 +47,213 @@ export interface EChartsBaseChartProps {
 /**
  * Base wrapper component for ECharts
  */
-export const EChartsBaseChart: React.FC<EChartsBaseChartProps> = ({
-  option,
-  loading = false,
-  error = null,
-  showWhenEmpty = false,
-  height = 300,
-  className,
-  style,
-  onChartReady,
-  onEvents,
-  resizable = true,
-  emptyDescription = "No data available",
-  emptyImage,
-  delayRender = false,
-}) => {
-  const chartRef = useRef<ReactECharts>(null);
-  const resizeObserverRef = useRef<ResizeObserver | null>(null);
-  const [isReady, setIsReady] = useState(!delayRender);
-  const [containerStyle, setContainerStyle] = React.useState<React.CSSProperties>({
-    height: typeof height === "number" ? `${height}px` : height,
-    width: "100%",
-    minHeight: typeof height === "number" ? `${height}px` : height,
-    ...style,
-  });
+export const EChartsBaseChart = React.forwardRef<
+  ReactECharts,
+  EChartsBaseChartProps
+>(
+  (
+    {
+      option,
+      loading = false,
+      error = null,
+      showWhenEmpty = false,
+      height = 300,
+      className,
+      style,
+      onChartReady,
+      onEvents,
+      resizable = true,
+      emptyDescription = "No data available",
+      emptyImage,
+      delayRender = false,
+    },
+    ref,
+  ) => {
+    const chartRef = useRef<ReactECharts | null>(null);
+    const resizeObserverRef = useRef<ResizeObserver | null>(null);
+    const [isReady, setIsReady] = useState(!delayRender);
+    const [containerStyle, setContainerStyle] =
+      React.useState<React.CSSProperties>({
+        height: typeof height === "number" ? `${height}px` : height,
+        width: "100%",
+        minHeight: typeof height === "number" ? `${height}px` : height,
+        ...style,
+      });
 
-  // Delay rendering for modals to allow DOM to settle
-  useEffect(() => {
-    if (delayRender) {
-      const timer = setTimeout(() => {
-        setIsReady(true);
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [delayRender]);
-
-  // Handle chart ready
-  const handleChartReady = useCallback((chart: ECharts) => {
-    // Force a resize after chart is ready to ensure proper dimensions
-    setTimeout(() => {
-      chart.resize();
-    }, 0);
-
-    if (onChartReady) {
-      onChartReady(chart);
-    }
-  }, [onChartReady]);
-
-  // Setup resize observer for responsive behavior
-  const chartRefCallback = useCallback((node: ReactECharts | null) => {
-    if (node) {
-      chartRef.current = node;
-
-      if (resizable) {
-        // Cleanup previous observer
-        if (resizeObserverRef.current) {
-          resizeObserverRef.current.disconnect();
-        }
-
-        // Create new observer
-        resizeObserverRef.current = new ResizeObserver(() => {
-          const chart = node.getEchartsInstance();
-          if (chart && !chart.isDisposed()) {
-            chart.resize();
-          }
-        });
-
-        // Observe the chart container
-        const container = node.echartsElement?.parentElement;
-        if (container) {
-          resizeObserverRef.current.observe(container);
-        }
-
-        // Also observe the parent's parent for modal scenarios
-        const parentContainer = container?.parentElement;
-        if (parentContainer) {
-          resizeObserverRef.current.observe(parentContainer);
-        }
+    // Delay rendering for modals to allow DOM to settle
+    useEffect(() => {
+      if (delayRender) {
+        const timer = setTimeout(() => {
+          setIsReady(true);
+        }, 50);
+        return () => clearTimeout(timer);
       }
+    }, [delayRender]);
 
-      // Trigger an initial resize after mount
-      setTimeout(() => {
-        const chart = node.getEchartsInstance();
-        if (chart && !chart.isDisposed()) {
+    // Handle chart ready
+    const handleChartReady = useCallback(
+      (chart: ECharts) => {
+        // Force a resize after chart is ready to ensure proper dimensions
+        setTimeout(() => {
           chart.resize();
+        }, 0);
+
+        if (onChartReady) {
+          onChartReady(chart);
         }
-      }, 100);
-    } else {
-      // Cleanup on unmount
-      if (resizeObserverRef.current) {
-        resizeObserverRef.current.disconnect();
-        resizeObserverRef.current = null;
-      }
+      },
+      [onChartReady],
+    );
+
+    // Setup resize observer for responsive behavior
+    const chartRefCallback = useCallback(
+      (node: ReactECharts | null) => {
+        // Handle local ref
+        chartRef.current = node;
+
+        // Handle forwarded ref
+        if (typeof ref === "function") {
+          ref(node);
+        } else if (ref) {
+          (ref as React.MutableRefObject<ReactECharts | null>).current = node;
+        }
+
+        if (node) {
+          if (resizable) {
+            // Cleanup previous observer
+            if (resizeObserverRef.current) {
+              resizeObserverRef.current.disconnect();
+            }
+
+            // Create new observer
+            resizeObserverRef.current = new ResizeObserver(() => {
+              const chart = node.getEchartsInstance();
+              if (chart && !chart.isDisposed()) {
+                chart.resize();
+              }
+            });
+
+            // Observe the chart container
+            const container = node.echartsElement?.parentElement;
+            if (container) {
+              resizeObserverRef.current.observe(container);
+            }
+
+            // Also observe the parent's parent for modal scenarios
+            const parentContainer = container?.parentElement;
+            if (parentContainer) {
+              resizeObserverRef.current.observe(parentContainer);
+            }
+          }
+
+          // Trigger an initial resize after mount
+          setTimeout(() => {
+            const chart = node.getEchartsInstance();
+            if (chart && !chart.isDisposed()) {
+              chart.resize();
+            }
+          }, 100);
+        } else {
+          // Cleanup on unmount
+          if (resizeObserverRef.current) {
+            resizeObserverRef.current.disconnect();
+            resizeObserverRef.current = null;
+          }
+        }
+      },
+      [resizable, ref],
+    );
+
+    // Show loading state
+    if (loading) {
+      return (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            ...containerStyle,
+          }}
+          className={className}
+        >
+          <Spin size="large" />
+        </div>
+      );
     }
-  }, [resizable]);
 
-  // Show loading state
-  if (loading) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          ...containerStyle,
-        }}
-        className={className}
-      >
-        <Spin size="large" />
-      </div>
-    );
-  }
+    // Show error state
+    if (error) {
+      return (
+        <div className={className} style={containerStyle}>
+          <Alert
+            message="Chart Error"
+            description={error}
+            type="error"
+            showIcon
+            closable
+          />
+        </div>
+      );
+    }
 
-  // Show error state
-  if (error) {
-    return (
-      <div className={className} style={containerStyle}>
-        <Alert
-          message="Chart Error"
-          description={error}
-          type="error"
-          showIcon
-          closable
-        />
-      </div>
-    );
-  }
+    // Check if chart has data
+    const hasData = checkHasData(option);
 
-  // Check if chart has data
-  const hasData = checkHasData(option);
+    // Show empty state
+    if (!hasData && !showWhenEmpty) {
+      return (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            ...containerStyle,
+          }}
+          className={className}
+        >
+          <Empty
+            description={emptyDescription}
+            image={emptyImage ?? Empty.PRESENTED_IMAGE_SIMPLE}
+          />
+        </div>
+      );
+    }
 
-  // Show empty state
-  if (!hasData && !showWhenEmpty) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          ...containerStyle,
-        }}
-        className={className}
-      >
-        <Empty
-          description={emptyDescription}
-          image={emptyImage ?? Empty.PRESENTED_IMAGE_SIMPLE}
-        />
-      </div>
-    );
-  }
+    // Wait for ready state if delayRender is enabled
+    if (!isReady) {
+      return (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            ...containerStyle,
+          }}
+          className={className}
+        >
+          <Spin size="small" />
+        </div>
+      );
+    }
 
-  // Wait for ready state if delayRender is enabled
-  if (!isReady) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          ...containerStyle,
-        }}
-        className={className}
-      >
-        <Spin size="small" />
-      </div>
-    );
-  }
+    // Common chart props
+    const chartProps: EChartsReactProps = {
+      ref: chartRefCallback,
+      option,
+      style: containerStyle,
+      className,
+      onChartReady: handleChartReady,
+      onEvents,
+      notMerge: false,
+      lazyUpdate: true,
+      showLoading: false,
+    };
 
-  // Common chart props
-  const chartProps: EChartsReactProps = {
-    ref: chartRefCallback,
-    option,
-    style: containerStyle,
-    className,
-    onChartReady: handleChartReady,
-    onEvents,
-    notMerge: false,
-    lazyUpdate: true,
-    showLoading: false,
-  };
+    return <ReactECharts {...chartProps} />;
+  },
+);
 
-  return <ReactECharts {...chartProps} />;
-};
+EChartsBaseChart.displayName = "EChartsBaseChart";
 
 /**
  * Check if an ECharts option has data to display.
@@ -237,7 +262,9 @@ export const EChartsBaseChart: React.FC<EChartsBaseChartProps> = ({
 function checkHasData(option: EChartsOption): boolean {
   // Check series data
   if (option.series) {
-    const series = Array.isArray(option.series) ? option.series : [option.series];
+    const series = Array.isArray(option.series)
+      ? option.series
+      : [option.series];
 
     for (const s of series) {
       if (s) {
@@ -267,7 +294,9 @@ function checkHasData(option: EChartsOption): boolean {
 
   // Check dataset
   if (option.dataset) {
-    const datasets = Array.isArray(option.dataset) ? option.dataset : [option.dataset];
+    const datasets = Array.isArray(option.dataset)
+      ? option.dataset
+      : [option.dataset];
     for (const ds of datasets) {
       if (ds && ds.source && Array.isArray(ds.source) && ds.source.length > 0) {
         return true;

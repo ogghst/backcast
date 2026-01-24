@@ -12,6 +12,7 @@ import React, { useMemo, useRef, useCallback } from "react";
 import { Button, Space, Radio } from "antd";
 import { DownloadOutlined } from "@ant-design/icons";
 import type { ECharts } from "echarts";
+import ReactECharts from "echarts-for-react";
 import { EChartsBaseChart, EChartsBaseChartProps } from "./EChartsBaseChart";
 import {
   buildTimeSeriesOptions,
@@ -91,12 +92,8 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
   delayRender = false,
   height,
 }) => {
-  const chartRef = useRef<React.ComponentRef<typeof EChartsBaseChart> | null>(
-    null,
-  );
-  const chart2Ref = useRef<React.ComponentRef<typeof EChartsBaseChart> | null>(
-    null,
-  );
+  const chartRef = useRef<ReactECharts | null>(null);
+  const chart2Ref = useRef<ReactECharts | null>(null);
 
   // Get theme configuration at top level (hook must be called at component level)
   const echartsTheme = useEChartsTheme();
@@ -108,7 +105,7 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
   );
 
   const dateFormatter = useMemo(
-    () => createDateFormatter(currentGranularity),
+    () => createDateFormatter(currentGranularity as EVMTimeSeriesGranularity),
     [currentGranularity],
   );
 
@@ -221,7 +218,9 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
           {onGranularityChange && (
             <RadioGroup
               value={currentGranularity}
-              onChange={(e) => onGranularityChange(e.target.value)}
+              onChange={(e) =>
+                onGranularityChange(e.target.value as EVMTimeSeriesGranularity)
+              }
               size="small"
             >
               <RadioButton value="day">Day</RadioButton>
@@ -291,7 +290,7 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
   return (
     <div className={className} style={style}>
       {renderHeader()}
-      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+      <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
         {hasData && progressionOptions && (
           <div>
             <div

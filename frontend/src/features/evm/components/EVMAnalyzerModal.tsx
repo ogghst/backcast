@@ -39,7 +39,7 @@ import type {
 import { METRIC_DEFINITIONS, getMetricStatus, MetricCategory } from "../types";
 
 const { Title } = Typography;
-const { Panel } = Collapse;
+// { Panel } was removed from destructuring because we're using items prop now
 
 interface EVMAnalyzerModalProps {
   /** Whether the modal is open */
@@ -165,7 +165,6 @@ export const EVMAnalyzerModal = ({
             goodThreshold={1.0}
             warningThresholdPercent={0.9}
             size={180}
-            delayRender={true}
           />
         </Col>
         <Col xs={24} sm={12}>
@@ -178,7 +177,6 @@ export const EVMAnalyzerModal = ({
             goodThreshold={1.0}
             warningThresholdPercent={0.9}
             size={180}
-            delayRender={true}
           />
         </Col>
       </Row>
@@ -360,7 +358,7 @@ export const EVMAnalyzerModal = ({
         okText="OK"
         cancelText="Cancel"
         width={1200}
-        destroyOnClose
+        destroyOnHidden
         forceRender
         afterOpenChange={(visible) => {
           // Trigger chart resize after modal animation completes
@@ -377,25 +375,36 @@ export const EVMAnalyzerModal = ({
         ) : !evmMetrics ? (
           renderEmpty()
         ) : (
-          <Collapse defaultActiveKey={["1"]}>
-            <Panel header="EVM Time Series Analysis" key="1">
-              <EVMTimeSeriesChart
-                key={`timeseries-${chartKey}`}
-                timeSeries={timeSeries}
-                loading={false}
-                onGranularityChange={onGranularityChange}
-                delayRender={true}
-                headless={true}
-                height="50vh"
-              />
-            </Panel>
-            <Panel header="Performance Indices" key="2">
-              {renderPerformanceIndicesContent()}
-            </Panel>
-            <Panel header="Metrics" key="3">
-              {renderMetricsTabs()}
-            </Panel>
-          </Collapse>
+          <Collapse
+            defaultActiveKey={["1"]}
+            items={[
+              {
+                key: "1",
+                label: "EVM Time Series Analysis",
+                children: (
+                  <EVMTimeSeriesChart
+                    key={`timeseries-${chartKey}`}
+                    timeSeries={timeSeries}
+                    loading={false}
+                    onGranularityChange={onGranularityChange}
+                    delayRender={true}
+                    headless={true}
+                    height="50vh"
+                  />
+                ),
+              },
+              {
+                key: "2",
+                label: "Performance Indices",
+                children: renderPerformanceIndicesContent(),
+              },
+              {
+                key: "3",
+                label: "Metrics",
+                children: renderMetricsTabs(),
+              },
+            ]}
+          />
         )}
       </Modal>
     </ConfigProvider>

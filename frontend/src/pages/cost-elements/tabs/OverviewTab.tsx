@@ -7,6 +7,7 @@ import {
   Col,
   Alert,
   Button,
+  Grid,
 } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import type { CostElementRead } from "@/api/generated";
@@ -27,7 +28,10 @@ interface OverviewTabProps {
   costElement: CostElementRead;
 }
 
+const { useBreakpoint } = Grid;
+
 export const OverviewTab = ({ costElement }: OverviewTabProps) => {
+  const screens = useBreakpoint();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const queryClient = useQueryClient();
   const { branch, asOf } = useTimeMachineParams();
@@ -219,7 +223,7 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
         <Descriptions bordered column={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
           <Descriptions.Item label="Code">{costElement.code}</Descriptions.Item>
           <Descriptions.Item label="Name">{costElement.name}</Descriptions.Item>
-          <Descriptions.Item label="Description" span={2}>
+          <Descriptions.Item label="Description" span={screens.md ? 2 : 1}>
             {costElement.description || "-"}
           </Descriptions.Item>
           <Descriptions.Item label="Budget Amount">
