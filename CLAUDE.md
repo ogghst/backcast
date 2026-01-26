@@ -148,24 +148,7 @@ The core feature is a **bitemporal versioning system** implemented with PostgreS
 - `frontend/src/api/client.ts` - Axios configuration with interceptors
 - `frontend/src/config/` - Frontend configuration
 
-## Bounded Contexts
-
-The system is partitioned into:
-
-1. Authentication & Authorization
-2. User Management
-3. Department Management
-4. Project & WBE Management
-5. Cost Element & Financial Tracking
-6. Change Order & Branching
-7. EVM Calculations & Reporting
-
-See `docs/02-architecture/01-bounded-contexts.md` for details.
-
 ## Documentation
 
 - [Documentation Guide](docs/00-meta/README.md)
-- [System Architecture](docs/02-architecture/00-system-map.md)
-- [Coding Standards](docs/00-meta/coding_standards.md)
-- [ADR Index](docs/02-architecture/decisions/adr-index.md) - Architecture Decision Records
-- [Current Iteration](docs/03-project-plan/current-iteration.md)
+- [System Architecture and Coding Standards](docs/02-architecture/README.md)
