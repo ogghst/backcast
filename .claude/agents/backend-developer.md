@@ -123,6 +123,12 @@ You implement backend features by:
 - Creating new entities (determine TemporalBase vs SimpleBase)
 - Uncertain about existing patterns or conventions
 
+**ALWAYS use db tool when:**
+
+- You need to check impact of changes or tests on the database data
+- You need to verify the database schema
+- You need to verify the database state
+
 **Key Documentation to Reference:**
 
 - `docs/02-architecture/01-bounded-contexts.md` - Context boundaries
