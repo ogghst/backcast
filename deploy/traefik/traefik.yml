@@ -1,50 +1,28 @@
-# Traefik static configuration
+# Traefik static configuration for Apache integration (HTTP-only mode)
 global:
   checkNewVersion: true
   sendAnonymousUsage: false
 
 api:
   dashboard: true
-  insecure: false  # Dashboard via secure entrypoint only
+  insecure: false
+
+ping: {}
 
 entryPoints:
   web:
     address: ":80"
-    http:
-      redirections:
-        entryPoint:
-          to: websecure
-          scheme: https
-          permanent: true
-
-  websecure:
-    address: ":443"
-    http:
-      tls:
-        certResolver: letsencrypt
-        domains:
-          - main: yourdomain.com
-            sans:
-              - api.yourdomain.com
-              - app.yourdomain.com
-              - db.yourdomain.com
-              - traefik.yourdomain.com
+    # No HTTPS redirect - Apache handles SSL termination
 
 providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
-    exposedByDefault: false  # Require explicit exposure via labels
+    exposedByDefault: false
   file:
     filename: /etc/traefik/dynamic/middlewares.yml
     watch: true
 
-certificatesResolvers:
-  letsencrypt:
-    acme:
-      email: admin@yourdomain.com  # CHANGE THIS
-      storage: /letsencrypt/acme.json
-      httpChallenge:
-        entryPoint: web
+# Note: certificatesResolvers removed - Apache manages SSL
 
 log:
   level: INFO
