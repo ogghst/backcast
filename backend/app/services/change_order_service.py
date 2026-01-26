@@ -15,13 +15,16 @@ from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.service import BranchableService
-from app.core.versioning.commands import CreateVersionCommand
+from app.core.versioning.commands import CreateVersionCommand, UpdateVersionCommand
 from app.models.domain.branch import Branch
 from app.models.domain.change_order import ChangeOrder
 from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
 from app.models.schemas.change_order import ChangeOrderCreate, ChangeOrderUpdate
 from app.services.branch_service import BranchService
 from app.services.change_order_workflow_service import ChangeOrderWorkflowService
+from app.services.cost_element_service import CostElementService
+from app.services.entity_discovery_service import EntityDiscoveryService
+from app.services.wbe import WBEService
 
 if TYPE_CHECKING:
     from app.models.schemas.change_order import ChangeOrderPublic
@@ -29,7 +32,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-var]
+class ChangeOrderService(BranchableService[ChangeOrder]):
     """Service for Change Order entity operations.
 
     Extends BranchableService with Change Order specific methods.
@@ -310,7 +313,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             # Fork from main to target branch
             from app.core.branching.commands import CreateBranchCommand
 
-            fork_cmd = CreateBranchCommand(  # type: ignore[type-var]
+            fork_cmd = CreateBranchCommand(
                 entity_class=ChangeOrder,
                 root_id=change_order_id,
                 actor_id=actor_id,
@@ -572,6 +575,9 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
     ) -> ChangeOrder:
         """Merge the Change Order's branch into the target branch.
 
+        Orchestrates the merge of ALL branch content (Change Order, WBEs,
+        CostElements, Projects) from the source branch to the target branch.
+
         Infers the source branch from the Change Order's code.
 
         Args:
@@ -580,18 +586,15 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             target_branch: Branch to merge INTO (default: main)
 
         Returns:
-            The merged Change Order version on the target branch
+            The merged Change Order version on the target branch with status "Implemented"
+
+        Raises:
+            ValueError: If Change Order not found or no active version on source branch
+            Exception: If merge fails (transaction is rolled back)
         """
         # 1. Get current version (from main or source) to find the code
         # We check "main" first to get the metadata
         current = await self.get_current(change_order_id, branch=target_branch)
-
-        # If not found on target, try finding it on any branch?
-        # Actually, if we are merging, the CO *definition* usually exists on main (Draft),
-        # and we are merging the *changes* from the branch.
-        # But wait, Change Order Entity *itself* is branchable.
-        # If I edit CO description on `co-123`, I am creating a version on `co-123`.
-        # Merging `co-123` to `main` means bringing that description to `main`.
 
         if not current:
             # Try to find it on any branch to get the code?
@@ -609,12 +612,77 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                 f"No active version found on source branch {source_branch}"
             )
 
-        return await self.merge_branch(
+        # Detect merge conflicts before proceeding
+        conflicts = await self._detect_all_merge_conflicts(
+            source_branch, target_branch
+        )
+        if conflicts:
+            from app.core.branching.exceptions import MergeConflictError
+
+            raise MergeConflictError(conflicts)
+
+        # 2. Discover all entities in the source branch (including soft-deleted)
+        discovery_service = EntityDiscoveryService(self.session)
+        all_wbes = await discovery_service.discover_all_wbes(source_branch)
+        all_cost_elements = await discovery_service.discover_all_cost_elements(
+            source_branch
+        )
+
+        # 3. Merge each entity type, handling soft-deletes specially
+        # Merge WBEs
+        wbe_service = WBEService(self.session)
+        for wbe in all_wbes:
+            if wbe.deleted_at is not None:
+                # Soft-deleted on source - soft-delete on target too
+                await wbe_service.soft_delete(
+                    root_id=wbe.wbe_id,
+                    actor_id=actor_id,
+                    branch=target_branch,
+                )
+            else:
+                # Active on source - merge normally
+                await wbe_service.merge_branch(
+                    root_id=wbe.wbe_id,
+                    actor_id=actor_id,
+                    source_branch=source_branch,
+                    target_branch=target_branch,
+                )
+
+        # Merge CostElements
+        ce_service = CostElementService(self.session)
+        for ce in all_cost_elements:
+            if ce.deleted_at is not None:
+                # Soft-deleted on source - soft-delete on target too
+                await ce_service.soft_delete(
+                    cost_element_id=ce.cost_element_id,
+                    actor_id=actor_id,
+                    branch=target_branch,
+                )
+            else:
+                # Active on source - merge normally
+                await ce_service.merge_branch(
+                    root_id=ce.cost_element_id,
+                    actor_id=actor_id,
+                    source_branch=source_branch,
+                    target_branch=target_branch,
+                )
+
+        # 4. Merge the Change Order entity itself
+        merged_co = await self.merge_branch(
             root_id=change_order_id,
             actor_id=actor_id,
             source_branch=source_branch,
             target_branch=target_branch,
         )
+
+        # 5. Update CO status to "Implemented" directly on the merged version
+        # This avoids creating an extra version - we update the merged version in place
+        merged_co.status = "Implemented"
+        self.session.add(merged_co)
+        await self.session.flush()
+        await self.session.refresh(merged_co)
+
+        return merged_co
 
     async def revert_change_order_version(
         self,
@@ -695,3 +763,47 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         }
 
         return ChangeOrderPublic(**public_data)
+
+    async def _detect_all_merge_conflicts(
+        self, source_branch: str, target_branch: str
+    ) -> list[dict[str, Any]]:
+        """Detect merge conflicts across all entities in the source branch.
+
+        Checks for conflicts in WBEs, CostElements, and the Change Order itself.
+        Only checks active (non-deleted) entities.
+
+        Args:
+            source_branch: Source branch name (e.g., "co-123")
+            target_branch: Target branch name (default: "main")
+
+        Returns:
+            List of conflict dictionaries. Empty if no conflicts.
+        """
+        conflicts: list[dict[str, Any]] = []
+
+        # Discover active (non-deleted) entities in source branch
+        discovery_service = EntityDiscoveryService(self.session)
+        wbes = await discovery_service.discover_wbes(source_branch)
+        cost_elements = await discovery_service.discover_cost_elements(source_branch)
+
+        # Check conflicts for WBEs
+        wbe_service = WBEService(self.session)
+        for wbe in wbes:
+            wbe_conflicts = await wbe_service._detect_merge_conflicts(
+                root_id=wbe.wbe_id,
+                source_branch=source_branch,
+                target_branch=target_branch,
+            )
+            conflicts.extend(wbe_conflicts)
+
+        # Check conflicts for CostElements
+        ce_service = CostElementService(self.session)
+        for ce in cost_elements:
+            ce_conflicts = await ce_service._detect_merge_conflicts(
+                root_id=ce.cost_element_id,
+                source_branch=source_branch,
+                target_branch=target_branch,
+            )
+            conflicts.extend(ce_conflicts)
+
+        return conflicts

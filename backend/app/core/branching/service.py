@@ -542,12 +542,14 @@ class BranchableService[TBranchable: BranchableProtocol]:
 
         # No result on requested branch - check if entity was deleted on this branch
         # If deleted, don't fall back to main (respect the deletion)
+        # CRITICAL: Must check temporal aspect - only consider deleted if deleted_at <= as_of
         deleted_check = (
             select(self.entity_class)
             .where(
                 getattr(self.entity_class, root_field) == entity_id,
                 cast(Any, self.entity_class).branch == branch,
                 cast(Any, self.entity_class).deleted_at.is_not(None),
+                cast(Any, self.entity_class).deleted_at <= as_of,  # Temporal check
             )
             .limit(1)
         )

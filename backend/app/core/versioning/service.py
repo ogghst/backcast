@@ -400,15 +400,26 @@ class TemporalService[TVersionable: VersionableProtocol]:
     async def _is_deleted_on_branch(
         self, entity_id: UUID, as_of: datetime, branch: str
     ) -> bool:
-        """Check if entity was explicitly deleted on branch at timestamp."""
+        """Check if entity was explicitly deleted on branch at timestamp.
+
+        CRITICAL: Must check temporal aspect - only returns True if deleted_at <= as_of.
+        This prevents incorrect fallback prevention when entity is deleted AFTER the query time.
+        """
         from typing import Any, cast
+
+        from sqlalchemy import cast as sql_cast
+        from sqlalchemy.dialects.postgresql import TIMESTAMP
 
         root_field = self._get_root_field_name()
 
-        # Check for any deleted version on this branch
+        # Cast as_of to TIMESTAMP(timezone=True) for proper comparison
+        as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+
+        # Check for deleted version on this branch at or before as_of timestamp
         stmt = select(self.entity_class).where(
             getattr(self.entity_class, root_field) == entity_id,
             cast(Any, self.entity_class).deleted_at.is_not(None),  # IS deleted
+            cast(Any, self.entity_class).deleted_at <= as_of_tstz,  # Temporal check
         )
 
         # Only filter by branch if the entity has a branch attribute

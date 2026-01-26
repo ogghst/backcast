@@ -672,17 +672,17 @@ class TestEVMServiceTimeSeries:
         service = EVMService(None)
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 10)
-        
+
         # Act
         # We need to expose the date generation method or test it via the main public method
-        # For this test, we'll assume we can call the internal helper _generate_date_range 
+        # For this test, we'll assume we can call the internal helper _generate_date_range
         # or verify the result of the public method with mocked dependencies.
         # Let's test the public method but mock the internal metric calculation for now
         # to focus on the structure/dates.
-        
+
         # Since we can't easily mock the internal `calculate_evm_metrics` calls without proper DI,
         # we will test a new helper method `_generate_time_series_dates` that we will implement.
-        
+
         dates = service._generate_date_intervals(
             start_date=start_date,
             end_date=end_date,
@@ -704,7 +704,7 @@ class TestEVMServiceTimeSeries:
         service = EVMService(None)
         start_date = datetime(2024, 1, 1)  # Monday
         end_date = datetime(2024, 1, 15)   # Monday (+2 weeks)
-        
+
         # Act
         dates = service._generate_date_intervals(
             start_date=start_date,
@@ -714,7 +714,7 @@ class TestEVMServiceTimeSeries:
 
         # Assert
         # Should include start date + points every 7 days until end date
-        assert len(dates) >= 3 
+        assert len(dates) >= 3
         # Check interval is roughly 7 days
         delta = dates[1] - dates[0]
         assert delta.days == 7

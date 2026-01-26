@@ -1,9 +1,9 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-01-23
-**Total Debt Items:** 11 (21 completed)
-**Total Estimated Effort:** 33 hours
-**Completed Effort:** 21.25 hours
+**Last Updated:** 2026-01-27
+**Total Debt Items:** 9 (24 completed)
+**Total Estimated Effort:** 31 hours
+**Completed Effort:** 30.25 hours
 
 ---
 
@@ -21,41 +21,28 @@
 - **Status:** 🔴 Open
 - **Owner:** Full Stack Developer
 
-#### [TD-049] Change Order Merge Test Implementation
-
-- **Source:** Phase 1 Change Orders ACT phase (2026-01-12)
-- **Description:** `test_merge_change_order` test fails because merge functionality is deferred to Phase 4. Test expectations written before implementation planned.
-- **Impact:** 1 test failure blocks CI (currently skipped/deferred)
-- **Estimated Effort:** 2 hours
-- **Target Date:** Phase 4 (2026-01-26)
-- **Status:** 🔴 Open
-- **Owner:** Backend Developer
-- **Notes:** Merge workflow will be implemented in Phase 4, test should be enabled then
-- **Documentation:** [Phase 1 ACT](./iterations/2026-01-11-change-orders-implementation/phase1/04-act.md)
-
-#### [TD-057] MERGE Mode Branch Deletion Detection
+#### [TD-057] MERGE Mode Branch Deletion Detection ✅
 
 - **Source:** EVCS Documentation Compliance Analysis (2026-01-14)
 - **Description:** `get_as_of()` with MERGE mode falls back to main branch even when entity is deleted on requested branch. The `_is_deleted_on_branch()` check may not properly detect deleted entities during fallback.
 - **Impact:** Zombie check test `test_wbe_zombie_check_merge_mode_no_fallback` fails; deleted entities on branches incorrectly appear in MERGE mode queries
 - **Estimated Effort:** 2 hours
+- **Actual Effort:** 2 hours
 - **Target Date:** 2026-01-20
-- **Status:** 🔴 Open
+- **Completed Date:** 2026-01-27
+- **Status:** ✅ Completed
 - **Owner:** Backend Developer
-- **Notes:** Expected behavior: deleted entities on a branch should NOT fall back to main during MERGE mode queries. The `_is_deleted_on_branch()` method in TemporalService/BranchableService needs investigation.
+- **Resolution:** Fixed deletion detection in both `TemporalService._is_deleted_on_branch()` and `BranchableService.get_as_of()` to check temporal aspect (`deleted_at <= as_of`) instead of just checking if ANY deleted version exists. This ensures MERGE mode correctly handles:
+  - Entities deleted BEFORE query time: No fallback to main (correct zombie behavior)
+  - Entities deleted AFTER query time: Falls back to main (entity was still valid at query time)
+- **Files Modified:**
+  - `backend/app/core/versioning/service.py`: Added temporal check to `_is_deleted_on_branch()`
+  - `backend/app/core/branching/service.py`: Added temporal check to MERGE mode deletion detection
+- **Tests Added:**
+  - `tests/unit/test_td57_deletion_detection.py`: Comprehensive temporal deletion tests
+  - `tests/unit/test_td57_edge_case.py`: Edge case tests for temporal deletion
 - **Documentation:** [EVCS Implementation Guide](../02-architecture/backend/contexts/evcs-core/evcs-implementation-guide.md), [Temporal Query Reference](../02-architecture/cross-cutting/temporal-query-reference.md)
 - **Test File:** [tests/unit/test_zombie_checks.py](../../backend/tests/unit/test_zombie_checks.py)
-
-#### [TD-061] Refactor Client-Side EVM Metrics to Backend
-
-- **Source:** User Request (2026-01-19)
-- **Description:** EVM metrics (CV, SV, CPI, SPI, VAC) are currently calculated client-side in the Cost Element page. This logic should be moved to a centralized backend endpoint (`/api/v1/evm/metrics`) configurable for project, WBE, and cost element levels, respecting `control_date`, `branch`, and `branch_mode`.
-- **Impact:** Inconsistent calculations potential; client performance load; lacks centralization.
-- **Estimated Effort:** 5 hours
-- **Target Date:** 2026-02-15
-- **Status:** 🔴 Open
-- **Owner:** Backend Developer
-- **Notes:** Needs new endpoint supporting hierarchical aggregation and time-travel contexts.
 
 #### [TD-062] Configure Pre-commit Hooks for Ruff Auto-fix
 
@@ -179,48 +166,6 @@
 
 ---
 
-## Retired Debt
-
-| ID     | Item                                         | Retired Date | Resolution                                                                                               |
-| ------ | -------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------- |
-| TD-012 | E2E Test Data Isolation                      | 2026-01-09   | Implemented Playwright global setup with TRUNCATE                                                        |
-| TD-023 | Time-Travel Architecture Documentation       | 2026-01-11   | Enhanced temporal-query-reference.md with bitemporal fundamentals, filter patterns, and Zombie Check TDD |
-| TD-024 | Zombie Check TDD Pattern Documentation       | 2026-01-11   | Added comprehensive Zombie Check TDD section with full test example to temporal-query-reference.md       |
-| TD-025 | Frontend Lint Errors                         | 2026-01-11   | Fixed 6 ESLint errors across test files and utilities                                                    |
-| TD-026 | Expose get_as_of in Service Interfaces       | 2026-01-11   | Added `get_{entity}_as_of()` methods to 6 services                                                       |
-| TD-027 | BranchableSoftDeleteCommand Implementation   | 2026-01-12   | Implemented branch-aware soft delete for multi-branch entities                                           |
-| TD-028 | Control Date Handling in CreateBranchCommand | 2026-01-12   | Fixed duplicate records issue by adding control_date parameter                                           |
-| TD-029 | WBE/CostElement BranchableService Extension  | 2026-01-12   | Extended WBE and CostElement services to use BranchableService                                           |
-| TD-030 | Backend Ruff Linting Errors (Phase 1)        | 2026-01-12   | Fixed 6 linting errors: import organization and trailing whitespace                                      |
-| TD-031 | Change Order Field Name Override Pattern     | 2026-01-12   | Documented acceptable pattern for custom field names in BranchableService                                |
-| TD-013 | FilterParser Error Messages                  | 2026-01-09   | Implemented strict type validation, custom exceptions, and global 400 handler                            |
-| TD-014 | Frontend Filter Type Safety                  | 2026-01-09   | Implemented strict `Filterable` types and migrated 7 components                                          |
-| TD-015 | useTableParams Type Safety                   | 2026-01-09   | Refactored hook to use `TEntity` and `TFilters` generics                                                 |
-| TD-017 | Remaining Page-Level API Adapters            | 2026-01-09   | Migrated 5 files to named methods pattern                                                                |
-| N/A    | Backend test environment loop mismatch       | 2026-01-06   | Fixed conftest.py fixture scopes                                                                         |
-| TD-001 | Generic TemporalService get_by_root_id       | 2026-01-07   | Added `get_by_root_id` to `TemporalService[T]`, removed duplicate wrappers                               |
-| TD-006 | `useUserStore` server state violation        | 2026-01-07   | Deleted store; verified unused in production code                                                        |
-| TD-008 | Inconsistent Zustand middleware              | 2026-01-07   | Refactored all stores to use `immer` middleware                                                          |
-| TD-009 | Duplicate history hooks                      | 2026-01-07   | Standardized on generic `useEntityHistory` hook                                                          |
-| TD-010 | API adapter duplication                      | 2026-01-07   | Added named methods support to `createResourceHooks` (backward compatible)                               |
-| TD-011 | Hardcoded pagination values                  | 2026-01-07   | Centralized in `constants/pagination.ts`                                                                 |
-| TD-002 | Remaining Unit Test Failures                 | 2026-01-07   | Fixed field naming mismatch in tests; verified integration stability                                     |
-| TD-051 | Time Travel Parameter Type Handling          | 2026-01-12   | Updated BranchableService.get_as_of signature to accept branch_mode and implemented MERGE logic          |
-| TD-054 | Ruff Linting Errors (Branch Mode)            | 2026-01-13   | Fixed 12 auto-fixable errors (imports, whitespace)                                                       |
-| TD-055 | Unused Imports (Frontend Components)         | 2026-01-13   | Removed unused imports from ViewModeSelector, TimeMachineCompact                                         |
-| TD-058 | Overlapping valid_time Constraint            | 2026-01-19   | Completed: Added overlap checks to MergeBranchCommand and RevertCommand, plus comprehensive test coverage (6 new tests, 86.21% coverage)         |
-| TD-060 | Backend Test Environment Subprocess Failure  | 2026-01-18   | Fixed conftest.py to use `.venv/bin/python` explicitly for subprocess calls                              |
-
----
-
-## Maintenance Notes
-
-**Last Reviewed:** 2026-01-23
-**Next Review:** 2026-01-30
-**Total Debt Items:** 11 (21 completed)
-**Total Estimated Effort:** 33 hours
-**Completed Effort:** 21.25 hours
-
 **Process:**
 
 - Extract debt items from each iteration's ACT phase
@@ -228,15 +173,3 @@
 - Add to register within 24 hours of iteration completion
 - Review and prioritize during sprint planning
 - Track trends and prevent accumulation
-
-**Recent Trends:**
-
-- **2026-01-23 - EVM Analyzer Master-Detail UI:** Completed EVM feature with generic polymorphic metric system supporting cost elements, WBEs, and projects. 217 tests passing (165 backend, 107 frontend), 96.8% query reduction achieved. Fixed type mismatches (float → Decimal for financial precision), 2 MyPy errors, and 5 Ruff errors. EVM feature code has 0 ESLint errors. Documented 146 pre-existing ESLint errors as TD-066. Net debt change: +1 item.
-- **2026-01-19 - Temporal Context Consistency:** Unified API pattern for temporal context parameters across all versioned entities (Projects, WBEs, CostElements, ScheduleBaselines, Forecasts). All 13 success criteria met, 42/42 tests passing, zero new code quality issues. Added TD-064 (Docker Compose) and TD-065 (OpenAPI automation) to prevent future environment issues. Net debt change: +2 items.
-- **2026-01-19 - Code Quality Cleanup:** Fixed 13 Ruff linting errors in cost_elements route and test files. Regenerated frontend OpenAPI client. Documented past-dated control_date limitation. Added TD-062 (pre-commit hooks) and TD-063 (zombie check tests). Net debt change: +2 items.
-- **2026-01-19 - TD-058 ACT Phase Complete:** Formal ACT phase completed for TD-058. Updated coding standards with SQLAlchemy async patterns and timestamp generation best practices. Sprint backlog updated to mark iteration as complete. Zero new technical debt created. Net debt change: -1 items.
-- **2026-01-19 - TD-058 Completion:** Completed TD-058 by adding overlap checks to MergeBranchCommand and RevertCommand. Added 6 comprehensive unit tests achieving 86.21% coverage for branching commands. All tests pass following TDD methodology (RED-GREEN-REFACTOR).
-- **2026-01-18 - TD-060 Resolution:** Fixed backend test environment subprocess failure by updating `conftest.py` to explicitly use `.venv/bin/python` for the `wipe_db.py` subprocess call. All 365 tests now pass successfully.
-- **2026-01-16 - Fix Overlapping Valid Time:** Initial implementation of overlap checks in CreateVersionCommand and UpdateCommand.
-- **2026-01-15 - Contextual Navigation Iteration:** Completed with zero new technical debt items. All code followed best practices with ~100% test coverage. Standardized URL-driven navigation pattern for future entity detail pages.
-- Overall debt trend: Increasing (11 open items, up from 10)

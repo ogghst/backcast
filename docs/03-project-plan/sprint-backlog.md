@@ -1,60 +1,58 @@
 # Current Iteration
 
-**Iteration:** Fix Overlapping Valid Time (TD-058)
-**Start Date:** 2026-01-16
-**End Date:** 2026-01-19
+**Iteration:** Merge Branch Logic (E06 Phase 4)
+**Start Date:** 2026-01-26
+**End Date:** 2026-01-30 (Target)
 **Status:** ✅ **COMPLETE**
 
 ---
 
 ## Goal
 
-Fix critical technical debt regarding overlapping `valid_time` ranges to ensure data integrity for time-travel queries.
+Finalize the Change Order lifecycle by implementing the "Merge" capability. This ensures that approved changes in isolated branches can be applied to the project baseline with conflict detection and resolution.
 
 **Key Focus Areas:**
 
-1.  **Data Integrity**: Prevent creation of overlapping entity versions.
-2.  **Reliability**: Ensure time-travel queries return deterministic results.
+1.  **Merge Logic**: Correctly identification and application of changes from source to target branch.
+2.  **Conflict Management**: Detection and reporting of merge conflicts.
+3.  **Workflow Completion**: Seamless transition from "Approved" to "Implemented".
 
 ---
 
 ## Stories in Scope
 
-| Story                               | Points | Priority | Status  | Actual Time | Dependencies |
-| :---------------------------------- | :----- | :------- | :------ | :---------- | :----------- |
-| Fix Overlapping valid_time (TD-058) | 2h     | Critical | ✅ Done | 2.0h        | None         |
+| Story                                      | Points | Priority | Status         | Actual Time | Dependencies     |
+| :----------------------------------------- | :----- | :------- | :------------- | :---------- | :--------------- |
+| **[E06-U05] Merge Approved Change Orders** | 13     | Critical | ✅ Complete | 16 hours    | E06-U01, E06-U04 |
 
-**Total Estimated Effort:** 2 hours
-**Total Actual Effort:** 3 hours (includes completion analysis and additional tests)
+**Total Estimated Effort:** 13 points
 
 ---
 
 ## Success Criteria
 
-- [x] New versions cannot overlap with existing versions on the same branch.
-- [x] Updates strictly enforce non-overlapping time ranges.
-- [x] Comprehensive unit tests cover overlap scenarios. (Completed: 8/8 tests passing, 86.21% coverage)
+- [x] `ChangeOrderService.merge_change_order` correctly iterates and merges all changed entities (WBEs, Cost Elements).
+- [x] API `POST /merge` handles conflict states correctly (409 Conflict).
+- [x] Conflict detection logic works for nested modifications.
+- [ ] Frontend successfully triggers merge and redirects/updates UI (deferred - separate scope).
 
 ---
 
 ## Iteration Records
 
-- **Temporal and Branch Context Consistency (2026-01-19):** [Iteration Folder](iterations/2026-01-19-temporal-context-consistency/) - ✅ Complete (100%) - Unified API pattern for temporal context parameters across all versioned entities (Projects, WBEs, CostElements, ScheduleBaselines, Forecasts). All 13 success criteria met, 42/42 tests passing, zero new code quality issues.
-- **Code Quality Cleanup (2026-01-19):** [Iteration Folder](iterations/2026-01-19-code-quality-cleanup/) - Fixed 13 Ruff linting errors, regenerated OpenAPI client, documented past-dated control_date limitation
-- **Fix Overlapping Valid Time (TD-058):** [Iteration Folder](iterations/2026-01-16-fix-overlapping-valid-time/)
-- **TD-058 Completion Analysis:** [Iteration Folder](iterations/2026-01-19-td-058-completion-analysis/)
-- **WBE Level Inference:** [Iteration Folder](iterations/2026-01-12-wbe-level-inference/)
-- **WBE Root Filter:** [Iteration Folder](iterations/2026-01-12-wbe-root-filter/)
-- **Branching Implementation:** [Iteration Folder](iterations/2026-01-12-branching-implementation/)
+- **Merge Branch Logic (2026-01-26):** [Iteration Folder](iterations/2026-01-26-merge-branch-logic/) - ✅ Complete (100%)
+- **Fix Overlapping Valid Time (TD-058):** [Iteration Folder](iterations/2026-01-16-fix-overlapping-valid-time/) - ✅ Complete
 
 ---
 
 ## Previous Iterations
 
+- **[2026-01-19] Temporal and Branch Context Consistency:** ✅ Complete (100%)
+- **[2026-01-19] Code Quality Cleanup:** ✅ Complete (100%)
+- **[2026-01-16] Fix Overlapping Valid Time:** ✅ Complete (100%)
 - **[2026-01-12] User Interface Refinements:** ✅ Complete (100%)
 - **[2026-01-11] Frontend Global Error Handling:** ✅ Complete (100%)
 - **[2026-01-10] Standardize Time Travel List Operations:** ✅ Complete (100%)
 - **[2026-01-10] Control Date Implementation:** ✅ Complete (100%)
 - **[2026-01-10] Time Machine Production Hardening:** ✅ Complete (100%)
 - **[2026-01-09] Time Machine Component:** ✅ Complete (100%)
-- **[2026-01-09] Page-Level Adapters Refactoring:** ✅ Complete (100%)
