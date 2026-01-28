@@ -62,7 +62,9 @@ def calculate_and_log_variance(budget: Decimal, actual: Decimal) -> Decimal:
 - Unpack service tuples `(items, total)` in the API layer.
 - Never concatenate raw SQL; use SQLAlchemy abstractions.
 
-See [API Response Patterns](../cross-cutting/api-response-evcs-implementation-guide.md) for detailed implementation guides.
+**ADR:** [ADR-008: Server-Side Filtering, Search, and Sorting](../decisions/ADR-008-server-side-filtering.md)
+
+See [API Response Patterns](../cross-cutting/api-response-patterns.md) for detailed implementation guides.
 
 ---
 
