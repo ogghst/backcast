@@ -1,318 +1,110 @@
 # Backend Coding Standards (Python/FastAPI)
 
-**Last Updated:** 2026-01-19
-**Scope:** Backend (Python/FastAPI), Database, EVCS Core
-
-This document consolidates coding principles for a robust, reliable, and maintainable backend.
+**Scope:** Backend, Database, EVCS Core
 
 ---
 
-## 1. Core Principles
+## Type Safety (Non-Negotiable)
 
-### 1.1 Strict Typing (Zero Tolerance)
-
-**Rule:** Never use `Any`. Always define explicit types/interfaces.
-
-```python
-# ❌ Bad
-def process_data(data: Any) -> Any:
-    return data
-
-# ✅ Good
-def process_data(data: ProjectCreate) -> Project:
-    return Project(**data.model_dump())
-```
-
-**Enforcement:** MyPy strict mode (`disallow_any_explicit = True`)
-
-### 1.2 Source of Truth
-
-**Backend Pydantic models are the single source of truth.**
-
-**Process:**
-
-1. Define Pydantic schemas in `backend/app/models/schemas/`
-2. Frontend types must match these schemas exactly
-
-### 1.3 Functional & Stateless
-
-**Prefer pure functions. Isolate side effects.**
-
-```python
-# ✅ Pure function
-def calculate_variance(budget: Decimal, actual: Decimal) -> Decimal:
-    return budget - actual
-
-# ✅ Isolate side effects
-def calculate_and_log_variance(budget: Decimal, actual: Decimal) -> Decimal:
-    variance = calculate_variance(budget, actual)  # Pure
-    logger.info(f"Variance: {variance}")  # Side effect isolated
-    return variance
-```
-
-### 1.4 API Response Patterns
-
-**Standardize on server-side processing for scalability.**
-
-**Rules:**
-
-- Use `FilterParser` for all list endpoints.
-- Whitelist allowed filter fields explicitly.
-- Return `PaginatedResponse` for general listings.
-- Unpack service tuples `(items, total)` in the API layer.
-- Never concatenate raw SQL; use SQLAlchemy abstractions.
-
-**ADR:** [ADR-008: Server-Side Filtering, Search, and Sorting](../decisions/ADR-008-server-side-filtering.md)
-
-See [API Response Patterns](../cross-cutting/api-response-patterns.md) for detailed implementation guides.
+- **MyPy strict mode** with `disallow_any_explicit = True`
+- Never use `Any` - always define explicit types
+- Use `Mapped[]` for SQLAlchemy columns
+- Use `typing.Annotated` for dependency injection
 
 ---
 
-## 2. Common Principles
+## Docstring Standard (LLM-Optimized)
 
-### 2.1 Type Safety (Non-Negotiable)
-
-- **Standard:** MyPy strict mode, 100% type hint coverage
-- **Rationale:** Catch bugs at compile time, enable safe refactoring
-
-### 2.2 Code Quality Automation
-
-- **Linting:** Ruff
-- **Formatting:** Ruff Format
-- **Pre-commit:** Hooks enforce quality before commit
-
-### 2.3 Testing Strategy
-
-**Coverage Requirements:**
-
-- Minimum 80% overall coverage
-- 100% coverage for critical paths (versioning, EVM calculations, auth)
-
-**Test Types:**
-
-1. **Unit Tests:** Pure logic (utils, services)
-2. **Integration Tests:** Database operations, API interactions
-
-### 2.4 Documentation
-
-- **Docstrings:** Google-style docstrings for all public functions/classes
-- **API Docs:** Auto-generated via FastAPI/OpenAPI
-
----
-
-## 3. Backend Standards
-
-### 3.1 Pydantic V2 Strict Mode
-
-**Use `ConfigDict(strict=True)` for all schemas:**
-
-```python
-from pydantic import BaseModel, ConfigDict
-
-class ProjectCreate(BaseModel):
-    model_config = ConfigDict(strict=True)
-
-    code: str
-    name: str
-    budget: Decimal
-```
-
-**Prefer Pydantic models over raw dictionaries.**
-
-### 3.2 Type Annotations (100% Coverage)
-
-**Every function argument and return value MUST have type hints.**
-
-**SQLAlchemy Models:** Use `Mapped[]` for columns
-
-```python
-class Project(TemporalBase):
-    project_id: Mapped[UUID] = mapped_column(primary_key=True)
-    code: Mapped[str] = mapped_column(String(50), nullable=False)
-```
-
-**Use `typing.Annotated` for dependency injection:**
-
-```python
-CurrentUser = Annotated[User, Depends(get_current_active_user)]
-
-@router.post("/projects")
-async def create_project(
-    project_in: ProjectCreate,
-    current_user: CurrentUser,
-    session: DBSession,
-) -> Project:
-    ...
-```
-
-### 3.3 Documentation Requirements
-
-**Google-style docstrings for complex logic:**
+**All public functions MUST have docstrings that explain intent and context.**
 
 ```python
 async def calculate_earned_value(
     project_id: UUID,
     as_of: datetime,
+    branch: str = "main",
 ) -> Decimal:
-    """Calculate earned value for a project at a specific point in time.
+    """Calculate earned value for a project at a point in time.
+
+    Context: Part of EVM calculations. Used by reporting and dashboard.
 
     Args:
-        project_id: The unique identifier of the project
-        as_of: The timestamp for time-travel calculation
+        project_id: Project to calculate EV for
+        as_of: Timestamp for time-travel query (bitemporal)
+        branch: Version control branch (default: main)
 
     Returns:
-        The earned value amount as a Decimal
+        Earned value as Decimal (sum of completed work * planned rates)
 
     Raises:
-        ValueError: If project not found or calculation fails
+        ValueError: Project not found or no valid data at as_of
     """
-    ...
 ```
 
-### 3.4 Service Layer Pattern
+**Required elements:**
 
-**Structure:** `TemporalService` for versioned entities, `SimpleService` for non-versioned
+1. **One-line summary** - what it does
+2. **Context** - why it exists, what calls it
+3. **Args** - with business meaning, not just types
+4. **Returns** - what the value represents
+5. **Raises** - when and why
 
-**Key Principles:**
+---
+
+## Architecture Patterns
+
+### Service Layer
 
 - Services orchestrate business logic
-- Use command pattern for state changes
+- Raise `ValueError` for business errors (routes convert to `HTTPException`)
 - Always pass `actor_id` for audit trail
-- Return domain objects, not ORM rows
 
-### 3.5 API Route Conventions
-
-**Example Pattern:**
-
-```python
-@router.post(
-    "",
-    response_model=ProjectPublic,
-    status_code=status.HTTP_201_CREATED,
-    operation_id="create_project",
-    dependencies=[Depends(RoleChecker(required_permission="project-create"))],
-)
-async def create_project(...) -> Project:
-    """Create a new project. Requires create permission."""
-    try:
-        return await service.create_project(...)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
-```
-
-### 3.6 Error Handling
-
-**Pattern:** Raise `ValueError` in services, convert to `HTTPException` in routes
-
-### 3.7 Testing Standards
-
-**Pytest Patterns:**
-
-```python
-@pytest.mark.asyncio
-async def test_create_project_success(session: AsyncSession, admin_user: User):
-    """Should create project with valid data."""
-    service = ProjectService(session)
-    project = await service.create_project(...)
-    assert project.code == "TEST-001"
-```
-
-**Test Isolation:** Use fresh `session` fixture, no shared state between tests
-
----
-
-## 4. Architecture Patterns
-
-### 4.1 EVCS (Entity Version Control System)
-
-**Core Concepts:**
+### EVCS (Entity Version Control)
 
 - **Bitemporal:** Track `valid_time` and `transaction_time`
-- **Immutability:** Append-only
-- **Branching:** Support branch isolation
-- **Soft Delete:** `deleted_at` timestamp
+- **Immutable:** Append-only, never overwrite
+- **Branched:** Support branch isolation
 
-**ADR:** [ADR-005: Bitemporal Versioning](../decisions/ADR-005-bitemporal-versioning.md)
-
-### 4.2 Command Pattern
-
-**State Changes:** Use command objects (`CreateVersionCommand`, `UpdateVersionCommand`)
-
-**ADR:** [ADR-003: Command Pattern](../decisions/ADR-003-command-pattern.md)
-
-### 4.3 RBAC (Role-Based Access Control)
-
-**Backend:** `RoleChecker` dependency
-
-**ADR:** [ADR-007: RBAC Service](../decisions/ADR-007-rbac-service.md)
+**ADRs:** [Bitemporal](../decisions/ADR-005-bitemporal-versioning.md), [Command Pattern](../decisions/ADR-003-command-pattern.md)
 
 ---
 
-## 5. Quality Gates
+## API Routes
 
-### 5.1 Pre-commit
+```python
+@router.post("", response_model=ProjectPublic, status_code=201)
+async def create_project(
+    project_in: ProjectCreate,
+    current_user: CurrentUser,
+    session: DBSession,
+) -> Project:
+    """Create a new project.
+
+    Context: Entry point for project creation. Validates via Pydantic.
+    """
+    return await service.create_project(project_in, current_user.user_id)
+```
+
+- Use `PaginatedResponse` for list endpoints
+- Use `FilterParser` with whitelisted fields
+- Never concatenate raw SQL
+
+---
+
+## Common Pitfalls
+
+| Issue           | Wrong                            | Right                                               |
+| --------------- | -------------------------------- | --------------------------------------------------- |
+| Expired objects | `wbe.wbe_id` after flush         | Capture ID immediately after creation               |
+| Empty ranges    | `datetime.now()` called twice    | Generate timestamp once, reuse                      |
+| Raw dicts       | `return results.scalars().all()` | Return `[Model.model_validate(r) for r in results]` |
+| Naming          | `projectId`                      | `project_id` (snake_case)                           |
+
+---
+
+## Quality Gates
 
 ```bash
-ruff check app tests --fix
-mypy app --strict
+ruff check app tests --fix  # Linting
+mypy app --strict           # Type check
+pytest --cov=app            # Tests (≥80% coverage)
 ```
-
-### 5.2 CI Pipeline
-
-- ✅ Type check (MyPy)
-- ✅ Linting (Ruff)
-- ✅ Unit tests (pytest)
-- ✅ Test coverage ≥80%
-
----
-
-## 6. Common Pitfalls
-
-❌ **Returning ORM rows instead of domain objects**
-
-```python
-# Bad
-return results.scalars().all()
-
-# Good
-projects = results.scalars().all()
-return [ProjectPublic.model_validate(p) for p in projects]
-```
-
-❌ **Not using snake_case for field names**
-
-Use `project_id`, not `projectId`.
-
-❌ **Accessing SQLAlchemy async object attributes after session operations**
-
-```python
-# Bad - May cause MissingGreenlet errors
-wbe = await CreateVersionCommand(...).execute(session)
-# ... some SQL operations ...
-wbe_id = created_wbe.wbe_id  # Object may have expired
-
-# Good - Capture IDs immediately after creation
-wbe = await CreateVersionCommand(...).execute(session)
-wbe_id = wbe.wbe_id  # Capture ID before object expires
-# ... subsequent operations ...
-```
-
-**Rationale:** SQLAlchemy async objects can expire after session flush/refresh operations. Capture IDs immediately after object creation as a defensive pattern.
-
-❌ **Generating timestamps multiple times for the same operation**
-
-```python
-# Bad - May create empty ranges if datetime.now() is called twice
-await self._check_overlap(session, datetime.now(UTC), branch)
-await self._close_version(session, version, datetime.now(UTC))
-
-# Good - Generate timestamp once
-timestamp = datetime.now(UTC)
-await self._check_overlap(session, timestamp, branch)
-await self._close_version(session, version, timestamp)
-```
-
-**Rationale:** Calling `datetime.now(UTC)` multiple times within the same operation can create empty temporal ranges if the calls happen within the same microsecond. Generate timestamps once and reuse them.
