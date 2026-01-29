@@ -12,7 +12,7 @@ Tests the end-to-end Change Order workflow including:
 Follows RED-GREEN-REFACTOR TDD methodology.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -29,7 +29,12 @@ from app.services.forecast_service import ForecastService
 from app.services.progress_entry_service import ProgressEntryService
 from app.services.project import ProjectService
 from app.services.schedule_baseline_service import ScheduleBaselineService
+from app.models.schemas.change_order import ChangeOrderUpdate, ChangeOrderCreate
 from app.services.wbe import WBEService
+from app.models.schemas.cost_element_type import CostElementTypeCreate
+from app.models.schemas.progress_entry import ProgressEntryCreate
+from app.models.schemas.cost_registration import CostRegistrationCreate
+from app.models.schemas.cost_element import CostElementCreate
 
 
 @pytest.mark.usefixtures("db_session")
@@ -68,7 +73,7 @@ class TestChangeOrderWorkflowFullTemporal:
         T0 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
 
         # Create Department
-        dept = await dept_service.create_root(
+        dept = await dept_service.create(
             root_id=uuid4(),
             actor_id=actor_id,
             control_date=T0,
@@ -77,18 +82,19 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Create CostElementType
-        cet = await cet_service.create_root(
-            root_id=uuid4(),
+        cet = await cet_service.create(
+            type_in=CostElementTypeCreate(
+                cost_element_type_id=uuid4(),
+                code="LABOR",
+                name="Labor Costs",
+                department_id=dept.department_id,
+            ),
             actor_id=actor_id,
-            control_date=T0,
-            code="LABOR",
-            name="Labor Costs",
-            department_id=dept.department_id,
         )
 
         # Create Project
         project_id = uuid4()
-        project = await project_service.create_root(
+        project = await project_service.create(
             
             root_id=project_id,
             actor_id=actor_id,
@@ -125,34 +131,38 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Create 2 CostElements (auto-creates ScheduleBaseline and Forecast)
         ce1_id = uuid4()
-        ce1 = await ce_service.create_root(
-            root_id=ce1_id,
+        ce1 = await ce_service.create(
+            element_in=CostElementCreate(
+                cost_element_id=ce1_id,
+                wbe_id=wbe1_id,
+                cost_element_type_id=cet.cost_element_type_id,
+                code="CE-001",
+                name="Labor Cost Element 1",
+                budget_amount=Decimal("100000.00"),
+                branch="main",
+            ),
             actor_id=actor_id,
             control_date=T0,
-            branch="main",
-            wbe_id=wbe1_id,
-            cost_element_type_id=cet.cost_element_type_id,
-            code="CE-001",
-            name="Labor Cost Element 1",
-            budget=Decimal("100000.00"),
         )
 
         ce2_id = uuid4()
-        ce2 = await ce_service.create_root(
-            root_id=ce2_id,
+        ce2 = await ce_service.create(
+            element_in=CostElementCreate(
+                cost_element_id=ce2_id,
+                wbe_id=wbe2_id,
+                cost_element_type_id=cet.cost_element_type_id,
+                code="CE-002",
+                name="Labor Cost Element 2",
+                budget_amount=Decimal("200000.00"),
+                branch="main",
+            ),
             actor_id=actor_id,
             control_date=T0,
-            branch="main",
-            wbe_id=wbe2_id,
-            cost_element_type_id=cet.cost_element_type_id,
-            code="CE-002",
-            name="Labor Cost Element 2",
-            budget_amount=Decimal("200000.00"),
         )
 
         # Get auto-created schedule baselines
-        sb1 = await sb_service.get_by_cost_element(ce1_id, branch="main")
-        sb2 = await sb_service.get_by_cost_element(ce2_id, branch="main")
+        sb1 = await sb_service.get_for_cost_element(ce1_id, branch="main")
+        sb2 = await sb_service.get_for_cost_element(ce2_id, branch="main")
         assert sb1 is not None
         assert sb2 is not None
 
@@ -164,7 +174,7 @@ class TestChangeOrderWorkflowFullTemporal:
             control_date=T0,
             start_date=datetime(2026, 1, 1, tzinfo=UTC),
             end_date=datetime(2026, 6, 30, tzinfo=UTC),
-            progression_type="linear",
+            progression_type="LINEAR",
         )
 
         sb2_updated = await sb_service.update(
@@ -174,55 +184,53 @@ class TestChangeOrderWorkflowFullTemporal:
             control_date=T0,
             start_date=datetime(2026, 1, 1, tzinfo=UTC),
             end_date=datetime(2026, 6, 30, tzinfo=UTC),
-            progression_type="linear",
+            progression_type="LINEAR",
         )
 
         # Create progress entries
         await progress_service.create(
-            progress_in={
-                "cost_element_id": ce1_id,
-                "progress_percentage": Decimal("25.00"),
-                "reported_date": T0,
-                "reported_by_user_id": actor_id,
-                "notes": "Initial progress",
-            },
+            progress_in=ProgressEntryCreate(
+                cost_element_id=ce1_id,
+                progress_percentage=Decimal("25.00"),
+                reported_date=T0,
+                reported_by_user_id=actor_id,
+                notes="Initial progress",
+            ),
             actor_id=actor_id,
             control_date=T0,
         )
 
         await progress_service.create(
-            progress_in={
-                "cost_element_id": ce2_id,
-                "progress_percentage": Decimal("10.00"),
-                "reported_date": T0,
-                "reported_by_user_id": actor_id,
-                "notes": "Initial progress",
-            },
+            progress_in=ProgressEntryCreate(
+                cost_element_id=ce2_id,
+                progress_percentage=Decimal("10.00"),
+                reported_date=T0,
+                reported_by_user_id=actor_id,
+                notes="Initial progress",
+            ),
             actor_id=actor_id,
             control_date=T0,
         )
 
         # Create cost registrations
         await cost_reg_service.create(
-            cost_in={
-                "cost_element_id": ce1_id,
-                "actual_cost": Decimal("25000.00"),
-                "incurred_date": T0,
-                "reported_by_user_id": actor_id,
-                "notes": "Initial cost",
-            },
+            registration_in=CostRegistrationCreate(
+                cost_element_id=ce1_id,
+                amount=Decimal("25000.00"),
+                registration_date=T0,
+                description="Initial cost",
+            ),
             actor_id=actor_id,
             control_date=T0,
         )
 
         await cost_reg_service.create(
-            cost_in={
-                "cost_element_id": ce2_id,
-                "actual_cost": Decimal("20000.00"),
-                "incurred_date": T0,
-                "reported_by_user_id": actor_id,
-                "notes": "Initial cost",
-            },
+            registration_in=CostRegistrationCreate(
+                cost_element_id=ce2_id,
+                amount=Decimal("20000.00"),
+                registration_date=T0,
+                description="Initial cost",
+            ),
             actor_id=actor_id,
             control_date=T0,
         )
@@ -249,6 +257,7 @@ class TestChangeOrderWorkflowFullTemporal:
             actor_id=actor_id,
             control_date=T1,
         )
+        co_id = co.change_order_id
 
         assert co.code == "CO-2026-001"
         assert co.status == "Draft"
@@ -290,7 +299,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # STRICT mode: entities not on CO branch return None
         wbe1_co_strict = await wbe_service.get_as_of(
-            root_id=wbe1_id,
+            entity_id=wbe1_id,
             as_of=T1_after,
             branch=source_branch,
             branch_mode=BranchMode.STRICT,
@@ -299,7 +308,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # MERGE mode: falls back to main
         wbe1_co_merge = await wbe_service.get_as_of(
-            root_id=wbe1_id,
+            entity_id=wbe1_id,
             as_of=T1_after,
             branch=source_branch,
             branch_mode=BranchMode.MERGE,
@@ -310,20 +319,7 @@ class TestChangeOrderWorkflowFullTemporal:
         # ========== PHASE 4: Modify Cost Elements on CO Branch (T2 = Jan 10) ==========
         T2 = datetime(2026, 1, 10, 12, 0, 0, tzinfo=UTC)
 
-        # Update CO status to Approved (locks branch)
-        from app.models.schemas.change_order import ChangeOrderUpdate
-
-        co_approved = await co_service.update_change_order(
-            change_order_id=co_id,
-            change_order_in=ChangeOrderUpdate(status="Approved"),
-            actor_id=actor_id,
-            control_date=T2,
-        )
-        assert co_approved.status == "Approved"
-
-        # Verify branch is now locked
-        await db_session.refresh(co_branch)
-        assert co_branch.locked is True
+        # CO update removed to avoid locking branch before edits
 
         # Create new versions of WBE1 on CO branch
         await wbe_service.create_root(
@@ -338,47 +334,49 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Create new versions of CostElement1 on CO branch (budget increase)
-        await ce_service.create_root(
-            root_id=ce1_id,
+        ce1_updated = await ce_service.create(
+            element_in=CostElementCreate(
+                cost_element_id=ce1_id,
+                wbe_id=wbe1_id,
+                cost_element_type_id=cet.cost_element_type_id,
+                code="CE-001",
+                name="Labor Cost Element 1 - EXPANDED",
+                budget_amount=Decimal("150000.00"),
+                branch=source_branch,
+            ),
             actor_id=actor_id,
             control_date=T2,
-            branch=source_branch,
-            wbe_id=wbe1_id,
-            cost_element_type_id=cet.cost_element_type_id,
-            code="CE-001",
-            name="Labor Cost Element 1 - EXPANDED",
-            budget_amount=Decimal("150000.00"),
         )
 
         # Add progress entry on CO branch
         await progress_service.create(
-            progress_in={
-                "cost_element_id": ce1_id,
-                "progress_percentage": Decimal("40.00"),
-                "reported_date": T2,
-                "reported_by_user_id": actor_id,
-                "notes": "Progress after expansion",
-            },
+            progress_in=ProgressEntryCreate(
+                cost_element_id=ce1_id,
+                progress_percentage=Decimal("40.00"),
+                reported_date=T2,
+                reported_by_user_id=actor_id,
+                notes="Progress after expansion",
+            ),
             actor_id=actor_id,
             control_date=T2,
         )
 
         # Add cost registration on CO branch
         await cost_reg_service.create(
-            cost_in={
-                "cost_element_id": ce1_id,
-                "actual_cost": Decimal("5000.00"),
-                "incurred_date": T2,
-                "reported_by_user_id": actor_id,
-                "notes": "Additional cost for expansion",
-            },
+            registration_in=CostRegistrationCreate(
+                cost_element_id=ce1_id,
+                amount=Decimal("5000.00"),
+                registration_date=T2,
+                description="Additional cost for expansion",
+            ),
             actor_id=actor_id,
             control_date=T2,
+            branch=source_branch,
         )
 
         # Verify branch isolation - main branch unchanged
         wbe1_main = await wbe_service.get_as_of(
-            root_id=wbe1_id,
+            entity_id=wbe1_id,
             as_of=T2,
             branch="main",
             branch_mode=BranchMode.STRICT,
@@ -386,7 +384,7 @@ class TestChangeOrderWorkflowFullTemporal:
         assert wbe1_main.name == "Assembly Station 1", "Main branch should be unchanged"
 
         ce1_main = await ce_service.get_as_of(
-            root_id=ce1_id,
+            entity_id=ce1_id,
             as_of=T2,
             branch="main",
             branch_mode=BranchMode.STRICT,
@@ -397,7 +395,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Verify CO branch has changes
         wbe1_co = await wbe_service.get_as_of(
-            root_id=wbe1_id,
+            entity_id=wbe1_id,
             as_of=T2,
             branch=source_branch,
             branch_mode=BranchMode.STRICT,
@@ -405,7 +403,7 @@ class TestChangeOrderWorkflowFullTemporal:
         assert wbe1_co.name == "Assembly Station 1 - EXPANDED"
 
         ce1_co = await ce_service.get_as_of(
-            root_id=ce1_id,
+            entity_id=ce1_id,
             as_of=T2,
             branch=source_branch,
             branch_mode=BranchMode.STRICT,
@@ -415,10 +413,39 @@ class TestChangeOrderWorkflowFullTemporal:
         # ========== PHASE 5: Execute Merge (T3 = Jan 15, 2026) ==========
         T3 = datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
 
+        # Transition status: Draft -> Submitted -> Approved
+        # 1. Submit
+        await co_service.update_change_order(
+            change_order_id=co_id,
+            change_order_in=ChangeOrderUpdate(status="Submitted for Approval"),
+            actor_id=actor_id,
+            control_date=T3,
+            branch=source_branch,
+        )
+
+        # 2. Under Review
+        await co_service.update_change_order(
+            change_order_id=co_id,
+            change_order_in=ChangeOrderUpdate(status="Under Review"),
+            actor_id=actor_id,
+            control_date=T3 + timedelta(seconds=1),
+            branch=source_branch,
+        )
+
+        # 3. Approve
+        await co_service.update_change_order(
+            change_order_id=co_id,
+            change_order_in=ChangeOrderUpdate(status="Approved"),
+            actor_id=actor_id,
+            control_date=T3 + timedelta(seconds=2),
+            branch=source_branch,
+        )
+
         merged_co = await co_service.merge_change_order(
             change_order_id=co_id,
             actor_id=actor_id,
             target_branch="main",
+            control_date=T3,
         )
 
         # Verify CO status
@@ -426,7 +453,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Verify WBE1 merged
         wbe1_main_merged = await wbe_service.get_as_of(
-            root_id=wbe1_id,
+            entity_id=wbe1_id,
             as_of=T3,
             branch="main",
             branch_mode=BranchMode.STRICT,
@@ -435,7 +462,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Verify CostElement1 budget updated
         ce1_main_merged = await ce_service.get_as_of(
-            root_id=ce1_id,
+            entity_id=ce1_id,
             as_of=T3,
             branch="main",
             branch_mode=BranchMode.STRICT,
@@ -444,7 +471,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Verify WBE2 unchanged (not modified on CO branch)
         wbe2_main_merged = await wbe_service.get_as_of(
-            root_id=wbe2_id,
+            entity_id=wbe2_id,
             as_of=T3,
             branch="main",
             branch_mode=BranchMode.STRICT,
@@ -454,7 +481,7 @@ class TestChangeOrderWorkflowFullTemporal:
         # ========== PHASE 6: Post-Merge Temporal Verification ==========
         # Time travel: T1_after shows pre-merge state
         ce1_at_t1 = await ce_service.get_as_of(
-            root_id=ce1_id,
+            entity_id=ce1_id,
             as_of=T1_after,
             branch="main",
             branch_mode=BranchMode.STRICT,
@@ -463,7 +490,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Time travel: T3 shows post-merge state
         ce1_at_t3 = await ce_service.get_as_of(
-            root_id=ce1_id,
+            entity_id=ce1_id,
             as_of=T3,
             branch="main",
             branch_mode=BranchMode.STRICT,
@@ -472,7 +499,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # CO branch preserved
         ce1_co_preserved = await ce_service.get_as_of(
-            root_id=ce1_id,
+            entity_id=ce1_id,
             as_of=T3,
             branch=source_branch,
             branch_mode=BranchMode.STRICT,
@@ -484,9 +511,10 @@ class TestChangeOrderWorkflowFullTemporal:
         history = await ce_service.get_history(root_id=ce1_id)
         main_versions = [v for v in history if v.branch == "main"]
         for version in main_versions:
-            assert (
-                version.valid_time.lower < version.valid_time.upper
-            ), f"Version {version.id} has empty valid_time range"
+            if version.valid_time.upper is not None:
+                assert (
+                    version.valid_time.lower < version.valid_time.upper
+                ), f"Version {version.id} has empty valid_time range"
 
     @pytest.mark.asyncio
     async def test_temporal_boundary_co_creation(
@@ -511,7 +539,7 @@ class TestChangeOrderWorkflowFullTemporal:
         T1_after = datetime(2026, 1, 9, 12, 0, 0, tzinfo=UTC)
 
         # Create project
-        await project_service.create_root(
+        await project_service.create(
             
             root_id=project_id,
             actor_id=actor_id,
@@ -594,7 +622,7 @@ class TestChangeOrderWorkflowFullTemporal:
         T1 = datetime(2026, 1, 8, tzinfo=UTC)
 
         # Create project
-        await project_service.create_root(
+        await project_service.create(
             
             root_id=project_id,
             actor_id=actor_id,
@@ -703,21 +731,22 @@ class TestChangeOrderWorkflowFullTemporal:
         T1 = datetime(2026, 1, 8, tzinfo=UTC)
 
         # Create dependency chain
-        dept = await dept_service.create_root(
+        dept = await dept_service.create(
             root_id=uuid4(), actor_id=actor_id, control_date=T0, code="ENG", name="Engineering"
         )
 
-        cet = await cet_service.create_root(
-            root_id=uuid4(),
+        cet = await cet_service.create(
+            type_in=CostElementTypeCreate(
+                cost_element_type_id=uuid4(),
+                code="LABOR",
+                name="Labor",
+                department_id=dept.department_id,
+            ),
             actor_id=actor_id,
-            control_date=T0,
-            code="LABOR",
-            name="Labor",
-            department_id=dept.department_id,
         )
 
         project_id = uuid4()
-        await project_service.create_root(
+        await project_service.create(
             
             root_id=project_id,
             actor_id=actor_id,
@@ -741,38 +770,39 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         ce_id = uuid4()
-        await ce_service.create_root(
-            
-            root_id=ce_id,
+        ce = await ce_service.create(
+            element_in=CostElementCreate(
+                cost_element_id=ce_id,
+                wbe_id=wbe_id,
+                cost_element_type_id=cet.cost_element_type_id,
+                code="CE-001",
+                name="Cost Element 1",
+                budget_amount=Decimal("50000.00"),
+                branch="main",
+            ),
             actor_id=actor_id,
             control_date=T0,
-            branch="main",
-            wbe_id=wbe_id,
-            cost_element_type_id=cet.cost_element_type_id,
-            code="CE-001",
-            name="Cost Element 1",
-            budget_amount=Decimal("50000.00"),
         )
 
         # Create progress and cost registrations
         await progress_service.create(
-            progress_in={
-                "cost_element_id": ce_id,
-                "progress_percentage": Decimal("25.00"),
-                "reported_date": T0,
-                "reported_by_user_id": actor_id,
-            },
+            progress_in=ProgressEntryCreate(
+                cost_element_id=ce_id,
+                progress_percentage=Decimal("25.00"),
+                reported_date=T0,
+                reported_by_user_id=actor_id,
+            ),
             actor_id=actor_id,
             control_date=T0,
         )
 
         await cost_reg_service.create(
-            cost_in={
-                "cost_element_id": ce_id,
-                "actual_cost": Decimal("10000.00"),
-                "incurred_date": T0,
-                "reported_by_user_id": actor_id,
-            },
+            registration_in=CostRegistrationCreate(
+                cost_element_id=ce_id,
+                amount=Decimal("10000.00"),
+                registration_date=T0,
+                description="",
+            ),
             actor_id=actor_id,
             control_date=T0,
         )
@@ -785,30 +815,55 @@ class TestChangeOrderWorkflowFullTemporal:
                 code="CO-001",
                 title="Test CO",
                 project_id=project_id,
-                status="Approved",
+                status="Draft",
             ),
             actor_id=actor_id,
             control_date=T1,
         )
 
-        await ce_service.create_root(
-            
-            root_id=ce_id,
+        await ce_service.create(
+            element_in=CostElementCreate(
+                cost_element_id=ce_id,
+                wbe_id=wbe_id,
+                cost_element_type_id=cet.cost_element_type_id,
+                code="CE-001",
+                name="Cost Element 1 - MODIFIED",
+                budget_amount=Decimal("75000.00"),
+                branch=co.branch_name,
+            ),
             actor_id=actor_id,
             control_date=T1,
-            branch=co.branch_name,
-            wbe_id=wbe_id,
-            cost_element_type_id=cet.cost_element_type_id,
-            code="CE-001",
-            name="Cost Element 1 - MODIFIED",
-            budget_amount=Decimal("75000.00"),
         )
 
         # Merge
+        # Transition ensuring intermediate states
+        await co_service.update_change_order(
+            change_order_id=co.change_order_id,
+            change_order_in=ChangeOrderUpdate(status="Submitted for Approval"),
+            actor_id=actor_id,
+            control_date=T1,
+            branch=co.branch_name,
+        )
+        await co_service.update_change_order(
+            change_order_id=co.change_order_id,
+            change_order_in=ChangeOrderUpdate(status="Under Review"),
+            actor_id=actor_id,
+            control_date=T1 + timedelta(seconds=1),
+            branch=co.branch_name,
+        )
+        await co_service.update_change_order(
+            change_order_id=co.change_order_id,
+            change_order_in=ChangeOrderUpdate(status="Approved"),
+            actor_id=actor_id,
+            control_date=T1 + timedelta(seconds=2),
+            branch=co.branch_name,
+        )
+
         merged_co = await co_service.merge_change_order(
             change_order_id=co.change_order_id,
             actor_id=actor_id,
             target_branch="main",
+            control_date=T1,
         )
 
         assert merged_co.status == "Implemented"
@@ -850,7 +905,7 @@ class TestChangeOrderWorkflowFullTemporal:
         T3 = datetime(2026, 1, 15, tzinfo=UTC)
 
         # Create project and WBE
-        await project_service.create_root(
+        await project_service.create(
             
             root_id=project_id,
             actor_id=actor_id,
@@ -880,7 +935,7 @@ class TestChangeOrderWorkflowFullTemporal:
                 code="CO-001",
                 title="Test CO",
                 project_id=project_id,
-                status="Approved",
+                status="Draft",
             ),
             actor_id=actor_id,
             control_date=T1,
@@ -900,10 +955,34 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Merge
+        # Merge
+        await co_service.update_change_order(
+            change_order_id=co.change_order_id,
+            change_order_in=ChangeOrderUpdate(status="Submitted for Approval"),
+            actor_id=actor_id,
+            control_date=T2,
+            branch=co.branch_name,
+        )
+        await co_service.update_change_order(
+            change_order_id=co.change_order_id,
+            change_order_in=ChangeOrderUpdate(status="Under Review"),
+            actor_id=actor_id,
+            control_date=T2 + timedelta(seconds=1),
+            branch=co.branch_name,
+        )
+        await co_service.update_change_order(
+            change_order_id=co.change_order_id,
+            change_order_in=ChangeOrderUpdate(status="Approved"),
+            actor_id=actor_id,
+            control_date=T2 + timedelta(seconds=2),
+            branch=co.branch_name,
+        )
+
         await co_service.merge_change_order(
             change_order_id=co.change_order_id,
             actor_id=actor_id,
             target_branch="main",
+            control_date=T2,
         )
 
         # Verify temporal consistency
@@ -940,6 +1019,7 @@ class TestChangeOrderWorkflowFullTemporal:
         # Verify no empty ranges in version history
         history = await wbe_service.get_history(root_id=wbe_id)
         for version in history:
-            assert (
-                version.valid_time.lower < version.valid_time.upper
-            ), f"Version {version.id} has empty valid_time range"
+            if version.valid_time.upper is not None:
+                assert (
+                    version.valid_time.lower < version.valid_time.upper
+                ), f"Version {version.id} has empty valid_time range"

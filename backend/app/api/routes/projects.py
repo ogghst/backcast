@@ -264,6 +264,10 @@ async def read_project_history(
 )
 async def read_project_branches(
     project_id: UUID,
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get branches as of this timestamp (ISO 8601)",
+    ),
     service: ProjectService = Depends(get_project_service),
 ) -> list[BranchPublic]:
     """Get all branches for a project.
@@ -273,4 +277,4 @@ async def read_project_branches(
 
     Requires read permission.
     """
-    return await service.get_project_branches(project_id)
+    return await service.get_project_branches(project_id, as_of=as_of)

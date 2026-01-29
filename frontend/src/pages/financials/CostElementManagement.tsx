@@ -16,6 +16,7 @@ import {
   CostElementTypesService,
 } from "@/api/generated";
 import { Can } from "@/components/auth/Can";
+import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import type {
   CostElementRead,
   CostElementCreate,
@@ -66,7 +67,7 @@ export const CostElementManagement = ({
     CostElementRead,
     CostElementFilters
   >();
-  const [currentBranch, setCurrentBranch] = useState("main");
+  const { branch, mode: branchMode, asOf } = useTimeMachineParams();
 
   // Build query params, including wbeId filter if provided
   const queryParams = useMemo((): CostElementApiParams => {
@@ -78,7 +79,7 @@ export const CostElementManagement = ({
         | Record<string, (string | number | boolean)[] | null>
         | undefined,
       search: tableParams.search,
-      branch: currentBranch,
+      branch: branch,
     };
     // If wbeId prop is provided, always filter by it
     if (wbeId) {
@@ -88,7 +89,7 @@ export const CostElementManagement = ({
       };
     }
     return params;
-  }, [tableParams, currentBranch, wbeId]);
+  }, [tableParams, branch, wbeId]);
 
   const { data, isLoading, refetch } = useCostElements(queryParams);
   const costElements = data?.items || [];
@@ -142,11 +143,13 @@ export const CostElementManagement = ({
     {
       resource: "cost_elements",
       entityId: selectedElement?.cost_element_id,
-      fetchFn: (id) =>
-        CostElementsService.getCostElementHistory(id, currentBranch),
+      fetchFn: (id) => CostElementsService.getCostElementHistory(id, branch),
       enabled: historyOpen,
     },
   );
+
+  // Note: Branch is controlled by Time Machine context
+  // The currentBranch variable is now from useTimeMachineParams()
 
   const { mutateAsync: createCostElement } = useCreateCostElement({
     onSuccess: () => {
@@ -171,10 +174,10 @@ export const CostElementManagement = ({
   const handleDelete = (id: string) => {
     modal.confirm({
       title: "Are you sure you want to delete this Cost Element?",
-      content: `This will delete it from branch '${currentBranch}'.`,
+      content: `This will delete it from branch '${branch}'.`,
       okText: "Yes, Delete",
       okType: "danger",
-      onOk: () => deleteCostElement(`${id}:::${currentBranch}`),
+      onOk: () => deleteCostElement(`${id}:::${branch}`),
     });
   };
 
@@ -281,6 +284,14 @@ export const CostElementManagement = ({
       sorter: true, // Enable server-side sorting
     },
     {
+      title: "Branch",
+      dataIndex: "branch",
+      key: "branch",
+      render: (val) => (val ? <Tag>{val}</Tag> : "-"),
+      sorter: true,
+      ...getColumnSearchProps("branch"),
+    },
+    {
       title: "Actions",
       key: "actions",
       render: (_, record) => (
@@ -365,23 +376,9 @@ export const CostElementManagement = ({
               width: "100%",
             }}
           >
-            <Space>
-              <div style={{ fontSize: "16px", fontWeight: "bold" }}>
-                Cost Elements
-              </div>
-              <Select
-                value={currentBranch}
-                onChange={setCurrentBranch}
-                style={{ width: 200 }}
-                showSearch
-                placeholder="Select Branch"
-                options={[
-                  { label: "Main", value: "main" },
-                  { label: "Draft", value: "draft" },
-                  { label: "Dev", value: "dev" },
-                ]}
-              />
-            </Space>
+            <div style={{ fontSize: "16px", fontWeight: "bold" }}>
+              Cost Elements
+            </div>
 
             <Can permission="cost-element-create">
               <Button
@@ -406,12 +403,12 @@ export const CostElementManagement = ({
           if (selectedElement) {
             await updateCostElement({
               id: selectedElement.cost_element_id,
-              data: { ...values, branch: currentBranch },
+              data: { ...values, branch: branch },
             });
           } else {
             await createCostElement({
               ...(values as CostElementCreate),
-              branch: currentBranch,
+              branch: branch,
               // Pre-fill wbeId when creating from WBE detail page
               wbe_id: wbeId || (values as CostElementCreate).wbe_id,
               // Force cast to solve type mismatch since CreateWithBranch is derived type
@@ -421,7 +418,7 @@ export const CostElementManagement = ({
         }}
         confirmLoading={isLoading}
         initialValues={selectedElement}
-        currentBranch={currentBranch}
+        currentBranch={branch}
         wbeId={wbeId}
         wbeName={wbeName || selectedElement?.wbe_name || undefined}
       />

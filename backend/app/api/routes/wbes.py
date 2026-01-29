@@ -114,7 +114,11 @@ async def read_wbes(
     # These are unpaginated modes for hierarchical tree loading
     if (parsed_parent_id is not None) or is_root_query:
         wbes = await service.get_by_parent(
-            project_id=project_id, parent_wbe_id=parsed_parent_id, branch=branch
+            project_id=project_id,
+            parent_wbe_id=parsed_parent_id,
+            branch=branch,
+            branch_mode=branch_mode,
+            as_of=as_of,
         )
         return [WBEPublic.model_validate(w) for w in wbes]
 
@@ -295,11 +299,16 @@ async def delete_wbe(
 )
 async def read_wbe_breadcrumb(
     wbe_id: UUID,
+    branch: str = Query("main", description="Branch name"),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get breadcrumb as of this timestamp (ISO 8601)",
+    ),
     service: WBEService = Depends(get_wbe_service),
 ) -> dict[str, Any]:
     """Get breadcrumb trail for a WBE (project + ancestor path). Requires read permission."""
     try:
-        return await service.get_breadcrumb(wbe_id)
+        return await service.get_breadcrumb(wbe_id, branch=branch, as_of=as_of)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

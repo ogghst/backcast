@@ -68,7 +68,11 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         super().__init__(CostRegistration, db)
 
     async def create(  # type: ignore[override]
-        self, registration_in: CostRegistrationCreate, actor_id: UUID, control_date: datetime | None = None
+        self,
+        registration_in: CostRegistrationCreate,
+        actor_id: UUID,
+        control_date: datetime | None = None,
+        branch: str = "main",
     ) -> CostRegistration:
         """Create new cost registration using CreateVersionCommand.
 
@@ -77,6 +81,8 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             actor_id: The user creating the registration
             control_date: Optional control date for valid_time (defaults to now).
                           Use this for testing time-travel scenarios or data seeding.
+            branch: Branch to check budget against (defaults to "main").
+                    Cost registrations are global, but budget validation needs a context.
         """
         # Extract control_date from request if provided, otherwise use parameter
         request_control_date = registration_in.control_date or control_date
@@ -98,18 +104,24 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         ):
             registration_data["registration_date"] = datetime.now(tz=UTC)
 
+        # CRITICAL: Use control_date for valid_time (defaults to now for production)
+        # registration_date is a business field and should NOT affect valid_time
+        # This ensures time-travel queries work correctly with as_of parameter
+        actual_control_date = request_control_date if request_control_date is not None else datetime.now(UTC)
+
         # Budget validation
         cost_element_id = registration_in.cost_element_id
         new_amount = registration_data.get("amount", Decimal("0"))
 
         # Get current total for the cost element
-        current_total = await self.get_total_for_cost_element(cost_element_id)
+        current_total = await self.get_total_for_cost_element(cost_element_id, as_of=actual_control_date)
         current_total = Decimal(str(current_total)) if current_total else Decimal("0")
 
-        # Get the cost element's budget
+        # Get the cost element's budget (on the specified branch)
         stmt = select(CostElement).where(
             CostElement.cost_element_id == cost_element_id,
-            func.upper(CostElement.valid_time).is_(None),
+            CostElement.branch == branch,
+            CostElement.valid_time.contains(actual_control_date),
             CostElement.deleted_at.is_(None),
         )
         result = await self.session.execute(stmt)
@@ -124,11 +136,6 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
                     used=current_total,
                     requested=new_amount,
                 )
-
-        # CRITICAL: Use control_date for valid_time (defaults to now for production)
-        # registration_date is a business field and should NOT affect valid_time
-        # This ensures time-travel queries work correctly with as_of parameter
-        actual_control_date = request_control_date if request_control_date is not None else datetime.now(UTC)
 
         cmd = CreateVersionCommand(
             entity_class=CostRegistration,  # type: ignore[type-var,unused-ignore]

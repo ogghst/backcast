@@ -109,6 +109,10 @@ def apply_migrations() -> Generator[None, None, None]:
                     "cost_registrations",
                     "progress_entries",  # Critical: Added in this iteration
                     "schedule_baselines",
+                    "branches",
+                    "change_orders",
+                    "change_order_audit_log",
+                    "forecasts",
                 ]
 
                 for table_name in required_tables:
@@ -172,7 +176,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
             try:
                 await session.execute(
                     text(
-                        "TRUNCATE TABLE cost_elements, cost_element_types, wbes, projects, departments, users, cost_registrations, progress_entries, schedule_baselines RESTART IDENTITY CASCADE"
+                        "TRUNCATE TABLE cost_elements, cost_element_types, wbes, projects, departments, users, cost_registrations, progress_entries, schedule_baselines, branches, change_orders, change_order_audit_log, forecasts RESTART IDENTITY CASCADE"
                     )
                 )
                 await session.commit()

@@ -104,13 +104,19 @@ export const useCreateChangeOrder = (
         payload as ChangeOrderCreate,
       );
     },
-    onSuccess: (data, ...args) => {
+    onSuccess: async (data, ...args) => {
       // Invalidate change orders queries for this project
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.changeOrders.list(data.project_id.toString()),
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.changeOrders.listsInProject(
+          data.project_id.toString(),
+        ),
+      });
+      // Also invalidate all project branches to be safe
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.branches(data.project_id.toString()),
       });
       // Refetch branches query for this project to show the new CO branch immediately
-      queryClient.refetchQueries({
+      await queryClient.refetchQueries({
         queryKey: queryKeys.projects.branches(data.project_id.toString()),
       });
       toast.success(

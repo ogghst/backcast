@@ -274,7 +274,12 @@ class BranchableService[TBranchable: BranchableProtocol]:
         return await cmd.execute(self.session)
 
     async def merge_branch(
-        self, root_id: UUID, actor_id: UUID, source_branch: str, target_branch: str
+        self,
+        root_id: UUID,
+        actor_id: UUID,
+        source_branch: str,
+        target_branch: str,
+        control_date: datetime | None = None,
     ) -> TBranchable:
         """Merge source branch into target branch."""
         cmd = MergeBranchCommand(
@@ -283,6 +288,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
             actor_id=actor_id,
             source_branch=source_branch,
             target_branch=target_branch,
+            control_date=control_date,
         )
         return await cmd.execute(self.session)
 
@@ -352,17 +358,24 @@ class BranchableService[TBranchable: BranchableProtocol]:
         """
         from typing import Any, cast
 
+        from sqlalchemy import cast as sql_cast
         from sqlalchemy import func, or_
+        from sqlalchemy.dialects.postgresql import TIMESTAMP
+
+        # CRITICAL FIX: Cast as_of to TIMESTAMP(timezone=True) to ensure proper timezone handling
+        # when comparing with TSTZRANGE columns. Without this, PostgreSQL treats
+        # the datetime as "timestamp without time zone" and comparison fails.
+        as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
 
         return stmt.where(
             # Check as_of is within valid_time range (time travel by business validity)
-            cast(Any, self.entity_class).valid_time.op("@>")(as_of),
+            cast(Any, self.entity_class).valid_time.op("@>")(as_of_tstz),
             # CRITICAL: Also check as_of >= lower bound (entity existed)
-            func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
+            func.lower(cast(Any, self.entity_class).valid_time) <= as_of_tstz,
             # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
             or_(
                 cast(Any, self.entity_class).deleted_at.is_(None),
-                cast(Any, self.entity_class).deleted_at > as_of,
+                cast(Any, self.entity_class).deleted_at > as_of_tstz,
             ),
         )
 

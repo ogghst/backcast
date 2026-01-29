@@ -40,7 +40,8 @@ async def test_branch_creation_with_composite_key(db_session):
     assert branch.project_id == project.project_id
     assert branch.type == "change_order"
     assert branch.locked is False
-    assert branch.created_at is not None
+    assert branch.locked is False
+    assert branch.valid_time is not None
     assert branch.deleted_at is None
 
 

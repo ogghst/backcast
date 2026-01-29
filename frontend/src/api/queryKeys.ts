@@ -60,8 +60,8 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     list: (params: ProjectListParams) => ["projects", "list", params] as const,
     details: () => ["projects", "detail"] as const,
     detail: (id: string) => ["projects", "detail", id] as const,
-    branches: (projectId: string) =>
-      ["projects", projectId, "branches"] as const,
+    branches: (projectId: string, context?: any) =>
+      ["projects", projectId, "branches", context] as const,
     history: (projectId: string) => ["projects", projectId, "history"] as const,
   },
 
@@ -75,7 +75,8 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     detail: (id: string) => ["wbes", "detail", id] as const,
     history: (wbeId: string) => ["wbes", wbeId, "history"] as const,
     tree: (projectId: string) => ["wbes", "tree", projectId] as const,
-    breadcrumb: (wbeId: string) => ["wbes", wbeId, "breadcrumb"] as const,
+    breadcrumb: (wbeId: string, context?: any) =>
+      ["wbes", wbeId, "breadcrumb", context] as const,
   },
 
   // Cost Elements
@@ -124,6 +125,8 @@ export const queryKeys = createQueryKeys("backcast-evs", {
   changeOrders: {
     all: ["change-orders"] as const,
     lists: () => ["change-orders", "list"] as const,
+    listsInProject: (projectId: string) =>
+      ["change-orders", "list", projectId] as const,
     list: (projectId: string, params?: any) =>
       ["change-orders", "list", projectId, params] as const,
     details: () => ["change-orders", "detail"] as const,

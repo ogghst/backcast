@@ -177,14 +177,26 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         # (e.g., if CO is created directly with "Submitted for Approval" status)
         should_lock = initial_status != "Draft"
 
-        branch = Branch(
+        # Create the corresponding branch entity using CreateVersionCommand
+        # This ensures proper valid_time setting based on control_date
+        branch_root_id = uuid4()
+        
+        branch_cmd = CreateVersionCommand(
+            entity_class=Branch,
+            root_id=branch_root_id,
+            actor_id=actor_id,
+            control_date=control_date,
+            # branch="main", # REMOVED: Branch entity is not checking into a branch itself
+            
+            # Fields for Branch entity
+            branch_id=branch_root_id,
             name=branch_name,
             project_id=project_id,
             type="change_order",
             locked=should_lock,
-            created_by=actor_id,
         )
-        self.session.add(branch)
+        # Note: CreateVersionCommand handles session.add
+        branch = await branch_cmd.execute(self.session)
 
         # Commit both CO and branch creation in single transaction
         await self.session.commit()
@@ -364,14 +376,19 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             await self.session.refresh(target_current)
             updated_co = target_current
         else:
-            # Use update method from BranchableService (creates new version)
-            updated_co = await self.update(
+            # Direct UpdateCommand usage to bypass branch lock check for status updates
+            # (since ChangeOrder itself may lock the branch it resides on)
+            from app.core.branching.commands import UpdateCommand
+
+            cmd = UpdateCommand(
+                entity_class=self.entity_class,
                 root_id=change_order_id,
                 actor_id=actor_id,
                 branch=target_branch,
                 control_date=control_date,
-                **update_data,
+                updates=update_data,
             )
+            updated_co = await cmd.execute(self.session)
 
         # Create audit log entry for status transition
         if old_status != new_status:
@@ -391,6 +408,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
                 await self.branch_service.lock(
                     name=updated_co.branch_name,
                     project_id=updated_co.project_id,
+                    actor_id=actor_id,
                 )
             elif await self.workflow.should_unlock_on_transition(
                 old_status, new_status
@@ -398,7 +416,10 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
                 await self.branch_service.unlock(
                     name=updated_co.branch_name,
                     project_id=updated_co.project_id,
+                    actor_id=actor_id,
                 )
+            # Refresh updated_co as it may be expired by commit in lock/unlock
+            await self.session.refresh(updated_co)
 
         if not updated_co:
             raise ValueError(f"Failed to update Change Order {change_order_id}")
@@ -572,6 +593,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         change_order_id: UUID,
         actor_id: UUID,
         target_branch: str = "main",
+        control_date: datetime | None = None,
     ) -> ChangeOrder:
         """Merge the Change Order's branch into the target branch.
 
@@ -638,6 +660,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
                     root_id=wbe.wbe_id,
                     actor_id=actor_id,
                     branch=target_branch,
+                    control_date=control_date,
                 )
             else:
                 # Active on source - merge normally
@@ -646,6 +669,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
                     actor_id=actor_id,
                     source_branch=source_branch,
                     target_branch=target_branch,
+                    control_date=control_date,
                 )
 
         # Merge CostElements
@@ -657,6 +681,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
                     cost_element_id=ce.cost_element_id,
                     actor_id=actor_id,
                     branch=target_branch,
+                    control_date=control_date,
                 )
             else:
                 # Active on source - merge normally
@@ -665,6 +690,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
                     actor_id=actor_id,
                     source_branch=source_branch,
                     target_branch=target_branch,
+                    control_date=control_date,
                 )
 
         # 4. Merge the Change Order entity itself
@@ -673,6 +699,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             actor_id=actor_id,
             source_branch=source_branch,
             target_branch=target_branch,
+            control_date=control_date,
         )
 
         # 5. Update CO status to "Implemented" directly on the merged version

@@ -124,7 +124,7 @@ export const useCreateWBE = (
   mutationOptions?: Omit<
     UseMutationOptions<WBERead, Error, WBECreate>,
     "mutationFn"
-  >
+  >,
 ) => {
   const { asOf, branch } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -155,7 +155,7 @@ export const useUpdateWBE = (
   mutationOptions?: Omit<
     UseMutationOptions<WBERead, Error, { id: string; data: WBEUpdate }>,
     "mutationFn"
-  >
+  >,
 ) => {
   const { asOf, branch } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -183,7 +183,7 @@ export const useUpdateWBE = (
  * Automatically injects control_date from TimeMachine context as a query parameter.
  */
 export const useDeleteWBE = (
-  mutationOptions?: Omit<UseMutationOptions<void, Error, string>, "mutationFn">
+  mutationOptions?: Omit<UseMutationOptions<void, Error, string>, "mutationFn">,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -219,7 +219,7 @@ export const useDeleteWBE = (
  */
 export const useWBE = (
   id: string | undefined,
-  queryOptions?: Omit<UseQueryOptions<WBERead, Error>, "queryKey">
+  queryOptions?: Omit<UseQueryOptions<WBERead, Error>, "queryKey">,
 ) => {
   const { asOf, branch } = useTimeMachineParams();
 
@@ -232,7 +232,10 @@ export const useWBE = (
       return __request(OpenAPI, {
         method: "GET",
         url: `/api/v1/wbes/${id}`,
-        query: asOf ? { as_of: asOf } : undefined,
+        query: {
+          ...(asOf ? { as_of: asOf } : {}),
+          ...(branch ? { branch } : {}),
+        },
       }) as Promise<WBERead>;
     },
     enabled: !!id,
@@ -242,9 +245,21 @@ export const useWBE = (
 
 // Breadcrumb hook
 export const useWBEBreadcrumb = (wbeId: string | undefined) => {
+  const { asOf, branch } = useTimeMachineParams();
+
   return useQuery({
-    queryKey: queryKeys.wbes.breadcrumb(wbeId!),
-    queryFn: () => WbEsService.getWbeBreadcrumb(wbeId!),
+    queryKey: queryKeys.wbes.breadcrumb(wbeId!, { branch, asOf }),
+    queryFn: () => {
+      // Manual request to support query params until client regenerates
+      return __request(OpenAPI, {
+        method: "GET",
+        url: `/api/v1/wbes/${wbeId}/breadcrumb`,
+        query: {
+          ...(asOf ? { as_of: asOf } : {}),
+          ...(branch ? { branch } : {}),
+        },
+      }) as Promise<import("@/api/generated").WBEBreadcrumb>;
+    },
     enabled: !!wbeId,
   });
 };

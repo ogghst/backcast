@@ -190,7 +190,7 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         if self.control_date:
             current_lower = cast(Any, current).valid_time.lower
             # NOTE: Allow control_date == current_lower for Time Machine mode
-            if self.control_date < current_lower:
+            if current_lower and self.control_date < current_lower:
                 raise ValueError(
                     f"control_date ({self.control_date.isoformat()}) must be on or after "
                     f"valid_time lower bound ({current_lower.isoformat()})"
@@ -301,10 +301,12 @@ class MergeBranchCommand(BranchCommandABC[TBranchable]):
         actor_id: UUID,
         source_branch: str,
         target_branch: str = "main",
+        control_date: datetime | None = None,
     ) -> None:
         super().__init__(entity_class, root_id, actor_id)
         self.source_branch = source_branch
         self.target_branch = target_branch
+        self.control_date = control_date
 
     async def execute(self, session: AsyncSession) -> TBranchable:
         """Merge source branch into target branch (overwrite strategy)."""
@@ -335,16 +337,17 @@ class MergeBranchCommand(BranchCommandABC[TBranchable]):
         )
 
         # 4. Check for overlap on target branch BEFORE closing target
-        # Generate timestamp in Python to avoid empty ranges
-        merge_timestamp = datetime.now(UTC)
+        # Use control_date if provided, otherwise current time
+        merge_timestamp = self.control_date if self.control_date else datetime.now(UTC)
         # Exclude target version since it will be closed before the merged version is created
         await self._check_overlap(
             session, merge_timestamp, self.target_branch, exclude_version_id=target.id
         )
 
         # 5. Close Target
-        await self._close_version(session, target)
-
+        await self._close_version(
+            session, target, close_at_valid_time=merge_timestamp
+        )
         session.add(merged)
         await session.flush()  # Get ID assigned
 

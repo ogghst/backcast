@@ -13,12 +13,17 @@ from app.core.config import settings
 
 # Import all models to ensure they are attached to Base.metadata
 from app.models.domain import (  # noqa: F401
+    branch,
     change_order,
+    change_order_audit_log,
     cost_element,
     cost_element_type,
     cost_registration,
     department,
+    forecast,
+    progress_entry,
     project,
+    schedule_baseline,
     user,
     wbe,
 )

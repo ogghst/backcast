@@ -344,6 +344,10 @@ class DataSeeder:
             for _, item in enumerate(ce_data):
                 try:
                     # wbe_id and cost_element_type_id are already in the JSON file now
+                    # Inject default branch if not present
+                    if "branch" not in item:
+                        item["branch"] = "main"
+
                     ce_in = CostElementCreate(**item)
                     await ce_service.create(ce_in, actor_id)
                     created_count += 1

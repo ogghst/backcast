@@ -268,7 +268,7 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
 
         # Determine valid_time lower bound
         # If control_date was provided and is later, use it; otherwise use the closed upper bound
-        if self.control_date and self.control_date > closed_upper:
+        if self.control_date and closed_upper and self.control_date > closed_upper:
             new_valid_lower = self.control_date
         else:
             new_valid_lower = closed_upper
@@ -301,9 +301,12 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
 
             # CRITICAL: Generate UUID for id column since we're using raw SQL
             # The Python-level default=uuid4 doesn't work with raw SQL
+            # CRITICAL: Always generate NEW UUID for id column of the new version row
+            # Even if the cloned object has an ID, we must replace it to avoid PK collision
             if col_name == "id":
-                if value is None:
-                    value = uuid4()
+                value = uuid4()
+                # Debug print removed for production
+                # print(f"DEBUG: Generated new ID: {value}")
 
             column_names.append(col_name)
             placeholder = f":{col_name}"

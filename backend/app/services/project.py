@@ -272,12 +272,16 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         """
         return await self.get_as_of(project_id, as_of, branch, branch_mode)
 
-    async def get_project_branches(self, project_id: UUID) -> list["BranchPublic"]:
+    async def get_project_branches(
+        self, project_id: UUID, as_of: datetime | None = None
+    ) -> list["BranchPublic"]:
         """Get all branches for a project.
 
         Returns:
             List of BranchPublic objects, always including "main" plus any
             change order branches (co-{code}) for this project.
+
+        Requires read permission.
         """
         from typing import Any, cast
 
@@ -293,14 +297,29 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         ]
 
         # Get all branches for this project from the branches table
-        stmt = (
-            select(Branch)
-            .where(
-                Branch.project_id == project_id,
+        stmt = select(Branch).where(Branch.project_id == project_id)
+
+        if as_of:
+            # Time travel filter
+            # Cast as_of to TIMESTAMP(timezone=True)
+            from sqlalchemy import cast as sql_cast
+            from sqlalchemy import or_
+            from sqlalchemy.dialects.postgresql import TIMESTAMP, TSTZRANGE
+
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            stmt = stmt.where(
+                Branch.valid_time.op("@>")(as_of_tstz),
+                func.lower(Branch.valid_time) <= as_of_tstz,
+                or_(Branch.deleted_at.is_(None), Branch.deleted_at > as_of_tstz),
+            )
+        else:
+            # Current versions
+            stmt = stmt.where(
+                func.upper(Branch.valid_time).is_(None),
                 Branch.deleted_at.is_(None),
             )
-            .order_by(Branch.created_at.desc())
-        )
+
+        stmt = stmt.order_by(func.lower(Branch.valid_time).desc())
 
         result = await self.session.execute(stmt)
         branch_entities = result.scalars().all()
@@ -320,21 +339,31 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
                 code = branch_entity.name.replace("co-", "", 1)
 
                 # Get the current change order on main branch to get its status
-                co_stmt = (
-                    select(ChangeOrder)
-                    .where(
-                        ChangeOrder.project_id == project_id,
-                        ChangeOrder.code == code,
-                        ChangeOrder.branch == "main",
+                co_stmt = select(ChangeOrder).where(
+                    ChangeOrder.project_id == project_id,
+                    ChangeOrder.code == code,
+                    ChangeOrder.branch == "main",
+                )
+
+                if as_of:
+                    # Time travel check for CO
+                    co_stmt = co_stmt.where(
+                        cast(Any, ChangeOrder).valid_time.op("@>")(as_of_tstz),
+                        func.lower(cast(Any, ChangeOrder).valid_time) <= as_of_tstz,
+                        or_(
+                            cast(Any, ChangeOrder).deleted_at.is_(None),
+                            cast(Any, ChangeOrder).deleted_at > as_of_tstz,
+                        ),
+                    )
+                else:
+                    co_stmt = co_stmt.where(
                         func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
-                        func.not_(
-                            func.isempty(ChangeOrder.valid_time)
-                        ),  # Exclude empty ranges
                         cast(Any, ChangeOrder).deleted_at.is_(None),
                     )
-                    .order_by(cast(Any, ChangeOrder).valid_time.desc())
-                    .limit(1)
-                )
+
+                co_stmt = co_stmt.order_by(
+                    cast(Any, ChangeOrder).valid_time.desc()
+                ).limit(1)
                 co_result = await self.session.execute(co_stmt)
                 co = co_result.scalar_one_or_none()
 
@@ -345,9 +374,11 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
 
             branches.append(
                 BranchPublic(
+                    branch_id=branch_entity.branch_id,
                     name=branch_entity.name,
                     type=branch_entity.type,
                     is_default=False,
+                    created_at=branch_entity.valid_time.lower,
                     change_order_id=change_order_id,
                     change_order_code=change_order_code,
                     change_order_status=change_order_status,

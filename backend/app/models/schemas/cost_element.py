@@ -27,8 +27,8 @@ class CostElementCreate(CostElementBase):
     wbe_id: UUID
     cost_element_type_id: UUID
     branch: str = Field(
-        "main",
-        description="Branch name for creation (defaults to main if not specified)",
+        ...,  # Required field - no default
+        description="Branch name for entity creation",
     )
     control_date: datetime | None = Field(
         None, description="Optional control date for creation (valid_time start)"

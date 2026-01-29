@@ -113,7 +113,7 @@ export const useCreateProject = (
   mutationOptions?: Omit<
     UseMutationOptions<ProjectRead, Error, ProjectCreate>,
     "mutationFn"
-  >
+  >,
 ) => {
   const { asOf, branch } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -144,7 +144,7 @@ export const useUpdateProject = (
   mutationOptions?: Omit<
     UseMutationOptions<ProjectRead, Error, { id: string; data: ProjectUpdate }>,
     "mutationFn"
-  >
+  >,
 ) => {
   const { asOf, branch } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -172,7 +172,7 @@ export const useUpdateProject = (
  * Automatically injects control_date from TimeMachine context as a query parameter.
  */
 export const useDeleteProject = (
-  mutationOptions?: Omit<UseMutationOptions<void, Error, string>, "mutationFn">
+  mutationOptions?: Omit<UseMutationOptions<void, Error, string>, "mutationFn">,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -207,7 +207,7 @@ export const useDeleteProject = (
  */
 export const useProject = (
   id: string | undefined,
-  queryOptions?: Omit<UseQueryOptions<ProjectRead, Error>, "queryKey">
+  queryOptions?: Omit<UseQueryOptions<ProjectRead, Error>, "queryKey">,
 ) => {
   const { asOf } = useTimeMachineParams();
 
@@ -238,16 +238,19 @@ export const useProject = (
  */
 export const useProjectBranches = (
   projectId: string | undefined,
-  queryOptions?: Omit<UseQueryOptions<Branch[], Error>, "queryKey">
+  queryOptions?: Omit<UseQueryOptions<Branch[], Error>, "queryKey">,
 ) => {
+  const { asOf } = useTimeMachineParams();
+
   return useQuery<Branch[]>({
-    queryKey: queryKeys.projects.branches(projectId || ""),
+    queryKey: queryKeys.projects.branches(projectId || "", { asOf }),
     queryFn: async () => {
       if (!projectId) throw new Error("Project ID is required");
 
       return __request(OpenAPI, {
         method: "GET",
         url: `/api/v1/projects/${projectId}/branches`,
+        query: asOf ? { as_of: asOf } : undefined,
       }) as Promise<Branch[]>;
     },
     enabled: !!projectId,
