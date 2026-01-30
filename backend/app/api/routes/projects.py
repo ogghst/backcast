@@ -160,6 +160,7 @@ async def create_project(
 )
 async def read_project(
     project_id: UUID,
+    branch: str = Query("main", description="Branch name"),
     as_of: datetime | None = Query(
         None,
         description="Time travel: get project state as of this timestamp (ISO 8601)",
@@ -173,15 +174,16 @@ async def read_project(
     """
     if as_of:
         # Time travel query
-        project = await service.get_project_as_of(project_id, as_of)
+        project = await service.get_project_as_of(project_id, as_of, branch=branch)
     else:
         # Current version
-        project = await service.get_by_root_id(project_id)
+        project = await service.get_by_root_id(project_id, branch=branch)
 
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found" + (f" as of {as_of}" if as_of else ""),
+            detail=f"Project not found in branch '{branch}'"
+            + (f" as of {as_of}" if as_of else ""),
         )
     return project
 

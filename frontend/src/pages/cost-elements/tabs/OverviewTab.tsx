@@ -186,8 +186,8 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
             {remaining < 0 && (
               <Alert
                 message="Budget Exceeded"
-                description={`This cost element has exceeded its budget by €${Math.abs(remaining).toFixed(2)}. No additional cost registrations can be created until the budget is increased or costs are removed.`}
-                type="error"
+                description={`This cost element has exceeded its budget by €${Math.abs(remaining).toFixed(2)}.`}
+                type="warning"
                 showIcon
                 style={{ marginTop: 16 }}
               />

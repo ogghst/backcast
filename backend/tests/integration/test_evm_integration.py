@@ -133,7 +133,7 @@ async def setup_wbe_evm_data(client: AsyncClient) -> dict[str, Any]:
             "code": "W-WBE",
             "name": "WBE Test WBE",
             "project_id": proj_id,
-            "department_id": dept_id,
+            "branch": "main",
         },
     )
     wbe_id = wbe_res.json()["wbe_id"]
@@ -150,6 +150,7 @@ async def setup_wbe_evm_data(client: AsyncClient) -> dict[str, Any]:
                 "budget_amount": 100000 * i,  # 100k, 200k, 300k
                 "wbe_id": wbe_id,
                 "cost_element_type_id": type_id,
+                "branch": "main",
             },
         )
         ce_id = ce_res.json()["cost_element_id"]
@@ -253,7 +254,7 @@ async def setup_project_evm_data(client: AsyncClient) -> dict[str, Any]:
                 "code": f"W-PROJ-{i}",
                 "name": f"WBE {i}",
                 "project_id": proj_id,
-                "department_id": dept_id,
+                "branch": "main",
             },
         )
         wbe_id = wbe_res.json()["wbe_id"]
@@ -269,6 +270,7 @@ async def setup_project_evm_data(client: AsyncClient) -> dict[str, Any]:
                     "budget_amount": 150000,
                     "wbe_id": wbe_id,
                     "cost_element_type_id": type_id,
+                    "branch": "main",
                 },
             )
             ce_id = ce_res.json()["cost_element_id"]
@@ -367,7 +369,7 @@ async def setup_cost_element_evm_data(client: AsyncClient) -> dict[str, Any]:
             "code": "W-CE",
             "name": "CE Test WBE",
             "project_id": proj_id,
-            "department_id": dept_id,
+            "branch": "main",
         },
     )
     wbe_id = wbe_res.json()["wbe_id"]
@@ -381,6 +383,7 @@ async def setup_cost_element_evm_data(client: AsyncClient) -> dict[str, Any]:
             "budget_amount": 200000,
             "wbe_id": wbe_id,
             "cost_element_type_id": type_id,
+            "branch": "main",
         },
     )
     cost_element_id = ce_res.json()["cost_element_id"]
@@ -688,7 +691,7 @@ class TestCostElementEntityEVM:
                 "code": f"W-{uuid4().hex[:4].upper()}",
                 "name": "Batch CE WBE",
                 "project_id": proj_id,
-                "department_id": dept_id,
+                "branch": "main",
             },
         )
         wbe_id = wbe_res.json()["wbe_id"]
@@ -702,6 +705,7 @@ class TestCostElementEntityEVM:
                 "budget_amount": 100000,
                 "wbe_id": wbe_id,
                 "cost_element_type_id": type_id,
+                "branch": "main",
             },
         )
         ce1_id = ce1_res.json()["cost_element_id"]
@@ -715,6 +719,7 @@ class TestCostElementEntityEVM:
                 "budget_amount": 150000,
                 "wbe_id": wbe_id,
                 "cost_element_type_id": type_id,
+                "branch": "main",
             },
         )
         ce2_id = ce2_res.json()["cost_element_id"]
@@ -801,7 +806,7 @@ class TestCostElementEntityEVM:
                 "code": f"W-{uuid4().hex[:4].upper()}",
                 "name": "No Progress CE WBE",
                 "project_id": proj_id,
-                "department_id": dept_id,
+                "branch": "main",
             },
         )
         wbe_id = wbe_res.json()["wbe_id"]
@@ -814,6 +819,7 @@ class TestCostElementEntityEVM:
                 "budget_amount": 100000,
                 "wbe_id": wbe_id,
                 "cost_element_type_id": type_id,
+                "branch": "main",
             },
         )
         ce_id = ce_res.json()["cost_element_id"]
@@ -885,7 +891,7 @@ class TestCostElementEntityEVM:
                 "code": f"W-{uuid4().hex[:4].upper()}",
                 "name": "Zero AC CE WBE",
                 "project_id": proj_id,
-                "department_id": dept_id,
+                "branch": "main",
             },
         )
         wbe_id = wbe_res.json()["wbe_id"]
@@ -898,6 +904,7 @@ class TestCostElementEntityEVM:
                 "budget_amount": 100000,
                 "wbe_id": wbe_id,
                 "cost_element_type_id": type_id,
+                "branch": "main",
             },
         )
         ce_id = ce_res.json()["cost_element_id"]
@@ -1033,7 +1040,7 @@ class TestWBEEntityEVM:
                 "code": f"W-{uuid4().hex[:4].upper()}",
                 "name": "Empty WBE",
                 "project_id": proj_id,
-                "department_id": dept_id,
+                "branch": "main",
             },
         )
         wbe_id = wbe_res.json()["wbe_id"]
@@ -1153,7 +1160,7 @@ class TestEVMMultiEntityAggregation:
                 "code": f"W-{uuid4().hex[:4].upper()}",
                 "name": "Second WBE",
                 "project_id": proj_id,
-                "department_id": dept_id,
+                "branch": "main",
             },
         )
         wbe2_id = wbe2_res.json()["wbe_id"]
@@ -1167,6 +1174,7 @@ class TestEVMMultiEntityAggregation:
                 "budget_amount": 200000,
                 "wbe_id": wbe2_id,
                 "cost_element_type_id": type_id,
+                "branch": "main",
             },
         )
         ce_id = ce_res.json()["cost_element_id"]
@@ -1270,7 +1278,7 @@ class TestEVMMultiEntityAggregation:
                     "code": f"W-{uuid4().hex[:4].upper()}",
                     "name": f"Batch WBE {i}",
                     "project_id": proj_id,
-                    "department_id": dept_id,
+                    "branch": "main",
                 },
             )
             wbe_id = wbe_res.json()["wbe_id"]
@@ -1283,6 +1291,7 @@ class TestEVMMultiEntityAggregation:
                     "budget_amount": 150000,
                     "wbe_id": wbe_id,
                     "cost_element_type_id": type_id,
+                    "branch": "main",
                 },
             )
             ce_id = ce_res.json()["cost_element_id"]
@@ -1875,7 +1884,7 @@ class TestEVMEdgeCases:
                 "code": f"W-{uuid4().hex[:4].upper()}",
                 "name": "No Progress WBE",
                 "project_id": proj_id,
-                "department_id": dept_id,
+                "branch": "main",
             },
         )
         wbe_id = wbe_res.json()["wbe_id"]
@@ -1888,6 +1897,7 @@ class TestEVMEdgeCases:
                 "budget_amount": 100000,
                 "wbe_id": wbe_id,
                 "cost_element_type_id": type_id,
+                "branch": "main",
             },
         )
         ce_id = ce_res.json()["cost_element_id"]
@@ -1959,7 +1969,7 @@ class TestEVMEdgeCases:
                 "code": f"W-{uuid4().hex[:4].upper()}",
                 "name": "Zero AC WBE",
                 "project_id": proj_id,
-                "department_id": dept_id,
+                "branch": "main",
             },
         )
         wbe_id = wbe_res.json()["wbe_id"]
@@ -1972,6 +1982,7 @@ class TestEVMEdgeCases:
                 "budget_amount": 100000,
                 "wbe_id": wbe_id,
                 "cost_element_type_id": type_id,
+                "branch": "main",
             },
         )
         ce_id = ce_res.json()["cost_element_id"]

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Modal, Form, Input, InputNumber, DatePicker } from "antd";
+import { App, Modal, Form, Input, InputNumber, DatePicker } from "antd";
 import type {
   CostRegistrationRead,
   CostRegistrationCreate,
@@ -7,6 +7,7 @@ import type {
 } from "@/api/generated";
 import dayjs from "dayjs";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
+import { useBudgetStatus } from "../api/useCostRegistrations";
 
 interface CostRegistrationModalProps {
   open: boolean;
@@ -14,6 +15,7 @@ interface CostRegistrationModalProps {
   onOk: (values: CostRegistrationCreate | CostRegistrationUpdate) => void;
   confirmLoading: boolean;
   initialValues?: CostRegistrationRead | null;
+  costElementId: string;
 }
 
 // Common unit of measure options
@@ -35,9 +37,12 @@ export const CostRegistrationModal = ({
   onOk,
   confirmLoading,
   initialValues,
+  costElementId,
 }: CostRegistrationModalProps) => {
   const [form] = Form.useForm();
   const { asOf } = useTimeMachineParams();
+  const { modal } = App.useApp();
+  const { data: budgetStatus } = useBudgetStatus(costElementId);
   const isEdit = !!initialValues;
 
   useEffect(() => {
@@ -66,19 +71,80 @@ export const CostRegistrationModal = ({
     }
   }, [open, initialValues, form]);
 
+  const processSubmit = async (values: any) => {
+    // Convert dayjs date to ISO string
+    const submissionValues = {
+      ...values,
+      registration_date: values.registration_date
+        ? values.registration_date.toISOString()
+        : undefined,
+    };
+
+    await onOk(submissionValues);
+  };
+
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
 
-      // Convert dayjs date to ISO string
-      const submissionValues = {
-        ...values,
-        registration_date: values.registration_date
-          ? values.registration_date.toISOString()
-          : undefined,
-      };
+      const newAmount = Number(values.amount || 0);
+      const budget = budgetStatus ? Number(budgetStatus.budget) : 0;
+      const currentUsed = budgetStatus ? Number(budgetStatus.used) : 0;
 
-      await onOk(submissionValues);
+      // Calculate effective used amount (subtract old amount if editing)
+      let effectiveUsed = currentUsed;
+      if (isEdit && initialValues) {
+        effectiveUsed -= Number(initialValues.amount);
+      }
+
+      // Check if including this new amount exceeds budget (only if there is a budget)
+      if (budget > 0 && effectiveUsed + newAmount > budget) {
+        modal.confirm({
+          title: "Budget Exceeded Warning",
+          content: (
+            <div>
+              <p>This cost registration will exceed the budget.</p>
+              <div
+                style={{
+                  marginTop: 8,
+                  marginBottom: 8,
+                  padding: 8,
+                  background: "#fff1f0",
+                  borderRadius: 4,
+                  border: "1px solid #ffccc7",
+                }}
+              >
+                <p style={{ margin: 0 }}>
+                  <strong>Budget:</strong> €
+                  {budget.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                  })}
+                </p>
+                <p style={{ margin: 0 }}>
+                  <strong>Currently Used:</strong> €
+                  {effectiveUsed.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                  })}
+                </p>
+                <p style={{ margin: 0, color: "#cf1322" }}>
+                  <strong>Projected Total:</strong> €
+                  {(effectiveUsed + newAmount).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                  })}
+                </p>
+              </div>
+              <p>Are you sure you want to proceed?</p>
+            </div>
+          ),
+          okText: "Yes, Proceed",
+          okButtonProps: { danger: true },
+          cancelText: "Cancel",
+          onOk: () => processSubmit(values),
+        });
+        return;
+      }
+
+      await processSubmit(values);
     } catch (error) {
       console.error("Form submission error:", error);
     }

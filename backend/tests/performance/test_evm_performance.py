@@ -55,7 +55,7 @@ async def create_test_entities(
     # Create user through service layer (uses CreateVersionCommand)
     from app.models.schemas.user import UserRegister
     user_service = UserService(db_session)
-    user = await user_service.create_user(
+    await user_service.create_user(
         UserRegister(
             user_id=uuid4(),
             email="perf@example.com",
@@ -274,7 +274,7 @@ async def test_cost_aggregation_performance_with_1000_entries(db_session):
                     registration_date=base_date + timedelta(days=i),
                 ),
                 actor_id=created_by_id,
-                control_date=control_date,
+                control_date=base_date,  # Use base_date so valid_time aligns with registration_date
             )
 
     await db_session.commit()
@@ -348,7 +348,7 @@ async def test_evm_query_with_complex_filters_performance(db_session):
                 registration_date=base_date + timedelta(days=i),
             ),
             actor_id=created_by_id,
-            control_date=control_date,
+            control_date=base_date,  # Use base_date so valid_time starts in the past
         )
 
     await db_session.commit()

@@ -8,7 +8,7 @@ interface BudgetTabProps {
 
 export const BudgetTab = ({ costElement }: BudgetTabProps) => {
   const { data: budgetStatus, isLoading } = useBudgetStatus(
-    costElement.cost_element_id
+    costElement.cost_element_id,
   );
 
   if (isLoading) {
@@ -64,7 +64,9 @@ export const BudgetTab = ({ costElement }: BudgetTabProps) => {
               value={used}
               precision={2}
               prefix="€"
-              styles={{ content: { color: percentage >= 100 ? "#ff4d4f" : "#52c41a" } }}
+              styles={{
+                content: { color: percentage >= 100 ? "#ff4d4f" : "#52c41a" },
+              }}
             />
           </Card>
         </Col>
@@ -75,7 +77,9 @@ export const BudgetTab = ({ costElement }: BudgetTabProps) => {
               value={remaining}
               precision={2}
               prefix="€"
-              styles={{ content: { color: remaining < 0 ? "#ff4d4f" : "#52c41a" } }}
+              styles={{
+                content: { color: remaining < 0 ? "#ff4d4f" : "#52c41a" },
+              }}
             />
           </Card>
         </Col>
@@ -99,20 +103,17 @@ export const BudgetTab = ({ costElement }: BudgetTabProps) => {
           status={percentage >= 100 ? "exception" : undefined}
         />
         <div style={{ marginTop: 8, color: "#666" }}>
-          Status:{" "}
-          <strong style={{ color: statusColor }}>{statusText}</strong>
+          Status: <strong style={{ color: statusColor }}>{statusText}</strong>
         </div>
       </Card>
 
-      {remaining < 0 && (
-        <Alert
-          message="Budget Exceeded"
-          description={`This cost element has exceeded its budget by €${Math.abs(remaining).toFixed(2)}. No additional cost registrations can be created until the budget is increased or costs are removed.`}
-          type="error"
-          showIcon
-          style={{ marginBottom: 16 }}
-        />
-      )}
+      <Alert
+        message="Budget Exceeded"
+        description={`This cost element has exceeded its budget by €${Math.abs(remaining).toFixed(2)}.`}
+        type="warning"
+        showIcon
+        style={{ marginBottom: 16 }}
+      />
 
       {percentage >= 90 && percentage < 100 && (
         <Alert

@@ -113,6 +113,7 @@ async def test_forecast_time_travel_with_future_control_date(
             "code": f"W-{uuid4().hex[:4].upper()}",
             "name": "WBE",
             "project_id": proj_id,
+            "branch": "main",
         },
     )
     wbe_id = wbe_res.json()["wbe_id"]
@@ -126,6 +127,7 @@ async def test_forecast_time_travel_with_future_control_date(
             "budget_amount": "1000.00",
             "wbe_id": wbe_id,
             "cost_element_type_id": type_id,
+            "branch": "main",
         },
     )
     assert ce_res.status_code == 201

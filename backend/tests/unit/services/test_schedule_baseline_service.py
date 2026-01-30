@@ -409,6 +409,7 @@ async def test_cost_element_create_auto_creates_default_schedule_baseline(
         code="TEST-007",
         name="Test Cost Element",
         budget_amount=100000.00,
+        branch="main",
     )
 
     # Act: Create cost element
@@ -481,6 +482,7 @@ async def test_cost_element_soft_delete_cascades_to_schedule_baseline(
         code="TEST-008",
         name="Test Cost Element",
         budget_amount=100000.00,
+        branch="main",
     )
 
     cost_element = await ce_service.create(

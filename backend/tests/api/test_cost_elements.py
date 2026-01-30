@@ -123,9 +123,10 @@ async def test_create_cost_element(
         "budget_amount": 1000.00,
         "wbe_id": deps["wbe_id"],
         "cost_element_type_id": deps["cost_element_type_id"],
+        "branch": "main",
     }
 
-    response = await client.post("/api/v1/cost-elements?branch=main", json=element_data)
+    response = await client.post("/api/v1/cost-elements", json=element_data)
     assert response.status_code == 201
     data = response.json()
     assert data["name"] == "Cost Element Test"
@@ -166,6 +167,7 @@ async def test_update_forks_branch(
         "budget_amount": 1000.00,
         "wbe_id": deps["wbe_id"],
         "cost_element_type_id": deps["cost_element_type_id"],
+        "branch": "main",
     }
     create_res = await client.post("/api/v1/cost-elements", json=element_data)
     element_id = create_res.json()["cost_element_id"]
@@ -198,6 +200,7 @@ async def test_list_filtering(
             "budget_amount": 100,
             "wbe_id": deps["wbe_id"],
             "cost_element_type_id": deps["cost_element_type_id"],
+            "branch": "main",
         },
     )
 
@@ -218,9 +221,10 @@ async def test_delete_cost_element_branch(
         "budget_amount": 100,
         "wbe_id": deps["wbe_id"],
         "cost_element_type_id": deps["cost_element_type_id"],
+        "branch": "main",
     }
     create_res = await client.post(
-        "/api/v1/cost-elements?branch=main", json=element_data
+        "/api/v1/cost-elements", json=element_data
     )
     element_id = create_res.json()["cost_element_id"]
 
@@ -247,6 +251,7 @@ async def test_get_history_filters_by_branch(
         "budget_amount": 1000.00,
         "wbe_id": deps["wbe_id"],
         "cost_element_type_id": deps["cost_element_type_id"],
+        "branch": "main",
     }
     create_res = await client.post("/api/v1/cost-elements", json=element_data)
     assert create_res.status_code == 201

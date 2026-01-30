@@ -75,6 +75,7 @@ async def cost_element_setup(db_session: AsyncSession):
         cost_element_type_id=cost_type.cost_element_type_id,
         budget_amount=Decimal("100000.00"),  # BAC
         description="Phase 1 mechanical installation",
+        branch="main",
     )
     cost_element = await element_service.create(
         element_in, actor_id=uuid4(), branch="main"

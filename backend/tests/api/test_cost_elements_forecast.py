@@ -106,6 +106,7 @@ async def setup_dependencies(client: AsyncClient) -> dict[str, Any]:
             "code": f"W-{uuid4().hex[:4].upper()}",
             "name": "WBE",
             "project_id": proj_id,
+            "branch": "main",
         },
     )
     wbe_id = wbe_res.json()["wbe_id"]
@@ -139,6 +140,7 @@ class TestCostElementForecastAPI:
                 "budget_amount": "100000.00",
                 "wbe_id": setup_dependencies["wbe_id"],
                 "cost_element_type_id": setup_dependencies["cost_element_type_id"],
+                "branch": "main",
             },
         )
         assert ce_res.status_code == 201
@@ -178,6 +180,7 @@ class TestCostElementForecastAPI:
                 "budget_amount": "100000.00",
                 "wbe_id": setup_dependencies["wbe_id"],
                 "cost_element_type_id": setup_dependencies["cost_element_type_id"],
+                "branch": "main",
             },
         )
         assert ce_res.status_code == 201
@@ -216,6 +219,7 @@ class TestCostElementForecastAPI:
                 "budget_amount": "100000.00",
                 "wbe_id": setup_dependencies["wbe_id"],
                 "cost_element_type_id": setup_dependencies["cost_element_type_id"],
+                "branch": "main",
             },
         )
         assert ce_res.status_code == 201
@@ -245,6 +249,7 @@ class TestCostElementForecastAPI:
                 "budget_amount": "100000.00",
                 "wbe_id": setup_dependencies["wbe_id"],
                 "cost_element_type_id": setup_dependencies["cost_element_type_id"],
+                "branch": "main",
             },
         )
         assert ce_res.status_code == 201
@@ -278,6 +283,7 @@ class TestCostElementForecastAPI:
                 "budget_amount": "100000.00",
                 "wbe_id": setup_dependencies["wbe_id"],
                 "cost_element_type_id": setup_dependencies["cost_element_type_id"],
+                "branch": "main",
             },
         )
         assert ce_res.status_code == 201
@@ -324,6 +330,7 @@ class TestCostElementForecastAPI:
                 "budget_amount": "100000.00",
                 "wbe_id": setup_dependencies["wbe_id"],
                 "cost_element_type_id": setup_dependencies["cost_element_type_id"],
+                "branch": "main",
             },
         )
         assert ce_res.status_code == 201
@@ -396,6 +403,7 @@ class TestForecastZombieCheck:
                 "budget_amount": "100000.00",
                 "wbe_id": setup_dependencies["wbe_id"],
                 "cost_element_type_id": setup_dependencies["cost_element_type_id"],
+                "branch": "main",
             },
         )
         assert ce_res.status_code == 201
@@ -434,6 +442,7 @@ class TestForecastZombieCheck:
                 "budget_amount": "100000.00",
                 "wbe_id": setup_dependencies["wbe_id"],
                 "cost_element_type_id": setup_dependencies["cost_element_type_id"],
+                "branch": "main",
             },
         )
         assert ce_res.status_code == 201

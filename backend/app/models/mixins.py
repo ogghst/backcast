@@ -61,7 +61,18 @@ class VersionableMixin:
 
     def clone(self, **overrides: Any) -> Self:
         """Clone this version for updates, branches, or merges."""
-        data = {c.name: getattr(self, c.name) for c in self.__table__.columns}  # type: ignore[attr-defined]
+        from sqlalchemy import inspect
+        
+        mapper = inspect(self.__class__)
+        data = {}
+        
+        # Iterate over all mapped columns to get the correct Python attribute names
+        for prop in mapper.attrs:
+            # We only want column-mapped properties (not relationships)
+            if hasattr(prop, "columns"):
+                pk_name = prop.key
+                data[pk_name] = getattr(self, pk_name)
+
         data.update(overrides)
         data.pop("id", None)  # New version gets new ID
         data.pop("valid_time", None)  # Let DB generate new range

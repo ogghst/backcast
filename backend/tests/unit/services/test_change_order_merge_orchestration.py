@@ -146,12 +146,14 @@ class TestChangeOrderMergeOrchestration:
                 actor_id=actor_id,
                 source_branch="co-456",
                 target_branch=target_branch,
+                control_date=None,
             )
             mock_wbe_service.merge_branch.assert_any_call(
                 root_id=mock_wbe2.wbe_id,
                 actor_id=actor_id,
                 source_branch="co-456",
                 target_branch=target_branch,
+                control_date=None,
             )
 
     @pytest.mark.asyncio

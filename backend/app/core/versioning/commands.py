@@ -297,7 +297,13 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
             if col_name in ("valid_time", "transaction_time"):
                 continue
 
-            value = getattr(new_version, col_name, None)
+            # CRITICAL FIX: Get the correct Python attribute name from the mapper
+            # The column key (`col.key`) might differ from the attribute name (e.g., "metadata" vs "branch_metadata")
+            # We must use the attribute name to get the value from the object
+            prop = mapper.get_property_by_column(col)
+            attr_name = prop.key
+            
+            value = getattr(new_version, attr_name, None)
 
             # CRITICAL: Generate UUID for id column since we're using raw SQL
             # The Python-level default=uuid4 doesn't work with raw SQL

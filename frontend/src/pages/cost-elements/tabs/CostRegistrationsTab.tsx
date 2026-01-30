@@ -87,7 +87,10 @@ export const CostRegistrationsTab = ({
     onSuccess: () => {
       refetch();
       queryClient.invalidateQueries({
-        queryKey: queryKeys.costRegistrations.budgetStatus(costElement.cost_element_id, { asOf }),
+        queryKey: queryKeys.costRegistrations.budgetStatus(
+          costElement.cost_element_id,
+          { asOf },
+        ),
       });
       setModalOpen(false);
     },
@@ -97,7 +100,10 @@ export const CostRegistrationsTab = ({
     onSuccess: () => {
       refetch();
       queryClient.invalidateQueries({
-        queryKey: queryKeys.costRegistrations.budgetStatus(costElement.cost_element_id, { asOf }),
+        queryKey: queryKeys.costRegistrations.budgetStatus(
+          costElement.cost_element_id,
+          { asOf },
+        ),
       });
       setModalOpen(false);
     },
@@ -107,7 +113,10 @@ export const CostRegistrationsTab = ({
     onSuccess: () => {
       refetch();
       queryClient.invalidateQueries({
-        queryKey: queryKeys.costRegistrations.budgetStatus(costElement.cost_element_id, { asOf }),
+        queryKey: queryKeys.costRegistrations.budgetStatus(
+          costElement.cost_element_id,
+          { asOf },
+        ),
       });
     },
   });
@@ -359,6 +368,7 @@ export const CostRegistrationsTab = ({
         }}
         confirmLoading={isLoading}
         initialValues={selectedRegistration}
+        costElementId={costElement.cost_element_id}
       />
 
       <VersionHistoryDrawer

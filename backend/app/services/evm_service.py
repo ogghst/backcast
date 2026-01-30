@@ -1238,10 +1238,13 @@ class EVMService:
             while current_date <= end_date:
                 dates.append(current_date)
                 # Move to first day of next month
+                # Fix: Normalize to day 1 to avoid "day is out of range" error
                 if current_date.month == 12:
-                    current_date = current_date.replace(year=current_date.year + 1, month=1)
+                    current_date = current_date.replace(
+                        year=current_date.year + 1, month=1, day=1
+                    )
                 else:
-                    current_date = current_date.replace(month=current_date.month + 1)
+                    current_date = current_date.replace(month=current_date.month + 1, day=1)
 
         return dates
 

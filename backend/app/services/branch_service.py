@@ -12,7 +12,7 @@ from app.core.versioning.service import TemporalService
 from app.models.domain.branch import Branch
 
 
-class BranchService(TemporalService[Branch]):
+class BranchService(TemporalService[Branch]):  # type: ignore[type-var]
     """Service for Branch CRUD operations and lock/unlock functionality.
 
     Provides methods for:
@@ -116,10 +116,10 @@ class BranchService(TemporalService[Branch]):
             
         return branch
 
-    async def get_as_of(
+    async def get_by_name_as_of(
         self, name: str, project_id: UUID, as_of: datetime
     ) -> Branch | None:
-        """Get branch state at specific timestamp.
+        """Get branch state at specific timestamp by name.
 
         Args:
             name: Branch name

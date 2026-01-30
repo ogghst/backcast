@@ -24,22 +24,6 @@ from app.models.schemas.cost_registration import (
 )
 
 
-class BudgetExceededError(Exception):
-    """Raised when cost registration would exceed cost element budget.
-
-    Attributes:
-        budget: The budget amount for the cost element
-        used: The current total used amount
-        requested: The amount being requested to add
-    """
-
-    def __init__(self, budget: Decimal, used: Decimal, requested: Decimal) -> None:
-        self.budget = budget
-        self.used = used
-        self.requested = requested
-        super().__init__(
-            f"Budget exceeded: budget={budget}, used={used}, requested={requested}"
-        )
 
 
 class BudgetStatus(BaseModel):
@@ -109,33 +93,8 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         # This ensures time-travel queries work correctly with as_of parameter
         actual_control_date = request_control_date if request_control_date is not None else datetime.now(UTC)
 
-        # Budget validation
-        cost_element_id = registration_in.cost_element_id
-        new_amount = registration_data.get("amount", Decimal("0"))
+    # Budget validation removed - allowing over-budget registration with frontend warning
 
-        # Get current total for the cost element
-        current_total = await self.get_total_for_cost_element(cost_element_id, as_of=actual_control_date)
-        current_total = Decimal(str(current_total)) if current_total else Decimal("0")
-
-        # Get the cost element's budget (on the specified branch)
-        stmt = select(CostElement).where(
-            CostElement.cost_element_id == cost_element_id,
-            CostElement.branch == branch,
-            CostElement.valid_time.contains(actual_control_date),
-            CostElement.deleted_at.is_(None),
-        )
-        result = await self.session.execute(stmt)
-        cost_element = result.scalar_one_or_none()
-
-        if cost_element is not None:
-            budget = cost_element.budget_amount
-            # Check if budget would be exceeded
-            if current_total + new_amount > budget:
-                raise BudgetExceededError(
-                    budget=budget,
-                    used=current_total,
-                    requested=new_amount,
-                )
 
         cmd = CreateVersionCommand(
             entity_class=CostRegistration,  # type: ignore[type-var,unused-ignore]

@@ -101,7 +101,7 @@ async def setup_cost_element(client: AsyncClient) -> dict[str, Any]:
             "code": f"W-{uuid4().hex[:4].upper()}",
             "name": "WBE",
             "project_id": proj_id,
-            "department_id": dept_id,
+            "branch": "main",
         },
     )
     wbe_id = wbe_res.json()["wbe_id"]
@@ -115,6 +115,7 @@ async def setup_cost_element(client: AsyncClient) -> dict[str, Any]:
             "budget_amount": 100000,
             "wbe_id": wbe_id,
             "cost_element_type_id": type_id,
+            "branch": "main",
         },
     )
     cost_element_id = ce_res.json()["cost_element_id"]

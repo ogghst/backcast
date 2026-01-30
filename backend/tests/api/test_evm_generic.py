@@ -105,7 +105,7 @@ async def setup_evm_data(client: AsyncClient) -> dict[str, Any]:
             "code": f"W-{uuid4().hex[:4].upper()}",
             "name": "WBE",
             "project_id": proj_id,
-            "department_id": dept_id,
+            "branch": "main",
         },
     )
     wbe_id = wbe_res.json()["wbe_id"]
@@ -119,6 +119,7 @@ async def setup_evm_data(client: AsyncClient) -> dict[str, Any]:
             "budget_amount": 100000,
             "wbe_id": wbe_id,
             "cost_element_type_id": type_id,
+            "branch": "main",
         },
     )
     cost_element_id = ce_res.json()["cost_element_id"]
@@ -218,12 +219,12 @@ class TestGenericEVMMetricsEndpoint:
         assert "spi" in data
 
         # Verify values
-        assert data["bac"] == "100000.00"  # Budget
-        assert data["ac"] == "60000.00"  # Sum of costs
-        assert data["ev"] == "50000.0000"  # BAC × 50%
+        assert data["bac"] == 100000.0  # Budget
+        assert data["ac"] == 60000.0  # Sum of costs
+        assert data["ev"] == 50000.0  # BAC × 50%
 
         # Verify variances
-        assert data["cv"] == "-10000.0000"  # EV - AC = 50000 - 60000
+        assert data["cv"] == -10000.0  # EV - AC = 50000 - 60000
 
     @pytest.mark.asyncio
     async def test_get_evm_metrics_with_control_date(
@@ -363,8 +364,8 @@ class TestGenericEVMMetricsEndpoint:
         assert "spi" in data
 
         # Verify values (should match the single cost element)
-        assert data["bac"] == "100000.00"
-        assert data["ac"] == "60000.00"
+        assert data["bac"] == 100000.0
+        assert data["ac"] == 60000.0
 
     @pytest.mark.asyncio
     async def test_get_evm_metrics_project(
@@ -410,8 +411,8 @@ class TestGenericEVMMetricsEndpoint:
         assert "spi" in data
 
         # Verify values (should match the single cost element)
-        assert data["bac"] == "100000.00"
-        assert data["ac"] == "60000.00"
+        assert data["bac"] == 100000.0
+        assert data["ac"] == 60000.0
 
 
 class TestEVMTimeSeriesEndpoint:
@@ -704,8 +705,8 @@ class TestEVMBatchEndpoint:
         assert "ev" in data
 
         # Verify values match single entity
-        assert data["bac"] == "100000.00"
-        assert data["ac"] == "60000.00"
+        assert data["bac"] == 100000.0
+        assert data["ac"] == 60000.0
 
     @pytest.mark.asyncio
     async def test_post_evm_batch_multiple_entities(
@@ -749,7 +750,7 @@ class TestEVMBatchEndpoint:
                 "code": f"W-{uuid4().hex[:4].upper()}",
                 "name": "WBE",
                 "project_id": proj_id,
-                "department_id": dept_id,
+                "branch": "main",
             },
         )
         wbe_id = wbe_res.json()["wbe_id"]
@@ -763,6 +764,7 @@ class TestEVMBatchEndpoint:
                 "budget_amount": 100000,
                 "wbe_id": wbe_id,
                 "cost_element_type_id": type_id,
+                "branch": "main",
             },
         )
         ce1_id = ce1_res.json()["cost_element_id"]
@@ -776,6 +778,7 @@ class TestEVMBatchEndpoint:
                 "budget_amount": 150000,
                 "wbe_id": wbe_id,
                 "cost_element_type_id": type_id,
+                "branch": "main",
             },
         )
         ce2_id = ce2_res.json()["cost_element_id"]
@@ -794,7 +797,7 @@ class TestEVMBatchEndpoint:
         data = response.json()
 
         # Verify aggregation - BAC should be sum
-        assert data["bac"] == "250000.00"  # 100000 + 150000
+        assert data["bac"] == 250000.0  # 100000 + 150000
 
     @pytest.mark.asyncio
     async def test_post_evm_batch_with_control_date(
@@ -883,7 +886,7 @@ class TestEVMBatchEndpoint:
         data = response.json()
 
         # Verify zero metrics
-        assert data["bac"] == "0" or data["bac"] == "0.00"
+        assert data["bac"] == 0
         assert data.get("warning") is not None
 
     @pytest.mark.asyncio

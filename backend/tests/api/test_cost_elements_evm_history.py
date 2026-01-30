@@ -115,6 +115,7 @@ async def setup_evm_data(client: AsyncClient) -> dict[str, Any]:
             "budget_amount": 100000,
             "wbe_id": wbe_id,
             "cost_element_type_id": type_id,
+            "branch": "main",
         },
     )
     cost_element_id = ce_res.json()["cost_element_id"]

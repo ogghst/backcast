@@ -1,6 +1,6 @@
 """Unit tests for Cost Registration Budget Validation.
 
-Tests budget validation logic that prevents overspending against cost element budgets.
+Tests budget validation logic (now permissive) for cost registrations.
 """
 
 from decimal import Decimal
@@ -102,21 +102,16 @@ class TestBudgetValidation:
         assert result.amount == Decimal("100.00")
 
     @pytest.mark.asyncio
-    async def test_create_when_exceeding_budget_raises_error(
+    async def test_create_when_exceeding_budget_succeeds(
         self, db_session: AsyncSession, sample_cost_element_with_budget
     ) -> None:
-        """Test creating cost registration when exceeding budget raises error.
+        """Test creating cost registration when exceeding budget succeeds.
 
         Acceptance Criteria:
-        - When used + new_amount > budget, raise BudgetExceededError
-        - Error includes current budget and used amounts
-        - No registration is created
-
-        Expected Failure: BudgetExceededError doesn't exist yet
+        - When used + new_amount > budget, registration succeeds
+        - No error is raised
         """
         # Arrange
-        from app.services.cost_registration_service import BudgetExceededError
-
         service = CostRegistrationService(db_session)
         cost_element = sample_cost_element_with_budget  # budget=1000
 
@@ -135,14 +130,14 @@ class TestBudgetValidation:
             cost_element_id=cost_element.cost_element_id,
             amount=Decimal("1.00"),
         )
+        actor_id = uuid4()
 
-        # Act & Assert
-        with pytest.raises(BudgetExceededError) as exc_info:
-            await service.create(registration_in, actor_id=uuid4())
+        # Act
+        result = await service.create(registration_in, actor_id=actor_id)
 
-        # Verify error details
-        assert exc_info.value.budget == Decimal("1000.00")
-        assert exc_info.value.used >= Decimal("1000.00")
+        # Assert
+        assert result.amount == Decimal("1.00")
+
 
     @pytest.mark.asyncio
     async def test_get_budget_status_returns_used_remaining_percentage(

@@ -70,7 +70,7 @@ class TestBranchLockEnforcement:
         await db_session.commit()
 
         # Lock the branch
-        await branch_service.lock(co_branch, project_id)
+        await branch_service.lock(co_branch, project_id, test_user_id)
 
         # Act & Assert: Try to update WBE on locked branch
         with pytest.raises(BranchLockedException) as exc_info:
@@ -139,7 +139,7 @@ class TestBranchLockEnforcement:
         await db_session.commit()
 
         # Lock the branch
-        await branch_service.lock(co_branch, project_id)
+        await branch_service.lock(co_branch, project_id, test_user_id)
 
         # Act & Assert: Try to delete WBE on locked branch
         with pytest.raises(BranchLockedException) as exc_info:
@@ -187,7 +187,7 @@ class TestBranchLockEnforcement:
         await db_session.commit()
 
         # Lock the branch
-        await branch_service.lock(co_branch, project_id)
+        await branch_service.lock(co_branch, project_id, test_user_id)
 
         # Act & Assert: Try to create WBE on locked branch
         wbe_root_id = uuid4()
@@ -304,7 +304,7 @@ class TestBranchLockEnforcement:
         # Ensure branch is unlocked
         branch = await branch_service.get_by_name_and_project(co_branch, project_id)
         if branch.locked:
-            await branch_service.unlock(co_branch, project_id)
+            await branch_service.unlock(co_branch, project_id, test_user_id)
 
         # Act: Update WBE on unlocked branch
         updated_wbe = await wbe_service.update(

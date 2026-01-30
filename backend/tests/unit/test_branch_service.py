@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import select
 from sqlalchemy.exc import NoResultFound
 
 from app.models.domain.branch import Branch
@@ -40,19 +39,16 @@ async def test_lock_branch_sets_locked_true(db_session):
     # Act: Lock the branch
     service = BranchService(db_session)
     locked_branch = await service.lock(
-        name="co-CO-2026-001", project_id=project.project_id
+        name="co-CO-2026-001", project_id=project.project_id, actor_id=user_id
     )
 
     # Assert: Branch is locked
     assert locked_branch.locked is True
 
-    # Verify in database
-    await db_session.refresh(locked_branch)
-    stmt = select(Branch).where(
-        Branch.name == "co-CO-2026-001", Branch.project_id == project.project_id
+    # Verify in database using service method which filters for current versions
+    db_branch = await service.get_by_name_and_project(
+        name="co-CO-2026-001", project_id=project.project_id
     )
-    result = await db_session.execute(stmt)
-    db_branch = result.scalar_one()
     assert db_branch.locked is True
 
 
@@ -84,7 +80,7 @@ async def test_unlock_branch_sets_locked_false(db_session):
     # Act: Unlock the branch
     service = BranchService(db_session)
     unlocked_branch = await service.unlock(
-        name="co-CO-2026-002", project_id=project.project_id
+        name="co-CO-2026-002", project_id=project.project_id, actor_id=user_id
     )
 
     # Assert: Branch is unlocked

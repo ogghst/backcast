@@ -19,6 +19,9 @@ from app.models.schemas.evm import (
     EVMTimeSeriesResponse,
 )
 
+# Note: EVMMetricsResponse uses float types for JSON serialization
+# EVMTimeSeriesPoint uses Decimal types for precision in time-series data
+
 
 class TestEntityType:
     """Test EntityType enum validation."""
@@ -63,21 +66,21 @@ class TestEVMMetricsResponse:
         entity_id = uuid4()
         control_date = datetime(2026, 1, 22, tzinfo=UTC)
 
-        # Act - Create with all fields
+        # Act - Create with all fields (schema converts to float)
         metrics = EVMMetricsResponse(
             entity_type=EntityType.COST_ELEMENT,
             entity_id=entity_id,
-            bac=Decimal("100000.00"),
-            pv=Decimal("50000.00"),
-            ev=Decimal("45000.00"),
-            ac=Decimal("55000.00"),
-            cv=Decimal("-10000.00"),
-            sv=Decimal("-5000.00"),
-            cpi=Decimal("0.818"),
-            spi=Decimal("0.90"),
-            eac=Decimal("122000.00"),
-            vac=Decimal("-22000.00"),
-            etc=Decimal("67000.00"),
+            bac=100000.0,
+            pv=50000.0,
+            ev=45000.0,
+            ac=55000.0,
+            cv=-10000.0,
+            sv=-5000.0,
+            cpi=0.818,
+            spi=0.90,
+            eac=122000.0,
+            vac=-22000.0,
+            etc=67000.0,
             control_date=control_date,
             branch="main",
             branch_mode=BranchMode.MERGE,
@@ -86,17 +89,17 @@ class TestEVMMetricsResponse:
         # Assert
         assert metrics.entity_type == EntityType.COST_ELEMENT
         assert metrics.entity_id == entity_id
-        assert metrics.bac == Decimal("100000.00")
-        assert metrics.pv == Decimal("50000.00")
-        assert metrics.ev == Decimal("45000.00")
-        assert metrics.ac == Decimal("55000.00")
-        assert metrics.cv == Decimal("-10000.00")
-        assert metrics.sv == Decimal("-5000.00")
-        assert metrics.cpi == Decimal("0.818")
-        assert metrics.spi == Decimal("0.90")
-        assert metrics.eac == Decimal("122000.00")
-        assert metrics.vac == Decimal("-22000.00")
-        assert metrics.etc == Decimal("67000.00")
+        assert metrics.bac == 100000.0
+        assert metrics.pv == 50000.0
+        assert metrics.ev == 45000.0
+        assert metrics.ac == 55000.0
+        assert metrics.cv == -10000.0
+        assert metrics.sv == -5000.0
+        assert metrics.cpi == 0.818
+        assert metrics.spi == 0.90
+        assert metrics.eac == 122000.0
+        assert metrics.vac == -22000.0
+        assert metrics.etc == 67000.0
         assert metrics.control_date == control_date
         assert metrics.branch == "main"
 
@@ -115,17 +118,17 @@ class TestEVMMetricsResponse:
         metrics = EVMMetricsResponse(
             entity_type=EntityType.WBE,
             entity_id=entity_id,
-            bac=Decimal("100000.00"),
-            pv=Decimal("50000.00"),
-            ev=Decimal("45000.00"),
-            ac=Decimal("55000.00"),
-            cv=Decimal("-10000.00"),
-            sv=Decimal("-5000.00"),
-            cpi=Decimal("0.818"),
-            spi=Decimal("0.90"),
-            eac=Decimal("122000.00"),
-            vac=Decimal("-22000.00"),
-            etc=Decimal("67000.00"),
+            bac=100000.0,
+            pv=50000.0,
+            ev=45000.0,
+            ac=55000.0,
+            cv=-10000.0,
+            sv=-5000.0,
+            cpi=0.818,
+            spi=0.90,
+            eac=122000.0,
+            vac=-22000.0,
+            etc=67000.0,
             control_date=control_date,
             branch="main",
             branch_mode=BranchMode.STRICT,
@@ -162,7 +165,7 @@ class TestEVMMetricsResponse:
             EVMMetricsResponse(
                 entity_type=EntityType.PROJECT,
                 entity_id=entity_id,
-                bac=Decimal("100000.00"),
+                bac=100000.0,
                 # Missing pv, ev, ac, cv, sv, cpi, spi, eac, vac, etc
                 control_date=control_date,
                 branch="main",
@@ -186,17 +189,17 @@ class TestEVMMetricsResponse:
         metrics = EVMMetricsResponse(
             entity_type=EntityType.WBE,
             entity_id=wbe_id,
-            bac=Decimal("50000.00"),
-            pv=Decimal("25000.00"),
-            ev=Decimal("24000.00"),
-            ac=Decimal("26000.00"),
-            cv=Decimal("-2000.00"),
-            sv=Decimal("-1000.00"),
-            cpi=Decimal("0.923"),
-            spi=Decimal("0.96"),
-            eac=Decimal("54000.00"),
-            vac=Decimal("-4000.00"),
-            etc=Decimal("28000.00"),
+            bac=50000.0,
+            pv=25000.0,
+            ev=24000.0,
+            ac=26000.0,
+            cv=-2000.0,
+            sv=-1000.0,
+            cpi=0.923,
+            spi=0.96,
+            eac=54000.0,
+            vac=-4000.0,
+            etc=28000.0,
             control_date=control_date,
             branch="feature-branch",
             branch_mode=BranchMode.STRICT,
@@ -219,17 +222,17 @@ class TestEVMMetricsResponse:
         metrics = EVMMetricsResponse(
             entity_type=EntityType.PROJECT,
             entity_id=project_id,
-            bac=Decimal("1000000.00"),
-            pv=Decimal("500000.00"),
-            ev=Decimal("480000.00"),
-            ac=Decimal("520000.00"),
-            cv=Decimal("-40000.00"),
-            sv=Decimal("-20000.00"),
-            cpi=Decimal("0.923"),
-            spi=Decimal("0.96"),
-            eac=Decimal("1080000.00"),
-            vac=Decimal("-80000.00"),
-            etc=Decimal("560000.00"),
+            bac=1000000.0,
+            pv=500000.0,
+            ev=480000.0,
+            ac=520000.0,
+            cv=-40000.0,
+            sv=-20000.0,
+            cpi=0.923,
+            spi=0.96,
+            eac=1080000.0,
+            vac=-80000.0,
+            etc=560000.0,
             control_date=control_date,
             branch="main",
             branch_mode=BranchMode.MERGE,

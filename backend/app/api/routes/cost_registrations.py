@@ -19,7 +19,6 @@ from app.models.schemas.cost_registration import (
     CostRegistrationUpdate,
 )
 from app.services.cost_registration_service import (
-    BudgetExceededError,
     CostRegistrationService,
 )
 
@@ -121,16 +120,7 @@ async def create_cost_registration(
             actor_id=current_user.user_id,
             control_date=registration_in.control_date,
         )
-    except BudgetExceededError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "Budget exceeded",
-                "budget": str(e.budget),
-                "used": str(e.used),
-                "requested": str(e.requested),
-            },
-        ) from e
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

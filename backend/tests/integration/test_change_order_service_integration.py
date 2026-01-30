@@ -176,8 +176,11 @@ async def test_status_change_under_review_to_rejected_unlocks_branch(db_session)
     # Assert: Status updated
     assert updated_co.status == "Rejected"
 
-    # Assert: Branch is unlocked
-    await db_session.refresh(branch)
+    # Assert: Branch is unlocked (re-fetch to get current version)
+    branch = await branch_service.get_by_name_and_project(
+        name="co-CO-2026-003",
+        project_id=project.project_id,
+    )
     assert branch.locked is False
 
 

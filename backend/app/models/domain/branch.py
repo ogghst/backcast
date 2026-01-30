@@ -12,11 +12,11 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.base.base import Base
+from app.core.base.base import EntityBase
 from app.models.mixins import VersionableMixin
 
 
-class Branch(Base, VersionableMixin):
+class Branch(EntityBase, VersionableMixin):
     """Branch entity for tracking branch metadata and lock state.
 
     Attributes:
@@ -38,9 +38,7 @@ class Branch(Base, VersionableMixin):
     __tablename__ = "branches"
 
     # Standard Primary Key
-    id: Mapped[UUID] = mapped_column(
-        PG_UUID, primary_key=True, default=func.gen_random_uuid()
-    )
+    # id is inherited from EntityBase
 
     # Composite unique identifier (business key)
     # Note: Enforced via business logic + index, not PK
@@ -68,7 +66,7 @@ class Branch(Base, VersionableMixin):
 
     # Additional metadata (renamed from 'metadata' which is reserved in SQLAlchemy)
     branch_metadata: Mapped[dict[str, Any] | None] = mapped_column(
-        "metadata", JSONB, nullable=True
+        "branch_metadata_info", JSONB, nullable=True
     )
 
     def __repr__(self) -> str:
