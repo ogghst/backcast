@@ -16,13 +16,18 @@ class ChangeOrderBase(BaseModel):
     """Base schema with common Change Order fields."""
 
     code: str = Field(
-        ..., min_length=1, max_length=50, description="Business identifier (e.g., CO-2026-001)"
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Business identifier (e.g., CO-2026-001)",
     )
     project_id: UUID = Field(..., description="Project this change applies to")
     title: str = Field(..., min_length=1, max_length=200, description="Brief title")
     description: str | None = Field(None, description="Detailed description")
     justification: str | None = Field(None, description="Business justification")
-    effective_date: datetime | None = Field(None, description="When change takes effect")
+    effective_date: datetime | None = Field(
+        None, description="When change takes effect"
+    )
     status: str = Field(default="Draft", description="Workflow state")
 
 
@@ -54,7 +59,9 @@ class ChangeOrderUpdate(BaseModel):
     justification: str | None = None
     effective_date: datetime | None = None
     status: str | None = None
-    branch: str | None = Field(None, description="Branch name for update (defaults to current branch)")
+    branch: str | None = Field(
+        None, description="Branch name for update (defaults to current branch)"
+    )
     control_date: datetime | None = Field(
         None, description="Control date for bitemporal operations"
     )
@@ -88,7 +95,10 @@ class ChangeOrderPublic(ChangeOrderBase):
     change_order_id: UUID = Field(..., description="Root UUID identifier")
     id: UUID = Field(..., description="Version ID (primary key)")
     created_by: UUID = Field(..., description="User who created this version")
-    created_at: datetime | None = Field(None, description="When this version was created (derived from transaction_time)")
+    created_at: datetime | None = Field(
+        None,
+        description="When this version was created (derived from transaction_time)",
+    )
     updated_by: UUID | None = Field(None, description="User who last updated")
     updated_at: datetime | None = Field(None, description="When last updated")
     branch: str = Field(..., description="Branch name")

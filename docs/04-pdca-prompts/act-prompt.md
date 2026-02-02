@@ -1,79 +1,102 @@
-# ACT Phase: Standardization and Continuous Improvement
+# ACT Phase: Standardization & Continuous Improvement
 
 ## Purpose
 
-Decide actions based on learnings, standardize successful patterns, and implement improvements.
+Execute approved improvements from CHECK phase, standardize successful patterns, update documentation, and close the iteration with actionable learnings.
+
+**Prerequisite**: CHECK phase (`03-check.md`) must be completed with **approved improvement options**.
 
 ---
 
-## 1. Prioritized Improvement Implementation
+## ACT Phase Responsibility
 
-Based on CHECK phase decisions, execute improvements:
+This phase owns:
+
+- **Implementation**: Execute the approved improvements
+- **Standardization**: Document patterns for reuse
+- **Documentation**: Update architecture and project docs
+- **Closure**: Finalize iteration with lessons learned
+
+> [!NOTE]
+> Root cause analysis is done in CHECK phase. ACT executes the approved solutions.
+
+---
+
+## 1. Improvement Implementation
+
+Based on CHECK phase decisions, execute improvements in priority order:
 
 ### Critical Issues (Implement Immediately)
 
-Security vulnerabilities, data integrity issues, production blockers
+Security vulnerabilities, data integrity issues, production blockers.
 
-**For each improvement:**
-
-- Maintain test coverage throughout changes
-- Run full test suite after each modification
-- Document rationale for future maintainers
-- Create follow-up tasks if needed
+| Issue        | Approved Approach | Implementation | Verification     |
+| ------------ | ----------------- | -------------- | ---------------- |
+| [From CHECK] | [A/B/C]           | [How resolved] | [Tests/evidence] |
 
 ### High-Value Refactoring
 
-Approved design improvements that enhance maintainability
+Approved design improvements that enhance maintainability.
 
-### Technical Debt Items
+| Change   | Rationale | Files Affected | Verification |
+| -------- | --------- | -------------- | ------------ |
+| [Change] | [Why]     | [List]         | [Tests pass] |
 
-Address or document for future sprints
+### Deferred Items
+
+Items marked for future iterations.
+
+| Item   | Reason Deferred | Target Iteration | Tracking       |
+| ------ | --------------- | ---------------- | -------------- |
+| [Item] | [Why]           | [When]           | [Where logged] |
 
 ---
 
 ## 2. Pattern Standardization
 
-Identify patterns from this implementation that should be adopted codebase-wide:
+Identify patterns from this implementation for codebase-wide adoption:
 
-| Pattern                 | Description | Benefits | Risks | Standardize? |
-| ----------------------- | ----------- | -------- | ----- | ------------ |
-| Error handling approach | Details     | Benefits | Risks | Yes/No/Pilot |
-| Testing pattern         | Details     | Benefits | Risks | Yes/No/Pilot |
-| Service structure       | Details     | Benefits | Risks | Yes/No/Pilot |
-| Data access pattern     | Details     | Benefits | Risks | Yes/No/Pilot |
+| Pattern             | Description | Benefits   | Risks   | Standardize? |
+| ------------------- | ----------- | ---------- | ------- | ------------ |
+| [Error handling]    | [Details]   | [Benefits] | [Risks] | Yes/No/Pilot |
+| [Testing pattern]   | [Details]   | [Benefits] | [Risks] | Yes/No/Pilot |
+| [Service structure] | [Details]   | [Benefits] | [Risks] | Yes/No/Pilot |
 
 > [!IMPORTANT] > **Human Decision Point**: For patterns marked for standardization:
 >
-> **Option A**: Adopt immediately, update coding standards documentation  
-> **Option B**: Pilot in one more feature before standardizing  
-> **Option C**: Keep as local optimization, not for wider adoption
+> - **Option A**: Adopt immediately, update coding standards
+> - **Option B**: Pilot in one more feature before standardizing
+> - **Option C**: Keep as local optimization, not for wider adoption
 >
 > **Ask**: "Which patterns should we standardize, and at what pace?"
 
-### Actions if Standardizing
+### If Standardizing
 
-- [ ] Update `docs/02-architecture/cross-cutting/` with new pattern
-- [ ] Update coding standards (`docs/02-architecture/coding-standards.md`)
-- [ ] Create examples/templates
-- [ ] Schedule training session (if complex)
+For each pattern approved for adoption:
+
+- [ ] Update `docs/02-architecture/cross-cutting/` with pattern documentation
+- [ ] Update `docs/02-architecture/coding-standards.md` with guidelines
+- [ ] Create examples/templates in codebase
 - [ ] Add to code review checklist
+- [ ] Schedule knowledge sharing (if complex)
 
 ---
 
-## 3. Documentation Updates Required
+## 3. Documentation Updates
 
-Track what documentation needs updating:
+Track all documentation requiring updates:
 
-| Document           | Update Needed     | Priority     | Assigned To | Completion Date |
-| ------------------ | ----------------- | ------------ | ----------- | --------------- |
-| Architecture doc X | Add pattern Y     | High/Med/Low | Name        | YYYY-MM-DD      |
-| ADR-NNN            | Create new        | High/Med/Low | Name        | YYYY-MM-DD      |
-| API Contracts      | Update endpoint Z | High/Med/Low | Name        | YYYY-MM-DD      |
+| Document           | Update Needed     | Priority     | Status   |
+| ------------------ | ----------------- | ------------ | -------- |
+| [Architecture doc] | [Add pattern Y]   | High/Med/Low | ✅/🔄/❌ |
+| [ADR-XXX]          | [Create new]      | High/Med/Low | ✅/🔄/❌ |
+| [API Contracts]    | [Update endpoint] | High/Med/Low | ✅/🔄/❌ |
+| [Coding Standards] | [Add guideline]   | High/Med/Low | ✅/🔄/❌ |
 
-**Specific Actions:**
+### Specific Documentation Actions
 
 - [ ] Update `docs/02-architecture/contexts/{name}/architecture.md`
-- [ ] Create new ADR for decision X
+- [ ] Create ADR for decision X (if architectural change)
 - [ ] Update cross-cutting concern doc Y
 - [ ] Deprecate obsolete pattern in doc Z
 
@@ -83,117 +106,105 @@ Track what documentation needs updating:
 
 ### Debt Created This Iteration
 
-| Item   | Description | Impact       | Estimated Effort to Fix | Target Date |
-| ------ | ----------- | ------------ | ----------------------- | ----------- |
-| TD-XXX | Description | High/Med/Low | X days                  | YYYY-MM-DD  |
+| ID     | Description   | Impact       | Effort to Fix | Target Date |
+| ------ | ------------- | ------------ | ------------- | ----------- |
+| TD-XXX | [Description] | High/Med/Low | X days        | YYYY-MM-DD  |
 
 ### Debt Resolved This Iteration
 
-| Item   | Resolution   | Time Spent |
-| ------ | ------------ | ---------- |
-| TD-YYY | How resolved | X hours    |
+| ID     | Resolution     | Time Spent |
+| ------ | -------------- | ---------- |
+| TD-YYY | [How resolved] | X hours    |
 
 **Net Debt Change:** +/- X items, +/- Y effort days
 
-**Action:** Update `docs/02-architecture/02-technical-debt.md`
+**Action**: Update `docs/02-architecture/02-technical-debt.md`
 
 ---
 
 ## 5. Process Improvements
 
-### Process Retrospective
+### Effective Practices to Continue
 
-**What Worked Well:**
+- [Process 1]: [Why it worked]
+- [Process 2]: [Why it worked]
 
-- Effective TDD practices (specific examples)
-- Successful design decisions
-- Smooth integration points
-- Helpful tools/workflows
+### Process Changes for Future
 
-**What Could Improve:**
+| Change   | Rationale    | Implementation     | Owner |
+| -------- | ------------ | ------------------ | ----- |
+| [Change] | [Why needed] | [How to implement] | [Who] |
 
-- Testing gaps discovered late
-- Design decisions requiring revision
-- Tooling or process friction
-- Communication breakdowns
+### Prompt Engineering Refinements
 
-**Prompt Engineering Refinements:**
+Capture learnings for improving AI collaboration:
 
 - Which prompts yielded best results?
 - Where did AI need more context/constraints?
 - What architectural context was missing/unclear?
 
-### Proposed Process Changes
-
-| Change   | Rationale  | Implementation   | Owner |
-| -------- | ---------- | ---------------- | ----- |
-| Change X | Why needed | How to implement | Who   |
-
-**Action:** Update project plan or team practices
-
 ---
 
 ## 6. Knowledge Gaps Identified
 
-### Team Learning Needs
+### Learning Needs Discovered
 
 - What did team struggle with?
 - What documentation is missing?
 - What training might help?
-- What expertise should we develop?
 
-**Actions:**
+### Actions
 
-- [ ] Create knowledge-sharing session on topic X
-- [ ] Document pattern Y in architecture docs
-- [ ] Schedule training on technology Z
-- [ ] Pair programming on skill W
-
----
-
-## 7. Metrics for Next PDCA Cycle
-
-Define success metrics for monitoring:
-
-| Metric              | Baseline (Pre-Change) | Target | Actual | Measurement Method |
-| ------------------- | --------------------- | ------ | ------ | ------------------ |
-| Bug rate in area    | X                     | Y      | Z      | Issue tracking     |
-| Test coverage       | X%                    | Y%     | Z%     | Coverage tool      |
-| Build time          | X min                 | Y min  | Z min  | CI metrics         |
-| Response time (p95) | X ms                  | Y ms   | Z ms   | APM tool           |
+- [ ] Create knowledge-sharing session on [topic]
+- [ ] Document [pattern] in architecture docs
+- [ ] Schedule training on [technology]
+- [ ] Pair programming on [skill]
 
 ---
 
-## 8. Next Iteration Implications
-
-**What This Iteration Unlocked:**
-
-- New capabilities enabled
-- Dependencies removed
-- Risks mitigated
-
-**New Priorities Emerged:**
-
-- Unexpected opportunities
-- Newly discovered requirements
-
-**Assumptions Invalidated:**
-
-- What we learned that changes plans
-- Course corrections needed
-
-**Action:** Input for next meta-prompt analysis
-
----
-
-## 9. Knowledge Transfer Artifacts
+## 7. Knowledge Transfer Artifacts
 
 Create assets for team learning:
 
 - [ ] Code walkthrough document or video
 - [ ] Key decision rationale summary
 - [ ] Common pitfalls and how to avoid them
-- [ ] Updated onboarding materials
+- [ ] Updated onboarding materials (if needed)
+
+---
+
+## 8. Metrics for Monitoring
+
+Define success metrics for ongoing monitoring:
+
+| Metric              | Baseline | Target | Measurement Method |
+| ------------------- | -------- | ------ | ------------------ |
+| Bug rate in area    | X        | Y      | Issue tracking     |
+| Test coverage       | X%       | Y%     | Coverage tool      |
+| Response time (p95) | X ms     | Y ms   | APM tool           |
+
+---
+
+## 9. Next Iteration Implications
+
+### Unlocked Capabilities
+
+- New capabilities enabled by this iteration
+- Dependencies removed
+- Risks mitigated
+
+### Emerged Priorities
+
+- Unexpected opportunities discovered
+- Newly discovered requirements
+- Technical insights affecting roadmap
+
+### Invalidated Assumptions
+
+- What we learned that changes future plans
+- Course corrections needed
+
+**Action**: Input these findings into next iteration's Analysis phase
 
 ---
 
@@ -201,37 +212,78 @@ Create assets for team learning:
 
 Specific, assignable tasks with owners and deadlines:
 
-- [ ] Update `docs/02-architecture/contexts/auth/architecture.md` with new OAuth pattern (@dev1, by 2025-01-15)
-- [ ] Create ADR-042 for database partitioning decision (@dev2, by 2025-01-10)
-- [ ] Add technical debt item TD-099 for legacy API cleanup (@tech-lead, by 2025-01-05)
-- [ ] Schedule code review session for new pattern (@team, 2025-01-12)
-- [ ] Update coding standards with async/await guidelines (@dev3, by 2025-01-20)
+- [ ] [Action 1] - @owner - by YYYY-MM-DD
+- [ ] [Action 2] - @owner - by YYYY-MM-DD
+- [ ] [Action 3] - @owner - by YYYY-MM-DD
+- [ ] [Action 4] - @owner - by YYYY-MM-DD
+- [ ] [Action 5] - @owner - by YYYY-MM-DD
 
 ---
 
-## Success Metrics and Industry Benchmarks
+## 11. Iteration Closure
 
-Based on industry research:
+### Final Status
 
-| Metric                | Industry Average | Our Target with PDCA+TDD | Actual This Iteration |
-| --------------------- | ---------------- | ------------------------ | --------------------- |
-| Defect Rate Reduction | -                | 40-60% improvement       | X%                    |
-| Code Review Cycles    | 3-4              | 1-2                      | X                     |
-| Rework Rate           | 15-25%           | < 10%                    | X%                    |
-| Time-to-Production    | Variable         | 20-30% faster            | X days                |
+- [ ] All success criteria from PLAN phase verified
+- [ ] All approved improvements from CHECK implemented
+- [ ] Code passes quality gates (MyPy, Ruff/ESLint, tests)
+- [ ] Documentation updated (including ADRs if architectural)
+- [ ] Sprint backlog updated
+- [ ] Technical debt ledger updated
+- [ ] Lessons learned documented
 
-> [!NOTE] > **Success Story Reference**: Studies show PDCA-driven development reduces software defects by up to 61% when combined with TDD practices.
+**Iteration Status:** ✅ Complete | ⚠️ Partial | ❌ Incomplete
+
+**Success Criteria Met:** X of Y
+
+### Lessons Learned Summary
+
+1. [Key lesson 1]
+2. [Key lesson 2]
+3. [Key lesson 3]
+
+**Iteration Closed:** YYYY-MM-DD
 
 ---
 
-## Output Format
+## Industry Benchmarks
 
-Create: `docs/03-project-plan/iterations/YYYY-MM-name/04-act.md`
+Reference for evaluating iteration success:
+
+| Metric                | Industry Average | Target with PDCA+TDD | Actual |
+| --------------------- | ---------------- | -------------------- | ------ |
+| Defect Rate Reduction | -                | 40-60% improvement   | X%     |
+| Code Review Cycles    | 3-4              | 1-2                  | X      |
+| Rework Rate           | 15-25%           | <10%                 | X%     |
+| Time-to-Production    | Variable         | 20-30% faster        | X days |
+
+---
+
+## Documentation References
+
+See [`_references.md`](_references.md) for phase-specific documentation links.
+
+---
+
+## Output
+
+**File**: `docs/03-project-plan/iterations/YYYY-MM-DD-{title}/04-act.md`
+
+**Template**: [`_templates/04-act-template.md`](_templates/04-act-template.md)
 
 Include:
 
 - All sections above with decisions recorded
 - Action item tracking with owners
-- Metrics baseline and targets
 - Links to updated documentation
 - Date ACT phase completed
+
+---
+
+## Key Principles
+
+1. **Execute Decisions**: Implement what CHECK phase decided
+2. **Standardize Success**: Document patterns for reuse
+3. **Update Everything**: No stale documentation
+4. **Close Cleanly**: Clear status and lessons learned
+5. **Feed Forward**: Findings inform next iteration

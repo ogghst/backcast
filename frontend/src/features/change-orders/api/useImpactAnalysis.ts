@@ -6,6 +6,7 @@ import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
 import type { ImpactAnalysisResponse } from "@/api/generated";
+import { queryKeys } from "@/api/queryKeys";
 
 /**
  * Custom hook for fetching impact analysis for a change order.
@@ -24,7 +25,7 @@ export const useImpactAnalysis = (
   const { asOf } = useTimeMachineParams();
 
   return useQuery({
-    queryKey: ["impact-analysis", changeOrderId, branchName, { asOf }],
+    queryKey: queryKeys.changeOrders.impact(changeOrderId),
     queryFn: async () => {
       if (!changeOrderId) throw new Error("Change Order ID is required");
       if (!branchName) throw new Error("Branch name is required for impact analysis");

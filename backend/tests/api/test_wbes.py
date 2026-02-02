@@ -162,8 +162,10 @@ async def test_get_wbes_by_project(
 
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 3
-    assert all(w["project_id"] == test_project["project_id"] for w in data)
+    # Response is paginated: {"items": [...], "total": 3, "page": 1, "per_page": 20}
+    assert data["total"] == 3
+    assert len(data["items"]) == 3
+    assert all(w["project_id"] == test_project["project_id"] for w in data["items"])
 
 
 @pytest.mark.asyncio
@@ -252,7 +254,9 @@ async def test_delete_wbe(
     list_response = await client.get(
         f"/api/v1/wbes?project_id={test_project['project_id']}"
     )
-    wbes = list_response.json()
+    wbes_data = list_response.json()
+    # Response is paginated: {"items": [...], "total": 0, "page": 1, "per_page": 20}
+    wbes = wbes_data["items"]
     assert not any(w["code"] == "4.0" for w in wbes)
 
 
@@ -325,6 +329,7 @@ async def test_wbe_hierarchical_structure(
     assert child_data_resp["parent_wbe_id"] == parent_id
     assert child_data_resp["level"] == 2
 
+
 @pytest.mark.asyncio
 async def test_create_wbe_with_control_date(
     client: AsyncClient,
@@ -335,20 +340,20 @@ async def test_create_wbe_with_control_date(
     """Test creating WBE with explicit control_date."""
     # Future date to ensure it's different from "now"
     control_date = "2026-03-03T10:00:00+00:00"
-    
+
     wbe_data = {
         "project_id": test_project["project_id"],
         "code": "CD-1.0",
         "name": "Control Date WBE",
         "budget_allocation": 100000,
         "level": 1,
-        "control_date": control_date
+        "control_date": control_date,
     }
 
     response = await client.post("/api/v1/wbes", json=wbe_data)
     assert response.status_code == 201
     data = response.json()
-    
+
     # Verify valid_time starts at control_date
     assert data["valid_time"].startswith(f"[{control_date[:10]}")
 
@@ -362,26 +367,26 @@ async def test_update_wbe_with_control_date(
 ) -> None:
     """Test updating WBE with explicit control_date."""
     # 1. Create standard WBE
-    create_resp = await client.post("/api/v1/wbes", json={
-        "project_id": test_project["project_id"],
-        "code": "CD-2.0",
-        "name": "Update Test WBE",
-        "budget_allocation": 50000,
-        "level": 1
-    })
+    create_resp = await client.post(
+        "/api/v1/wbes",
+        json={
+            "project_id": test_project["project_id"],
+            "code": "CD-2.0",
+            "name": "Update Test WBE",
+            "budget_allocation": 50000,
+            "level": 1,
+        },
+    )
     wbe_id = create_resp.json()["wbe_id"]
-    
+
     # 2. Update with control date
     control_date = "2026-04-01T10:00:00+00:00"
-    update_data = {
-        "name": "Updated With Control Date",
-        "control_date": control_date
-    }
-    
+    update_data = {"name": "Updated With Control Date", "control_date": control_date}
+
     response = await client.put(f"/api/v1/wbes/{wbe_id}", json=update_data)
     assert response.status_code == 200
     data = response.json()
-    
+
     # Verify new version starts at control_date
     assert data["valid_time"].startswith(f"[{control_date[:10]}")
 
@@ -395,33 +400,40 @@ async def test_delete_wbe_with_control_date(
 ) -> None:
     """Test deleting WBE with explicit control_date."""
     # 1. Create WBE
-    create_resp = await client.post("/api/v1/wbes", json={
-        "project_id": test_project["project_id"],
-        "code": "CD-3.0",
-        "name": "Delete Test WBE",
-        "budget_allocation": 50000,
-        "level": 1
-    })
+    create_resp = await client.post(
+        "/api/v1/wbes",
+        json={
+            "project_id": test_project["project_id"],
+            "code": "CD-3.0",
+            "name": "Delete Test WBE",
+            "budget_allocation": 50000,
+            "level": 1,
+        },
+    )
     wbe_id = create_resp.json()["wbe_id"]
-    
+
     # 2. Delete with control date
     control_date = "2026-05-01T10:00:00+00:00"
     response = await client.delete(
-        f"/api/v1/wbes/{wbe_id}", 
-        params={"control_date": control_date}
+        f"/api/v1/wbes/{wbe_id}", params={"control_date": control_date}
     )
     assert response.status_code == 204
-    
+
     # 3. Verify deletion happened effectively at control_date
     # Query BEFORE control date - should still exist
     before_date = "2026-04-30T10:00:00+00:00"
-    resp_before = await client.get(f"/api/v1/wbes/{wbe_id}", params={"as_of": before_date})
+    resp_before = await client.get(
+        f"/api/v1/wbes/{wbe_id}", params={"as_of": before_date}
+    )
     assert resp_before.status_code == 200
-    
+
     # Query AFTER control date - should be gone
     after_date = "2026-05-02T10:00:00+00:00"
-    resp_after = await client.get(f"/api/v1/wbes/{wbe_id}", params={"as_of": after_date})
+    resp_after = await client.get(
+        f"/api/v1/wbes/{wbe_id}", params={"as_of": after_date}
+    )
     assert resp_after.status_code == 404
+
 
 @pytest.mark.asyncio
 async def test_wbe_level_inference(
@@ -440,7 +452,7 @@ async def test_wbe_level_inference(
         # note: no level provided
     }
     root_resp = await client.post("/api/v1/wbes", json=root_data)
-    # assert root_resp.status_code == 201 
+    # assert root_resp.status_code == 201
     if root_resp.status_code != 201:
         print(root_resp.json())
     assert root_resp.status_code == 201
@@ -454,7 +466,7 @@ async def test_wbe_level_inference(
         "code": "L2",
         "name": "Level 2 WBE",
         "budget_allocation": 50000,
-        "parent_wbe_id": root_id
+        "parent_wbe_id": root_id,
         # note: no level provided
     }
     child_resp = await client.post("/api/v1/wbes", json=child_data)
@@ -470,7 +482,7 @@ async def test_wbe_level_inference(
         "code": "L3",
         "name": "Level 3 WBE",
         "budget_allocation": 25000,
-        "parent_wbe_id": child_id
+        "parent_wbe_id": child_id,
     }
     sub_resp = await client.post("/api/v1/wbes", json=sub_child_data)
     assert sub_resp.status_code == 201
@@ -479,9 +491,7 @@ async def test_wbe_level_inference(
     sub_id = sub_wbe["wbe_id"]
 
     # 4. Update child to be root (remove parent) -> Should likely become Level 1
-    update_to_root = {
-        "parent_wbe_id": None
-    }
+    update_to_root = {"parent_wbe_id": None}
     update_resp = await client.put(f"/api/v1/wbes/{sub_id}", json=update_to_root)
     assert update_resp.status_code == 200
     updated_sub = update_resp.json()
@@ -499,14 +509,13 @@ async def test_wbe_level_inference(
     new_root_id = new_root_resp.json()["wbe_id"]
 
     # Move our previous L3 (now L1) under New Root
-    update_move = {
-        "parent_wbe_id": new_root_id
-    }
+    update_move = {"parent_wbe_id": new_root_id}
     move_resp = await client.put(f"/api/v1/wbes/{sub_id}", json=update_move)
     assert move_resp.status_code == 200
     moved_wbe = move_resp.json()
     assert moved_wbe["level"] == 2
     assert moved_wbe["parent_wbe_id"] == new_root_id
+
 
 @pytest.mark.asyncio
 async def test_get_wbes_param_filter(
@@ -521,49 +530,52 @@ async def test_get_wbes_param_filter(
         "project_id": test_project["project_id"],
         "code": "TF-1",
         "name": "Root",
-        "budget_allocation": 100
+        "budget_allocation": 100,
     }
     root_resp = await client.post("/api/v1/wbes", json=root_data)
     root_id = root_resp.json()["wbe_id"]
-    
+
     # Create Child WBE
     child_data = {
         "project_id": test_project["project_id"],
         "code": "TF-1.1",
         "name": "Child",
         "budget_allocation": 50,
-        "parent_wbe_id": root_id
+        "parent_wbe_id": root_id,
     }
     await client.post("/api/v1/wbes", json=child_data)
-    
+
     # 1. Test "null" filter (Root only)
-    resp_null = await client.get("/api/v1/wbes", params={
-        "project_id": test_project["project_id"],
-        "parent_wbe_id": "null"
-    })
+    resp_null = await client.get(
+        "/api/v1/wbes",
+        params={"project_id": test_project["project_id"], "parent_wbe_id": "null"},
+    )
     assert resp_null.status_code == 200
     # Hierarchical filter (including "null" for root) returns list directly
     data_null = resp_null.json()
     # Should contain Root, should NOT contain Child
     assert any(w["code"] == "TF-1" for w in data_null)
     assert not any(w["code"] == "TF-1.1" for w in data_null)
-    
+
     # 2. Test Specific ID filter
-    resp_specific = await client.get("/api/v1/wbes", params={
-        "project_id": test_project["project_id"],
-        "parent_wbe_id": str(root_id)
-    })
+    resp_specific = await client.get(
+        "/api/v1/wbes",
+        params={
+            "project_id": test_project["project_id"],
+            "parent_wbe_id": str(root_id),
+        },
+    )
     assert resp_specific.status_code == 200
     # Hierarchical filter returns list directly, not PaginatedResponse
     data_specific = resp_specific.json()
     # Should contain Child, should NOT contain Root
     assert any(w["code"] == "TF-1.1" for w in data_specific)
     assert not any(w["code"] == "TF-1" for w in data_specific)
-    
+
     # 3. Test No Filter (All)
-    resp_all = await client.get("/api/v1/wbes", params={
-        "project_id": test_project["project_id"]
-    })
+    resp_all = await client.get(
+        "/api/v1/wbes", params={"project_id": test_project["project_id"]}
+    )
     assert resp_all.status_code == 200
     data_all = resp_all.json()["items"]
     # Should contain BOTH if pagination allows

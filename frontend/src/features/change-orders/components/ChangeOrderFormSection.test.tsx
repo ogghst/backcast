@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Form } from "antd";
 import { ChangeOrderFormSection } from "./ChangeOrderFormSection";
 import type { ChangeOrderPublic } from "@/api/generated";
 
@@ -56,6 +55,7 @@ vi.mock("@/features/change-orders/api/useChangeOrders", () => ({
  */
 
 const mockChangeOrder: ChangeOrderPublic = {
+  id: "co-123",
   change_order_id: "co-123",
   code: "CO-2026-001",
   title: "Test Change Order",
@@ -75,7 +75,6 @@ const mockChangeOrder: ChangeOrderPublic = {
 
 describe("ChangeOrderFormSection", () => {
   let queryClient: QueryClient;
-  let formInstance: any;
 
   beforeEach(() => {
     vi.clearAllMocks();

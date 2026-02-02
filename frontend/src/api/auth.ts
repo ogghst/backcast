@@ -46,7 +46,7 @@ export const registerUser = async (userData: {
     ...registerData,
     is_active: true,
     is_superuser: false,
-    role: userData.role as string,
-  } as any);
+    role: userData.role as "admin" | "project_manager" | "department_manager" | "viewer",
+  });
   return user as unknown as UserPublic;
 };

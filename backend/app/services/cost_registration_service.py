@@ -1,0 +1,482 @@
+"""Cost Registration Service - versionable cost tracking management."""
+
+from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Any
+from uuid import UUID, uuid4
+
+from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.versioning.commands import (
+    CreateVersionCommand,
+    SoftDeleteCommand,
+    UpdateVersionCommand,
+)
+from app.core.versioning.enums import BranchMode
+from app.core.versioning.service import TemporalService
+from app.models.domain.cost_element import CostElement
+from app.models.domain.cost_registration import CostRegistration
+from app.models.schemas.cost_registration import (
+    CostRegistrationCreate,
+    CostRegistrationUpdate,
+)
+
+
+
+
+class BudgetStatus(BaseModel):
+    """Budget status for a cost element."""
+
+    cost_element_id: UUID
+    budget: Decimal
+    used: Decimal
+    remaining: Decimal
+    percentage: Decimal
+
+
+class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignore[type-var,unused-ignore]
+    """Service for Cost Registration management (versionable, not branchable).
+
+    Cost registrations track actual expenditures against cost elements.
+    They are versionable (NOT branchable) - costs are global facts.
+    """
+
+    def __init__(self, db: AsyncSession):
+        """Initialize service with database session.
+
+        Args:
+            db: Async database session
+        """
+        super().__init__(CostRegistration, db)
+
+    async def create(  # type: ignore[override]
+        self,
+        registration_in: CostRegistrationCreate,
+        actor_id: UUID,
+        branch: str = "main",
+    ) -> CostRegistration:
+        """Create new cost registration using CreateVersionCommand.
+
+        Args:
+            registration_in: The cost registration data
+            actor_id: The user creating the registration
+            control_date: Optional control date for valid_time (defaults to now).
+                          Use this for testing time-travel scenarios or data seeding.
+            branch: Branch to check budget against (defaults to "main").
+                    Cost registrations are global, but budget validation needs a context.
+        """
+        # Extract control_date from schema
+        control_date = getattr(registration_in, "control_date", None)
+
+        # Dump registration data and exclude control_date (not a model field)
+        registration_data = registration_in.model_dump(
+            exclude_unset=True,
+            exclude={"control_date"},  # Exclude from entity fields
+        )
+
+        # Use provided cost_registration_id (for seeding) or generate new one
+        root_id = registration_in.cost_registration_id or uuid4()
+        registration_data["cost_registration_id"] = root_id
+
+        # Default registration_date to current datetime (control date) if not provided
+        if (
+            "registration_date" not in registration_data
+            or registration_data["registration_date"] is None
+        ):
+            registration_data["registration_date"] = datetime.now(tz=UTC)
+
+        # CRITICAL: Use control_date for valid_time (defaults to now for production)
+        # registration_date is a business field and should NOT affect valid_time
+        # This ensures time-travel queries work correctly with as_of parameter
+        actual_control_date = control_date
+
+    # Budget validation removed - allowing over-budget registration with frontend warning
+
+
+        cmd = CreateVersionCommand(
+            entity_class=CostRegistration,  # type: ignore[type-var,unused-ignore]
+            root_id=root_id,
+            actor_id=actor_id,
+            control_date=actual_control_date,
+            **registration_data,
+        )
+        return await cmd.execute(self.session)
+
+    async def update(  # type: ignore[override]
+        self,
+        cost_registration_id: UUID,
+        registration_in: CostRegistrationUpdate,
+        actor_id: UUID,
+    ) -> CostRegistration:
+        """Update cost registration using UpdateVersionCommand.
+
+        Args:
+            cost_registration_id: The cost registration to update
+            registration_in: The update data
+            actor_id: The user making the update
+            control_date: Optional control date for valid_time (defaults to now)
+        """
+        # Extract control_date from schema
+        control_date = getattr(registration_in, "control_date", None)
+
+        # Dump update data and exclude control_date (not a model field)
+        update_data = registration_in.model_dump(
+            exclude_unset=True,
+            exclude={"control_date"},  # Exclude from entity fields
+        )
+
+        # Custom command class to handle multi-word entity name
+        class CostRegistrationUpdateCommand(UpdateVersionCommand[CostRegistration]):  # type: ignore[type-var,unused-ignore]
+            def _root_field_name(self) -> str:
+                return "cost_registration_id"
+
+        cmd = CostRegistrationUpdateCommand(
+            entity_class=CostRegistration,  # type: ignore[type-var,unused-ignore]
+            root_id=cost_registration_id,
+            actor_id=actor_id,
+            control_date=control_date,
+            **update_data,
+        )
+        return await cmd.execute(self.session)
+
+    async def soft_delete(
+        self,
+        cost_registration_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None,
+    ) -> None:
+        """Soft delete cost registration using SoftDeleteCommand."""
+
+        class CostRegistrationSoftDeleteCommand(SoftDeleteCommand[CostRegistration]):  # type: ignore[type-var,unused-ignore]
+            def _root_field_name(self) -> str:
+                return "cost_registration_id"
+
+        cmd = CostRegistrationSoftDeleteCommand(
+            entity_class=CostRegistration,  # type: ignore[type-var,unused-ignore]
+            root_id=cost_registration_id,
+            actor_id=actor_id,
+            control_date=control_date,
+        )
+        await cmd.execute(self.session)
+
+    async def get_by_id(self, cost_registration_id: UUID) -> CostRegistration | None:
+        """Get current cost registration by root ID."""
+        stmt = (
+            select(CostRegistration)
+            .where(
+                CostRegistration.cost_registration_id == cost_registration_id,
+                func.upper(CostRegistration.valid_time).is_(None),
+                CostRegistration.deleted_at.is_(None),
+            )
+            .order_by(CostRegistration.valid_time.desc())
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_cost_registrations(
+        self,
+        filters: dict[str, Any] | None = None,
+        skip: int = 0,
+        limit: int = 100,
+        as_of: datetime | None = None,
+    ) -> tuple[list[CostRegistration], int]:
+        """Get cost registrations with filtering, pagination, and time-travel support.
+
+        Args:
+            filters: Optional filters dict (e.g., {"cost_element_id": UUID})
+            skip: Number of records to skip (for pagination)
+            limit: Maximum number of records to return
+            as_of: Optional timestamp for time-travel query (Valid Time Travel semantics)
+
+        Returns:
+            Tuple of (list of cost registrations, total count)
+        """
+        # Build base query
+        stmt = select(CostRegistration).where(CostRegistration.cost_element_id.isnot(None))
+
+        # FIX: Use standardized bitemporal filter instead of custom implementation
+        # The custom filter was missing:
+        # - func.lower(valid_time) <= as_of (prevents future entities from being included)
+        # - TIMESTAMP casting (ensures proper timezone handling)
+        if as_of is not None:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            stmt = stmt.where(func.upper(CostRegistration.valid_time).is_(None))
+            stmt = stmt.where(CostRegistration.deleted_at.is_(None))
+
+        # Apply filters
+        if filters:
+            if "cost_element_id" in filters:
+                stmt = stmt.where(
+                    CostRegistration.cost_element_id == filters["cost_element_id"]
+                )
+
+        # Get total count
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total_result = await self.session.execute(count_stmt)
+        total = total_result.scalar_one()
+
+        # Apply default sorting and pagination
+        stmt = stmt.order_by(CostRegistration.registration_date.desc())
+        stmt = stmt.offset(skip).limit(limit)
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all()), total
+
+    async def get_total_for_cost_element(
+        self, cost_element_id: UUID, as_of: datetime | None = None
+    ) -> Any:  # Return Decimal for sum
+        """Calculate total costs for a cost element (time-travel aware).
+
+        Args:
+            cost_element_id: The cost element to sum costs for
+            as_of: Optional timestamp for historical query (time-travel)
+
+        Returns:
+            Sum of all cost registrations for the cost element
+
+        Example:
+            >>> # Get current total
+            >>> total = await service.get_total_for_cost_element(cost_element_id)
+            >>>
+            >>> # Get total as of specific date
+            >>> from datetime import datetime
+            >>> as_of = datetime(2026, 1, 1, 12, 0, 0)
+            >>> historical_total = await service.get_total_for_cost_element(
+            ...     cost_element_id, as_of=as_of
+            ... )
+        """
+        # Build query for time-travel support
+        stmt = select(func.sum(CostRegistration.amount)).where(
+            CostRegistration.cost_element_id == cost_element_id,
+        )
+
+        # FIX: Use standardized bitemporal filter instead of custom implementation
+        # The custom filter was missing:
+        # - func.lower(valid_time) <= as_of (prevents future entities from being included)
+        # - TIMESTAMP casting (ensures proper timezone handling)
+        if as_of is not None:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            stmt = stmt.where(func.upper(CostRegistration.valid_time).is_(None))
+            stmt = stmt.where(CostRegistration.deleted_at.is_(None))
+
+        result = await self.session.execute(stmt)
+        return result.scalar_one() or 0
+
+    async def get_cost_registration_as_of(
+        self,
+        cost_registration_id: UUID,
+        as_of: datetime,
+        branch: str = "main",
+        branch_mode: BranchMode | None = None,
+    ) -> CostRegistration | None:
+        """Get cost registration as it was at specific timestamp.
+
+        Provides Business Time Travel semantics (valid_time only) for cost registrations.
+        Uses standardized bitemporal filter for temporal queries.
+
+        Args:
+            cost_registration_id: The unique identifier of the cost registration
+            as_of: Timestamp to query (historical state based on valid_time)
+            branch: Branch name to query (always "main" for non-branchable entities)
+            branch_mode: Resolution mode for branches (not applicable, kept for interface consistency)
+
+        Returns:
+            CostRegistration if found at the specified timestamp, None otherwise
+        """
+        # Build base query
+        stmt = select(CostRegistration).where(
+            CostRegistration.cost_registration_id == cost_registration_id,
+        )
+
+        # Apply standardized bitemporal filter (Valid Time Travel semantics)
+        stmt = self._apply_bitemporal_filter(stmt, as_of)
+
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_budget_status(
+        self, cost_element_id: UUID, as_of: datetime | None = None
+    ) -> BudgetStatus:
+        """Get budget status for a cost element with time-travel support.
+
+        Returns budget, used, remaining, and percentage used.
+        Respects time-travel queries via the as_of parameter for Valid Time Travel.
+
+        Args:
+            cost_element_id: The cost element to get status for
+            as_of: Optional timestamp for time-travel query (historical view)
+
+        Returns:
+            BudgetStatus with budget, used, remaining, percentage
+        """
+        # Get the cost element's budget (current budget, not time-traveled)
+        # Note: CostElement budget itself could be time-traveled in future iterations
+        stmt = select(CostElement).where(
+            CostElement.cost_element_id == cost_element_id,
+            func.upper(CostElement.valid_time).is_(None),
+            CostElement.deleted_at.is_(None),
+        )
+        result = await self.session.execute(stmt)
+        cost_element = result.scalar_one_or_none()
+
+        if cost_element is None:
+            raise ValueError(f"Cost element {cost_element_id} not found")
+
+        budget = cost_element.budget_amount
+
+        # Get total costs for this cost element (time-travel aware)
+        used = await self.get_total_for_cost_element(cost_element_id, as_of=as_of)
+        used = Decimal(str(used)) if used else Decimal("0")
+
+        # Calculate remaining and percentage
+        remaining = budget - used
+        percentage = (used / budget * Decimal("100")) if budget > 0 else Decimal("0")
+
+        return BudgetStatus(
+            cost_element_id=cost_element_id,
+            budget=budget,
+            used=used,
+            remaining=remaining,
+            percentage=percentage,
+        )
+
+    async def get_costs_by_period(
+        self,
+        cost_element_id: UUID,
+        period: str,  # "daily", "weekly", "monthly"
+        start_date: datetime,
+        end_date: datetime | None = None,
+        as_of: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get cost aggregations by time period.
+
+        Args:
+            cost_element_id: The cost element to aggregate costs for
+            period: Period type ("daily", "weekly", "monthly")
+            start_date: Start date for aggregation
+            end_date: End date for aggregation (defaults to now)
+            as_of: Optional timestamp for time-travel query
+
+        Returns:
+            List of dicts with period_start and total_amount
+
+        Example:
+            >>> costs = await service.get_costs_by_period(
+            ...     cost_element_id,
+            ...     period="weekly",
+            ...     start_date=datetime(2026, 1, 1),
+            ...     end_date=datetime(2026, 1, 31)
+            ... )
+            >>> # Returns: [
+            ... #   {"period_start": "2026-01-01", "total_amount": 1500.00},
+            ... #   {"period_start": "2026-01-08", "total_amount": 2000.00},
+            ... #   ...
+            ... # ]
+        """
+        if end_date is None:
+            end_date = datetime.now(tz=UTC)
+
+        # Map API period names to PostgreSQL date_trunc units
+        # API uses: "daily", "weekly", "monthly"
+        # PostgreSQL expects: "day", "week", "month"
+        period_mapping = {
+            "daily": "day",
+            "weekly": "week",
+            "monthly": "month",
+        }
+        pg_period = period_mapping.get(period, period)
+
+        # Build base query with time-travel support
+        stmt = select(
+            func.date_trunc(pg_period, CostRegistration.registration_date).label("period_start"),
+            func.sum(CostRegistration.amount).label("total_amount"),
+        ).where(
+            CostRegistration.cost_element_id == cost_element_id,
+            CostRegistration.registration_date >= start_date,
+            CostRegistration.registration_date <= end_date,
+        )
+
+        # FIX: Use standardized bitemporal filter instead of custom implementation
+        # The custom filter was missing:
+        # - func.lower(valid_time) <= as_of (prevents future entities from being included)
+        # - TIMESTAMP casting (ensures proper timezone handling)
+        if as_of is not None:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            stmt = stmt.where(func.upper(CostRegistration.valid_time).is_(None))
+            stmt = stmt.where(CostRegistration.deleted_at.is_(None))
+
+        # Group by period and order
+        stmt = stmt.group_by("period_start").order_by("period_start")
+
+        result = await self.session.execute(stmt)
+        return [
+            {"period_start": row.period_start.isoformat(), "total_amount": float(row.total_amount)}
+            for row in result.all()
+        ]
+
+    async def get_cumulative_costs(
+        self,
+        cost_element_id: UUID,
+        start_date: datetime,
+        end_date: datetime | None = None,
+        as_of: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get cumulative costs over time.
+
+        Args:
+            cost_element_id: The cost element to get cumulative costs for
+            start_date: Start date for calculation
+            end_date: End date for calculation (defaults to now)
+            as_of: Optional timestamp for time-travel query
+
+        Returns:
+            List of dicts with registration_date and cumulative_amount
+        """
+        if end_date is None:
+            end_date = datetime.now(tz=UTC)
+
+        # Build base query with time-travel support
+        stmt = select(
+            CostRegistration.registration_date,
+            CostRegistration.amount,
+        ).where(
+            CostRegistration.cost_element_id == cost_element_id,
+            CostRegistration.registration_date >= start_date,
+            CostRegistration.registration_date <= end_date,
+        )
+
+        # FIX: Use standardized bitemporal filter instead of custom implementation
+        # The custom filter was missing:
+        # - func.lower(valid_time) <= as_of (prevents future entities from being included)
+        # - TIMESTAMP casting (ensures proper timezone handling)
+        if as_of is not None:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            stmt = stmt.where(func.upper(CostRegistration.valid_time).is_(None))
+            stmt = stmt.where(CostRegistration.deleted_at.is_(None))
+
+        # Order by date for cumulative calculation
+        stmt = stmt.order_by(CostRegistration.registration_date)
+
+        # Execute query
+        result = await self.session.execute(stmt)
+        rows = result.all()
+
+        # Calculate cumulative sum
+        cumulative_amount = Decimal("0")
+        cumulative_costs = []
+        for row in rows:
+            cumulative_amount += row.amount
+            cumulative_costs.append({
+                "registration_date": row.registration_date.isoformat(),
+                "amount": float(row.amount),
+                "cumulative_amount": float(cumulative_amount),
+            })
+
+        return cumulative_costs

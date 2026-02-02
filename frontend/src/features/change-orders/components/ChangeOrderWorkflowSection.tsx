@@ -7,7 +7,10 @@ import {
   MergeCellsOutlined,
 } from "@ant-design/icons";
 import type { ChangeOrderPublic } from "@/api/generated";
-import { useWorkflowActions, isActionAvailable, WORKFLOW_ACTIONS } from "../hooks/useWorkflowActions";
+import {
+  useWorkflowActions,
+  isActionAvailable,
+} from "../hooks/useWorkflowActions";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
 
 interface ChangeOrderWorkflowSectionProps {
@@ -54,18 +57,18 @@ export function ChangeOrderWorkflowSection({
   onActionSuccess,
   useCollapsibleCard = false,
 }: ChangeOrderWorkflowSectionProps): JSX.Element | null {
+  // Workflow actions - Hook must be top level
+  const { submit, approve, reject, merge, isLoading } = useWorkflowActions(
+    changeOrder?.change_order_id || "",
+    { onSuccess: onActionSuccess },
+  );
+
   // Hide in create mode
   if (!changeOrder) {
     return null;
   }
 
-  const { change_order_id, status, branch_locked, available_transitions } = changeOrder;
-
-  // Workflow actions
-  const { submit, approve, reject, merge, isLoading } = useWorkflowActions(
-    change_order_id,
-    { onSuccess: onActionSuccess }
-  );
+  const { status, branch_locked, available_transitions } = changeOrder;
 
   // Check which actions are available
   const canSubmit = isActionAvailable("SUBMIT", available_transitions);
@@ -91,18 +94,20 @@ export function ChangeOrderWorkflowSection({
       )}
 
       {/* Current status */}
-      <Space direction="vertical" style={{ width: "100%" }} size="large">
+      <Space orientation="vertical" style={{ width: "100%" }} size="large">
         <div>
-          <div style={{ marginBottom: 8, color: "#8c8c8c" }}>Current Status</div>
+          <div style={{ marginBottom: 8, color: "#8c8c8c" }}>
+            Current Status
+          </div>
           <Badge
-            color={STATUS_COLORS[status] || "default"}
+            color={STATUS_COLORS[status || "Draft"] ?? "default"}
             text={
               <Tag
-                icon={STATUS_ICONS[status]}
-                color={STATUS_COLORS[status] || "default"}
+                icon={STATUS_ICONS[status || "Draft"] ?? undefined}
+                color={STATUS_COLORS[status || "Draft"] ?? "default"}
                 style={{ fontSize: 14, padding: "4px 12px" }}
               >
-                {status}
+                {status || "Draft"}
               </Tag>
             }
           />
@@ -111,7 +116,9 @@ export function ChangeOrderWorkflowSection({
         {/* Available transitions */}
         {available_transitions && available_transitions.length > 0 && (
           <div>
-            <div style={{ marginBottom: 8, color: "#8c8c8c" }}>Available Transitions</div>
+            <div style={{ marginBottom: 8, color: "#8c8c8c" }}>
+              Available Transitions
+            </div>
             <Space wrap>
               {available_transitions.map((transition) => (
                 <Tag key={transition} color="blue">

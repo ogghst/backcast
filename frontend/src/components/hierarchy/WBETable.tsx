@@ -1,4 +1,4 @@
-import { Table, Button, Space, Input } from "antd";
+import { Table, Button, Space, Input, Tag } from "antd";
 import type { ColumnType } from "antd/es/table";
 import { WBERead } from "@/api/generated";
 import {
@@ -39,7 +39,7 @@ export const WBETable = ({
   const [searchText, setSearchText] = useState("");
 
   const getColumnSearchProps = (
-    dataIndex: keyof WBERead
+    dataIndex: keyof WBERead,
   ): ColumnType<WBERead> => ({
     filterDropdown: ({
       setSelectedKeys,
@@ -131,6 +131,15 @@ export const WBETable = ({
         Number(a.budget_allocation || 0) - Number(b.budget_allocation || 0),
     },
     {
+      title: "Branch",
+      dataIndex: "branch",
+      key: "branch",
+      width: 120,
+      render: (val) => (val ? <Tag>{val}</Tag> : "-"),
+      sorter: (a, b) => a.branch.localeCompare(b.branch),
+      ...getColumnSearchProps("branch"),
+    },
+    {
       title: "Actions",
       key: "actions",
       width: 150,
@@ -179,7 +188,7 @@ export const WBETable = ({
       result = result.filter(
         (w) =>
           w.name.toLowerCase().includes(lower) ||
-          w.code.toLowerCase().includes(lower)
+          w.code.toLowerCase().includes(lower),
       );
     }
     return result;
@@ -232,7 +241,6 @@ export const WBETable = ({
                 position: ["bottomRight"],
               }
         }
-        size="middle"
       />
     </div>
   );

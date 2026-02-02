@@ -44,7 +44,7 @@ export const UserProfile: React.FC = () => {
     {
       key: "user-info",
       label: (
-        <Space direction="vertical" size={0} style={{ padding: "4px 0" }}>
+        <Space orientation="vertical" size={0} style={{ padding: "4px 0" }}>
           <Text strong>{user?.full_name || "User"}</Text>
           <Text type="secondary" style={{ fontSize: "12px" }}>
             {user?.role || "viewer"}

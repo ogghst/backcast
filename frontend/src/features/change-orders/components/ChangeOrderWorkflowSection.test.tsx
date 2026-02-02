@@ -52,6 +52,7 @@ vi.mock("@/features/change-orders/hooks/useWorkflowInfo", () => ({
  */
 
 const mockChangeOrder: ChangeOrderPublic = {
+  id: "co-123",
   change_order_id: "co-123",
   code: "CO-2026-001",
   title: "Test Change Order",

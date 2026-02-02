@@ -20,3 +20,6 @@ export { ChangeOrderWorkflowModal } from "./ChangeOrderWorkflowModal";
 // Re-export create/edit modal from existing file
 export { ChangeOrderModal } from "./ChangeOrderModal";
 export { ChangeOrderList } from "./ChangeOrderList";
+
+// Impact analysis components
+export { ForecastImpactList } from "./ForecastImpactList";

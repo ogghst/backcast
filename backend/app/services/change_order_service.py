@@ -5,21 +5,26 @@ creation on CO creation and workflow-driven branch locking.
 """
 
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID, uuid4
 
+from sqlalchemy import cast as sql_cast
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.service import BranchableService
-from app.core.versioning.commands import CreateVersionCommand
+from app.core.versioning.commands import CreateVersionCommand, UpdateVersionCommand
 from app.models.domain.branch import Branch
 from app.models.domain.change_order import ChangeOrder
 from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
 from app.models.schemas.change_order import ChangeOrderCreate, ChangeOrderUpdate
 from app.services.branch_service import BranchService
 from app.services.change_order_workflow_service import ChangeOrderWorkflowService
+from app.services.cost_element_service import CostElementService
+from app.services.entity_discovery_service import EntityDiscoveryService
+from app.services.wbe import WBEService
 
 if TYPE_CHECKING:
     from app.models.schemas.change_order import ChangeOrderPublic
@@ -60,6 +65,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         a transaction, current_timestamp() returns the transaction start time,
         which may be before the valid_time lower bound of recently created records.
         """
+        # Cast clock_timestamp() to TIMESTAMP for proper temporal comparison
+        as_of_tstz = sql_cast(func.clock_timestamp(), TIMESTAMP(timezone=True))
         stmt = (
             select(ChangeOrder)
             .where(
@@ -67,7 +74,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
                 ChangeOrder.branch == branch,
                 # Check if current actual timestamp is within valid_time range
                 # clock_timestamp() returns the actual current time, not transaction start time
-                cast(Any, ChangeOrder).valid_time.op("@>")(func.clock_timestamp()),
+                cast(Any, ChangeOrder).valid_time.op("@>")(as_of_tstz),
+                func.lower(cast(Any, ChangeOrder).valid_time) <= as_of_tstz,
                 cast(Any, ChangeOrder).deleted_at.is_(None),
             )
             .order_by(cast(Any, ChangeOrder).valid_time.desc())
@@ -117,7 +125,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         self,
         change_order_in: ChangeOrderCreate,
         actor_id: UUID,
-        control_date: datetime | None = None,
     ) -> ChangeOrder:
         """Create a new Change Order with automatic branch creation.
 
@@ -130,17 +137,20 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         Args:
             change_order_in: Change Order creation data
             actor_id: User creating the Change Order
-            control_date: Optional control date for bitemporal operations
 
         Returns:
             Created ChangeOrder
 
         """
+        # Extract control_date from schema
+        control_date = getattr(change_order_in, "control_date", None)
         # Extract data from Pydantic model
         co_data = change_order_in.model_dump(exclude_unset=True)
         co_data.pop("control_date", None)
         code = co_data.get("code")
-        project_id = co_data.get("project_id")  # Already a UUID from Pydantic validation
+        project_id = co_data.get(
+            "project_id"
+        )  # Already a UUID from Pydantic validation
 
         # Generate a UUID for the change_order root
         root_id = uuid4()
@@ -167,14 +177,26 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         # (e.g., if CO is created directly with "Submitted for Approval" status)
         should_lock = initial_status != "Draft"
 
-        branch = Branch(
+        # Create the corresponding branch entity using CreateVersionCommand
+        # This ensures proper valid_time setting based on control_date
+        branch_root_id = uuid4()
+        
+        branch_cmd = CreateVersionCommand(
+            entity_class=Branch,
+            root_id=branch_root_id,
+            actor_id=actor_id,
+            control_date=control_date,
+            # branch="main", # REMOVED: Branch entity is not checking into a branch itself
+            
+            # Fields for Branch entity
+            branch_id=branch_root_id,
             name=branch_name,
             project_id=project_id,
             type="change_order",
             locked=should_lock,
-            created_by=actor_id,
         )
-        self.session.add(branch)
+        # Note: CreateVersionCommand handles session.add
+        branch = await branch_cmd.execute(self.session)
 
         # Commit both CO and branch creation in single transaction
         await self.session.commit()
@@ -188,7 +210,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         change_order_id: UUID,
         change_order_in: ChangeOrderUpdate,
         actor_id: UUID,
-        control_date: datetime | None = None,
         branch: str | None = None,
     ) -> ChangeOrder:
         """Update a Change Order's metadata with workflow validation and branch locking.
@@ -203,7 +224,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             change_order_id: The change_order_id (UUID root identifier)
             change_order_in: Update data (partial)
             actor_id: User making the update
-            control_date: Optional control date for bitemporal operations
             branch: Optional branch name to update on (defaults to current branch)
 
         Returns:
@@ -212,23 +232,30 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         Raises:
             ValueError: If Change Order not found, invalid branch, or invalid status transition
         """
+        # Extract control_date from schema
+        control_date = getattr(change_order_in, "control_date", None)
         # Get the current version on any branch to find where it exists
         from sqlalchemy import select as sql_select
 
         # CRITICAL FIX: When control_date is provided (Time Machine mode), use it instead of clock_timestamp()
         # This ensures we find the Change Order that exists at the control_date, not at current time
         query_timestamp = control_date if control_date else func.clock_timestamp()
+        query_timestamp_tstz = sql_cast(query_timestamp, TIMESTAMP(timezone=True))
 
         # First try to find the CO on any branch
         # Use control_date if provided (Time Machine), otherwise use clock_timestamp()
-        stmt = sql_select(ChangeOrder).where(
-            ChangeOrder.change_order_id == change_order_id,
-            # Check if query_timestamp is within valid_time range
-            cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp),
-            cast(Any, ChangeOrder).deleted_at.is_(None),
-        ).order_by(
-            cast(Any, ChangeOrder).valid_time.desc()
-        ).limit(1)
+        stmt = (
+            sql_select(ChangeOrder)
+            .where(
+                ChangeOrder.change_order_id == change_order_id,
+                # Check if query_timestamp is within valid_time range
+                cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp_tstz),
+                func.lower(cast(Any, ChangeOrder).valid_time) <= query_timestamp_tstz,
+                cast(Any, ChangeOrder).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, ChangeOrder).valid_time.desc())
+            .limit(1)
+        )
 
         result = await self.session.execute(stmt)
         current = result.scalar_one_or_none()
@@ -241,7 +268,9 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         # Filter None values from update data
         update_data = change_order_in.model_dump(exclude_unset=True)
         update_data.pop("control_date", None)
-        update_data.pop("branch", None)  # Remove branch from update data, we use it separately
+        update_data.pop(
+            "branch", None
+        )  # Remove branch from update data, we use it separately
 
         # Extract comment for audit log (not stored in ChangeOrder model)
         comment = update_data.pop("comment", None)
@@ -250,14 +279,18 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         target_branch = branch if branch is not None else current.branch
 
         # Check if version exists on target branch
-        stmt_target = sql_select(ChangeOrder).where(
-            ChangeOrder.change_order_id == change_order_id,
-            ChangeOrder.branch == target_branch,
-            cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp),
-            cast(Any, ChangeOrder).deleted_at.is_(None),
-        ).order_by(
-            cast(Any, ChangeOrder).valid_time.desc()
-        ).limit(1)
+        stmt_target = (
+            sql_select(ChangeOrder)
+            .where(
+                ChangeOrder.change_order_id == change_order_id,
+                ChangeOrder.branch == target_branch,
+                cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp_tstz),
+                func.lower(cast(Any, ChangeOrder).valid_time) <= query_timestamp_tstz,
+                cast(Any, ChangeOrder).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, ChangeOrder).valid_time.desc())
+            .limit(1)
+        )
 
         result_target = await self.session.execute(stmt_target)
         target_current = result_target.scalar_one_or_none()
@@ -268,14 +301,18 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         # If no version on target branch and target is not main, auto-fork from main
         if target_current is None and target_branch != "main":
             # Try to fork from main
-            stmt_main = sql_select(ChangeOrder).where(
-                ChangeOrder.change_order_id == change_order_id,
-                ChangeOrder.branch == "main",
-                cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp),
-                cast(Any, ChangeOrder).deleted_at.is_(None),
-            ).order_by(
-                cast(Any, ChangeOrder).valid_time.desc()
-            ).limit(1)
+            stmt_main = (
+                sql_select(ChangeOrder)
+                .where(
+                    ChangeOrder.change_order_id == change_order_id,
+                    ChangeOrder.branch == "main",
+                    cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp_tstz),
+                    func.lower(cast(Any, ChangeOrder).valid_time) <= query_timestamp_tstz,
+                    cast(Any, ChangeOrder).deleted_at.is_(None),
+                )
+                .order_by(cast(Any, ChangeOrder).valid_time.desc())
+                .limit(1)
+            )
 
             result_main = await self.session.execute(stmt_main)
             main_version = result_main.scalar_one_or_none()
@@ -335,22 +372,23 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             for field, value in update_data.items():
                 setattr(target_current, field, value)
 
-            # Update the updated_by and updated_at fields
-            target_current.updated_by = actor_id  # type: ignore[attr-defined]
-            target_current.updated_at = datetime.now(UTC)  # type: ignore[attr-defined]
-
             await self.session.flush()
             await self.session.refresh(target_current)
             updated_co = target_current
         else:
-            # Use update method from BranchableService (creates new version)
-            updated_co = await self.update(
+            # Direct UpdateCommand usage to bypass branch lock check for status updates
+            # (since ChangeOrder itself may lock the branch it resides on)
+            from app.core.branching.commands import UpdateCommand
+
+            cmd = UpdateCommand(
+                entity_class=self.entity_class,
                 root_id=change_order_id,
                 actor_id=actor_id,
                 branch=target_branch,
                 control_date=control_date,
-                **update_data,
+                updates=update_data,
             )
+            updated_co = await cmd.execute(self.session)
 
         # Create audit log entry for status transition
         if old_status != new_status:
@@ -365,11 +403,12 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             self.session.add(audit_entry)
 
         # Trigger branch lock/unlock based on status change
-        if old_status != new_status and updated_co.branch_name:
+        if old_status != new_status and updated_co and updated_co.branch_name:
             if await self.workflow.should_lock_on_transition(old_status, new_status):
                 await self.branch_service.lock(
                     name=updated_co.branch_name,
                     project_id=updated_co.project_id,
+                    actor_id=actor_id,
                 )
             elif await self.workflow.should_unlock_on_transition(
                 old_status, new_status
@@ -377,7 +416,13 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
                 await self.branch_service.unlock(
                     name=updated_co.branch_name,
                     project_id=updated_co.project_id,
+                    actor_id=actor_id,
                 )
+            # Refresh updated_co as it may be expired by commit in lock/unlock
+            await self.session.refresh(updated_co)
+
+        if not updated_co:
+            raise ValueError(f"Failed to update Change Order {change_order_id}")
 
         return updated_co
 
@@ -525,13 +570,16 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         Returns:
             Current ChangeOrder or None
         """
+        # Cast clock_timestamp() to TIMESTAMP for proper temporal comparison
+        as_of_tstz = sql_cast(func.clock_timestamp(), TIMESTAMP(timezone=True))
         stmt = (
             select(ChangeOrder)
             .where(
                 ChangeOrder.code == code,
                 ChangeOrder.branch == branch,
                 # Check if actual current timestamp is within valid_time range
-                cast(Any, ChangeOrder).valid_time.op("@>")(func.clock_timestamp()),
+                cast(Any, ChangeOrder).valid_time.op("@>")(as_of_tstz),
+                func.lower(cast(Any, ChangeOrder).valid_time) <= as_of_tstz,
                 cast(Any, ChangeOrder).deleted_at.is_(None),
             )
             .order_by(cast(Any, ChangeOrder).valid_time.desc())
@@ -545,8 +593,12 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         change_order_id: UUID,
         actor_id: UUID,
         target_branch: str = "main",
+        control_date: datetime | None = None,
     ) -> ChangeOrder:
         """Merge the Change Order's branch into the target branch.
+
+        Orchestrates the merge of ALL branch content (Change Order, WBEs,
+        CostElements, Projects) from the source branch to the target branch.
 
         Infers the source branch from the Change Order's code.
 
@@ -556,18 +608,15 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             target_branch: Branch to merge INTO (default: main)
 
         Returns:
-            The merged Change Order version on the target branch
+            The merged Change Order version on the target branch with status "Implemented"
+
+        Raises:
+            ValueError: If Change Order not found or no active version on source branch
+            Exception: If merge fails (transaction is rolled back)
         """
         # 1. Get current version (from main or source) to find the code
         # We check "main" first to get the metadata
         current = await self.get_current(change_order_id, branch=target_branch)
-
-        # If not found on target, try finding it on any branch?
-        # Actually, if we are merging, the CO *definition* usually exists on main (Draft),
-        # and we are merging the *changes* from the branch.
-        # But wait, Change Order Entity *itself* is branchable.
-        # If I edit CO description on `co-123`, I am creating a version on `co-123`.
-        # Merging `co-123` to `main` means bringing that description to `main`.
 
         if not current:
             # Try to find it on any branch to get the code?
@@ -581,14 +630,86 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         # Check if source branch has active version
         source_version = await self.get_current(change_order_id, branch=source_branch)
         if not source_version:
-             raise ValueError(f"No active version found on source branch {source_branch}")
+            raise ValueError(
+                f"No active version found on source branch {source_branch}"
+            )
 
-        return await self.merge_branch(
+        # Detect merge conflicts before proceeding
+        conflicts = await self._detect_all_merge_conflicts(
+            source_branch, target_branch
+        )
+        if conflicts:
+            from app.core.branching.exceptions import MergeConflictError
+
+            raise MergeConflictError(conflicts)
+
+        # 2. Discover all entities in the source branch (including soft-deleted)
+        discovery_service = EntityDiscoveryService(self.session)
+        all_wbes = await discovery_service.discover_all_wbes(source_branch)
+        all_cost_elements = await discovery_service.discover_all_cost_elements(
+            source_branch
+        )
+
+        # 3. Merge each entity type, handling soft-deletes specially
+        # Merge WBEs
+        wbe_service = WBEService(self.session)
+        for wbe in all_wbes:
+            if wbe.deleted_at is not None:
+                # Soft-deleted on source - soft-delete on target too
+                await wbe_service.soft_delete(
+                    root_id=wbe.wbe_id,
+                    actor_id=actor_id,
+                    branch=target_branch,
+                    control_date=control_date,
+                )
+            else:
+                # Active on source - merge normally
+                await wbe_service.merge_branch(
+                    root_id=wbe.wbe_id,
+                    actor_id=actor_id,
+                    source_branch=source_branch,
+                    target_branch=target_branch,
+                    control_date=control_date,
+                )
+
+        # Merge CostElements
+        ce_service = CostElementService(self.session)
+        for ce in all_cost_elements:
+            if ce.deleted_at is not None:
+                # Soft-deleted on source - soft-delete on target too
+                await ce_service.soft_delete(
+                    cost_element_id=ce.cost_element_id,
+                    actor_id=actor_id,
+                    branch=target_branch,
+                    control_date=control_date,
+                )
+            else:
+                # Active on source - merge normally
+                await ce_service.merge_branch(
+                    root_id=ce.cost_element_id,
+                    actor_id=actor_id,
+                    source_branch=source_branch,
+                    target_branch=target_branch,
+                    control_date=control_date,
+                )
+
+        # 4. Merge the Change Order entity itself
+        merged_co = await self.merge_branch(
             root_id=change_order_id,
             actor_id=actor_id,
             source_branch=source_branch,
             target_branch=target_branch,
+            control_date=control_date,
         )
+
+        # 5. Update CO status to "Implemented" directly on the merged version
+        # This avoids creating an extra version - we update the merged version in place
+        merged_co.status = "Implemented"
+        self.session.add(merged_co)
+        await self.session.flush()
+        await self.session.refresh(merged_co)
+
+        return merged_co
 
     async def revert_change_order_version(
         self,
@@ -669,3 +790,47 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         }
 
         return ChangeOrderPublic(**public_data)
+
+    async def _detect_all_merge_conflicts(
+        self, source_branch: str, target_branch: str
+    ) -> list[dict[str, Any]]:
+        """Detect merge conflicts across all entities in the source branch.
+
+        Checks for conflicts in WBEs, CostElements, and the Change Order itself.
+        Only checks active (non-deleted) entities.
+
+        Args:
+            source_branch: Source branch name (e.g., "co-123")
+            target_branch: Target branch name (default: "main")
+
+        Returns:
+            List of conflict dictionaries. Empty if no conflicts.
+        """
+        conflicts: list[dict[str, Any]] = []
+
+        # Discover active (non-deleted) entities in source branch
+        discovery_service = EntityDiscoveryService(self.session)
+        wbes = await discovery_service.discover_wbes(source_branch)
+        cost_elements = await discovery_service.discover_cost_elements(source_branch)
+
+        # Check conflicts for WBEs
+        wbe_service = WBEService(self.session)
+        for wbe in wbes:
+            wbe_conflicts = await wbe_service._detect_merge_conflicts(
+                root_id=wbe.wbe_id,
+                source_branch=source_branch,
+                target_branch=target_branch,
+            )
+            conflicts.extend(wbe_conflicts)
+
+        # Check conflicts for CostElements
+        ce_service = CostElementService(self.session)
+        for ce in cost_elements:
+            ce_conflicts = await ce_service._detect_merge_conflicts(
+                root_id=ce.cost_element_id,
+                source_branch=source_branch,
+                target_branch=target_branch,
+            )
+            conflicts.extend(ce_conflicts)
+
+        return conflicts

@@ -91,12 +91,14 @@ export class ProjectsService {
      * Supports time-travel queries via the as_of parameter to view
      * the project's state at any historical point in time.
      * @param projectId
+     * @param branch Branch name
      * @param asOf Time travel: get project state as of this timestamp (ISO 8601)
      * @returns ProjectRead Successful Response
      * @throws ApiError
      */
     public static getProject(
         projectId: string,
+        branch: string = 'main',
         asOf?: (string | null),
     ): CancelablePromise<ProjectRead> {
         return __request(OpenAPI, {
@@ -106,6 +108,7 @@ export class ProjectsService {
                 'project_id': projectId,
             },
             query: {
+                'branch': branch,
                 'as_of': asOf,
             },
             errors: {
@@ -194,17 +197,22 @@ export class ProjectsService {
      *
      * Requires read permission.
      * @param projectId
+     * @param asOf Time travel: get branches as of this timestamp (ISO 8601)
      * @returns BranchPublic Successful Response
      * @throws ApiError
      */
     public static getProjectBranches(
         projectId: string,
+        asOf?: (string | null),
     ): CancelablePromise<Array<BranchPublic>> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/projects/{project_id}/branches',
             path: {
                 'project_id': projectId,
+            },
+            query: {
+                'as_of': asOf,
             },
             errors: {
                 422: `Validation Error`,

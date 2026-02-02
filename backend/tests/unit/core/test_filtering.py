@@ -144,7 +144,9 @@ class TestFilterParserBuildSQLAlchemyFilters:
         filters = {"status": ["active"], "name": ["test"]}
         allowed_fields = ["status", "branch"]  # 'name' is not allowed
 
-        with pytest.raises(FilterFieldNotAllowedError, match="Filter field 'name' is not allowed"):
+        with pytest.raises(
+            FilterFieldNotAllowedError, match="Filter field 'name' is not allowed"
+        ):
             FilterParser.build_sqlalchemy_filters(
                 TestModel, filters, allowed_fields=allowed_fields
             )
@@ -243,24 +245,30 @@ class TestFilterParserIntegration:
 
         filters = {"level": ["abc"]}  # level is Integer
         # The list is cast to string in the error message, so it will look like "['abc']"
-        with pytest.raises(FilterValueTypeError, match="expected int, got '\\['abc'\\]'"):
-             FilterParser.build_sqlalchemy_filters(TestModel, filters)
+        with pytest.raises(
+            FilterValueTypeError, match="expected int, got '\\['abc'\\]'"
+        ):
+            FilterParser.build_sqlalchemy_filters(TestModel, filters)
 
     def test_invalid_field_failure_custom_exception(self) -> None:
         """Test that invalid field validation raises FilterFieldNotAllowedError."""
         from app.core.exceptions.filtering import FilterFieldNotAllowedError
 
-        filters = {"invalid_col": ["val"]}
         # Note: current implementation raises ValueError for unknown fields on model too
         # We want to standardize this to FilterFieldNotAllowedError or similar if possible,
         # or at least ensure our new logic handles it.
         # For now, let's assume we want to catch the ValueError and re-raise or just specific disallowed fields.
+        _ = {"invalid_col": ["val"]}  # Unused - for testing invalid filters
 
         # Test case: disallowed field (in whitelist context)
         allowed = ["status"]
         filters_disallowed = {"branch": ["main"]}
-        with pytest.raises(FilterFieldNotAllowedError, match="Filter field 'branch' is not allowed"):
-             FilterParser.build_sqlalchemy_filters(TestModel, filters_disallowed, allowed_fields=allowed)
+        with pytest.raises(
+            FilterFieldNotAllowedError, match="Filter field 'branch' is not allowed"
+        ):
+            FilterParser.build_sqlalchemy_filters(
+                TestModel, filters_disallowed, allowed_fields=allowed
+            )
 
     def test_boolean_strict_parsing(self) -> None:
         """Test strict boolean parsing."""

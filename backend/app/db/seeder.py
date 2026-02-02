@@ -141,7 +141,9 @@ class DataSeeder:
                     # Check if department already exists
                     existing_dept = await dept_service.get_by_code(dept_in.code)
                     if existing_dept:
-                        logger.debug(f"Department {dept_in.code} already exists, skipping")
+                        logger.debug(
+                            f"Department {dept_in.code} already exists, skipping"
+                        )
                         skipped_count += 1
                         continue
 
@@ -342,6 +344,10 @@ class DataSeeder:
             for _, item in enumerate(ce_data):
                 try:
                     # wbe_id and cost_element_type_id are already in the JSON file now
+                    # Inject default branch if not present
+                    if "branch" not in item:
+                        item["branch"] = "main"
+
                     ce_in = CostElementCreate(**item)
                     await ce_service.create(ce_in, actor_id)
                     created_count += 1
@@ -353,6 +359,102 @@ class DataSeeder:
 
         logger.info(
             f"Cost Element seeding complete: {created_count} created, {skipped_count} skipped/failed"
+        )
+
+    async def seed_cost_registrations(self, session: AsyncSession) -> None:
+        """Seed Cost Registrations from cost_registrations.json file.
+
+        Args:
+            session: Database session
+        """
+        from app.models.schemas.cost_registration import CostRegistrationCreate
+        from app.services.cost_registration_service import CostRegistrationService
+
+        logger.info("Starting Cost Registration seeding...")
+        cr_data = self.load_seed_file("cost_registrations.json")
+
+        if not cr_data:
+            logger.info("No Cost Registration seed data found or file is empty")
+            return
+
+        cr_service = CostRegistrationService(session)
+
+        from uuid import uuid4
+
+        actor_id = uuid4()
+
+        created_count = 0
+        skipped_count = 0
+
+        with seed_operation():
+            for _, item in enumerate(cr_data):
+                try:
+                    # Inject default branch if not present
+                    if "branch" not in item:
+                        item["branch"] = "main"
+
+                    cr_in = CostRegistrationCreate(**item)
+                    await cr_service.create(cr_in, actor_id)
+                    created_count += 1
+                    logger.info(f"Created Cost Registration: {cr_in.amount}")
+
+                except Exception as e:
+                    logger.error(
+                        f"Failed to seed Cost Registration {item.get('description')}: {e}"
+                    )
+                    skipped_count += 1
+
+        logger.info(
+            f"Cost Registration seeding complete: {created_count} created, {skipped_count} skipped/failed"
+        )
+
+    async def seed_progress_entries(self, session: AsyncSession) -> None:
+        """Seed Progress Entries from progress_entries.json file.
+
+        Args:
+            session: Database session
+        """
+        from app.models.schemas.progress_entry import ProgressEntryCreate
+        from app.services.progress_entry_service import ProgressEntryService
+
+        logger.info("Starting Progress Entry seeding...")
+        pe_data = self.load_seed_file("progress_entries.json")
+
+        if not pe_data:
+            logger.info("No Progress Entry seed data found or file is empty")
+            return
+
+        pe_service = ProgressEntryService(session)
+
+        from uuid import uuid4
+
+        actor_id = uuid4()
+
+        created_count = 0
+        skipped_count = 0
+
+        with seed_operation():
+            for _, item in enumerate(pe_data):
+                try:
+                    # Inject default branch if not present
+                    if "branch" not in item:
+                        item["branch"] = "main"
+
+                    pe_in = ProgressEntryCreate(**item)
+                    await pe_service.create(pe_in, actor_id)
+                    created_count += 1
+                    logger.info(
+                        f"Created Progress Entry: {pe_in.progress_percentage}%"
+                    )
+
+                except Exception as e:
+                    logger.error(
+                        f"Failed to seed Progress Entry {item.get('notes')}: {e}"
+                    )
+                    skipped_count += 1
+
+        logger.info(
+            f"Progress Entry seeding complete: {created_count} created, {skipped_count} skipped/failed"
         )
 
     async def seed_all(self, session: AsyncSession) -> None:
@@ -381,6 +483,12 @@ class DataSeeder:
 
             # Seed Cost Elements
             await self.seed_cost_elements(session)
+
+            # Seed Cost Registrations
+            await self.seed_cost_registrations(session)
+
+            # Seed Progress Entries
+            await self.seed_progress_entries(session)
 
             # Commit all changes (services usually commit internally for writes?
             # Or depend on session commit at end. If services use execute() they might depend on session commit.)

@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
 from app.db.session import get_db
-from app.models.domain.change_order import ChangeOrder
 from app.models.domain.user import User
 from app.models.schemas.change_order import (
     ChangeOrderCreate,
@@ -82,6 +81,11 @@ async def read_change_orders(
     skip = (page - 1) * per_page
 
     try:
+        # Default to current time if as_of is not provided
+        if as_of is None:
+            from datetime import UTC
+            as_of = datetime.now(tz=UTC)
+
         # Get change orders for the project
         change_orders, total = await service.get_change_orders(
             project_id=project_id,
@@ -126,7 +130,7 @@ async def create_change_order(
     change_order_in: ChangeOrderCreate,
     current_user: User = Depends(get_current_active_user),
     service: ChangeOrderService = Depends(get_change_order_service),
-) -> ChangeOrder:
+) -> ChangeOrderPublic:
     """Create a new change order with automatic branch creation.
 
     This endpoint:
@@ -141,7 +145,9 @@ async def create_change_order(
     """
     try:
         # Check if change order code already exists (on main branch)
-        existing = await service.get_current_by_code(change_order_in.code, branch="main")
+        existing = await service.get_current_by_code(
+            change_order_in.code, branch="main"
+        )
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -151,7 +157,6 @@ async def create_change_order(
         change_order = await service.create_change_order(
             change_order_in=change_order_in,
             actor_id=current_user.user_id,
-            control_date=change_order_in.control_date,
         )
         return await service._to_public(change_order)
     except HTTPException:
@@ -177,7 +182,7 @@ async def read_change_order(
         description="Time travel: get change order state as of this timestamp (ISO 8601)",
     ),
     service: ChangeOrderService = Depends(get_change_order_service),
-) -> ChangeOrder:
+) -> ChangeOrderPublic:
     """Get a specific change order by change_order_id (UUID root identifier).
 
     Supports time-travel queries via the as_of parameter to view
@@ -185,12 +190,14 @@ async def read_change_order(
 
     Requires read permission.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     if as_of:
         # Time travel query
         change_order = await service.get_as_of(change_order_id, as_of, branch=branch)
-    else:
-        # Current version
-        change_order = await service.get_current(change_order_id, branch=branch)
 
     if not change_order:
         raise HTTPException(
@@ -210,7 +217,7 @@ async def read_change_order_by_code(
     code: str,
     branch: str = Query("main", description="Branch name"),
     service: ChangeOrderService = Depends(get_change_order_service),
-) -> ChangeOrder:
+) -> ChangeOrderPublic:
     """Get a change order by business code (e.g., "CO-2026-001").
 
     Returns the current active version on the specified branch.
@@ -238,7 +245,7 @@ async def update_change_order(
     change_order_in: ChangeOrderUpdate,
     current_user: User = Depends(get_current_active_user),
     service: ChangeOrderService = Depends(get_change_order_service),
-) -> ChangeOrder:
+) -> ChangeOrderPublic:
     """Update a change order's metadata.
 
     Creates a new version with the updated metadata. Optionally specify a branch
@@ -247,16 +254,19 @@ async def update_change_order(
 
     Requires update permission.
     """
-    logger.info(f"[API DEBUG] update_change_order START - change_order_id={change_order_id}, user_id={current_user.user_id}, branch={change_order_in.branch}")
+    logger.info(
+        f"[API DEBUG] update_change_order START - change_order_id={change_order_id}, user_id={current_user.user_id}, branch={change_order_in.branch}"
+    )
     try:
         updated_change_order = await service.update_change_order(
             change_order_id=change_order_id,
             change_order_in=change_order_in,
             actor_id=current_user.user_id,
-            control_date=change_order_in.control_date,
             branch=change_order_in.branch,
         )
-        logger.info(f"[API DEBUG] update_change_order SUCCESS - updated_co id={updated_change_order.id}, branch={updated_change_order.branch}")
+        logger.info(
+            f"[API DEBUG] update_change_order SUCCESS - updated_co id={updated_change_order.id}, branch={updated_change_order.branch}"
+        )
         return await service._to_public(updated_change_order)
     except ValueError as e:
         # Include more context in the error response
@@ -266,7 +276,9 @@ async def update_change_order(
     except Exception as e:
         # Catch any unexpected errors and include them
         error_detail = f"Unexpected error: {str(e)} (change_order_id={change_order_id})"
-        logger.error(f"[API DEBUG] update_change_order UNEXPECTED ERROR - {error_detail}")
+        logger.error(
+            f"[API DEBUG] update_change_order UNEXPECTED ERROR - {error_detail}"
+        )
         raise HTTPException(status_code=500, detail=error_detail) from e
 
 
@@ -309,7 +321,7 @@ async def delete_change_order(
 async def read_change_order_history(
     change_order_id: UUID,
     service: ChangeOrderService = Depends(get_change_order_service),
-) -> Sequence[ChangeOrder]:
+) -> Sequence[ChangeOrderPublic]:
     """Get version history for a change order.
 
     Returns all versions across all branches, showing the complete
@@ -334,7 +346,9 @@ async def read_change_order_history(
 async def get_merge_conflicts(
     change_order_id: UUID,
     source_branch: str = Query(..., description="Source branch name (e.g., 'co-123')"),
-    target_branch: str = Query("main", description="Target branch name (default: 'main')"),
+    target_branch: str = Query(
+        "main", description="Target branch name (default: 'main')"
+    ),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> list[dict[str, Any]]:
     """Check for merge conflicts between source and target branches.
@@ -368,7 +382,7 @@ async def merge_change_order(
     merge_request: MergeRequest,
     current_user: User = Depends(get_current_active_user),
     service: ChangeOrderService = Depends(get_change_order_service),
-) -> ChangeOrder:
+) -> ChangeOrderPublic:
     """Merge a Change Order's branch into the target branch.
 
     Infers the source branch from the Change Order code (e.g., `co-{code}`).
@@ -422,10 +436,14 @@ async def merge_change_order(
             from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
 
             # Check if status transition occurred (Approved -> Implemented)
-            stmt = select(ChangeOrderAuditLog).where(
-                ChangeOrderAuditLog.change_order_id == change_order_id,
-                ChangeOrderAuditLog.new_status == "Implemented",
-            ).order_by(ChangeOrderAuditLog.changed_at.desc())
+            stmt = (
+                select(ChangeOrderAuditLog)
+                .where(
+                    ChangeOrderAuditLog.change_order_id == change_order_id,
+                    ChangeOrderAuditLog.new_status == "Implemented",
+                )
+                .order_by(ChangeOrderAuditLog.changed_at.desc())
+            )
 
             result = await service.session.execute(stmt)
             audit_entry = result.scalar_one_or_none()
@@ -456,7 +474,7 @@ async def revert_change_order(
     branch: str = Query("main", description="Branch to revert on"),
     current_user: User = Depends(get_current_active_user),
     service: ChangeOrderService = Depends(get_change_order_service),
-) -> ChangeOrder:
+) -> ChangeOrderPublic:
     """Revert a Change Order to its previous version.
 
     Requires update permission.
@@ -483,7 +501,9 @@ async def revert_change_order(
 )
 async def get_change_order_impact(
     change_order_id: UUID,
-    branch_name: str = Query(..., description="Branch name to compare (e.g., 'co-CO-2026-001')"),
+    branch_name: str = Query(
+        ..., description="Branch name to compare (e.g., 'co-CO-2026-001')"
+    ),
     service: ImpactAnalysisService = Depends(get_impact_analysis_service),
 ) -> ImpactAnalysisResponse:
     """Get impact analysis for a change order by comparing branches.

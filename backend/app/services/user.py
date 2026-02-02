@@ -59,9 +59,17 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def create_user(self, user_in: UserRegister, actor_id: UUID) -> User:
+    async def create_user(
+        self, user_in: UserRegister, actor_id: UUID
+    ) -> User:
         """Create new user using CreateVersionCommand with Pydantic validation."""
         user_data = user_in.model_dump(exclude_unset=True)
+
+        # Extract control_date from schema if present (for seeding)
+        control_date = getattr(user_in, "control_date", None)
+        
+        # Remove control_date from data to avoid duplicate kwarg error
+        user_data.pop("control_date", None)
 
         # Handle password hashing
         password = user_data.pop("password", None)
@@ -76,9 +84,11 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
             entity_class=User,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
+            control_date=control_date,
             **user_data,
         )
         return await cmd.execute(self.session)
+
 
     async def update_user(
         self, user_id: UUID, user_in: UserUpdate, actor_id: UUID
@@ -97,10 +107,15 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
         # However, purely strictly speaking, if nothing to update, we pass it down
         # and let the command decide or just do it.
 
+        # Extract control_date from schema
+        control_date = getattr(user_in, "control_date", None)
+        update_data.pop("control_date", None)
+
         cmd = UpdateVersionCommand(
             entity_class=User,  # type: ignore[type-var,unused-ignore]
             root_id=user_id,
             actor_id=actor_id,
+            control_date=control_date,
             **update_data,
         )
         return await cmd.execute(self.session)
@@ -154,22 +169,30 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
         return await self.get_as_of(user_id, as_of, branch, branch_mode)
 
     async def get_user_preferences(self, user_id: UUID) -> dict[str, Any]:
-        """Get user preferences from JSON column."""
+        """Get user preferences from JSON column.
+
+        Returns an empty dict if preferences is None or not set.
+        """
         user = await self.get_user(user_id)
         if not user:
             raise ValueError(f"User {user_id} not found")
-        return user.preferences or {}
+        # Handle None by returning empty dict (preferences is nullable in DB)
+        return user.preferences if user.preferences is not None else {}
 
     async def update_user_preferences(
         self, user_id: UUID, preferences_data: dict[str, Any]
     ) -> dict[str, Any]:
-        """Update user preferences in JSON column."""
+        """Update user preferences in JSON column.
+
+        Merges the provided preferences_data with existing preferences.
+        If no preferences exist, creates a new preferences dict.
+        """
         user = await self.get_user(user_id)
         if not user:
             raise ValueError(f"User {user_id} not found")
 
-        # Merge with existing preferences
-        current_prefs = user.preferences or {}
+        # Merge with existing preferences (handle None case)
+        current_prefs = user.preferences if user.preferences is not None else {}
         updated_prefs = {**current_prefs, **preferences_data}
 
         # Update the user entity directly (no versioning for preferences)

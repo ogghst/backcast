@@ -1,6 +1,6 @@
 # API Conventions
 
-**Last Updated:** 2026-01-10
+**Last Updated:** 2026-01-18
 
 ## REST Principles
 
@@ -127,6 +127,82 @@ GET /api/v1/users?role=admin&is_active=true&department=Engineering
 
 ```
 GET /api/v1/users?sort=created_at&order=desc
+```
+
+---
+
+## Branching and Context
+
+### Context Parameters
+
+Standard parameters used to define the "view" of the data or the context of an operation:
+
+| Parameter      | Location   | Type   | Default    | Description                                                                                 |
+| -------------- | ---------- | ------ | ---------- | ------------------------------------------------------------------------------------------- |
+| `branch`       | Query/Body | string | `"main"`   | The branch to read from (Query) or write to (Body for POST/PUT/PATCH).                     |
+| `mode`         | Query      | string | `"merged"` | **Branch Mode**: `merged` (include parent branch data) or `isolated` (current branch only). |
+| `as_of`        | Query      | string | `null`     | **Read Context**: ISO 8601 timestamp for Time-Travel (historical view).                     |
+| `control_date` | Body       | string | `null`     | **Write Context**: Effective date for the operation (affects `valid_time`).                 |
+
+> [!NOTE]
+> **Parameter Location Pattern:**
+>
+> - **Read Operations (GET)**: Context parameters (`branch`, `as_of`) go in **query parameters**
+> - **Write Operations (POST/PUT/PATCH)**: Context parameters (`branch`, `control_date`) go in **request body**
+> - **DELETE Operations**: Context parameters (`branch`, `control_date`) go in **query parameters** (exception due to HTTP/1.1 constraints)
+>
+> This pattern ensures:
+> - Type safety via Pydantic schemas for write operations
+> - Clear separation between filtering (query) and operation context (body)
+> - Consistency with REST principles (body for mutation, query for filtering)
+
+> [!NOTE]
+> **Difference between `as_of` and `control_date`:**
+>
+> - **`as_of` (Read)**: "Show me the state of the world _at_ this time." (Time Travel)
+> - **`control_date` (Write)**: "Make this change _effective from_ this time." (Valid Time start)
+
+### Write Operation Pattern (POST/PUT/PATCH)
+
+**Context in Request Body:**
+
+For write operations, `branch` and `control_date` are included in the request body to ensure type safety and validation:
+
+```json
+{
+  "name": "Q1 2026 Baseline",
+  "start_date": "2026-01-01T00:00:00Z",
+  "end_date": "2026-03-31T23:59:59Z",
+  "branch": "main",
+  "control_date": "2026-01-15T10:00:00Z"
+}
+```
+
+**Benefits:**
+- Type safety via Pydantic schema validation
+- Consistent with other request fields
+- Clear API contract via OpenAPI documentation
+- Easier client-side type generation
+
+### DELETE Exception
+
+**Why DELETE uses query parameters:**
+
+DELETE operations continue using query parameters for `branch` and `control_date` due to HTTP/1.1 constraints:
+
+```
+DELETE /api/v1/schedule-baselines/{id}?branch=main&control_date=2026-01-15T10:00:00Z
+```
+
+**Rationale:**
+- HTTP/1.1 doesn't support request bodies for DELETE (many clients prohibit it)
+- Maintains consistency with filtering operations (which use query parameters)
+- Avoids breaking changes for existing clients
+
+**Example:**
+```bash
+# DELETE with query parameters
+DELETE /api/v1/cost-elements/{ce_id}/schedule-baseline/{baseline_id}?branch=main
 ```
 
 ### Time-Travel Queries
@@ -303,3 +379,71 @@ FastAPI automatically generates:
 - All endpoints must have description
 - All request/response models documented via Pydantic schemas
 - Examples provided for complex endpoints
+
+---
+
+## 1:1 Relationship Endpoints
+
+### Nested Resource Pattern
+
+When a resource has a strict 1:1 relationship with another resource, use nested endpoints:
+
+```
+/api/v1/cost-elements/{cost_element_id}/schedule-baseline
+```
+
+**Characteristics:**
+
+- Single resource per parent (no collection endpoints)
+- Parent ID in URL path, not request body
+- Cannot create multiple instances (400 error if already exists)
+- Cascade delete from parent to child
+
+**Example: Schedule Baseline (1:1 with Cost Element)**
+
+```bash
+# GET - Retrieve the single schedule baseline for a cost element
+GET /api/v1/cost-elements/{cost_element_id}/schedule-baseline?branch=main
+
+# POST - Create a schedule baseline (fails if one already exists)
+POST /api/v1/cost-elements/{cost_element_id}/schedule-baseline
+{
+  "name": "Q1 2026 Baseline",
+  "start_date": "2026-01-01T00:00:00Z",
+  "end_date": "2026-03-31T23:59:59Z",
+  "progression_type": "LINEAR",
+  "branch": "main",
+  "control_date": null
+}
+
+# PUT - Update the schedule baseline
+PUT /api/v1/cost-elements/{cost_element_id}/schedule-baseline/{baseline_id}
+{
+  "name": "Q1 2026 Baseline (Revised)",
+  "end_date": "2026-04-15T23:59:59Z",
+  "branch": "main",
+  "control_date": null
+}
+
+# DELETE - Soft delete the schedule baseline
+DELETE /api/v1/cost-elements/{cost_element_id}/schedule-baseline/{baseline_id}?branch=main
+```
+
+**Response includes parent context:**
+
+```json
+{
+  "schedule_baseline_id": "uuid",
+  "name": "Q1 2026 Baseline",
+  "start_date": "2026-01-01T00:00:00Z",
+  "end_date": "2026-03-31T23:59:59Z",
+  "progression_type": "LINEAR",
+  "cost_element_code": "MECH-001",
+  "cost_element_name": "Phase 1 Mechanical"
+}
+```
+
+**Error Cases:**
+
+- `404 Not Found`: No schedule baseline exists for this cost element
+- `400 Bad Request`: Attempting to create duplicate baseline (BaselineAlreadyExistsError)

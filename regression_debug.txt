@@ -1,0 +1,134 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/nicola/dev/backcast_evs/backend
+configfile: pyproject.toml
+plugins: anyio-4.12.0, cov-7.0.0, asyncio-1.3.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collecting ... collected 2 items
+
+backend/tests/api/test_evm_metrics.py::TestEVMMetricsAPI::test_get_evm_metrics_with_no_progress_returns_warning PASSED [ 50%]
+backend/tests/api/test_evm_metrics.py::TestEVMMetricsAPI::test_get_evm_metrics_with_control_date PASSED [100%]
+ERROR: Coverage failure: total of 41 is less than fail-under=80
+
+
+=============================== warnings summary ===============================
+backend/app/api/routes/change_orders.py:54
+  /home/nicola/dev/backcast_evs/backend/app/api/routes/change_orders.py:54: FastAPIDeprecationWarning: `example` has been deprecated, please use `examples` instead
+    filters: str | None = Query(
+
+tests/api/test_evm_metrics.py::TestEVMMetricsAPI::test_get_evm_metrics_with_no_progress_returns_warning
+  /home/nicola/.local/lib/python3.12/site-packages/alembic/config.py:598: DeprecationWarning: No path_separator found in configuration; falling back to legacy splitting on spaces, commas, and colons for prepend_sys_path.  Consider adding path_separator=os to Alembic config.
+    util.warn_deprecated(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.3-final-0 ________________
+
+Name                                                    Stmts   Miss  Cover   Missing
+-------------------------------------------------------------------------------------
+backend/app/__init__.py                                     0      0   100%
+backend/app/api/__init__.py                                 0      0   100%
+backend/app/api/dependencies/auth.py                       44     19    57%   25, 33-54, 61-64, 120-121, 129
+backend/app/api/routes/__init__.py                          2      0   100%
+backend/app/api/routes/auth.py                             38     21    45%   30-53, 67-82, 95-98
+backend/app/api/routes/change_orders.py                   130     90    31%   33, 39, 78-111, 141-161, 189-201, 221-228, 251-277, 300-307, 327-333, 355-363, 390-455, 477-485, 517-521
+backend/app/api/routes/cost_element_types.py               58     30    48%   52-76, 99-101, 118-124, 140-154, 169-183, 197
+backend/app/api/routes/cost_elements.py                   243    173    29%   37, 77-117, 140-141, 167-180, 196-208, 227-242, 261, 274-277, 315-348, 371-407, 438, 442-482, 504-513, 580-582, 613-629, 666-725, 748-858, 882-895
+backend/app/api/routes/cost_registrations.py               81     45    44%   70-94, 124-125, 156-166, 204-214, 247-256, 284-299, 322-332, 356-370, 388
+backend/app/api/routes/departments.py                      50     22    56%   51-66, 91-93, 110-116, 132-140, 155-160, 174
+backend/app/api/routes/evm.py                              77     59    23%   36, 87-161, 212-229, 267-322
+backend/app/api/routes/forecasts.py                        33      8    76%   21, 47, 80, 112, 141, 173, 200, 228
+backend/app/api/routes/progress_entries.py                 63     32    49%   54-78, 109-111, 135-151, 173-187, 206, 233-238, 260-279
+backend/app/api/routes/projects.py                         70     38    46%   75-114, 136-149, 175-188, 204-213, 231-238, 252-258, 282
+backend/app/api/routes/schedule_baselines.py               90     61    32%   29, 46-90, 106-119, 145-162, 178-202, 221-236, 250, 291-325
+backend/app/api/routes/users.py                            62     36    42%   38, 57-63, 83-88, 106-113, 136-148, 169-181, 202-205, 228-234
+backend/app/api/routes/wbes.py                             88     56    36%   88-162, 193-204, 230-242, 258-268, 286-291, 310-313, 330-336
+backend/app/commands/__init__.py                            0      0   100%
+backend/app/core/__init__.py                                0      0   100%
+backend/app/core/base/__init__.py                           2      0   100%
+backend/app/core/base/base.py                              14      0   100%
+backend/app/core/branching/__init__.py                      3      0   100%
+backend/app/core/branching/commands.py                    148    107    28%   52, 84-87, 107-110, 119-151, 182-291, 306-309, 314-371, 385-387, 392-450, 469-471, 475-484
+backend/app/core/branching/exceptions.py                   21     16    24%   37-54, 86-104
+backend/app/core/branching/service.py                     214    164    23%   46, 83-110, 132-156, 160, 172-191, 207-225, 266-274, 285-293, 303-310, 335-344, 359-370, 395-399, 439-490, 538-586, 590-624, 644-665, 689-805, 834-855
+backend/app/core/config.py                                 24      0   100%
+backend/app/core/exceptions/filtering.py                   11      5    55%   11-14, 21
+backend/app/core/filtering.py                              54     54     0%   22-159
+backend/app/core/logging.py                                22     15    32%   16-44
+backend/app/core/rbac.py                                   60     37    38%   36, 49, 61, 94-101, 113-121, 133-136, 148-155, 166-173, 191-198, 210
+backend/app/core/security.py                               27     14    48%   19, 24, 31-42, 47-54
+backend/app/core/simple/__init__.py                         3      3     0%   3-11
+backend/app/core/simple/commands.py                        43     43     0%   9-87
+backend/app/core/simple/service.py                         29     29     0%   6-58
+backend/app/core/uuid_utils.py                             29     29     0%   10-160
+backend/app/core/versioning/__init__.py                     0      0   100%
+backend/app/core/versioning/commands.py                   140     78    44%   60, 97, 126-127, 181-220, 234-236, 249-345, 349-369, 382-383, 387-394, 400-418
+backend/app/core/versioning/enums.py                        4      0   100%
+backend/app/core/versioning/exceptions.py                  12      9    25%   24-36
+backend/app/core/versioning/service.py                    134    103    23%   46-56, 60, 77, 90-112, 120-140, 175-197, 211-228, 296-356, 371-382, 408-431, 441-469, 479-488, 494-502, 506-547
+backend/app/db/__init__.py                                  0      0   100%
+backend/app/db/seed_context.py                             12     12     0%   9-59
+backend/app/db/seeder.py                                  209    209     0%   6-400
+backend/app/db/session.py                                  14      8    43%   29-37
+backend/app/main.py                                        50     11    78%   43-46, 73, 84, 100-113, 124
+backend/app/models/domain/branch.py                        18      1    94%   73
+backend/app/models/domain/change_order.py                  29      6    79%   81-86, 89
+backend/app/models/domain/change_order_audit_log.py        18      1    94%   61
+backend/app/models/domain/cost_element.py                  21      1    95%   116
+backend/app/models/domain/cost_element_type.py             16      1    94%   76
+backend/app/models/domain/cost_registration.py             22      1    95%   98
+backend/app/models/domain/department.py                    18      1    94%   61
+backend/app/models/domain/forecast.py                      18      1    94%   81
+backend/app/models/domain/progress_entry.py                17      1    94%   85
+backend/app/models/domain/project.py                       22      1    95%   71
+backend/app/models/domain/schedule_baseline.py             21      1    95%   130
+backend/app/models/domain/user.py                          22      1    95%   70
+backend/app/models/domain/wbe.py                           20      1    95%   88
+backend/app/models/mixins.py                               40      4    90%   52, 56, 60, 101
+backend/app/models/protocols.py                            35      0   100%
+backend/app/models/schemas/__init__.py                      2      0   100%
+backend/app/models/schemas/branch.py                       13      0   100%
+backend/app/models/schemas/change_order.py                 42      0   100%
+backend/app/models/schemas/common.py                       14      3    79%   42-44
+backend/app/models/schemas/cost_element.py                 47      1    98%   76
+backend/app/models/schemas/cost_element_type.py            20      0   100%
+backend/app/models/schemas/cost_registration.py            31      0   100%
+backend/app/models/schemas/department.py                   29      0   100%
+backend/app/models/schemas/evm.py                          69      0   100%
+backend/app/models/schemas/forecast.py                     46      3    93%   75-77
+backend/app/models/schemas/impact_analysis.py              54      0   100%
+backend/app/models/schemas/preference.py                   11      0   100%
+backend/app/models/schemas/progress_entry.py               36      2    94%   30, 85
+backend/app/models/schemas/project.py                      44      1    98%   75
+backend/app/models/schemas/schedule_baseline.py            35      0   100%
+backend/app/models/schemas/user.py                         61      7    89%   14-18, 104-105
+backend/app/models/schemas/wbe.py                          56      1    98%   76
+backend/app/services/__init__.py                            3      0   100%
+backend/app/services/auth.py                               20     10    50%   20, 24-32, 36-40
+backend/app/services/branch_service.py                     41     27    34%   26, 44-57, 75-88, 103-117, 132-138, 152-163
+backend/app/services/change_order_service.py              213    180    15%   52-54, 69-87, 112-122, 148-206, 238-427, 451, 486-559, 574-589, 619-712, 730, 748-792, 809-836
+backend/app/services/change_order_workflow_service.py      19      8    58%   60-61, 72, 84, 98, 109, 121-122
+backend/app/services/cost_element_service.py              232    191    18%   42-54, 79-89, 93-122, 140-160, 196-224, 235-379, 395-422, 433-446, 493-573, 587-594, 608-679, 715-782, 799-848
+backend/app/services/cost_element_type_service.py          70     45    36%   60-73, 83-93, 97-108, 121-176, 182-185, 220
+backend/app/services/cost_registration_service.py         121     77    36%   89, 124-144, 154-164, 168-179, 200-229, 266-267, 270, 294-302, 321-342, 383-420, 443-484
+backend/app/services/department.py                         61     36    41%   34, 50-101, 105-112, 136-143, 147-152, 156, 191
+backend/app/services/entity_discovery_service.py           28     16    43%   28, 39-43, 54-58, 69-73, 84-86, 97-99
+backend/app/services/evm_service.py                       430    349    19%   54-75, 149-189, 227-229, 255-294, 311, 333-341, 369-386, 430, 465-537, 561-632, 675-724, 757, 795-846, 880-898, 935-1020, 1059-1227, 1245-1273, 1294-1300, 1327-1420, 1455-1578
+backend/app/services/forecast_service.py                   74     45    39%   27-29, 51-63, 88-98, 108-126, 132-144, 158, 184-201, 236, 263-302, 324-329
+backend/app/services/impact_analysis_service.py           143    122    15%   51, 69-168, 206-222, 242-344, 359-411, 426-478, 493-553, 567-569, 600-626
+backend/app/services/progress_entry_service.py             72     38    47%   59, 67, 93-113, 123-133, 137-147, 174, 184, 200-225, 249-257
+backend/app/services/progression/__init__.py               11      1    91%   41
+backend/app/services/progression/base.py                    5      0   100%
+backend/app/services/progression/gaussian.py               21     15    29%   45-71
+backend/app/services/progression/linear.py                 13      1    92%   42
+backend/app/services/progression/logarithmic.py            16     10    38%   45-65
+backend/app/services/project.py                           110     79    28%   85-158, 178, 212-222, 228-234, 238, 273, 286-388
+backend/app/services/schedule_baseline_service.py          76     44    42%   38-40, 76-88, 143-147, 175, 185, 215-222, 246-287, 324-366, 375-386
+backend/app/services/user.py                               61     38    38%   32, 36, 40, 45-60, 64-81, 88-106, 110-115, 119, 154, 161-165, 175-187
+backend/app/services/wbe.py                               235    179    24%   41-56, 81-91, 107-119, 138-140, 194-280, 284-298, 320-354, 375-376, 392-395, 416-447, 470-487, 506-561, 575-590, 610-716, 736-756, 760-806, 841
+-------------------------------------------------------------------------------------
+TOTAL                                                    5430   3187    41%
+Coverage HTML written to dir htmlcov
+FAIL Required test coverage of 80% not reached. Total coverage: 41.31%
+======================== 2 passed, 2 warnings in 6.87s =========================

@@ -1,6 +1,6 @@
 # Bounded Contexts
 
-**Last Updated:** 2026-01-05
+**Last Updated:** 2026-01-18
 
 This document defines the bounded contexts used to partition the Backcast EVS system. Each context represents a cohesive functional area with clear boundaries.
 
@@ -122,7 +122,7 @@ Cost Element Types are organizational reference data that enable:
 
 **Responsibility:** Departmental budgets, cost registration, forecasts, earned value tracking, schedule registrations
 **Owner:** Backend Team
-**Status:** ✅ Partially Implemented
+**Status:** ✅ Implemented
 **Versioning:** Bitemporal with branching (via EVCS Core)
 
 **Description:**
@@ -132,18 +132,30 @@ Cost Elements are the leaf level of the project hierarchy where budgets are allo
 
 - `CostElement` - Project-specific instance of a Cost Element Type
   - Branchable (supports change orders)
+  - Has 1:1 relationship with ScheduleBaseline
   - Satisfies: `BranchableProtocol`
+  - Auto-creates default schedule baseline on creation
 
-- `ScheduleRegistration` - Versioned schedule baseline defining planned work progression
-  - Attributes: start_date, end_date, progression_type (linear/gaussian/logarithmic), registration_date
+- `ScheduleBaseline` - Single schedule baseline defining planned work progression
+  - Attributes: start_date, end_date, progression_type (linear/gaussian/logarithmic), description
+  - 1:1 relationship with CostElement (enforced at database level)
   - Used for Planned Value (PV) calculations
-  - Full CRUD with history retention
+  - Branchable (supports what-if scenarios via change order branches)
+  - Full CRUD with nested endpoints under cost elements
+
+**Relationship Architecture (as of 2026-01-18):**
+- **Inverted FK**: cost_elements.schedule_baseline_id → schedule_baselines.schedule_baseline_id
+- **Constraint**: Unique constraint on schedule_baseline_id enforces 1:1 relationship
+- **API Pattern**: Nested endpoints `/api/v1/cost-elements/{id}/schedule-baseline`
+- **ADR**: [ADR-009: Schedule Baseline 1:1 Relationship Inversion](decisions/ADR-009-schedule-baseline-1to1-relationship.md)
 
 **Key Files:**
 
-- `app/models/domain/cost_element.py` - CostElement model (branchable)
-- `app/services/cost_element_service.py` - CostElementService with branching
-- `app/api/routes/cost_elements.py` - Cost element endpoints
+- `app/models/domain/cost_element.py` - CostElement model (branchable, with schedule_baseline_id FK)
+- `app/models/domain/schedule_baseline.py` - ScheduleBaseline model (branchable)
+- `app/services/cost_element_service.py` - CostElementService with auto-creation of baselines
+- `app/services/schedule_baseline_service.py` - ScheduleBaselineService with 1:1 validation
+- `app/api/routes/cost_elements.py` - Cost element endpoints with nested schedule baseline endpoints
 
 ---
 

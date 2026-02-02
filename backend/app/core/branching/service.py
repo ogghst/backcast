@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -159,6 +159,17 @@ class BranchableService[TBranchable: BranchableProtocol]:
         """Get specific version by its version ID (primary key)."""
         return await self.session.get(self.entity_class, entity_id)
 
+    async def get_by_root_id(
+        self, root_id: UUID, branch: str = "main", as_of: datetime | None = None
+    ) -> TBranchable | None:
+        """Get the active version of an entity by its root ID.
+        
+        Dispatches to get_as_of if as_of is provided, otherwise get_current.
+        """
+        if as_of:
+            return await self.get_as_of(root_id, as_of, branch)
+        return await self.get_current(root_id, branch)
+
     async def get_current(
         self, root_id: UUID, branch: str = "main"
     ) -> TBranchable | None:
@@ -274,7 +285,12 @@ class BranchableService[TBranchable: BranchableProtocol]:
         return await cmd.execute(self.session)
 
     async def merge_branch(
-        self, root_id: UUID, actor_id: UUID, source_branch: str, target_branch: str
+        self,
+        root_id: UUID,
+        actor_id: UUID,
+        source_branch: str,
+        target_branch: str,
+        control_date: datetime | None = None,
     ) -> TBranchable:
         """Merge source branch into target branch."""
         cmd = MergeBranchCommand(
@@ -283,6 +299,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
             actor_id=actor_id,
             source_branch=source_branch,
             target_branch=target_branch,
+            control_date=control_date,
         )
         return await cmd.execute(self.session)
 
@@ -352,18 +369,60 @@ class BranchableService[TBranchable: BranchableProtocol]:
         """
         from typing import Any, cast
 
-        from sqlalchemy import func, or_
+        from sqlalchemy import cast as sql_cast
+        from sqlalchemy.dialects.postgresql import TIMESTAMP
+
+        # CRITICAL FIX: Cast as_of to TIMESTAMP(timezone=True) to ensure proper timezone handling
+        # when comparing with TSTZRANGE columns. Without this, PostgreSQL treats
+        # the datetime as "timestamp without time zone" and comparison fails.
+        as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
 
         return stmt.where(
             # Check as_of is within valid_time range (time travel by business validity)
-            cast(Any, self.entity_class).valid_time.op("@>")(as_of),
+            cast(Any, self.entity_class).valid_time.op("@>")(as_of_tstz),
             # CRITICAL: Also check as_of >= lower bound (entity existed)
-            func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
-
+            func.lower(cast(Any, self.entity_class).valid_time) <= as_of_tstz,
             # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
             or_(
                 cast(Any, self.entity_class).deleted_at.is_(None),
-                cast(Any, self.entity_class).deleted_at > as_of,
+                cast(Any, self.entity_class).deleted_at > as_of_tstz,
+            ),
+        )
+
+    def _apply_bitemporal_filter_for_time_travel(
+        self, stmt: Any, as_of: datetime
+    ) -> Any:
+        """Apply bitemporal filter for single-entity time-travel queries.
+
+        Uses System Time Travel semantics:
+        - valid_time contains as_of
+        - transaction_time contains as_of (not just open-ended)
+        - deleted_at IS NULL OR deleted_at > as_of
+
+        This differs from _apply_bitemporal_filter which uses Current Knowledge
+        semantics (transaction_time.upper IS NULL) for list operations.
+        """
+        from sqlalchemy import cast as sql_cast
+        from sqlalchemy.dialects.postgresql import TIMESTAMP
+        
+        # CRITICAL FIX: Cast as_of to TIMESTAMP(timezone=True) for TSTZRANGE comparison
+        as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+
+        return stmt.where(
+            # Check as_of is within valid_time range
+            cast(Any, self.entity_class).valid_time.op("@>")(as_of_tstz),
+            # CRITICAL: Also check as_of >= lower bound (entity existed)
+            func.lower(cast(Any, self.entity_class).valid_time) <= as_of_tstz,
+            # TRANSACTION TIME: System Time Travel semantics for time-travel queries.
+            # Check that as_of is within the transaction_time range, not just open-ended.
+            # This allows querying historical versions that have been superseded.
+            cast(Any, self.entity_class).transaction_time.op("@>")(as_of_tstz),
+            # CRITICAL: Also check as_of >= lower bound (version existed)
+            func.lower(cast(Any, self.entity_class).transaction_time) <= as_of_tstz,
+            # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
+            or_(
+                cast(Any, self.entity_class).deleted_at.is_(None),
+                cast(Any, self.entity_class).deleted_at > as_of_tstz,
             ),
         )
 
@@ -391,8 +450,6 @@ class BranchableService[TBranchable: BranchableProtocol]:
         """
         from typing import Any, cast
 
-        from sqlalchemy import case, or_
-
         # Get root field name (e.g., "wbe_id", "project_id", "cost_element_id")
         root_field = self._get_root_field_name()
 
@@ -416,7 +473,8 @@ class BranchableService[TBranchable: BranchableProtocol]:
             # Logic: Include entity if (it's on current branch) OR (root_id NOT in deleted list)
             stmt = stmt.where(
                 or_(
-                    cast(Any, self.entity_class).branch == branch,  # Include current branch
+                    cast(Any, self.entity_class).branch
+                    == branch,  # Include current branch
                     ~getattr(self.entity_class, root_field).in_(
                         deleted_root_ids_subq.scalar_subquery()
                     ),  # Exclude main if deleted on current branch
@@ -450,6 +508,12 @@ class BranchableService[TBranchable: BranchableProtocol]:
     ) -> TBranchable | None:
         """Time travel: Get active version at specific timestamp on a branch.
 
+        Uses Valid Time Travel semantics:
+        - Only checks valid_time (when the fact was valid in the real world)
+        - Does NOT check transaction_time (when recorded in database)
+
+        This allows querying historical states and forward-looking scenarios.
+
         Args:
             entity_id: Root entity ID
             as_of: Timestamp to query
@@ -459,38 +523,25 @@ class BranchableService[TBranchable: BranchableProtocol]:
         # Helper to get root field name
         root_field = self._get_root_field_name()
 
-        # Base conditions for ID and Time
+        from sqlalchemy import cast as sql_cast
+        from sqlalchemy.dialects.postgresql import TIMESTAMP
+        
+        # CRITICAL FIX: Cast as_of to TIMESTAMP(timezone=True) for TSTZRANGE comparison
+        as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+
+        # Base conditions for ID and Valid Time (not transaction time!)
         conditions = [
             getattr(self.entity_class, root_field) == entity_id,
             # Valid Time Coverage
-            cast(Any, self.entity_class).valid_time.op("@>")(as_of),
-            func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
-            # Transaction Time Coverage
-            cast(Any, self.entity_class).transaction_time.op("@>")(as_of),
-            func.lower(cast(Any, self.entity_class).transaction_time) <= as_of,
-            # Deleted At Check
-            func.coalesce(cast(Any, self.entity_class).deleted_at, datetime.max) > as_of,
+            cast(Any, self.entity_class).valid_time.op("@>")(as_of_tstz),
+            func.lower(cast(Any, self.entity_class).valid_time) <= as_of_tstz,
+            # Deleted At Check (respect temporal deletion)
+            func.coalesce(cast(Any, self.entity_class).deleted_at, sql_cast(datetime.max, TIMESTAMP(timezone=True)))
+            > as_of_tstz,
         ]
 
-        # Handle Branch Mode
-        if branch_mode == BranchMode.MERGE and branch != "main":
-            # Search in both branch and main, prioritizing the requested branch
-            stmt = (
-                select(self.entity_class)
-                .where(
-                    *conditions,
-                    cast(Any, self.entity_class).branch.in_([branch, "main"]),
-                )
-                .order_by(
-                    # Prioritize requested branch (0) over main (1)
-                    case((cast(Any, self.entity_class).branch == branch, 0), else_=1),
-                    # Then by valid time
-                    cast(Any, self.entity_class).valid_time.desc(),
-                )
-                .limit(1)
-            )
-        else:
-            # STRICT mode or already on main: exact branch match
+        # STRICT mode or already on main: exact branch match
+        if branch_mode == BranchMode.STRICT or branch == "main":
             stmt = (
                 select(self.entity_class)
                 .where(
@@ -499,9 +550,56 @@ class BranchableService[TBranchable: BranchableProtocol]:
                 )
                 .limit(1)
             )
+            result = await self.session.execute(stmt)
+            return result.scalar_one_or_none()
 
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        # MERGE mode: Check requested branch first, then check if deleted before falling back
+        # First, try to get from requested branch
+        stmt_branch = (
+            select(self.entity_class)
+            .where(
+                *conditions,
+                cast(Any, self.entity_class).branch == branch,
+            )
+            .limit(1)
+        )
+        result_branch = await self.session.execute(stmt_branch)
+        branch_result = result_branch.scalar_one_or_none()
+
+        if branch_result is not None:
+            return branch_result
+
+        # No result on requested branch - check if entity was deleted on this branch
+        # If deleted, don't fall back to main (respect the deletion)
+        # CRITICAL: Must check temporal aspect - only consider deleted if deleted_at <= as_of
+        deleted_check = (
+            select(self.entity_class)
+            .where(
+                getattr(self.entity_class, root_field) == entity_id,
+                cast(Any, self.entity_class).branch == branch,
+                cast(Any, self.entity_class).deleted_at.is_not(None),
+                cast(Any, self.entity_class).deleted_at <= as_of_tstz,  # Temporal check
+            )
+            .limit(1)
+        )
+        deleted_result = await self.session.execute(deleted_check)
+        is_deleted_on_branch = deleted_result.scalar_one_or_none() is not None
+
+        if is_deleted_on_branch:
+            # Entity was deleted on requested branch, don't fall back to main
+            return None
+
+        # Not deleted on branch, fall back to main
+        stmt_main = (
+            select(self.entity_class)
+            .where(
+                *conditions,
+                cast(Any, self.entity_class).branch == "main",
+            )
+            .limit(1)
+        )
+        result_main = await self.session.execute(stmt_main)
+        return result_main.scalar_one_or_none()
 
     async def get_history(self, root_id: UUID) -> list[TBranchable]:
         """Get all versions of an entity with joined creator name."""
@@ -561,8 +659,9 @@ class BranchableService[TBranchable: BranchableProtocol]:
         """
         root_field = self._get_root_field_name()
 
-        # Build base statement
-        stmt = select(self.entity_class.branch).where(
+        # Build base statement - use getattr to access branch column
+        branch_column = self.entity_class.branch
+        stmt = select(branch_column).where(
             getattr(self.entity_class, root_field) == root_id,
         )
 
@@ -577,7 +676,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
             )
 
         # Get distinct branch names
-        stmt = stmt.distinct().order_by(self.entity_class.branch)
+        stmt = stmt.distinct().order_by(branch_column)
         result = await self.session.execute(stmt)
         return [row[0] for row in result.all()]
 
@@ -644,14 +743,19 @@ class BranchableService[TBranchable: BranchableProtocol]:
             return []
 
         # Get the divergence point version
-        divergence_point = await self.session.get(self.entity_class, divergence_point_id)
+        divergence_point = await self.session.get(
+            self.entity_class, divergence_point_id
+        )
         if not divergence_point:
             return []
 
         # Check if both branches modified since divergence
         # If source branch was created directly from divergence (no intermediate changes),
         # and target hasn't changed since divergence, no conflict
-        if source.parent_id == divergence_point_id and target.parent_id == divergence_point_id:
+        if (
+            source.parent_id == divergence_point_id
+            and target.parent_id == divergence_point_id
+        ):
             # Both point to same parent - check if they diverged from same state
             # This is a "new branch with changes" vs "unchanged target" scenario
             # No conflict if target is the divergence point (hasn't been modified)
@@ -674,8 +778,12 @@ class BranchableService[TBranchable: BranchableProtocol]:
 
         conflicts: list[dict[str, Any]] = []
 
-        # Get all columns for the entity
-        for column in self.entity_class.__table__.columns:
+        # Get all columns for the entity - use getattr to access __table__
+        table = getattr(self.entity_class, "__table__", None)
+        if table is None:
+            return []
+
+        for column in table.columns:
             field_name = column.name
 
             if field_name in system_fields:
@@ -694,15 +802,21 @@ class BranchableService[TBranchable: BranchableProtocol]:
                 and target_value != divergence_value
                 and source_value != target_value
             ):
-                conflicts.append({
-                    "entity_type": self.entity_class.__name__,
-                    "entity_id": str(root_id),
-                    "field": field_name,
-                    "source_branch": source_branch,
-                    "target_branch": target_branch,
-                    "source_value": str(source_value) if source_value is not None else None,
-                    "target_value": str(target_value) if target_value is not None else None,
-                })
+                conflicts.append(
+                    {
+                        "entity_type": self.entity_class.__name__,
+                        "entity_id": str(root_id),
+                        "field": field_name,
+                        "source_branch": source_branch,
+                        "target_branch": target_branch,
+                        "source_value": str(source_value)
+                        if source_value is not None
+                        else None,
+                        "target_value": str(target_value)
+                        if target_value is not None
+                        else None,
+                    }
+                )
 
         return conflicts
 

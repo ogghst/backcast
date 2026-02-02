@@ -53,6 +53,7 @@ class KPIScorecard(BaseModel):
     bac: KPIMetric = Field(description="Budget at Completion comparison")
     budget_delta: KPIMetric = Field(description="Total budget allocation delta")
     gross_margin: KPIMetric = Field(description="Gross margin comparison")
+    actual_costs: KPIMetric = Field(description="Actual costs (AC) comparison")
     # EVM metrics deferred to Sprint 8
     # eac: KPIMetric | None = None
     # cpi: KPIMetric | None = None
@@ -94,6 +95,10 @@ class EntityChanges(BaseModel):
     cost_elements: list[EntityChange] = Field(
         default_factory=list,
         description="Cost Element changes",
+    )
+    cost_registrations: list[EntityChange] = Field(
+        default_factory=list,
+        description="Cost Registration (actual costs) changes",
     )
 
 
@@ -144,7 +149,9 @@ class ImpactAnalysisResponse(BaseModel):
     model_config = ConfigDict(strict=True)
 
     change_order_id: UUID = Field(description="Change Order ID (UUID)")
-    branch_name: str = Field(description="Branch name being compared (e.g., 'co-CO-2026-001')")
+    branch_name: str = Field(
+        description="Branch name being compared (e.g., 'co-CO-2026-001')"
+    )
     main_branch_name: str = Field(description="Main branch name (always 'main')")
     kpi_scorecard: KPIScorecard = Field(description="KPI comparison")
     entity_changes: EntityChanges = Field(description="Entity changes")

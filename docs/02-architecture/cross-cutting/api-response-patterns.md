@@ -132,16 +132,17 @@ const unwrapWBEResponse = <T>(res: T[] | { items: T[] }): T[] => {
 
 ### Supported Parameters
 
-| Parameter    | Type   | Description                 | Example                      |
-| ------------ | ------ | --------------------------- | ---------------------------- |
-| `page`       | int    | Page number (1-indexed)     | `page=1`                     |
-| `per_page`   | int    | Items per page (1-100)      | `per_page=20`                |
-| `search`     | string | Search term (code, name)    | `search=Alpha`               |
-| `filters`    | string | Filter expression           | `filters=status:Active`      |
-| `sort_field` | string | Field to sort by            | `sort_field=name`            |
-| `sort_order` | string | Sort direction (asc/desc)   | `sort_order=desc`            |
-| `branch`     | string | Branch name                 | `branch=main`                |
-| `as_of`      | string | Time-travel timestamp (ISO) | `as_of=2026-01-10T12:00:00Z` |
+| Parameter    | Type   | Description                   | Example                      |
+| ------------ | ------ | ----------------------------- | ---------------------------- |
+| `page`       | int    | Page number (1-indexed)       | `page=1`                     |
+| `per_page`   | int    | Items per page (1-100)        | `per_page=20`                |
+| `search`     | string | Search term (code, name)      | `search=Alpha`               |
+| `filters`    | string | Filter expression             | `filters=status:Active`      |
+| `sort_field` | string | Field to sort by              | `sort_field=name`            |
+| `sort_order` | string | Sort direction (asc/desc)     | `sort_order=desc`            |
+| `branch`     | string | Branch name                   | `branch=main`                |
+| `mode`       | string | Branch mode (merged/isolated) | `mode=merged`                |
+| `as_of`      | string | Time-travel timestamp (ISO)   | `as_of=2026-01-10T12:00:00Z` |
 
 ### Whitelisted Filter Fields
 

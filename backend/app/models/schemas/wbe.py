@@ -46,7 +46,9 @@ class WBEUpdate(BaseModel):
     level: int | None = Field(None, ge=1)
     parent_wbe_id: UUID | None = None
     description: str | None = Field(None, max_length=5000)
-    branch: str | None = Field(None, description="Branch name for update (defaults to current branch)")
+    branch: str | None = Field(
+        None, description="Branch name for update (defaults to current branch)"
+    )
     control_date: datetime | None = Field(
         None, description="Optional control date for update (valid_time start)"
     )

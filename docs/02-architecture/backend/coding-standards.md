@@ -1,0 +1,110 @@
+# Backend Coding Standards (Python/FastAPI)
+
+**Scope:** Backend, Database, EVCS Core
+
+---
+
+## Type Safety (Non-Negotiable)
+
+- **MyPy strict mode** with `disallow_any_explicit = True`
+- Never use `Any` - always define explicit types
+- Use `Mapped[]` for SQLAlchemy columns
+- Use `typing.Annotated` for dependency injection
+
+---
+
+## Docstring Standard (LLM-Optimized)
+
+**All public functions MUST have docstrings that explain intent and context.**
+
+```python
+async def calculate_earned_value(
+    project_id: UUID,
+    as_of: datetime,
+    branch: str = "main",
+) -> Decimal:
+    """Calculate earned value for a project at a point in time.
+
+    Context: Part of EVM calculations. Used by reporting and dashboard.
+
+    Args:
+        project_id: Project to calculate EV for
+        as_of: Timestamp for time-travel query (bitemporal)
+        branch: Version control branch (default: main)
+
+    Returns:
+        Earned value as Decimal (sum of completed work * planned rates)
+
+    Raises:
+        ValueError: Project not found or no valid data at as_of
+    """
+```
+
+**Required elements:**
+
+1. **One-line summary** - what it does
+2. **Context** - why it exists, what calls it
+3. **Args** - with business meaning, not just types
+4. **Returns** - what the value represents
+5. **Raises** - when and why
+
+---
+
+## Architecture Patterns
+
+### Service Layer
+
+- Services orchestrate business logic
+- Raise `ValueError` for business errors (routes convert to `HTTPException`)
+- Always pass `actor_id` for audit trail
+
+### EVCS (Entity Version Control)
+
+- **Bitemporal:** Track `valid_time` and `transaction_time`
+- **Immutable:** Append-only, never overwrite
+- **Branched:** Support branch isolation
+
+**ADRs:** [Bitemporal](../decisions/ADR-005-bitemporal-versioning.md), [Command Pattern](../decisions/ADR-003-command-pattern.md)
+
+---
+
+## API Routes
+
+```python
+@router.post("", response_model=ProjectPublic, status_code=201)
+async def create_project(
+    project_in: ProjectCreate,
+    current_user: CurrentUser,
+    session: DBSession,
+) -> Project:
+    """Create a new project.
+
+    Context: Entry point for project creation. Validates via Pydantic.
+    """
+    return await service.create_project(project_in, current_user.user_id)
+```
+
+- Use `PaginatedResponse` for list endpoints
+- Use `FilterParser` with whitelisted fields
+- Never concatenate raw SQL
+
+---
+
+## Common Pitfalls
+
+| Issue           | Wrong                            | Right                                               |
+| --------------- | -------------------------------- | --------------------------------------------------- |
+| Expired objects | `wbe.wbe_id` after flush         | Capture ID immediately after creation               |
+| Empty ranges    | `datetime.now()` called twice    | Generate timestamp once, reuse                      |
+| Raw dicts       | `return results.scalars().all()` | Return `[Model.model_validate(r) for r in results]` |
+| Naming          | `projectId`                      | `project_id` (snake_case)                           |
+
+---
+
+## Quality Gates
+
+```bash
+ruff check app tests --fix  # Linting
+mypy app --strict           # Type check
+pytest --cov=app            # Tests (≥80% coverage)
+```

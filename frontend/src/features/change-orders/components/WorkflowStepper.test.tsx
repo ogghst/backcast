@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { WorkflowStepper, WORKFLOW_STEPS, getStepIndex, type WorkflowStepKey } from "./WorkflowStepper";
+import { render } from "@testing-library/react";
+import { WorkflowStepper } from "./WorkflowStepper";
+import { WORKFLOW_STEPS, getStepIndex } from "./WorkflowConstants";
 
 describe("WorkflowStepper", () => {
   describe("WORKFLOW_STEPS constant", () => {
@@ -10,7 +11,13 @@ describe("WorkflowStepper", () => {
 
     it("should have correct step keys", () => {
       const keys = WORKFLOW_STEPS.map((s) => s.key);
-      expect(keys).toEqual(["draft", "submitted", "under_review", "approved", "implemented"]);
+      expect(keys).toEqual([
+        "draft",
+        "submitted",
+        "under_review",
+        "approved",
+        "implemented",
+      ]);
     });
 
     it("should have correct step titles", () => {
@@ -74,7 +81,9 @@ describe("WorkflowStepper", () => {
     });
 
     it("should handle processing status prop", () => {
-      render(<WorkflowStepper status="Approved" processingStatus="Under Review" />);
+      render(
+        <WorkflowStepper status="Approved" processingStatus="Under Review" />,
+      );
       const stepsContainer = document.querySelector(".ant-steps");
       expect(stepsContainer).toBeInTheDocument();
     });

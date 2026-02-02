@@ -38,6 +38,12 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         """Create new cost element type using CreateVersionCommand."""
         type_data = type_in.model_dump(exclude_unset=True)
 
+        # Extract control_date from schema if present (for seeding)
+        control_date = getattr(type_in, "control_date", None)
+
+        # Remove control_date from data to avoid duplicate kwarg error
+        type_data.pop("control_date", None)
+
         # Use provided cost_element_type_id (for seeding) or generate new one
         root_id = type_in.cost_element_type_id or uuid4()
         type_data["cost_element_type_id"] = root_id
@@ -46,9 +52,11 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
             entity_class=CostElementType,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
+            control_date=control_date,
             **type_data,
         )
         return await cmd.execute(self.session)
+
 
     async def update(  # type: ignore[override]
         self,
@@ -64,16 +72,24 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
             def _root_field_name(self) -> str:
                 return "cost_element_type_id"
 
+        # Extract control_date from schema
+        control_date = getattr(type_in, "control_date", None)
+        update_data.pop("control_date", None)
+
         cmd = CostElementTypeUpdateCommand(
             entity_class=CostElementType,  # type: ignore[type-var,unused-ignore]
             root_id=cost_element_type_id,
             actor_id=actor_id,
+            control_date=control_date,
             **update_data,
         )
         return await cmd.execute(self.session)
 
     async def soft_delete(
-        self, cost_element_type_id: UUID, actor_id: UUID, control_date: datetime | None = None
+        self,
+        cost_element_type_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None,
     ) -> None:
         """Soft delete cost element type using SoftDeleteCommand."""
 

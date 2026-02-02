@@ -50,7 +50,9 @@ def print_section(title: str) -> None:
     print(f"{'=' * 70}")
 
 
-def print_uuid_report(entity_type: str, code_uuid_pairs: list[tuple[str, UUID]]) -> None:
+def print_uuid_report(
+    entity_type: str, code_uuid_pairs: list[tuple[str, UUID]]
+) -> None:
     """Print UUID mappings for an entity type."""
     if not code_uuid_pairs:
         print(f"  No {entity_type} entities found")
@@ -147,8 +149,12 @@ def main() -> None:
     # Summary
     print_section("SUMMARY")
     total_entities = (
-        len(project_uuids) + len(wbe_uuids) + len(ce_uuids) +
-        len(dept_uuids) + len(cet_uuids) + len(user_uuids)
+        len(project_uuids)
+        + len(wbe_uuids)
+        + len(ce_uuids)
+        + len(dept_uuids)
+        + len(cet_uuids)
+        + len(user_uuids)
     )
     print(f"\nTotal entities: {total_entities}")
     print(f"  Projects:           {len(project_uuids)}")

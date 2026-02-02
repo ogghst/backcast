@@ -4,11 +4,11 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 # Set working directory
 WORKDIR /app
 
-# Copy dependency files from root
-COPY pyproject.toml uv.lock README.md ./
+# Copy dependency files from backend directory
+COPY backend/pyproject.toml backend/README.md ./
 
-# Install dependencies using uv (production only)
-RUN uv sync --frozen --no-dev
+# Install dependencies using uv (production only, no lock file)
+RUN uv sync --no-dev
 
 # Production stage
 FROM python:3.12-slim
@@ -32,8 +32,8 @@ WORKDIR /app
 
 # Copy application code from backend/
 COPY backend/app ./app
-COPY alembic ./alembic
-COPY alembic.ini ./
+COPY backend/alembic ./alembic
+COPY backend/alembic.ini ./
 
 # Create necessary directories
 RUN mkdir -p /app/logs /app/config && \

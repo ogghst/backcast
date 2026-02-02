@@ -10,7 +10,7 @@ tests verify the core zombie behavior: entities disappear after deletion.
 Reference: docs/02-architecture/cross-cutting/temporal-query-reference.md
 """
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -19,7 +19,7 @@ from app.core.versioning.enums import BranchMode
 from app.services.project import ProjectService
 from app.services.wbe import WBEService
 
-UTC = timezone.utc
+UTC = UTC
 
 
 # ============================================================================
@@ -53,9 +53,7 @@ async def test_project_zombie_check_deleted_not_visible(db_session):
     assert result_before is not None, "Entity should be visible before deletion"
 
     # 2. Delete entity
-    await service.soft_delete(
-        entity_id=project_id, actor_id=actor_id
-    )
+    await service.soft_delete(entity_id=project_id, actor_id=actor_id)
     await db_session.commit()
 
     # Verify deletion was recorded
@@ -64,7 +62,9 @@ async def test_project_zombie_check_deleted_not_visible(db_session):
 
     # 3. Query after deletion - should NOT return entity
     result_after = await service.get_as_of(
-        entity_id=project_id, as_of=datetime.now(UTC) + timedelta(seconds=1), branch="main"
+        entity_id=project_id,
+        as_of=datetime.now(UTC) + timedelta(seconds=1),
+        branch="main",
     )
     assert result_after is None, "Deleted entity should NOT be visible after deletion"
 
@@ -96,7 +96,7 @@ async def test_wbe_zombie_check_deleted_not_visible(db_session):
 
     # 1. Create WBE
     wbe_service = WBEService(db_session)
-    wbe = await wbe_service.create_root(
+    await wbe_service.create_root(
         root_id=wbe_id,
         actor_id=actor_id,
         project_id=project_id,
@@ -112,9 +112,7 @@ async def test_wbe_zombie_check_deleted_not_visible(db_session):
     assert result_before is not None
 
     # 2. Delete WBE
-    deleted = await wbe_service.soft_delete(
-        root_id=wbe_id, actor_id=actor_id
-    )
+    deleted = await wbe_service.soft_delete(root_id=wbe_id, actor_id=actor_id)
     await db_session.commit()
 
     assert deleted.deleted_at is not None
@@ -169,9 +167,7 @@ async def test_wbe_zombie_check_merge_mode_no_fallback(db_session):
     await db_session.commit()
 
     # Delete WBE on the change order branch
-    await wbe_service.soft_delete(
-        root_id=wbe_id, actor_id=actor_id, branch="co-123"
-    )
+    await wbe_service.soft_delete(root_id=wbe_id, actor_id=actor_id, branch="co-123")
     await db_session.commit()
 
     # Query with MERGE mode after deletion
@@ -193,3 +189,24 @@ async def test_wbe_zombie_check_merge_mode_no_fallback(db_session):
         entity_id=wbe_id, as_of=datetime.now(UTC) + timedelta(seconds=1), branch="main"
     )
     assert result_main is not None, "Entity on main branch should still be visible"
+
+
+# ============================================================================
+# Note: Progress Entry and Cost Registration Zombie Check Tests
+# ============================================================================
+#
+# Zombie check tests for progress entries and cost registrations already exist
+# in their respective time-travel test files:
+#
+# - tests/integration/test_progress_time_travel.py::TestProgressTimeTravel::test_time_travel_with_deleted_entry
+# - tests/unit/services/test_cost_registration_time_travel.py::TestTimeTravelQueries::test_get_total_for_cost_element_includes_costs_soft_deleted_after_as_of
+# - tests/unit/services/test_cost_registration_time_travel.py::TestTimeTravelQueries::test_get_total_for_cost_element_excludes_costs_soft_deleted_before_as_of
+#
+# These tests verify the Zombie Check TDD pattern:
+# - Create → Delete → Query Past
+# - Deleted entities are NOT visible when querying after their deleted_at timestamp
+# - Deleted entities ARE visible when querying before their deleted_at timestamp
+#
+# Reference: docs/02-architecture/cross-cutting/temporal-query-reference.md
+# ============================================================================
+

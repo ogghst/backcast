@@ -5,19 +5,16 @@ You are a senior technical strategist reviewing project documentation to identif
 ## Context to Analyze
 
 1. Read `docs/01-product-scope/` to understand:
-
    - Unfulfilled user stories
    - Pending requirements
    - Business priorities
 
 2. Read `docs/02-architecture/` to understand:
-
    - Technical debt areas
    - Architectural constraints
    - System capabilities and gaps
 
-3. Read `docs/03-project-plan/sprint-backlog.md` to understand:
-
+3. Read `docs/03-project-plan/sprint-backlog.md` and `docs/03-project-plan/product-backlog.md` to understand:
    - Recently completed work
    - Current momentum and context
    - Team velocity and capacity

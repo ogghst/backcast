@@ -186,17 +186,25 @@ export class WbEsService {
      * Read Wbe Breadcrumb
      * Get breadcrumb trail for a WBE (project + ancestor path). Requires read permission.
      * @param wbeId
+     * @param branch Branch name
+     * @param asOf Time travel: get breadcrumb as of this timestamp (ISO 8601)
      * @returns WBEBreadcrumb Successful Response
      * @throws ApiError
      */
     public static getWbeBreadcrumb(
         wbeId: string,
+        branch: string = 'main',
+        asOf?: (string | null),
     ): CancelablePromise<WBEBreadcrumb> {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/wbes/{wbe_id}/breadcrumb',
             path: {
                 'wbe_id': wbeId,
+            },
+            query: {
+                'branch': branch,
+                'as_of': asOf,
             },
             errors: {
                 422: `Validation Error`,

@@ -4,19 +4,60 @@
 
 ---
 
+## 2026-01-17: Major Refactoring - Phase Deconfliction & Best Practices
+
+**Changes:**
+
+- Created `_templates/` folder with extracted output templates (5 files)
+- Created `_references.md` with centralized documentation links
+- Refactored `plan-prompt.md` from 555 to ~180 lines
+  - Removed inline TDD tutorial (moved to DO)
+  - Clarified PLAN owns WHAT, DO owns HOW
+  - Added template reference
+- Refactored `do-prompt.md` (~150 lines)
+  - Added clear TDD ownership section
+  - Streamlined for execution focus
+- Refactored `check-prompt.md`
+  - Added root cause analysis (moved from ACT)
+  - Added improvement options as decision point
+  - Added 5 Whys template
+- Refactored `act-prompt.md`
+  - Removed root cause analysis (now in CHECK)
+  - Focused on execution of approved improvements
+  - Added industry benchmarks
+- Refactored `analysis-prompt.md`
+  - Added UX patterns reference table
+  - Added template reference
+  - Improved transition to PLAN section
+- Updated `README.md` with cycle overview diagram and phase responsibilities
+
+**Rationale:**
+
+- **Phase Deconfliction**: Each phase now has clear, non-overlapping responsibilities
+- **TDD Alignment**: PLAN defines WHAT to test, DO implements HOW
+- **Context Rot Prevention**: Shorter prompts for PLAN/DO, verbose for ANALYSIS/ACT
+- **DRY Principle**: Templates and references extracted to separate files
+- **Best Practices**: Based on Anthropic/OpenAI prompt engineering guidelines
+
+**Effectiveness:** TBD (first iteration with refactored prompts)
+
+---
+
 ## 2026-01-10: Analysis prompt
 
 **Changes:**
 
-- included analysis prompt in cycle
+- Included analysis prompt in cycle
 
 **Rationale:**
 
-- need to analyze requirements before planning
+- Need to analyze requirements before planning
 
 **Effectiveness:**
 
 - TBD (first iteration with analysis prompt)
+
+---
 
 ## 2025-12-29: Initial Merge
 
@@ -66,6 +107,7 @@ When evolving prompts, assess:
 3. **Practicality:** Can they be followed without excessive overhead?
 4. **Effectiveness:** Do they produce desired outcomes?
 5. **Consistency:** Do they align with other prompts in the PDCA cycle?
+6. **Context Efficiency:** Do they minimize token usage while maintaining clarity?
 
 ---
 
@@ -73,12 +115,20 @@ When evolving prompts, assess:
 
 **Common Issues Requiring Prompt Updates:**
 
-- [To be filled as we learn]
+- Phase overlap causing confusion (resolved 2026-01-17)
+- TDD definition scattered across phases (resolved 2026-01-17)
+- Root cause analysis duplicated in CHECK and ACT (resolved 2026-01-17)
 
 **Patterns That Work Well:**
 
-- [To be filled as we learn]
+- Clear "Owns" vs "Does NOT Own" tables
+- Human Decision Points with explicit questions
+- Template references reducing inline verbosity
+- Phase-specific responsibility matrices
 
 **Anti-Patterns to Avoid:**
 
-- [To be filled as we learn]
+- Duplicating content across phases
+- Long inline code examples (extract to templates)
+- Implicit phase transitions (always explicit decision points)
+- Assuming model capabilities (keep model-agnostic)

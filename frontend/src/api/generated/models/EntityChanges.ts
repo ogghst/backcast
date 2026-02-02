@@ -15,5 +15,9 @@ export type EntityChanges = {
      * Cost Element changes
      */
     cost_elements?: Array<EntityChange>;
+    /**
+     * Cost Registration (actual costs) changes
+     */
+    cost_registrations?: Array<EntityChange>;
 };
 

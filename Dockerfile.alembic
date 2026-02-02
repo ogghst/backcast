@@ -13,16 +13,16 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 # Set working directory
 WORKDIR /app
 
-# Copy project configuration files
-COPY pyproject.toml uv.lock README.md ./
+# Copy project configuration files from backend directory
+COPY backend/pyproject.toml backend/README.md ./
 
-# Install dependencies using uv
-RUN uv sync --frozen --no-dev
+# Install dependencies using uv (no lock file)
+RUN uv sync --no-dev
 
-# Copy application code and alembic configuration
-COPY app ./app
-COPY alembic ./alembic
-COPY alembic.ini ./
+# Copy application code and alembic configuration from backend directory
+COPY backend/app ./app
+COPY backend/alembic ./alembic
+COPY backend/alembic.ini ./
 
 # Copy entrypoint script
 COPY docker-entrypoint-alembic.sh /docker-entrypoint-alembic.sh

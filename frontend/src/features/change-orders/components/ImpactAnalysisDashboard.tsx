@@ -6,6 +6,7 @@ import { KPICards } from "./KPICards";
 import { WaterfallChart } from "./WaterfallChart";
 import { SCurveComparison } from "./SCurveComparison";
 import { EntityImpactGrid } from "./EntityImpactGrid";
+import { ForecastImpactList } from "./ForecastImpactList";
 
 interface ImpactAnalysisDashboardProps {
   branchName?: string;
@@ -100,6 +101,18 @@ export const ImpactAnalysisDashboard = ({
       children: (
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           <EntityImpactGrid entityChanges={impactData.entity_changes} />
+        </div>
+      ),
+    },
+    {
+      key: "forecasts",
+      label: "Forecast Impact",
+      children: (
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <ForecastImpactList
+            forecasts={impactData.forecast_changes || []}
+            branchName={actualBranchName}
+          />
         </div>
       ),
     },
