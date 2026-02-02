@@ -89,17 +89,29 @@ async def test_change_order_branch_visibility_future_control_date(
     )
     assert response.status_code == 201
     
-    # 3. Get Project Branches
+    # 3. Get Project Branches (Default as_of=Now)
     response = await client.get(
         f"/api/v1/projects/{project_id}/branches",
     )
     assert response.status_code == 200
     branches = response.json()
     
-    # 4. Verify Branch Exists
+    # 4. Verify Branch DOES NOT Exist (since it is in the future)
     co_branch = next((b for b in branches if b["name"] == "co-CO-FUTURE-001"), None)
-    assert co_branch is not None, "Change Order branch not found in project branches"
+    assert co_branch is None, "Future Change Order branch SHOULD NOT be visible by default"
+
+    # 5. Get Project Branches (Time Travel to Future)
+    response_future = await client.get(
+        f"/api/v1/projects/{project_id}/branches",
+        params={"as_of": future_date.isoformat()}
+    )
+    assert response_future.status_code == 200
+    branches_future = response_future.json()
+
+    # 6. Verify Branch Exists in Future
+    co_branch_future = next((b for b in branches_future if b["name"] == "co-CO-FUTURE-001"), None)
+    assert co_branch_future is not None, "Future Change Order branch SHOULD be visible with time travel"
     
-    # 5. Verify Change Order Status is present (not None)
-    assert co_branch["change_order_status"] == "Draft", \
-        f"Expected status 'Draft', got {co_branch.get('change_order_status')}"
+    # 7. Verify Change Order Status
+    assert co_branch_future["change_order_status"] == "Draft", \
+        f"Expected status 'Draft', got {co_branch_future.get('change_order_status')}"

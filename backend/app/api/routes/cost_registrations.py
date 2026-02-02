@@ -73,6 +73,11 @@ async def read_cost_registrations(
 
     skip = (page - 1) * per_page
 
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     items, total = await service.get_cost_registrations(
         filters=query_filters,
         skip=skip,
@@ -152,6 +157,11 @@ async def get_budget_status(
     The as_of parameter allows viewing the budget status at any historical point in time,
     showing only cost registrations that were valid as of that timestamp.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     try:
         budget_status = await service.get_budget_status(cost_element_id, as_of=as_of)
         return {
@@ -200,6 +210,11 @@ async def get_aggregated_costs(
 
     All costs respect time-travel queries via the as_of parameter.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     try:
         costs = await service.get_costs_by_period(
             cost_element_id=cost_element_id,
@@ -243,6 +258,11 @@ async def get_cumulative_costs(
 
     All costs respect time-travel queries via the as_of parameter.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     try:
         costs = await service.get_cumulative_costs(
             cost_element_id=cost_element_id,
@@ -280,15 +300,17 @@ async def read_cost_registration(
     Supports time-travel queries via the as_of parameter to view
     the cost registration's state at any historical point in time.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     if as_of:
         # Time travel query
         item = await service.get_cost_registration_as_of(
             cost_registration_id=cost_registration_id,
             as_of=as_of,
         )
-    else:
-        # Current version
-        item = await service.get_by_id(cost_registration_id)
 
     if not item:
         raise HTTPException(

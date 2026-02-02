@@ -57,6 +57,11 @@ async def read_progress_entries(
 
     skip = (page - 1) * per_page
 
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     items, total = await service.get_progress_history(
         cost_element_id=cost_element_id if cost_element_id else UUID("00000000-0000-0000-0000-000000000000"),  # Dummy ID for list all
         skip=skip,
@@ -131,15 +136,17 @@ async def read_progress_entry(
 
     Supports time-travel queries via the as_of parameter.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     if as_of:
         # Time-travel query
         progress = await service.get_progress_entry_as_of(
             progress_entry_id=progress_entry_id,
             as_of=as_of,
         )
-    else:
-        # Current version query
-        progress = await service.get_by_id(progress_entry_id)
 
     if progress is None:
         raise HTTPException(
@@ -228,6 +235,11 @@ async def read_latest_progress(
 
     Returns None if no progress has been reported for the cost element.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     progress = await service.get_latest_progress(
         cost_element_id=cost_element_id,
         as_of=as_of,

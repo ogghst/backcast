@@ -81,6 +81,11 @@ async def read_change_orders(
     skip = (page - 1) * per_page
 
     try:
+        # Default to current time if as_of is not provided
+        if as_of is None:
+            from datetime import UTC
+            as_of = datetime.now(tz=UTC)
+
         # Get change orders for the project
         change_orders, total = await service.get_change_orders(
             project_id=project_id,
@@ -185,12 +190,14 @@ async def read_change_order(
 
     Requires read permission.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     if as_of:
         # Time travel query
         change_order = await service.get_as_of(change_order_id, as_of, branch=branch)
-    else:
-        # Current version
-        change_order = await service.get_current(change_order_id, branch=branch)
 
     if not change_order:
         raise HTTPException(

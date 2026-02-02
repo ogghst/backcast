@@ -141,6 +141,11 @@ async def read_schedule_baseline(
     Supports time-travel queries via the as_of parameter to view
     the baseline's state at any historical point in time.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     if as_of:
         # Time travel query
         item = await service.get_as_of(

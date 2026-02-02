@@ -78,6 +78,10 @@ async def read_cost_elements(
     from app.models.schemas.common import PaginatedResponse
     from app.models.schemas.cost_element import CostElementRead
 
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        as_of = datetime.now(tz=UTC)
+
     # Parse mode string to BranchMode enum
     branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
@@ -163,6 +167,10 @@ async def read_cost_element(
     Supports time-travel queries via the as_of parameter to view
     the cost element's state at any historical point in time.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        as_of = datetime.now(tz=UTC)
+
     if as_of:
         # Time travel query
         item = await service.get_cost_element_as_of(cost_element_id, as_of)
@@ -667,6 +675,10 @@ async def get_cost_element_forecast(
     This endpoint follows the inverted FK pattern, querying via
     cost_element.forecast_id instead of forecast.cost_element_id.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        as_of = datetime.now(tz=UTC)
+
     # Get the cost element using service layer
     if as_of:
         # Time travel query

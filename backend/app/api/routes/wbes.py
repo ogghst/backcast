@@ -92,6 +92,11 @@ async def read_wbes(
     # Parse mode string to BranchMode enum
     branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     # Parse parent_wbe_id
     parsed_parent_id: UUID | None = None
     is_root_query = False
@@ -227,12 +232,14 @@ async def read_wbe(
     Supports time-travel queries via the as_of parameter to view
     the WBE's state at any historical point in time.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     if as_of:
         # Time travel query
         wbe = await service.get_wbe_as_of(wbe_id, as_of, branch=branch)
-    else:
-        # Current version
-        wbe = await service.get_current(wbe_id, branch=branch)
 
     if not wbe:
         raise HTTPException(
@@ -305,6 +312,11 @@ async def read_wbe_breadcrumb(
     service: WBEService = Depends(get_wbe_service),
 ) -> dict[str, Any]:
     """Get breadcrumb trail for a WBE (project + ancestor path). Requires read permission."""
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     try:
         return await service.get_breadcrumb(wbe_id, branch=branch, as_of=as_of)
     except ValueError as e:
