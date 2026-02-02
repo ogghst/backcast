@@ -7654,6 +7654,19 @@
             "type": "string",
             "format": "uuid",
             "title": "Department Id"
+          },
+          "control_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Date",
+            "description": "Optional control date for creation (valid_time start)"
           }
         },
         "type": "object",
@@ -8301,6 +8314,19 @@
             "pattern": "^[A-Z0-9_-]+$",
             "title": "Code",
             "description": "Unique department code (immutable)"
+          },
+          "control_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Date",
+            "description": "Optional control date for creation (valid_time start)"
           }
         },
         "type": "object",
@@ -10486,6 +10512,19 @@
             "minLength": 8,
             "title": "Password",
             "description": "Password must be at least 8 characters"
+          },
+          "control_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Date",
+            "description": "Optional control date for creation (valid_time start)"
           }
         },
         "type": "object",
@@ -10553,6 +10592,19 @@
               }
             ],
             "title": "Is Active"
+          },
+          "control_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control Date",
+            "description": "Optional control date for valid_time"
           }
         },
         "type": "object",

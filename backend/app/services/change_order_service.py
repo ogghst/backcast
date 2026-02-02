@@ -125,7 +125,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         self,
         change_order_in: ChangeOrderCreate,
         actor_id: UUID,
-        control_date: datetime | None = None,
     ) -> ChangeOrder:
         """Create a new Change Order with automatic branch creation.
 
@@ -138,12 +137,13 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         Args:
             change_order_in: Change Order creation data
             actor_id: User creating the Change Order
-            control_date: Optional control date for bitemporal operations
 
         Returns:
             Created ChangeOrder
 
         """
+        # Extract control_date from schema
+        control_date = getattr(change_order_in, "control_date", None)
         # Extract data from Pydantic model
         co_data = change_order_in.model_dump(exclude_unset=True)
         co_data.pop("control_date", None)
@@ -210,7 +210,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         change_order_id: UUID,
         change_order_in: ChangeOrderUpdate,
         actor_id: UUID,
-        control_date: datetime | None = None,
         branch: str | None = None,
     ) -> ChangeOrder:
         """Update a Change Order's metadata with workflow validation and branch locking.
@@ -225,7 +224,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             change_order_id: The change_order_id (UUID root identifier)
             change_order_in: Update data (partial)
             actor_id: User making the update
-            control_date: Optional control date for bitemporal operations
             branch: Optional branch name to update on (defaults to current branch)
 
         Returns:
@@ -234,6 +232,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         Raises:
             ValueError: If Change Order not found, invalid branch, or invalid status transition
         """
+        # Extract control_date from schema
+        control_date = getattr(change_order_in, "control_date", None)
         # Get the current version on any branch to find where it exists
         from sqlalchemy import select as sql_select
 

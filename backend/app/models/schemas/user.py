@@ -61,6 +61,9 @@ class UserUpdate(BaseModel):
     role: str | None = None
     password: str | None = None
     is_active: bool | None = None
+    control_date: datetime | None = Field(
+        None, description="Optional control date for valid_time"
+    )
 
 
 # Properties to return to client (public implementation)

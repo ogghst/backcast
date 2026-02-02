@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.core.branching.service import BranchableService
+from app.core.branching.commands import CreateBranchCommand, UpdateCommand
 from app.core.versioning.commands import CreateVersionCommand, UpdateVersionCommand
 from app.core.versioning.enums import BranchMode
 from app.models.domain.user import User
@@ -376,14 +377,13 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         return resolved[0] if resolved else None
 
     async def create_wbe(
-        self, wbe_in: WBECreate, actor_id: UUID, control_date: datetime | None = None
+        self, wbe_in: WBECreate, actor_id: UUID
     ) -> WBE:
         """Create new WBE using CreateVersionCommand."""
         wbe_data = wbe_in.model_dump(exclude_unset=True)
         
-        # Extract control_date from schema if present (for seeding)
-        schema_control_date = getattr(wbe_in, 'control_date', None)
-        actual_control_date = schema_control_date or control_date
+        # Extract control_date from schema if present (for seeding/time-travel)
+        control_date = getattr(wbe_in, 'control_date', None)
         
         # Remove control_date from wbe_data if present to avoid conflict with explicit arg
         wbe_data.pop("control_date", None)
@@ -405,7 +405,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
-            control_date=actual_control_date,
+            control_date=control_date,
             **wbe_data,
         )
         return await cmd.execute(self.session)
@@ -416,7 +416,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         wbe_id: UUID,
         wbe_in: WBEUpdate,
         actor_id: UUID,
-        control_date: datetime | None = None,
     ) -> WBE:
         """Update WBE using UpdateVersionCommand."""
         update_data = wbe_in.model_dump(exclude_unset=True)
@@ -443,12 +442,21 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
                 # Setting to root
                 update_data["level"] = 1
 
-        cmd = UpdateVersionCommand(
+        # Extract control_date and branch from schema
+        control_date = wbe_in.control_date
+        branch = wbe_in.branch or "main"
+
+        # Pop control_date and branch from update_data (they were already in model_dump)
+        update_data.pop("control_date", None)
+        update_data.pop("branch", None)
+
+        cmd = UpdateCommand(
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=wbe_id,
             actor_id=actor_id,
+            branch=branch,
             control_date=control_date,
-            **update_data,
+            updates=update_data,
         )
         return await cmd.execute(self.session)
 

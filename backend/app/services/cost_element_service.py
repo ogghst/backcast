@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.branching.commands import UpdateCommand
 from app.core.branching.service import BranchableService
 from app.core.versioning.commands import CreateVersionCommand, UpdateVersionCommand
 from app.core.versioning.enums import BranchMode
@@ -164,7 +165,6 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         element_in: CostElementCreate,
         actor_id: UUID,
         branch: str | None = None,
-        control_date: datetime | None = None,
     ) -> CostElement:
         """Create new cost element using CreateVersionCommand.
 
@@ -172,9 +172,8 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         """
         element_data = element_in.model_dump(exclude_unset=True)
         
-        # Extract control_date from schema if present (for seeding)
-        schema_control_date = getattr(element_in, 'control_date', None)
-        actual_control_date = schema_control_date or control_date
+        # Extract control_date from schema if present (for seeding/time-travel)
+        control_date = getattr(element_in, 'control_date', None)
         
         # Remove control_date from data to avoid duplicate kwarg error
         element_data.pop("control_date", None)
@@ -193,7 +192,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
-            control_date=actual_control_date,
+            control_date=control_date,
             **element_data,
         )
         cost_element = await cmd.execute(self.session)
@@ -206,7 +205,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             cost_element_id=root_id,
             actor_id=actor_id,
             branch=target_branch,
-            control_date=actual_control_date,
+            control_date=control_date,
         )
 
         # Update cost element with baseline reference
@@ -221,6 +220,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             actor_id=actor_id,
             branch=target_branch,
             budget_amount=cost_element.budget_amount,
+            control_date=control_date,
         )
 
         # Update cost element with forecast reference
@@ -236,9 +236,11 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         element_in: CostElementUpdate,
         actor_id: UUID,
         branch: str | None = None,
-        control_date: datetime | None = None,
     ) -> CostElement:
-        """Update cost element using UpdateVersionCommand or Fork if new branch."""
+        # Extract control_date and branch from schema
+        control_date = element_in.control_date
+        
+        # Filter None values from update data
         update_data = element_in.model_dump(exclude_unset=True)
         update_data.pop("control_date", None)
 
@@ -377,6 +379,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 actor_id=actor_id,
                 branch=target_branch,
                 budget_amount=new_element.budget_amount,
+                control_date=control_date,
             )
 
             # Update cost element with forecast reference
@@ -781,7 +784,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         )
 
         # Apply time-travel filter
-        stmt = self._apply_bitemporal_filter_for_time_travel(stmt, as_of)
+        stmt = self._apply_bitemporal_filter(stmt, as_of)
 
         stmt = stmt.limit(1)
         result = await self.session.execute(stmt)

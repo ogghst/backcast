@@ -163,7 +163,6 @@ async def test_cost_element_with_baseline(
         element_in=create_schema,
         actor_id=mock_admin_user.user_id,
         branch="main",
-        control_date=None,
     )
 
     # Get the auto-created baseline
@@ -243,7 +242,6 @@ class TestGetScheduleBaseline:
             element_in=create_schema,
             actor_id=mock_admin_user.user_id,
             branch="main",
-            control_date=None,
         )
         await db_session.commit()
 
@@ -309,7 +307,6 @@ class TestCreateScheduleBaseline:
             element_in=create_schema,
             actor_id=mock_admin_user.user_id,
             branch="main",
-            control_date=None,
         )
         await db_session.commit()
 
@@ -521,7 +518,6 @@ class TestBranchIsolation:
             element_in=create_schema,
             actor_id=mock_admin_user.user_id,
             branch="change-order-1",
-            control_date=None,
         )
         await db_session.commit()
 
@@ -533,15 +529,18 @@ class TestBranchIsolation:
         assert baseline_co.name == "Default Schedule"
 
         # Update the baseline to have a custom name
+        from app.models.schemas.schedule_baseline import ScheduleBaselineUpdate
+
         now = datetime.utcnow()
         _ = await baseline_service.update(
             root_id=baseline_co.schedule_baseline_id,
+            baseline_in=ScheduleBaselineUpdate(
+                name="Branch Baseline",
+                start_date=now,
+                end_date=now + timedelta(days=90),
+                branch="change-order-1",
+            ),
             actor_id=mock_admin_user.user_id,
-            branch="change-order-1",
-            control_date=None,
-            name="Branch Baseline",
-            start_date=now,
-            end_date=now + timedelta(days=90),
         )
         await db_session.commit()
 

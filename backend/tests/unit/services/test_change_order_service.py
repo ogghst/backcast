@@ -82,7 +82,7 @@ class TestChangeOrderServiceCreate:
 
         # Act
         created_co = await service.create_change_order(
-            co_in, actor_id=actor_id, control_date=control_date
+            co_in, actor_id=actor_id
         )
 
         # Assert

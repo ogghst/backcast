@@ -1,6 +1,6 @@
 """Progress Entry Service - versionable progress tracking management."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -79,7 +79,6 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         progress_entry_id: UUID,
         progress_in: ProgressEntryUpdate,
         actor_id: UUID,
-        control_date: datetime | None = None,
     ) -> ProgressEntry:
         """Update progress entry using UpdateVersionCommand.
 
@@ -87,9 +86,12 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
             progress_entry_id: The progress entry to update
             progress_in: The update data
             actor_id: The user making the update
-            control_date: Optional control date for valid_time (defaults to now)
         """
         update_data = progress_in.model_dump(exclude_unset=True)
+
+        # Extract control_date from schema (defaults to now if not provided)
+        control_date = progress_in.control_date or datetime.now(tz=UTC)
+        update_data.pop("control_date", None)
 
         # Validate progress_percentage if provided
         if "progress_percentage" in update_data:

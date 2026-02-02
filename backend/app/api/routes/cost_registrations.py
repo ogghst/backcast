@@ -118,7 +118,6 @@ async def create_cost_registration(
         return await service.create(
             registration_in=registration_in,
             actor_id=current_user.user_id,
-            control_date=registration_in.control_date,
         )
 
     except Exception as e:
@@ -324,7 +323,6 @@ async def update_cost_registration(
             cost_registration_id=cost_registration_id,
             registration_in=registration_in,
             actor_id=current_user.user_id,
-            control_date=registration_in.control_date,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

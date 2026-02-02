@@ -142,7 +142,6 @@ async def create_project(
         project = await service.create_project(
             project_in=project_in,
             actor_id=current_user.user_id,
-            control_date=project_in.control_date,
         )
         return project
     except ValueError as e:
@@ -206,7 +205,6 @@ async def update_project(
             project_id=project_id,
             project_in=project_in,
             actor_id=current_user.user_id,
-            control_date=project_in.control_date,
         )
         return updated_project
     except ValueError as e:

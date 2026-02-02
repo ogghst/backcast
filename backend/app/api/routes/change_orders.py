@@ -152,7 +152,6 @@ async def create_change_order(
         change_order = await service.create_change_order(
             change_order_in=change_order_in,
             actor_id=current_user.user_id,
-            control_date=change_order_in.control_date,
         )
         return await service._to_public(change_order)
     except HTTPException:
@@ -256,7 +255,6 @@ async def update_change_order(
             change_order_id=change_order_id,
             change_order_in=change_order_in,
             actor_id=current_user.user_id,
-            control_date=change_order_in.control_date,
             branch=change_order_in.branch,
         )
         logger.info(

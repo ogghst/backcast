@@ -55,7 +55,6 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         self,
         registration_in: CostRegistrationCreate,
         actor_id: UUID,
-        control_date: datetime | None = None,
         branch: str = "main",
     ) -> CostRegistration:
         """Create new cost registration using CreateVersionCommand.
@@ -68,8 +67,8 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             branch: Branch to check budget against (defaults to "main").
                     Cost registrations are global, but budget validation needs a context.
         """
-        # Extract control_date from request if provided, otherwise use parameter
-        request_control_date = registration_in.control_date or control_date
+        # Extract control_date from schema
+        control_date = getattr(registration_in, "control_date", None)
 
         # Dump registration data and exclude control_date (not a model field)
         registration_data = registration_in.model_dump(
@@ -91,7 +90,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         # CRITICAL: Use control_date for valid_time (defaults to now for production)
         # registration_date is a business field and should NOT affect valid_time
         # This ensures time-travel queries work correctly with as_of parameter
-        actual_control_date = request_control_date if request_control_date is not None else datetime.now(UTC)
+        actual_control_date = control_date
 
     # Budget validation removed - allowing over-budget registration with frontend warning
 
@@ -110,7 +109,6 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         cost_registration_id: UUID,
         registration_in: CostRegistrationUpdate,
         actor_id: UUID,
-        control_date: datetime | None = None,
     ) -> CostRegistration:
         """Update cost registration using UpdateVersionCommand.
 
@@ -120,8 +118,8 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             actor_id: The user making the update
             control_date: Optional control date for valid_time (defaults to now)
         """
-        # Extract control_date from request if provided, otherwise use parameter
-        request_control_date = registration_in.control_date or control_date
+        # Extract control_date from schema
+        control_date = getattr(registration_in, "control_date", None)
 
         # Dump update data and exclude control_date (not a model field)
         update_data = registration_in.model_dump(
@@ -138,7 +136,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             entity_class=CostRegistration,  # type: ignore[type-var,unused-ignore]
             root_id=cost_registration_id,
             actor_id=actor_id,
-            control_date=request_control_date,
+            control_date=control_date,
             **update_data,
         )
         return await cmd.execute(self.session)

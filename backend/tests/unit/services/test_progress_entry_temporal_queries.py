@@ -24,28 +24,25 @@ async def test_get_progress_history_with_as_of(db_session: AsyncSession) -> None
         ProgressEntryCreate(
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("25.00"),
-            control_date=datetime(2026, 1, 10, tzinfo=UTC),
+            control_date=datetime(2026, 1, 10, 12, 0, tzinfo=UTC),
         ),
         actor_id=actor_id,
-        control_date=datetime(2026, 1, 10, 12, 0, tzinfo=UTC),
     )
     await service.create(
         ProgressEntryCreate(
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("50.00"),
-            control_date=datetime(2026, 1, 20, tzinfo=UTC),
+            control_date=datetime(2026, 1, 20, 12, 0, tzinfo=UTC),
         ),
         actor_id=actor_id,
-        control_date=datetime(2026, 1, 20, 12, 0, tzinfo=UTC),
     )
     await service.create(
         ProgressEntryCreate(
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("75.00"),
-            control_date=datetime(2026, 1, 30, tzinfo=UTC),
+            control_date=datetime(2026, 1, 30, 12, 0, tzinfo=UTC),
         ),
         actor_id=actor_id,
-        control_date=datetime(2026, 1, 30, 12, 0, tzinfo=UTC),
     )
 
     # Act - query as of Jan 15 (should get only the first entry)

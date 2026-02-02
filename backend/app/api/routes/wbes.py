@@ -197,7 +197,7 @@ async def create_wbe(
             )
 
         wbe = await service.create_wbe(
-            wbe_in=wbe_in, actor_id=current_user.user_id, control_date=control_date
+            wbe_in=wbe_in, actor_id=current_user.user_id
         )
         return wbe
     except ValueError as e:
@@ -256,12 +256,10 @@ async def update_wbe(
 ) -> WBE:
     """Update a WBE. Requires update permission."""
     try:
-        control_date = wbe_in.control_date
         updated_wbe = await service.update_wbe(
             wbe_id=wbe_id,
             wbe_in=wbe_in,
             actor_id=current_user.user_id,
-            control_date=control_date,
         )
         return updated_wbe
     except ValueError as e:

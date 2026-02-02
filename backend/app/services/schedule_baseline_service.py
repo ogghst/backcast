@@ -14,7 +14,7 @@ from app.core.branching.service import BranchableService
 from app.core.versioning.commands import CreateVersionCommand
 from app.models.domain.cost_element import CostElement
 from app.models.domain.schedule_baseline import ScheduleBaseline
-from app.models.schemas.schedule_baseline import ScheduleBaselineCreate
+from app.models.schemas.schedule_baseline import ScheduleBaselineCreate, ScheduleBaselineUpdate
 
 
 class BaselineAlreadyExistsError(Exception):
@@ -126,7 +126,6 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         self,
         create_schema: ScheduleBaselineCreate,
         actor_id: UUID,
-        control_date: datetime | None = None,
         branch: str = "main",
     ) -> ScheduleBaseline:
         """Create a new ScheduleBaseline from a schema.
@@ -134,12 +133,13 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         Args:
             create_schema: ScheduleBaselineCreate schema with entity data
             actor_id: User creating the baseline
-            control_date: Optional control date for valid_time
             branch: Branch name (default: "main")
 
         Returns:
             Created ScheduleBaseline
         """
+        # Extract control_date from schema if present
+        control_date = getattr(create_schema, "control_date", None)
         from uuid import uuid4
 
         root_id = create_schema.schedule_baseline_id or uuid4()
@@ -173,6 +173,80 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def update(  # type: ignore[override]
+        self,
+        root_id: UUID,
+        baseline_in: ScheduleBaselineUpdate,
+        actor_id: UUID,
+    ) -> ScheduleBaseline:
+        """Update schedule baseline using UpdateVersionCommand.
+
+        Args:
+            root_id: The schedule baseline to update
+            baseline_in: The update data
+            actor_id: The user making the update
+        """
+        # Extract control_date and branch from schema
+        control_date = baseline_in.control_date
+        branch = baseline_in.branch or "main"
+
+        # Dump update data and exclude metadata (not entity fields)
+        update_data = baseline_in.model_dump(
+            exclude_unset=True,
+            exclude={"control_date", "branch"},
+        )
+
+        # Custom command class to handle branch filtering
+        from app.core.versioning.commands import UpdateVersionCommand
+
+        class ScheduleBaselineUpdateCommand(UpdateVersionCommand[ScheduleBaseline]):  # type: ignore[type-var,unused-ignore]
+            def __init__(
+                self,
+                entity_class: type[ScheduleBaseline],
+                root_id: UUID,
+                actor_id: UUID,
+                branch: str = "main",
+                control_date: datetime | None = None,
+                **updates: Any,
+            ) -> None:
+                super().__init__(
+                    entity_class,
+                    root_id,
+                    actor_id,
+                    control_date=control_date,
+                    **updates,
+                )
+                self.branch = branch
+
+            def _root_field_name(self) -> str:
+                return "schedule_baseline_id"
+
+            async def _get_current(self, session: AsyncSession) -> Any | None:
+                stmt = (
+                    select(self.entity_class)
+                    .where(
+                        getattr(self.entity_class, self._root_field_name())
+                        == self.root_id,
+                        self.entity_class.branch == self.branch,
+                        func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+                        cast(Any, self.entity_class).deleted_at.is_(None),
+                    )
+                    .order_by(cast(Any, self.entity_class).valid_time.desc())
+                    .limit(1)
+                )
+                result = await session.execute(stmt)
+                return result.scalar_one_or_none()
+
+        cmd = ScheduleBaselineUpdateCommand(
+            entity_class=ScheduleBaseline,  # type: ignore[type-var,unused-ignore]
+            root_id=root_id,
+            actor_id=actor_id,
+            branch=branch,
+            control_date=control_date,
+            **update_data,
+        )
+        return await cmd.execute(self.session)
 
     async def soft_delete(
         self,

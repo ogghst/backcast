@@ -12,7 +12,7 @@ from app.core.branching.service import BranchableService
 from app.core.versioning.commands import CreateVersionCommand
 from app.models.domain.cost_element import CostElement
 from app.models.domain.forecast import Forecast
-from app.models.schemas.forecast import ForecastCreate
+from app.models.schemas.forecast import ForecastCreate, ForecastUpdate
 
 
 class ForecastAlreadyExistsError(Exception):
@@ -102,10 +102,11 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         forecast_in: ForecastCreate,
         actor_id: UUID,
         branch: str | None = None,
-        control_date: datetime | None = None,
     ) -> Forecast:
         """Create new forecast using CreateVersionCommand."""
         forecast_data = forecast_in.model_dump(exclude_unset=True)
+        # Extract control_date from schema if present
+        control_date = getattr(forecast_in, "control_date", None)
         forecast_data.pop("control_date", None)
 
         # Use provided forecast_id (for seeding) or generate new one
@@ -301,12 +302,42 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
 
         return forecast
 
+    async def update(  # type: ignore[override]
+        self,
+        forecast_id: UUID,
+        forecast_in: ForecastUpdate,
+        actor_id: UUID,
+    ) -> Forecast:
+        """Update forecast using branch-aware UpdateCommand."""
+        # Extract control_date and branch from schema
+        control_date = forecast_in.control_date
+        branch = forecast_in.branch or "main"
+
+        # Filter None values from update data
+        update_data = forecast_in.model_dump(exclude_unset=True)
+        update_data.pop("control_date", None)
+        update_data.pop("branch", None)
+
+        from app.core.branching.commands import UpdateCommand
+
+        cmd = UpdateCommand(
+            entity_class=Forecast,  # type: ignore[type-var,unused-ignore]
+            root_id=forecast_id,
+            actor_id=actor_id,
+            branch=branch,
+            control_date=control_date,
+            updates=update_data,
+        )
+        return await cmd.execute(self.session)
+
+
     async def ensure_exists(
         self,
         cost_element_id: UUID,
         actor_id: UUID,
         branch: str = "main",
         budget_amount: Decimal | None = None,
+        control_date: datetime | None = None,
     ) -> Forecast:
         """Ensure a forecast exists for the cost element, creating if necessary.
 
@@ -315,6 +346,7 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
             actor_id: User creating the forecast if needed
             branch: Branch name (default: "main")
             budget_amount: Optional budget amount for default forecast
+            control_date: Optional control date for valid_time
 
         Returns:
             Existing or newly created Forecast
@@ -332,4 +364,5 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
             branch=branch,
             eac_amount=eac_amount,
             basis_of_estimate="Initial forecast",
+            control_date=control_date,
         )

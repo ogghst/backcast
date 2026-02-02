@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -158,6 +158,17 @@ class BranchableService[TBranchable: BranchableProtocol]:
     async def get_by_id(self, entity_id: UUID) -> TBranchable | None:
         """Get specific version by its version ID (primary key)."""
         return await self.session.get(self.entity_class, entity_id)
+
+    async def get_by_root_id(
+        self, root_id: UUID, branch: str = "main", as_of: datetime | None = None
+    ) -> TBranchable | None:
+        """Get the active version of an entity by its root ID.
+        
+        Dispatches to get_as_of if as_of is provided, otherwise get_current.
+        """
+        if as_of:
+            return await self.get_as_of(root_id, as_of, branch)
+        return await self.get_current(root_id, branch)
 
     async def get_current(
         self, root_id: UUID, branch: str = "main"
@@ -359,7 +370,6 @@ class BranchableService[TBranchable: BranchableProtocol]:
         from typing import Any, cast
 
         from sqlalchemy import cast as sql_cast
-        from sqlalchemy import func, or_
         from sqlalchemy.dialects.postgresql import TIMESTAMP
 
         # CRITICAL FIX: Cast as_of to TIMESTAMP(timezone=True) to ensure proper timezone handling
@@ -392,25 +402,27 @@ class BranchableService[TBranchable: BranchableProtocol]:
         This differs from _apply_bitemporal_filter which uses Current Knowledge
         semantics (transaction_time.upper IS NULL) for list operations.
         """
-        from typing import Any, cast
-
-        from sqlalchemy import func, or_
+        from sqlalchemy import cast as sql_cast
+        from sqlalchemy.dialects.postgresql import TIMESTAMP
+        
+        # CRITICAL FIX: Cast as_of to TIMESTAMP(timezone=True) for TSTZRANGE comparison
+        as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
 
         return stmt.where(
             # Check as_of is within valid_time range
-            cast(Any, self.entity_class).valid_time.op("@>")(as_of),
+            cast(Any, self.entity_class).valid_time.op("@>")(as_of_tstz),
             # CRITICAL: Also check as_of >= lower bound (entity existed)
-            func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
+            func.lower(cast(Any, self.entity_class).valid_time) <= as_of_tstz,
             # TRANSACTION TIME: System Time Travel semantics for time-travel queries.
             # Check that as_of is within the transaction_time range, not just open-ended.
             # This allows querying historical versions that have been superseded.
-            cast(Any, self.entity_class).transaction_time.op("@>")(as_of),
+            cast(Any, self.entity_class).transaction_time.op("@>")(as_of_tstz),
             # CRITICAL: Also check as_of >= lower bound (version existed)
-            func.lower(cast(Any, self.entity_class).transaction_time) <= as_of,
+            func.lower(cast(Any, self.entity_class).transaction_time) <= as_of_tstz,
             # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
             or_(
                 cast(Any, self.entity_class).deleted_at.is_(None),
-                cast(Any, self.entity_class).deleted_at > as_of,
+                cast(Any, self.entity_class).deleted_at > as_of_tstz,
             ),
         )
 
@@ -437,8 +449,6 @@ class BranchableService[TBranchable: BranchableProtocol]:
             Filtered statement with DISTINCT ON applied for MERGE mode
         """
         from typing import Any, cast
-
-        from sqlalchemy import case, or_
 
         # Get root field name (e.g., "wbe_id", "project_id", "cost_element_id")
         root_field = self._get_root_field_name()
@@ -513,15 +523,21 @@ class BranchableService[TBranchable: BranchableProtocol]:
         # Helper to get root field name
         root_field = self._get_root_field_name()
 
+        from sqlalchemy import cast as sql_cast
+        from sqlalchemy.dialects.postgresql import TIMESTAMP
+        
+        # CRITICAL FIX: Cast as_of to TIMESTAMP(timezone=True) for TSTZRANGE comparison
+        as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+
         # Base conditions for ID and Valid Time (not transaction time!)
         conditions = [
             getattr(self.entity_class, root_field) == entity_id,
             # Valid Time Coverage
-            cast(Any, self.entity_class).valid_time.op("@>")(as_of),
-            func.lower(cast(Any, self.entity_class).valid_time) <= as_of,
+            cast(Any, self.entity_class).valid_time.op("@>")(as_of_tstz),
+            func.lower(cast(Any, self.entity_class).valid_time) <= as_of_tstz,
             # Deleted At Check (respect temporal deletion)
-            func.coalesce(cast(Any, self.entity_class).deleted_at, datetime.max)
-            > as_of,
+            func.coalesce(cast(Any, self.entity_class).deleted_at, sql_cast(datetime.max, TIMESTAMP(timezone=True)))
+            > as_of_tstz,
         ]
 
         # STRICT mode or already on main: exact branch match
@@ -562,7 +578,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
                 getattr(self.entity_class, root_field) == entity_id,
                 cast(Any, self.entity_class).branch == branch,
                 cast(Any, self.entity_class).deleted_at.is_not(None),
-                cast(Any, self.entity_class).deleted_at <= as_of,  # Temporal check
+                cast(Any, self.entity_class).deleted_at <= as_of_tstz,  # Temporal check
             )
             .limit(1)
         )

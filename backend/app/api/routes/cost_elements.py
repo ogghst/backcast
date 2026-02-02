@@ -135,7 +135,6 @@ async def create_cost_element(
             element_in=element_in,
             actor_id=current_user.user_id,
             branch=element_in.branch,
-            control_date=element_in.control_date,
         )
     except Exception as e:
         raise HTTPException(
@@ -202,7 +201,6 @@ async def update_cost_element(
             element_in=element_in,
             actor_id=current_user.user_id,
             branch=branch,
-            control_date=element_in.control_date,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -467,13 +465,20 @@ async def update_cost_element_schedule_baseline(
     if "description" in baseline_in:
         update_data["description"] = baseline_in["description"]
 
+    # Build update schema
+    from app.models.schemas.schedule_baseline import ScheduleBaselineUpdate
+    
+    update_schema = ScheduleBaselineUpdate(
+        branch=branch,
+        control_date=control_date,
+        **update_data
+    )
+
     # Update baseline
     updated_baseline = await baseline_service.update(
         root_id=baseline_id,
+        baseline_in=update_schema,
         actor_id=current_user.user_id,
-        branch=branch,
-        control_date=control_date,
-        **update_data,
     )
 
     # Convert to dict
@@ -773,13 +778,11 @@ async def update_cost_element_forecast(
         if forecast_in.approved_by is not None:
             update_data["approved_by"] = forecast_in.approved_by
 
-        # Update forecast using standard update method
+        # Update forecast using refactored update method
         updated_forecast = await forecast_service.update(
-            root_id=existing_forecast.forecast_id,
+            forecast_id=existing_forecast.forecast_id,
+            forecast_in=forecast_in,
             actor_id=current_user.user_id,
-            branch=branch,
-            control_date=control_date,
-            **update_data,
         )
     else:
         # Create new forecast

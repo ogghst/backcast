@@ -112,15 +112,14 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var,u
         return result.scalar_one_or_none()
 
     async def create_department(
-        self, dept_in: DepartmentCreate, actor_id: UUID, control_date: datetime | None = None
+        self, dept_in: DepartmentCreate, actor_id: UUID
     ) -> Department:
         """Create new department using CreateVersionCommand."""
         dept_data = dept_in.model_dump(exclude_unset=True)
 
         # Extract control_date from schema if present (for seeding)
-        schema_control_date = getattr(dept_in, 'control_date', None)
-        actual_control_date = schema_control_date or control_date
-        
+        control_date = getattr(dept_in, "control_date", None)
+
         # Remove control_date from data to avoid duplicate kwarg error
         dept_data.pop("control_date", None)
 
@@ -132,7 +131,7 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var,u
             entity_class=Department,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
-            control_date=actual_control_date,
+            control_date=control_date,
             **dept_data,
         )
         return await cmd.execute(self.session)

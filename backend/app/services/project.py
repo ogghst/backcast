@@ -10,13 +10,14 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.branching.service import BranchableService
+from app.core.branching.commands import UpdateCommand
 from app.core.versioning.commands import (
     CreateVersionCommand,
     SoftDeleteCommand,
     UpdateVersionCommand,
 )
 from app.core.versioning.enums import BranchMode
-from app.core.versioning.service import TemporalService
 from app.models.domain.project import Project
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
 
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
     from app.models.schemas.branch import BranchPublic
 
 
-class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-ignore]
+class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unused-ignore]
     """Service for Project entity operations.
 
     Extends TemporalService with project-specific methods.
@@ -181,14 +182,12 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         self,
         project_in: ProjectCreate,
         actor_id: UUID,
-        control_date: datetime | None = None,
     ) -> Project:
         """Create new project using CreateVersionCommand."""
         project_data = project_in.model_dump(exclude_unset=True)
         
-        # Extract control_date from schema if present (for seeding)
-        schema_control_date = getattr(project_in, 'control_date', None)
-        actual_control_date = schema_control_date or control_date
+        # Extract control_date from schema if present (for seeding/time-travel)
+        control_date = getattr(project_in, 'control_date', None)
         
         # Remove control_date from data to avoid duplicate kwarg error
         project_data.pop("control_date", None)
@@ -201,7 +200,7 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
             entity_class=Project,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
-            control_date=actual_control_date,
+            control_date=control_date,
             **project_data,
         )
         return await cmd.execute(self.session)
@@ -212,19 +211,23 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         project_id: UUID,
         project_in: ProjectUpdate,
         actor_id: UUID,
-        control_date: datetime | None = None,
     ) -> Project:
-        """Update project using UpdateVersionCommand."""
+        # Extract control_date and branch from schema
+        control_date = project_in.control_date
+        branch = project_in.branch or "main"
+
         # Filter None values from update data
         update_data = project_in.model_dump(exclude_unset=True)
         update_data.pop("control_date", None)
+        update_data.pop("branch", None)
 
-        cmd = UpdateVersionCommand(
+        cmd = UpdateCommand(
             entity_class=Project,  # type: ignore[type-var,unused-ignore]
             root_id=project_id,
             actor_id=actor_id,
+            branch=branch,
             control_date=control_date,
-            **update_data,
+            updates=update_data,
         )
         return await cmd.execute(self.session)
 

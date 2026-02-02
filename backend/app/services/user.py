@@ -60,14 +60,13 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
         return result.scalar_one_or_none()
 
     async def create_user(
-        self, user_in: UserRegister, actor_id: UUID, control_date: datetime | None = None
+        self, user_in: UserRegister, actor_id: UUID
     ) -> User:
         """Create new user using CreateVersionCommand with Pydantic validation."""
         user_data = user_in.model_dump(exclude_unset=True)
 
         # Extract control_date from schema if present (for seeding)
-        schema_control_date = getattr(user_in, 'control_date', None)
-        actual_control_date = schema_control_date or control_date
+        control_date = getattr(user_in, "control_date", None)
         
         # Remove control_date from data to avoid duplicate kwarg error
         user_data.pop("control_date", None)
@@ -85,7 +84,7 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
             entity_class=User,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
-            control_date=actual_control_date,
+            control_date=control_date,
             **user_data,
         )
         return await cmd.execute(self.session)
@@ -108,10 +107,15 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
         # However, purely strictly speaking, if nothing to update, we pass it down
         # and let the command decide or just do it.
 
+        # Extract control_date from schema
+        control_date = getattr(user_in, "control_date", None)
+        update_data.pop("control_date", None)
+
         cmd = UpdateVersionCommand(
             entity_class=User,  # type: ignore[type-var,unused-ignore]
             root_id=user_id,
             actor_id=actor_id,
+            control_date=control_date,
             **update_data,
         )
         return await cmd.execute(self.session)

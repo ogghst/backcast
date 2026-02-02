@@ -109,11 +109,11 @@ class TestEntityDiscoveryService:
             name="Test Project",
             code="PROJ-001",
             budget=Decimal("100000.00"),
+            control_date=datetime.now(UTC),
         )
         created_project = await project_service.create_project(
             project_in=project_in,
             actor_id=actor_id,
-            control_date=datetime.now(UTC),
         )
         # Manually set the branch for testing (since create_project doesn't support branch parameter)
         created_project.branch = branch_name

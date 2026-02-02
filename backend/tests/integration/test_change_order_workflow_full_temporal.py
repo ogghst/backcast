@@ -140,9 +140,9 @@ class TestChangeOrderWorkflowFullTemporal:
                 name="Labor Cost Element 1",
                 budget_amount=Decimal("100000.00"),
                 branch="main",
+                control_date=T0,
             ),
             actor_id=actor_id,
-            control_date=T0,
         )
 
         ce2_id = uuid4()
@@ -155,9 +155,9 @@ class TestChangeOrderWorkflowFullTemporal:
                 name="Labor Cost Element 2",
                 budget_amount=Decimal("200000.00"),
                 branch="main",
+                control_date=T0,
             ),
             actor_id=actor_id,
-            control_date=T0,
         )
 
         # Get auto-created schedule baselines
@@ -195,9 +195,9 @@ class TestChangeOrderWorkflowFullTemporal:
                 reported_date=T0,
                 reported_by_user_id=actor_id,
                 notes="Initial progress",
+                control_date=T0,
             ),
             actor_id=actor_id,
-            control_date=T0,
         )
 
         await progress_service.create(
@@ -207,9 +207,9 @@ class TestChangeOrderWorkflowFullTemporal:
                 reported_date=T0,
                 reported_by_user_id=actor_id,
                 notes="Initial progress",
+                control_date=T0,
             ),
             actor_id=actor_id,
-            control_date=T0,
         )
 
         # Create cost registrations
@@ -343,9 +343,9 @@ class TestChangeOrderWorkflowFullTemporal:
                 name="Labor Cost Element 1 - EXPANDED",
                 budget_amount=Decimal("150000.00"),
                 branch=source_branch,
+                control_date=T2,
             ),
             actor_id=actor_id,
-            control_date=T2,
         )
 
         # Add progress entry on CO branch
@@ -356,9 +356,9 @@ class TestChangeOrderWorkflowFullTemporal:
                 reported_date=T2,
                 reported_by_user_id=actor_id,
                 notes="Progress after expansion",
+                control_date=T2,
             ),
             actor_id=actor_id,
-            control_date=T2,
         )
 
         # Add cost registration on CO branch
@@ -779,9 +779,9 @@ class TestChangeOrderWorkflowFullTemporal:
                 name="Cost Element 1",
                 budget_amount=Decimal("50000.00"),
                 branch="main",
+                control_date=T0,
             ),
             actor_id=actor_id,
-            control_date=T0,
         )
 
         # Create progress and cost registrations
@@ -791,9 +791,9 @@ class TestChangeOrderWorkflowFullTemporal:
                 progress_percentage=Decimal("25.00"),
                 reported_date=T0,
                 reported_by_user_id=actor_id,
+                control_date=T0,
             ),
             actor_id=actor_id,
-            control_date=T0,
         )
 
         await cost_reg_service.create(
@@ -830,9 +830,9 @@ class TestChangeOrderWorkflowFullTemporal:
                 name="Cost Element 1 - MODIFIED",
                 budget_amount=Decimal("75000.00"),
                 branch=co.branch_name,
+                control_date=T1,
             ),
             actor_id=actor_id,
-            control_date=T1,
         )
 
         # Merge

@@ -174,7 +174,6 @@ async def update_progress_entry(
             progress_entry_id=progress_entry_id,
             progress_in=progress_in,
             actor_id=current_user.user_id,
-            control_date=progress_in.control_date,
         )
         return progress
     except ValueError as e:

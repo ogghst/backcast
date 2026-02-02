@@ -113,7 +113,6 @@ async def create_schedule_baseline(
             create_schema=baseline_in,
             actor_id=current_user.user_id,
             branch=branch,
-            control_date=control_date,
         )
     except Exception as e:
         raise HTTPException(
@@ -193,10 +192,8 @@ async def update_schedule_baseline(
 
         return await service.update(
             root_id=schedule_baseline_id,
+            baseline_in=baseline_in,
             actor_id=current_user.user_id,
-            branch=branch,
-            control_date=control_date,
-            **update_data,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
