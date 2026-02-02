@@ -9,11 +9,16 @@
 
 import React, { useMemo } from "react";
 import { EChartsBaseChart, EChartsBaseChartProps } from "./EChartsBaseChart";
-import { buildGaugeOptions, GaugeConfigOptions } from "../../utils/echartsConfig";
+import {
+  buildGaugeOptions,
+  GaugeConfigOptions,
+} from "../../utils/echartsConfig";
 import { useEChartsColors } from "../../utils/echartsTheme";
 
-export interface EChartsGaugeProps
-  extends Omit<EChartsBaseChartProps, "option"> {
+export interface EChartsGaugeProps extends Omit<
+  EChartsBaseChartProps,
+  "option"
+> {
   /** Current value to display (null = not available) */
   value: number | null;
 
@@ -76,18 +81,33 @@ export const EChartsGauge: React.FC<EChartsGaugeProps> = ({
         variant,
         size,
       } as GaugeConfigOptions,
-      colors
+      colors,
     );
-  }, [value, min, max, label, goodThreshold, warningThresholdPercent, variant, size, colors]);
+  }, [
+    value,
+    min,
+    max,
+    label,
+    goodThreshold,
+    warningThresholdPercent,
+    variant,
+    size,
+    colors,
+  ]);
 
   // Calculate chart height based on variant and size
   const chartHeight = useMemo(() => {
     if (variant === "semi-circle") {
-      // Semi-circle needs less vertical space
-      return Math.floor(size * 0.7);
+      // Semi-circle needs less vertical space with new center positioning
+      return Math.floor(size * 0.65);
     }
     return size;
   }, [size, variant]);
+
+  // Merge default 100% width style with any custom style
+  const chartStyle = useMemo(() => {
+    return { width: "100%", ...style };
+  }, [style]);
 
   return (
     <EChartsBaseChart
@@ -96,7 +116,7 @@ export const EChartsGauge: React.FC<EChartsGaugeProps> = ({
       error={error}
       height={chartHeight}
       className={className}
-      style={style}
+      style={chartStyle}
       onChartReady={onChartReady}
       onEvents={onEvents}
       showWhenEmpty={value === null}

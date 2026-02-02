@@ -185,7 +185,7 @@ describe("EVMAnalyzerModal", () => {
         { wrapper }
       );
 
-      expect(screen.getByText(/EVM Analysis/i)).toBeInTheDocument();
+      expect(screen.getByText(/EVM Analysis Dashboard/i)).toBeInTheDocument();
     });
   });
 
@@ -217,7 +217,7 @@ describe("EVMAnalyzerModal", () => {
       }
     });
 
-    it("should call onClose when cancel button is clicked", async () => {
+    it("should call onClose when Close button is clicked", async () => {
       const onClose = vi.fn();
 
       render(
@@ -232,33 +232,9 @@ describe("EVMAnalyzerModal", () => {
         { wrapper }
       );
 
-      // Find and click the cancel button
-      const cancelButton = screen.getByText(/Cancel/i);
-      fireEvent.click(cancelButton);
-
-      await waitFor(() => {
-        expect(onClose).toHaveBeenCalled();
-      });
-    });
-
-    it("should call onClose when OK button is clicked", async () => {
-      const onClose = vi.fn();
-
-      render(
-        <EVMAnalyzerModal
-          open={true}
-          onClose={onClose}
-          evmMetrics={mockEvmMetrics}
-          timeSeries={mockTimeSeriesData}
-          loading={false}
-          onGranularityChange={vi.fn()}
-        />,
-        { wrapper }
-      );
-
-      // Find and click the OK button
-      const okButton = screen.getByText(/OK/i);
-      fireEvent.click(okButton);
+      // Find and click the Close button (button text changed from OK to Close)
+      const closeButton = screen.getByText(/Close/i);
+      fireEvent.click(closeButton);
 
       await waitFor(() => {
         expect(onClose).toHaveBeenCalled();
@@ -433,7 +409,7 @@ describe("EVMAnalyzerModal", () => {
   });
 
   describe("All metrics display", () => {
-    it("should render all key EVM metrics", () => {
+    it("should render gauges in the overview tab sidebar", () => {
       render(
         <EVMAnalyzerModal
           open={true}
@@ -446,13 +422,12 @@ describe("EVMAnalyzerModal", () => {
         { wrapper }
       );
 
-      // Check for key metrics (using the name-based testids from the mock)
-      expect(screen.getByTestId(/metric-card-budget-at-completion/i)).toBeInTheDocument();
+      // Check for gauges in the overview tab
       expect(screen.getByTestId(/gauge-cpi/i)).toBeInTheDocument();
       expect(screen.getByTestId(/gauge-spi/i)).toBeInTheDocument();
     });
 
-    it("should display forecast metrics", () => {
+    it("should render time series chart in the overview tab", () => {
       render(
         <EVMAnalyzerModal
           open={true}
@@ -465,10 +440,62 @@ describe("EVMAnalyzerModal", () => {
         { wrapper }
       );
 
-      // Check for forecast metrics (using the name-based testids from the mock)
-      expect(screen.getByTestId(/metric-card-estimate-at-completion/i)).toBeInTheDocument();
-      expect(screen.getByTestId(/metric-card-variance-at-completion/i)).toBeInTheDocument();
-      expect(screen.getByTestId(/metric-card-estimate-to-complete/i)).toBeInTheDocument();
+      // Check for the chart in the overview tab
+      const chart = screen.getByTestId("evm-timeseries-chart");
+      expect(chart).toBeInTheDocument();
+    });
+
+    it("should display all key financial metrics when All Metrics tab is clicked", async () => {
+      render(
+        <EVMAnalyzerModal
+          open={true}
+          onClose={vi.fn()}
+          evmMetrics={mockEvmMetrics}
+          timeSeries={mockTimeSeriesData}
+          loading={false}
+          onGranularityChange={vi.fn()}
+        />,
+        { wrapper }
+      );
+
+      // Click on the All Metrics tab
+      const allMetricsTab = screen.getByText(/All Metrics/i);
+      fireEvent.click(allMetricsTab);
+
+      await waitFor(() => {
+        // Check for key financial metrics (use getAllByText since they may appear in multiple places)
+        expect(screen.getAllByText(/Budget at Completion/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Estimate at Completion/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Variance at Completion/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Estimate to Complete/i).length).toBeGreaterThan(0);
+      });
+    });
+
+    it("should display all metric categories in All Metrics tab", async () => {
+      render(
+        <EVMAnalyzerModal
+          open={true}
+          onClose={vi.fn()}
+          evmMetrics={mockEvmMetrics}
+          timeSeries={mockTimeSeriesData}
+          loading={false}
+          onGranularityChange={vi.fn()}
+        />,
+        { wrapper }
+      );
+
+      // Click on the All Metrics tab
+      const allMetricsTab = screen.getByText(/All Metrics/i);
+      fireEvent.click(allMetricsTab);
+
+      await waitFor(() => {
+        // Check for section headers for each category
+        expect(screen.getByText(/Key Financial Metrics/i)).toBeInTheDocument();
+        expect(screen.getByText(/Schedule Performance Metrics/i)).toBeInTheDocument();
+        expect(screen.getByText(/Cost Performance Metrics/i)).toBeInTheDocument();
+        expect(screen.getByText(/Variance Analysis/i)).toBeInTheDocument();
+        expect(screen.getByText(/Forecast Metrics/i)).toBeInTheDocument();
+      });
     });
   });
 

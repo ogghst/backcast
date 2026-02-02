@@ -72,13 +72,15 @@ export const EChartsBaseChart = React.forwardRef<
     const chartRef = useRef<ReactECharts | null>(null);
     const resizeObserverRef = useRef<ResizeObserver | null>(null);
     const [isReady, setIsReady] = useState(!delayRender);
-    const [containerStyle, setContainerStyle] =
-      React.useState<React.CSSProperties>({
+    const containerStyle = React.useMemo<React.CSSProperties>(() => {
+      const isPercentageHeight = typeof height === "string" && height.endsWith("%");
+      return {
         height: typeof height === "number" ? `${height}px` : height,
         width: "100%",
-        minHeight: typeof height === "number" ? `${height}px` : height,
+        minHeight: isPercentageHeight ? undefined : (typeof height === "number" ? `${height}px` : height),
         ...style,
-      });
+      };
+    }, [height, style]);
 
     // Delay rendering for modals to allow DOM to settle
     useEffect(() => {

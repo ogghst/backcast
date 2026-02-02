@@ -40,6 +40,8 @@ interface EVMTimeSeriesChartProps {
   headless?: boolean;
   /** Chart height */
   height?: number | string;
+  /** Whether to fill the container height (for both charts mode) */
+  fillContainer?: boolean;
 }
 
 /**
@@ -54,6 +56,7 @@ export const EVMTimeSeriesChart = ({
   delayRender = false,
   headless = false,
   height,
+  fillContainer = false,
 }: EVMTimeSeriesChartProps) => {
   // Get current granularity from timeSeries or prop
   const granularity =
@@ -72,6 +75,7 @@ export const EVMTimeSeriesChart = ({
       currency="EUR"
       delayRender={delayRender}
       height={height}
+      fillContainer={fillContainer}
     />
   );
 

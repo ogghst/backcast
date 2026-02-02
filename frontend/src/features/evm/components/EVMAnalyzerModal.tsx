@@ -12,6 +12,7 @@
  * - Organized layout with tabs or sections
  * - Proper loading and empty states
  * - All EVM metrics displayed with enhanced visualizations
+ * - Viewport-height optimized layout with minimal scrolling
  *
  * @module features/evm/components
  */
@@ -26,10 +27,12 @@ import {
   Col,
   Typography,
   ConfigProvider,
-  Collapse,
+  Card,
+  Space,
+  theme,
 } from "antd";
 import { MetricCard } from "./MetricCard";
-import { EVMGauge } from "./EVMGauge";
+import { EChartsGauge } from "./charts/EChartsGauge";
 import { EVMTimeSeriesChart } from "./EVMTimeSeriesChart";
 import type {
   EVMMetricsResponse,
@@ -38,8 +41,7 @@ import type {
 } from "../types";
 import { METRIC_DEFINITIONS, getMetricStatus, MetricCategory } from "../types";
 
-const { Title } = Typography;
-// { Panel } was removed from destructuring because we're using items prop now
+const { Title, Text } = Typography;
 
 interface EVMAnalyzerModalProps {
   /** Whether the modal is open */
@@ -110,9 +112,11 @@ export const EVMAnalyzerModal = ({
   loading = false,
   onGranularityChange,
 }: EVMAnalyzerModalProps) => {
+  const { token } = theme.useToken();
   // State to trigger chart re-render when modal opens
   const [modalOpen, setModalOpen] = React.useState(open);
   const [chartKey, setChartKey] = React.useState(0);
+  const [activeTab, setActiveTab] = React.useState("overview");
 
   // Handle modal open/close
   React.useEffect(() => {
@@ -148,194 +152,100 @@ export const EVMAnalyzerModal = ({
   );
 
   /**
-   * Render performance indices section content
+   * Render metrics organized by category in a compact grid layout.
    */
-  const renderPerformanceIndicesContent = () => {
+  const renderMetricsCards = (category: MetricCategory) => {
     if (!evmMetrics) return null;
 
+    const categories = organizeMetricsByCategory(evmMetrics);
+    const categoryMetrics = categories[category];
+
+    if (categoryMetrics.length === 0) return null;
+
     return (
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12}>
-          <EVMGauge
-            key={`cpi-${chartKey}`}
-            value={evmMetrics.cpi}
-            min={0}
-            max={2}
-            label="CPI"
-            goodThreshold={1.0}
-            warningThresholdPercent={0.9}
-            size={180}
-          />
-        </Col>
-        <Col xs={24} sm={12}>
-          <EVMGauge
-            key={`spi-${chartKey}`}
-            value={evmMetrics.spi}
-            min={0}
-            max={2}
-            label="SPI"
-            goodThreshold={1.0}
-            warningThresholdPercent={0.9}
-            size={180}
-          />
-        </Col>
+      <Row gutter={[12, 12]} style={{ marginTop: 8 }}>
+        {categoryMetrics.map((metric) => (
+          <Col xs={12} sm={8} md={6} key={metric.key}>
+            <MetricCard
+              metadata={
+                METRIC_DEFINITIONS[
+                  metric.key as keyof typeof METRIC_DEFINITIONS
+                ]
+              }
+              value={metric.value}
+              status={metric.status}
+              size="small"
+              showDescription={false}
+            />
+          </Col>
+        ))}
       </Row>
     );
   };
 
   /**
-   * Render metrics organized by category
+   * Render key financial metrics section for All Metrics tab.
    */
-  const renderMetricsTabs = () => {
+  const renderKeyFinancialMetrics = () => {
     if (!evmMetrics) return null;
 
-    const categories = organizeMetricsByCategory(evmMetrics);
-
-    const tabItems = [
-      {
-        key: "overview",
-        label: "Overview",
-        children: (
-          <Row gutter={[16, 16]}>
-            <Col xs={24} sm={12} md={8}>
-              <MetricCard
-                metadata={METRIC_DEFINITIONS.bac}
-                value={evmMetrics.bac}
-                status="good"
-                size="medium"
-                showDescription
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8}>
-              <MetricCard
-                metadata={METRIC_DEFINITIONS.eac}
-                value={evmMetrics.eac}
-                status={getMetricStatus("eac", evmMetrics.eac)}
-                size="medium"
-                showDescription
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8}>
-              <MetricCard
-                metadata={METRIC_DEFINITIONS.vac}
-                value={evmMetrics.vac}
-                status={getMetricStatus("vac", evmMetrics.vac)}
-                size="medium"
-                showDescription
-              />
-            </Col>
-            <Col xs={24} sm={12} md={8}>
-              <MetricCard
-                metadata={METRIC_DEFINITIONS.etc}
-                value={evmMetrics.etc}
-                status={getMetricStatus("etc", evmMetrics.etc)}
-                size="medium"
-                showDescription
-              />
-            </Col>
-          </Row>
-        ),
-      },
-      {
-        key: "schedule",
-        label: "Schedule",
-        children: (
-          <Row gutter={[16, 16]}>
-            {categories[MetricCategory.SCHEDULE].map((metric) => (
-              <Col xs={24} sm={12} md={8} key={metric.key}>
-                <MetricCard
-                  metadata={
-                    METRIC_DEFINITIONS[
-                      metric.key as keyof typeof METRIC_DEFINITIONS
-                    ]
-                  }
-                  value={metric.value}
-                  status={metric.status}
-                  size="medium"
-                  showDescription
-                />
-              </Col>
-            ))}
-          </Row>
-        ),
-      },
-      {
-        key: "cost",
-        label: "Cost",
-        children: (
-          <Row gutter={[16, 16]}>
-            {categories[MetricCategory.COST].map((metric) => (
-              <Col xs={24} sm={12} md={8} key={metric.key}>
-                <MetricCard
-                  metadata={
-                    METRIC_DEFINITIONS[
-                      metric.key as keyof typeof METRIC_DEFINITIONS
-                    ]
-                  }
-                  value={metric.value}
-                  status={metric.status}
-                  size="medium"
-                  showDescription
-                />
-              </Col>
-            ))}
-          </Row>
-        ),
-      },
-      {
-        key: "variance",
-        label: "Variance",
-        children: (
-          <Row gutter={[16, 16]}>
-            {categories[MetricCategory.VARIANCE].map((metric) => (
-              <Col xs={24} sm={12} md={8} key={metric.key}>
-                <MetricCard
-                  metadata={
-                    METRIC_DEFINITIONS[
-                      metric.key as keyof typeof METRIC_DEFINITIONS
-                    ]
-                  }
-                  value={metric.value}
-                  status={metric.status}
-                  size="medium"
-                  showDescription
-                />
-              </Col>
-            ))}
-          </Row>
-        ),
-      },
-      {
-        key: "forecast",
-        label: "Forecast",
-        children: (
-          <Row gutter={[16, 16]}>
-            {categories[MetricCategory.FORECAST].map((metric) => (
-              <Col xs={24} sm={12} md={8} key={metric.key}>
-                <MetricCard
-                  metadata={
-                    METRIC_DEFINITIONS[
-                      metric.key as keyof typeof METRIC_DEFINITIONS
-                    ]
-                  }
-                  value={metric.value}
-                  status={metric.status}
-                  size="medium"
-                  showDescription
-                />
-              </Col>
-            ))}
-          </Row>
-        ),
-      },
-    ];
+    const keyMetrics = [
+      { key: "bac", label: "BAC", value: evmMetrics.bac },
+      { key: "eac", label: "EAC", value: evmMetrics.eac },
+      { key: "vac", label: "VAC", value: evmMetrics.vac },
+      { key: "etc", label: "ETC", value: evmMetrics.etc },
+    ] as const;
 
     return (
-      <Tabs
-        defaultActiveKey="overview"
-        items={tabItems}
-        style={{ marginTop: 0 }}
-      />
+      <Row gutter={[12, 12]}>
+        {keyMetrics.map((metric) => {
+          const definition = METRIC_DEFINITIONS[metric.key];
+          return (
+            <Col xs={12} sm={12} md={6} key={metric.key}>
+              <Card
+                variant="outlined"
+                size="small"
+                style={{
+                  height: "100%",
+                  borderColor: token.colorBorderSecondary,
+                }}
+                styles={{ body: { padding: "12px" } }}
+              >
+                <Text
+                  type="secondary"
+                  style={{ fontSize: 12, display: "block" }}
+                >
+                  {definition.name}
+                </Text>
+                <Text
+                  strong
+                  style={{
+                    fontSize: 18,
+                    display: "block",
+                    marginTop: 4,
+                    color:
+                      getMetricStatus(metric.key, metric.value) === "good"
+                        ? token.colorSuccess
+                        : getMetricStatus(metric.key, metric.value) ===
+                            "warning"
+                          ? token.colorWarning
+                          : token.colorError,
+                  }}
+                >
+                  {metric.value !== null
+                    ? new Intl.NumberFormat("en-IE", {
+                        style: "currency",
+                        currency: "EUR",
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0,
+                      }).format(metric.value)
+                    : "N/A"}
+                </Text>
+              </Card>
+            </Col>
+          );
+        })}
+      </Row>
     );
   };
 
@@ -344,20 +254,264 @@ export const EVMAnalyzerModal = ({
     return null;
   }
 
+  /**
+   * Build tab items for the modal.
+   */
+  const tabItems = [
+    {
+      key: "overview",
+      label: "Overview",
+      children: (
+        <div
+          style={{
+            height: "calc(85vh - 200px)",
+            display: "flex",
+            flexDirection: "row",
+            overflow: "hidden",
+          }}
+        >
+          {/* Left: Charts (80% width) */}
+          <div
+            style={{
+              flex: "0 0 80%",
+              paddingRight: 16,
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            <Card
+              title={
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: "rgba(0,0,0,0.88)",
+                  }}
+                >
+                  Historical Trends
+                </div>
+              }
+              size="small"
+              variant="outlined"
+              styles={{
+                body: { padding: "16px", height: "100%", overflow: "hidden" },
+              }}
+              style={{
+                height: "100%",
+                backgroundColor: token.colorBgContainer,
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden",
+                }}
+              >
+                <EVMTimeSeriesChart
+                  key={`timeseries-${chartKey}`}
+                  timeSeries={timeSeries}
+                  loading={false}
+                  onGranularityChange={onGranularityChange}
+                  delayRender={true}
+                  headless={true}
+                  height="100%"
+                  fillContainer={true}
+                />
+              </div>
+            </Card>
+          </div>
+
+          {/* Right: Performance Indices Card (20% width) */}
+          <div
+            style={{
+              flex: "0 0 20%",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <Card
+              title={
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: "rgba(0,0,0,0.88)",
+                  }}
+                >
+                  Performance Indices
+                </div>
+              }
+              size="small"
+              variant="outlined"
+              styles={{
+                body: {
+                  padding: "16px",
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 16,
+                },
+              }}
+              style={{
+                height: "100%",
+                backgroundColor: token.colorBgContainer,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              {/* CPI Gauge */}
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "flex-start",
+                  alignItems: "top",
+                  minHeight: 0,
+                }}
+              >
+                <EChartsGauge
+                  key={`cpi-${chartKey}`}
+                  value={evmMetrics?.cpi ?? null}
+                  min={0}
+                  max={2}
+                  label="CPI"
+                  goodThreshold={1.0}
+                  warningThresholdPercent={0.9}
+                  variant="semi-circle"
+                  size={280}
+                  delayRender={true}
+                  style={{ width: "100%" }}
+                />
+              </div>
+
+              {/* SPI Gauge */}
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "flex-start",
+                  alignItems: "top",
+                  minHeight: 0,
+                }}
+              >
+                <EChartsGauge
+                  key={`spi-${chartKey}`}
+                  value={evmMetrics?.spi ?? null}
+                  min={0}
+                  max={2}
+                  label="SPI"
+                  goodThreshold={1.0}
+                  warningThresholdPercent={0.9}
+                  variant="semi-circle"
+                  size={280}
+                  delayRender={true}
+                  style={{ width: "100%" }}
+                />
+              </div>
+            </Card>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "all-metrics",
+      label: "All Metrics",
+      children: (
+        <div style={{ height: "calc(85vh - 200px)", overflowY: "auto" }}>
+          <Space orientation="vertical" size="large" style={{ width: "100%" }}>
+            {/* Key Financial Metrics */}
+            <Card
+              title={<Text strong>Key Financial Metrics</Text>}
+              size="small"
+              variant="outlined"
+              style={{ backgroundColor: token.colorBgContainer }}
+            >
+              {renderKeyFinancialMetrics()}
+            </Card>
+
+            {/* Schedule Metrics */}
+            <Card
+              title={<Text strong>Schedule Performance Metrics</Text>}
+              size="small"
+              variant="outlined"
+              style={{ backgroundColor: token.colorBgContainer }}
+            >
+              {renderMetricsCards(MetricCategory.SCHEDULE)}
+            </Card>
+
+            {/* Cost Metrics */}
+            <Card
+              title={<Text strong>Cost Performance Metrics</Text>}
+              size="small"
+              variant="outlined"
+              style={{ backgroundColor: token.colorBgContainer }}
+            >
+              {renderMetricsCards(MetricCategory.COST)}
+            </Card>
+
+            {/* Variance Metrics */}
+            <Card
+              title={<Text strong>Variance Analysis</Text>}
+              size="small"
+              variant="outlined"
+              style={{ backgroundColor: token.colorBgContainer }}
+            >
+              {renderMetricsCards(MetricCategory.VARIANCE)}
+            </Card>
+
+            {/* Forecast Metrics */}
+            <Card
+              title={<Text strong>Forecast Metrics</Text>}
+              size="small"
+              variant="outlined"
+              style={{ backgroundColor: token.colorBgContainer }}
+            >
+              {renderMetricsCards(MetricCategory.FORECAST)}
+            </Card>
+          </Space>
+        </div>
+      ),
+    },
+  ];
+
   return (
-    <ConfigProvider>
+    <ConfigProvider
+      theme={{
+        token: {
+          borderRadiusLG: 8,
+        },
+      }}
+    >
       <Modal
         title={
           <Title level={4} style={{ margin: 0 }}>
-            EVM Analysis
+            EVM Analysis Dashboard
           </Title>
         }
         open={open}
         onCancel={onClose}
         onOk={onClose}
-        okText="OK"
-        cancelText="Cancel"
+        okText="Close"
+        cancelText={null}
         width={1200}
+        style={{ top: 20 }}
+        styles={{
+          body: {
+            padding: 16,
+            maxHeight: "85vh",
+            overflow: "hidden",
+          },
+        }}
         destroyOnHidden
         forceRender
         afterOpenChange={(visible) => {
@@ -375,35 +529,12 @@ export const EVMAnalyzerModal = ({
         ) : !evmMetrics ? (
           renderEmpty()
         ) : (
-          <Collapse
-            defaultActiveKey={["1"]}
-            items={[
-              {
-                key: "1",
-                label: "EVM Time Series Analysis",
-                children: (
-                  <EVMTimeSeriesChart
-                    key={`timeseries-${chartKey}`}
-                    timeSeries={timeSeries}
-                    loading={false}
-                    onGranularityChange={onGranularityChange}
-                    delayRender={true}
-                    headless={true}
-                    height="50vh"
-                  />
-                ),
-              },
-              {
-                key: "2",
-                label: "Performance Indices",
-                children: renderPerformanceIndicesContent(),
-              },
-              {
-                key: "3",
-                label: "Metrics",
-                children: renderMetricsTabs(),
-              },
-            ]}
+          <Tabs
+            activeKey={activeTab}
+            onChange={setActiveTab}
+            items={tabItems}
+            style={{ height: "100%" }}
+            tabBarStyle={{ marginBottom: 12 }}
           />
         )}
       </Modal>
