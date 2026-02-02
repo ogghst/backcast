@@ -61,6 +61,7 @@ async def read_progress_entries(
         cost_element_id=cost_element_id if cost_element_id else UUID("00000000-0000-0000-0000-000000000000"),  # Dummy ID for list all
         skip=skip,
         limit=per_page,
+        as_of=as_of,
     )
 
     # Convert to Pydantic models
@@ -97,13 +98,12 @@ async def create_progress_entry(
     Validation:
     - progress_percentage must be between 0 and 100
     - cost_element_id must reference an existing cost element
-    - reported_by_user_id must reference an existing user
+    - control_date determines when the progress was measured (defaults to now)
     """
     try:
         progress = await service.create(
             progress_in=progress_in,
             actor_id=current_user.user_id,
-            control_date=progress_in.control_date,
         )
         return progress
     except ValueError as e:
@@ -224,7 +224,7 @@ async def read_latest_progress(
 ) -> ProgressEntry | None:
     """Retrieve the latest progress entry for a cost element.
 
-    Returns the most recent progress entry based on reported_date.
+    Returns the most recent progress entry based on valid_time.
     Supports time-travel queries via the as_of parameter.
 
     Returns None if no progress has been reported for the cost element.
@@ -252,7 +252,7 @@ async def read_progress_history(
     """Retrieve progress history for a cost element.
 
     Returns all progress entries for the specified cost element,
-    ordered by reported_date descending (most recent first).
+    ordered by valid_time descending (most recent first).
 
     Useful for generating progress charts and historical analysis.
     """

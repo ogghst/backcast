@@ -46,6 +46,10 @@ class UserRegister(UserBase):
     password: str = Field(
         min_length=8, description="Password must be at least 8 characters"
     )
+    control_date: datetime | None = Field(
+        None, description="Optional control date for creation (valid_time start)"
+    )
+
 
 
 # Properties to receive via API on update

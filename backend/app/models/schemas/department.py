@@ -29,6 +29,10 @@ class DepartmentCreate(DepartmentBase):
         pattern="^[A-Z0-9_-]+$",
         description="Unique department code (immutable)",
     )
+    control_date: datetime | None = Field(
+        None, description="Optional control date for creation (valid_time start)"
+    )
+
 
 
 class DepartmentUpdate(BaseModel):

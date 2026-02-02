@@ -33,10 +33,17 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         super().__init__(CostElementType, db)
 
     async def create(  # type: ignore[override]
-        self, type_in: CostElementTypeCreate, actor_id: UUID
+        self, type_in: CostElementTypeCreate, actor_id: UUID, control_date: datetime | None = None
     ) -> CostElementType:
         """Create new cost element type using CreateVersionCommand."""
         type_data = type_in.model_dump(exclude_unset=True)
+
+        # Extract control_date from schema if present (for seeding)
+        schema_control_date = getattr(type_in, 'control_date', None)
+        actual_control_date = schema_control_date or control_date
+        
+        # Remove control_date from data to avoid duplicate kwarg error
+        type_data.pop("control_date", None)
 
         # Use provided cost_element_type_id (for seeding) or generate new one
         root_id = type_in.cost_element_type_id or uuid4()
@@ -46,9 +53,11 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
             entity_class=CostElementType,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
+            control_date=actual_control_date,
             **type_data,
         )
         return await cmd.execute(self.session)
+
 
     async def update(  # type: ignore[override]
         self,

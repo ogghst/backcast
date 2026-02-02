@@ -34,9 +34,11 @@ class ProgressEntry(EntityBase, VersionableMixin):
         progress_entry_id: Root ID for the Progress Entry aggregation.
         cost_element_id: Reference to the cost element being tracked.
         progress_percentage: Progress value (0.00 to 100.00).
-        reported_date: When progress was measured (business date).
-        reported_by_user_id: User who reported the progress.
         notes: Optional notes about progress (e.g., justification for decrease).
+        
+    Temporal fields (from VersionableMixin):
+        valid_time: When progress was measured (business time).
+        created_by: User who reported the progress.
 
     Examples:
         - Percentage: 50.00, Date: 2026-01-15, Notes: "Foundation complete"
@@ -65,15 +67,7 @@ class ProgressEntry(EntityBase, VersionableMixin):
         Numeric(precision=5, scale=2), nullable=False
     )
 
-    # Business date when progress was measured
-    reported_date: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
 
-    # User who reported the progress
-    reported_by_user_id: Mapped[UUID] = mapped_column(
-        PG_UUID, ForeignKey("users.user_id"), nullable=False
-    )
 
     # Optional notes (e.g., justification for progress decrease)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -92,6 +86,5 @@ class ProgressEntry(EntityBase, VersionableMixin):
             f"<ProgressEntry(id={self.id}, "
             f"progress_entry_id={self.progress_entry_id}, "
             f"cost_element_id={self.cost_element_id}, "
-            f"progress_percentage={self.progress_percentage}, "
-            f"reported_date={self.reported_date})>"
+            f"progress_percentage={self.progress_percentage})>"
         )

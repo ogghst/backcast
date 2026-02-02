@@ -57,11 +57,13 @@ export const ProgressEntryModal = ({
   const initialValuesForForm = initialValues
     ? {
         progress_percentage: parseFloat(initialValues.progress_percentage),
-        reported_date: dayjs(initialValues.reported_date),
+        control_date: dayjs(
+          initialValues.valid_time.split(",")[0].substring(1),
+        ), // Extract lower bound from TSTZRANGE
         notes: initialValues.notes || "",
       }
     : {
-        reported_date: asOf ? dayjs(asOf) : dayjs(),
+        control_date: asOf ? dayjs(asOf) : dayjs(),
       };
 
   // Check if progress is decreasing
@@ -90,7 +92,7 @@ export const ProgressEntryModal = ({
       // Format the data for API
       const formattedValues: ProgressEntryCreate | ProgressEntryUpdate = {
         progress_percentage: values.progress_percentage,
-        reported_date: values.reported_date.toISOString(),
+        control_date: values.control_date.toISOString(),
         notes: values.notes || null,
       };
 
@@ -98,7 +100,6 @@ export const ProgressEntryModal = ({
       if (!isEdit) {
         (formattedValues as ProgressEntryCreate).cost_element_id =
           costElementId;
-        // Note: reported_by_user_id is auto-injected in the API hook
       }
 
       await onOk(formattedValues);
@@ -154,14 +155,14 @@ export const ProgressEntryModal = ({
             step={0.01}
             precision={2}
             formatter={(value) => `${value}%`}
-            parser={(value) => value?.replace("%", "") as unknown as number}
+            parser={(value) => parseFloat(value?.replace("%", "") || "0")}
             onChange={checkProgressDecrease}
           />
         </Form.Item>
 
         <Form.Item
-          name="reported_date"
-          label="Reported Date"
+          name="control_date"
+          label="Progress Date"
           rules={[{ required: true, message: "Please select a date and time" }]}
         >
           <DatePicker
@@ -201,9 +202,9 @@ export const ProgressEntryModal = ({
                 <strong>{latestProgress.progress_percentage}%</strong>
                 <span>
                   (
-                  {dayjs(latestProgress.reported_date).format(
-                    "YYYY-MM-DD HH:mm",
-                  )}
+                  {dayjs(
+                    latestProgress.valid_time.split(",")[0].substring(1),
+                  ).format("YYYY-MM-DD HH:mm")}
                   )
                 </span>
               </Space>

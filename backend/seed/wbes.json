@@ -7,7 +7,8 @@
     "level": 1,
     "description": "Level 1 Parent WBE",
     "project_id": "d54fbbe6-f3df-51db-9c3e-9408700442be",
-    "parent_wbe_id": null
+    "parent_wbe_id": null,
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8",
@@ -17,7 +18,8 @@
     "level": 2,
     "description": "Level 2 Child WBE",
     "project_id": "d54fbbe6-f3df-51db-9c3e-9408700442be",
-    "parent_wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0"
+    "parent_wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "874cdb91-1ad1-5300-9673-21c2e086aacb",
@@ -27,7 +29,8 @@
     "level": 3,
     "description": "Level 3 Leaf WBE",
     "project_id": "d54fbbe6-f3df-51db-9c3e-9408700442be",
-    "parent_wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8"
+    "parent_wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "a17200de-79c9-5eaa-9959-f4960ccc9b38",
@@ -37,7 +40,8 @@
     "level": 2,
     "description": "Level 2 Child WBE",
     "project_id": "d54fbbe6-f3df-51db-9c3e-9408700442be",
-    "parent_wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0"
+    "parent_wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "ea18bdbb-9ad0-5a79-9fa2-46d727a5bc3c",
@@ -47,7 +51,8 @@
     "level": 3,
     "description": "Level 3 Leaf WBE",
     "project_id": "d54fbbe6-f3df-51db-9c3e-9408700442be",
-    "parent_wbe_id": "a17200de-79c9-5eaa-9959-f4960ccc9b38"
+    "parent_wbe_id": "a17200de-79c9-5eaa-9959-f4960ccc9b38",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "8271f58b-2300-5a45-a901-cfb20e5f67de",
@@ -57,7 +62,8 @@
     "level": 1,
     "description": "Level 1 Parent WBE",
     "project_id": "d54fbbe6-f3df-51db-9c3e-9408700442be",
-    "parent_wbe_id": null
+    "parent_wbe_id": null,
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "60ed9749-441c-5dd5-864c-4f8ef7faf30e",
@@ -67,7 +73,8 @@
     "level": 2,
     "description": "Level 2 Child WBE",
     "project_id": "d54fbbe6-f3df-51db-9c3e-9408700442be",
-    "parent_wbe_id": "8271f58b-2300-5a45-a901-cfb20e5f67de"
+    "parent_wbe_id": "8271f58b-2300-5a45-a901-cfb20e5f67de",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "151ff5e8-4ca8-5ee6-9741-d8d512e31efd",
@@ -77,7 +84,8 @@
     "level": 3,
     "description": "Level 3 Leaf WBE",
     "project_id": "d54fbbe6-f3df-51db-9c3e-9408700442be",
-    "parent_wbe_id": "60ed9749-441c-5dd5-864c-4f8ef7faf30e"
+    "parent_wbe_id": "60ed9749-441c-5dd5-864c-4f8ef7faf30e",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "535c6084-f565-560e-9beb-4a35b29cf96a",
@@ -87,7 +95,8 @@
     "level": 2,
     "description": "Level 2 Child WBE",
     "project_id": "d54fbbe6-f3df-51db-9c3e-9408700442be",
-    "parent_wbe_id": "8271f58b-2300-5a45-a901-cfb20e5f67de"
+    "parent_wbe_id": "8271f58b-2300-5a45-a901-cfb20e5f67de",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "c1964b59-7fd0-59b3-ad98-6836a641fd0e",
@@ -97,7 +106,8 @@
     "level": 3,
     "description": "Level 3 Leaf WBE",
     "project_id": "d54fbbe6-f3df-51db-9c3e-9408700442be",
-    "parent_wbe_id": "535c6084-f565-560e-9beb-4a35b29cf96a"
+    "parent_wbe_id": "535c6084-f565-560e-9beb-4a35b29cf96a",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "88b1508c-58ce-5f10-8891-81d860df82f1",
@@ -107,7 +117,8 @@
     "level": 1,
     "description": "Level 1 Parent WBE",
     "project_id": "877c4cba-b30e-54c1-b25d-c73fb364019d",
-    "parent_wbe_id": null
+    "parent_wbe_id": null,
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "3fc36af9-791f-5005-9803-e2fb8a9b62b9",
@@ -117,7 +128,8 @@
     "level": 2,
     "description": "Level 2 Child WBE",
     "project_id": "877c4cba-b30e-54c1-b25d-c73fb364019d",
-    "parent_wbe_id": "88b1508c-58ce-5f10-8891-81d860df82f1"
+    "parent_wbe_id": "88b1508c-58ce-5f10-8891-81d860df82f1",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "a45c3f10-16bf-5880-a9f7-32cb0a258a45",
@@ -127,7 +139,8 @@
     "level": 3,
     "description": "Level 3 Leaf WBE",
     "project_id": "877c4cba-b30e-54c1-b25d-c73fb364019d",
-    "parent_wbe_id": "3fc36af9-791f-5005-9803-e2fb8a9b62b9"
+    "parent_wbe_id": "3fc36af9-791f-5005-9803-e2fb8a9b62b9",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "059ebf2d-0789-5340-98a6-2733478554f6",
@@ -137,7 +150,8 @@
     "level": 2,
     "description": "Level 2 Child WBE",
     "project_id": "877c4cba-b30e-54c1-b25d-c73fb364019d",
-    "parent_wbe_id": "88b1508c-58ce-5f10-8891-81d860df82f1"
+    "parent_wbe_id": "88b1508c-58ce-5f10-8891-81d860df82f1",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "306563e1-5cdf-51d7-a4b2-98f5922e7955",
@@ -147,7 +161,8 @@
     "level": 3,
     "description": "Level 3 Leaf WBE",
     "project_id": "877c4cba-b30e-54c1-b25d-c73fb364019d",
-    "parent_wbe_id": "059ebf2d-0789-5340-98a6-2733478554f6"
+    "parent_wbe_id": "059ebf2d-0789-5340-98a6-2733478554f6",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "13793446-c32b-5682-85e4-3376841003ae",
@@ -157,7 +172,8 @@
     "level": 1,
     "description": "Level 1 Parent WBE",
     "project_id": "877c4cba-b30e-54c1-b25d-c73fb364019d",
-    "parent_wbe_id": null
+    "parent_wbe_id": null,
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "5449b0d4-1cf3-53f3-b996-40e7ed144474",
@@ -167,7 +183,8 @@
     "level": 2,
     "description": "Level 2 Child WBE",
     "project_id": "877c4cba-b30e-54c1-b25d-c73fb364019d",
-    "parent_wbe_id": "13793446-c32b-5682-85e4-3376841003ae"
+    "parent_wbe_id": "13793446-c32b-5682-85e4-3376841003ae",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "fb4064a7-8fed-5459-bd87-73440c010974",
@@ -177,7 +194,8 @@
     "level": 3,
     "description": "Level 3 Leaf WBE",
     "project_id": "877c4cba-b30e-54c1-b25d-c73fb364019d",
-    "parent_wbe_id": "5449b0d4-1cf3-53f3-b996-40e7ed144474"
+    "parent_wbe_id": "5449b0d4-1cf3-53f3-b996-40e7ed144474",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "4a4bbb14-6308-520d-b591-9ff0b4c65aad",
@@ -187,7 +205,8 @@
     "level": 2,
     "description": "Level 2 Child WBE",
     "project_id": "877c4cba-b30e-54c1-b25d-c73fb364019d",
-    "parent_wbe_id": "13793446-c32b-5682-85e4-3376841003ae"
+    "parent_wbe_id": "13793446-c32b-5682-85e4-3376841003ae",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "wbe_id": "e91f8c2b-42d2-518e-acfd-7201280f9799",
@@ -197,6 +216,7 @@
     "level": 3,
     "description": "Level 3 Leaf WBE",
     "project_id": "877c4cba-b30e-54c1-b25d-c73fb364019d",
-    "parent_wbe_id": "4a4bbb14-6308-520d-b591-9ff0b4c65aad"
+    "parent_wbe_id": "4a4bbb14-6308-520d-b591-9ff0b4c65aad",
+    "control_date": "2026-01-01T00:00:00"
   }
 ]

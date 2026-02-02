@@ -171,6 +171,12 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         Auto-creates a default schedule baseline for the cost element.
         """
         element_data = element_in.model_dump(exclude_unset=True)
+        
+        # Extract control_date from schema if present (for seeding)
+        schema_control_date = getattr(element_in, 'control_date', None)
+        actual_control_date = schema_control_date or control_date
+        
+        # Remove control_date from data to avoid duplicate kwarg error
         element_data.pop("control_date", None)
 
         # Use provided cost_element_id (for seeding) or generate new one
@@ -187,7 +193,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
-            control_date=control_date,
+            control_date=actual_control_date,
             **element_data,
         )
         cost_element = await cmd.execute(self.session)
@@ -200,7 +206,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             cost_element_id=root_id,
             actor_id=actor_id,
             branch=target_branch,
-            control_date=control_date,
+            control_date=actual_control_date,
         )
 
         # Update cost element with baseline reference
@@ -222,6 +228,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         await self.session.flush()
 
         return cost_element
+
 
     async def update(  # type: ignore[override]
         self,

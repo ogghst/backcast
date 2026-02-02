@@ -185,6 +185,12 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
     ) -> Project:
         """Create new project using CreateVersionCommand."""
         project_data = project_in.model_dump(exclude_unset=True)
+        
+        # Extract control_date from schema if present (for seeding)
+        schema_control_date = getattr(project_in, 'control_date', None)
+        actual_control_date = schema_control_date or control_date
+        
+        # Remove control_date from data to avoid duplicate kwarg error
         project_data.pop("control_date", None)
 
         # Use provided project_id (for seeding) or generate new one
@@ -195,10 +201,11 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
             entity_class=Project,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
-            control_date=control_date,
+            control_date=actual_control_date,
             **project_data,
         )
         return await cmd.execute(self.session)
+
 
     async def update_project(
         self,

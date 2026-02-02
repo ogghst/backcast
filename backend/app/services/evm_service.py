@@ -3,7 +3,7 @@
 import logging
 import time
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from functools import wraps
 from typing import Any, TypeVar
@@ -812,9 +812,15 @@ class EVMService:
         cv = ev - ac
         sv = ev - pv
 
-        # BAC-weighted average for indices
-        cpi = self._calculate_weighted_index(metrics_list, "cpi", bac)
-        spi = self._calculate_weighted_index(metrics_list, "spi", bac)
+        # Calculate indices from summed values (Cumulative CPI/SPI)
+        # Check against zero before division
+        cpi = None
+        if ac != 0:
+            cpi = ev / ac
+            
+        spi = None
+        if pv != 0:
+            spi = ev / pv
 
         # Sum forecast-based fields (if all have values)
         eac_list = [Decimal(str(m.eac)) for m in metrics_list if m.eac is not None]
@@ -863,39 +869,6 @@ class EVMService:
             progress_percentage=progress_percentage,
             warning=warning,
         )
-
-    def _calculate_weighted_index(
-        self, metrics_list: list[EVMMetricsResponse], index_name: str, total_bac: Decimal
-    ) -> Decimal | None:
-        """Calculate BAC-weighted average for a performance index.
-
-        Args:
-            metrics_list: List of metrics to aggregate
-            index_name: Name of the index field ("cpi" or "spi")
-            total_bac: Sum of all BAC values
-
-        Returns:
-            Weighted average index value, or None if all indices are None
-        """
-        if total_bac == 0:
-            return None
-
-        weighted_sum = Decimal("0")
-        valid_count = 0
-
-        for metrics in metrics_list:
-            index_value = getattr(metrics, index_name)
-            if index_value is not None:
-                # Convert float values to Decimal for precise calculation
-                index_decimal = Decimal(str(index_value))
-                bac_decimal = Decimal(str(metrics.bac))
-                weighted_sum += index_decimal * bac_decimal
-                valid_count += 1
-
-        if valid_count == 0:
-            return None
-
-        return weighted_sum / total_bac
 
     @log_performance("get_evm_timeseries")
     async def get_evm_timeseries(
@@ -1066,10 +1039,14 @@ class EVMService:
         if bac is None:
             return []
 
-        # Fetch cumulative costs for the entire range
+        # Fetch cumulative costs for the entire range (from beginning of time)
+        # We start from min date to ensure we capture all prior costs
+        # Using timezone.utc to be safe with timezone-aware fields
+        cumulative_start_date = datetime.min.replace(tzinfo=timezone.utc)
+
         cumulative_costs = await self.cr_service.get_cumulative_costs(
             cost_element_id=cost_element_id,
-            start_date=start_date,
+            start_date=cumulative_start_date,
             end_date=end_date,
             as_of=control_date,
         )
@@ -1080,6 +1057,8 @@ class EVMService:
             entry_date = datetime.fromisoformat(
                 entry["registration_date"]
             ).replace(hour=0, minute=0, second=0, microsecond=0)
+            if entry_date.tzinfo is None and control_date.tzinfo is not None:
+                entry_date = entry_date.replace(tzinfo=control_date.tzinfo)
             ac_map[entry_date] = Decimal(str(entry["cumulative_amount"]))
 
         # Batch fetch all progress entries (EV data) for the cost element
@@ -1090,16 +1069,22 @@ class EVMService:
         )
 
         # Build a map of date -> progress percentage for fast lookup
-        # Sort by reported_date ascending
-        min_date = datetime.min
+        # Sort by valid_time (lower bound) ascending to get chronological order
+        
+        # Extract lower bound of valid_time for each progress entry
+        # Note: valid_time is a Python Range object at this point (already loaded from DB)
+        progress_with_dates = [
+            (pe, pe.valid_time.lower if pe.valid_time else None) for pe in progress_entries
+        ]
         sorted_entries = sorted(
-            progress_entries, key=lambda pe: pe.reported_date or min_date
+            progress_with_dates, key=lambda x: x[1] if x[1] is not None else datetime.min
         )
         ev_map: dict[datetime, tuple[Decimal, Decimal]] = {}
 
-        for entry in sorted_entries:
-            if entry.reported_date:
-                report_date = entry.reported_date.replace(
+        for entry, valid_lower in sorted_entries:
+            if valid_lower is not None:
+                # Use the start of valid_time as the progress report date
+                report_date = valid_lower.replace(
                     hour=0, minute=0, second=0, microsecond=0
                 )
                 ev = bac * entry.progress_percentage / Decimal("100")
@@ -1140,6 +1125,22 @@ class EVMService:
         latest_ev = Decimal("0")
         last_calculated_pv = Decimal("0")  # Track last PV for projection beyond baseline
 
+        # Calculate AC at control_date (to carry forward for future dates)
+        # Calculate AC and EV at control_date (to carry forward for future dates)
+        final_ac = Decimal("0")
+        for ac_date in sorted(ac_map.keys()):
+            if ac_date <= control_date:
+                final_ac = ac_map[ac_date]
+            else:
+                break
+
+        final_ev = Decimal("0")
+        for report_date, (_progress_pct, ev_val) in sorted(ev_map.items()):
+            if report_date <= control_date:
+                final_ev = ev_val
+            else:
+                break
+
         for date in dates:
             # Calculate PV (deterministic based on date)
             if date > control_date:
@@ -1155,8 +1156,8 @@ class EVMService:
                     )
                     pv = bac * Decimal(str(progress))
                     last_calculated_pv = pv  # Remember for projection
-                ev = Decimal("0")
-                ac = Decimal("0")
+                ev = final_ev  # Use EV at control_date for future dates (flat line)
+                ac = final_ac  # Use AC at control_date for future dates (flat line)
             else:
                 # Past and current dates: use actual/fetched values
                 # If date is beyond baseline end, cap progress at 1.0
@@ -1196,7 +1197,7 @@ class EVMService:
                 ev=ev,
                 ac=ac,
                 forecast=pv,  # Forecast equals planned value
-                actual=ev,  # Actual equals earned value
+                actual=ac,  # Actual equals actual cost
             )
             points.append(point)
 

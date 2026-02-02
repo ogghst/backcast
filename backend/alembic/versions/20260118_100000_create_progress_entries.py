@@ -59,8 +59,6 @@ def upgrade() -> None:
             progress_entry_id UUID NOT NULL,
             cost_element_id UUID NOT NULL,
             progress_percentage NUMERIC(5, 2) NOT NULL,
-            reported_date TIMESTAMP WITH TIME ZONE NOT NULL,
-            reported_by_user_id UUID NOT NULL,
             notes TEXT,
 
             -- Bitemporal versioning fields
@@ -95,21 +93,7 @@ def upgrade() -> None:
         """
     )
 
-    # Create index on reported_date for time-travel queries and historical analysis
-    op.execute(
-        """
-        CREATE INDEX IF NOT EXISTS ix_progress_entries_reported_date
-        ON progress_entries(reported_date DESC);
-        """
-    )
 
-    # Create index on reported_by_user_id for user-based queries
-    op.execute(
-        """
-        CREATE INDEX IF NOT EXISTS ix_progress_entries_reported_by_user_id
-        ON progress_entries(reported_by_user_id);
-        """
-    )
 
     # Create GIST index on valid_time for range queries
     op.execute(

@@ -380,6 +380,11 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
     ) -> WBE:
         """Create new WBE using CreateVersionCommand."""
         wbe_data = wbe_in.model_dump(exclude_unset=True)
+        
+        # Extract control_date from schema if present (for seeding)
+        schema_control_date = getattr(wbe_in, 'control_date', None)
+        actual_control_date = schema_control_date or control_date
+        
         # Remove control_date from wbe_data if present to avoid conflict with explicit arg
         wbe_data.pop("control_date", None)
 
@@ -400,10 +405,11 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
-            control_date=control_date,
+            control_date=actual_control_date,
             **wbe_data,
         )
         return await cmd.execute(self.session)
+
 
     async def update_wbe(
         self,

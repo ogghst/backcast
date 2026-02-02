@@ -41,12 +41,15 @@ def upgrade() -> None:
 
     # Index for progress_entries: (cost_element_id, reported_date)
     # Used by: get_progress_history, latest progress lookups
-    # This dramatically speeds up EV (Earned Value) time-series queries
-    op.execute("""
-        CREATE INDEX IF NOT EXISTS ix_progress_entries_cost_element_reported_date
-        ON progress_entries (cost_element_id, reported_date)
-    """)
-
+    #    # Create composite index on cost_element_id and reported_date for EVM queries
+    # NOTE: This index was removed because reported_date column was removed from ProgressEntry
+    # Progress entries now use valid_time (TSTZRANGE) for temporal tracking
+    # op.execute(
+    #     """
+    #     CREATE INDEX IF NOT EXISTS ix_progress_entries_cost_element_reported_date
+    #     ON progress_entries (cost_element_id, reported_date)
+    #     """
+    # )
     # Index for wbes: project_id
     # Used by: WBE aggregation for project-level EVM metrics
     # Note: cost_elements schedule_baseline_id index already exists
@@ -60,5 +63,5 @@ def downgrade() -> None:
     """Downgrade schema."""
     # Drop indexes in reverse order
     op.execute('DROP INDEX IF EXISTS ix_wbes_project_id')
-    op.execute('DROP INDEX IF EXISTS ix_progress_entries_cost_element_reported_date')
+    # op.execute('DROP INDEX IF EXISTS ix_progress_entries_cost_element_reported_date')
     op.execute('DROP INDEX IF EXISTS ix_cost_registrations_cost_element_date')

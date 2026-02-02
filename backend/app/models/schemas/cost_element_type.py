@@ -1,5 +1,6 @@
 """Pydantic schemas for Cost Element Type."""
 
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -22,6 +23,10 @@ class CostElementTypeCreate(CostElementTypeBase):
         exclude=True,  # Exclude from OpenAPI docs
     )
     department_id: UUID
+    control_date: datetime | None = Field(
+        None, description="Optional control date for creation (valid_time start)"
+    )
+
 
 
 class CostElementTypeUpdate(BaseModel):

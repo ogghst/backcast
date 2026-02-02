@@ -52,7 +52,7 @@ export class ProgressEntriesService {
      * Validation:
      * - progress_percentage must be between 0 and 100
      * - cost_element_id must reference an existing cost element
-     * - reported_by_user_id must reference an existing user
+     * - control_date determines when the progress was measured (defaults to now)
      * @param requestBody
      * @returns ProgressEntryRead Successful Response
      * @throws ApiError
@@ -156,7 +156,7 @@ export class ProgressEntriesService {
      * Read Latest Progress
      * Retrieve the latest progress entry for a cost element.
      *
-     * Returns the most recent progress entry based on reported_date.
+     * Returns the most recent progress entry based on valid_time.
      * Supports time-travel queries via the as_of parameter.
      *
      * Returns None if no progress has been reported for the cost element.
@@ -188,7 +188,7 @@ export class ProgressEntriesService {
      * Retrieve progress history for a cost element.
      *
      * Returns all progress entries for the specified cost element,
-     * ordered by reported_date descending (most recent first).
+     * ordered by valid_time descending (most recent first).
      *
      * Useful for generating progress charts and historical analysis.
      * @param costElementId

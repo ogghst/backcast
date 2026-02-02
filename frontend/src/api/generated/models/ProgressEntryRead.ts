@@ -11,17 +11,15 @@ export type ProgressEntryRead = {
      */
     progress_percentage: string;
     /**
-     * When progress was measured (business date)
-     */
-    reported_date: string;
-    /**
      * Optional notes about progress (e.g., justification for decrease)
      */
     notes?: (string | null);
     id: string;
     progress_entry_id: string;
     cost_element_id: string;
-    reported_by_user_id: string;
     created_by: string;
+    valid_time: string;
+    transaction_time: string;
+    deleted_at?: (string | null);
 };
 

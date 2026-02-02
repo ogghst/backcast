@@ -7,10 +7,9 @@
  */
 export type ProgressEntryUpdate = {
     progress_percentage?: (number | string | null);
-    reported_date?: (string | null);
     notes?: (string | null);
     /**
-     * Optional control date for time travel (valid_time defaults to now if not provided)
+     * Control date for when the update should take effect. Defaults to current time if not provided.
      */
     control_date?: (string | null);
 };

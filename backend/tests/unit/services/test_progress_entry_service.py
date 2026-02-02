@@ -36,8 +36,6 @@ class TestProgressEntryServiceCreate:
         progress_in = ProgressEntryCreate(
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("50.00"),
-            reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-            reported_by_user_id=reported_by_user_id,
             notes="Foundation complete",
         )
         actor_id = uuid4()
@@ -49,7 +47,6 @@ class TestProgressEntryServiceCreate:
         assert created_progress is not None
         assert created_progress.cost_element_id == cost_element_id
         assert created_progress.progress_percentage == Decimal("50.00")
-        assert created_progress.reported_date == datetime(2026, 1, 15, tzinfo=UTC)
         assert created_progress.notes == "Foundation complete"
         assert created_progress.progress_entry_id is not None
         assert created_progress.created_by == actor_id
@@ -68,8 +65,6 @@ class TestProgressEntryServiceCreate:
         progress_in = ProgressEntryCreate(
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("0.00"),
-            reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-            reported_by_user_id=uuid4(),
         )
         actor_id = uuid4()
 
@@ -93,8 +88,6 @@ class TestProgressEntryServiceCreate:
         progress_in = ProgressEntryCreate(
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("100.00"),
-            reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-            reported_by_user_id=uuid4(),
         )
         actor_id = uuid4()
 
@@ -123,8 +116,6 @@ class TestProgressEntryServiceCreate:
             ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("-1.00"),
-                reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-                reported_by_user_id=uuid4(),
             )
 
     @pytest.mark.asyncio
@@ -145,8 +136,6 @@ class TestProgressEntryServiceCreate:
             ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("101.00"),
-                reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-                reported_by_user_id=uuid4(),
             )
 
 
@@ -165,8 +154,6 @@ class TestProgressEntryServiceUpdate:
         progress_in = ProgressEntryCreate(
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("50.00"),
-            reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-            reported_by_user_id=uuid4(),
         )
         actor_id = uuid4()
         created_progress = await service.create(progress_in, actor_id=actor_id)
@@ -196,8 +183,6 @@ class TestProgressEntryServiceUpdate:
         progress_in = ProgressEntryCreate(
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("75.00"),
-            reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-            reported_by_user_id=uuid4(),
         )
         actor_id = uuid4()
         created_progress = await service.create(progress_in, actor_id=actor_id)
@@ -240,8 +225,6 @@ class TestProgressEntryServiceGetLatest:
             ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("25.00"),
-                reported_date=datetime(2026, 1, 10, tzinfo=UTC),
-                reported_by_user_id=user_id,
             ),
             actor_id=actor_id,
         )
@@ -249,8 +232,6 @@ class TestProgressEntryServiceGetLatest:
             ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("50.00"),
-                reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-                reported_by_user_id=user_id,
             ),
             actor_id=actor_id,
         )
@@ -258,8 +239,6 @@ class TestProgressEntryServiceGetLatest:
             ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("75.00"),
-                reported_date=datetime(2026, 1, 20, tzinfo=UTC),
-                reported_by_user_id=user_id,
             ),
             actor_id=actor_id,
         )
@@ -270,7 +249,6 @@ class TestProgressEntryServiceGetLatest:
         # Assert - should return the most recent (75.00)
         assert latest is not None
         assert latest.progress_percentage == Decimal("75.00")
-        assert latest.reported_date == datetime(2026, 1, 20, tzinfo=UTC)
 
     @pytest.mark.asyncio
     async def test_get_latest_progress_with_as_of(self, db_session: AsyncSession) -> None:
@@ -289,21 +267,17 @@ class TestProgressEntryServiceGetLatest:
             ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("25.00"),
-                reported_date=datetime(2026, 1, 10, tzinfo=UTC),
-                reported_by_user_id=user_id,
+                control_date=datetime(2026, 1, 10, 12, 0, tzinfo=UTC),
             ),
             actor_id=actor_id,
-            control_date=datetime(2026, 1, 10, 12, 0, tzinfo=UTC),
         )
         await service.create(
             ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("50.00"),
-                reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-                reported_by_user_id=user_id,
+                control_date=datetime(2026, 1, 15, 12, 0, tzinfo=UTC),
             ),
             actor_id=actor_id,
-            control_date=datetime(2026, 1, 15, 12, 0, tzinfo=UTC),
         )
 
         # Act - query as of Jan 12 (should get 25%)
@@ -357,8 +331,6 @@ class TestProgressEntryServiceGetHistory:
             ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("25.00"),
-                reported_date=datetime(2026, 1, 10, tzinfo=UTC),
-                reported_by_user_id=user_id,
             ),
             actor_id=actor_id,
         )
@@ -366,8 +338,6 @@ class TestProgressEntryServiceGetHistory:
             ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("50.00"),
-                reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-                reported_by_user_id=user_id,
             ),
             actor_id=actor_id,
         )
@@ -375,8 +345,6 @@ class TestProgressEntryServiceGetHistory:
             ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("75.00"),
-                reported_date=datetime(2026, 1, 20, tzinfo=UTC),
-                reported_by_user_id=user_id,
             ),
             actor_id=actor_id,
         )
@@ -414,8 +382,6 @@ class TestProgressEntryServiceGetHistory:
                 ProgressEntryCreate(
                     cost_element_id=cost_element_id,
                     progress_percentage=Decimal(str(i * 20)),
-                    reported_date=datetime(2026, 1, 10 + i, tzinfo=UTC),
-                    reported_by_user_id=user_id,
                 ),
                 actor_id=actor_id,
             )
@@ -448,8 +414,6 @@ class TestProgressEntryServiceGetHistory:
             ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("25.00"),
-                reported_date=datetime(2026, 1, 15, 9, 0, tzinfo=UTC),
-                reported_by_user_id=user_id,
                 notes="Morning update",
             ),
             actor_id=actor_id,
@@ -458,8 +422,6 @@ class TestProgressEntryServiceGetHistory:
             ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("30.00"),
-                reported_date=datetime(2026, 1, 15, 15, 0, tzinfo=UTC),
-                reported_by_user_id=user_id,
                 notes="Afternoon update",
             ),
             actor_id=actor_id,

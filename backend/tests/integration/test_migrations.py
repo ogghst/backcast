@@ -57,8 +57,6 @@ async def test_progress_entries_columns_correct(db_session):
         "progress_entry_id": {"type": "uuid", "nullable": "NO"},
         "cost_element_id": {"type": "uuid", "nullable": "NO"},
         "progress_percentage": {"type": "numeric", "nullable": "NO"},
-        "reported_date": {"type": "timestamp with time zone", "nullable": "NO"},
-        "reported_by_user_id": {"type": "uuid", "nullable": "NO"},
         "notes": {"type": "text", "nullable": "YES"},
         "valid_time": {"type": "tstzrange", "nullable": "NO"},
         "transaction_time": {"type": "tstzrange", "nullable": "NO"},
@@ -104,8 +102,6 @@ async def test_progress_entries_indexes_exist(db_session):
     required_indexes = {
         "ix_progress_entries_progress_entry_id",
         "ix_progress_entries_cost_element_id",
-        "ix_progress_entries_reported_date",
-        "ix_progress_entries_reported_by_user_id",
         "ix_progress_entries_valid_time",
         "ix_progress_entries_transaction_time",
         "ix_progress_entries_current_versions",
