@@ -99,7 +99,7 @@ When implementing features:
 ### Development Workflow
 
 1. **Understand Requirements**: Clarify functional requirements before coding
-2. **Use context7 Tool**: When you need information about existing code, patterns, or project structure, proactively use the context7 tool to gather relevant context
+2. **Use context7 Tool**: When you need information about existing code, patterns, or project structure, proactively use the context7 tool to gather relevant context. Crucially, use context7 when designing UI to query documentation for component libraries, accessibility standards, and modern UI patterns.
 3. **Plan Architecture**: Consider component hierarchy, state management, and data flow
 4. **Implement**: Write clean, typed, tested code following the patterns above
 5. **Verify**: Run linters, type checkers, and tests locally (in your reasoning)
