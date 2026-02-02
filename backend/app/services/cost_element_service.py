@@ -6,9 +6,12 @@ from datetime import datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
+from sqlalchemy import cast as sql_cast
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.branching.commands import UpdateCommand
 from app.core.branching.service import BranchableService
 from app.core.versioning.commands import CreateVersionCommand, UpdateVersionCommand
 from app.core.versioning.enums import BranchMode
@@ -29,7 +32,9 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         """
         super().__init__(CostElement, db)
 
-    async def get_current(self, root_id: UUID, branch: str = "main") -> CostElement | None:
+    async def get_current(
+        self, root_id: UUID, branch: str = "main"
+    ) -> CostElement | None:
         """Get the current active version for a root entity on a specific branch.
 
         Override parent method to use 'cost_element_id' field instead of
@@ -155,15 +160,22 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 resolved.append(item)
         return resolved
 
-    async def create(  # type: ignore[override]
+    async def create(
         self,
         element_in: CostElementCreate,
         actor_id: UUID,
         branch: str | None = None,
-        control_date: datetime | None = None,
     ) -> CostElement:
-        """Create new cost element using CreateVersionCommand."""
+        """Create new cost element using CreateVersionCommand.
+
+        Auto-creates a default schedule baseline for the cost element.
+        """
         element_data = element_in.model_dump(exclude_unset=True)
+        
+        # Extract control_date from schema if present (for seeding/time-travel)
+        control_date = getattr(element_in, 'control_date', None)
+        
+        # Remove control_date from data to avoid duplicate kwarg error
         element_data.pop("control_date", None)
 
         # Use provided cost_element_id (for seeding) or generate new one
@@ -171,9 +183,11 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         element_data["cost_element_id"] = root_id
 
         # Use schema branch if provided, otherwise use parameter (for backward compatibility)
+        target_branch = branch or "main"
         if "branch" not in element_data or element_data["branch"] == "main":
-            element_data["branch"] = branch or "main"
+            element_data["branch"] = target_branch
 
+        # Create the cost element
         cmd = CreateVersionCommand(
             entity_class=CostElement,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
@@ -181,7 +195,40 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             control_date=control_date,
             **element_data,
         )
-        return await cmd.execute(self.session)
+        cost_element = await cmd.execute(self.session)
+
+        # Auto-create default schedule baseline
+        from app.services.schedule_baseline_service import ScheduleBaselineService
+
+        sb_service = ScheduleBaselineService(self.session)
+        baseline = await sb_service.ensure_exists(
+            cost_element_id=root_id,
+            actor_id=actor_id,
+            branch=target_branch,
+            control_date=control_date,
+        )
+
+        # Update cost element with baseline reference
+        cost_element.schedule_baseline_id = baseline.schedule_baseline_id
+
+        # Auto-create default forecast
+        from app.services.forecast_service import ForecastService
+
+        forecast_service = ForecastService(self.session)
+        forecast = await forecast_service.ensure_exists(
+            cost_element_id=root_id,
+            actor_id=actor_id,
+            branch=target_branch,
+            budget_amount=cost_element.budget_amount,
+            control_date=control_date,
+        )
+
+        # Update cost element with forecast reference
+        cost_element.forecast_id = forecast.forecast_id
+        await self.session.flush()
+
+        return cost_element
+
 
     async def update(  # type: ignore[override]
         self,
@@ -189,9 +236,11 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         element_in: CostElementUpdate,
         actor_id: UUID,
         branch: str | None = None,
-        control_date: datetime | None = None,
     ) -> CostElement:
-        """Update cost element using UpdateVersionCommand or Fork if new branch."""
+        # Extract control_date and branch from schema
+        control_date = element_in.control_date
+        
+        # Filter None values from update data
         update_data = element_in.model_dump(exclude_unset=True)
         update_data.pop("control_date", None)
 
@@ -217,7 +266,13 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                     control_date: datetime | None = None,
                     **updates: Any,
                 ) -> None:
-                    super().__init__(entity_class, root_id, actor_id, control_date=control_date, **updates)
+                    super().__init__(
+                        entity_class,
+                        root_id,
+                        actor_id,
+                        control_date=control_date,
+                        **updates,
+                    )
                     self.branch = branch
 
                 def _root_field_name(self) -> str:
@@ -278,6 +333,8 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 "deleted_by",
                 "deleted_at",
                 "id",  # New version needs new ID
+                "schedule_baseline_id",  # Don't copy baseline ID - will create new one
+                "forecast_id",  # Don't copy forecast ID - will create new one
             ]
             for field in system_fields:
                 data.pop(field, None)
@@ -297,21 +354,82 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 control_date=control_date,
                 **data,
             )
-            return await create_cmd.execute(self.session)
+            new_element = await create_cmd.execute(self.session)
+
+            # Auto-create schedule baseline for the new branch
+            from app.services.schedule_baseline_service import ScheduleBaselineService
+
+            sb_service = ScheduleBaselineService(self.session)
+            baseline = await sb_service.ensure_exists(
+                cost_element_id=cost_element_id,
+                actor_id=actor_id,
+                branch=target_branch,
+                control_date=control_date,
+            )
+
+            # Update cost element with baseline reference
+            new_element.schedule_baseline_id = baseline.schedule_baseline_id
+
+            # Auto-create forecast for the new branch
+            from app.services.forecast_service import ForecastService
+
+            forecast_service = ForecastService(self.session)
+            forecast = await forecast_service.ensure_exists(
+                cost_element_id=cost_element_id,
+                actor_id=actor_id,
+                branch=target_branch,
+                budget_amount=new_element.budget_amount,
+                control_date=control_date,
+            )
+
+            # Update cost element with forecast reference
+            new_element.forecast_id = forecast.forecast_id
+            await self.session.flush()
+
+            return new_element
 
     async def soft_delete(  # type: ignore[override]
         self,
         cost_element_id: UUID,
         actor_id: UUID,
         branch: str = "main",
-        control_date: datetime | None = None
+        control_date: datetime | None = None,
     ) -> None:
         """Soft delete cost element using BranchableService.soft_delete.
 
+        Cascades the delete to the associated schedule baseline and forecast.
+
         This uses the BranchableSoftDeleteCommand which is branch-aware.
         """
+        # Get the cost element to find its schedule baseline and forecast
+        cost_element = await self.get_by_id(cost_element_id, branch=branch)
+
+        if cost_element and cost_element.schedule_baseline_id:
+            # Cascade delete to schedule baseline
+            from app.services.schedule_baseline_service import ScheduleBaselineService
+
+            sb_service = ScheduleBaselineService(self.session)
+            await sb_service.soft_delete(
+                root_id=cost_element.schedule_baseline_id,
+                actor_id=actor_id,
+                branch=branch,
+                control_date=control_date,
+            )
+
+        if cost_element and cost_element.forecast_id:
+            # Cascade delete to forecast
+            from app.services.forecast_service import ForecastService
+
+            forecast_service = ForecastService(self.session)
+            await forecast_service.soft_delete(
+                forecast_id=cost_element.forecast_id,
+                actor_id=actor_id,
+                branch=branch,
+                control_date=control_date,
+            )
+
         # Call parent method from BranchableService
-        return await super().soft_delete(
+        await super().soft_delete(
             root_id=cost_element_id,
             actor_id=actor_id,
             branch=branch,
@@ -477,12 +595,26 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         Uses STRICT mode (only current branch) for backward compatibility.
         """
         items, _ = await self.get_cost_elements(
-            filters=filters, branch=branch, branch_mode=BranchMode.STRICT, skip=skip, limit=limit
+            filters=filters,
+            branch=branch,
+            branch_mode=BranchMode.STRICT,
+            skip=skip,
+            limit=limit,
         )
         return items
 
-    async def get_history(self, root_id: UUID) -> builtins.list[CostElement]:
-        """Get all versions of a cost element with creator, WBE name, and type info."""
+    async def get_history(
+        self, root_id: UUID, branch: str = "main"
+    ) -> builtins.list[CostElement]:
+        """Get all versions of a cost element with creator, WBE name, and type info.
+
+        Args:
+            root_id: Root cost_element_id
+            branch: Branch to query history from (default: "main")
+
+        Returns:
+            List of cost element versions in the specified branch, ordered by transaction_time descending
+        """
         from sqlalchemy.orm import aliased
 
         from app.models.domain.user import User
@@ -538,6 +670,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             )
             .where(
                 CostElement.cost_element_id == root_id,
+                CostElement.branch == branch,
                 cast(Any, CostElement).deleted_at.is_(None),
             )
             .order_by(cast(Any, CostElement).transaction_time.desc())
@@ -597,9 +730,13 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         # Subqueries for parent versions (as of specific time)
         wbe_where_clauses = [cast(Any, WBEAlias).deleted_at.is_(None)]
         if as_of:
-            wbe_where_clauses.append(cast(Any, WBEAlias).valid_time.contains(as_of))
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            wbe_where_clauses.append(cast(Any, WBEAlias).valid_time.op("@>")(as_of_tstz))
+            wbe_where_clauses.append(func.lower(cast(Any, WBEAlias).valid_time) <= as_of_tstz)
         else:
-            wbe_where_clauses.append(func.upper(cast(Any, WBEAlias).valid_time).is_(None))
+            wbe_where_clauses.append(
+                func.upper(cast(Any, WBEAlias).valid_time).is_(None)
+            )
 
         wbe_subq = (
             select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
@@ -609,9 +746,13 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
 
         type_where_clauses = [cast(Any, TypeAlias).deleted_at.is_(None)]
         if as_of:
-            type_where_clauses.append(cast(Any, TypeAlias).valid_time.contains(as_of))
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            type_where_clauses.append(cast(Any, TypeAlias).valid_time.op("@>")(as_of_tstz))
+            type_where_clauses.append(func.lower(cast(Any, TypeAlias).valid_time) <= as_of_tstz)
         else:
-            type_where_clauses.append(func.upper(cast(Any, TypeAlias).valid_time).is_(None))
+            type_where_clauses.append(
+                func.upper(cast(Any, TypeAlias).valid_time).is_(None)
+            )
 
         type_subq = (
             select(
@@ -643,9 +784,94 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         )
 
         # Apply time-travel filter
-        stmt = self._apply_bitemporal_filter_for_time_travel(stmt, as_of)
+        stmt = self._apply_bitemporal_filter(stmt, as_of)
 
         stmt = stmt.limit(1)
         result = await self.session.execute(stmt)
         resolved = await self._resolve_relations(result.all())
         return resolved[0] if resolved else None
+
+    async def get_breadcrumb(self, cost_element_id: UUID) -> dict[str, Any]:
+        """Get breadcrumb trail for a Cost Element including project and WBE.
+
+        For cost elements, the hierarchy is: Project -> WBE -> Cost Element
+        This returns the project and WBE information for navigation.
+
+        Args:
+            cost_element_id: Cost Element ID
+
+        Returns:
+            Dict with 'project', 'wbe', and 'cost_element' keys
+
+        Raises:
+            ValueError: If Cost Element not found
+        """
+        from typing import Any, cast
+
+        from sqlalchemy import func
+
+        from app.models.domain.project import Project
+        from app.models.domain.wbe import WBE
+
+        # Get the current cost element
+        current_element = await self.get_by_id(cost_element_id)
+        if not current_element:
+            raise ValueError(f"Cost Element with id {cost_element_id} not found")
+
+        # Get the WBE first (cost element only has wbe_id)
+        wbe_stmt = (
+            select(WBE)
+            .where(
+                WBE.wbe_id == current_element.wbe_id,
+                WBE.branch == current_element.branch,
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, WBE).valid_time.desc())
+            .limit(1)
+        )
+        wbe_result = await self.session.execute(wbe_stmt)
+        wbe = wbe_result.scalar_one_or_none()
+
+        if not wbe:
+            raise ValueError(f"WBE {current_element.wbe_id} not found")
+
+        # Get the project from the WBE
+        project_stmt = (
+            select(Project)
+            .where(
+                Project.project_id == wbe.project_id,
+                Project.branch == wbe.branch,
+                func.upper(cast(Any, Project).valid_time).is_(None),
+                cast(Any, Project).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, Project).valid_time.desc())
+            .limit(1)
+        )
+        project_result = await self.session.execute(project_stmt)
+        project = project_result.scalar_one_or_none()
+
+        if not project:
+            raise ValueError(f"Project {wbe.project_id} not found")
+
+        # Build breadcrumb response
+        return {
+            "project": {
+                "id": project.id,
+                "project_id": project.project_id,
+                "code": project.code,
+                "name": project.name,
+            },
+            "wbe": {
+                "id": wbe.id,
+                "wbe_id": wbe.wbe_id,
+                "code": wbe.code,
+                "name": wbe.name,
+            },
+            "cost_element": {
+                "id": current_element.id,
+                "cost_element_id": current_element.cost_element_id,
+                "code": current_element.code,
+                "name": current_element.name,
+            },
+        }

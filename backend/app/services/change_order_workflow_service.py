@@ -71,9 +71,7 @@ class ChangeOrderWorkflowService:
         """
         return self._TRANSITIONS.get(current, []).copy()
 
-    async def should_lock_on_transition(
-        self, from_status: str, to_status: str
-    ) -> bool:
+    async def should_lock_on_transition(self, from_status: str, to_status: str) -> bool:
         """Determine if a status transition should lock the branch.
 
         Args:

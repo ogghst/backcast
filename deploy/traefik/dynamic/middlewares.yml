@@ -3,15 +3,16 @@ http:
     # Security headers
     security-headers:
       headers:
-        customRequestHeaders:
-          X-Forwarded-Proto: "https"
+        # Let Traefik set X-Forwarded-Proto automatically based on actual protocol
+        # customRequestHeaders:
+        #   X-Forwarded-Proto: "https"
         customResponseHeaders:
           X-Frame-Options: "SAMEORIGIN"
           X-Content-Type-Options: "nosniff"
           X-XSS-Protection: "1; mode=block"
           Referrer-Policy: "strict-origin-when-cross-origin"
           Permissions-Policy: "geolocation=(), microphone=(), camera=()"
-        sslRedirect: true
+        # sslRedirect disabled - Apache handles SSL
         stsSeconds: 31536000
         stsIncludeSubdomains: true
         stsPreload: true
@@ -37,5 +38,5 @@ http:
     traefik-auth:
       basicAuth:
         users:
-          # Generate with: htpasswd -nb admin password
-          - "admin:$apr1$hash"  # REPLACE with actual hash
+          # Generated with: htpasswd -nb admin backcast
+          - "admin:$apr1$Zxm7mIoj$dmDpeU2Nva6NAmgspTODw1"

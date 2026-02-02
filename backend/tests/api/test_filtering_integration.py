@@ -46,4 +46,12 @@ class TestFilteringIntegration:
         assert "Invalid filter value" in data["detail"]
         # Allow Decimal or float since both are reasonable numeric expectations
         msg = data["detail"]
-        assert any(t in msg for t in ["expected float", "expected int", "expected Numeric", "expected Decimal"])
+        assert any(
+            t in msg
+            for t in [
+                "expected float",
+                "expected int",
+                "expected Numeric",
+                "expected Decimal",
+            ]
+        )

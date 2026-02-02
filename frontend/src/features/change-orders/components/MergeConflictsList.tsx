@@ -22,7 +22,7 @@ export function MergeConflictsList({
   const conflictCount = conflicts.length;
 
   return (
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+    <Space orientation="vertical" style={{ width: "100%" }}>
       {/* Error banner */}
       <Alert
         type="error"
@@ -38,10 +38,10 @@ export function MergeConflictsList({
       {/* Conflicts list */}
       <List
         size="small"
-        dataSource={conflicts}
-        renderItem={(conflict) => (
-          <List.Item>
-            <Space direction="vertical" size={4} style={{ width: "100%" }}>
+        items={conflicts.map((conflict) => ({
+          key: `${conflict.entity_type}-${conflict.entity_id}-${conflict.field}`,
+          children: (
+            <Space orientation="vertical" size={4} style={{ width: "100%" }}>
               {/* Entity and field header */}
               <Space>
                 <Tag color="orange">{conflict.entity_type}</Tag>
@@ -65,8 +65,8 @@ export function MergeConflictsList({
                 </Space>
               </div>
             </Space>
-          </List.Item>
-        )}
+          ),
+        }))}
       />
 
       {/* Resolution hint */}

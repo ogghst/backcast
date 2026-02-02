@@ -64,7 +64,7 @@ async def read_wbes(
         description="Time travel: get WBEs as of this timestamp (ISO 8601)",
     ),
     service: WBEService = Depends(get_wbe_service),
-) -> dict[str, Any] | Sequence[WBE]:
+) -> dict[str, Any] | Sequence[WBEPublic]:
     """Retrieve WBEs with server-side search, filtering, and sorting.
 
     Supports two modes:
@@ -92,6 +92,11 @@ async def read_wbes(
     # Parse mode string to BranchMode enum
     branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     # Parse parent_wbe_id
     parsed_parent_id: UUID | None = None
     is_root_query = False
@@ -108,13 +113,19 @@ async def read_wbes(
                     status_code=422, detail="Invalid parent_wbe_id format"
                 ) from e
 
-    # Handle hierarchical filtering (returns list, not paginated)
+    # Handle hierarchical filtering with parent_wbe_id (returns list, not paginated)
     # Case 1: Specific parent (parsed_parent_id is set)
     # Case 2: Root query (is_root_query is True)
-    # Project filtering only (returns list, not paginated)
-    # This is the ONLY unpaginated mode for hierarchical tree loading
-    if project_id and not (parsed_parent_id or is_root_query):
-        return await service.get_by_project(project_id=project_id, branch=branch)
+    # These are unpaginated modes for hierarchical tree loading
+    if (parsed_parent_id is not None) or is_root_query:
+        wbes = await service.get_by_parent(
+            project_id=project_id,
+            parent_wbe_id=parsed_parent_id,
+            branch=branch,
+            branch_mode=branch_mode,
+            as_of=as_of,
+        )
+        return [WBEPublic.model_validate(w) for w in wbes]
 
     # General Listing AND Parent Filtering (Paginated)
     skip = (page - 1) * per_page
@@ -191,9 +202,7 @@ async def create_wbe(
             )
 
         wbe = await service.create_wbe(
-            wbe_in=wbe_in,
-            actor_id=current_user.user_id,
-            control_date=control_date
+            wbe_in=wbe_in, actor_id=current_user.user_id
         )
         return wbe
     except ValueError as e:
@@ -223,12 +232,14 @@ async def read_wbe(
     Supports time-travel queries via the as_of parameter to view
     the WBE's state at any historical point in time.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     if as_of:
         # Time travel query
         wbe = await service.get_wbe_as_of(wbe_id, as_of, branch=branch)
-    else:
-        # Current version
-        wbe = await service.get_current(wbe_id, branch=branch)
 
     if not wbe:
         raise HTTPException(
@@ -252,12 +263,10 @@ async def update_wbe(
 ) -> WBE:
     """Update a WBE. Requires update permission."""
     try:
-        control_date = wbe_in.control_date
         updated_wbe = await service.update_wbe(
             wbe_id=wbe_id,
             wbe_in=wbe_in,
             actor_id=current_user.user_id,
-            control_date=control_date
         )
         return updated_wbe
     except ValueError as e:
@@ -272,16 +281,16 @@ async def update_wbe(
 )
 async def delete_wbe(
     wbe_id: UUID,
-    control_date: datetime | None = Query(None, description="Optional control date for deletion"),
+    control_date: datetime | None = Query(
+        None, description="Optional control date for deletion"
+    ),
     current_user: User = Depends(get_current_active_user),
     service: WBEService = Depends(get_wbe_service),
 ) -> None:
     """Soft delete a WBE. Requires delete permission."""
     try:
         await service.delete_wbe(
-            wbe_id=wbe_id,
-            actor_id=current_user.user_id,
-            control_date=control_date
+            wbe_id=wbe_id, actor_id=current_user.user_id, control_date=control_date
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -295,11 +304,21 @@ async def delete_wbe(
 )
 async def read_wbe_breadcrumb(
     wbe_id: UUID,
+    branch: str = Query("main", description="Branch name"),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get breadcrumb as of this timestamp (ISO 8601)",
+    ),
     service: WBEService = Depends(get_wbe_service),
 ) -> dict[str, Any]:
     """Get breadcrumb trail for a WBE (project + ancestor path). Requires read permission."""
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     try:
-        return await service.get_breadcrumb(wbe_id)
+        return await service.get_breadcrumb(wbe_id, branch=branch, as_of=as_of)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

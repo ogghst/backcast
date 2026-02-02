@@ -3,6 +3,7 @@
 Provides database fixtures and test utilities.
 """
 
+import asyncio
 import os
 from collections.abc import AsyncGenerator, Generator
 from typing import Any, cast
@@ -47,20 +48,36 @@ def apply_migrations() -> Generator[None, None, None]:
     # But env.py imports settings. If settings is already imported, we need to ensure the property reflects the change.
     # If ASYNC_DATABASE_URI is a property, it should work. If it's a field, it won't.
 
-    alembic_cfg = Config("alembic.ini")
-
     # Ensure clean slate - Nuclear option via subprocess to avoid loop/driver issues
     import subprocess
     import sys
 
     wipe_script = os.path.join(os.path.dirname(__file__), "wipe_db.py")
 
+    # Get path to alembic.ini (parent directory of tests/)
+    tests_dir = os.path.dirname(__file__)
+    project_root = os.path.dirname(tests_dir)
+    alembic_ini = os.path.join(project_root, "alembic.ini")
+    alembic_cfg = Config(alembic_ini)
+
+    # Set script_location to absolute path
+    alembic_cfg.set_main_option(
+        "script_location", os.path.join(project_root, "alembic")
+    )
+
+    # Use .venv Python explicitly to ensure dependencies are available
+    # When running via uv run, sys.executable may not have access to project packages
+    venv_python = os.path.join(project_root, ".venv", "bin", "python")
+    if not os.path.exists(venv_python):
+        # Fallback to sys.executable if .venv doesn't exist
+        venv_python = sys.executable
+
     env = os.environ.copy()
     env["WIPE_DATABASE_URL"] = TEST_DATABASE_URL
 
     try:
         subprocess.run(
-            [sys.executable, wipe_script],
+            [venv_python, wipe_script],
             env=env,
             check=True,
             capture_output=True,
@@ -68,10 +85,54 @@ def apply_migrations() -> Generator[None, None, None]:
         )
     except subprocess.CalledProcessError as e:
         print(f"DB Wipe Failed: {e.stdout} {e.stderr}")
-        raise
+        # Don't raise - try to continue with migrations
 
     # Run migrations
     command.upgrade(alembic_cfg, "head")
+
+    # Verify critical tables were created
+    # This ensures migrations executed successfully before running tests
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    async def verify_tables():
+        engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+        try:
+            async with engine.connect() as conn:
+                # List of critical tables that must exist after migrations
+                required_tables = [
+                    "users",
+                    "departments",
+                    "projects",
+                    "wbes",
+                    "cost_element_types",
+                    "cost_elements",
+                    "cost_registrations",
+                    "progress_entries",  # Critical: Added in this iteration
+                    "schedule_baselines",
+                    "branches",
+                    "change_orders",
+                    "change_order_audit_log",
+                    "forecasts",
+                ]
+
+                for table_name in required_tables:
+                    result = await conn.execute(
+                        text(
+                            f"SELECT EXISTS (SELECT FROM information_schema.tables "
+                            f"WHERE table_schema = 'public' AND table_name = '{table_name}')"
+                        )
+                    )
+                    exists = result.scalar_one()
+                    if not exists:
+                        raise RuntimeError(
+                            f"Critical table '{table_name}' not found after migrations! "
+                            f"Migration may have failed silently."
+                        )
+        finally:
+            await engine.dispose()
+
+    # Run the async verification in the sync fixture
+    asyncio.run(verify_tables())
 
     yield
 
@@ -115,13 +176,18 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
             try:
                 await session.execute(
                     text(
-                        "TRUNCATE TABLE cost_elements, cost_element_types, wbes, projects, departments, users RESTART IDENTITY CASCADE"
+                        "TRUNCATE TABLE cost_elements, cost_element_types, wbes, projects, departments, users, cost_registrations, progress_entries, schedule_baselines, branches, change_orders, change_order_audit_log, forecasts RESTART IDENTITY CASCADE"
                     )
                 )
                 await session.commit()
-            except Exception:
-                # Tables might not exist yet (first test run), that's okay
+            except Exception as e:
+                # Tables might not exist yet (first test run), fail fast
+                print(f"Error truncating tables: {e}")
                 await session.rollback()
+                raise RuntimeError(
+                    f"Database tables do not exist. Migration may have failed. "
+                    f"Error: {e}"
+                )
 
             yield session
 

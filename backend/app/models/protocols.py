@@ -78,6 +78,8 @@ class VersionableProtocol(EntityProtocol, Protocol):
     valid_time: Any  # TSTZRANGE in PostgreSQL
     transaction_time: Any  # TSTZRANGE in PostgreSQL
     deleted_at: datetime | None
+    created_by: UUID
+    deleted_by: UUID | None
 
     @property
     def is_deleted(self) -> bool:

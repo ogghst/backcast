@@ -97,7 +97,7 @@ async def test_wbe_time_travel_basic(
 ) -> None:
     """
     Test basic time-travel: Create WBE at time X, query at time Y < X.
-    
+
     Scenario:
     1. Record timestamp T1 (before creation)
     2. Create WBE A at time X
@@ -126,8 +126,7 @@ async def test_wbe_time_travel_basic(
     # Query at T1 (before creation) - should return 404
     as_of_param = format_as_of(time_before_creation)
     response_before = await client.get(
-        f"/api/v1/wbes/{wbe_a_id}",
-        params={"as_of": as_of_param}
+        f"/api/v1/wbes/{wbe_a_id}", params={"as_of": as_of_param}
     )
     assert response_before.status_code == 404, (
         f"WBE should not exist at time {as_of_param} (before creation). "
@@ -150,7 +149,7 @@ async def test_wbe_time_travel_update(
 ) -> None:
     """
     Test time-travel with updates: View WBE at different points in its history.
-    
+
     Scenario:
     1. Create WBE with name "Version 1" at time T1
     2. Record timestamp T2
@@ -186,10 +185,7 @@ async def test_wbe_time_travel_update(
 
     # Query at T2 - should see Version 1
     as_of_v1 = format_as_of(time_after_v1)
-    response_v1 = await client.get(
-        f"/api/v1/wbes/{wbe_id}",
-        params={"as_of": as_of_v1}
-    )
+    response_v1 = await client.get(f"/api/v1/wbes/{wbe_id}", params={"as_of": as_of_v1})
     assert response_v1.status_code == 200
     wbe_v1 = response_v1.json()
     assert wbe_v1["name"] == "Version 1"
@@ -212,7 +208,7 @@ async def test_wbe_time_travel_delete(
 ) -> None:
     """
     Test time-travel with deletion: View deleted WBE at time before deletion.
-    
+
     Scenario:
     1. Create WBE at time T1
     2. Record timestamp T2
@@ -248,8 +244,7 @@ async def test_wbe_time_travel_delete(
     # Query at T2 (before deletion) - should see WBE
     as_of_before_delete = format_as_of(time_before_delete)
     response_before_delete = await client.get(
-        f"/api/v1/wbes/{wbe_id}",
-        params={"as_of": as_of_before_delete}
+        f"/api/v1/wbes/{wbe_id}", params={"as_of": as_of_before_delete}
     )
     assert response_before_delete.status_code == 200
     wbe_before_delete = response_before_delete.json()
@@ -268,7 +263,7 @@ async def test_project_time_travel(
 ) -> None:
     """
     Test time-travel for projects.
-    
+
     Scenario:
     1. Create project with budget 500k at T1
     2. Record timestamp T2
@@ -306,8 +301,7 @@ async def test_project_time_travel(
     # Query at T2 - should see original budget
     as_of_original = format_as_of(time_after_create)
     response_original = await client.get(
-        f"/api/v1/projects/{project_id}",
-        params={"as_of": as_of_original}
+        f"/api/v1/projects/{project_id}", params={"as_of": as_of_original}
     )
     assert response_original.status_code == 200
     project_original = response_original.json()
@@ -329,7 +323,7 @@ async def test_multiple_wbes_time_travel(
 ) -> None:
     """
     Test time-travel with multiple WBEs created at different times.
-    
+
     Scenario:
     1. Create WBE A at time T1
     2. Record timestamp T2
@@ -392,29 +386,25 @@ async def test_multiple_wbes_time_travel(
 
     # Query WBE A at T2 - should exist
     response_a_at_t2 = await client.get(
-        f"/api/v1/wbes/{wbe_a_id}",
-        params={"as_of": format_as_of(time_after_a)}
+        f"/api/v1/wbes/{wbe_a_id}", params={"as_of": format_as_of(time_after_a)}
     )
     assert response_a_at_t2.status_code == 200
 
     # Query WBE B at T2 - should NOT exist (created later)
     response_b_at_t2 = await client.get(
-        f"/api/v1/wbes/{wbe_b_id}",
-        params={"as_of": format_as_of(time_after_a)}
+        f"/api/v1/wbes/{wbe_b_id}", params={"as_of": format_as_of(time_after_a)}
     )
     assert response_b_at_t2.status_code == 404
 
     # Query WBE B at T4 - should exist
     response_b_at_t4 = await client.get(
-        f"/api/v1/wbes/{wbe_b_id}",
-        params={"as_of": format_as_of(time_after_b)}
+        f"/api/v1/wbes/{wbe_b_id}", params={"as_of": format_as_of(time_after_b)}
     )
     assert response_b_at_t4.status_code == 200
 
     # Query WBE C at T4 - should NOT exist (created later)
     response_c_at_t4 = await client.get(
-        f"/api/v1/wbes/{wbe_c_id}",
-        params={"as_of": format_as_of(time_after_b)}
+        f"/api/v1/wbes/{wbe_c_id}", params={"as_of": format_as_of(time_after_b)}
     )
     assert response_c_at_t4.status_code == 404
 

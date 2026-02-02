@@ -10,20 +10,22 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.branching.service import BranchableService
+from app.core.branching.commands import UpdateCommand
 from app.core.versioning.commands import (
     CreateVersionCommand,
     SoftDeleteCommand,
     UpdateVersionCommand,
 )
 from app.core.versioning.enums import BranchMode
-from app.core.versioning.service import TemporalService
 from app.models.domain.project import Project
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
 
 if TYPE_CHECKING:
     from app.models.schemas.branch import BranchPublic
 
-class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-ignore]
+
+class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unused-ignore]
     """Service for Project entity operations.
 
     Extends TemporalService with project-specific methods.
@@ -180,10 +182,14 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         self,
         project_in: ProjectCreate,
         actor_id: UUID,
-        control_date: datetime | None = None
     ) -> Project:
         """Create new project using CreateVersionCommand."""
         project_data = project_in.model_dump(exclude_unset=True)
+        
+        # Extract control_date from schema if present (for seeding/time-travel)
+        control_date = getattr(project_in, 'control_date', None)
+        
+        # Remove control_date from data to avoid duplicate kwarg error
         project_data.pop("control_date", None)
 
         # Use provided project_id (for seeding) or generate new one
@@ -199,32 +205,34 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         )
         return await cmd.execute(self.session)
 
+
     async def update_project(
         self,
         project_id: UUID,
         project_in: ProjectUpdate,
         actor_id: UUID,
-        control_date: datetime | None = None
     ) -> Project:
-        """Update project using UpdateVersionCommand."""
+        # Extract control_date and branch from schema
+        control_date = project_in.control_date
+        branch = project_in.branch or "main"
+
         # Filter None values from update data
         update_data = project_in.model_dump(exclude_unset=True)
         update_data.pop("control_date", None)
+        update_data.pop("branch", None)
 
-        cmd = UpdateVersionCommand(
+        cmd = UpdateCommand(
             entity_class=Project,  # type: ignore[type-var,unused-ignore]
             root_id=project_id,
             actor_id=actor_id,
+            branch=branch,
             control_date=control_date,
-            **update_data,
+            updates=update_data,
         )
         return await cmd.execute(self.session)
 
     async def delete_project(
-        self,
-        project_id: UUID,
-        actor_id: UUID,
-        control_date: datetime | None = None
+        self, project_id: UUID, actor_id: UUID, control_date: datetime | None = None
     ) -> Project:
         """Soft delete project using SoftDeleteCommand."""
         cmd = SoftDeleteCommand(
@@ -274,12 +282,16 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
         """
         return await self.get_as_of(project_id, as_of, branch, branch_mode)
 
-    async def get_project_branches(self, project_id: UUID) -> list["BranchPublic"]:
+    async def get_project_branches(
+        self, project_id: UUID, as_of: datetime | None = None
+    ) -> list["BranchPublic"]:
         """Get all branches for a project.
 
         Returns:
             List of BranchPublic objects, always including "main" plus any
             change order branches (co-{code}) for this project.
+
+        Requires read permission.
         """
         from typing import Any, cast
 
@@ -291,22 +303,33 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
 
         # Always include main branch
         branches: list[BranchPublic] = [
-            BranchPublic(
-                name="main",
-                type="main",
-                is_default=True
-            )
+            BranchPublic(name="main", type="main", is_default=True)
         ]
 
         # Get all branches for this project from the branches table
-        stmt = (
-            select(Branch)
-            .where(
-                Branch.project_id == project_id,
+        stmt = select(Branch).where(Branch.project_id == project_id)
+
+        if as_of:
+            # Time travel filter
+            # Cast as_of to TIMESTAMP(timezone=True)
+            from sqlalchemy import cast as sql_cast
+            from sqlalchemy import or_
+            from sqlalchemy.dialects.postgresql import TIMESTAMP, TSTZRANGE
+
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            stmt = stmt.where(
+                Branch.valid_time.op("@>")(as_of_tstz),
+                func.lower(Branch.valid_time) <= as_of_tstz,
+                or_(Branch.deleted_at.is_(None), Branch.deleted_at > as_of_tstz),
+            )
+        else:
+            # Current versions
+            stmt = stmt.where(
+                func.upper(Branch.valid_time).is_(None),
                 Branch.deleted_at.is_(None),
             )
-            .order_by(Branch.created_at.desc())
-        )
+
+        stmt = stmt.order_by(func.lower(Branch.valid_time).desc())
 
         result = await self.session.execute(stmt)
         branch_entities = result.scalars().all()
@@ -326,19 +349,31 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
                 code = branch_entity.name.replace("co-", "", 1)
 
                 # Get the current change order on main branch to get its status
-                co_stmt = (
-                    select(ChangeOrder)
-                    .where(
-                        ChangeOrder.project_id == project_id,
-                        ChangeOrder.code == code,
-                        ChangeOrder.branch == "main",
+                co_stmt = select(ChangeOrder).where(
+                    ChangeOrder.project_id == project_id,
+                    ChangeOrder.code == code,
+                    ChangeOrder.branch == "main",
+                )
+
+                if as_of:
+                    # Time travel check for CO
+                    co_stmt = co_stmt.where(
+                        cast(Any, ChangeOrder).valid_time.op("@>")(as_of_tstz),
+                        func.lower(cast(Any, ChangeOrder).valid_time) <= as_of_tstz,
+                        or_(
+                            cast(Any, ChangeOrder).deleted_at.is_(None),
+                            cast(Any, ChangeOrder).deleted_at > as_of_tstz,
+                        ),
+                    )
+                else:
+                    co_stmt = co_stmt.where(
                         func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
-                        func.not_(func.isempty(ChangeOrder.valid_time)),  # Exclude empty ranges
                         cast(Any, ChangeOrder).deleted_at.is_(None),
                     )
-                    .order_by(cast(Any, ChangeOrder).valid_time.desc())
-                    .limit(1)
-                )
+
+                co_stmt = co_stmt.order_by(
+                    cast(Any, ChangeOrder).valid_time.desc()
+                ).limit(1)
                 co_result = await self.session.execute(co_stmt)
                 co = co_result.scalar_one_or_none()
 
@@ -349,12 +384,14 @@ class ProjectService(TemporalService[Project]):  # type: ignore[type-var,unused-
 
             branches.append(
                 BranchPublic(
+                    branch_id=branch_entity.branch_id,
                     name=branch_entity.name,
                     type=branch_entity.type,
                     is_default=False,
+                    created_at=branch_entity.valid_time.lower,
                     change_order_id=change_order_id,
                     change_order_code=change_order_code,
-                    change_order_status=change_order_status
+                    change_order_status=change_order_status,
                 )
             )
 

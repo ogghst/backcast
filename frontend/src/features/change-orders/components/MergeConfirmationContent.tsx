@@ -31,18 +31,19 @@ interface MergeConfirmationContentProps {
 export function MergeConfirmationContent({
   sourceBranch,
   targetBranch,
+  entityCount,
   impactSummary,
   targetStatus,
-}: Omit<MergeConfirmationContentProps, "entityCount">) {
+}: MergeConfirmationContentProps) {
   return (
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+    <Space orientation="vertical" style={{ width: "100%" }}>
       {/* Primary confirmation message */}
       <Alert
         type="info"
         showIcon
         icon={<InfoCircleOutlined />}
         message={
-          <Space direction="vertical" size={0}>
+          <Space orientation="vertical" size={0}>
             <Text strong>Merge {sourceBranch} → {targetBranch}</Text>
             <Text type="secondary">
               After merge, the Change Order status will be: <Text strong>{targetStatus}</Text>
@@ -56,18 +57,44 @@ export function MergeConfirmationContent({
         <Text strong>Impact Summary:</Text>
         <List
           size="small"
-          dataSource={[
-            `Branch to merge: <Text code>{sourceBranch}</Text>`,
-            `Target branch: <Text code>{targetBranch}</Text>`,
-            `Entities to update: <Text strong>{entityCount}</Text>`,
-            `New status: <Text strong>{targetStatus}</Text>`,
+          items={[
+            {
+              key: "source-branch",
+              children: (
+                <Space>
+                  <CheckCircleOutlined style={{ color: "#52c41a" }} />
+                  <Text>Branch to merge: <Text code>{sourceBranch}</Text></Text>
+                </Space>
+              ),
+            },
+            {
+              key: "target-branch",
+              children: (
+                <Space>
+                  <CheckCircleOutlined style={{ color: "#52c41a" }} />
+                  <Text>Target branch: <Text code>{targetBranch}</Text></Text>
+                </Space>
+              ),
+            },
+            {
+              key: "entity-count",
+              children: (
+                <Space>
+                  <CheckCircleOutlined style={{ color: "#52c41a" }} />
+                  <Text>Entities to update: <Text strong>{entityCount}</Text></Text>
+                </Space>
+              ),
+            },
+            {
+              key: "new-status",
+              children: (
+                <Space>
+                  <CheckCircleOutlined style={{ color: "#52c41a" }} />
+                  <Text>New status: <Text strong>{targetStatus}</Text></Text>
+                </Space>
+              ),
+            },
           ]}
-          renderItem={(item) => (
-            <List.Item>
-              <CheckCircleOutlined style={{ color: "#52c41a", marginRight: 8 }} />
-              <span dangerouslySetInnerHTML={{ __html: item }} />
-            </List.Item>
-          )}
         />
       </div>
 
@@ -77,10 +104,10 @@ export function MergeConfirmationContent({
           <Text strong>Field Changes:</Text>
           <List
             size="small"
-            dataSource={impactSummary}
-            renderItem={(impact) => (
-              <List.Item>
-                <Space direction="vertical" size={0} style={{ width: "100%" }}>
+            items={impactSummary.map((impact) => ({
+              key: `${impact.field}-${impact.target_value}-${impact.source_value}`,
+              children: (
+                <Space orientation="vertical" size={0} style={{ width: "100%" }}>
                   <Text type="secondary">{impact.field}:</Text>
                   <div style={{ paddingLeft: 16, fontSize: "12px" }}>
                     <div>
@@ -93,8 +120,8 @@ export function MergeConfirmationContent({
                     </div>
                   </div>
                 </Space>
-              </List.Item>
-            )}
+              ),
+            }))}
           />
         </div>
       )}

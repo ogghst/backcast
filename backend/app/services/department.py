@@ -117,6 +117,12 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var,u
         """Create new department using CreateVersionCommand."""
         dept_data = dept_in.model_dump(exclude_unset=True)
 
+        # Extract control_date from schema if present (for seeding)
+        control_date = getattr(dept_in, "control_date", None)
+
+        # Remove control_date from data to avoid duplicate kwarg error
+        dept_data.pop("control_date", None)
+
         # Use provided department_id (for seeding) or generate new one
         root_id = dept_in.department_id or uuid4()
         dept_data["department_id"] = root_id
@@ -125,9 +131,11 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var,u
             entity_class=Department,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
+            control_date=control_date,
             **dept_data,
         )
         return await cmd.execute(self.session)
+
 
     async def update_department(
         self, department_id: UUID, dept_in: DepartmentUpdate, actor_id: UUID

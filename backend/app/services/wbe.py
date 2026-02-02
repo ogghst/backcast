@@ -8,11 +8,14 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import cast as sql_cast
+from sqlalchemy import case, func, select
+from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.core.branching.service import BranchableService
+from app.core.branching.commands import CreateBranchCommand, UpdateCommand
 from app.core.versioning.commands import CreateVersionCommand, UpdateVersionCommand
 from app.core.versioning.enums import BranchMode
 from app.models.domain.user import User
@@ -38,7 +41,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import cast as type_cast
 
-        from sqlalchemy import func
 
         stmt = (
             select(WBE)
@@ -126,7 +128,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import Any, cast
 
-        from sqlalchemy import func
 
         Parent = aliased(WBE, name="parent_wbe")
 
@@ -135,9 +136,9 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
 
         if as_of:
             # Get parent version valid at as_of time
-            parent_where_clauses.append(
-                cast(Any, Parent).valid_time.contains(as_of)
-            )
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            parent_where_clauses.append(cast(Any, Parent).valid_time.op("@>")(as_of_tstz))
+            parent_where_clauses.append(func.lower(cast(Any, Parent).valid_time) <= as_of_tstz)
         else:
             # Get current parent version
             parent_where_clauses.append(
@@ -193,7 +194,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import Any, cast
 
-        from sqlalchemy import and_, func, or_
+        from sqlalchemy import and_, or_
 
         from app.core.filtering import FilterParser
 
@@ -283,7 +284,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """Get all WBEs for a specific project (current versions)."""
         from typing import Any, cast
 
-        from sqlalchemy import func
 
         stmt = (
             self._get_base_stmt()
@@ -303,6 +303,8 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         project_id: UUID | None = None,
         parent_wbe_id: UUID | None = None,
         branch: str = "main",
+        branch_mode: BranchMode = BranchMode.STRICT,
+        as_of: datetime | None = None,
     ) -> list[WBE]:
         """Get WBEs filtered by parent_wbe_id.
 
@@ -310,34 +312,45 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             project_id: Optional project filter
             parent_wbe_id: Parent WBE ID. None means root WBEs (parent_wbe_id IS NULL)
             branch: Branch name
+            branch_mode: Branch mode - MERGE (composite with main) or STRICT (isolated)
+            as_of: Optional timestamp for time-travel queries
 
         Returns:
             List of WBEs matching the parent filter
         """
         from typing import Any, cast
 
-        from sqlalchemy import func
 
-        # Build base query
-        conditions = [
-            WBE.branch == branch,
-            func.upper(cast(Any, WBE).valid_time).is_(None),
-            cast(Any, WBE).deleted_at.is_(None),
-        ]
+        # Build base statement with parent name join
+        stmt = self._get_base_stmt(as_of=as_of)
+
+        # Apply branch mode filter (handles STRICT vs MERGE logic)
+        stmt = self._apply_branch_mode_filter(
+            stmt, branch=branch, branch_mode=branch_mode, as_of=as_of
+        )
+
+        # Apply time-travel filter or current version filter
+        if as_of:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            stmt = stmt.where(
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
+            )
 
         # Add project filter if provided
         if project_id:
-            conditions.append(WBE.project_id == project_id)
+            stmt = stmt.where(WBE.project_id == project_id)
 
         # Add parent filter
         if parent_wbe_id is None:
             # Query for root WBEs (parent_wbe_id IS NULL)
-            conditions.append(cast(Any, WBE).parent_wbe_id.is_(None))
+            stmt = stmt.where(cast(Any, WBE).parent_wbe_id.is_(None))
         else:
             # Query for children of specific parent
-            conditions.append(WBE.parent_wbe_id == parent_wbe_id)
+            stmt = stmt.where(WBE.parent_wbe_id == parent_wbe_id)
 
-        stmt = self._get_base_stmt().where(*conditions).order_by(WBE.code)
+        stmt = stmt.order_by(WBE.code)
         result = await self.session.execute(stmt)
         return await self._resolve_parent_names(result.all())
 
@@ -347,7 +360,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """Get WBE by code within a project (current version)."""
         from typing import Any, cast
 
-        from sqlalchemy import func
 
         stmt = (
             self._get_base_stmt()
@@ -365,13 +377,14 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         return resolved[0] if resolved else None
 
     async def create_wbe(
-        self,
-        wbe_in: WBECreate,
-        actor_id: UUID,
-        control_date: datetime | None = None
+        self, wbe_in: WBECreate, actor_id: UUID
     ) -> WBE:
         """Create new WBE using CreateVersionCommand."""
         wbe_data = wbe_in.model_dump(exclude_unset=True)
+        
+        # Extract control_date from schema if present (for seeding/time-travel)
+        control_date = getattr(wbe_in, 'control_date', None)
+        
         # Remove control_date from wbe_data if present to avoid conflict with explicit arg
         wbe_data.pop("control_date", None)
 
@@ -397,12 +410,12 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         )
         return await cmd.execute(self.session)
 
+
     async def update_wbe(
         self,
         wbe_id: UUID,
         wbe_in: WBEUpdate,
         actor_id: UUID,
-        control_date: datetime | None = None
     ) -> WBE:
         """Update WBE using UpdateVersionCommand."""
         update_data = wbe_in.model_dump(exclude_unset=True)
@@ -429,20 +442,26 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
                 # Setting to root
                 update_data["level"] = 1
 
-        cmd = UpdateVersionCommand(
+        # Extract control_date and branch from schema
+        control_date = wbe_in.control_date
+        branch = wbe_in.branch or "main"
+
+        # Pop control_date and branch from update_data (they were already in model_dump)
+        update_data.pop("control_date", None)
+        update_data.pop("branch", None)
+
+        cmd = UpdateCommand(
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=wbe_id,
             actor_id=actor_id,
+            branch=branch,
             control_date=control_date,
-            **update_data,
+            updates=update_data,
         )
         return await cmd.execute(self.session)
 
     async def delete_wbe(
-        self,
-        wbe_id: UUID,
-        actor_id: UUID,
-        control_date: datetime | None = None
+        self, wbe_id: UUID, actor_id: UUID, control_date: datetime | None = None
     ) -> WBE:
         """Soft delete WBE with cascade to children.
 
@@ -500,7 +519,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import Any, cast
 
-        from sqlalchemy import func, literal_column, select
+        from sqlalchemy import literal_column, select
         from sqlalchemy.orm import aliased
 
         # Build recursive CTE to get all descendants
@@ -569,7 +588,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import Any, cast
 
-        from sqlalchemy import func, select
+        from sqlalchemy import select
 
         stmt = (
             select(func.count())
@@ -584,13 +603,17 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         result = await self.session.execute(stmt)
         return result.scalar() or 0
 
-    async def get_breadcrumb(self, wbe_id: UUID) -> dict[str, Any]:
+    async def get_breadcrumb(
+        self, wbe_id: UUID, branch: str = "main", as_of: datetime | None = None
+    ) -> dict[str, Any]:
         """Get breadcrumb trail for a WBE including project and all ancestors.
 
         Uses recursive CTE to efficiently fetch the entire ancestor chain in a single query.
 
         Args:
             wbe_id: Root WBE ID
+            branch: Branch name (default: "main")
+            as_of: Optional timestamp for time-travel queries
 
         Returns:
             Dict with 'project' and 'wbe_path' keys
@@ -600,28 +623,46 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import Any, cast
 
-        from sqlalchemy import func, literal_column, select
+        from sqlalchemy import literal_column, select
         from sqlalchemy.orm import aliased
 
         from app.models.domain.project import Project
 
-        # First, get the current WBE
-        current_wbe = await self.get_by_root_id(wbe_id)
+        # First, get the target WBE
+        if as_of:
+            current_wbe = await self.get_wbe_as_of(wbe_id, as_of, branch=branch)
+        else:
+            current_wbe = await self.get_by_root_id(wbe_id, branch=branch)
+
         if not current_wbe:
             raise ValueError(f"WBE with id {wbe_id} not found")
 
         # Get the project
-        project_stmt = (
-            select(Project)
-            .where(
-                Project.project_id == current_wbe.project_id,
-                Project.branch == current_wbe.branch,
-                func.upper(cast(Any, Project).valid_time).is_(None),
-                cast(Any, Project).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, Project).valid_time.desc())
-            .limit(1)
+        # Get the project
+        project_stmt = select(Project).where(
+            Project.project_id == current_wbe.project_id,
+            Project.branch.in_([current_wbe.branch, "main"]),
+            cast(Any, Project).deleted_at.is_(None),
         )
+
+        if as_of:
+            # Time travel for project
+            project_stmt = self._apply_bitemporal_filter_for_time_travel(
+                project_stmt, as_of
+            )
+        else:
+            # Current project version
+            project_stmt = project_stmt.where(
+                func.upper(cast(Any, Project).valid_time).is_(None)
+            )
+
+        # Order by branch priority (current > main) then time
+        # We want to prefer the current branch if available
+        project_stmt = project_stmt.order_by(
+            case((Project.branch == current_wbe.branch, 0), else_=1),
+            cast(Any, Project).valid_time.desc(),
+        ).limit(1)
+
         project_result = await self.session.execute(project_stmt)
         project = project_result.scalar_one_or_none()
 
@@ -630,41 +671,55 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
 
         # Build recursive CTE to get all ancestors
         # Base case: current WBE
-        wbe_cte = (
-            select(
-                WBE.id,
-                WBE.wbe_id,
-                WBE.code,
-                WBE.name,
-                WBE.parent_wbe_id,
-                literal_column("0").label("depth"),  # Depth 0 is the current WBE
-            )
-            .where(
-                WBE.wbe_id == wbe_id,
-                WBE.branch == current_wbe.branch,
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
-            )
-            .cte(name="wbe_ancestors", recursive=True)
+        base_cte_stmt = select(
+            WBE.id,
+            WBE.wbe_id,
+            WBE.code,
+            WBE.name,
+            WBE.parent_wbe_id,
+            literal_column("0").label("depth"),
+        ).where(
+            WBE.wbe_id == wbe_id,
+            WBE.branch == current_wbe.branch,
+            cast(Any, WBE).deleted_at.is_(None),
         )
+
+        if as_of:
+            base_cte_stmt = self._apply_bitemporal_filter_for_time_travel(
+                base_cte_stmt, as_of
+            )
+        else:
+            base_cte_stmt = base_cte_stmt.where(
+                func.upper(cast(Any, WBE).valid_time).is_(None)
+            )
+
+        wbe_cte = base_cte_stmt.cte(name="wbe_ancestors", recursive=True)
 
         # Recursive case: get parent WBEs
         wbe_alias = aliased(WBE, name="wbe_parent")
-        wbe_cte = wbe_cte.union_all(
-            select(
-                wbe_alias.id,
-                wbe_alias.wbe_id,
-                wbe_alias.code,
-                wbe_alias.name,
-                wbe_alias.parent_wbe_id,
-                (wbe_cte.c.depth + 1).label("depth"),
-            ).where(
-                wbe_alias.wbe_id == wbe_cte.c.parent_wbe_id,
-                wbe_alias.branch == current_wbe.branch,
-                func.upper(cast(Any, wbe_alias).valid_time).is_(None),
-                cast(Any, wbe_alias).deleted_at.is_(None),
-            )
+        recursive_stmt = select(
+            wbe_alias.id,
+            wbe_alias.wbe_id,
+            wbe_alias.code,
+            wbe_alias.name,
+            wbe_alias.parent_wbe_id,
+            (wbe_cte.c.depth + 1).label("depth"),
+        ).where(
+            wbe_alias.wbe_id == wbe_cte.c.parent_wbe_id,
+            wbe_alias.branch == current_wbe.branch,
+            cast(Any, wbe_alias).deleted_at.is_(None),
         )
+
+        if as_of:
+            recursive_stmt = self._apply_bitemporal_filter_for_time_travel(
+                recursive_stmt, as_of
+            )
+        else:
+            recursive_stmt = recursive_stmt.where(
+                func.upper(cast(Any, wbe_alias).valid_time).is_(None)
+            )
+
+        wbe_cte = wbe_cte.union_all(recursive_stmt)
 
         # Execute CTE query ordered by depth (root first)
         ancestors_stmt = select(wbe_cte).order_by(wbe_cte.c.depth.desc())
@@ -694,7 +749,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """Override to include parent_name."""
         from typing import Any, cast
 
-        from sqlalchemy import func
 
         stmt = (
             self._get_base_stmt()
@@ -719,7 +773,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """Get all versions of a WBE by root wbe_id (with creator and parent name)."""
         from typing import Any, cast
 
-        from sqlalchemy import func
         from sqlalchemy.orm import aliased
 
         # User lookup subquery

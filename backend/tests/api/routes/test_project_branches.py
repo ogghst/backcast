@@ -1,7 +1,7 @@
-
-import pytest
 from collections.abc import Generator
 from uuid import uuid4
+
+import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,22 +21,34 @@ mock_admin_user = User(
     hashed_password="hash",
 )
 
+
 def mock_get_current_user() -> User:
     return mock_admin_user
+
 
 def mock_get_current_active_user() -> User:
     return mock_admin_user
 
+
 class MockRBACService(RBACServiceABC):
     def has_role(self, user_role: str, required_roles: list[str]) -> bool:
         return True
+
     def has_permission(self, user_role: str, required_permission: str) -> bool:
         return True
+
     def get_user_permissions(self, user_role: str) -> list[str]:
-        return ["project-read", "project-create", "change-order-create", "change-order-read"]
+        return [
+            "project-read",
+            "project-create",
+            "change-order-create",
+            "change-order-read",
+        ]
+
 
 def mock_get_rbac_service() -> RBACServiceABC:
     return MockRBACService()
+
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
@@ -46,18 +58,19 @@ def override_auth() -> Generator[None, None, None]:
     yield
     app.dependency_overrides = {}
 
+
 # --- Tests ---
+
 
 @pytest.mark.asyncio
 async def test_get_branches_empty(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
 ) -> None:
     # Create project
-    p_resp = await client.post("/api/v1/projects", json={
-        "name": "Branch Test 1",
-        "code": "B-TEST-1",
-        "budget": 100000
-    })
+    p_resp = await client.post(
+        "/api/v1/projects",
+        json={"name": "Branch Test 1", "code": "B-TEST-1", "budget": 100000},
+    )
     assert p_resp.status_code == 201
     pid = p_resp.json()["project_id"]
 
@@ -71,28 +84,42 @@ async def test_get_branches_empty(
     assert data[0]["type"] == "main"
     assert data[0]["is_default"] is True
 
+
 @pytest.mark.asyncio
 async def test_get_branches_with_cos(
     client: AsyncClient, override_auth: None, db_session: AsyncSession
 ) -> None:
     # Create project
-    p_resp = await client.post("/api/v1/projects", json={
-        "name": "Branch Test 2",
-        "code": "B-TEST-2",
-        "budget": 100000
-    })
+    p_resp = await client.post(
+        "/api/v1/projects",
+        json={"name": "Branch Test 2", "code": "B-TEST-2", "budget": 100000},
+    )
     pid = p_resp.json()["project_id"]
 
     # Create CO 1 (Draft)
-    co1_resp = await client.post("/api/v1/change-orders", json={
-        "project_id": pid, "code": "CO-1", "title": "C1", "status": "Draft", "description": "Desc"
-    })
+    co1_resp = await client.post(
+        "/api/v1/change-orders",
+        json={
+            "project_id": pid,
+            "code": "CO-1",
+            "title": "C1",
+            "status": "Draft",
+            "description": "Desc",
+        },
+    )
     assert co1_resp.status_code == 201
 
     # Create CO 2 (Approved)
-    co2_resp = await client.post("/api/v1/change-orders", json={
-        "project_id": pid, "code": "CO-2", "title": "C2", "status": "Approved", "description": "Desc"
-    })
+    co2_resp = await client.post(
+        "/api/v1/change-orders",
+        json={
+            "project_id": pid,
+            "code": "CO-2",
+            "title": "C2",
+            "status": "Approved",
+            "description": "Desc",
+        },
+    )
     assert co2_resp.status_code == 201
 
     # Get branches

@@ -6,18 +6,16 @@ import type { ChangeOrderPublic } from "@/api/generated";
 import type { MergeConflict } from "../api/useChangeOrders";
 
 // Mock the workflow actions hook
-vi.mock("../hooks/useWorkflowActions", () => ({
-  useWorkflowActions: vi.fn(),
-  isActionAvailable: vi.fn(),
-  WORKFLOW_ACTIONS: {
-    SUBMIT: { label: "Submit", status: "Submitted for Approval" },
-    APPROVE: { label: "Approve", status: "Under Review" },
-    REJECT: { label: "Reject", status: "Rejected" },
-    MERGE: { label: "Merge to Main", status: "Implemented" },
-  },
-}));
+vi.mock("../hooks/useWorkflowActions", async () => {
+  const actual = await vi.importActual("../hooks/useWorkflowActions");
+  return {
+    ...actual,
+    useWorkflowActions: vi.fn(),
+    isActionAvailable: vi.fn(),
+  };
+});
 
-import { useWorkflowActions, isActionAvailable, WORKFLOW_ACTIONS } from "../hooks/useWorkflowActions";
+import { useWorkflowActions, isActionAvailable } from "../hooks/useWorkflowActions";
 
 const mockSubmit = vi.fn();
 const mockApprove = vi.fn();
@@ -28,6 +26,7 @@ describe("WorkflowButtons", () => {
   let queryClient: QueryClient;
 
   const mockChangeOrder: ChangeOrderPublic = {
+    id: "co-123",
     change_order_id: "co-123",
     code: "CO-001",
     title: "Test Change Order",
@@ -52,12 +51,17 @@ describe("WorkflowButtons", () => {
     });
 
     // Setup default mock implementations
+    const mockMutation = {
+      mutateAsync: vi.fn(),
+      isPending: false,
+    };
     vi.mocked(useWorkflowActions).mockReturnValue({
       submit: mockSubmit,
       approve: mockApprove,
       reject: mockReject,
       merge: mockMerge,
       isLoading: false,
+      mutation: mockMutation as any,
     });
 
     vi.mocked(isActionAvailable).mockImplementation((action) => {
@@ -204,12 +208,17 @@ describe("WorkflowButtons", () => {
   describe("loading state", () => {
     it("should show loading state on buttons when isLoading is true", () => {
       vi.mocked(isActionAvailable).mockReturnValue(true);
+      const mockMutation = {
+        mutateAsync: vi.fn(),
+        isPending: false,
+      };
       vi.mocked(useWorkflowActions).mockReturnValue({
         submit: mockSubmit,
         approve: mockApprove,
         reject: mockReject,
         merge: mockMerge,
         isLoading: true,
+        mutation: mockMutation as any,
       });
 
       render(<WorkflowButtons changeOrder={mockChangeOrder} />, { wrapper });

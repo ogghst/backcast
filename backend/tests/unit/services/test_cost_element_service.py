@@ -86,6 +86,7 @@ class TestCostElementServiceCreate:
             cost_element_type_id=hierarchy["cost_type"].cost_element_type_id,
             budget_amount=Decimal("50000.00"),
             description="Phase 1 mechanical installation",
+            branch="main",
         )
         actor_id = uuid4()
 
@@ -129,6 +130,7 @@ class TestCostElementServiceCreate:
             wbe_id=hierarchy["wbe"].wbe_id,
             cost_element_type_id=hierarchy["cost_type"].cost_element_type_id,
             budget_amount=Decimal("1000.00"),
+            branch="main",
         )
         actor_id = uuid4()
 
@@ -163,6 +165,7 @@ class TestCostElementServiceUpdate:
             wbe_id=hierarchy["wbe"].wbe_id,
             cost_element_type_id=hierarchy["cost_type"].cost_element_type_id,
             budget_amount=Decimal("10000.00"),
+            branch="main",
         )
         v1 = await service.create(element_in, actor_id=uuid4(), branch="main")
         element_id = v1.cost_element_id
@@ -212,6 +215,7 @@ class TestCostElementServiceDelete:
             wbe_id=hierarchy["wbe"].wbe_id,
             cost_element_type_id=hierarchy["cost_type"].cost_element_type_id,
             budget_amount=Decimal("5000.00"),
+            branch="main",
         )
         created_element = await service.create(
             element_in, actor_id=uuid4(), branch="main"
@@ -257,6 +261,7 @@ class TestCostElementServiceList:
                 wbe_id=hierarchy["wbe"].wbe_id,
                 cost_element_type_id=hierarchy["cost_type"].cost_element_type_id,
                 budget_amount=Decimal(f"{(i + 1) * 1000}.00"),
+                branch="main",
             )
             await service.create(element_in, actor_id=uuid4(), branch="main")
 
@@ -299,6 +304,7 @@ class TestCostElementServiceList:
                 wbe_id=hierarchy["wbe"].wbe_id,
                 cost_element_type_id=hierarchy["cost_type"].cost_element_type_id,
                 budget_amount=Decimal("1000.00"),
+                branch="main",
             )
             await service.create(element_in, actor_id=uuid4(), branch="main")
 
@@ -309,6 +315,7 @@ class TestCostElementServiceList:
             wbe_id=hierarchy["wbe"].wbe_id,
             cost_element_type_id=cost_type2.cost_element_type_id,
             budget_amount=Decimal("2000.00"),
+            branch="main",
         )
         await service.create(element_in, actor_id=uuid4(), branch="main")
 
@@ -349,6 +356,7 @@ class TestCostElementServiceBranching:
             wbe_id=hierarchy["wbe"].wbe_id,
             cost_element_type_id=hierarchy["cost_type"].cost_element_type_id,
             budget_amount=Decimal("10000.00"),
+            branch="main",
         )
         main_element = await service.create(element_in, actor_id=uuid4(), branch="main")
         element_id = main_element.cost_element_id
@@ -357,9 +365,7 @@ class TestCostElementServiceBranching:
         update_in = CostElementUpdate(
             budget_amount=Decimal("20000.00"),
         )
-        await service.update(
-            element_id, update_in, actor_id=uuid4(), branch="co-123"
-        )
+        await service.update(element_id, update_in, actor_id=uuid4(), branch="co-123")
 
         # Assert - Main should be unchanged
         main_latest = await service.get_by_id(element_id, branch="main")
@@ -393,6 +399,7 @@ class TestCostElementServiceBranching:
             wbe_id=hierarchy["wbe"].wbe_id,
             cost_element_type_id=hierarchy["cost_type"].cost_element_type_id,
             budget_amount=Decimal("5000.00"),
+            branch="main",
         )
         main_element = await service.create(element_in, actor_id=uuid4(), branch="main")
 
@@ -403,6 +410,7 @@ class TestCostElementServiceBranching:
             wbe_id=hierarchy["wbe"].wbe_id,
             cost_element_type_id=hierarchy["cost_type"].cost_element_type_id,
             budget_amount=Decimal("7000.00"),
+            branch="co-999",
         )
         branch_element = await service.create(
             element_in2, actor_id=uuid4(), branch="co-999"

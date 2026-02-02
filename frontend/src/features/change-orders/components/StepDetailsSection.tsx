@@ -100,7 +100,7 @@ export function StepDetailsSection({
   const content = getStatusContent();
 
   return (
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+    <Space orientation="vertical" style={{ width: "100%" }}>
       {/* Status banner */}
       {content.success && (
         <Alert

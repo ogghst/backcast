@@ -58,12 +58,12 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
     )
 
     # Workflow State
-    status: Mapped[str] = mapped_column(
-        String(50), nullable=False, default="Draft"
-    )
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="Draft")
 
     # Branch reference (explicit link to branches table)
-    branch_name: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    branch_name: Mapped[str | None] = mapped_column(
+        String(80), nullable=True, index=True
+    )
 
     # Temporal and branching fields inherited from mixins:
     # - valid_time: TSTZRANGE (from VersionableMixin)
@@ -79,7 +79,10 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
     def created_at(self) -> datetime | None:
         """Derive created_at from transaction_time.lower for API compatibility."""
         if self.transaction_time is not None:
-            return self.transaction_time.lower  # type: ignore[attr-defined]
+            # Cast to Any to access PostgreSQL range lower bound
+            lower_bound = getattr(self.transaction_time, 'lower', None)
+            if isinstance(lower_bound, datetime):
+                return lower_bound
         return None
 
     def __repr__(self) -> str:

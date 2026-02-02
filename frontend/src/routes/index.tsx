@@ -10,12 +10,10 @@ import { ProjectList } from "@/pages/projects/ProjectList";
 import { ProjectLayout } from "@/pages/projects/ProjectLayout";
 import { ProjectOverview } from "@/pages/projects/ProjectOverview";
 import { ProjectChangeOrdersPage } from "@/pages/projects/ProjectChangeOrdersPage";
-import { ProjectDetailPage } from "@/pages/projects/ProjectDetailPage";
 import { WBEList } from "@/pages/wbes/WBEList";
 import { WBEDetailPage } from "@/pages/wbes/WBEDetailPage";
-import { ImpactAnalysisDashboard } from "@/features/change-orders";
 import { ChangeOrderUnifiedPage } from "@/pages/projects/change-orders/ChangeOrderUnifiedPage";
-
+import { CostElementDetailPage } from "@/pages/cost-elements/CostElementDetailPage";
 import { Profile } from "@/pages/Profile";
 
 export const router = createBrowserRouter([
@@ -97,6 +95,10 @@ export const router = createBrowserRouter([
       {
         path: "/projects/:projectId/wbes/:wbeId",
         element: <WBEDetailPage />,
+      },
+      {
+        path: "/cost-elements/:id",
+        element: <CostElementDetailPage />,
       },
     ],
   },

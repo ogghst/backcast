@@ -4,6 +4,7 @@ import { useAuthStore } from "@/stores/useAuthStore";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { getCurrentUser, loginUser } from "@/api/auth";
 import type { UserLogin, UserPublic } from "@/types/auth";
+import { queryKeys } from "@/api/queryKeys";
 
 /**
  * Custom hook that combines authentication state and user data
@@ -26,7 +27,7 @@ export const useAuth = () => {
     isLoading: isLoadingUser,
     error: userError,
   } = useQuery<UserPublic>({
-    queryKey: ["currentUser"],
+    queryKey: queryKeys.users.me,
     queryFn: getCurrentUser,
     enabled: isAuthenticated, // Only fetch when authenticated
     retry: false, // Don't retry on 401
@@ -53,7 +54,7 @@ export const useAuth = () => {
       // Store token in Zustand store
       setToken(data.access_token);
       // Invalidate and refetch user data
-      queryClient.invalidateQueries({ queryKey: ["currentUser"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.me });
     },
   });
 

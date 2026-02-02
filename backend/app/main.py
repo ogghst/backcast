@@ -16,8 +16,13 @@ from app.api.routes import (
     change_orders,
     cost_element_types,
     cost_elements,
+    cost_registrations,
     departments,
+    evm,
+    forecasts,
+    progress_entries,
     projects,
+    schedule_baselines,
     users,
     wbes,
 )
@@ -72,7 +77,9 @@ async def filter_exception_handler(request: Request, exc: FilterError) -> JSONRe
 
 
 @app.exception_handler(BranchLockedException)
-async def branch_locked_exception_handler(request: Request, exc: BranchLockedException) -> JSONResponse:
+async def branch_locked_exception_handler(
+    request: Request, exc: BranchLockedException
+) -> JSONResponse:
     """Handle branch locked exceptions by returning 403 Forbidden."""
     return JSONResponse(
         status_code=403,
@@ -86,18 +93,22 @@ async def branch_locked_exception_handler(request: Request, exc: BranchLockedExc
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: ValidationError) -> JSONResponse:
+async def validation_exception_handler(
+    request: Request, exc: ValidationError
+) -> JSONResponse:
     """Handle Pydantic validation errors with detailed information."""
     logger.error(f"Validation error on {request.url}: {exc.errors()}")
 
     errors = exc.errors()
     formatted_errors = []
     for error in errors:
-        formatted_errors.append({
-            "field": " -> ".join(str(loc) for loc in error["loc"]),
-            "message": error["msg"],
-            "type": error["type"],
-        })
+        formatted_errors.append(
+            {
+                "field": " -> ".join(str(loc) for loc in error["loc"]),
+                "message": error["msg"],
+                "type": error["type"],
+            }
+        )
 
     return JSONResponse(
         status_code=422,
@@ -141,7 +152,32 @@ app.include_router(
     tags=["Cost Elements"],
 )
 app.include_router(
+    cost_registrations.router,
+    prefix=f"{settings.API_V1_STR}/cost-registrations",
+    tags=["Cost Registrations"],
+)
+app.include_router(
     change_orders.router,
     prefix=f"{settings.API_V1_STR}/change-orders",
     tags=["Change Orders"],
+)
+app.include_router(
+    forecasts.router,
+    prefix=f"{settings.API_V1_STR}/forecasts",
+    tags=["Forecasts"],
+)
+app.include_router(
+    schedule_baselines.router,
+    prefix=f"{settings.API_V1_STR}/schedule-baselines",
+    tags=["Schedule Baselines"],
+)
+app.include_router(
+    progress_entries.router,
+    prefix=f"{settings.API_V1_STR}/progress-entries",
+    tags=["Progress Entries"],
+)
+app.include_router(
+    evm.router,
+    prefix=f"{settings.API_V1_STR}/evm",
+    tags=["EVM"],
 )

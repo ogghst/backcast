@@ -55,8 +55,13 @@ async def test_create_delegates_to_command(
     mock_session.add = MagicMock()
     mock_session.flush = AsyncMock()
     mock_session.refresh = AsyncMock()
-    # Mock execute for raw SQL (text statement)
-    mock_session.execute = AsyncMock()
+
+    # Mock execute to return empty result for overlap check (no existing versions)
+    from unittest.mock import Mock
+
+    mock_result = Mock()
+    mock_result.scalar_one_or_none = Mock(return_value=None)
+    mock_session.execute = AsyncMock(return_value=mock_result)
 
     # Act
     result = await service.create(root_id=uuid4(), actor_id=uuid4(), **data)
@@ -65,7 +70,7 @@ async def test_create_delegates_to_command(
     assert isinstance(result, MockEntity)
     assert result.name == "test"
     mock_session.add.assert_called_once()
-    # flush is called twice now: once after add(), once after SQL update
+    # flush is called twice: once after add(), once after SQL update
     assert mock_session.flush.call_count == 2
     mock_session.refresh.assert_called_once()
 

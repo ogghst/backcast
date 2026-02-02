@@ -110,7 +110,9 @@ class TestWBEServiceBranchMode:
         )
 
         # Assert: Should return all 7 WBEs (2 from co-123 + 5 from main)
-        assert len(wbes) == 7, f"Expected 7 total WBEs (5 main + 2 co-123), got {len(wbes)}"
+        assert len(wbes) == 7, (
+            f"Expected 7 total WBEs (5 main + 2 co-123), got {len(wbes)}"
+        )
         assert total == 7
 
         # Verify branch distribution

@@ -3,18 +3,17 @@
 Test module for detecting merge conflicts when source and target branches
 have diverged with incompatible changes.
 """
+
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.branching.exceptions import MergeConflictError
-from app.core.branching.service import BranchableService
 from app.core.branching.commands import (
     CreateBranchCommand,
     UpdateCommand,
 )
+from app.core.branching.service import BranchableService
 from app.core.versioning.commands import CreateVersionCommand
 from app.models.domain.project import Project
 
@@ -23,7 +22,9 @@ class TestMergeConflictDetection:
     """Test suite for merge conflict detection."""
 
     @pytest.mark.asyncio
-    async def test_detect_merge_conflicts_when_both_branches_modified(self, db_session: AsyncSession):
+    async def test_detect_merge_conflicts_when_both_branches_modified(
+        self, db_session: AsyncSession
+    ):
         """Test conflict detection when both source and target modified since divergence."""
         root_id = uuid4()
         actor_id = uuid4()
@@ -38,7 +39,7 @@ class TestMergeConflictDetection:
             name="Original Name",
             branch="main",
         )
-        v1_main = await create_cmd.execute(db_session)
+        await create_cmd.execute(db_session)
 
         # 2. Create feature branch from main
         branch_cmd = CreateBranchCommand(
@@ -58,7 +59,7 @@ class TestMergeConflictDetection:
             updates={"name": "Main Modified"},
             branch="main",
         )
-        v2_main = await update_main_cmd.execute(db_session)
+        await update_main_cmd.execute(db_session)
 
         # 4. Modify feature branch (creating conflict)
         update_feature_cmd = UpdateCommand(
@@ -68,7 +69,7 @@ class TestMergeConflictDetection:
             updates={"name": "Feature Modified"},
             branch="co-123",
         )
-        v2_feature = await update_feature_cmd.execute(db_session)
+        await update_feature_cmd.execute(db_session)
 
         # 5. Detect conflicts using BranchableService
         service = BranchableService(Project, db_session)
@@ -89,7 +90,9 @@ class TestMergeConflictDetection:
         assert conflicts[0]["target_value"] == "Main Modified"
 
     @pytest.mark.asyncio
-    async def test_no_conflicts_when_only_source_modified(self, db_session: AsyncSession):
+    async def test_no_conflicts_when_only_source_modified(
+        self, db_session: AsyncSession
+    ):
         """Test no conflicts when only source branch has changes."""
         root_id = uuid4()
         actor_id = uuid4()
@@ -138,7 +141,9 @@ class TestMergeConflictDetection:
         assert len(conflicts) == 0
 
     @pytest.mark.asyncio
-    async def test_no_conflicts_when_different_fields_modified(self, db_session: AsyncSession):
+    async def test_no_conflicts_when_different_fields_modified(
+        self, db_session: AsyncSession
+    ):
         """Test no conflicts when branches modified different fields."""
         root_id = uuid4()
         actor_id = uuid4()

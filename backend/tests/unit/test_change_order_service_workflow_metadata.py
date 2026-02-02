@@ -58,14 +58,17 @@ async def test_to_public_includes_available_transitions(db_session: AsyncSession
     result = await service._to_public(co)
 
     # Assert
-    assert isinstance(result, ChangeOrderPublic), "Result should be ChangeOrderPublic schema"
+    assert isinstance(result, ChangeOrderPublic), (
+        "Result should be ChangeOrderPublic schema"
+    )
     assert result.available_transitions == ["Submitted for Approval"], (
         "available_transitions should match workflow service response"
     )
     assert result.can_edit_status is True, "Draft status should be editable"
     assert result.branch_locked is False, "No branch means not locked"
-    service.workflow.get_available_transitions.assert_called_once_with("Draft"), (
-        "Workflow service should be called with current status"
+    (
+        service.workflow.get_available_transitions.assert_called_once_with("Draft"),
+        ("Workflow service should be called with current status"),
     )
     service.workflow.can_edit_on_status.assert_called_once_with("Draft")
 
@@ -98,7 +101,9 @@ async def test_to_public_submitted_status_cannot_edit(db_session: AsyncSession):
     service = ChangeOrderService(db_session)
 
     # Mock workflow: Submitted status cannot be edited
-    service.workflow.get_available_transitions = AsyncMock(return_value=["Under Review"])
+    service.workflow.get_available_transitions = AsyncMock(
+        return_value=["Under Review"]
+    )
     service.workflow.can_edit_on_status = AsyncMock(return_value=False)
 
     service.branch_service.get_by_name_and_project = AsyncMock(
@@ -114,7 +119,9 @@ async def test_to_public_submitted_status_cannot_edit(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_to_public_branch_locked_true_when_branch_locked(db_session: AsyncSession):
+async def test_to_public_branch_locked_true_when_branch_locked(
+    db_session: AsyncSession,
+):
     """Verify that _to_public() correctly reports locked branch status.
 
     Acceptance Criteria:
@@ -141,7 +148,9 @@ async def test_to_public_branch_locked_true_when_branch_locked(db_session: Async
 
     service = ChangeOrderService(db_session)
 
-    service.workflow.get_available_transitions = AsyncMock(return_value=["Approved", "Rejected"])
+    service.workflow.get_available_transitions = AsyncMock(
+        return_value=["Approved", "Rejected"]
+    )
     service.workflow.can_edit_on_status = AsyncMock(return_value=False)
 
     # Mock branch service to return a locked branch
@@ -153,7 +162,9 @@ async def test_to_public_branch_locked_true_when_branch_locked(db_session: Async
         created_by=user_id,
         deleted_at=None,
     )
-    service.branch_service.get_by_name_and_project = AsyncMock(return_value=locked_branch)
+    service.branch_service.get_by_name_and_project = AsyncMock(
+        return_value=locked_branch
+    )
 
     # Act
     result = await service._to_public(co)
@@ -167,7 +178,9 @@ async def test_to_public_branch_locked_true_when_branch_locked(db_session: Async
 
 
 @pytest.mark.asyncio
-async def test_to_public_branch_locked_false_when_branch_unlocked(db_session: AsyncSession):
+async def test_to_public_branch_locked_false_when_branch_unlocked(
+    db_session: AsyncSession,
+):
     """Verify that _to_public() correctly reports unlocked branch status.
 
     Acceptance Criteria:
@@ -194,7 +207,9 @@ async def test_to_public_branch_locked_false_when_branch_unlocked(db_session: As
 
     service = ChangeOrderService(db_session)
 
-    service.workflow.get_available_transitions = AsyncMock(return_value=["Submitted for Approval"])
+    service.workflow.get_available_transitions = AsyncMock(
+        return_value=["Submitted for Approval"]
+    )
     service.workflow.can_edit_on_status = AsyncMock(return_value=True)
 
     # Mock branch service to return an unlocked branch
@@ -206,7 +221,9 @@ async def test_to_public_branch_locked_false_when_branch_unlocked(db_session: As
         created_by=user_id,
         deleted_at=None,
     )
-    service.branch_service.get_by_name_and_project = AsyncMock(return_value=unlocked_branch)
+    service.branch_service.get_by_name_and_project = AsyncMock(
+        return_value=unlocked_branch
+    )
 
     # Act
     result = await service._to_public(co)
@@ -244,8 +261,12 @@ async def test_to_public_rejected_status_allows_resubmission(db_session: AsyncSe
     service = ChangeOrderService(db_session)
 
     # Rejected status allows resubmission
-    service.workflow.get_available_transitions = AsyncMock(return_value=["Submitted for Approval"])
-    service.workflow.can_edit_on_status = AsyncMock(return_value=True)  # Rejected is editable
+    service.workflow.get_available_transitions = AsyncMock(
+        return_value=["Submitted for Approval"]
+    )
+    service.workflow.can_edit_on_status = AsyncMock(
+        return_value=True
+    )  # Rejected is editable
 
     service.branch_service.get_by_name_and_project = AsyncMock(
         side_effect=Exception("Branch not found")
@@ -256,11 +277,15 @@ async def test_to_public_rejected_status_allows_resubmission(db_session: AsyncSe
 
     # Assert
     assert result.available_transitions == ["Submitted for Approval"]
-    assert result.can_edit_status is True, "Rejected status should allow editing for resubmission"
+    assert result.can_edit_status is True, (
+        "Rejected status should allow editing for resubmission"
+    )
 
 
 @pytest.mark.asyncio
-async def test_to_public_approved_status_allows_implemented_only(db_session: AsyncSession):
+async def test_to_public_approved_status_allows_implemented_only(
+    db_session: AsyncSession,
+):
     """Verify that Approved status only allows transition to Implemented.
 
     Acceptance Criteria:

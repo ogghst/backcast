@@ -1,16 +1,14 @@
 """Integration tests for ChangeOrderService with branch creation and workflow."""
 
-import pytest
 from uuid import uuid4
-from datetime import datetime
+
+import pytest
 
 from app.models.domain.branch import Branch
-from app.models.domain.change_order import ChangeOrder
 from app.models.domain.project import Project
 from app.models.schemas.change_order import ChangeOrderCreate, ChangeOrderUpdate
-from app.services.change_order_service import ChangeOrderService
-from app.services.change_order_workflow_service import ChangeOrderWorkflowService
 from app.services.branch_service import BranchService
+from app.services.change_order_service import ChangeOrderService
 
 
 @pytest.mark.asyncio
@@ -178,8 +176,11 @@ async def test_status_change_under_review_to_rejected_unlocks_branch(db_session)
     # Assert: Status updated
     assert updated_co.status == "Rejected"
 
-    # Assert: Branch is unlocked
-    await db_session.refresh(branch)
+    # Assert: Branch is unlocked (re-fetch to get current version)
+    branch = await branch_service.get_by_name_and_project(
+        name="co-CO-2026-003",
+        project_id=project.project_id,
+    )
     assert branch.locked is False
 
 

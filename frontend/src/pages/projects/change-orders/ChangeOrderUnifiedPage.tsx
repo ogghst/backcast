@@ -15,6 +15,7 @@ import {
 import { useProject } from "@/features/projects/api/useProjects";
 import type { ChangeOrderCreate, ChangeOrderUpdate } from "@/api/generated";
 import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/api/queryKeys";
 
 /**
  * ChangeOrderUnifiedPage - Single page for change order create/edit/view.
@@ -28,10 +29,6 @@ import { useQueryClient } from "@tanstack/react-query";
  * - /projects/:projectId/change-orders/new - Create new change order
  * - /projects/:projectId/change-orders/:changeOrderId - Edit/view existing change order
  */
-
-interface ChangeOrderUnifiedPageProps {
-  // Props can be added later for testing or additional functionality
-}
 
 /**
  * Determine if the page is in create mode based on the changeOrderId param.
@@ -51,9 +48,7 @@ function getPageTitle(isCreate: boolean): string {
   return isCreate ? "Create Change Order" : "Change Order Details";
 }
 
-export function ChangeOrderUnifiedPage(
-  props: ChangeOrderUnifiedPageProps
-): JSX.Element {
+export function ChangeOrderUnifiedPage(): JSX.Element {
   const { projectId, changeOrderId } = useParams<{
     projectId: string;
     changeOrderId?: string;
@@ -66,7 +61,7 @@ export function ChangeOrderUnifiedPage(
 
   // Fetch change order data for edit mode
   const { data: changeOrder, isLoading } = useChangeOrder(
-    changeOrderId && !createMode ? changeOrderId : undefined
+    changeOrderId && !createMode ? changeOrderId : undefined,
   );
 
   // Fetch project data for breadcrumb
@@ -95,10 +90,12 @@ export function ChangeOrderUnifiedPage(
 
   const handleSave = async (values: ChangeOrderCreate | ChangeOrderUpdate) => {
     if (createMode) {
-      await createChangeOrder({
-        projectId,
+      // Ensure project_id is set correctly
+      const createData: ChangeOrderCreate = {
         ...values,
-      } as ChangeOrderCreate);
+        project_id: projectId!,
+      } as ChangeOrderCreate;
+      await createChangeOrder(createData);
     } else {
       await updateChangeOrder({
         id: changeOrderId!,
@@ -108,7 +105,7 @@ export function ChangeOrderUnifiedPage(
   };
 
   const handleCancel = () => {
-    navigate(`/projects/${projectId}/change-orders`);
+    navigate(`/projects/${projectId!}/change-orders`);
   };
 
   return (
@@ -119,8 +116,20 @@ export function ChangeOrderUnifiedPage(
         items={[
           { title: <Link to="/">Home</Link> },
           { title: <Link to="/projects">Projects</Link> },
-          { title: <Link to={`/projects/${projectId}`}>{project?.code || projectId}</Link> },
-          { title: <Link to={`/projects/${projectId}/change-orders`}>Change Orders</Link> },
+          {
+            title: (
+              <Link to={`/projects/${projectId!}`}>
+                {project?.code || projectId}
+              </Link>
+            ),
+          },
+          {
+            title: (
+              <Link to={`/projects/${projectId!}/change-orders`}>
+                Change Orders
+              </Link>
+            ),
+          },
           { title: createMode ? "New" : changeOrder?.code || changeOrderId },
         ]}
       />
@@ -129,14 +138,19 @@ export function ChangeOrderUnifiedPage(
       <h1 style={{ margin: 0, marginBottom: 16 }}>{pageTitle}</h1>
       <p style={{ color: "#8c8c8c", marginTop: 8 }}>
         Project: {project?.code || projectId}
-        {!createMode && ` • Change Order: ${changeOrder?.code || changeOrderId}`}
+        {!createMode &&
+          ` • Change Order: ${changeOrder?.code || changeOrderId}`}
       </p>
 
       {/* Sticky Navigation */}
       <ChangeOrderPageNav createMode={createMode} />
 
       {/* Form Section */}
-      <CollapsibleCard title="Change Order Details" id="details" style={{ marginBottom: 16 }}>
+      <CollapsibleCard
+        title="Change Order Details"
+        id="details"
+        style={{ marginBottom: 16 }}
+      >
         <ChangeOrderFormSection
           projectId={projectId}
           changeOrder={changeOrder || null}
@@ -152,7 +166,7 @@ export function ChangeOrderUnifiedPage(
       <ChangeOrderWorkflowSection
         changeOrder={changeOrder || null}
         onActionSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ["change-orders"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
         }}
         useCollapsibleCard
       />

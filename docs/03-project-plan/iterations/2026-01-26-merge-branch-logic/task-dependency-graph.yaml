@@ -1,0 +1,87 @@
+# Task Dependency Graph: Merge Branch Logic Iteration
+# This graph defines the execution order and parallelization opportunities
+# for implementing the enhanced merge branch logic.
+
+tasks:
+  - id: BE-001
+    name: "Create entity discovery service"
+    description: "Implement EntityDiscoveryService with methods to discover all active WBEs, CostElements, and Projects in a given branch"
+    agent: pdca-backend-do-executor
+    dependencies: []
+    complexity: Medium
+    estimated_hours: 3
+
+  - id: BE-002
+    name: "Add unit tests for entity discovery"
+    description: "Write comprehensive unit tests for EntityDiscoveryService covering all entity types, filtering deleted entities, and edge cases"
+    agent: pdca-backend-do-executor
+    dependencies: [BE-001]
+    complexity: Low
+    estimated_hours: 2
+
+  - id: BE-003
+    name: "Enhance ChangeOrderService.merge_change_order"
+    description: "Modify merge_change_order to orchestrate discovery and iterative merge of all entities (WBEs, CostElements, Projects) from source to target branch"
+    agent: pdca-backend-do-executor
+    dependencies: [BE-001, BE-002]
+    complexity: High
+    estimated_hours: 6
+
+  - id: BE-004
+    name: "Add unit tests for merge orchestration"
+    description: "Write unit tests for the enhanced merge_change_order method, verifying discovery invocation, iterative merge calls, status updates, and transaction rollback"
+    agent: pdca-backend-do-executor
+    dependencies: [BE-003]
+    complexity: High
+    estimated_hours: 4
+
+  - id: BE-005
+    name: "Add integration test for multi-entity merge"
+    description: "Create end-to-end integration tests that verify a Change Order with WBEs and CostElements correctly merges all entities to the target branch"
+    agent: pdca-backend-do-executor
+    dependencies: [BE-003, BE-004]
+    complexity: High
+    estimated_hours: 5
+
+  - id: BE-006
+    name: "Add API test for merge endpoint"
+    description: "Test the POST /api/v1/change-orders/{id}/merge endpoint to ensure it correctly orchestrates the full branch merge and returns appropriate status codes"
+    agent: pdca-backend-do-executor
+    dependencies: [BE-005]
+    complexity: Medium
+    estimated_hours: 3
+
+  - id: BE-007
+    name: "Add performance test for merge"
+    description: "Create performance benchmark test to verify merge of 100 entities completes within 5 seconds using pytest-benchmark"
+    agent: pdca-backend-do-executor
+    dependencies: [BE-005]
+    complexity: Medium
+    estimated_hours: 2
+
+  - id: BE-008
+    name: "Update API documentation"
+    description: "Update API documentation to reflect the enhanced merge behavior, ensuring it accurately describes the orchestration of all entity types"
+    agent: pdca-backend-do-executor
+    dependencies: [BE-006]
+    complexity: Low
+    estimated_hours: 1
+
+# Execution Notes:
+# 1. BE-001 can start immediately (no dependencies)
+# 2. BE-002 depends on BE-001 (tests require service implementation)
+# 3. BE-003 depends on BE-001 and BE-002 (orchestration requires tested discovery service)
+# 4. BE-004 depends on BE-003 (orchestration tests require implementation)
+# 5. BE-005 depends on BE-003 and BE-004 (integration tests require implementation and unit tests)
+# 6. BE-006 depends on BE-005 (API test requires integration infrastructure)
+# 7. BE-007 depends on BE-005 (performance test requires working merge)
+# 8. BE-008 depends on BE-006 (documentation requires API verification)
+#
+# Parallel execution opportunities:
+# - Once BE-001 is complete, BE-002 can run
+# - Once BE-003 is complete, BE-004 can run
+# - Once BE-005 is complete, BE-006 and BE-007 can run in parallel
+# - BE-008 must wait for BE-006
+#
+# Total estimated time: 26 hours (if executed sequentially)
+# Potential parallel execution time: ~18 hours (with BE-006 and BE-007 running in parallel)

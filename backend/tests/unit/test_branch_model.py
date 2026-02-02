@@ -1,8 +1,9 @@
 """Unit tests for Branch model."""
 
-import pytest
+from datetime import UTC
 from uuid import uuid4
-from sqlalchemy.exc import IntegrityError
+
+import pytest
 
 from app.models.domain.branch import Branch
 from app.models.domain.project import Project
@@ -18,7 +19,7 @@ async def test_branch_creation_with_composite_key(db_session):
         code="TEST-PROJ-001",
         name="Test Project",
         branch="main",
-        created_by=user_id
+        created_by=user_id,
     )
     db_session.add(project)
     await db_session.flush()
@@ -29,7 +30,7 @@ async def test_branch_creation_with_composite_key(db_session):
         project_id=project.project_id,
         type="change_order",
         locked=False,
-        created_by=user_id
+        created_by=user_id,
     )
     db_session.add(branch)
     await db_session.flush()
@@ -39,7 +40,8 @@ async def test_branch_creation_with_composite_key(db_session):
     assert branch.project_id == project.project_id
     assert branch.type == "change_order"
     assert branch.locked is False
-    assert branch.created_at is not None
+    assert branch.locked is False
+    assert branch.valid_time is not None
     assert branch.deleted_at is None
 
 
@@ -53,17 +55,13 @@ async def test_branch_default_values(db_session):
         code="TEST-PROJ-002",
         name="Test Project 2",
         branch="main",
-        created_by=user_id
+        created_by=user_id,
     )
     db_session.add(project)
     await db_session.flush()
 
     # Act: Create a branch with minimal fields
-    branch = Branch(
-        name="main",
-        project_id=project.project_id,
-        created_by=user_id
-    )
+    branch = Branch(name="main", project_id=project.project_id, created_by=user_id)
     db_session.add(branch)
     await db_session.flush()
 
@@ -84,7 +82,7 @@ async def test_branch_locked_can_be_toggled(db_session):
         code="TEST-PROJ-003",
         name="Test Project 3",
         branch="main",
-        created_by=user_id
+        created_by=user_id,
     )
     db_session.add(project)
     await db_session.flush()
@@ -94,7 +92,7 @@ async def test_branch_locked_can_be_toggled(db_session):
         project_id=project.project_id,
         type="change_order",
         locked=False,
-        created_by=user_id
+        created_by=user_id,
     )
     db_session.add(branch)
     await db_session.flush()
@@ -124,7 +122,7 @@ async def test_branch_soft_delete(db_session):
         code="TEST-PROJ-004",
         name="Test Project 4",
         branch="main",
-        created_by=user_id
+        created_by=user_id,
     )
     db_session.add(project)
     await db_session.flush()
@@ -134,16 +132,16 @@ async def test_branch_soft_delete(db_session):
         project_id=project.project_id,
         type="change_order",
         locked=False,
-        created_by=user_id
+        created_by=user_id,
     )
     db_session.add(branch)
     await db_session.flush()
 
     # Act: Soft delete the branch
-    from datetime import datetime, timezone
-    branch.deleted_at = datetime.now(timezone.utc)
+    from datetime import datetime
+
+    branch.deleted_at = datetime.now(UTC)
     await db_session.flush()
 
     # Assert: Branch has deleted_at timestamp
     assert branch.deleted_at is not None
-

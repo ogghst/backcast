@@ -26,10 +26,30 @@
         "cost-element-create",
         "cost-element-update",
         "cost-element-delete",
+        "cost-registration-read",
+        "cost-registration-create",
+        "cost-registration-update",
+        "cost-registration-delete",
         "change-order-read",
         "change-order-create",
         "change-order-update",
-        "change-order-delete"
+        "change-order-delete",
+        "forecast-read",
+        "forecast-create",
+        "forecast-update",
+        "forecast-delete",
+        "schedule-baseline-read",
+        "schedule-baseline-create",
+        "schedule-baseline-update",
+        "schedule-baseline-delete",
+        "progress-entry-read",
+        "progress-entry-create",
+        "progress-entry-update",
+        "progress-entry-delete",
+        "evm-read",
+        "evm-create",
+        "evm-update",
+        "evm-delete"
       ]
     },
     "manager": {
@@ -49,9 +69,27 @@
         "cost-element-create",
         "cost-element-update",
         "cost-element-type-read",
+        "cost-registration-read",
+        "cost-registration-create",
+        "cost-registration-update",
         "change-order-read",
         "change-order-create",
-        "change-order-update"
+        "change-order-update",
+        "forecast-read",
+        "forecast-create",
+        "forecast-update",
+        "schedule-baseline-read",
+        "schedule-baseline-create",
+        "schedule-baseline-update",
+        "schedule-baseline-delete",
+        "progress-entry-read",
+        "progress-entry-create",
+        "progress-entry-update",
+        "progress-entry-delete",
+        "evm-read",
+        "evm-create",
+        "evm-update",
+        "evm-delete"
       ]
     },
     "viewer": {
@@ -61,7 +99,10 @@
         "wbe-read",
         "cost-element-read",
         "cost-element-type-read",
-        "change-order-read"
+        "cost-registration-read",
+        "change-order-read",
+        "forecast-read",
+        "schedule-baseline-read"
       ]
     }
   }

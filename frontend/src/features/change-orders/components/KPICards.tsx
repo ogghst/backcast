@@ -79,7 +79,7 @@ const KPIMetricCard = ({
         title={title}
         value={metric.change_value ?? "0"}
         precision={2}
-        valueStyle={{ color }}
+        styles={{ content: { color } }}
         prefix={icon}
         suffix="€"
         formatter={(value) => formatCurrency(String(value))}

@@ -1,58 +1,58 @@
 # Current Iteration
 
-**Iteration:** User Interface Refinements
-**Start Date:** 2026-01-12
-**End Date:** 2026-01-12
-**Status:** ✅ **DONE**
+**Iteration:** Merge Branch Logic (E06 Phase 4)
+**Start Date:** 2026-01-26
+**End Date:** 2026-01-30 (Target)
+**Status:** ✅ **COMPLETE**
 
 ---
 
 ## Goal
 
-Improve User Experience by refining forms and automating data inference where possible.
+Finalize the Change Order lifecycle by implementing the "Merge" capability. This ensures that approved changes in isolated branches can be applied to the project baseline with conflict detection and resolution.
 
 **Key Focus Areas:**
 
-1.  **WBE Creation**: Automate level calculation.
-2.  **Navigation**: Refine Project Detail view to show only Root WBEs.
+1.  **Merge Logic**: Correctly identification and application of changes from source to target branch.
+2.  **Conflict Management**: Detection and reporting of merge conflicts.
+3.  **Workflow Completion**: Seamless transition from "Approved" to "Implemented".
 
 ---
 
 ## Stories in Scope
 
-| Story                        | Points | Priority | Status  | Actual Time | Dependencies |
-| :--------------------------- | :----- | :------- | :------ | :---------- | :----------- |
-| Automate WBE Level Inference | 1h     | High     | ✅ Done | 0.5h        | None         |
-| Fix WBE Root Filtering       | 1h     | High     | ✅ Done | 0.5h        | None         |
-| Analyze Branching Handling   | 2h     | Critical | ✅ Done | 0.5h        | None         |
-| Implement Branching Routes   | 4h     | Critical | ✅ Done | 1.0h        | Analysis     |
+| Story                                      | Points | Priority | Status         | Actual Time | Dependencies     |
+| :----------------------------------------- | :----- | :------- | :------------- | :---------- | :--------------- |
+| **[E06-U05] Merge Approved Change Orders** | 13     | Critical | ✅ Complete | 16 hours    | E06-U01, E06-U04 |
 
-**Total Estimated Effort:** 2 hours
+**Total Estimated Effort:** 13 points
 
 ---
 
 ## Success Criteria
 
-- [x] WBE Level field removed from form.
-- [x] Backend automatically calculates level from parent.
-- [x] Project Detail page shows only Root WBEs (Level 1).
-- [x] Tests verify filtering logic.
+- [x] `ChangeOrderService.merge_change_order` correctly iterates and merges all changed entities (WBEs, Cost Elements).
+- [x] API `POST /merge` handles conflict states correctly (409 Conflict).
+- [x] Conflict detection logic works for nested modifications.
+- [ ] Frontend successfully triggers merge and redirects/updates UI (deferred - separate scope).
 
 ---
 
 ## Iteration Records
 
-- **WBE Level Inference:** [Iteration Folder](iterations/2026-01-12-wbe-level-inference/)
-- **WBE Root Filter:** [Iteration Folder](iterations/2026-01-12-wbe-root-filter/)
-- **Branching Implementation:** [Iteration Folder](iterations/2026-01-12-branching-implementation/)
+- **Merge Branch Logic (2026-01-26):** [Iteration Folder](iterations/2026-01-26-merge-branch-logic/) - ✅ Complete (100%)
+- **Fix Overlapping Valid Time (TD-058):** [Iteration Folder](iterations/2026-01-16-fix-overlapping-valid-time/) - ✅ Complete
 
 ---
 
 ## Previous Iterations
 
+- **[2026-01-19] Temporal and Branch Context Consistency:** ✅ Complete (100%)
+- **[2026-01-19] Code Quality Cleanup:** ✅ Complete (100%)
+- **[2026-01-16] Fix Overlapping Valid Time:** ✅ Complete (100%)
+- **[2026-01-12] User Interface Refinements:** ✅ Complete (100%)
 - **[2026-01-11] Frontend Global Error Handling:** ✅ Complete (100%)
 - **[2026-01-10] Standardize Time Travel List Operations:** ✅ Complete (100%)
 - **[2026-01-10] Control Date Implementation:** ✅ Complete (100%)
 - **[2026-01-10] Time Machine Production Hardening:** ✅ Complete (100%)
 - **[2026-01-09] Time Machine Component:** ✅ Complete (100%)
-- **[2026-01-09] Page-Level Adapters Refactoring:** ✅ Complete (100%)

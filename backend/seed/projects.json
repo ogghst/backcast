@@ -7,7 +7,8 @@
     "contract_value": 1200000.0,
     "description": "Auto-generated demo project 1",
     "start_date": "2026-01-07T05:49:36.993776",
-    "end_date": "2027-01-07T05:49:36.993839"
+    "end_date": "2027-01-07T05:49:36.993839",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "project_id": "877c4cba-b30e-54c1-b25d-c73fb364019d",
@@ -17,6 +18,7 @@
     "contract_value": 1200000.0,
     "description": "Auto-generated demo project 2",
     "start_date": "2026-01-07T05:49:36.993851",
-    "end_date": "2027-01-07T05:49:36.993853"
+    "end_date": "2027-01-07T05:49:36.993853",
+    "control_date": "2026-01-01T00:00:00"
   }
 ]

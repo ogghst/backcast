@@ -55,8 +55,10 @@ class User(EntityBase, VersionableMixin):  # Removed VersionableProtocol from ba
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     # Preferences (stored as JSON)
+    # Note: No default value at Python level to avoid serialization issues with asyncpg
+    # When None, SQLAlchemy stores NULL in database; service layer handles empty dict semantics
     preferences: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB, nullable=True, default=dict
+        JSONB, nullable=True
     )
 
     # Temporal fields inherited from VersionableMixin:

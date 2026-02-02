@@ -17,7 +17,7 @@
 - [ ] **Backend**: Pydantic models used correctly?
 - [ ] **Frontend**: 100% type safety?
 - [ ] **Common**: No `Any` or `any` used?
-- [ ] **Standards**: Does the code follow [Coding Standards](coding-standards.md)?
+- [ ] **Standards**: Does the code follow [Backend Coding Standards](backend/coding-standards.md) or [Frontend Coding Standards](frontend/coding-standards.md)?
 
 ## 3. API & Data Patterns
 

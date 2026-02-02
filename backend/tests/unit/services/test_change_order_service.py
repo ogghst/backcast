@@ -14,9 +14,7 @@ class TestChangeOrderServiceCreate:
     """Test ChangeOrderService.create_change_order() method."""
 
     @pytest.mark.asyncio
-    async def test_create_change_order_success(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_create_change_order_success(self, db_session: AsyncSession) -> None:
         """Test successfully creating a change order.
 
         Acceptance Criteria:
@@ -66,9 +64,10 @@ class TestChangeOrderServiceCreate:
         - valid_time starts at control_date
         """
         # Arrange
-        from sqlalchemy import text
         from zoneinfo import ZoneInfo
-        
+
+        from sqlalchemy import text
+
         service = ChangeOrderService(db_session)
         project_id = uuid4()
         actor_id = uuid4()
@@ -78,16 +77,18 @@ class TestChangeOrderServiceCreate:
             project_id=project_id,
             code="CO-TIME-TEST",
             title="Time Test",
-            control_date=control_date
+            control_date=control_date,
         )
 
         # Act
         created_co = await service.create_change_order(
-            co_in, actor_id=actor_id, control_date=control_date
+            co_in, actor_id=actor_id
         )
 
         # Assert
-        stmt = text("SELECT branch, valid_time FROM change_orders WHERE change_order_id = :co_id")
+        stmt = text(
+            "SELECT branch, valid_time FROM change_orders WHERE change_order_id = :co_id"
+        )
         result = await db_session.execute(stmt, {"co_id": created_co.change_order_id})
         rows = result.fetchall()
 
@@ -100,9 +101,7 @@ class TestChangeOrderServiceUpdate:
     """Test ChangeOrderService.update_change_order() method."""
 
     @pytest.mark.asyncio
-    async def test_update_change_order_metadata(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_update_change_order_metadata(self, db_session: AsyncSession) -> None:
         """Test updating change order metadata creates new version.
 
         Acceptance Criteria:

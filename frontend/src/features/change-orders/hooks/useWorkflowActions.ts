@@ -9,6 +9,7 @@ import {
   useUpdateChangeOrder,
   useMergeChangeOrder,
 } from "../api/useChangeOrders";
+import { queryKeys } from "@/api/queryKeys";
 
 interface WorkflowActionsOptions {
   /** Callback when transition succeeds */
@@ -43,8 +44,8 @@ export function useWorkflowActions(changeOrderId: string, options?: WorkflowActi
   // Update mutation for status transitions
   const updateMutation = useUpdateChangeOrder({
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["change-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["branches"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.branches });
       options?.onSuccess?.(data);
     },
     onError: options?.onError,
@@ -53,8 +54,8 @@ export function useWorkflowActions(changeOrderId: string, options?: WorkflowActi
   // Merge mutation
   const mergeMutation = useMergeChangeOrder({
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["change-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["branches"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.branches });
       options?.onSuccess?.(data);
     },
     onError: options?.onError,

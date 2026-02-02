@@ -138,6 +138,7 @@ async def test_wbes_on_main(
 
 # --- Tests ---
 
+
 @pytest.mark.asyncio
 async def test_get_impact_success(
     client: AsyncClient,
@@ -157,8 +158,7 @@ async def test_get_impact_success(
 
     # Get impact analysis
     response = await client.get(
-        f"/api/v1/change-orders/{co_id}/impact",
-        params={"branch_name": branch_name}
+        f"/api/v1/change-orders/{co_id}/impact", params={"branch_name": branch_name}
     )
 
     # Assert response structure
@@ -219,8 +219,7 @@ async def test_get_impact_not_found(client: AsyncClient) -> None:
     fake_id = uuid4()
 
     response = await client.get(
-        f"/api/v1/change-orders/{fake_id}/impact",
-        params={"branch_name": "co-fake"}
+        f"/api/v1/change-orders/{fake_id}/impact", params={"branch_name": "co-fake"}
     )
 
     assert response.status_code == 404
@@ -279,9 +278,7 @@ async def test_get_impact_with_branch_modifications(
 
     # Update on the branch
     _ = await client.put(
-        f"/api/v1/wbes/{wbe_uuid}",
-        params={"branch": branch_name},
-        json=update_data
+        f"/api/v1/wbes/{wbe_uuid}", params={"branch": branch_name}, json=update_data
     )
 
     # The update might fail if branch doesn't exist, but we can still test
@@ -289,8 +286,7 @@ async def test_get_impact_with_branch_modifications(
 
     # Get impact analysis
     response = await client.get(
-        f"/api/v1/change-orders/{co_id}/impact",
-        params={"branch_name": branch_name}
+        f"/api/v1/change-orders/{co_id}/impact", params={"branch_name": branch_name}
     )
 
     # If the branch update succeeded, we should see changes

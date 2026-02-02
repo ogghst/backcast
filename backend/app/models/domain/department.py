@@ -42,7 +42,7 @@ class Department(EntityBase, VersionableMixin):
     # Profile (versioned)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     manager_id: Mapped[UUID | None] = mapped_column(
-        PG_UUID, ForeignKey("users.id"), nullable=True
+        PG_UUID, ForeignKey("users.user_id"), nullable=True
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     description: Mapped[str | None] = mapped_column(String(5000), nullable=True)

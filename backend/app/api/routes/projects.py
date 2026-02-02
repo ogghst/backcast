@@ -81,6 +81,11 @@ async def read_projects(
     # Calculate skip from page number
     skip = (page - 1) * per_page
 
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     try:
         # Get projects with filters
         projects, total = await service.get_projects(
@@ -142,7 +147,6 @@ async def create_project(
         project = await service.create_project(
             project_in=project_in,
             actor_id=current_user.user_id,
-            control_date=project_in.control_date
         )
         return project
     except ValueError as e:
@@ -160,6 +164,7 @@ async def create_project(
 )
 async def read_project(
     project_id: UUID,
+    branch: str = Query("main", description="Branch name"),
     as_of: datetime | None = Query(
         None,
         description="Time travel: get project state as of this timestamp (ISO 8601)",
@@ -171,17 +176,23 @@ async def read_project(
     Supports time-travel queries via the as_of parameter to view
     the project's state at any historical point in time.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     if as_of:
         # Time travel query
-        project = await service.get_project_as_of(project_id, as_of)
+        project = await service.get_project_as_of(project_id, as_of, branch=branch)
     else:
         # Current version
-        project = await service.get_by_root_id(project_id)
+        project = await service.get_by_root_id(project_id, branch=branch)
 
     if not project:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found" + (f" as of {as_of}" if as_of else ""),
+            detail=f"Project not found in branch '{branch}'"
+            + (f" as of {as_of}" if as_of else ""),
         )
     return project
 
@@ -204,7 +215,6 @@ async def update_project(
             project_id=project_id,
             project_in=project_in,
             actor_id=current_user.user_id,
-            control_date=project_in.control_date,
         )
         return updated_project
     except ValueError as e:
@@ -219,7 +229,9 @@ async def update_project(
 )
 async def delete_project(
     project_id: UUID,
-    control_date: datetime | None = Query(None, description="Optional control date for deletion"),
+    control_date: datetime | None = Query(
+        None, description="Optional control date for deletion"
+    ),
     current_user: User = Depends(get_current_active_user),
     service: ProjectService = Depends(get_project_service),
 ) -> None:
@@ -228,7 +240,7 @@ async def delete_project(
         await service.delete_project(
             project_id=project_id,
             actor_id=current_user.user_id,
-            control_date=control_date
+            control_date=control_date,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -262,6 +274,10 @@ async def read_project_history(
 )
 async def read_project_branches(
     project_id: UUID,
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get branches as of this timestamp (ISO 8601)",
+    ),
     service: ProjectService = Depends(get_project_service),
 ) -> list[BranchPublic]:
     """Get all branches for a project.
@@ -271,4 +287,9 @@ async def read_project_branches(
 
     Requires read permission.
     """
-    return await service.get_project_branches(project_id)
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
+    return await service.get_project_branches(project_id, as_of=as_of)

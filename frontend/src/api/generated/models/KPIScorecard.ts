@@ -19,5 +19,9 @@ export type KPIScorecard = {
      * Gross margin comparison
      */
     gross_margin: KPIMetric;
+    /**
+     * Actual costs (AC) comparison
+     */
+    actual_costs: KPIMetric;
 };
 

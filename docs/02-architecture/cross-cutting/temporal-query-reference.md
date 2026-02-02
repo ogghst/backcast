@@ -14,6 +14,7 @@ This document is the **definitive reference** for bitemporal queries and time tr
 - **TDD Patterns:** Zombie check tests for temporal deletion
 
 **Key Capabilities:**
+
 - **Time Travel:** Reconstruct entity state at any historical point
 - **Complete History:** Immutable audit trail of all entity changes
 - **Branch-Aware Queries:** STRICT and MERGE modes for different use cases
@@ -26,9 +27,9 @@ This document is the **definitive reference** for bitemporal queries and time tr
 
 ### Two Time Dimensions
 
-| Dimension         | Purpose                                         | Example                                                      |
-| ----------------- | ----------------------------------------------- | ------------------------------------------------------------ |
-| **Valid Time**    | When the fact was true in the real world        | A project budget was valid from Jan 1 to Mar 31              |
+| Dimension            | Purpose                                    | Example                                                    |
+| -------------------- | ------------------------------------------ | ---------------------------------------------------------- |
+| **Valid Time**       | When the fact was true in the real world   | A project budget was valid from Jan 1 to Mar 31            |
 | **Transaction Time** | When the fact was recorded in the database | The budget was entered on Feb 15, then corrected on Feb 20 |
 
 **Implementation:** PostgreSQL `TSTZRANGE` types for both dimensions.
@@ -41,38 +42,55 @@ This document is the **definitive reference** for bitemporal queries and time tr
 
 ---
 
-## Two Types of Time Travel
+## Time Travel Semantics
 
-### 1. Valid Time Travel (List Queries)
+> [!IMPORTANT]
+> **ALWAYS use Valid Time Travel semantics. NEVER use System Time Travel semantics.**
+>
+> All time-travel queries MUST only filter by `valid_time`. The `transaction_time` dimension is used for audit/correction tracking but MUST NOT be used for filtering query results.
 
-**Use Case:** "Show me the list of projects as they were valid on Jan 1st."
-**Context:** List views, reports, history browsing.
+### Valid Time Travel (THE ONLY SUPPORTED SEMANTIC)
+
+**Use Case:** "Show me entities as they were valid at a specific point in time."
+
+**Context:** All time-travel queries, including:
+
+- List views and reports
+- History browsing
+- Forward-looking scenarios (e.g., forecasts with future `control_date`)
+- Branch-aware queries
+- Single-entity `get_as_of()` queries
 
 **Semantics:**
 
 - `valid_time` must contain the target `as_of` timestamp
-- `transaction_time` is **not used for filtering** (used only for audit/correction tracking)
+- `transaction_time` is **NEVER used for filtering** (only for audit/correction tracking)
 - `deleted_at`: If the entity was logically deleted _after_ `as_of`, it should appear. If deleted _before_ `as_of`, it should not.
 
 **Why This Matters:**
 
-List queries filter by `valid_time` only to show what business facts were valid at the specified time. The `transaction_time` dimension tracks when corrections were made but does not filter results. If overlapping `valid_time` ranges exist (due to corrections), the latest version by `transaction_time` should be used - this is handled by `DISTINCT ON` in branch mode filtering or by ordering in service methods.
+Queries filter by `valid_time` only to show what business facts were valid at the specified time. This allows:
+
+- **Historical queries**: "What was the forecast on Feb 10th?"
+- **Forward-looking queries**: "What will the forecast be on Mar 15th?" (when `control_date > now()`)
+- **Consistent semantics**: All time-travel queries work the same way
+
+The `transaction_time` dimension tracks when corrections were made but does not filter results. If overlapping `valid_time` ranges exist (due to corrections), the latest version by `transaction_time` should be used - this is handled by `DISTINCT ON` in branch mode filtering or by ordering in service methods.
 
 > **Note:** Overlapping `valid_time` ranges should be prevented at create/update time. See [Technical Debt Register](../../03-project-plan/technical-debt-register.md#td-058-overlapping-valid_time-constraint) for details.
 
-### 2. System Time Travel (Audit / Reproducibility)
+### ~~System Time Travel~~ (DEPRECATED - DO NOT USE)
 
-**Use Case:** "Show me exactly what the system returned on Jan 1st at 12:00 PM." (Undoing a mistake, debugging a past bug).
-**Context:** Audit logs, debugging, strict reproducibility.
+> [!CAUTION]
+> **System Time Travel is DEPRECATED and must NOT be used.**
+>
+> Previous implementations that checked both `valid_time` AND `transaction_time` have been removed. This semantic was problematic because:
+>
+> - It prevented forward-looking queries (future `as_of` dates)
+> - It was inconsistent with business requirements
+> - It conflated "when it was valid" with "when it was recorded"
 
-**Semantics:**
-
-- `valid_time` must contain `as_of`
-- `transaction_time` must contain `as_of` (ignores corrections made after the fact)
-
-**Why This Matters:**
-
-For audit compliance, you may need to prove what the system actually showed at a specific moment, regardless of later corrections.
+If you need audit/reproducibility features, implement them separately without mixing temporal dimensions in query filters.
 
 ---
 
@@ -258,7 +276,35 @@ result = await service.get_as_of(
 
 ## Common Pitfalls
 
-### 1. Using `@>` Operator Alone
+### 1. Past-Dated `control_date` Creates Inverted Ranges
+
+```python
+# ❌ Wrong: control_date in the past creates inverted valid_time range
+# If today is 2026-01-19 and control_date is set to 2026-02-01:
+# valid_time = [2026-02-01, 2026-01-19) → INVALID (inverted range)
+await service.update(
+    root_id=entity_id,
+    actor_id=user_id,
+    branch="main",
+    control_date=datetime(2026, 2, 1),  # Future date when today is 2026-01-19
+    **update_data,
+)
+
+# ✅ Correct: control_date should be current or past
+await service.update(
+    root_id=entity_id,
+    actor_id=user_id,
+    branch="main",
+    control_date=datetime.now(UTC),  # Current time
+    **update_data,
+)
+```
+
+**Impact:** Past-dated `control_date` values (earlier than the current system time) will create inverted `valid_time` ranges when the new version's `valid_time` upper bound is set to the current time. This violates PostgreSQL range constraints and can cause query failures or unexpected behavior.
+
+**Recommendation:** Always use `datetime.now(UTC)` or allow the system to default to current time for `control_date` unless you have a specific requirement for backdating. If backdating is required, ensure the date is not in the future relative to the current system time.
+
+### 2. Using `@>` Operator Alone
 
 ```python
 # ❌ Wrong: @> treats NULL upper bound as infinity
@@ -271,7 +317,7 @@ stmt.where(
 )
 ```
 
-### 2. Forgetting `deleted_at` in Time Travel
+### 3. Forgetting `deleted_at` in Time Travel
 
 ```python
 # ❌ Wrong: Deleted entities invisible in ALL time travel queries
@@ -290,21 +336,82 @@ stmt.where(
 )
 ```
 
-### 3. Ad-Hoc Filter Implementations
+### 4. Custom Temporal Filter Implementations (CRITICAL BUG RISK)
+
+> [!WARNING]
+> **NEVER implement custom temporal filters. ALWAYS use `TemporalService._apply_bitemporal_filter()`.**
+>
+> The standardized filter includes critical components that custom implementations often miss:
+> - `func.lower(valid_time) <= as_of` - Prevents future entities from being included
+> - TIMESTAMP casting - Ensures proper timezone handling
+>
+> Custom filters will produce incorrect results in time-travel queries.
 
 ```python
-# ❌ Wrong: Custom filter logic in each service
-if as_of:
-    stmt = stmt.where(
-        and_(
-            entity.valid_time.contains(as_of),
-            entity.deleted_at.is_(None),
-        )
-    )
+# ❌ WRONG: Custom filter implementation (BUGGY!)
+if as_of is not None:
+    stmt = stmt.where(entity.valid_time.op("@>")(as_of))
+    stmt = stmt.where(or_(entity.deleted_at.is_(None), entity.deleted_at > as_of))
+# This misses func.lower(valid_time) <= as_of and TIMESTAMP casting!
 
-# ✅ Correct: Use standardized method
-stmt = self._apply_bitemporal_filter(stmt, as_of)
+# ✅ CORRECT: Use the standardized method
+if as_of is not None:
+    stmt = self._apply_bitemporal_filter(stmt, as_of)
+else:
+    stmt = stmt.where(func.upper(entity.valid_time).is_(None))
+    stmt = stmt.where(entity.deleted_at.is_(None))
 ```
+
+**Real-World Impact:**
+- Cost element metrics (`used`, `remaining`, `AC`, `ETC`) were incorrect
+- Historical cost analysis produced wrong sums
+- Budget status calculations were unreliable
+
+**See Also:** [ADR-005: Bitemporal Versioning](../decisions/ADR-005-bitemporal-versioning.md) | [TemporalService Implementation](../../../backend/app/core/versioning/service.py) (lines 230-264)
+
+---
+
+## Compliance Validation
+
+### Detection Pattern
+
+Use these grep patterns to find non-compliant custom temporal filters:
+
+```bash
+# Find @> operator without lower bound check
+grep -rn "valid_time.*@>" backend/app/services/ | grep -v "func.lower.*valid_time"
+
+# Find .contains() usage (non-standard pattern)
+grep -rn "\.valid_time\.contains(" backend/app/services/
+```
+
+### Justified Deviations
+
+The following custom implementations are justified and documented:
+
+1. **CostElementService.get_cost_element_as_of()** (lines 679-750)
+   - **Justification**: Complex query with joins to WBE and CostElementType for resolving parent_name and type_name
+   - **Compliance**: Uses custom filters for related entities (WBE, CostElementType) with proper temporal checks
+
+2. **ChangeOrderService.get_current()** (line 70)
+   - **Justification**: Uses `clock_timestamp()` instead of `current_timestamp()` for proper transaction-scoped time handling
+   - **Compliance**: Fixed with TIMESTAMP cast and lower bound check
+
+3. **ChangeOrderService.get_current_by_code()** (line 548)
+   - **Justification**: Uses `clock_timestamp()` for proper transaction-scoped time handling
+   - **Compliance**: Fixed with TIMESTAMP cast and lower bound check
+
+4. **ChangeOrderService.update_change_order()** (lines 226-299)
+   - **Justification**: Handles Time Machine mode with `control_date` parameter for querying historical state
+   - **Compliance**: Fixed with TIMESTAMP cast and lower bound check for all query statements
+
+5. **WBEService._get_base_stmt()** (lines 122-154)
+   - **Justification**: Provides parent name resolution for WBE hierarchy queries
+   - **Compliance**: Fixed with TIMESTAMP cast and lower bound check
+
+**Note**: All justified deviations have been remediated to include:
+- `TIMESTAMP(timezone=True)` casting for proper timezone handling
+- `func.lower(valid_time) <= as_of_tstz` to prevent future entities from leaking into historical queries
 
 ---
 
@@ -312,14 +419,14 @@ stmt = self._apply_bitemporal_filter(stmt, as_of)
 
 The following services expose `get_as_of` methods for single-entity time-travel queries:
 
-| Service                    | Method                               | Branch Modes   | Relations Included      |
-| ------------------------- | ------------------------------------ | -------------- | ---------------------- |
-| ProjectService            | `get_project_as_of()`                | STRICT, MERGE  | -                      |
-| WBEService                | `get_wbe_as_of()`                    | STRICT, MERGE  | -                      |
-| CostElementService        | `get_cost_element_as_of()`           | STRICT, MERGE  | parent_name, type_name |
-| CostElementTypeService    | `get_cost_element_type_as_of()`      | STRICT, MERGE  | -                      |
-| DepartmentService         | `get_department_as_of()`             | STRICT, MERGE  | -                      |
-| UserService               | `get_user_as_of()`                   | STRICT, MERGE  | -                      |
+| Service                | Method                          | Branch Modes  | Relations Included     |
+| ---------------------- | ------------------------------- | ------------- | ---------------------- |
+| ProjectService         | `get_project_as_of()`           | STRICT, MERGE | -                      |
+| WBEService             | `get_wbe_as_of()`               | STRICT, MERGE | -                      |
+| CostElementService     | `get_cost_element_as_of()`      | STRICT, MERGE | parent_name, type_name |
+| CostElementTypeService | `get_cost_element_type_as_of()` | STRICT, MERGE | -                      |
+| DepartmentService      | `get_department_as_of()`        | STRICT, MERGE | -                      |
+| UserService            | `get_user_as_of()`              | STRICT, MERGE | -                      |
 
 **Usage Example:**
 
@@ -358,6 +465,7 @@ project = await service.get_project_as_of(
 The zombie check pattern documented above is a best-practice TDD pattern for verifying bitemporal deletion behavior. However, this specific test pattern has not yet been implemented in the test suite.
 
 **Recommended:** Add zombie check tests to verify that soft-deleted entities:
+
 1. Remain visible for queries targeting timestamps before their deletion
 2. Disappear for queries targeting timestamps after their deletion
 
@@ -380,9 +488,9 @@ WHERE project_id = :id
 
 ```python
 # Try target branch first, fall back to main if not found
-version = get_current(root_id, branch="co-123")
+version = await get_current(root_id, branch="co-123")
 if version is None:
-    version = get_current(root_id, branch="main")
+    version = await get_current(root_id, branch="main")
 ```
 
 ### Time Travel on Branch
@@ -401,17 +509,21 @@ WHERE project_id = :id
 ## Related Documentation
 
 ### Architecture & Design
+
 - [ADR-005: Bitemporal Versioning](../decisions/ADR-005-bitemporal-versioning.md) - Architecture decision record
 - [ADR-006: Protocol-Based Type System](../decisions/ADR-006-protocol-based-type-system.md) - Type system design
 - [EVCS Core Architecture](../backend/contexts/evcs-core/architecture.md) - Complete EVCS system architecture
 
 ### Implementation Guides
+
 - [EVCS Implementation Guide](../backend/contexts/evcs-core/evcs-implementation-guide.md) - Code patterns and recipes (CRUD, branching, relationships)
 - [Entity Classification Guide](../backend/contexts/evcs-core/entity-classification.md) - Choosing Simple/Versionable/Branchable entity types
 
 ### User Guides
+
 - [EVCS User Guide](../../05-user-guide/evcs-wbe-user-guide.md) - Working with versioned entities (API consumers)
 
 ### Source Code
+
 - [TemporalService Implementation](../../../backend/app/core/versioning/service.py) - Core service with time travel support
 - [BranchableService Implementation](../../../backend/app/core/branching/service.py) - Branch-aware service operations

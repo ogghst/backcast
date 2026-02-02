@@ -5,8 +5,10 @@ import {
   PlusOutlined,
   HistoryOutlined,
   SearchOutlined,
+  EyeOutlined,
 } from "@ant-design/icons";
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import type { ColumnType } from "antd/es/table";
 import {
   CostElementsService,
@@ -14,6 +16,7 @@ import {
   CostElementTypesService,
 } from "@/api/generated";
 import { Can } from "@/components/auth/Can";
+import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import type {
   CostElementRead,
   CostElementCreate,
@@ -59,11 +62,12 @@ export const CostElementManagement = ({
   wbeId,
   wbeName,
 }: CostElementManagementProps) => {
+  const navigate = useNavigate();
   const { tableParams, handleTableChange, handleSearch } = useTableParams<
     CostElementRead,
     CostElementFilters
   >();
-  const [currentBranch, setCurrentBranch] = useState("main");
+  const { branch, mode: branchMode, asOf } = useTimeMachineParams();
 
   // Build query params, including wbeId filter if provided
   const queryParams = useMemo((): CostElementApiParams => {
@@ -75,7 +79,7 @@ export const CostElementManagement = ({
         | Record<string, (string | number | boolean)[] | null>
         | undefined,
       search: tableParams.search,
-      branch: currentBranch,
+      branch: branch,
     };
     // If wbeId prop is provided, always filter by it
     if (wbeId) {
@@ -85,7 +89,7 @@ export const CostElementManagement = ({
       };
     }
     return params;
-  }, [tableParams, currentBranch, wbeId]);
+  }, [tableParams, branch, wbeId]);
 
   const { data, isLoading, refetch } = useCostElements(queryParams);
   const costElements = data?.items || [];
@@ -139,10 +143,13 @@ export const CostElementManagement = ({
     {
       resource: "cost_elements",
       entityId: selectedElement?.cost_element_id,
-      fetchFn: (id) => CostElementsService.getCostElementHistory(id),
+      fetchFn: (id) => CostElementsService.getCostElementHistory(id, branch),
       enabled: historyOpen,
-    }
+    },
   );
+
+  // Note: Branch is controlled by Time Machine context
+  // The currentBranch variable is now from useTimeMachineParams()
 
   const { mutateAsync: createCostElement } = useCreateCostElement({
     onSuccess: () => {
@@ -167,15 +174,15 @@ export const CostElementManagement = ({
   const handleDelete = (id: string) => {
     modal.confirm({
       title: "Are you sure you want to delete this Cost Element?",
-      content: `This will delete it from branch '${currentBranch}'.`,
+      content: `This will delete it from branch '${branch}'.`,
       okText: "Yes, Delete",
       okType: "danger",
-      onOk: () => deleteCostElement(`${id}:::${currentBranch}`),
+      onOk: () => deleteCostElement(`${id}:::${branch}`),
     });
   };
 
   const getColumnSearchProps = (
-    dataIndex: keyof CostElementRead
+    dataIndex: keyof CostElementRead,
   ): ColumnType<CostElementRead> => ({
     filterDropdown: ({
       setSelectedKeys,
@@ -277,10 +284,27 @@ export const CostElementManagement = ({
       sorter: true, // Enable server-side sorting
     },
     {
+      title: "Branch",
+      dataIndex: "branch",
+      key: "branch",
+      render: (val) => (val ? <Tag>{val}</Tag> : "-"),
+      sorter: true,
+      ...getColumnSearchProps("branch"),
+    },
+    {
       title: "Actions",
       key: "actions",
       render: (_, record) => (
-        <Space>
+        <Space onClick={stopPropagation}>
+          <Can permission="cost-element-read">
+            <Button
+              icon={<EyeOutlined />}
+              onClick={() => {
+                navigate(`/cost-elements/${record.cost_element_id}`);
+              }}
+              title="View Details"
+            />
+          </Can>
           <Can permission="cost-element-read">
             <Button
               icon={<HistoryOutlined />}
@@ -314,6 +338,16 @@ export const CostElementManagement = ({
     },
   ];
 
+  // Handle row click to navigate to cost element detail page
+  const handleRowClick = (record: CostElementRead) => {
+    navigate(`/cost-elements/${record.cost_element_id}`);
+  };
+
+  // Stop propagation on action buttons to prevent row click
+  const stopPropagation = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
   return (
     <div>
       <StandardTable<CostElementRead>
@@ -326,6 +360,10 @@ export const CostElementManagement = ({
         dataSource={costElements || []} // Use raw data - server handles filtering
         columns={columns}
         rowKey="cost_element_id"
+        onRow={(record) => ({
+          onClick: () => handleRowClick(record),
+          style: { cursor: "pointer" },
+        })}
         searchable={true}
         searchPlaceholder="Search cost elements..."
         onSearch={handleSearch}
@@ -338,23 +376,9 @@ export const CostElementManagement = ({
               width: "100%",
             }}
           >
-            <Space>
-              <div style={{ fontSize: "16px", fontWeight: "bold" }}>
-                Cost Elements
-              </div>
-              <Select
-                value={currentBranch}
-                onChange={setCurrentBranch}
-                style={{ width: 200 }}
-                showSearch
-                placeholder="Select Branch"
-                options={[
-                  { label: "Main", value: "main" },
-                  { label: "Draft", value: "draft" },
-                  { label: "Dev", value: "dev" },
-                ]}
-              />
-            </Space>
+            <div style={{ fontSize: "16px", fontWeight: "bold" }}>
+              Cost Elements
+            </div>
 
             <Can permission="cost-element-create">
               <Button
@@ -379,12 +403,12 @@ export const CostElementManagement = ({
           if (selectedElement) {
             await updateCostElement({
               id: selectedElement.cost_element_id,
-              data: { ...values, branch: currentBranch },
+              data: { ...values, branch: branch },
             });
           } else {
             await createCostElement({
               ...(values as CostElementCreate),
-              branch: currentBranch,
+              branch: branch,
               // Pre-fill wbeId when creating from WBE detail page
               wbe_id: wbeId || (values as CostElementCreate).wbe_id,
               // Force cast to solve type mismatch since CreateWithBranch is derived type
@@ -394,7 +418,7 @@ export const CostElementManagement = ({
         }}
         confirmLoading={isLoading}
         initialValues={selectedElement}
-        currentBranch={currentBranch}
+        currentBranch={branch}
         wbeId={wbeId}
         wbeName={wbeName || selectedElement?.wbe_name || undefined}
       />

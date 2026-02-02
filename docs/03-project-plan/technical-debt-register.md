@@ -1,34 +1,13 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-01-15
-**Total Debt Items:** 8 (20 completed)
-**Total Estimated Effort:** 17 hours
-**Completed Effort:** 19.25 hours
+**Last Updated:** 2026-01-27
+**Total Debt Items:** 9 (24 completed)
+**Total Estimated Effort:** 31 hours
+**Completed Effort:** 30.25 hours
 
 ---
 
 ## Debt Items
-
-### High Severity
-
-#### [TD-058] Overlapping valid_time Constraint
-
-- **Source:** Time Travel Bug Investigation (2026-01-14)
-- **Description:** No constraint prevents overlapping `valid_time` ranges for the same entity. When using `control_date` parameter in past/future updates, or when multiple corrections happen to the same time period, overlapping `valid_time` ranges can be created. This breaks time-travel queries as multiple versions may match the same `as_of` timestamp.
-- **Impact:** Time-travel queries return incorrect/inconsistent results; entities may disappear from lists during certain time periods; zombie entities may appear
-- **Estimated Effort:** 2 hours
-- **Target Date:** 2026-01-20
-- **Status:** 🔴 Open
-- **Owner:** Backend Developer
-- **Notes:**
-  - **Workaround:** `_apply_bitemporal_filter` now uses `valid_time` only (removed `transaction_time` filtering) to return results, but this doesn't handle duplicates
-  - **Proper Fix:** Add constraint in `CreateVersionCommand` and `UpdateVersionCommand` to prevent overlapping `valid_time` ranges
-  - **Constraint Logic:** For any new version, check that `new_valid_time` does not overlap with existing versions' `valid_time` for the same root_id and branch
-  - **Deduplication:** Add `DISTINCT ON (root_id) ORDER BY transaction_time DESC` to list queries to ensure single result per entity when overlaps do occur
-- **Documentation:** [Temporal Query Reference](../02-architecture/cross-cutting/temporal-query-reference.md), [BranchableService](../../backend/app/core/branching/service.py)
-- **Test Case:** WBE `13793446-c32b-5682-85e4-3376841003ae` has versions with valid_time ranges: [Jan 14-May 10], [May 10-Jun 6], [Jun 6-∞]. Querying with `as_of=Feb 20` should return the first version, but current implementation may return duplicates or no results depending on filter logic
-
----
 
 ### Medium Severity
 
@@ -42,30 +21,91 @@
 - **Status:** 🔴 Open
 - **Owner:** Full Stack Developer
 
-#### [TD-049] Change Order Merge Test Implementation
-
-- **Source:** Phase 1 Change Orders ACT phase (2026-01-12)
-- **Description:** `test_merge_change_order` test fails because merge functionality is deferred to Phase 4. Test expectations written before implementation planned.
-- **Impact:** 1 test failure blocks CI (currently skipped/deferred)
-- **Estimated Effort:** 2 hours
-- **Target Date:** Phase 4 (2026-01-26)
-- **Status:** 🔴 Open
-- **Owner:** Backend Developer
-- **Notes:** Merge workflow will be implemented in Phase 4, test should be enabled then
-- **Documentation:** [Phase 1 ACT](./iterations/2026-01-11-change-orders-implementation/phase1/04-act.md)
-
-#### [TD-057] MERGE Mode Branch Deletion Detection
+#### [TD-057] MERGE Mode Branch Deletion Detection ✅
 
 - **Source:** EVCS Documentation Compliance Analysis (2026-01-14)
 - **Description:** `get_as_of()` with MERGE mode falls back to main branch even when entity is deleted on requested branch. The `_is_deleted_on_branch()` check may not properly detect deleted entities during fallback.
 - **Impact:** Zombie check test `test_wbe_zombie_check_merge_mode_no_fallback` fails; deleted entities on branches incorrectly appear in MERGE mode queries
 - **Estimated Effort:** 2 hours
+- **Actual Effort:** 2 hours
 - **Target Date:** 2026-01-20
-- **Status:** 🔴 Open
+- **Completed Date:** 2026-01-27
+- **Status:** ✅ Completed
 - **Owner:** Backend Developer
-- **Notes:** Expected behavior: deleted entities on a branch should NOT fall back to main during MERGE mode queries. The `_is_deleted_on_branch()` method in TemporalService/BranchableService needs investigation.
+- **Resolution:** Fixed deletion detection in both `TemporalService._is_deleted_on_branch()` and `BranchableService.get_as_of()` to check temporal aspect (`deleted_at <= as_of`) instead of just checking if ANY deleted version exists. This ensures MERGE mode correctly handles:
+  - Entities deleted BEFORE query time: No fallback to main (correct zombie behavior)
+  - Entities deleted AFTER query time: Falls back to main (entity was still valid at query time)
+- **Files Modified:**
+  - `backend/app/core/versioning/service.py`: Added temporal check to `_is_deleted_on_branch()`
+  - `backend/app/core/branching/service.py`: Added temporal check to MERGE mode deletion detection
+- **Tests Added:**
+  - `tests/unit/test_td57_deletion_detection.py`: Comprehensive temporal deletion tests
+  - `tests/unit/test_td57_edge_case.py`: Edge case tests for temporal deletion
 - **Documentation:** [EVCS Implementation Guide](../02-architecture/backend/contexts/evcs-core/evcs-implementation-guide.md), [Temporal Query Reference](../02-architecture/cross-cutting/temporal-query-reference.md)
 - **Test File:** [tests/unit/test_zombie_checks.py](../../backend/tests/unit/test_zombie_checks.py)
+
+#### [TD-062] Configure Pre-commit Hooks for Ruff Auto-fix
+
+- **Source:** Code Quality Cleanup ACT phase (2026-01-19)
+- **Description:** Ruff linting errors accumulated in codebase due to lack of automated checks before commits. Pre-commit hooks should automatically run `ruff check --fix` to catch and fix linting issues before they enter the codebase.
+- **Impact:** Prevents linting errors from accumulating, reduces manual cleanup effort
+- **Estimated Effort:** 2 hours
+- **Target Date:** 2026-01-20
+- **Status:** 🔴 Open
+- **Owner:** Tech Lead
+- **Notes:** Should be configured to run on Python files only, with `--fix` option for auto-correctable issues
+
+#### [TD-063] Add Zombie Check Tests for All Versioned Entities
+
+- **Source:** Code Quality Cleanup ACT phase (2026-01-19)
+- **Description:** Zombie check tests verify that soft-deleted entities correctly disappear from time-travel queries after their deletion timestamp, but remain visible for queries before deletion. Currently only implemented for forecasts.
+- **Impact:** Ensures data integrity for time-travel queries across all versioned entities
+- **Estimated Effort:** 1 day
+- **Target Date:** 2026-01-22
+- **Status:** 🔴 Open
+- **Owner:** QA Engineer
+- **Notes:** Should be added for Projects, WBEs, CostElements, ScheduleBaselines, and other versioned entities. Pattern documented in temporal-query-reference.md
+
+#### [TD-064] Docker Compose for Local Development
+
+- **Source:** Temporal Context Consistency ACT phase (2026-01-19)
+- **Description:** OpenAPI client regeneration failed during frontend implementation due to backend server inaccessibility (port 8000 conflict or server configuration issue). A standardized Docker Compose setup would provide consistent local development environment with backend, frontend, and database services.
+- **Impact:** Prevents development blockages, ensures backend dev server is always accessible for frontend work
+- **Estimated Effort:** 3 hours
+- **Target Date:** 2026-01-22
+- **Status:** 🔴 Open
+- **Owner:** Tech Lead
+- **Notes:** Should include backend (FastAPI), frontend (Vite dev server), and PostgreSQL services. Document standard startup sequence in developer onboarding guide.
+
+#### [TD-065] Automate OpenAPI Client Generation in CI/CD
+
+- **Source:** Temporal Context Consistency ACT phase (2026-01-19)
+- **Description:** Manual type update was required when OpenAPI spec regeneration failed (backend server returned 404). An automated process to regenerate frontend types from backend OpenAPI spec would prevent contract misalignment.
+- **Impact:** Ensures frontend-backend contract alignment, reduces manual work
+- **Estimated Effort:** 2 hours
+- **Target Date:** 2026-01-23
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Notes:** Add npm script to regenerate types from running backend, integrate into CI pipeline to run on every backend commit. Fail build if contract changes detected.
+
+#### [TD-066] Frontend ESLint Errors
+
+- **Source:** EVM Analyzer Master-Detail UI ACT phase (2026-01-23)
+- **Description:** 146 ESLint errors across multiple frontend files. None are in EVM feature code (`src/features/evm/`), which has 0 errors. All errors are in pre-existing legacy code.
+- **Error Breakdown:**
+  - `@typescript-eslint/no-explicit-any`: ~130 (Medium severity)
+  - `@typescript-eslint/no-unused-vars`: ~10 (Low severity)
+  - `react-refresh/only-export-components`: ~4 (Low severity)
+  - `react-hooks/exhaustive-deps`: ~2 (Low severity)
+- **Affected Files:** `src/api/client.ts`, `src/features/projects/`, `src/features/wbes/`, and various utility files
+- **Impact:** `any` types reduce type safety; noisy error output makes it harder to spot new issues
+- **Estimated Effort:** ~1 week
+- **Target Date:** Post-E05-U04 iteration
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Resolution Strategy:** Incremental refactor - fix errors file-by-file during feature work, enforce zero new errors
+- **Prevention:** Pre-commit hooks for ESLint, CI/CD gate for modified files, code review checklist item
+- **Documentation:** [EVM Analyzer CHECK phase](./iterations/2026-01-22-evm-analyzer-master-detail-ui/03-check.md), [Frontend Coding Standards](../../02-architecture/frontend/coding-standards.md)
 
 ---
 
@@ -126,44 +166,6 @@
 
 ---
 
-## Retired Debt
-
-| ID     | Item                                         | Retired Date | Resolution                                                                                               |
-| ------ | -------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------- |
-| TD-012 | E2E Test Data Isolation                      | 2026-01-09   | Implemented Playwright global setup with TRUNCATE                                                        |
-| TD-023 | Time-Travel Architecture Documentation       | 2026-01-11   | Enhanced temporal-query-reference.md with bitemporal fundamentals, filter patterns, and Zombie Check TDD |
-| TD-024 | Zombie Check TDD Pattern Documentation       | 2026-01-11   | Added comprehensive Zombie Check TDD section with full test example to temporal-query-reference.md       |
-| TD-025 | Frontend Lint Errors                         | 2026-01-11   | Fixed 6 ESLint errors across test files and utilities                                                    |
-| TD-026 | Expose get_as_of in Service Interfaces       | 2026-01-11   | Added `get_{entity}_as_of()` methods to 6 services                                                       |
-| TD-027 | BranchableSoftDeleteCommand Implementation   | 2026-01-12   | Implemented branch-aware soft delete for multi-branch entities                                           |
-| TD-028 | Control Date Handling in CreateBranchCommand | 2026-01-12   | Fixed duplicate records issue by adding control_date parameter                                           |
-| TD-029 | WBE/CostElement BranchableService Extension  | 2026-01-12   | Extended WBE and CostElement services to use BranchableService                                           |
-| TD-030 | Backend Ruff Linting Errors (Phase 1)        | 2026-01-12   | Fixed 6 linting errors: import organization and trailing whitespace                                      |
-| TD-031 | Change Order Field Name Override Pattern     | 2026-01-12   | Documented acceptable pattern for custom field names in BranchableService                                |
-| TD-013 | FilterParser Error Messages                  | 2026-01-09   | Implemented strict type validation, custom exceptions, and global 400 handler                            |
-| TD-014 | Frontend Filter Type Safety                  | 2026-01-09   | Implemented strict `Filterable` types and migrated 7 components                                          |
-| TD-015 | useTableParams Type Safety                   | 2026-01-09   | Refactored hook to use `TEntity` and `TFilters` generics                                                 |
-| TD-017 | Remaining Page-Level API Adapters            | 2026-01-09   | Migrated 5 files to named methods pattern                                                                |
-| N/A    | Backend test environment loop mismatch       | 2026-01-06   | Fixed conftest.py fixture scopes                                                                         |
-| TD-001 | Generic TemporalService get_by_root_id       | 2026-01-07   | Added `get_by_root_id` to `TemporalService[T]`, removed duplicate wrappers                               |
-| TD-006 | `useUserStore` server state violation        | 2026-01-07   | Deleted store; verified unused in production code                                                        |
-| TD-008 | Inconsistent Zustand middleware              | 2026-01-07   | Refactored all stores to use `immer` middleware                                                          |
-| TD-009 | Duplicate history hooks                      | 2026-01-07   | Standardized on generic `useEntityHistory` hook                                                          |
-| TD-010 | API adapter duplication                      | 2026-01-07   | Added named methods support to `createResourceHooks` (backward compatible)                               |
-| TD-011 | Hardcoded pagination values                  | 2026-01-07   | Centralized in `constants/pagination.ts`                                                                 |
-| TD-002 | Remaining Unit Test Failures                 | 2026-01-07   | Fixed field naming mismatch in tests; verified integration stability                                     |
-| TD-051 | Time Travel Parameter Type Handling          | 2026-01-12   | Updated BranchableService.get_as_of signature to accept branch_mode and implemented MERGE logic          |
-| TD-054 | Ruff Linting Errors (Branch Mode)            | 2026-01-13   | Fixed 12 auto-fixable errors (imports, whitespace)                                                       |
-| TD-055 | Unused Imports (Frontend Components)         | 2026-01-13   | Removed unused imports from ViewModeSelector, TimeMachineCompact                                         |
-| TD-056 | MyPy Query Examples Type Error               | 2026-01-13   | Removed examples parameter from Query() in projects.py and wbes.py                                       |
-
----
-
-## Maintenance Notes
-
-**Last Reviewed:** 2026-01-15
-**Next Review:** 2026-01-22
-
 **Process:**
 
 - Extract debt items from each iteration's ACT phase
@@ -171,12 +173,3 @@
 - Add to register within 24 hours of iteration completion
 - Review and prioritize during sprint planning
 - Track trends and prevent accumulation
-
-**Recent Trends:**
-
-- **2026-01-15 - Contextual Navigation Iteration:** Completed with zero new technical debt items. All code followed best practices with ~100% test coverage. Standardized URL-driven navigation pattern for future entity detail pages.
-- **2026-01-14 - Time Travel Bug Fix:** Completed TD-058 analysis and workaround (removed `transaction_time` filtering from `_apply_bitemporal_filter`), documented in technical debt register. Updated both `BranchableService` and `TemporalService` with `valid_time`-only filtering approach.
-- **2026-01-14 - Test Suite Results:** Backend tests at 99.2% pass rate (253/255). Added TD-059 for pre-existing `test_get_wbes_param_filter` API response format issue.
-- **2026-01-14 - Documentation Updates:** Updated temporal-query-reference.md and technical-debt-register.md to reflect new `valid_time`-only approach for time travel queries.
-- Net debt change: 0 items, 0 hours effort (this iteration)
-- Overall debt trend: Stable (8 open items, no new debt added)

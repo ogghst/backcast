@@ -17,6 +17,7 @@ import {
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
 import type { PaginatedResponse } from "@/types/api";
+import { queryKeys } from "@/api/queryKeys";
 
 export interface ChangeOrderListParams {
   pagination?: {
@@ -45,7 +46,10 @@ export const useChangeOrders = (params: ChangeOrderListParams) => {
   const { asOf } = useTimeMachineParams();
 
   return useQuery({
-    queryKey: ["change-orders", params, { asOf }],
+    queryKey: queryKeys.changeOrders.list(params.projectId, {
+      ...params,
+      asOf,
+    }),
     queryFn: async () => {
       const serverParams = getPaginationParams(params);
 
@@ -75,7 +79,7 @@ export const useCreateChangeOrder = (
   mutationOptions?: Omit<
     UseMutationOptions<ChangeOrderPublic, Error, ChangeOrderCreate>,
     "mutationFn"
-  >
+  >,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -84,7 +88,10 @@ export const useCreateChangeOrder = (
     mutationFn: (data: ChangeOrderCreate) => {
       // Only include control_date if asOf is set (not null/undefined)
       // Remove effective_date if not set
-      const payload: Record<string, string | number | boolean | null | undefined> = { ...data };
+      const payload: Record<
+        string,
+        string | number | boolean | null | undefined
+      > = { ...data };
       if (asOf) {
         payload.control_date = asOf;
       } else {
@@ -93,18 +100,28 @@ export const useCreateChangeOrder = (
       if (!payload.effective_date) {
         delete payload.effective_date;
       }
-      return ChangeOrdersService.createChangeOrder(payload as ChangeOrderCreate);
+      return ChangeOrdersService.createChangeOrder(
+        payload as ChangeOrderCreate,
+      );
     },
-    onSuccess: (data, ...args) => {
+    onSuccess: async (data, ...args) => {
       // Invalidate change orders queries for this project
-      queryClient.invalidateQueries({
-        queryKey: ["change-orders", { projectId: data.project_id }],
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.changeOrders.listsInProject(
+          data.project_id.toString(),
+        ),
+      });
+      // Also invalidate all project branches to be safe
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.branches(data.project_id.toString()),
       });
       // Refetch branches query for this project to show the new CO branch immediately
-      queryClient.refetchQueries({
-        queryKey: ["projects", data.project_id, "branches"],
+      await queryClient.refetchQueries({
+        queryKey: queryKeys.projects.branches(data.project_id.toString()),
       });
-      toast.success(`Change Order ${data.code} created with branch co-${data.code}`);
+      toast.success(
+        `Change Order ${data.code} created with branch co-${data.code}`,
+      );
       mutationOptions?.onSuccess?.(data, ...args);
     },
     onError: (error, ...args) => {
@@ -127,7 +144,7 @@ export const useUpdateChangeOrder = (
       { id: string; data: ChangeOrderUpdate }
     >,
     "mutationFn"
-  >
+  >,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -135,19 +152,25 @@ export const useUpdateChangeOrder = (
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: ChangeOrderUpdate }) => {
       // Remove control_date if not set
-      const payload: Record<string, string | number | boolean | null | undefined> = { ...data };
+      const payload: Record<
+        string,
+        string | number | boolean | null | undefined
+      > = { ...data };
       if (asOf) {
         payload.control_date = asOf;
       } else {
         delete payload.control_date;
       }
-      return ChangeOrdersService.updateChangeOrder(id, payload as ChangeOrderUpdate);
+      return ChangeOrdersService.updateChangeOrder(
+        id,
+        payload as ChangeOrderUpdate,
+      );
     },
     onSuccess: (data, ...args) => {
-      queryClient.invalidateQueries({ queryKey: ["change-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
       // Invalidate branches query to update branch selector with new status
       queryClient.invalidateQueries({
-        queryKey: ["projects", data.project_id, "branches"],
+        queryKey: queryKeys.projects.branches(data.project_id.toString()),
       });
       toast.success("Updated successfully");
       mutationOptions?.onSuccess?.(data, ...args);
@@ -165,10 +188,7 @@ export const useUpdateChangeOrder = (
  * Soft deletes the current version.
  */
 export const useDeleteChangeOrder = (
-  mutationOptions?: Omit<
-    UseMutationOptions<void, Error, string>,
-    "mutationFn"
-  >
+  mutationOptions?: Omit<UseMutationOptions<void, Error, string>, "mutationFn">,
 ) => {
   const { asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
@@ -185,7 +205,7 @@ export const useDeleteChangeOrder = (
       }) as Promise<void>;
     },
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: ["change-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
       // Invalidate all branch queries to remove deleted change order branch
       queryClient.invalidateQueries({
         predicate: (query) => {
@@ -213,12 +233,12 @@ export const useDeleteChangeOrder = (
  */
 export const useChangeOrder = (
   id: string | undefined,
-  queryOptions?: Omit<UseQueryOptions<ChangeOrderPublic, Error>, "queryKey">
+  queryOptions?: Omit<UseQueryOptions<ChangeOrderPublic, Error>, "queryKey">,
 ) => {
   const { asOf } = useTimeMachineParams();
 
   return useQuery({
-    queryKey: ["change-orders", "detail", id, { asOf }],
+    queryKey: queryKeys.changeOrders.detail(id!, { asOf }),
     queryFn: async () => {
       if (!id) throw new Error("Change Order ID is required");
 
@@ -238,10 +258,10 @@ export const useChangeOrder = (
  */
 export const useChangeOrderHistory = (
   id: string | undefined,
-  enabled = true
+  enabled = true,
 ) => {
   return useQuery({
-    queryKey: ["change-orders", "history", id],
+    queryKey: queryKeys.changeOrders.detail(id!, { history: true }),
     queryFn: async () => {
       if (!id) throw new Error("Change Order ID is required");
       return ChangeOrdersService.getChangeOrderHistory(id);
@@ -271,17 +291,21 @@ export const useCheckMergeConflicts = (
   changeOrderId: string | undefined,
   sourceBranch: string,
   targetBranch: string = "main",
-  options?: Omit<UseQueryOptions<MergeConflict[], Error>, "queryKey">
+  options?: Omit<UseQueryOptions<MergeConflict[], Error>, "queryKey">,
 ) => {
   return useQuery({
-    queryKey: ["change-orders", "merge-conflicts", changeOrderId, sourceBranch, targetBranch],
+    queryKey: queryKeys.changeOrders.mergeConflicts(
+      changeOrderId || "",
+      sourceBranch,
+      targetBranch,
+    ),
     queryFn: async () => {
       if (!changeOrderId) throw new Error("Change Order ID is required");
       if (!sourceBranch) throw new Error("Source branch is required");
       const result = await ChangeOrdersService.getMergeConflicts(
         changeOrderId,
         sourceBranch,
-        targetBranch
+        targetBranch,
       );
       return result as unknown as MergeConflict[];
     },
@@ -303,30 +327,42 @@ export const useMergeChangeOrder = (
       { id: string; mergeRequest: MergeRequest }
     >,
     "mutationFn"
-  >
+  >,
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, mergeRequest }: { id: string; mergeRequest: MergeRequest }) => {
+    mutationFn: ({
+      id,
+      mergeRequest,
+    }: {
+      id: string;
+      mergeRequest: MergeRequest;
+    }) => {
       return ChangeOrdersService.mergeChangeOrder(id, mergeRequest);
     },
     onSuccess: (data, ...args) => {
       // Invalidate change orders queries
-      queryClient.invalidateQueries({ queryKey: ["change-orders"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
       // Invalidate branches query for this project to update branch selector with new status
       queryClient.invalidateQueries({
-        queryKey: ["projects", data.project_id, "branches"],
+        queryKey: queryKeys.projects.branches(data.project_id.toString()),
       });
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
 
       const targetBranch = args[0]?.mergeRequest?.target_branch || "main";
       toast.success(
-        `Change Order merged successfully to ${targetBranch}. Status: ${data.status}`
+        `Change Order merged successfully to ${targetBranch}. Status: ${data.status}`,
       );
       mutationOptions?.onSuccess?.(data, ...args);
     },
-    onError: (error: Error & { status?: number; detail?: { conflicts?: MergeConflict[] } }, ...args) => {
+    onError: (
+      error: Error & {
+        status?: number;
+        detail?: { conflicts?: MergeConflict[] };
+      },
+      ...args
+    ) => {
       // Handle 409 Conflict error with conflict details
       if (error?.status === 409 && error?.detail?.conflicts) {
         const conflicts = error.detail.conflicts as MergeConflict[];
@@ -335,10 +371,11 @@ export const useMergeChangeOrder = (
           .slice(0, 3)
           .map((c) => `${c.entity_type}.${c.field}`)
           .join(", ");
-        const moreText = conflictCount > 3 ? ` and ${conflictCount - 3} more` : "";
+        const moreText =
+          conflictCount > 3 ? ` and ${conflictCount - 3} more` : "";
 
         toast.error(
-          `Merge blocked: ${conflictCount} conflict${conflictCount > 1 ? "s" : ""} detected. ${conflictSummary}${moreText}.`
+          `Merge blocked: ${conflictCount} conflict${conflictCount > 1 ? "s" : ""} detected. ${conflictSummary}${moreText}.`,
         );
       } else {
         toast.error(`Error merging change order: ${error.message}`);
