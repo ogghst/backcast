@@ -175,6 +175,18 @@ export interface EVMTimeSeriesPoint {
 
   /** Actual value at this date */
   actual: number;
+
+  /**
+   * Cost Performance Index (EV / AC, < 1.0 = over budget)
+   * @nullable
+   */
+  cpi: number | null;
+
+  /**
+   * Schedule Performance Index (EV / PV, < 1.0 = behind schedule)
+   * @nullable
+   */
+  spi: number | null;
 }
 
 /**

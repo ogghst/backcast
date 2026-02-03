@@ -149,7 +149,7 @@ export function buildGaugeOptions(
  */
 export type TimeSeriesChartType =
   | "evm-progression" // PV, EV, AC on one chart
-  | "cost-comparison"; // Forecast vs Actual
+  | "performance-indices"; // CPI vs SPI
 
 /**
  * Build time series chart options for EVM analysis.
@@ -187,7 +187,7 @@ export function buildTimeSeriesOptions(
   const { colors, axisConfig, tooltipConfig, legendConfig } = theme;
 
   const {
-    // chartType, // Not used in options, kept for interface consistency
+    chartType,
     series,
     showZoom = true,
     dualYAxis = false,
@@ -196,14 +196,78 @@ export function buildTimeSeriesOptions(
     // height, // Not used in options, controlled by component
   } = options;
 
+  // Check if this is a performance indices chart
+  const isPerformanceIndices = chartType === "performance-indices";
+
   // Default colors based on series name
   const defaultColors: Record<string, string> = {
     PV: colors.pv,
     EV: colors.ev,
     AC: colors.ac,
+    CPI: "#5b8ff9", // Blue
+    SPI: "#5ad8a6", // Green
     Forecast: colors.forecast,
     Actual: colors.actual,
   };
+
+  // Y-axis configuration for performance indices (0-2 range, centered on 1.0)
+  const yAxisConfig = series.slice(0, dualYAxis ? 2 : 1).map((_s, index) => ({
+    type: "value" as const,
+    position: dualYAxis && index === 1 ? "right" : "left",
+    ...axisConfig,
+    min: isPerformanceIndices ? 0 : undefined,
+    max: isPerformanceIndices ? 2 : undefined,
+    axisLabel: {
+      ...axisConfig.axisLabel,
+      formatter: yFormatter,
+    },
+    splitLine: {
+      ...axisConfig.splitLine,
+      show: index === 0,
+    },
+  }));
+
+  // Series configuration with markLine for performance indices
+  const seriesConfig = series.map((s, index) => {
+    const baseConfig = {
+      name: s.name,
+      type: "line" as const,
+      data: s.data,
+      smooth: true,
+      symbol: "circle" as const,
+      symbolSize: 6,
+      yAxisIndex: dualYAxis && index >= 2 ? 1 : 0,
+      emphasis: {
+        focus: "series" as const,
+      },
+    };
+
+    // Add markLine at y=1.0 for performance indices
+    if (isPerformanceIndices && index === 0) {
+      return {
+        ...baseConfig,
+        markLine: {
+          silent: true,
+          symbol: "none",
+          label: {
+            show: true,
+            position: "end" as const,
+            formatter: "Target (1.0)",
+            fontSize: 11,
+            color: colors.success,
+          },
+          lineStyle: {
+            type: "solid" as const,
+            color: colors.success,
+            width: 2,
+          },
+          data: [{ yAxis: 1.0 }],
+        },
+      };
+    }
+
+    return baseConfig;
+  });
 
   return {
     color: series.map(
@@ -219,12 +283,17 @@ export function buildTimeSeriesOptions(
         let result = `<div style="margin-bottom: 4px; font-weight: 600;">${xFormatter(date)}</div>`;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         params.forEach((param: any) => {
+          // Format performance indices with 2 decimal places
+          const value = isPerformanceIndices
+            ? (typeof param.value === "number" ? param.value.toFixed(2) : param.value)
+            : yFormatter(param.value);
+
           result += `<div style="display: flex; justify-content: space-between; gap: 16px;">
             <span style="display: flex; align-items: center;">
               <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${param.color}; margin-right: 6px;"></span>
               ${param.seriesName}
             </span>
-            <span style="font-weight: 600;">${yFormatter(param.value)}</span>
+            <span style="font-weight: 600;">${value}</span>
           </div>`;
         });
         return result;
@@ -250,31 +319,8 @@ export function buildTimeSeriesOptions(
         formatter: xFormatter,
       },
     },
-    yAxis: series.slice(0, dualYAxis ? 2 : 1).map((_s, index) => ({
-      type: "value" as const,
-      position: dualYAxis && index === 1 ? "right" : "left",
-      ...axisConfig,
-      axisLabel: {
-        ...axisConfig.axisLabel,
-        formatter: yFormatter,
-      },
-      splitLine: {
-        ...axisConfig.splitLine,
-        show: index === 0,
-      },
-    })),
-    series: series.map((s, index) => ({
-      name: s.name,
-      type: "line" as const,
-      data: s.data,
-      smooth: true,
-      symbol: "circle" as const,
-      symbolSize: 6,
-      yAxisIndex: dualYAxis && index >= 2 ? 1 : 0,
-      emphasis: {
-        focus: "series" as const,
-      },
-    })),
+    yAxis: yAxisConfig,
+    series: seriesConfig,
     dataZoom: showZoom
       ? [
           {

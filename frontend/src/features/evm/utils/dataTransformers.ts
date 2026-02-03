@@ -49,6 +49,39 @@ export function transformEVMProgressionData(timeSeries: EVMTimeSeriesResponse): 
 }
 
 /**
+ * Transform EVM time-series data for CPI vs SPI Performance Indices chart.
+ *
+ * Context: Uses backend-calculated CPI and SPI values for consistency.
+ * Values above 1.0 indicate good performance.
+ *
+ * @param timeSeries - Time series data from API
+ * @returns Array of series objects with CPI and SPI data
+ */
+export function transformPerformanceIndicesData(
+  timeSeries: EVMTimeSeriesResponse
+): TransformedSeries[] {
+  const points = timeSeries.points ?? [];
+
+  // Filter out points where CPI or SPI are null
+  const validPoints = points.filter(
+    (p) => p.cpi !== null && p.spi !== null
+  );
+
+  return [
+    {
+      name: "CPI",
+      color: "#5b8ff9", // Blue
+      data: validPoints.map((p) => [p.date, p.cpi!] as [string, number]),
+    },
+    {
+      name: "SPI",
+      color: "#5ad8a6", // Green
+      data: validPoints.map((p) => [p.date, p.spi!] as [string, number]),
+    },
+  ];
+}
+
+/**
  * Transform EVM time-series data for Forecast vs Actual comparison chart.
  *
  * @param timeSeries - Time series data from API
@@ -76,15 +109,15 @@ export function transformCostComparisonData(timeSeries: EVMTimeSeriesResponse): 
  * Returns both chart types' data in a single object.
  *
  * @param timeSeries - Time series data from API
- * @returns Object with both progression and comparison data
+ * @returns Object with both progression and performance indices data
  */
 export function transformAllTimeSeriesData(timeSeries: EVMTimeSeriesResponse): {
   evmProgression: TransformedSeries[];
-  costComparison: TransformedSeries[];
+  performanceIndices: TransformedSeries[];
 } {
   return {
     evmProgression: transformEVMProgressionData(timeSeries),
-    costComparison: transformCostComparisonData(timeSeries),
+    performanceIndices: transformPerformanceIndicesData(timeSeries),
   };
 }
 
