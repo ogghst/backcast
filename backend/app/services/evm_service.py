@@ -3,7 +3,7 @@
 import logging
 import time
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from functools import wraps
 from typing import Any, TypeVar
@@ -817,7 +817,7 @@ class EVMService:
         cpi = None
         if ac != 0:
             cpi = ev / ac
-            
+
         spi = None
         if pv != 0:
             spi = ev / pv
@@ -1042,7 +1042,7 @@ class EVMService:
         # Fetch cumulative costs for the entire range (from beginning of time)
         # We start from min date to ensure we capture all prior costs
         # Using timezone.utc to be safe with timezone-aware fields
-        cumulative_start_date = datetime.min.replace(tzinfo=timezone.utc)
+        cumulative_start_date = datetime.min.replace(tzinfo=UTC)
 
         cumulative_costs = await self.cr_service.get_cumulative_costs(
             cost_element_id=cost_element_id,
@@ -1070,7 +1070,7 @@ class EVMService:
 
         # Build a map of date -> progress percentage for fast lookup
         # Sort by valid_time (lower bound) ascending to get chronological order
-        
+
         # Extract lower bound of valid_time for each progress entry
         # Note: valid_time is a Python Range object at this point (already loaded from DB)
         progress_with_dates = [
@@ -1191,6 +1191,9 @@ class EVMService:
                         break
                 ac = latest_ac
 
+            # Calculate performance indices
+            cpi, spi = self._calculate_indices(ev=ev, ac=ac, pv=pv)
+
             point = EVMTimeSeriesPoint(
                 date=date,
                 pv=pv,
@@ -1198,6 +1201,8 @@ class EVMService:
                 ac=ac,
                 forecast=pv,  # Forecast equals planned value
                 actual=ac,  # Actual equals actual cost
+                cpi=float(cpi) if cpi is not None else None,  # Convert Decimal to float for JSON
+                spi=float(spi) if spi is not None else None,  # Convert Decimal to float for JSON
             )
             points.append(point)
 

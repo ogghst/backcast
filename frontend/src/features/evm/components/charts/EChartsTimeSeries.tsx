@@ -24,7 +24,7 @@ import {
 import { useEChartsTheme } from "../../utils/echartsTheme";
 import {
   transformEVMProgressionData,
-  transformCostComparisonData,
+  transformPerformanceIndicesData,
   TransformedSeries,
 } from "../../utils/dataTransformers";
 import type {
@@ -120,8 +120,8 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
     return [];
   }, [customSeries, timeSeries]);
 
-  const comparisonSeries = useMemo(() => {
-    if (timeSeries) return transformCostComparisonData(timeSeries);
+  const performanceIndicesSeries = useMemo(() => {
+    if (timeSeries) return transformPerformanceIndicesData(timeSeries);
     return [];
   }, [timeSeries]);
 
@@ -149,25 +149,24 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
     echartsTheme,
   ]);
 
-  const comparisonOptions = useMemo(() => {
-    if (comparisonSeries.length === 0) return null;
+  const performanceIndicesOptions = useMemo(() => {
+    if (performanceIndicesSeries.length === 0) return null;
 
     return buildTimeSeriesOptions(
       {
-        chartType: "cost-comparison",
-        series: comparisonSeries,
+        chartType: "performance-indices",
+        series: performanceIndicesSeries,
         showZoom,
         dualYAxis,
-        yFormatter: currencyFormatter,
+        yFormatter: (v) => v.toFixed(2),
         xFormatter: dateFormatter,
       } as TimeSeriesConfigOptions,
       echartsTheme,
     );
   }, [
-    comparisonSeries,
+    performanceIndicesSeries,
     showZoom,
     dualYAxis,
-    currencyFormatter,
     dateFormatter,
     echartsTheme,
   ]);
@@ -250,14 +249,14 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
   const hasData =
     (chartType === "evm-progression" || showBothCharts) &&
     progressionSeries.length > 0;
-  const hasComparisonData =
-    (chartType === "cost-comparison" || showBothCharts) &&
-    comparisonSeries.length > 0;
+  const hasPerformanceIndicesData =
+    (chartType === "performance-indices" || showBothCharts) &&
+    performanceIndicesSeries.length > 0;
 
   // Single chart mode
   if (!showBothCharts) {
     const options =
-      chartType === "evm-progression" ? progressionOptions : comparisonOptions;
+      chartType === "evm-progression" ? progressionOptions : performanceIndicesOptions;
 
     if (!options) {
       return (
@@ -311,7 +310,7 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
       {fillContainer ? (
         <>
           {hasData && progressionOptions && (
-            <div style={{ ...chartWrapperStyle, marginBottom: hasComparisonData ? 12 : 0 }}>
+            <div style={{ ...chartWrapperStyle, marginBottom: hasPerformanceIndicesData ? 12 : 0 }}>
               <div
                 style={{
                   marginBottom: 8,
@@ -346,7 +345,7 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
               </div>
             </div>
           )}
-          {hasComparisonData && comparisonOptions && (
+          {hasPerformanceIndicesData && performanceIndicesOptions && (
             <div style={chartWrapperStyle}>
               <div
                 style={{
@@ -357,7 +356,7 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
                   flexShrink: 0,
                 }}
               >
-                Cost Comparison
+                Performance Indices (CPI vs SPI)
                 <span
                   style={{
                     marginLeft: 8,
@@ -366,13 +365,13 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
                     fontWeight: 400,
                   }}
                 >
-                  Forecast vs Actual Costs
+                  Cost Performance Index (CPI), Schedule Performance Index (SPI)
                 </span>
               </div>
               <div style={chartContainerStyle}>
                 <EChartsBaseChart
                   ref={chart2Ref}
-                  option={comparisonOptions}
+                  option={performanceIndicesOptions}
                   loading={loading}
                   error={error}
                   height={chartHeight}
@@ -418,7 +417,7 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
               />
             </div>
           )}
-          {hasComparisonData && comparisonOptions && (
+          {hasPerformanceIndicesData && performanceIndicesOptions && (
             <div>
               <div
                 style={{
@@ -428,7 +427,7 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
                   color: "rgba(0,0,0,0.88)",
                 }}
               >
-                Cost Comparison
+                Performance Indices (CPI vs SPI)
                 <span
                   style={{
                     marginLeft: 8,
@@ -437,12 +436,12 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
                     fontWeight: 400,
                   }}
                 >
-                  Forecast vs Actual Costs
+                  Cost Performance Index (CPI), Schedule Performance Index (SPI)
                 </span>
               </div>
               <EChartsBaseChart
                 ref={chart2Ref}
-                option={comparisonOptions}
+                option={performanceIndicesOptions}
                 loading={loading}
                 error={error}
                 height={height ?? 300}

@@ -236,6 +236,12 @@ class EVMTimeSeriesPoint(BaseModel):
         ..., description="Forecast value at this date"
     )
     actual: Decimal = Field(..., description="Actual value at this date")
+    cpi: Decimal | None = Field(
+        None, description="Cost Performance Index (EV / AC, < 1.0 = over budget)"
+    )
+    spi: Decimal | None = Field(
+        None, description="Schedule Performance Index (EV / PV, < 1.0 = behind schedule)"
+    )
 
 
 class EVMTimeSeriesGranularity(str, Enum):
