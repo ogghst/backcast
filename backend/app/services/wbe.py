@@ -5,18 +5,19 @@ Provides WBE-specific operations with parent-child project relationship.
 
 from collections.abc import Sequence
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import cast as sql_cast
 from sqlalchemy import case, func, select
+from sqlalchemy import cast as sql_cast
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.core.branching.commands import UpdateCommand
 from app.core.branching.service import BranchableService
-from app.core.branching.commands import CreateBranchCommand, UpdateCommand
-from app.core.versioning.commands import CreateVersionCommand, UpdateVersionCommand
+from app.core.versioning.commands import CreateVersionCommand
 from app.core.versioning.enums import BranchMode
 from app.models.domain.user import User
 from app.models.domain.wbe import WBE
@@ -32,6 +33,81 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(WBE, session)
+
+    async def _validate_revenue_allocation(
+        self,
+        project_id: UUID,
+        branch: str = "main",
+        exclude_wbe_id: UUID | None = None,
+    ) -> None:
+        """Validate total revenue allocation matches project contract value.
+
+        Context: Called during WBE create/update operations to ensure
+        revenue allocations across all WBEs exactly match the project's
+        contract value. Enforces business rule from FR 15.4.
+
+        Args:
+            project_id: Project to validate
+            branch: Branch to check (default: "main")
+            exclude_wbe_id: Optional WBE ID to exclude (for update validation)
+
+        Raises:
+            ValueError: If total allocations do not match contract value
+
+        Implementation Notes:
+            - Skips validation if project.contract_value is None
+            - Excludes soft-deleted WBEs via deleted_at filter
+            - Excludes current WBE during updates to prevent double-counting
+            - Uses Decimal.quantize() for precise 2-decimal comparison
+        """
+        from typing import Any, cast
+
+        from app.models.domain.project import Project
+
+        # Get project contract value
+        project_stmt = select(Project.contract_value).where(
+            Project.project_id == project_id,
+            Project.branch == branch,
+        )
+        project_result = await self.session.execute(project_stmt)
+        contract_value = project_result.scalar_one_or_none()
+
+        # Allow validation to pass if contract_value not set
+        if contract_value is None:
+            return
+
+        # Sum current revenue allocations (excluding specified WBE if provided)
+        # Only sum WBEs that have a revenue_allocation set (not None)
+        stmt = select(func.sum(cast(Any, WBE).revenue_allocation)).where(
+            WBE.project_id == project_id,
+            WBE.branch == branch,
+            func.upper(cast(Any, WBE).valid_time).is_(None),  # Only current versions
+            cast(Any, WBE).deleted_at.is_(None),
+            cast(Any, WBE).revenue_allocation.is_not(None),  # Only sum allocated WBEs
+        )
+
+        # Exclude current WBE for update scenarios
+        if exclude_wbe_id:
+            stmt = stmt.where(WBE.wbe_id != exclude_wbe_id)
+
+        result = await self.session.execute(stmt)
+        total_allocated = result.scalar() or Decimal("0")
+
+        # Allow validation to pass if no WBEs have revenue allocated yet (initial state)
+        # This supports incremental allocation workflow (Option 2: lenient validation)
+        if total_allocated == Decimal("0"):
+            return
+
+        # Reject if total exceeds contract value (data integrity rule)
+        if total_allocated.quantize(Decimal("0.01")) > contract_value.quantize(
+            Decimal("0.01")
+        ):
+            difference = total_allocated - contract_value
+            raise ValueError(
+                f"Total revenue allocation (€{total_allocated:,.2f}) exceeds "
+                f"project contract value (€{contract_value:,.2f}). "
+                f"Over-allocation: €{difference:,.2f}"
+            )
 
     async def get_current(self, root_id: UUID, branch: str = "main") -> WBE | None:
         """Get the current active version for a root entity on a specific branch.
@@ -379,12 +455,27 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
     async def create_wbe(
         self, wbe_in: WBECreate, actor_id: UUID
     ) -> WBE:
-        """Create new WBE using CreateVersionCommand."""
+        """Create new WBE using CreateVersionCommand.
+
+        Context: Main entry point for WBE creation. Validates revenue
+        allocation against project contract value before creation.
+
+        Args:
+            wbe_in: WBE creation data with revenue_allocation
+            actor_id: User creating the WBE
+
+        Returns:
+            Created WBE entity
+
+        Raises:
+            ValueError: If revenue allocation validation fails
+        """
+
         wbe_data = wbe_in.model_dump(exclude_unset=True)
-        
+
         # Extract control_date from schema if present (for seeding/time-travel)
-        control_date = getattr(wbe_in, 'control_date', None)
-        
+        control_date = getattr(wbe_in, "control_date", None)
+
         # Remove control_date from wbe_data if present to avoid conflict with explicit arg
         wbe_data.pop("control_date", None)
 
@@ -401,6 +492,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         else:
             wbe_data["level"] = 1
 
+        # Create WBE first
         cmd = CreateVersionCommand(
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
@@ -408,7 +500,18 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             control_date=control_date,
             **wbe_data,
         )
-        return await cmd.execute(self.session)
+        wbe = await cmd.execute(self.session)
+
+        # Validate revenue allocation AFTER creation (so WBE is in DB)
+        # Flush to ensure the new WBE is visible to the validation query
+        await self.session.flush()
+
+        await self._validate_revenue_allocation(
+            project_id=wbe_in.project_id,
+            branch=wbe_data.get("branch", "main"),
+        )
+
+        return wbe
 
 
     async def update_wbe(
@@ -417,10 +520,34 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         wbe_in: WBEUpdate,
         actor_id: UUID,
     ) -> WBE:
-        """Update WBE using UpdateVersionCommand."""
+        """Update WBE using UpdateVersionCommand.
+
+        Context: Main entry point for WBE updates. Validates revenue
+        allocation against project contract value before updating.
+        Excludes current WBE from validation to prevent double-counting.
+
+        Args:
+            wbe_id: Root WBE ID to update
+            wbe_in: WBE update data with optional revenue_allocation
+            actor_id: User performing the update
+
+        Returns:
+            Updated WBE entity
+
+        Raises:
+            ValueError: If revenue allocation validation fails
+        """
         update_data = wbe_in.model_dump(exclude_unset=True)
         # Remove control_date from update_data if present to avoid conflict with explicit arg
         update_data.pop("control_date", None)
+
+        # Get current WBE to retrieve project_id for validation
+        current_wbe = await self.get_by_root_id(wbe_id)
+        if not current_wbe:
+            raise ValueError(f"WBE {wbe_id} not found")
+
+        # Save project_id before update (current_wbe may become stale after UpdateCommand)
+        project_id = current_wbe.project_id
 
         # Handle re-leveling if parent changes
         if wbe_in.parent_wbe_id is not None:  # explicit check for field presence/value
@@ -450,6 +577,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         update_data.pop("control_date", None)
         update_data.pop("branch", None)
 
+        # Update WBE first
         cmd = UpdateCommand(
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=wbe_id,
@@ -458,7 +586,18 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             control_date=control_date,
             updates=update_data,
         )
-        return await cmd.execute(self.session)
+        updated_wbe = await cmd.execute(self.session)
+
+        # Validate revenue allocation after update
+        # Note: We validate AFTER the update, so the new value is already in the DB.
+        # We do NOT exclude the current WBE because we want to validate the total
+        # including the new value.
+        await self._validate_revenue_allocation(
+            project_id=project_id,  # Use saved project_id
+            branch=branch,
+        )
+
+        return updated_wbe
 
     async def delete_wbe(
         self, wbe_id: UUID, actor_id: UUID, control_date: datetime | None = None

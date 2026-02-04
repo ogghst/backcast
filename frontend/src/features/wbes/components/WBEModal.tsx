@@ -117,6 +117,25 @@ export const WBEModal = ({
           />
         </Form.Item>
 
+        <Form.Item
+          name="revenue_allocation"
+          label="Revenue Allocation"
+          rules={[{ required: false, message: "Revenue allocation must be non-negative" }]}
+        >
+          <InputNumber
+            style={{ width: "100%" }}
+            min={0}
+            precision={2}
+            formatter={(value) =>
+              `€ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+            }
+            parser={(value) =>
+              value?.replace(/€\s?|(,*)/g, "") as unknown as number
+            }
+            placeholder="0.00"
+          />
+        </Form.Item>
+
         <Form.Item name="parent_wbe_id" hidden>
           <Input />
         </Form.Item>
