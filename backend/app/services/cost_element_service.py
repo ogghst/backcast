@@ -765,6 +765,8 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         )
 
         # Build query with joins
+        # In MERGE mode, try current branch first, then fall back to main
+        # In STRICT mode, only try current branch
         stmt = (
             select(
                 CostElement,
@@ -789,7 +791,40 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         stmt = stmt.limit(1)
         result = await self.session.execute(stmt)
         resolved = await self._resolve_relations(result.all())
-        return resolved[0] if resolved else None
+
+        # If found, return it
+        if resolved:
+            return resolved[0]
+
+        # If not found and in MERGE mode, try main branch as fallback
+        if branch_mode == BranchMode.MERGE and branch != "main":
+            stmt = (
+                select(
+                    CostElement,
+                    wbe_subq.c.wbe_name,
+                    type_subq.c.type_name,
+                    type_subq.c.type_code,
+                )
+                .outerjoin(wbe_subq, CostElement.wbe_id == wbe_subq.c.wbe_id)
+                .outerjoin(
+                    type_subq,
+                    CostElement.cost_element_type_id == type_subq.c.cost_element_type_id,
+                )
+                .where(
+                    CostElement.cost_element_id == cost_element_id,
+                    CostElement.branch == "main",
+                )
+            )
+
+            # Apply time-travel filter
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+
+            stmt = stmt.limit(1)
+            result = await self.session.execute(stmt)
+            resolved = await self._resolve_relations(result.all())
+            return resolved[0] if resolved else None
+
+        return None
 
     async def get_breadcrumb(self, cost_element_id: UUID) -> dict[str, Any]:
         """Get breadcrumb trail for a Cost Element including project and WBE.

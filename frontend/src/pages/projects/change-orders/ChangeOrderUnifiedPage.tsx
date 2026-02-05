@@ -5,6 +5,7 @@ import { ChangeOrderFormSection } from "@/features/change-orders/components/Chan
 import { ChangeOrderWorkflowSection } from "@/features/change-orders/components/ChangeOrderWorkflowSection";
 import { ChangeOrderImpactSection } from "@/features/change-orders/components/ChangeOrderImpactSection";
 import { ChangeOrderPageNav } from "@/features/change-orders/components/ChangeOrderPageNav";
+import { ApprovalInfo } from "@/features/change-orders/components/ApprovalInfo";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
 import {
   useChangeOrder,
@@ -12,6 +13,7 @@ import {
   useUpdateChangeOrder,
   useChangeOrders,
 } from "@/features/change-orders/api/useChangeOrders";
+import { useApprovalInfo } from "@/features/change-orders/api/useApprovalInfo";
 import { useProject } from "@/features/projects/api/useProjects";
 import type { ChangeOrderCreate, ChangeOrderUpdate } from "@/api/generated";
 import { useQueryClient } from "@tanstack/react-query";
@@ -63,6 +65,12 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
   const { data: changeOrder, isLoading } = useChangeOrder(
     changeOrderId && !createMode ? changeOrderId : undefined,
   );
+
+  // Fetch approval information for existing change orders
+  const { data: approvalInfo, isLoading: isLoadingApprovalInfo } =
+    useApprovalInfo(
+      changeOrderId && !createMode ? changeOrderId : undefined,
+    );
 
   // Fetch project data for breadcrumb
   const { data: project } = useProject(projectId);
@@ -161,6 +169,16 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
           isLoading={isLoading}
         />
       </CollapsibleCard>
+
+      {/* Approval Information (hidden in create mode, shown when impact_level exists) */}
+      {!createMode && (
+        <div style={{ marginBottom: 16 }}>
+          <ApprovalInfo
+            approvalInfo={approvalInfo || null}
+            isLoading={isLoadingApprovalInfo}
+          />
+        </div>
+      )}
 
       {/* Workflow Section (hidden in create mode) */}
       <ChangeOrderWorkflowSection

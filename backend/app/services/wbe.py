@@ -743,15 +743,22 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         return result.scalar() or 0
 
     async def get_breadcrumb(
-        self, wbe_id: UUID, branch: str = "main", as_of: datetime | None = None
+        self,
+        wbe_id: UUID,
+        branch: str = "main",
+        branch_mode: BranchMode = BranchMode.MERGE,
+        as_of: datetime | None = None,
     ) -> dict[str, Any]:
         """Get breadcrumb trail for a WBE including project and all ancestors.
 
-        Uses recursive CTE to efficiently fetch the entire ancestor chain in a single query.
+        Uses recursive CTE to efficiently fetch the entire ancestor chain in a
+        single query.
 
         Args:
             wbe_id: Root WBE ID
             branch: Branch name (default: "main")
+            branch_mode: Branch resolution mode (default: MERGE - fall back to main
+                if not found on branch)
             as_of: Optional timestamp for time-travel queries
 
         Returns:
@@ -777,33 +784,60 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             raise ValueError(f"WBE with id {wbe_id} not found")
 
         # Get the project
-        # Get the project
+        # In MERGE mode, we want to find the project on current branch or main
+        # In STRICT mode, we only look on the current branch
+        # We try two approaches:
+        # 1. First try to get project from current branch (or main in MERGE mode)
+        # 2. If not found and in MERGE mode, try main as fallback
+
+        project = None
+
+        # Strategy 1: Try current branch first
         project_stmt = select(Project).where(
             Project.project_id == current_wbe.project_id,
-            Project.branch.in_([current_wbe.branch, "main"]),
+            Project.branch == current_wbe.branch,
             cast(Any, Project).deleted_at.is_(None),
         )
 
         if as_of:
-            # Time travel for project
             project_stmt = self._apply_bitemporal_filter_for_time_travel(
                 project_stmt, as_of
             )
         else:
-            # Current project version
             project_stmt = project_stmt.where(
                 func.upper(cast(Any, Project).valid_time).is_(None)
             )
 
-        # Order by branch priority (current > main) then time
-        # We want to prefer the current branch if available
         project_stmt = project_stmt.order_by(
-            case((Project.branch == current_wbe.branch, 0), else_=1),
-            cast(Any, Project).valid_time.desc(),
+            cast(Any, Project).valid_time.desc()
         ).limit(1)
 
         project_result = await self.session.execute(project_stmt)
         project = project_result.scalar_one_or_none()
+
+        # Strategy 2: If not found on current branch and in MERGE mode, try main
+        if not project and branch_mode == BranchMode.MERGE and current_wbe.branch != "main":
+            project_stmt = select(Project).where(
+                Project.project_id == current_wbe.project_id,
+                Project.branch == "main",
+                cast(Any, Project).deleted_at.is_(None),
+            )
+
+            if as_of:
+                project_stmt = self._apply_bitemporal_filter_for_time_travel(
+                    project_stmt, as_of
+                )
+            else:
+                project_stmt = project_stmt.where(
+                    func.upper(cast(Any, Project).valid_time).is_(None)
+                )
+
+            project_stmt = project_stmt.order_by(
+                cast(Any, Project).valid_time.desc()
+            ).limit(1)
+
+            project_result = await self.session.execute(project_stmt)
+            project = project_result.scalar_one_or_none()
 
         if not project:
             raise ValueError(f"Project {current_wbe.project_id} not found")

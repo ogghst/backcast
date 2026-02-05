@@ -1,7 +1,11 @@
 """Unit tests for ChangeOrderWorkflowService."""
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.domain.change_order import ChangeOrder, ImpactLevel, SLAStatus
+from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
+from app.models.domain.user import User
 from app.services.change_order_workflow_service import ChangeOrderWorkflowService
 
 
@@ -191,3 +195,14 @@ async def test_get_available_transitions_implemented():
 
     # Assert
     assert transitions == []
+
+
+# ============================================================================
+# Approval Workflow Tests
+# ============================================================================
+# NOTE: Approval workflow methods (submit_for_approval, approve_change_order,
+# reject_change_order) are tested via integration tests rather than unit tests
+# due to runtime imports to avoid circular dependencies with ChangeOrderService.
+# See tests/integration/test_change_order_approval_workflow.py for comprehensive tests.
+
+

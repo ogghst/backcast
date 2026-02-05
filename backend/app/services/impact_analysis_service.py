@@ -8,9 +8,14 @@ Per Phase 3 Plan:
 - Entity Changes: Added/Modified/Removed WBEs, Cost Elements, and Cost Registrations
 - Waterfall Chart: Cost bridge visualization
 - Time Series: Weekly S-curve data for budget comparison
+
+Per Phase 5 Plan:
+- Schedule Implication Analysis: Compare schedule baselines
+- EVM Performance Index Projections: CPI, SPI, TCPI, EAC
+- VAC Projections: Variance at Completion
 """
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
@@ -25,11 +30,14 @@ from app.models.domain.wbe import WBE
 from app.models.schemas.impact_analysis import (
     EntityChange,
     EntityChanges,
+    EVMMetricsComparison,
     ImpactAnalysisResponse,
     KPIMetric,
     KPIScorecard,
+    ScheduleBaselineComparison,
     TimeSeriesData,
     TimeSeriesPoint,
+    VACComparison,
     WaterfallSegment,
 )
 
@@ -106,6 +114,26 @@ class ImpactAnalysisService:
         change_bac_result = await self._db.execute(change_bac_stmt)
         change_bac = change_bac_result.scalar() or Decimal("0")
 
+        # Calculate revenue from main branch
+        main_revenue_stmt = select(func.sum(WBE.revenue_allocation)).where(
+            WBE.project_id == project_id,
+            WBE.branch == "main",
+            func.upper(cast(Any, WBE).valid_time).is_(None),
+            cast(Any, WBE).deleted_at.is_(None),
+        )
+        main_revenue_result = await self._db.execute(main_revenue_stmt)
+        main_revenue = main_revenue_result.scalar() or Decimal("0")
+
+        # Calculate revenue from change branch
+        change_revenue_stmt = select(func.sum(WBE.revenue_allocation)).where(
+            WBE.project_id == project_id,
+            WBE.branch == branch_name,
+            func.upper(cast(Any, WBE).valid_time).is_(None),
+            cast(Any, WBE).deleted_at.is_(None),
+        )
+        change_revenue_result = await self._db.execute(change_revenue_stmt)
+        change_revenue = change_revenue_result.scalar() or Decimal("0")
+
         # For simplicity, budget_total = bac (total WBE budget allocation)
         main_budget_total = main_bac
         change_budget_total = change_bac
@@ -145,6 +173,8 @@ class ImpactAnalysisService:
             change_gross_margin=change_gross_margin,
             main_actual_costs=main_actual_costs,
             change_actual_costs=change_actual_costs,
+            main_revenue_total=main_revenue,
+            change_revenue_total=change_revenue,
         )
 
         # Compare entities
@@ -185,6 +215,8 @@ class ImpactAnalysisService:
         change_gross_margin: Decimal,
         main_actual_costs: Decimal,
         change_actual_costs: Decimal,
+        main_revenue_total: Decimal,
+        change_revenue_total: Decimal,
     ) -> KPIScorecard:
         """Compare KPIs between main and change branch.
 
@@ -197,6 +229,8 @@ class ImpactAnalysisService:
             change_gross_margin: Gross margin in change branch
             main_actual_costs: Actual costs (AC) in main branch
             change_actual_costs: Actual costs (AC) in change branch
+            main_revenue_total: Total revenue in main branch
+            change_revenue_total: Total revenue in change branch
 
         Returns:
             KPIScorecard with all comparisons
@@ -224,6 +258,7 @@ class ImpactAnalysisService:
             budget_delta=_calculate_metric(main_budget_total, change_budget_total),
             gross_margin=_calculate_metric(main_gross_margin, change_gross_margin),
             actual_costs=_calculate_metric(main_actual_costs, change_actual_costs),
+            revenue_delta=_calculate_metric(main_revenue_total, change_revenue_total),
         )
 
     async def _compare_entities(
@@ -383,27 +418,32 @@ class ImpactAnalysisService:
                 )
             elif change_wbe is None:
                 # Removed in change branch (deleted or not created)
+                main_revenue = main_wbe.revenue_allocation or Decimal("0")
                 changes.append(
                     EntityChange(
                         id=int(root_id.int >> 96),
                         name=main_wbe.name,
                         change_type="removed",
                         budget_delta=-main_wbe.budget_allocation,  # Negative impact
-                        revenue_delta=None,
+                        revenue_delta=-main_revenue,  # Negative revenue impact
                         cost_delta=None,
                     )
                 )
             else:
                 # Exists in both - check for modifications
                 budget_delta = change_wbe.budget_allocation - main_wbe.budget_allocation
-                if budget_delta != 0:
+                main_revenue = main_wbe.revenue_allocation or Decimal("0")
+                change_revenue = change_wbe.revenue_allocation or Decimal("0")
+                revenue_delta = change_revenue - main_revenue
+
+                if budget_delta != 0 or revenue_delta != 0:
                     changes.append(
                         EntityChange(
                             id=int(root_id.int >> 96),
                             name=change_wbe.name,
                             change_type="modified",
-                            budget_delta=budget_delta,
-                            revenue_delta=None,
+                            budget_delta=budget_delta if budget_delta != 0 else None,
+                            revenue_delta=revenue_delta if revenue_delta != 0 else None,
                             cost_delta=None,
                         )
                     )
@@ -630,3 +670,171 @@ class ImpactAnalysisService:
                 change_value=change_total,
             )
         ]
+
+    def _compare_schedule_baselines(
+        self,
+        main_start_date: datetime,
+        main_end_date: datetime,
+        main_duration: int,
+        main_progression_type: str,
+        change_start_date: datetime,
+        change_end_date: datetime,
+        change_duration: int,
+        change_progression_type: str,
+    ) -> ScheduleBaselineComparison:
+        """Compare schedule baselines between main and change branches.
+
+        Calculates deltas for start date, end date, duration, and detects
+        progression type changes.
+
+        Context: Used by analyze_impact() to provide schedule implication
+        analysis for change orders. Helps project managers understand timeline
+        impacts of proposed changes.
+
+        Args:
+            main_start_date: Schedule start date in main branch
+            main_end_date: Schedule end date in main branch
+            main_duration: Schedule duration in days (main branch)
+            main_progression_type: Progression type in main branch (LINEAR/GAUSSIAN/LOGARITHMIC)
+            change_start_date: Schedule start date in change branch
+            change_end_date: Schedule end date in change branch
+            change_duration: Schedule duration in days (change branch)
+            change_progression_type: Progression type in change branch
+
+        Returns:
+            ScheduleBaselineComparison with deltas and progression change flag
+
+        Example:
+            >>> main_start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+            >>> main_end = datetime(2026, 6, 30, tzinfo=timezone.utc)
+            >>> result = service._compare_schedule_baselines(
+            ...     main_start_date=main_start,
+            ...     main_end_date=main_end,
+            ...     main_duration=180,
+            ...     main_progression_type="LINEAR",
+            ...     change_start_date=main_start,
+            ...     change_end_date=main_end,
+            ...     change_duration=180,
+            ...     change_progression_type="GAUSSIAN",
+            ... )
+            >>> result["progression_changed"]
+            True
+        """
+        # Calculate date deltas (in days)
+        start_delta = (change_start_date - main_start_date).days
+        end_delta = (change_end_date - main_end_date).days
+        duration_delta = change_duration - main_duration
+
+        # Detect progression type change
+        progression_changed = main_progression_type != change_progression_type
+
+        return ScheduleBaselineComparison(
+            start_delta_days=start_delta,
+            end_delta_days=end_delta,
+            duration_delta_days=duration_delta,
+            progression_changed=progression_changed,
+            main_progression_type=main_progression_type,
+            change_progression_type=change_progression_type,
+        )
+
+    def _compare_evm_metrics(
+        self,
+        main_cpi: Decimal,
+        change_cpi: Decimal,
+        main_spi: Decimal,
+        change_spi: Decimal,
+        main_tcpi: Decimal,
+        change_tcpi: Decimal,
+        main_eac: Decimal,
+        change_eac: Decimal,
+    ) -> EVMMetricsComparison:
+        """Compare EVM performance metrics between main and change branches.
+
+        Calculates deltas for CPI, SPI, TCPI, and EAC to understand
+        performance implications of change orders.
+
+        Context: Used by analyze_impact() to provide EVM performance
+        projections. Helps project managers understand efficiency and
+        cost implications of proposed changes.
+
+        Args:
+            main_cpi: Cost Performance Index in main branch (EV/AC)
+            change_cpi: Cost Performance Index in change branch
+            main_spi: Schedule Performance Index in main branch (EV/PV)
+            change_spi: Schedule Performance Index in change branch
+            main_tcpi: To-Complete Performance Index in main branch
+            change_tcpi: To-Complete Performance Index in change branch
+            main_eac: Estimate at Completion in main branch
+            change_eac: Estimate at Completion in change branch
+
+        Returns:
+            EVMMetricsComparison with deltas for all metrics
+
+        Example:
+            >>> result = service._compare_evm_metrics(
+            ...     main_cpi=Decimal("1.0"),
+            ...     change_cpi=Decimal("0.85"),
+            ...     main_spi=Decimal("1.0"),
+            ...     change_spi=Decimal("0.90"),
+            ...     main_tcpi=Decimal("1.0"),
+            ...     change_tcpi=Decimal("1.15"),
+            ...     main_eac=Decimal("100000.00"),
+            ...     change_eac=Decimal("120000.00"),
+            ... )
+            >>> result["cpi_delta"]
+            Decimal("-0.15")  # Cost performance degraded
+        """
+        # Calculate deltas (change - main)
+        cpi_delta = change_cpi - main_cpi
+        spi_delta = change_spi - main_spi
+        tcpi_delta = change_tcpi - main_tcpi
+        eac_delta = change_eac - main_eac
+
+        return EVMMetricsComparison(
+            cpi_delta=cpi_delta,
+            spi_delta=spi_delta,
+            tcpi_delta=tcpi_delta,
+            eac_delta=eac_delta,
+        )
+
+    def _compare_vac(
+        self,
+        main_vac: Decimal,
+        change_vac: Decimal,
+    ) -> VACComparison:
+        """Compare Variance at Completion (VAC) between main and change branches.
+
+        VAC = BAC - EAC (Budget at Completion - Estimate at Completion)
+        - Positive VAC: Under budget (favorable)
+        - Negative VAC: Over budget (unfavorable)
+        - Zero VAC: On budget
+
+        Context: Used by analyze_impact() to provide VAC projections.
+        Helps project managers understand final cost variance implications
+        of proposed changes.
+
+        Args:
+            main_vac: Variance at Completion in main branch (BAC - EAC)
+            change_vac: Variance at Completion in change branch (BAC - EAC)
+
+        Returns:
+            VACComparison with delta and both VAC values
+
+        Example:
+            >>> # Main branch: $100k BAC, $100k EAC = $0 VAC (on budget)
+            >>> # Change branch: $120k BAC, $130k EAC = -$10k VAC (over budget)
+            >>> result = service._compare_vac(
+            ...     main_vac=Decimal("0"),
+            ...     change_vac=Decimal("-10000.00"),
+            ... )
+            >>> result["vac_delta"]
+            Decimal("-10000.00")  # $10k worse than main
+        """
+        # Calculate delta (change - main)
+        vac_delta = change_vac - main_vac
+
+        return VACComparison(
+            vac_delta=vac_delta,
+            main_vac=main_vac,
+            change_vac=change_vac,
+        )

@@ -146,6 +146,8 @@ export const queryKeys = createQueryKeys("backcast-evs", {
         targetBranch,
       ] as const,
     branches: ["change-orders", "branches"] as const,
+    approvalInfo: (id: string) =>
+      ["change-orders", id, "approval-info"] as const,
   },
 
   // Forecasts

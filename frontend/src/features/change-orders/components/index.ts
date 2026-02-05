@@ -6,6 +6,7 @@
 export { WorkflowStepper, WORKFLOW_STEPS, getStepIndex, type WorkflowStepKey } from "./WorkflowStepper";
 export { BranchLockIndicator } from "./BranchLockIndicator";
 export { WorkflowButtons } from "./WorkflowButtons";
+export { WorkflowActions } from "./WorkflowActions";
 export { ChangeOrderDetailsSection } from "./ChangeOrderDetailsSection";
 export { StepDetailsSection } from "./StepDetailsSection";
 

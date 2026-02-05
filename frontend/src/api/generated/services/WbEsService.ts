@@ -187,6 +187,7 @@ export class WbEsService {
      * Get breadcrumb trail for a WBE (project + ancestor path). Requires read permission.
      * @param wbeId
      * @param branch Branch name
+     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param asOf Time travel: get breadcrumb as of this timestamp (ISO 8601)
      * @returns WBEBreadcrumb Successful Response
      * @throws ApiError
@@ -194,6 +195,7 @@ export class WbEsService {
     public static getWbeBreadcrumb(
         wbeId: string,
         branch: string = 'main',
+        mode: string = 'merged',
         asOf?: (string | null),
     ): CancelablePromise<WBEBreadcrumb> {
         return __request(OpenAPI, {
@@ -204,6 +206,7 @@ export class WbEsService {
             },
             query: {
                 'branch': branch,
+                'mode': mode,
                 'as_of': asOf,
             },
             errors: {

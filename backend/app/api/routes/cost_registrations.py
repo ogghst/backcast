@@ -41,6 +41,12 @@ def get_cost_registration_service(
 async def read_cost_registrations(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
+    branch: str = Query("main", description="Branch to query (for context)"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
     cost_element_id: UUID | None = Query(None, description="Filter by Cost Element ID"),
     search: str | None = Query(
         None, description="Search term (description, invoice, vendor)"
@@ -65,6 +71,8 @@ async def read_cost_registrations(
 
     Cost registrations track actual expenditures against cost elements.
     They are versionable but NOT branchable (costs are global facts).
+    Branch and mode parameters are provided for API consistency and context,
+    though cost registrations themselves are not branch-specific.
     """
     # Build filters dict
     query_filters: dict[str, Any] = {}

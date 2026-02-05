@@ -38,6 +38,12 @@ def get_progress_entry_service(
 async def read_progress_entries(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
+    branch: str = Query("main", description="Branch to query (for context)"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
     cost_element_id: UUID | None = Query(None, description="Filter by Cost Element ID"),
     as_of: datetime | None = Query(
         None,
@@ -49,6 +55,8 @@ async def read_progress_entries(
 
     Progress entries track work completion percentage for cost elements.
     They are versionable but NOT branchable (progress is global facts).
+    Branch and mode parameters are provided for API consistency and context,
+    though progress entries themselves are not branch-specific.
     """
     # Build filters dict
     query_filters: dict[str, Any] = {}

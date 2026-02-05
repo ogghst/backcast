@@ -5,6 +5,7 @@ Frontend TypeScript types must match these schemas.
 """
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -117,6 +118,84 @@ class ChangeOrderPublic(ChangeOrderBase):
     branch_locked: bool = Field(
         False,
         description="Whether the associated branch is locked",
+    )
+
+    # Approval Matrix & SLA Tracking (E06-U09 to E06-U13)
+    impact_level: str | None = Field(
+        None,
+        description="Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)",
+    )
+    assigned_approver_id: UUID | None = Field(
+        None,
+        description="User ID assigned to approve this change order",
+    )
+    sla_assigned_at: datetime | None = Field(
+        None,
+        description="When the approval SLA started",
+    )
+    sla_due_date: datetime | None = Field(
+        None,
+        description="SLA deadline for approval",
+    )
+    sla_status: str | None = Field(
+        None,
+        description="Current SLA tracking status (pending/approaching/overdue)",
+    )
+    assigned_approver: dict[str, Any] | None = Field(
+        None,
+        description="Assigned approver details (user_id, full_name, email, role)",
+    )
+
+
+class ApprovalInfoPublic(BaseModel):
+    """Schema for approval information response."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    impact_level: str | None = Field(
+        None,
+        description="Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)",
+    )
+    financial_impact: dict[str, Any] | None = Field(
+        None,
+        description="Financial impact details (budget_delta, revenue_delta)",
+    )
+    assigned_approver: dict[str, Any] | None = Field(
+        None,
+        description="Assigned approver details",
+    )
+    sla_assigned_at: datetime | None = Field(
+        None,
+        description="When the approval SLA started",
+    )
+    sla_due_date: datetime | None = Field(
+        None,
+        description="SLA deadline for approval",
+    )
+    sla_status: str | None = Field(
+        None,
+        description="Current SLA tracking status (pending/approaching/overdue)",
+    )
+    sla_business_days_remaining: int | None = Field(
+        None,
+        description="Number of business days remaining until SLA deadline",
+    )
+    user_can_approve: bool = Field(
+        False,
+        description="Whether the current user has authority to approve this change order",
+    )
+    user_authority_level: str | None = Field(
+        None,
+        description="Current user's authority level (LOW/MEDIUM/HIGH/CRITICAL)",
+    )
+
+
+class ChangeOrderApproval(BaseModel):
+    """Schema for approving or rejecting a change order."""
+
+    comments: str | None = Field(
+        None,
+        description="Optional comments explaining the approval/rejection decision",
     )
 
 

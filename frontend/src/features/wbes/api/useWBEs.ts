@@ -245,10 +245,10 @@ export const useWBE = (
 
 // Breadcrumb hook
 export const useWBEBreadcrumb = (wbeId: string | undefined) => {
-  const { asOf, branch } = useTimeMachineParams();
+  const { asOf, branch, mode } = useTimeMachineParams();
 
   return useQuery({
-    queryKey: queryKeys.wbes.breadcrumb(wbeId!, { branch, asOf }),
+    queryKey: queryKeys.wbes.breadcrumb(wbeId!, { branch, asOf, mode }),
     queryFn: () => {
       // Manual request to support query params until client regenerates
       return __request(OpenAPI, {
@@ -257,6 +257,7 @@ export const useWBEBreadcrumb = (wbeId: string | undefined) => {
         query: {
           ...(asOf ? { as_of: asOf } : {}),
           ...(branch ? { branch } : {}),
+          mode,
         },
       }) as Promise<import("@/api/generated").WBEBreadcrumb>;
     },

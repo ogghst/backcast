@@ -15,7 +15,7 @@ from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.service import BranchableService
-from app.core.versioning.commands import CreateVersionCommand, UpdateVersionCommand
+from app.core.versioning.commands import CreateVersionCommand
 from app.models.domain.branch import Branch
 from app.models.domain.change_order import ChangeOrder
 from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
@@ -61,30 +61,24 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         Override parent method to use 'change_order_id' field instead of
         the auto-generated 'changeorder_id'.
 
-        Uses clock_timestamp() instead of current_timestamp() because within
-        a transaction, current_timestamp() returns the transaction start time,
-        which may be before the valid_time lower bound of recently created records.
+        Uses the same pattern as WBEService: finds the version with an open
+        upper bound on valid_time, which represents the current/latest version
+        on this branch. This works correctly regardless of the valid_time
+        lower bound (past, present, or future dates).
         """
-        # Cast clock_timestamp() to TIMESTAMP for proper temporal comparison
-        as_of_tstz = sql_cast(func.clock_timestamp(), TIMESTAMP(timezone=True))
         stmt = (
             select(ChangeOrder)
             .where(
                 ChangeOrder.change_order_id == root_id,
                 ChangeOrder.branch == branch,
-                # Check if current actual timestamp is within valid_time range
-                # clock_timestamp() returns the actual current time, not transaction start time
-                cast(Any, ChangeOrder).valid_time.op("@>")(as_of_tstz),
-                func.lower(cast(Any, ChangeOrder).valid_time) <= as_of_tstz,
+                func.upper(cast(Any, ChangeOrder).valid_time).is_(None),  # Open upper bound
                 cast(Any, ChangeOrder).deleted_at.is_(None),
             )
             .order_by(cast(Any, ChangeOrder).valid_time.desc())
             .limit(1)
         )
         result = await self.session.execute(stmt)
-        co = result.scalar_one_or_none()
-
-        return co
+        return result.scalar_one_or_none()
 
     async def create_root(
         self,
@@ -180,14 +174,14 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         # Create the corresponding branch entity using CreateVersionCommand
         # This ensures proper valid_time setting based on control_date
         branch_root_id = uuid4()
-        
+
         branch_cmd = CreateVersionCommand(
             entity_class=Branch,
             root_id=branch_root_id,
             actor_id=actor_id,
             control_date=control_date,
             # branch="main", # REMOVED: Branch entity is not checking into a branch itself
-            
+
             # Fields for Branch entity
             branch_id=branch_root_id,
             name=branch_name,
@@ -570,16 +564,12 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
         Returns:
             Current ChangeOrder or None
         """
-        # Cast clock_timestamp() to TIMESTAMP for proper temporal comparison
-        as_of_tstz = sql_cast(func.clock_timestamp(), TIMESTAMP(timezone=True))
         stmt = (
             select(ChangeOrder)
             .where(
                 ChangeOrder.code == code,
                 ChangeOrder.branch == branch,
-                # Check if actual current timestamp is within valid_time range
-                cast(Any, ChangeOrder).valid_time.op("@>")(as_of_tstz),
-                func.lower(cast(Any, ChangeOrder).valid_time) <= as_of_tstz,
+                func.upper(cast(Any, ChangeOrder).valid_time).is_(None),  # Open upper bound
                 cast(Any, ChangeOrder).deleted_at.is_(None),
             )
             .order_by(cast(Any, ChangeOrder).valid_time.desc())
@@ -733,6 +723,398 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             branch=branch,
         )
 
+    async def submit_for_approval(
+        self,
+        change_order_id: UUID,
+        actor_id: UUID,
+        branch: str = "main",
+        comment: str | None = None,
+    ) -> ChangeOrder:
+        """Submit a change order for approval with impact calculation and approver assignment.
+
+        Context: Workflow transition from Draft to Submitted for Approval.
+        Calculates financial impact, assigns approver based on impact level,
+        sets SLA deadline, and locks the branch.
+
+        Args:
+            change_order_id: UUID of the change order
+            actor_id: User submitting for approval
+            branch: Branch name (default: main)
+            comment: Optional comment for audit log
+
+        Returns:
+            Updated ChangeOrder with impact level and approver assigned
+
+        Raises:
+            ValueError: If change order not found or invalid status transition
+        """
+        from app.services.approval_matrix_service import ApprovalMatrixService
+        from app.services.impact_analysis_service import ImpactAnalysisService
+
+        # Get current change order
+        co = await self.get_current(change_order_id, branch=branch)
+        if not co:
+            raise ValueError(f"Change Order {change_order_id} not found")
+
+        # Validate status transition
+        if not await self.workflow.is_valid_transition(co.status, "Submitted for Approval"):
+            raise ValueError(
+                f"Cannot submit CO with status '{co.status}' for approval. "
+                f"Current status must be 'Draft' or 'Rejected'."
+            )
+
+        # Calculate impact using ImpactAnalysisService
+        impact_service = ImpactAnalysisService(self.session)
+        branch_name = f"co-{co.code}"
+        impact_analysis = await impact_service.analyze_impact(change_order_id, branch_name)
+
+        # Determine impact level from budget delta
+        budget_delta = abs(impact_analysis.kpi_scorecard.budget_delta.delta)
+        if budget_delta < 10000:
+            impact_level = "LOW"
+        elif budget_delta < 50000:
+            impact_level = "MEDIUM"
+        elif budget_delta < 100000:
+            impact_level = "HIGH"
+        else:
+            impact_level = "CRITICAL"
+
+        # Assign approver based on impact level
+        approval_service = ApprovalMatrixService(self.session)
+        approver_id = await approval_service.get_approver_for_impact(
+            co.project_id, impact_level
+        )
+
+        if not approver_id:
+            raise ValueError(
+                f"No eligible approver found for impact level {impact_level}. "
+                "Please contact your administrator."
+            )
+
+        # Calculate SLA deadline (business days)
+
+        SLA_BUSINESS_DAYS = {
+            "LOW": 3,
+            "MEDIUM": 5,
+            "HIGH": 7,
+            "CRITICAL": 10,
+        }
+
+        sla_days = SLA_BUSINESS_DAYS.get(impact_level, 5)
+        sla_due_date = self._add_business_days(datetime.now(), sla_days)
+
+        # Update change order with impact level, approver, and SLA
+        old_status = co.status
+        co.impact_level = impact_level
+        co.assigned_approver_id = approver_id
+        co.sla_assigned_at = datetime.now()
+        co.sla_due_date = sla_due_date
+        co.sla_status = "pending"
+        co.status = "Submitted for Approval"
+
+        # Record audit log
+        audit_entry = ChangeOrderAuditLog(
+            change_order_id=change_order_id,
+            old_status=old_status,
+            new_status="Submitted for Approval",
+            comment=comment or f"Submitted for approval with {impact_level} impact",
+            changed_by=actor_id,
+        )
+        self.session.add(audit_entry)
+
+        # Lock the branch
+        if co.branch_name:
+            await self.branch_service.lock(
+                name=co.branch_name,
+                project_id=co.project_id,
+                actor_id=actor_id,
+            )
+
+        await self.session.commit()
+        await self.session.refresh(co)
+
+        return co
+
+    async def approve_change_order(
+        self,
+        change_order_id: UUID,
+        approver_id: UUID,
+        actor_id: UUID,
+        branch: str = "main",
+        comments: str | None = None,
+    ) -> ChangeOrder:
+        """Approve a change order and transition to Approved status.
+
+        Context: Workflow transition from Under Review to Approved.
+        Validates approver authority, records approval, and updates status.
+
+        Args:
+            change_order_id: UUID of the change order
+            approver_id: User ID of the approver (for validation)
+            actor_id: User performing the approval (should match approver_id)
+            branch: Branch name (default: main)
+            comments: Optional approval comments
+
+        Returns:
+            Updated ChangeOrder with Approved status
+
+        Raises:
+            ValueError: If change order not found, invalid status, or insufficient authority
+        """
+        from app.services.approval_matrix_service import ApprovalMatrixService
+        from app.services.user import UserService
+
+        # Get current change order
+        co = await self.get_current(change_order_id, branch=branch)
+        if not co:
+            raise ValueError(f"Change Order {change_order_id} not found")
+
+        # Validate status transition
+        if not await self.workflow.is_valid_transition(co.status, "Approved"):
+            raise ValueError(
+                f"Cannot approve CO with status '{co.status}'. "
+                f"Current status must be 'Under Review'."
+            )
+
+        # Get approver user object
+        user_service = UserService(self.session)
+        approver = await user_service.get_by_id(approver_id)
+        if not approver:
+            raise ValueError(f"Approver with ID {approver_id} not found")
+
+        # Validate approver authority
+        approval_service = ApprovalMatrixService(self.session)
+        can_approve = await approval_service.can_approve(approver, co)
+
+        if not can_approve:
+            raise ValueError(
+                f"User {approver_id} does not have sufficient authority "
+                f"to approve this change order with impact level {co.impact_level}."
+            )
+
+        # Verify the assigned approver is the one approving
+        if co.assigned_approver_id != approver_id:
+            raise ValueError(
+                f"This change order is assigned to approver {co.assigned_approver_id}. "
+                f"User {approver_id} is not authorized to approve it."
+            )
+
+        # Update status to Approved
+        old_status = co.status
+        co.status = "Approved"
+
+        # Record audit log
+        audit_entry = ChangeOrderAuditLog(
+            change_order_id=change_order_id,
+            old_status=old_status,
+            new_status="Approved",
+            comment=comments or "Change order approved",
+            changed_by=actor_id,
+        )
+        self.session.add(audit_entry)
+
+        await self.session.commit()
+        await self.session.refresh(co)
+
+        return co
+
+    async def reject_change_order(
+        self,
+        change_order_id: UUID,
+        rejecter_id: UUID,
+        actor_id: UUID,
+        branch: str = "main",
+        comments: str | None = None,
+    ) -> ChangeOrder:
+        """Reject a change order and transition to Rejected status.
+
+        Context: Workflow transition from Under Review to Rejected.
+        Validates rejecter authority, records rejection, unlocks the branch.
+
+        Args:
+            change_order_id: UUID of the change order
+            rejecter_id: User ID of the rejecter (for validation)
+            actor_id: User performing the rejection (should match rejecter_id)
+            branch: Branch name (default: main)
+            comments: Optional rejection comments
+
+        Returns:
+            Updated ChangeOrder with Rejected status and unlocked branch
+
+        Raises:
+            ValueError: If change order not found, invalid status, or insufficient authority
+        """
+        from app.services.approval_matrix_service import ApprovalMatrixService
+        from app.services.user import UserService
+
+        # Get current change order
+        co = await self.get_current(change_order_id, branch=branch)
+        if not co:
+            raise ValueError(f"Change Order {change_order_id} not found")
+
+        # Validate status transition
+        if not await self.workflow.is_valid_transition(co.status, "Rejected"):
+            raise ValueError(
+                f"Cannot reject CO with status '{co.status}'. "
+                f"Current status must be 'Under Review'."
+            )
+
+        # Get rejecter user object
+        user_service = UserService(self.session)
+        rejecter = await user_service.get_by_id(rejecter_id)
+        if not rejecter:
+            raise ValueError(f"Rejecter with ID {rejecter_id} not found")
+
+        # Validate rejecter authority (same as approver authority)
+        approval_service = ApprovalMatrixService(self.session)
+        can_reject = await approval_service.can_approve(rejecter, co)
+
+        if not can_reject:
+            raise ValueError(
+                f"User {rejecter_id} does not have sufficient authority "
+                f"to reject this change order with impact level {co.impact_level}."
+            )
+
+        # Update status to Rejected
+        old_status = co.status
+        co.status = "Rejected"
+
+        # Record audit log
+        audit_entry = ChangeOrderAuditLog(
+            change_order_id=change_order_id,
+            old_status=old_status,
+            new_status="Rejected",
+            comment=comments or "Change order rejected",
+            changed_by=actor_id,
+        )
+        self.session.add(audit_entry)
+
+        # Unlock the branch
+        if co.branch_name:
+            await self.branch_service.unlock(
+                name=co.branch_name,
+                project_id=co.project_id,
+                actor_id=actor_id,
+            )
+
+        await self.session.commit()
+        await self.session.refresh(co)
+
+        return co
+
+    async def get_pending_approvals(
+        self,
+        user_id: UUID,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> tuple[list[ChangeOrder], int]:
+        """Get change orders pending approval for a specific user.
+
+        Context: Used for dashboard showing pending approvals.
+        Filters by assigned_approver_id and status in (Submitted for Approval, Under Review).
+
+        Args:
+            user_id: User ID to filter by (assigned approver)
+            skip: Number of records to skip
+            limit: Maximum records to return
+
+        Returns:
+            Tuple of (list of Change Orders, total count)
+        """
+        from typing import cast
+
+        from sqlalchemy import func
+
+        # Build query for pending approvals
+        stmt = select(ChangeOrder).where(
+            ChangeOrder.assigned_approver_id == user_id,
+            ChangeOrder.status.in_(["Submitted for Approval", "Under Review"]),
+            cast("Any", ChangeOrder).deleted_at.is_(None),
+        )
+
+        # Get total count
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total_result = await self.session.execute(count_stmt)
+        total = total_result.scalar() or 0
+
+        # Apply pagination
+        stmt = stmt.offset(skip).limit(limit)
+        stmt = stmt.order_by(ChangeOrder.sla_due_date.asc())
+
+        result = await self.session.execute(stmt)
+        change_orders = result.scalars().all()
+
+        return list(change_orders), total
+
+    def _add_business_days(self, start_date: datetime, days: int) -> datetime:
+        """Add business days to a date, excluding weekends.
+
+        Args:
+            start_date: Starting date
+            days: Number of business days to add
+
+        Returns:
+            Date with business days added
+        """
+        from datetime import timedelta
+
+        current_date = start_date
+        days_added = 0
+
+        while days_added < days:
+            current_date += timedelta(days=1)
+            # Monday=0, Friday=4 in Python weekday()
+            if current_date.weekday() < 5:  # Monday through Friday
+                days_added += 1
+
+        return current_date
+
+    def _calculate_business_days_remaining(
+        self, from_date: datetime, to_date: datetime
+    ) -> int:
+        """Calculate the number of business days between two dates.
+
+        Args:
+            from_date: Starting date
+            to_date: End date
+
+        Returns:
+            Number of business days (negative if to_date is before from_date)
+        """
+        from datetime import timedelta
+
+        if from_date >= to_date:
+            return 0
+
+        current_date = from_date
+        business_days = 0
+
+        while current_date < to_date:
+            current_date += timedelta(days=1)
+            # Monday=0, Friday=4 in Python weekday()
+            if current_date.weekday() < 5:  # Monday through Friday
+                business_days += 1
+
+        return business_days
+
+    def _get_sla_days(self, impact_level: str | None) -> int:
+        """Get the number of SLA business days for an impact level.
+
+        Args:
+            impact_level: Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)
+
+        Returns:
+            Number of business days for SLA
+        """
+        SLA_BUSINESS_DAYS = {
+            "LOW": 3,
+            "MEDIUM": 5,
+            "HIGH": 7,
+            "CRITICAL": 10,
+        }
+
+        return SLA_BUSINESS_DAYS.get(impact_level or "LOW", 5)
+
     async def _to_public(self, co: ChangeOrder) -> "ChangeOrderPublic":
         """Convert a ChangeOrder domain model to ChangeOrderPublic schema with workflow metadata.
 
@@ -746,6 +1128,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             ChangeOrderPublic schema with workflow metadata populated
         """
         from app.models.schemas.change_order import ChangeOrderPublic
+        from app.services.user import UserService
 
         # Get available transitions from workflow service
         available_transitions = await self.workflow.get_available_transitions(co.status)
@@ -765,6 +1148,19 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             except Exception:
                 # If branch lookup fails, assume not locked
                 branch_locked = False
+
+        # Get assigned approver details
+        assigned_approver = None
+        if co.assigned_approver_id:
+            user_service = UserService(self.session)
+            approver = await user_service.get_by_id(co.assigned_approver_id)
+            if approver:
+                assigned_approver = {
+                    "user_id": approver.user_id,
+                    "full_name": approver.full_name,
+                    "email": approver.email,
+                    "role": approver.role,
+                }
 
         # Convert domain model to schema
         public_data = {
@@ -787,6 +1183,13 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             "available_transitions": available_transitions,
             "can_edit_status": can_edit_status,
             "branch_locked": branch_locked,
+            # Approval Matrix & SLA Tracking fields
+            "impact_level": co.impact_level,
+            "assigned_approver_id": co.assigned_approver_id,
+            "sla_assigned_at": co.sla_assigned_at,
+            "sla_due_date": co.sla_due_date,
+            "sla_status": co.sla_status,
+            "assigned_approver": assigned_approver,
         }
 
         return ChangeOrderPublic(**public_data)

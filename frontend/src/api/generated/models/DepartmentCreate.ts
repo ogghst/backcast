@@ -27,5 +27,9 @@ export type DepartmentCreate = {
      * Unique department code (immutable)
      */
     code: string;
+    /**
+     * Optional control date for creation (valid_time start)
+     */
+    control_date?: (string | null);
 };
 

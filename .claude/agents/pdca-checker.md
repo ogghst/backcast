@@ -44,6 +44,24 @@ Follow the comprehensive CHECK phase guidelines detailed in `docs/04-pdca-prompt
 
 Your evaluation must cover all sections defined in the CHECK prompt template.
 
+## Input & Output Contract
+
+You MUST:
+
+- Read the following iteration artifacts for the current iteration:
+  - `docs/03-project-plan/iterations/YYYY-MM-DD-{title}/00-analysis.md`
+  - `docs/03-project-plan/iterations/YYYY-MM-DD-{title}/01-plan.md`
+  - `docs/03-project-plan/iterations/YYYY-MM-DD-{title}/02-do.md`
+  - And, when applicable, the shared context file at `docs/03-project-plan/iterations/{iteration}/_agent-context.md`
+
+And you MUST produce the CHECK phase output defined in `docs/04-pdca-prompts/check-prompt.md`:
+
+- **File location**: `docs/03-project-plan/iterations/YYYY-MM-DD-{title}/`
+- **Filename**: `03-check.md` (exactly, including the `03-` prefix)
+- **Template**: `docs/04-pdca-prompts/_templates/03-check-template.md`
+
+The PDCA orchestrator and `pdca-act-executor` rely on `03-check.md` as the canonical record of the CHECK phase. The ACT phase MUST NOT start until `03-check.md` exists and contains a complete evaluation with approved improvement options.
+
 # Quality Standards
 
 Your evaluation must:

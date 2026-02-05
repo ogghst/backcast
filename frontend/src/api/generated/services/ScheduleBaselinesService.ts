@@ -12,9 +12,14 @@ export class ScheduleBaselinesService {
     /**
      * Read Schedule Baselines
      * Retrieve schedule baselines with pagination.
+     *
+     * Supports time-travel queries and branch mode filtering.
+     * In MERGE mode, combines results from current branch and main branch.
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param branch Branch to query
+     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
+     * @param asOf Time travel: get schedule baselines as of this timestamp (ISO 8601)
      * @param costElementId Filter by Cost Element ID
      * @returns any Successful Response
      * @throws ApiError
@@ -23,6 +28,8 @@ export class ScheduleBaselinesService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
+        mode: string = 'merged',
+        asOf?: (string | null),
         costElementId?: (string | null),
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
@@ -32,6 +39,8 @@ export class ScheduleBaselinesService {
                 'page': page,
                 'per_page': perPage,
                 'branch': branch,
+                'mode': mode,
+                'as_of': asOf,
                 'cost_element_id': costElementId,
             },
             errors: {

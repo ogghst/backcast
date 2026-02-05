@@ -1922,6 +1922,19 @@
             "description": "Branch name"
           },
           {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(merged|isolated)$",
+              "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
+              "default": "merged",
+              "title": "Mode"
+            },
+            "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
+          },
+          {
             "name": "as_of",
             "in": "query",
             "required": false,
@@ -3479,6 +3492,19 @@
             "description": "Branch to query"
           },
           {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(merged|isolated)$",
+              "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
+              "default": "merged",
+              "title": "Mode"
+            },
+            "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
+          },
+          {
             "name": "as_of",
             "in": "query",
             "required": false,
@@ -3641,7 +3667,7 @@
           "Cost Registrations"
         ],
         "summary": "Read Cost Registrations",
-        "description": "Retrieve cost registrations with server-side search, filtering, and sorting.\n\nCost registrations track actual expenditures against cost elements.\nThey are versionable but NOT branchable (costs are global facts).",
+        "description": "Retrieve cost registrations with server-side search, filtering, and sorting.\n\nCost registrations track actual expenditures against cost elements.\nThey are versionable but NOT branchable (costs are global facts).\nBranch and mode parameters are provided for API consistency and context,\nthough cost registrations themselves are not branch-specific.",
         "operationId": "get_cost_registrations",
         "security": [
           {
@@ -3674,6 +3700,31 @@
               "title": "Per Page"
             },
             "description": "Items per page"
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to query (for context)",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to query (for context)"
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(merged|isolated)$",
+              "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
+              "default": "merged",
+              "title": "Mode"
+            },
+            "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
           },
           {
             "name": "cost_element_id",
@@ -4444,6 +4495,19 @@
             "description": "Branch name"
           },
           {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(merged|isolated)$",
+              "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
+              "default": "merged",
+              "title": "Mode"
+            },
+            "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
+          },
+          {
             "name": "search",
             "in": "query",
             "required": false,
@@ -5164,6 +5228,339 @@
         }
       }
     },
+    "/api/v1/change-orders/{change_order_id}/submit-for-approval": {
+      "put": {
+        "tags": [
+          "Change Orders"
+        ],
+        "summary": "Submit Change Order For Approval",
+        "description": "Submit a change order for approval with impact calculation and approver assignment.\n\nThis endpoint:\n1. Calculates financial impact by comparing branches\n2. Determines impact level (LOW/MEDIUM/HIGH/CRITICAL)\n3. Assigns appropriate approver based on impact level\n4. Sets SLA deadline based on impact level\n5. Locks the branch to prevent further modifications\n6. Transitions status to \"Submitted for Approval\"\n\nRequires update permission.",
+        "operationId": "submit_change_order_for_approval",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "change_order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Change Order Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch name",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch name"
+          },
+          {
+            "name": "comment",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional comment for audit log",
+              "title": "Comment"
+            },
+            "description": "Optional comment for audit log"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeOrderPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/change-orders/{change_order_id}/approve": {
+      "put": {
+        "tags": [
+          "Change Orders"
+        ],
+        "summary": "Approve Change Order",
+        "description": "Approve a change order and transition to Approved status.\n\nValidates that the current user has sufficient authority to approve\nthis change order based on its impact level. Records approval with\noptional comments in the audit log.\n\nRequires approve permission.",
+        "operationId": "approve_change_order",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "change_order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Change Order Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch name",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch name"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeOrderApproval"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeOrderPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/change-orders/{change_order_id}/reject": {
+      "put": {
+        "tags": [
+          "Change Orders"
+        ],
+        "summary": "Reject Change Order",
+        "description": "Reject a change order and transition to Rejected status.\n\nValidates that the current user has sufficient authority to reject\nthis change order based on its impact level. Records rejection with\noptional comments in the audit log and unlocks the branch.\n\nRequires approve permission.",
+        "operationId": "reject_change_order",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "change_order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Change Order Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch name",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch name"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeOrderApproval"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeOrderPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/change-orders/{change_order_id}/approval-info": {
+      "get": {
+        "tags": [
+          "Change Orders"
+        ],
+        "summary": "Get Change Order Approval Info",
+        "description": "Get approval information for a change order.\n\nReturns comprehensive approval information including:\n- Impact level and financial impact details\n- Assigned approver details\n- SLA tracking (assigned date, due date, status, business days remaining)\n- Whether the current user can approve this change order\n- Current user's authority level\n\nRequires read permission.",
+        "operationId": "get_change_order_approval_info",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "change_order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Change Order Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalInfoPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/change-orders/pending-approvals": {
+      "get": {
+        "tags": [
+          "Change Orders"
+        ],
+        "summary": "Get Pending Approvals",
+        "description": "Get change orders pending approval for the current user.\n\nFilters change orders by:\n- assigned_approver_id = current_user.user_id\n- status in (\"Submitted for Approval\", \"Under Review\")\n\nReturns paginated list of change orders awaiting the user's approval.\n\nRequires read permission.",
+        "operationId": "get_pending_approvals",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number (1-indexed)",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number (1-indexed)"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/forecasts": {
       "get": {
         "tags": [
@@ -5622,7 +6019,7 @@
           "Schedule Baselines"
         ],
         "summary": "Read Schedule Baselines",
-        "description": "Retrieve schedule baselines with pagination.",
+        "description": "Retrieve schedule baselines with pagination.\n\nSupports time-travel queries and branch mode filtering.\nIn MERGE mode, combines results from current branch and main branch.",
         "operationId": "get_schedule_baselines",
         "security": [
           {
@@ -5667,6 +6064,38 @@
               "title": "Branch"
             },
             "description": "Branch to query"
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(merged|isolated)$",
+              "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
+              "default": "merged",
+              "title": "Mode"
+            },
+            "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: get schedule baselines as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: get schedule baselines as of this timestamp (ISO 8601)"
           },
           {
             "name": "cost_element_id",
@@ -6116,7 +6545,7 @@
           "Progress Entries"
         ],
         "summary": "Read Progress Entries",
-        "description": "Retrieve progress entries with filtering and pagination.\n\nProgress entries track work completion percentage for cost elements.\nThey are versionable but NOT branchable (progress is global facts).",
+        "description": "Retrieve progress entries with filtering and pagination.\n\nProgress entries track work completion percentage for cost elements.\nThey are versionable but NOT branchable (progress is global facts).\nBranch and mode parameters are provided for API consistency and context,\nthough progress entries themselves are not branch-specific.",
         "operationId": "get_progress_entries",
         "security": [
           {
@@ -6149,6 +6578,31 @@
               "title": "Per Page"
             },
             "description": "Items per page"
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch to query (for context)",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch to query (for context)"
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(merged|isolated)$",
+              "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
+              "default": "merged",
+              "title": "Mode"
+            },
+            "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
           },
           {
             "name": "cost_element_id",
@@ -6831,6 +7285,119 @@
   },
   "components": {
     "schemas": {
+      "ApprovalInfoPublic": {
+        "properties": {
+          "impact_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impact Level",
+            "description": "Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)"
+          },
+          "financial_impact": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Financial Impact",
+            "description": "Financial impact details (budget_delta, revenue_delta)"
+          },
+          "assigned_approver": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Approver",
+            "description": "Assigned approver details"
+          },
+          "sla_assigned_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Assigned At",
+            "description": "When the approval SLA started"
+          },
+          "sla_due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Due Date",
+            "description": "SLA deadline for approval"
+          },
+          "sla_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Status",
+            "description": "Current SLA tracking status (pending/approaching/overdue)"
+          },
+          "sla_business_days_remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Business Days Remaining",
+            "description": "Number of business days remaining until SLA deadline"
+          },
+          "user_can_approve": {
+            "type": "boolean",
+            "title": "User Can Approve",
+            "description": "Whether the current user has authority to approve this change order",
+            "default": false
+          },
+          "user_authority_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Authority Level",
+            "description": "Current user's authority level (LOW/MEDIUM/HIGH/CRITICAL)"
+          }
+        },
+        "type": "object",
+        "title": "ApprovalInfoPublic",
+        "description": "Schema for approval information response."
+      },
       "Body_login": {
         "properties": {
           "grant_type": {
@@ -6992,6 +7559,25 @@
         ],
         "title": "BranchPublic",
         "description": "Schema for a branch option."
+      },
+      "ChangeOrderApproval": {
+        "properties": {
+          "comments": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comments",
+            "description": "Optional comments explaining the approval/rejection decision"
+          }
+        },
+        "type": "object",
+        "title": "ChangeOrderApproval",
+        "description": "Schema for approving or rejecting a change order."
       },
       "ChangeOrderCreate": {
         "properties": {
@@ -7260,6 +7846,82 @@
             "title": "Branch Locked",
             "description": "Whether the associated branch is locked",
             "default": false
+          },
+          "impact_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impact Level",
+            "description": "Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)"
+          },
+          "assigned_approver_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Approver Id",
+            "description": "User ID assigned to approve this change order"
+          },
+          "sla_assigned_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Assigned At",
+            "description": "When the approval SLA started"
+          },
+          "sla_due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Due Date",
+            "description": "SLA deadline for approval"
+          },
+          "sla_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Status",
+            "description": "Current SLA tracking status (pending/approaching/overdue)"
+          },
+          "assigned_approver": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Approver",
+            "description": "Assigned approver details (user_id, full_name, email, role)"
           }
         },
         "type": "object",
@@ -9169,6 +9831,98 @@
           "actual_costs": {
             "$ref": "#/components/schemas/KPIMetric",
             "description": "Actual costs (AC) comparison"
+          },
+          "revenue_delta": {
+            "$ref": "#/components/schemas/KPIMetric",
+            "description": "Revenue allocation delta"
+          },
+          "schedule_start_date": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KPIMetric"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Schedule start date comparison (ISO format string)"
+          },
+          "schedule_end_date": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KPIMetric"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Schedule end date comparison (ISO format string)"
+          },
+          "schedule_duration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KPIMetric"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Schedule duration in days"
+          },
+          "eac": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KPIMetric"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Estimate at Completion (EAC) comparison"
+          },
+          "cpi": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KPIMetric"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cost Performance Index (CPI) comparison"
+          },
+          "spi": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KPIMetric"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Schedule Performance Index (SPI) comparison"
+          },
+          "tcpi": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KPIMetric"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "To-Complete Performance Index (TCPI) comparison"
+          },
+          "vac": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KPIMetric"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Variance at Completion (VAC) comparison"
           }
         },
         "type": "object",
@@ -9176,7 +9930,8 @@
           "bac",
           "budget_delta",
           "gross_margin",
-          "actual_costs"
+          "actual_costs",
+          "revenue_delta"
         ],
         "title": "KPIScorecard",
         "description": "KPI comparison scorecard for impact analysis."
@@ -10732,6 +11487,23 @@
             "description": "Budget allocation",
             "default": "0"
           },
+          "revenue_allocation": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Allocation",
+            "description": "Revenue allocation from project contract value"
+          },
           "level": {
             "type": "integer",
             "minimum": 1.0,
@@ -10833,6 +11605,19 @@
             "title": "Budget Allocation",
             "description": "Budget allocation",
             "default": "0"
+          },
+          "revenue_allocation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Allocation",
+            "description": "Revenue allocation from project contract value"
           },
           "level": {
             "type": "integer",
@@ -10997,6 +11782,22 @@
               }
             ],
             "title": "Budget Allocation"
+          },
+          "revenue_allocation": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Allocation"
           },
           "level": {
             "anyOf": [

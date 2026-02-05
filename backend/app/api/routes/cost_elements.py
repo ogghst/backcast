@@ -657,6 +657,11 @@ async def read_evm_history(
 async def get_cost_element_forecast(
     cost_element_id: UUID,
     branch: str = Query("main", description="Branch to query"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
     as_of: datetime | None = Query(
         None,
         description="Time travel: get forecast state as of this timestamp (ISO 8601)",
@@ -675,18 +680,23 @@ async def get_cost_element_forecast(
     This endpoint follows the inverted FK pattern, querying via
     cost_element.forecast_id instead of forecast.cost_element_id.
     """
+    from app.core.versioning.enums import BranchMode
+
+    # Parse mode string to BranchMode enum
+    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
+
     # Default to current time if as_of is not provided
     if as_of is None:
         as_of = datetime.now(tz=UTC)
 
     # Get the cost element using service layer
     if as_of:
-        # Time travel query
+        # Time travel query - use branch_mode for fallback
         cost_element = await cost_element_service.get_cost_element_as_of(
-            cost_element_id, as_of, branch=branch
+            cost_element_id, as_of, branch=branch, branch_mode=branch_mode
         )
     else:
-        # Current version
+        # Current version - no branch_mode needed for current queries
         cost_element = await cost_element_service.get_by_id(
             cost_element_id, branch=branch
         )
