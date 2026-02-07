@@ -67,7 +67,7 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
 
         # Extract control_date from schema if present (for seeding)
         control_date = getattr(user_in, "control_date", None)
-        
+
         # Remove control_date from data to avoid duplicate kwarg error
         user_data.pop("control_date", None)
 

@@ -20,6 +20,7 @@ from app.models.schemas.change_order import (
     ChangeOrderApproval,
     ChangeOrderCreate,
     ChangeOrderPublic,
+    ChangeOrderRecoveryRequest,
     ChangeOrderUpdate,
     MergeRequest,
 )
@@ -659,6 +660,55 @@ async def reject_change_order(
             comments=approval.comments,
         )
         return await service._to_public(rejected_co)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+
+@router.post(
+    "/{change_order_id}/recover",
+    response_model=ChangeOrderPublic,
+    operation_id="recover_change_order",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-recover"))],
+)
+async def recover_change_order(
+    change_order_id: UUID,
+    recovery_data: ChangeOrderRecoveryRequest,
+    branch: str = Query("main", description="Branch name"),
+    current_user: User = Depends(get_current_active_user),
+    service: ChangeOrderService = Depends(get_change_order_service),
+) -> ChangeOrderPublic:
+    """Recover a stuck change order workflow (admin only).
+
+    Admin-only endpoint to recover stuck workflows when impact analysis
+    fails or the change order gets stuck in an intermediate state.
+    Allows manual override of impact level and approver assignment.
+
+    Requires change-order-recover permission (admin only).
+
+    Args:
+        change_order_id: UUID of the stuck change order
+        recovery_data: Recovery request with impact level, approver, and reason
+
+    Returns:
+        Updated ChangeOrder with recovered workflow state
+
+    Raises:
+        HTTPException: If change order not stuck, invalid data, or not authorized
+    """
+    try:
+        recovered_co = await service.recover_change_order(
+            change_order_id=change_order_id,
+            impact_level=recovery_data.impact_level,
+            assigned_approver_id=recovery_data.assigned_approver_id,
+            skip_impact_analysis=recovery_data.skip_impact_analysis,
+            recovery_reason=recovery_data.recovery_reason,
+            actor_id=current_user.id,  # Use User.id, not User.user_id for FK
+            branch=branch,
+        )
+        return await service._to_public(recovered_co)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -1,22 +1,20 @@
 # Current Iteration
 
-**Iteration:** EVM Foundation Implementation (E08)
-**Start Date:** 2026-02-03
-**End Date:** 2026-02-03 (Actual)
-**Status:** ✅ **COMPLETE**
+**Iteration:** FK Constraint Migration (Technical Debt)
+**Start Date:** 2026-02-07
+**Status:** 🏗️ **IN PLANNING**
 
 ---
 
 ## Goal
 
-Implement core EVM (Earned Value Management) calculations and metrics for project performance tracking. This enables project managers to monitor cost and schedule performance through Planned Value (PV), Earned Value (EV), Actual Cost (AC), and performance indices.
+Migrate all temporal entity foreign keys to reference stable Business Keys (e.g., `user_id`, `project_id`) instead of auto-generated Primary Keys (`id`) to ensure bitemporal data integrity.
 
 **Key Focus Areas:**
 
-1.  **Planned Value (PV)**: Calculate PV from schedule baselines with progression types ✅
-2.  **Earned Value (EV)**: Calculate EV from progress entries (% complete) ✅
-3.  **Performance Indices**: Implement CPI, SPI, and variance calculations ✅
-4.  **EVM Dashboard**: Display metrics with trend analysis ✅
+1.  **Audit**: Identify all PK-based FKs in temporal entities
+2.  **Migration**: Create and test Alembic migrations for Option 1 (Preferred)
+3.  **Standards**: Update coding standards and validation guidelines
 
 ---
 
@@ -24,37 +22,48 @@ Implement core EVM (Earned Value Management) calculations and metrics for projec
 
 | Story                                           | Points | Priority | Status          | Dependencies     |
 | :---------------------------------------------- | :----- | :------- | :-------------- | :--------------- |
-| **[E05-U03] Record Earned Value (% Complete)**  | 5      | High     | ✅ Complete     | E04-U03          |
-| **[E05-U04] Define Schedule Baselines**         | 8      | Medium   | ✅ Complete     | E04-U03          |
-| **[E08-U01] Calculate PV using Schedule Baselines** | 8      | High     | ✅ Complete     | E05-U04          |
-| **[E08-U02] Calculate EV from % Complete**      | 5      | High     | ✅ Complete     | E05-U03          |
-| **[E08-U03] Calculate AC from Cost Registrations** | 5      | High     | ✅ Complete     | E05-U01          |
-| **[E08-U04] View Performance Indices (CPI/SPI/TCPI)** | 8      | High     | ✅ Complete     | E08-U01, E08-U02, E08-U03 |
+| **[TD-001] Audit FKs in Temporal Entities**      | 3      | High     | 📅 To Do        | N/A              |
+| **[TD-002] Implement Option 1 Migration**       | 13     | High     | 📅 To Do        | TD-001           |
+| **[TD-003] Update Coding Standards**            | 2      | Medium   | 📅 To Do        | TD-002           |
 
-**Total Estimated Effort:** 39 points (39 points completed - 100%)
+**Total Estimated Effort:** 18 points
 
 ---
 
 ## Success Criteria
 
-- [x] Progress Entry model with versionable (non-branchable) design
-- [x] Progress Entry API endpoints (CRUD with temporal support)
-- [x] Frontend Progress Entries Tab with modal for creating/editing
-- [x] Schedule Baseline model with progression types (linear/gaussian/logarithmic)
-- [x] Schedule Baseline 1:1 relationship with Cost Element
-- [x] Planned Value (PV) calculation from schedule baselines
-- [x] Cost Registration model and API for tracking actual costs
-- [x] Actual Cost (AC) calculation from cost registrations
-- [x] Earned Value (EV) rollup calculation from cost elements
-- [x] Performance Indices (CPI = EV/AC, SPI = EV/PV) with thresholds
-- [x] EVM Dashboard showing all metrics with trend analysis
-- [x] Color-coded gauge charts for CPI/SPI performance visualization
+- [ ] All temporal entities use business key FKs
+- [ ] Migration script tested and validated
+- [ ] Coding standards updated in documentation
+- [ ] No data loss or corruption during migration
 
 ---
 
 ## Iteration Records
 
 ### Recent Completed Iterations
+
+- **Workflow Recovery & Hardening (2026-02-06):** ✅ Complete
+  - Admin Recovery API and UI implemented
+  - Impact Analysis Timeout (300s) added
+  - Resolved CO-2026-003 stuck workflow
+  - Root cause (FK Mismatch) identified and documented
+
+- **Phase 6: Change Order Workflow Integration (2026-02-05):** ✅ Complete
+  - Automatic impact analysis on creation
+  - Weighted impact severity scoring (0-100+)
+  - Impact-based approver routing (LOW to CRITICAL)
+  - Submission validation logic
+
+- **Phase 5: Advanced Impact Analysis (2026-02-05):** ✅ Complete
+  - Schedule baseline comparison (duration deltas)
+  - EVM Performance Index projections (CPI/SPI/TCPI/EAC)
+  - VAC projections and KPI scorecard extension
+
+- **EVM Foundation Implementation (E08) (2026-02-03):** ✅ Complete
+  - PV, EV, AC calculations
+  - Performance indices (CPI/SPI)
+  - EVM Dashboard and trend visualization
 
 - **Branch Entity Versionable (2026-01-29):** ✅ Complete
   - Added `VersionableMixin` to Branch model

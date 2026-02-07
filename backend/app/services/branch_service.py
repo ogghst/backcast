@@ -1,8 +1,7 @@
 """Service for Branch entity operations."""
 
-from uuid import UUID
-
 from datetime import datetime
+from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import NoResultFound
@@ -42,12 +41,12 @@ class BranchService(TemporalService[Branch]):  # type: ignore[type-var]
             NoResultFound: If branch doesn't exist
         """
         branch = await self.get_by_name_and_project(name, project_id)
-        
+
         # Use UpdateVersionCommand to create a new version with locked status
         from app.core.versioning.commands import UpdateVersionCommand
-        
+
         current_actor = actor_id
-        
+
         cmd = UpdateVersionCommand(
             entity_class=Branch,
             root_id=branch.branch_id,
@@ -73,12 +72,12 @@ class BranchService(TemporalService[Branch]):  # type: ignore[type-var]
             NoResultFound: If branch doesn't exist
         """
         branch = await self.get_by_name_and_project(name, project_id)
-        
+
         # Use UpdateVersionCommand to create a new version with unlocked status
         from app.core.versioning.commands import UpdateVersionCommand
-        
+
         current_actor = actor_id
-        
+
         cmd = UpdateVersionCommand(
             entity_class=Branch,
             root_id=branch.branch_id,
@@ -108,12 +107,12 @@ class BranchService(TemporalService[Branch]):  # type: ignore[type-var]
         )
         result = await self.session.execute(stmt)
         branch = result.scalar_one_or_none()
-        
+
         if branch is None:
             raise NoResultFound(
                 f"Branch not found: name={name}, project_id={project_id}"
             )
-            
+
         return branch
 
     async def get_by_name_as_of(

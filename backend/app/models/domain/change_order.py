@@ -5,10 +5,12 @@ Satisfies BranchableProtocol via structural subtyping.
 """
 
 from datetime import datetime
+from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import ForeignKey, String, Text
-from sqlalchemy.dialects.postgresql import TIMESTAMP
+from sqlalchemy.dialects.postgresql import JSONB, NUMERIC, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column
@@ -77,6 +79,9 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
         sla_assigned_at: When approval SLA started
         sla_due_date: SLA deadline for approval
         sla_status: Current SLA tracking status (pending/approaching/overdue)
+        impact_analysis_status: State of automatic impact analysis (pending/in_progress/completed/failed/skipped)
+        impact_analysis_results: Stored KPIScorecard results from impact analysis
+        impact_score: Calculated impact severity score (weighted algorithm)
 
     Note: Following EVCS pattern, change_order_id is the UUID root identifier
     used for versioning/branching, while code is the human-readable business ID.
@@ -127,6 +132,23 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
         String(20), nullable=True, default=None
     )
 
+    # Impact Analysis Tracking (Phase 6 Task #1)
+    impact_analysis_status: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="Impact analysis state: pending/in_progress/completed/failed/skipped",
+    )
+    impact_analysis_results: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Stored KPIScorecard results from impact analysis",
+    )
+    impact_score: Mapped[Decimal | None] = mapped_column(
+        NUMERIC(10, 2),
+        nullable=True,
+        comment="Impact severity score (weighted calculation)",
+    )
+
     # Temporal and branching fields inherited from mixins:
     # - valid_time: TSTZRANGE (from VersionableMixin)
     # - transaction_time: TSTZRANGE (from VersionableMixin)
@@ -152,5 +174,6 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
             f"<ChangeOrder(id={self.id}, change_order_id={self.change_order_id}, "
             f"code={self.code}, project_id={self.project_id}, branch={self.branch}, "
             f"status={self.status}, impact_level={self.impact_level}, "
+            f"impact_analysis_status={self.impact_analysis_status}, "
             f"sla_status={self.sla_status})>"
         )

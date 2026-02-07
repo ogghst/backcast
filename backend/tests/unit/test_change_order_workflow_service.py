@@ -1,11 +1,7 @@
 """Unit tests for ChangeOrderWorkflowService."""
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.domain.change_order import ChangeOrder, ImpactLevel, SLAStatus
-from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
-from app.models.domain.user import User
 from app.services.change_order_workflow_service import ChangeOrderWorkflowService
 
 

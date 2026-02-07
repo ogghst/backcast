@@ -14,12 +14,17 @@ Follows RED-GREEN-REFACTOR TDD methodology.
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.enums import BranchMode
+from app.models.schemas.change_order import ChangeOrderCreate, ChangeOrderUpdate
+from app.models.schemas.cost_element import CostElementCreate
+from app.models.schemas.cost_element_type import CostElementTypeCreate
+from app.models.schemas.cost_registration import CostRegistrationCreate
+from app.models.schemas.progress_entry import ProgressEntryCreate
 from app.services.change_order_service import ChangeOrderService
 from app.services.cost_element_service import CostElementService
 from app.services.cost_element_type_service import CostElementTypeService
@@ -29,12 +34,7 @@ from app.services.forecast_service import ForecastService
 from app.services.progress_entry_service import ProgressEntryService
 from app.services.project import ProjectService
 from app.services.schedule_baseline_service import ScheduleBaselineService
-from app.models.schemas.change_order import ChangeOrderUpdate, ChangeOrderCreate
 from app.services.wbe import WBEService
-from app.models.schemas.cost_element_type import CostElementTypeCreate
-from app.models.schemas.progress_entry import ProgressEntryCreate
-from app.models.schemas.cost_registration import CostRegistrationCreate
-from app.models.schemas.cost_element import CostElementCreate
 
 
 @pytest.mark.usefixtures("db_session")
@@ -95,7 +95,7 @@ class TestChangeOrderWorkflowFullTemporal:
         # Create Project
         project_id = uuid4()
         project = await project_service.create(
-            
+
             root_id=project_id,
             actor_id=actor_id,
             control_date=T0,
@@ -131,7 +131,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Create 2 CostElements (auto-creates ScheduleBaseline and Forecast)
         ce1_id = uuid4()
-        ce1 = await ce_service.create(
+        ce1 = await ce_service.create_cost_element(
             element_in=CostElementCreate(
                 cost_element_id=ce1_id,
                 wbe_id=wbe1_id,
@@ -146,7 +146,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         ce2_id = uuid4()
-        ce2 = await ce_service.create(
+        ce2 = await ce_service.create_cost_element(
             element_in=CostElementCreate(
                 cost_element_id=ce2_id,
                 wbe_id=wbe2_id,
@@ -188,7 +188,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Create progress entries
-        await progress_service.create(
+        await progress_service.create_progress_entry(
             progress_in=ProgressEntryCreate(
                 cost_element_id=ce1_id,
                 progress_percentage=Decimal("25.00"),
@@ -200,7 +200,7 @@ class TestChangeOrderWorkflowFullTemporal:
             actor_id=actor_id,
         )
 
-        await progress_service.create(
+        await progress_service.create_progress_entry(
             progress_in=ProgressEntryCreate(
                 cost_element_id=ce2_id,
                 progress_percentage=Decimal("10.00"),
@@ -213,7 +213,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Create cost registrations
-        await cost_reg_service.create(
+        await cost_reg_service.create_cost_registration(
             registration_in=CostRegistrationCreate(
                 cost_element_id=ce1_id,
                 amount=Decimal("25000.00"),
@@ -224,7 +224,7 @@ class TestChangeOrderWorkflowFullTemporal:
             control_date=T0,
         )
 
-        await cost_reg_service.create(
+        await cost_reg_service.create_cost_registration(
             registration_in=CostRegistrationCreate(
                 cost_element_id=ce2_id,
                 amount=Decimal("20000.00"),
@@ -244,7 +244,6 @@ class TestChangeOrderWorkflowFullTemporal:
         T1_before = datetime(2026, 1, 7, 12, 0, 0, tzinfo=UTC)
         T1_after = datetime(2026, 1, 9, 12, 0, 0, tzinfo=UTC)
 
-        from app.models.schemas.change_order import ChangeOrderCreate
 
         co = await co_service.create_change_order(
             change_order_in=ChangeOrderCreate(
@@ -334,7 +333,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Create new versions of CostElement1 on CO branch (budget increase)
-        ce1_updated = await ce_service.create(
+        ce1_updated = await ce_service.create_cost_element(
             element_in=CostElementCreate(
                 cost_element_id=ce1_id,
                 wbe_id=wbe1_id,
@@ -349,7 +348,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Add progress entry on CO branch
-        await progress_service.create(
+        await progress_service.create_progress_entry(
             progress_in=ProgressEntryCreate(
                 cost_element_id=ce1_id,
                 progress_percentage=Decimal("40.00"),
@@ -362,7 +361,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Add cost registration on CO branch
-        await cost_reg_service.create(
+        await cost_reg_service.create_cost_registration(
             registration_in=CostRegistrationCreate(
                 cost_element_id=ce1_id,
                 amount=Decimal("5000.00"),
@@ -540,7 +539,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Create project
         await project_service.create(
-            
+
             root_id=project_id,
             actor_id=actor_id,
             control_date=T0,
@@ -550,7 +549,6 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Create CO at T1
-        from app.models.schemas.change_order import ChangeOrderCreate
 
         co = await co_service.create_change_order(
             change_order_in=ChangeOrderCreate(
@@ -566,7 +564,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Zombie check: before T1
         co_before = await co_service.get_as_of(
-            
+
             entity_id=co_id,
             as_of=T1_before,
             branch="main",
@@ -576,7 +574,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # At T1
         co_at = await co_service.get_as_of(
-            
+
             entity_id=co_id,
             as_of=T1,
             branch="main",
@@ -587,7 +585,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # After T1
         co_after = await co_service.get_as_of(
-            
+
             entity_id=co_id,
             as_of=T1_after,
             branch="main",
@@ -623,7 +621,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Create project
         await project_service.create(
-            
+
             root_id=project_id,
             actor_id=actor_id,
             control_date=T0,
@@ -634,7 +632,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Create WBE on main
         await wbe_service.create_root(
-            
+
             root_id=wbe_id,
             actor_id=actor_id,
             control_date=T0,
@@ -646,7 +644,6 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Create CO
-        from app.models.schemas.change_order import ChangeOrderCreate
 
         co = await co_service.create_change_order(
             change_order_in=ChangeOrderCreate(
@@ -662,7 +659,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # STRICT mode: WBE not on CO branch
         wbe_strict = await wbe_service.get_as_of(
-            
+
             entity_id=wbe_id,
             as_of=T1,
             branch=source_branch,
@@ -672,7 +669,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # MERGE mode: falls back to main
         wbe_merge = await wbe_service.get_as_of(
-            
+
             entity_id=wbe_id,
             as_of=T1,
             branch=source_branch,
@@ -683,7 +680,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Modify WBE on CO branch
         await wbe_service.create_root(
-            
+
             root_id=wbe_id,
             actor_id=actor_id,
             control_date=T1,
@@ -696,7 +693,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # STRICT mode now returns the modified version
         wbe_strict_after = await wbe_service.get_as_of(
-            
+
             entity_id=wbe_id,
             as_of=T1,
             branch=source_branch,
@@ -747,7 +744,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         project_id = uuid4()
         await project_service.create(
-            
+
             root_id=project_id,
             actor_id=actor_id,
             control_date=T0,
@@ -758,7 +755,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         wbe_id = uuid4()
         await wbe_service.create_root(
-            
+
             root_id=wbe_id,
             actor_id=actor_id,
             control_date=T0,
@@ -770,7 +767,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         ce_id = uuid4()
-        ce = await ce_service.create(
+        ce = await ce_service.create_cost_element(
             element_in=CostElementCreate(
                 cost_element_id=ce_id,
                 wbe_id=wbe_id,
@@ -785,7 +782,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Create progress and cost registrations
-        await progress_service.create(
+        await progress_service.create_progress_entry(
             progress_in=ProgressEntryCreate(
                 cost_element_id=ce_id,
                 progress_percentage=Decimal("25.00"),
@@ -796,7 +793,7 @@ class TestChangeOrderWorkflowFullTemporal:
             actor_id=actor_id,
         )
 
-        await cost_reg_service.create(
+        await cost_reg_service.create_cost_registration(
             registration_in=CostRegistrationCreate(
                 cost_element_id=ce_id,
                 amount=Decimal("10000.00"),
@@ -808,7 +805,6 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Create CO and modify
-        from app.models.schemas.change_order import ChangeOrderCreate
 
         co = await co_service.create_change_order(
             change_order_in=ChangeOrderCreate(
@@ -821,7 +817,7 @@ class TestChangeOrderWorkflowFullTemporal:
             control_date=T1,
         )
 
-        await ce_service.create(
+        await ce_service.create_cost_element(
             element_in=CostElementCreate(
                 cost_element_id=ce_id,
                 wbe_id=wbe_id,
@@ -870,7 +866,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Verify CE merged
         ce_merged = await ce_service.get_as_of(
-            
+
             entity_id=ce_id,
             as_of=T1,
             branch="main",
@@ -906,7 +902,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Create project and WBE
         await project_service.create(
-            
+
             root_id=project_id,
             actor_id=actor_id,
             control_date=T0,
@@ -916,7 +912,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         await wbe_service.create_root(
-            
+
             root_id=wbe_id,
             actor_id=actor_id,
             control_date=T0,
@@ -928,7 +924,6 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Create CO
-        from app.models.schemas.change_order import ChangeOrderCreate
 
         co = await co_service.create_change_order(
             change_order_in=ChangeOrderCreate(
@@ -943,7 +938,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Modify on CO branch
         await wbe_service.create_root(
-            
+
             root_id=wbe_id,
             actor_id=actor_id,
             control_date=T2,
@@ -988,7 +983,7 @@ class TestChangeOrderWorkflowFullTemporal:
         # Verify temporal consistency
         # At T0: original state
         wbe_t0 = await wbe_service.get_as_of(
-            
+
             entity_id=wbe_id,
             as_of=T0,
             branch="main",
@@ -998,7 +993,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # At T1: still original state
         wbe_t1 = await wbe_service.get_as_of(
-            
+
             entity_id=wbe_id,
             as_of=T1,
             branch="main",
@@ -1008,7 +1003,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # At T3: merged state
         wbe_t3 = await wbe_service.get_as_of(
-            
+
             entity_id=wbe_id,
             as_of=T3,
             branch="main",

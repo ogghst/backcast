@@ -114,7 +114,7 @@ async def create_progress_entry(
     - control_date determines when the progress was measured (defaults to now)
     """
     try:
-        progress = await service.create(
+        progress = await service.create_progress_entry(
             progress_in=progress_in,
             actor_id=current_user.user_id,
         )
@@ -185,7 +185,7 @@ async def update_progress_entry(
     The system will maintain full version history for audit trails.
     """
     try:
-        progress = await service.update(
+        progress = await service.update_progress_entry(
             progress_entry_id=progress_entry_id,
             progress_in=progress_in,
             actor_id=current_user.user_id,

@@ -1,7 +1,10 @@
-import pytest
 from uuid import uuid4
+
+import pytest
+
 from app.models.domain.branch import Branch
 from app.models.domain.project import Project
+
 
 @pytest.mark.asyncio
 async def test_branch_has_temporal_fields(db_session):

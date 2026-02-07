@@ -9,8 +9,8 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import case, func, select
 from sqlalchemy import cast as sql_cast
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -197,7 +197,10 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         return resolved
 
     def _get_base_stmt(self, as_of: datetime | None = None) -> Any:
-        """Get base select statement with parent name join.
+        """Get base select statement with parent name resolution.
+
+        Uses correlated scalar subquery to resolve parent names without
+        cartesian product warning from self-join.
 
         Args:
             as_of: Optional timestamp for time-travel queries on parent names
@@ -207,8 +210,11 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
 
         Parent = aliased(WBE, name="parent_wbe")
 
-        # Subquery for parent versions (current or as of specific time)
-        parent_where_clauses = [cast(Any, Parent).deleted_at.is_(None)]
+        # Build WHERE clauses for parent name resolution
+        parent_where_clauses = [
+            Parent.wbe_id == WBE.parent_wbe_id,
+            cast(Any, Parent).deleted_at.is_(None),
+        ]
 
         if as_of:
             # Get parent version valid at as_of time
@@ -221,15 +227,16 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
                 func.upper(cast(Any, Parent).valid_time).is_(None)
             )
 
-        parent_subq = (
-            select(Parent.wbe_id, Parent.name)
+        # Scalar subquery for parent name (correlated subquery)
+        # This avoids cartesian product by executing once per row instead of FROM/FROM join
+        parent_name_subq = (
+            select(Parent.name)
             .where(*parent_where_clauses)
-            .subquery("parent_lookup")
+            .limit(1)
+            .scalar_subquery()
         )
 
-        return select(WBE, parent_subq.c.name.label("parent_name")).outerjoin(
-            parent_subq, WBE.parent_wbe_id == parent_subq.c.wbe_id
-        )
+        return select(WBE, parent_name_subq.label("parent_name"))
 
     async def get_wbes(
         self,
@@ -541,41 +548,41 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         # Remove control_date from update_data if present to avoid conflict with explicit arg
         update_data.pop("control_date", None)
 
-        # Get current WBE to retrieve project_id for validation
-        current_wbe = await self.get_by_root_id(wbe_id)
-        if not current_wbe:
-            raise ValueError(f"WBE {wbe_id} not found")
-
-        # Save project_id before update (current_wbe may become stale after UpdateCommand)
-        project_id = current_wbe.project_id
-
-        # Handle re-leveling if parent changes
-        if wbe_in.parent_wbe_id is not None:  # explicit check for field presence/value
-            # Note: partial updates might send None to clear parent, or UUID to change it
-            # But here we are checking if it's IN the update data.
-            # However, since wbe_in fields are Optional, we need to check if it was set.
-            # wbe_in.model_dump(exclude_unset=True) handled this for update_data,
-            # but we need to check if "parent_wbe_id" is in update_data.
-            pass
-
-        if "parent_wbe_id" in update_data:
-            new_parent_id = update_data["parent_wbe_id"]
-            if new_parent_id:
-                parent = await self.get_by_root_id(new_parent_id)
-                if not parent:
-                    raise ValueError(f"Parent WBE {new_parent_id} not found")
-                update_data["level"] = parent.level + 1
-            else:
-                # Setting to root
-                update_data["level"] = 1
-
-        # Extract control_date and branch from schema
+        # Extract control_date and branch from schema early
+        # We need branch BEFORE calling get_by_root_id to find the WBE on the correct branch
         control_date = wbe_in.control_date
         branch = wbe_in.branch or "main"
 
         # Pop control_date and branch from update_data (they were already in model_dump)
         update_data.pop("control_date", None)
         update_data.pop("branch", None)
+
+        # Get current WBE to retrieve project_id for validation
+        # CRITICAL: Pass branch parameter to find WBE on the correct branch
+        # Note: UpdateCommand will handle fallback to main if needed
+        current_wbe = await self.get_by_root_id(wbe_id, branch=branch)
+        if not current_wbe:
+            # Try main branch as fallback for change order branches
+            if branch != "main":
+                current_wbe = await self.get_by_root_id(wbe_id, branch="main")
+            if not current_wbe:
+                raise ValueError(f"WBE {wbe_id} not found")
+
+        # Save project_id before update (current_wbe may become stale after UpdateCommand)
+        project_id = current_wbe.project_id
+
+        # Handle re-leveling if parent changes
+        if "parent_wbe_id" in update_data:
+            new_parent_id = update_data["parent_wbe_id"]
+            if new_parent_id:
+                # CRITICAL: Use the same branch when looking up parent WBE
+                parent = await self.get_by_root_id(new_parent_id, branch=branch)
+                if not parent:
+                    raise ValueError(f"Parent WBE {new_parent_id} not found on branch {branch}")
+                update_data["level"] = parent.level + 1
+            else:
+                # Setting to root
+                update_data["level"] = 1
 
         # Update WBE first
         cmd = UpdateCommand(
@@ -943,38 +950,43 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         return cast(WBE, wbe)
 
     async def get_wbe_history(self, wbe_id: UUID) -> list[WBE]:
-        """Get all versions of a WBE by root wbe_id (with creator and parent name)."""
+        """Get all versions of a WBE by root wbe_id (with creator and parent name).
+
+        Uses correlated scalar subqueries to avoid cartesian product warnings.
+        """
         from typing import Any, cast
 
         from sqlalchemy.orm import aliased
 
-        # User lookup subquery
-        creator_subq = (
-            select(User.user_id, User.full_name)
+        # Correlated subquery for creator name
+        creator_name_subq = (
+            select(User.full_name)
+            .where(User.user_id == WBE.created_by)
             .distinct(User.user_id)
             .order_by(User.user_id, User.transaction_time.desc())
-            .subquery("creator_lookup")
+            .limit(1)
+            .scalar_subquery()
         )
 
-        # Parent lookup subquery
+        # Correlated subquery for parent name
         Parent = aliased(WBE, name="parent_wbe")
-        parent_subq = (
-            select(Parent.wbe_id, Parent.name)
+        parent_name_subq = (
+            select(Parent.name)
             .where(
+                Parent.wbe_id == WBE.parent_wbe_id,
                 func.upper(cast(Any, Parent).valid_time).is_(None),
                 cast(Any, Parent).deleted_at.is_(None),
             )
-            .subquery("parent_lookup")
+            .limit(1)
+            .scalar_subquery()
         )
 
         stmt = (
             select(
                 WBE,
-                creator_subq.c.full_name.label("created_by_name"),
-                parent_subq.c.name.label("parent_name"),
+                creator_name_subq.label("created_by_name"),
+                parent_name_subq.label("parent_name"),
             )
-            .outerjoin(creator_subq, WBE.created_by == creator_subq.c.user_id)
-            .outerjoin(parent_subq, WBE.parent_wbe_id == parent_subq.c.wbe_id)
             .where(
                 WBE.wbe_id == wbe_id,
                 cast(Any, WBE).deleted_at.is_(None),

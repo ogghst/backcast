@@ -7,7 +7,7 @@ entities implementing BranchableProtocol (e.g. Projects).
 import re
 from datetime import datetime
 from typing import Any, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import NoResultFound
@@ -200,6 +200,29 @@ class BranchableService[TBranchable: BranchableProtocol]:
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def create(
+        self,
+        actor_id: UUID,
+        root_id: UUID | None = None,
+        control_date: datetime | None = None,
+        branch: str = "main",
+        **data: Any,
+    ) -> TBranchable:
+        """Generic creation method for compatibility with TemporalService.
+
+        Delegates to create_root while making root_id optional.
+        """
+        if root_id is None:
+            root_id = uuid4()
+
+        return await self.create_root(
+            root_id=root_id,
+            actor_id=actor_id,
+            control_date=control_date,
+            branch=branch,
+            **data,
+        )
 
     async def create_root(
         self,
@@ -404,7 +427,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
         """
         from sqlalchemy import cast as sql_cast
         from sqlalchemy.dialects.postgresql import TIMESTAMP
-        
+
         # CRITICAL FIX: Cast as_of to TIMESTAMP(timezone=True) for TSTZRANGE comparison
         as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
 
@@ -525,7 +548,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
 
         from sqlalchemy import cast as sql_cast
         from sqlalchemy.dialects.postgresql import TIMESTAMP
-        
+
         # CRITICAL FIX: Cast as_of to TIMESTAMP(timezone=True) for TSTZRANGE comparison
         as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
 

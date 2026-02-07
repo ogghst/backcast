@@ -1,8 +1,9 @@
 
+from typing import Any
+from uuid import uuid4
+
 import pytest
 from httpx import AsyncClient
-from uuid import uuid4
-from typing import Any
 
 from app.api.dependencies.auth import (
     get_current_active_user,
@@ -101,12 +102,12 @@ async def test_create_wbe_on_branch(client: AsyncClient) -> None:
     data = wbe_res.json()
     assert data["branch"] == "feature-1"
     wbe_id = data["wbe_id"]
-    
+
     # 3. Verify fetch on 'feature-1'
     get_feature = await client.get(f"/api/v1/wbes/{wbe_id}?branch=feature-1")
     assert get_feature.status_code == 200
     assert get_feature.json()["branch"] == "feature-1"
-    
+
     # 4. Verify NOT found on 'main'
     get_main = await client.get(f"/api/v1/wbes/{wbe_id}?branch=main")
     assert get_main.status_code == 404

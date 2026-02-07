@@ -97,16 +97,18 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         )
         return await cmd.execute(self.session)
 
-    async def create(
+    async def create_forecast(
         self,
         forecast_in: ForecastCreate,
         actor_id: UUID,
         branch: str | None = None,
+        control_date: datetime | None = None,
     ) -> Forecast:
         """Create new forecast using CreateVersionCommand."""
         forecast_data = forecast_in.model_dump(exclude_unset=True)
-        # Extract control_date from schema if present
-        control_date = getattr(forecast_in, "control_date", None)
+        # Extract control_date from schema if not provided
+        if control_date is None:
+            control_date = getattr(forecast_in, "control_date", None)
         forecast_data.pop("control_date", None)
 
         # Use provided forecast_id (for seeding) or generate new one
@@ -280,37 +282,29 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         )
         forecast = await cmd.execute(self.session)
 
-        # Update cost element with forecast_id reference
-        # Get current cost element version
-        ce_stmt = (
-            select(CostElement)
-            .where(
-                CostElement.cost_element_id == cost_element_id,
-                CostElement.branch == branch,
-                func.upper(CostElement.valid_time).is_(None),
-                CostElement.deleted_at.is_(None),
-            )
-            .order_by(CostElement.valid_time.desc())
-            .limit(1)
-        )
-        ce_result = await self.session.execute(ce_stmt)
-        cost_element = ce_result.scalar_one_or_none()
+        # Use Command to link cost element to forecast (RSC compliance)
+        from app.core.versioning.commands import LinkCostElementCommand
 
-        if cost_element:
-            cost_element.forecast_id = forecast_id
-            await self.session.flush()
+        link_cmd = LinkCostElementCommand(
+            cost_element_id=cost_element_id,
+            parent_type="forecast",
+            parent_id=forecast_id,
+        )
+        await link_cmd.execute(self.session)
 
         return forecast
 
-    async def update(  # type: ignore[override]
+    async def update_forecast(  # type: ignore[override]
         self,
         forecast_id: UUID,
         forecast_in: ForecastUpdate,
         actor_id: UUID,
+        control_date: datetime | None = None,
     ) -> Forecast:
         """Update forecast using branch-aware UpdateCommand."""
         # Extract control_date and branch from schema
-        control_date = forecast_in.control_date
+        if control_date is None:
+            control_date = forecast_in.control_date
         branch = forecast_in.branch or "main"
 
         # Filter None values from update data

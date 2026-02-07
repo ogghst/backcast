@@ -413,7 +413,7 @@ class TestEVMMetricsAPI:
         assert response.status_code == 200
         data = response.json()
         points = data["points"]
-        
+
         # Locate points
         # May (past)
         may_point = next((p for p in points if p["date"].startswith("2026-05")), None)
@@ -445,7 +445,7 @@ class TestEVMMetricsAPI:
         - Expected: Future months (July+) show same EV as June.
         """
         cost_element_id = setup_evm_data["cost_element_id"]
-        
+
         # Helper: Get time series with control date = July 1st (after progress report)
         control_date = datetime(2026, 7, 1, tzinfo=UTC)
 
@@ -459,7 +459,7 @@ class TestEVMMetricsAPI:
         assert response.status_code == 200
         data = response.json()
         points = data["points"]
-        
+
         # Locate points
         # June (last progress)
         june_point = next((p for p in points if p["date"].startswith("2026-06")), None)
@@ -504,7 +504,7 @@ class TestEVMMetricsAPI:
             json={"code": f"D2-{uuid4().hex[:4].upper()}", "name": "Dept2"},
         )
         dept_id = dept_res.json()["department_id"]
-        
+
         type_res = await client.post(
             "/api/v1/cost-element-types",
             json={
@@ -528,7 +528,7 @@ class TestEVMMetricsAPI:
             },
         )
         ce1_id = ce1_res.json()["cost_element_id"]
-        
+
         # CE1 Progress (50%)
         await client.post(
             "/api/v1/progress-entries",
@@ -612,21 +612,21 @@ class TestEVMMetricsAPI:
         """
         wbe_id = setup_wbe_level_data["wbe_id"]
         expected = setup_wbe_level_data["wbe_metrics"]
-        
+
         response = await client.get(f"/api/v1/evm/wbe/{wbe_id}/metrics")
         assert response.status_code == 200
         data = response.json()
-        
+
         # Verify aggregation
         assert data["bac"] == float(expected["bac"])
         assert data["ev"] == float(expected["ev"])
         assert data["ac"] == float(expected["ac"])
-        
+
         # Verify weighted CPI/SPI
         # CPI = Total EV / Total AC = 60000 / 65000 ≈ 0.9231
         expected_cpi = expected["ev"] / expected["ac"]
         assert abs(data["cpi"] - expected_cpi) < 0.0001
-        
+
         # Verify progress percentage (BAC weighted)
         # (50% * 100k + 20% * 50k) / 150k = (50k + 10k) / 150k = 60/150 = 40%
         assert data["progress_percentage"] == 40.0
@@ -641,11 +641,11 @@ class TestEVMMetricsAPI:
         """
         project_id = setup_wbe_level_data["project_id"]
         expected = setup_wbe_level_data["wbe_metrics"]  # Project only has 1 WBE, so same metrics
-        
+
         response = await client.get(f"/api/v1/evm/project/{project_id}/metrics")
         assert response.status_code == 200
         data = response.json()
-        
+
         # Verify aggregation
         assert data["bac"] == float(expected["bac"])
         assert data["ev"] == float(expected["ev"])
@@ -657,7 +657,7 @@ class TestEVMMetricsAPI:
     ) -> None:
         """Test WBE time series aggregates data from children."""
         wbe_id = setup_wbe_level_data["wbe_id"]
-        
+
         # Use a future control date to ensure the time series covers our data (June 2026)
         control_date = datetime(2026, 12, 31, tzinfo=UTC)
 
@@ -671,11 +671,11 @@ class TestEVMMetricsAPI:
         assert response.status_code == 200
         data = response.json()
         assert len(data["points"]) > 0
-        
+
         # Check June point (both have data)
         june_point = next((p for p in data["points"] if p["date"].startswith("2026-06")), None)
         assert june_point is not None
-        
+
         # EV should be sum of both
         # CE1 EV @ June 30 = 50k
         # CE2 EV @ June 30 = 10k
@@ -693,20 +693,20 @@ class TestEVMMetricsAPI:
             json={"code": f"PE-{uuid4()}", "name": "Empty Proj", "budget": 0},
         )
         proj_id = proj_res.json()["project_id"]
-        
+
         wbe_res = await client.post(
             "/api/v1/wbes",
             json={"code": f"WE-{uuid4()}", "name": "Empty WBE", "project_id": proj_id},
         )
         wbe_id = wbe_res.json()["wbe_id"]
-        
+
         # Test WBE empty
         wbe_resp = await client.get(f"/api/v1/evm/wbe/{wbe_id}/metrics")
         wbe_data = wbe_resp.json()
         assert wbe_data["bac"] == 0
         assert wbe_data["ev"] == 0
         assert "No cost elements found" in wbe_data["warning"]
-        
+
 
     @pytest.mark.asyncio
     async def test_get_evm_timeseries_project_aggregates_points(
@@ -714,10 +714,10 @@ class TestEVMMetricsAPI:
     ) -> None:
         """Test Project time series aggregates data from WBEs."""
         project_id = setup_wbe_level_data["project_id"]
-        
+
         # Use future control date to include June 2026 data
         control_date = datetime(2026, 12, 31, tzinfo=UTC)
-        
+
         response = await client.get(
             f"/api/v1/evm/project/{project_id}/timeseries",
             params={
@@ -728,11 +728,11 @@ class TestEVMMetricsAPI:
         assert response.status_code == 200
         data = response.json()
         assert len(data["points"]) > 0
-        
+
         # Check June point
         june_point = next((p for p in data["points"] if p["date"].startswith("2026-06")), None)
         assert june_point is not None
-        
+
 
     @pytest.mark.asyncio
     async def test_batch_calculate_evm_metrics_cost_elements(
@@ -752,18 +752,18 @@ class TestEVMMetricsAPI:
         )
         assert response.status_code == 200
         data = response.json()
-        
+
         # Should match WBE aggregation since it's the same cost elements
         # (calculated sum-based now)
         assert data["bac"] == float(expected["bac"])
         assert data["ev"] == float(expected["ev"])
         assert data["ac"] == float(expected["ac"])
-        
+
         # Verify cumulative CPI
         expected_cpi = expected["ev"] / expected["ac"]
         if data["cpi"] is not None:
              assert abs(data["cpi"] - expected_cpi) < 0.0001
-    
+
     @pytest.mark.asyncio
     async def test_batch_calculate_evm_metrics_invalid_type(
         self, client: AsyncClient

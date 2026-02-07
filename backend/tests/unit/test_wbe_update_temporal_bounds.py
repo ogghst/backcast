@@ -238,9 +238,8 @@ async def test_wbe_update_temporal_bounds(db_session: AsyncSession) -> None:
 
     updated_wbe = await service.update_wbe(
         wbe_id=wbe_id,
-        wbe_in=WBEUpdate(name="Updated WBE"),
+        wbe_in=WBEUpdate(name="Updated WBE", control_date=t2),
         actor_id=actor_id,
-        control_date=t2,
     )
 
     print(

@@ -17,7 +17,6 @@ from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.main import app
 from app.models.domain.user import User
 
-
 # Mock admin user for auth
 mock_admin_user = User(
     id=uuid4(),

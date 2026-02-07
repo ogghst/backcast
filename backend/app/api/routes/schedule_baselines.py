@@ -56,12 +56,12 @@ async def read_schedule_baselines(
     Supports time-travel queries and branch mode filtering.
     In MERGE mode, combines results from current branch and main branch.
     """
-    from app.core.versioning.enums import BranchMode
     from typing import cast
 
     from sqlalchemy import func, select
     from sqlalchemy.dialects.postgresql import TIMESTAMP
 
+    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
 
     # Parse mode string to BranchMode enum
@@ -91,7 +91,9 @@ async def read_schedule_baselines(
 
     # Apply time-travel filter if as_of is provided
     if as_of:
-        as_of_tstz = cast(as_of, TIMESTAMP(timezone=True))
+        # Cast as_of to TIMESTAMP(timezone=True) for proper timezone handling with TSTZRANGE
+        from sqlalchemy import cast as sql_cast
+        as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
         stmt = stmt.where(
             cast(Any, ScheduleBaseline).valid_time.op("@>")(as_of_tstz),
             func.lower(cast(Any, ScheduleBaseline).valid_time) <= as_of_tstz,

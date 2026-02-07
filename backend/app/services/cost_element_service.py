@@ -11,7 +11,6 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.branching.commands import UpdateCommand
 from app.core.branching.service import BranchableService
 from app.core.versioning.commands import CreateVersionCommand, UpdateVersionCommand
 from app.core.versioning.enums import BranchMode
@@ -160,7 +159,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 resolved.append(item)
         return resolved
 
-    async def create(
+    async def create_cost_element(
         self,
         element_in: CostElementCreate,
         actor_id: UUID,
@@ -171,10 +170,10 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         Auto-creates a default schedule baseline for the cost element.
         """
         element_data = element_in.model_dump(exclude_unset=True)
-        
+
         # Extract control_date from schema if present (for seeding/time-travel)
         control_date = getattr(element_in, 'control_date', None)
-        
+
         # Remove control_date from data to avoid duplicate kwarg error
         element_data.pop("control_date", None)
 
@@ -239,7 +238,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
     ) -> CostElement:
         # Extract control_date and branch from schema
         control_date = element_in.control_date
-        
+
         # Filter None values from update data
         update_data = element_in.model_dump(exclude_unset=True)
         update_data.pop("control_date", None)

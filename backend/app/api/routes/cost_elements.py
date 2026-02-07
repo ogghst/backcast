@@ -135,7 +135,7 @@ async def create_cost_element(
 ) -> CostElement:
     """Create a new cost element in specified branch."""
     try:
-        return await service.create(
+        return await service.create_cost_element(
             element_in=element_in,
             actor_id=current_user.user_id,
             branch=element_in.branch,
@@ -475,7 +475,7 @@ async def update_cost_element_schedule_baseline(
 
     # Build update schema
     from app.models.schemas.schedule_baseline import ScheduleBaselineUpdate
-    
+
     update_schema = ScheduleBaselineUpdate(
         branch=branch,
         control_date=control_date,
@@ -483,7 +483,7 @@ async def update_cost_element_schedule_baseline(
     )
 
     # Update baseline
-    updated_baseline = await baseline_service.update(
+    updated_baseline = await baseline_service.update_schedule_baseline(
         root_id=baseline_id,
         baseline_in=update_schema,
         actor_id=current_user.user_id,
@@ -801,7 +801,7 @@ async def update_cost_element_forecast(
             update_data["approved_by"] = forecast_in.approved_by
 
         # Update forecast using refactored update method
-        updated_forecast = await forecast_service.update(
+        updated_forecast = await forecast_service.update_forecast(
             forecast_id=existing_forecast.forecast_id,
             forecast_in=forecast_in,
             actor_id=current_user.user_id,

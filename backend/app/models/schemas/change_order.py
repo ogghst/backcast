@@ -201,3 +201,39 @@ class ChangeOrderApproval(BaseModel):
 
 # Response schemas for list endpoints
 ChangeOrderListResponse = PaginatedResponse[ChangeOrderPublic]
+
+
+class ChangeOrderRecoveryRequest(BaseModel):
+    """Request to recover a stuck change order workflow.
+
+    Context: Admin-only endpoint to recover stuck change orders when
+    impact analysis fails or workflow gets stuck in intermediate states.
+
+    Args:
+        impact_level: Manual impact level assignment (LOW/MEDIUM/HIGH/CRITICAL)
+        assigned_approver_id: User to assign as approver
+        skip_impact_analysis: Skip impact analysis and use manual values
+        recovery_reason: Explanation for recovery (10-500 chars)
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    impact_level: str = Field(
+        ...,
+        description="Manual impact level assignment",
+        pattern="^(LOW|MEDIUM|HIGH|CRITICAL)$",
+    )
+    assigned_approver_id: UUID = Field(
+        ...,
+        description="User to assign as approver (use User.id, not User.user_id)",
+    )
+    skip_impact_analysis: bool = Field(
+        default=True,
+        description="Skip impact analysis and use manual values",
+    )
+    recovery_reason: str = Field(
+        ...,
+        min_length=10,
+        max_length=500,
+        description="Explanation for recovery (required for audit)",
+    )

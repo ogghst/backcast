@@ -1,9 +1,6 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: backcast_evs_postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -22,7 +19,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.alembic
-    container_name: backcast_evs_alembic
     environment:
       # PostgreSQL connection settings
       POSTGRES_HOST: postgres
@@ -48,7 +44,6 @@ services:
 
   adminer:
     image: adminer:latest
-    container_name: backcast_evs_adminer
     ports:
       - "7090:8080"
     environment:

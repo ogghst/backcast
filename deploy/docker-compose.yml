@@ -1,14 +1,11 @@
-version: '3.8'
-
 # Production Docker Compose for Backcast EVS
 # This file is isolated from development configuration
-# Usage: docker-compose -f deploy/docker-compose.yml --env-file deploy/.env.production up -d
+# Usage: docker compose -f deploy/docker-compose.yml --env-file deploy/.env.production up -d
 
 services:
   # Traefik Reverse Proxy
   traefik:
     image: traefik:v3.6
-    container_name: backcast_evs_traefik
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -40,7 +37,6 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
-    container_name: backcast_evs_postgres
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -64,7 +60,6 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile.alembic
-    container_name: backcast_evs_alembic
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -90,7 +85,6 @@ services:
       args:
         - PYTHON_VERSION=3.12
     image: backcast_evs_backend:latest
-    container_name: backcast_evs_backend
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -147,7 +141,6 @@ services:
         - VITE_API_URL=https://api.${DOMAIN}
         - VITE_WEBSOCKET_URL=wss://api.${DOMAIN}
     image: backcast_evs_frontend:latest
-    container_name: backcast_evs_frontend
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -177,7 +170,6 @@ services:
   # Adminer (Database GUI)
   adminer:
     image: adminer:latest
-    container_name: backcast_evs_adminer
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true

@@ -24,8 +24,6 @@ from app.models.schemas.cost_registration import (
 )
 
 
-
-
 class BudgetStatus(BaseModel):
     """Budget status for a cost element."""
 
@@ -51,11 +49,12 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         """
         super().__init__(CostRegistration, db)
 
-    async def create(  # type: ignore[override]
+    async def create_cost_registration(  # type: ignore[override]
         self,
         registration_in: CostRegistrationCreate,
         actor_id: UUID,
         branch: str = "main",
+        control_date: datetime | None = None,
     ) -> CostRegistration:
         """Create new cost registration using CreateVersionCommand.
 
@@ -67,8 +66,9 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             branch: Branch to check budget against (defaults to "main").
                     Cost registrations are global, but budget validation needs a context.
         """
-        # Extract control_date from schema
-        control_date = getattr(registration_in, "control_date", None)
+        # Extract control_date from schema if not provided
+        if control_date is None:
+            control_date = getattr(registration_in, "control_date", None)
 
         # Dump registration data and exclude control_date (not a model field)
         registration_data = registration_in.model_dump(
@@ -104,11 +104,12 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         )
         return await cmd.execute(self.session)
 
-    async def update(  # type: ignore[override]
+    async def update_cost_registration(  # type: ignore[override]
         self,
         cost_registration_id: UUID,
         registration_in: CostRegistrationUpdate,
         actor_id: UUID,
+        control_date: datetime | None = None,
     ) -> CostRegistration:
         """Update cost registration using UpdateVersionCommand.
 
@@ -118,8 +119,9 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             actor_id: The user making the update
             control_date: Optional control date for valid_time (defaults to now)
         """
-        # Extract control_date from schema
-        control_date = getattr(registration_in, "control_date", None)
+        # Extract control_date from schema if not provided
+        if control_date is None:
+            control_date = getattr(registration_in, "control_date", None)
 
         # Dump update data and exclude control_date (not a model field)
         update_data = registration_in.model_dump(

@@ -10,12 +10,11 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.branching.service import BranchableService
 from app.core.branching.commands import UpdateCommand
+from app.core.branching.service import BranchableService
 from app.core.versioning.commands import (
     CreateVersionCommand,
     SoftDeleteCommand,
-    UpdateVersionCommand,
 )
 from app.core.versioning.enums import BranchMode
 from app.models.domain.project import Project
@@ -185,10 +184,10 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
     ) -> Project:
         """Create new project using CreateVersionCommand."""
         project_data = project_in.model_dump(exclude_unset=True)
-        
+
         # Extract control_date from schema if present (for seeding/time-travel)
         control_date = getattr(project_in, 'control_date', None)
-        
+
         # Remove control_date from data to avoid duplicate kwarg error
         project_data.pop("control_date", None)
 
@@ -314,7 +313,7 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             # Cast as_of to TIMESTAMP(timezone=True)
             from sqlalchemy import cast as sql_cast
             from sqlalchemy import or_
-            from sqlalchemy.dialects.postgresql import TIMESTAMP, TSTZRANGE
+            from sqlalchemy.dialects.postgresql import TIMESTAMP
 
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
             stmt = stmt.where(

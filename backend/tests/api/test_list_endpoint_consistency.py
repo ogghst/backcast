@@ -3,12 +3,11 @@
 Tests that all versioned entity list endpoints support branch, mode, and as_of parameters.
 """
 
-from datetime import UTC, datetime, timedelta
-from typing import Any, Generator
+from collections.abc import Generator
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
 
 from app.api.dependencies.auth import (
@@ -64,6 +63,7 @@ def override_auth() -> Generator[None, None, None]:
     app.dependency_overrides.clear()
 
 
+@pytest.mark.asyncio
 class TestScheduleBaselinesListEndpoint:
     """Tests for /api/v1/schedule-baselines list endpoint."""
 
@@ -87,7 +87,8 @@ class TestScheduleBaselinesListEndpoint:
         """Test that list endpoint accepts as_of parameter."""
         as_of = datetime.now(tz=UTC).isoformat()
         response = await client.get(
-            f"/api/v1/schedule-baselines?as_of={as_of}&page=1&per_page=20"
+            "/api/v1/schedule-baselines",
+            params={"as_of": as_of, "page": 1, "per_page": 20}
         )
         # Should not raise 422 validation error
         assert response.status_code in [200, 401, 403, 404]
@@ -104,12 +105,14 @@ class TestScheduleBaselinesListEndpoint:
         """Test that list endpoint accepts all parameters together."""
         as_of = datetime.now(tz=UTC).isoformat()
         response = await client.get(
-            f"/api/v1/schedule-baselines?branch=main&mode=merged&as_of={as_of}&page=1&per_page=20"
+            "/api/v1/schedule-baselines",
+            params={"branch": "main", "mode": "merged", "as_of": as_of, "page": 1, "per_page": 20}
         )
         # Should not raise 422 validation error
         assert response.status_code in [200, 401, 403, 404]
 
 
+@pytest.mark.asyncio
 class TestChangeOrdersListEndpoint:
     """Tests for /api/v1/change-orders list endpoint."""
 
@@ -141,6 +144,7 @@ class TestChangeOrdersListEndpoint:
         assert response.status_code == 422
 
 
+@pytest.mark.asyncio
 class TestProgressEntriesListEndpoint:
     """Tests for /api/v1/progress-entries list endpoint."""
 
@@ -177,6 +181,7 @@ class TestProgressEntriesListEndpoint:
         assert response.status_code == 422
 
 
+@pytest.mark.asyncio
 class TestCostRegistrationsListEndpoint:
     """Tests for /api/v1/cost-registrations list endpoint."""
 
@@ -213,6 +218,7 @@ class TestCostRegistrationsListEndpoint:
         assert response.status_code == 422
 
 
+@pytest.mark.asyncio
 class TestCostElementsListEndpoint:
     """Tests for /api/v1/cost-elements list endpoint (existing compliance)."""
 
@@ -225,6 +231,7 @@ class TestCostElementsListEndpoint:
         assert response.status_code in [200, 401, 403, 404]
 
 
+@pytest.mark.asyncio
 class TestWBEsListEndpoint:
     """Tests for /api/v1/wbes list endpoint (existing compliance)."""
 

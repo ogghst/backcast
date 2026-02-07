@@ -15,7 +15,9 @@ Per Phase 5 Plan:
 - VAC Projections: Variance at Completion
 """
 
-from datetime import date, datetime
+import asyncio
+import logging
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
@@ -23,10 +25,13 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.versioning.enums import BranchMode
 from app.models.domain.change_order import ChangeOrder
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_registration import CostRegistration
+from app.models.domain.schedule_baseline import ScheduleBaseline
 from app.models.domain.wbe import WBE
+from app.models.schemas.evm import EntityType
 from app.models.schemas.impact_analysis import (
     EntityChange,
     EntityChanges,
@@ -40,6 +45,8 @@ from app.models.schemas.impact_analysis import (
     VACComparison,
     WaterfallSegment,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ImpactAnalysisService:
@@ -58,10 +65,109 @@ class ImpactAnalysisService:
         """
         self._db = db_session
 
+        # Import EVMService lazily to avoid circular import
+        from app.services.evm_service import EVMService
+
+        self._evm_service = EVMService(db_session)
+
     async def analyze_impact(
-        self, change_order_id: UUID, branch_name: str
+        self, change_order_id: UUID, branch_name: str, timeout_seconds: int = 300
     ) -> ImpactAnalysisResponse:
         """Analyze impact of a change order by comparing branches.
+
+        Context: Compares financial and schedule metrics between main branch
+        and change order branch to show the delta impact. This is intentionally
+        a comparison (not a merge) to help users understand what will change.
+
+        Branch Mode: This service always uses STRICT (isolated) mode for both
+        branches because we're comparing two separate views:
+        - Main branch view: "What's the current state?"
+        - Change branch view: "What will change if we merge this CO?"
+
+        CostRegistration Note: CostRegistrations are NOT branchable (global facts).
+        When joining CostRegistration → CostElement, we must filter by branch to
+        ensure we count costs against the correct branch's CostElements. A single
+        CostRegistration can be joined with either main or branch CostElements
+        (both satisfy the FK), so explicit branch filtering is required.
+
+        Args:
+            change_order_id: UUID of the change order
+            branch_name: Name of the change branch (e.g., "co-CO-2026-001")
+            timeout_seconds: Timeout in seconds (default: 300 = 5 minutes)
+
+        Returns:
+            ImpactAnalysisResponse with complete comparison data
+
+        Raises:
+            ValueError: If timeout occurs, change order not found, or branch invalid
+        """
+        # Get change order to retrieve project_id and update status
+        co_stmt = (
+            select(ChangeOrder)
+            .where(
+                ChangeOrder.change_order_id == change_order_id,
+                ChangeOrder.branch
+                == "main",  # Get the change order definition from main
+                func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
+                cast(Any, ChangeOrder).deleted_at.is_(None),
+            )
+            .order_by(cast(Any, ChangeOrder).valid_time.desc())
+            .limit(1)
+        )
+        co_result = await self._db.execute(co_stmt)
+        change_order = co_result.scalar_one_or_none()
+
+        if change_order is None:
+            raise ValueError(f"Change order {change_order_id} not found")
+
+        # Set status to in_progress
+        change_order.impact_analysis_status = "in_progress"
+        await self._db.commit()
+
+        try:
+            # Create analysis task with timeout
+            analysis_task = asyncio.create_task(
+                self._perform_analysis(change_order_id, branch_name)
+            )
+
+            # Wait with timeout
+            result = await asyncio.wait_for(analysis_task, timeout=timeout_seconds)
+
+            # Update status to completed
+            change_order.impact_analysis_status = "completed"
+            await self._db.commit()
+
+            return result
+
+        except TimeoutError:
+            # Update status to failed
+            change_order.impact_analysis_status = "failed"
+            await self._db.commit()
+
+            logger.error(
+                f"Impact analysis timed out after {timeout_seconds}s "
+                f"for change order {change_order_id}"
+            )
+
+            raise ValueError(
+                f"Impact analysis timed out after {timeout_seconds} seconds. "
+                f"Please use admin recovery to proceed."
+            ) from None
+        except Exception as e:
+            # Update status to failed on other errors
+            change_order.impact_analysis_status = "failed"
+            await self._db.commit()
+
+            logger.error(f"Impact analysis failed for CO {change_order_id}: {e}")
+            raise
+
+    async def _perform_analysis(
+        self, change_order_id: UUID, branch_name: str
+    ) -> ImpactAnalysisResponse:
+        """Perform the actual impact analysis.
+
+        Contains all the core analysis logic without timeout handling.
+        This method is called by analyze_impact() within a timeout context.
 
         Args:
             change_order_id: UUID of the change order
@@ -139,12 +245,16 @@ class ImpactAnalysisService:
         change_budget_total = change_bac
 
         # Calculate actual costs from CostRegistrations
+        # CRITICAL: Filter CostElement by branch because CostRegistration is NOT branchable
+        # Without this filter, the join could match CostElements from any branch, causing
+        # incorrect cost aggregation and FK violations
         main_actual_costs_stmt = (
             select(func.sum(CostRegistration.amount))
             .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
             .join(WBE, CostElement.wbe_id == WBE.wbe_id)
             .where(
                 WBE.project_id == project_id,
+                CostElement.branch == "main",  # STRICT: Only count costs against main branch CostElements
                 CostRegistration.deleted_at.is_(None),
                 func.upper(CostRegistration.valid_time).is_(None),
             )
@@ -152,10 +262,9 @@ class ImpactAnalysisService:
         main_actual_costs_result = await self._db.execute(main_actual_costs_stmt)
         main_actual_costs = main_actual_costs_result.scalar() or Decimal("0")
 
-        # For change branch, we'd need to filter by branch-specific cost registrations
-        # Since CostRegistration is NOT branchable, we use the same query for now
-        # In a full implementation, cost registrations would be associated with branches
-        # via the cost elements they reference
+        # For change branch actual costs, we use the same value as main for now
+        # because CostRegistration is NOT branchable. In the future, if CostRegistrations
+        # become branchable or we add branch-context tracking, we'd filter those here too.
         change_actual_costs = main_actual_costs  # Placeholder until branch filtering is implemented
 
         # Gross margin calculation (simplified: 20% of budget as margin)
@@ -163,7 +272,7 @@ class ImpactAnalysisService:
         main_gross_margin = main_budget_total * Decimal("0.2")
         change_gross_margin = change_budget_total * Decimal("0.2")
 
-        # Compare KPIs
+        # Compare KPIs (basic financial metrics)
         kpi_scorecard = self._compare_kpis(
             main_bac=main_bac,
             change_bac=change_bac,
@@ -176,6 +285,26 @@ class ImpactAnalysisService:
             main_revenue_total=main_revenue,
             change_revenue_total=change_revenue,
         )
+
+        # Phase 5: Compare schedule baselines
+        schedule_comparison = await self._fetch_and_compare_schedule_baselines(
+            project_id=project_id,
+            branch_name=branch_name,
+        )
+        kpi_scorecard.schedule_start_date = schedule_comparison["schedule_start_date"]
+        kpi_scorecard.schedule_end_date = schedule_comparison["schedule_end_date"]
+        kpi_scorecard.schedule_duration = schedule_comparison["schedule_duration"]
+
+        # Phase 5: Compare EVM metrics
+        evm_comparison = await self._fetch_and_compare_evm_metrics(
+            project_id=project_id,
+            branch_name=branch_name,
+        )
+        kpi_scorecard.cpi = evm_comparison["cpi"]
+        kpi_scorecard.spi = evm_comparison["spi"]
+        kpi_scorecard.tcpi = evm_comparison["tcpi"]
+        kpi_scorecard.eac = evm_comparison["eac"]
+        kpi_scorecard.vac = evm_comparison["vac"]
 
         # Compare entities
         entity_changes = await self._compare_entities(project_id, branch_name)
@@ -340,12 +469,14 @@ class ImpactAnalysisService:
         )
 
         # Compare Cost Registrations (actual costs)
+        # CRITICAL: Filter CostElement by branch because CostRegistration is NOT branchable
         main_cr_stmt = (
             select(CostRegistration)
             .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
             .join(WBE, CostElement.wbe_id == WBE.wbe_id)
             .where(
                 WBE.project_id == project_id,
+                CostElement.branch == "main",  # STRICT: Only match main branch CostElements
                 CostRegistration.deleted_at.is_(None),
                 func.upper(CostRegistration.valid_time).is_(None),
             )
@@ -355,19 +486,20 @@ class ImpactAnalysisService:
         main_cost_registrations = main_cr_result.scalars().all()
 
         # Get current Cost Registrations from change branch
+        # CRITICAL: Filter CostElement by branch because CostRegistration is NOT branchable
         change_cr_stmt = (
             select(CostRegistration)
             .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
             .join(WBE, CostElement.wbe_id == WBE.wbe_id)
             .where(
                 WBE.project_id == project_id,
+                CostElement.branch == branch_name,  # STRICT: Only match change branch CostElements
                 CostRegistration.deleted_at.is_(None),
                 func.upper(CostRegistration.valid_time).is_(None),
             )
         )
-        # Note: CostRegistration is versionable but NOT branchable, so we need to filter by project via WBE/CostElement
-        # The change branch would have different CostRegistrations if new costs were added in the branch
-        # For now, we'll compare registrations that exist in the main branch context vs change branch context
+        # Note: CostRegistration is versionable but NOT branchable, so we filter by CostElement branch
+        # This ensures we compare costs as they apply to each branch's version of CostElements
         change_cr_result = await self._db.execute(change_cr_stmt)
         change_cost_registrations = change_cr_result.scalars().all()
 
@@ -838,3 +970,247 @@ class ImpactAnalysisService:
             main_vac=main_vac,
             change_vac=change_vac,
         )
+
+    async def _fetch_and_compare_schedule_baselines(
+        self,
+        project_id: UUID,
+        branch_name: str,
+    ) -> dict[str, KPIMetric | None]:
+        """Fetch and compare schedule baselines between main and change branches.
+
+        Args:
+            project_id: UUID of the project
+            branch_name: Name of the change branch
+
+        Returns:
+            Dictionary with schedule_start_date, schedule_end_date, schedule_duration KPIMetrics
+            Returns None for all fields if schedule baselines not found
+        """
+        # Get all cost elements for the project (both branches)
+        # We need to find schedule baselines via cost elements
+
+        # Fetch cost elements from main branch
+        main_ce_stmt = (
+            select(CostElement)
+            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id == project_id,
+                CostElement.branch == "main",
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+        )
+        main_ce_result = await self._db.execute(main_ce_stmt)
+        main_cost_elements = main_ce_result.scalars().all()
+
+        # Fetch cost elements from change branch
+        change_ce_stmt = (
+            select(CostElement)
+            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id == project_id,
+                CostElement.branch == branch_name,
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+        )
+        change_ce_result = await self._db.execute(change_ce_stmt)
+        change_cost_elements = change_ce_result.scalars().all()
+
+        # If no cost elements in either branch, return None
+        if not main_cost_elements and not change_cost_elements:
+            return {
+                "schedule_start_date": None,
+                "schedule_end_date": None,
+                "schedule_duration": None,
+            }
+
+        # Get schedule baselines from cost elements
+        main_baseline_ids = [ce.schedule_baseline_id for ce in main_cost_elements if ce.schedule_baseline_id]
+        change_baseline_ids = [ce.schedule_baseline_id for ce in change_cost_elements if ce.schedule_baseline_id]
+
+        # Fetch schedule baselines
+        if main_baseline_ids:
+            main_sb_stmt = select(ScheduleBaseline).where(
+                ScheduleBaseline.schedule_baseline_id.in_(main_baseline_ids),
+                ScheduleBaseline.branch == "main",
+                func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None),
+                cast(Any, ScheduleBaseline).deleted_at.is_(None),
+            )
+            main_sb_result = await self._db.execute(main_sb_stmt)
+            main_schedule_baselines = main_sb_result.scalars().all()
+        else:
+            main_schedule_baselines = []
+
+        if change_baseline_ids:
+            change_sb_stmt = select(ScheduleBaseline).where(
+                ScheduleBaseline.schedule_baseline_id.in_(change_baseline_ids),
+                ScheduleBaseline.branch == branch_name,
+                func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None),
+                cast(Any, ScheduleBaseline).deleted_at.is_(None),
+            )
+            change_sb_result = await self._db.execute(change_sb_stmt)
+            change_schedule_baselines = change_sb_result.scalars().all()
+        else:
+            change_schedule_baselines = []
+
+        # If no schedule baselines found, return None
+        if not main_schedule_baselines and not change_schedule_baselines:
+            return {
+                "schedule_start_date": None,
+                "schedule_end_date": None,
+                "schedule_duration": None,
+            }
+
+        # Aggregate schedule data (use min start, max end for project-level view)
+        # For main branch
+        if main_schedule_baselines:
+            main_start = min(sb.start_date for sb in main_schedule_baselines)
+            main_end = max(sb.end_date for sb in main_schedule_baselines)
+            main_duration = (main_end - main_start).days
+        else:
+            main_start = datetime.now(UTC)
+            main_end = datetime.now(UTC)
+            main_duration = 0
+
+        # For change branch
+        if change_schedule_baselines:
+            change_start = min(sb.start_date for sb in change_schedule_baselines)
+            change_end = max(sb.end_date for sb in change_schedule_baselines)
+            change_duration = (change_end - change_start).days
+        else:
+            # Use main branch values if no change branch baselines
+            change_start = main_start
+            change_end = main_end
+            change_duration = main_duration
+
+        # Convert to KPIMetric format
+        # For dates, we store timestamps as Decimal (Unix timestamp)
+        def _calculate_date_metric(main_dt: datetime, change_dt: datetime) -> KPIMetric:
+            """Calculate date metric as Unix timestamp."""
+            main_ts = Decimal(str(int(main_dt.timestamp())))
+            change_ts = Decimal(str(int(change_dt.timestamp())))
+            delta = change_ts - main_ts
+            # Percent change for dates doesn't make sense, set to None
+            return KPIMetric(
+                main_value=main_ts,
+                change_value=change_ts,
+                delta=delta,
+                delta_percent=None,
+            )
+
+        def _calculate_duration_metric(main_dur: int, change_dur: int) -> KPIMetric:
+            """Calculate duration metric in days."""
+            delta = Decimal(str(change_dur - main_dur))
+            delta_percent = (
+                float((change_dur - main_dur) / main_dur * 100) if main_dur > 0 else None
+            )
+            return KPIMetric(
+                main_value=Decimal(str(main_dur)),
+                change_value=Decimal(str(change_dur)),
+                delta=delta,
+                delta_percent=delta_percent,
+            )
+
+        return {
+            "schedule_start_date": _calculate_date_metric(main_start, change_start),
+            "schedule_end_date": _calculate_date_metric(main_end, change_end),
+            "schedule_duration": _calculate_duration_metric(main_duration, change_duration),
+        }
+
+    async def _fetch_and_compare_evm_metrics(
+        self,
+        project_id: UUID,
+        branch_name: str,
+    ) -> dict[str, KPIMetric | None]:
+        """Fetch and compare EVM metrics between main and change branches.
+
+        Args:
+            project_id: UUID of the project
+            branch_name: Name of the change branch
+
+        Returns:
+            Dictionary with cpi, spi, tcpi, eac, vac KPIMetrics
+            Returns None for all fields if EVM calculation fails
+        """
+        try:
+            # Calculate EVM metrics for main branch
+            control_date = datetime.now(UTC)
+            main_evm_response = await self._evm_service.calculate_evm_metrics_batch(
+                entity_type=EntityType.PROJECT,
+                entity_ids=[project_id],
+                control_date=control_date,
+                branch="main",
+                branch_mode=BranchMode.MERGE,
+            )
+
+            # Calculate EVM metrics for change branch
+            change_evm_response = await self._evm_service.calculate_evm_metrics_batch(
+                entity_type=EntityType.PROJECT,
+                entity_ids=[project_id],
+                control_date=control_date,
+                branch=branch_name,
+                branch_mode=BranchMode.MERGE,
+            )
+
+            # Extract metrics (convert to Decimal to ensure type safety)
+            main_cpi = Decimal(str(main_evm_response.cpi)) if main_evm_response.cpi is not None else Decimal("1.0")
+            change_cpi = Decimal(str(change_evm_response.cpi)) if change_evm_response.cpi is not None else Decimal("1.0")
+
+            main_spi = Decimal(str(main_evm_response.spi)) if main_evm_response.spi is not None else Decimal("1.0")
+            change_spi = Decimal(str(change_evm_response.spi)) if change_evm_response.spi is not None else Decimal("1.0")
+
+            # TCPI calculation (simplified: BAC / EAC if EAC exists)
+            main_eac_for_tcpi = Decimal(str(main_evm_response.eac)) if main_evm_response.eac is not None else None
+            main_tcpi = (
+                Decimal("1.0")
+                if main_eac_for_tcpi is None or main_eac_for_tcpi == 0
+                else Decimal(str(main_evm_response.bac)) / main_eac_for_tcpi
+            )
+            change_eac_for_tcpi = Decimal(str(change_evm_response.eac)) if change_evm_response.eac is not None else None
+            change_tcpi = (
+                Decimal("1.0")
+                if change_eac_for_tcpi is None or change_eac_for_tcpi == 0
+                else Decimal(str(change_evm_response.bac)) / change_eac_for_tcpi
+            )
+
+            main_eac = Decimal(str(main_evm_response.eac)) if main_evm_response.eac is not None else Decimal(str(main_evm_response.bac))
+            change_eac = Decimal(str(change_evm_response.eac)) if change_evm_response.eac is not None else Decimal(str(change_evm_response.bac))
+
+            # Calculate VAC (ensure Decimal)
+            main_bac_dec = Decimal(str(main_evm_response.bac))
+            change_bac_dec = Decimal(str(change_evm_response.bac))
+            main_vac = main_bac_dec - main_eac
+            change_vac = change_bac_dec - change_eac
+
+            # Convert to KPIMetric format
+            def _calculate_metric(main_val: Decimal, change_val: Decimal) -> KPIMetric:
+                """Calculate metric KPIMetric."""
+                delta = change_val - main_val
+                delta_percent = (
+                    float(delta / main_val * 100) if main_val != 0 else None
+                )
+                return KPIMetric(
+                    main_value=main_val,
+                    change_value=change_val,
+                    delta=delta,
+                    delta_percent=delta_percent,
+                )
+
+            return {
+                "cpi": _calculate_metric(main_cpi, change_cpi),
+                "spi": _calculate_metric(main_spi, change_spi),
+                "tcpi": _calculate_metric(main_tcpi, change_tcpi),
+                "eac": _calculate_metric(main_eac, change_eac),
+                "vac": _calculate_metric(main_vac, change_vac),
+            }
+
+        except Exception:
+            # If EVM calculation fails, return None for all metrics
+            return {
+                "cpi": None,
+                "spi": None,
+                "tcpi": None,
+                "eac": None,
+                "vac": None,
+            }

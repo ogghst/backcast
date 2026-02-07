@@ -128,7 +128,7 @@ async def create_cost_registration(
     useful for backdated cost registrations or testing time-travel scenarios.
     """
     try:
-        return await service.create(
+        return await service.create_cost_registration(
             registration_in=registration_in,
             actor_id=current_user.user_id,
         )
@@ -349,7 +349,7 @@ async def update_cost_registration(
     the new version, useful for backdating updates or testing time-travel.
     """
     try:
-        return await service.update(
+        return await service.update_cost_registration(
             cost_registration_id=cost_registration_id,
             registration_in=registration_in,
             actor_id=current_user.user_id,
