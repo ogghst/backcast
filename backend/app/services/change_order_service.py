@@ -31,11 +31,12 @@ from app.services.wbe import WBEService
 
 if TYPE_CHECKING:
     from app.models.schemas.change_order import ChangeOrderPublic
+    from app.models.schemas.impact_analysis import ImpactAnalysisResponse
 
 logger = logging.getLogger(__name__)
 
 
-class ChangeOrderService(BranchableService[ChangeOrder]):
+class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-var]
     """Service for Change Order entity operations.
 
     Extends BranchableService with Change Order specific methods.
@@ -339,7 +340,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             # Fork from main to target branch
             from app.core.branching.commands import CreateBranchCommand
 
-            fork_cmd = CreateBranchCommand(
+            fork_cmd = CreateBranchCommand(  # type: ignore[type-var]
                 entity_class=ChangeOrder,
                 root_id=change_order_id,
                 actor_id=actor_id,
@@ -394,7 +395,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             # (since ChangeOrder itself may lock the branch it resides on)
             from app.core.branching.commands import UpdateCommand
 
-            cmd = UpdateCommand(
+            cmd = UpdateCommand(  # type: ignore[type-var]
                 entity_class=self.entity_class,
                 root_id=change_order_id,
                 actor_id=actor_id,
@@ -1351,7 +1352,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
             )
             return None
 
-    def _calculate_impact_score(self, impact_analysis) -> Decimal:
+    def _calculate_impact_score(self, impact_analysis: "ImpactAnalysisResponse") -> Decimal:
         """Calculate impact severity score from KPI scorecard.
 
         Context: Phase 6 Task #2 - Weighted impact score calculation.
@@ -1381,7 +1382,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):
 
         # Schedule impact (30% weight)
         schedule_delta_percent = (
-            float(kpi.schedule_duration.delta_percent)
+            float(kpi.schedule_duration.delta_percent or 0.0)
             if kpi.schedule_duration
             else 0.0
         )
