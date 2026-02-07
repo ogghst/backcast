@@ -11,6 +11,7 @@ interface AuthLayoutProps {
 /**
  * Layout for authentication pages (login, register)
  * Simple centered design without sidebar/header
+ * Updated: 2026-02-07
  */
 export const AuthLayout = ({ children }: AuthLayoutProps) => {
   return (
@@ -34,11 +35,22 @@ export const AuthLayout = ({ children }: AuthLayoutProps) => {
             boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
           }}
         >
-          <div style={{ textAlign: "center", marginBottom: "32px" }}>
-            <Title level={2} style={{ marginBottom: "8px" }}>
+          <div style={{ textAlign: "center", marginBottom: "40px" }}>
+            <img
+              src="/assets/images/backcast-logo.svg"
+              alt="Backcast"
+              style={{
+                width: "120px",
+                height: "auto",
+                marginBottom: "16px",
+              }}
+            />
+            <Title level={2} style={{ marginBottom: "4px", marginTop: "8px" }}>
               Backcast
             </Title>
-            <Typography.Text type="secondary">Backcast</Typography.Text>
+            <Typography.Text type="secondary">
+              Entity Version Control System
+            </Typography.Text>
           </div>
           {children}
         </div>
