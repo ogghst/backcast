@@ -19,6 +19,7 @@ from app.core.branching.service import BranchableService
 from app.core.versioning.commands import (
     CreateChangeOrderAuditLogCommand,
     CreateVersionCommand,
+    UpdateChangeOrderStatusCommand,
 )
 from app.models.domain.branch import Branch
 from app.models.domain.change_order import ChangeOrder
@@ -713,11 +714,13 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             control_date=control_date,
         )
 
-        # 5. Update CO status to "Implemented" directly on the merged version
-        # This avoids creating an extra version - we update the merged version in place
-        merged_co.status = "Implemented"
-        self.session.add(merged_co)
-        await self.session.flush()
+        # 5. Update CO status to "Implemented" using Command (RSC compliance)
+        status_cmd = UpdateChangeOrderStatusCommand(
+            change_order_id=change_order_id,
+            new_status="Implemented",
+            branch=target_branch,
+        )
+        await status_cmd.execute(self.session)
         await self.session.refresh(merged_co)
 
         return merged_co

@@ -41,7 +41,13 @@
 - [ ] Is the [Sprint Backlog](../03-project-plan/sprint-backlog.md) updated?
 - [ ] Are [Technical Debt](../03-project-plan/technical-debt/) items documented?
 
-## 6. Performance & Scalability
+## 6. Architecture Compliance (RSC)
+
+- [ ] **State Changes**: Are all CUD operations performed via Commands?
+- [ ] **Service Purity**: Are Services free of direct DB writes (`add`, `delete`, `commit`)?
+- [ ] **Audit Logs**: Is `ChangeOrderAuditLog` created for critical actions?
+
+## 7. Performance & Scalability
 
 - [ ] Are database indexes added for frequently filtered/searched columns?
 - [ ] Are N+1 query problems avoided (e.g., using `selectinload` or `joinedload`)?

@@ -12,9 +12,9 @@ Migrate all temporal entity foreign keys to reference stable Business Keys (e.g.
 
 **Key Focus Areas:**
 
-1.  **Audit**: Identify all PK-based FKs in temporal entities
-2.  **Migration**: Create and test Alembic migrations for Option 1 (Preferred)
-3.  **Standards**: Update coding standards and validation guidelines
+1. **Audit**: Identify all PK-based FKs in temporal entities
+2. **Migration**: Create and test Alembic migrations for Option 1 (Preferred)
+3. **Standards**: Update coding standards and validation guidelines
 
 ---
 
@@ -42,6 +42,12 @@ Migrate all temporal entity foreign keys to reference stable Business Keys (e.g.
 ## Iteration Records
 
 ### Recent Completed Iterations
+
+- **Backend RSC Compliance (2026-02-07):** ✅ Complete
+  - Refactored `ChangeOrderService` audit logging
+  - Implemented `UpdateChangeOrderStatusCommand`
+  - Enforced Command pattern for state changes
+  - Verified with comprehensive test suite
 
 - **Workflow Recovery & Hardening (2026-02-06):** ✅ Complete
   - Admin Recovery API and UI implemented
