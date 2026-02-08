@@ -441,6 +441,62 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             raise ValueError(f"Failed to update Change Order {change_order_id}")
 
         return updated_co
+    async def archive_change_order_branch(
+        self,
+        change_order_id: UUID,
+        actor_id: UUID,
+        control_date: datetime | None = None,
+    ) -> None:
+        """Archive (soft-delete) a Change Order's branch.
+
+        Only allowed for Change Orders in "Implemented" or "Rejected" status.
+        Hides the branch from active lists while preserving history.
+
+        Args:
+            change_order_id: Change Order ID
+            actor_id: User performing the archive
+            control_date: Optional control date for bitemporal operations
+
+        Raises:
+            ValueError: If Change Order not found or not in allowed status
+        """
+        # Get current change order
+        co = await self.get_current(change_order_id)
+        if not co:
+            raise ValueError(f"Change Order {change_order_id} not found")
+
+        # Validate status
+        if co.status not in ["Implemented", "Rejected"]:
+            raise ValueError(
+                f"Cannot archive active Change Order. "
+                f"Current status: {co.status}. "
+                f"Must be 'Implemented' or 'Rejected'."
+            )
+
+        # Get branch name
+        if not co.branch_name:
+            # Should not happen for valid COs, but handle gracefully
+            logger.warning(
+                f"Change Order {co.code} has no branch_name. Nothing to archive."
+            )
+            return
+
+        # Archive the branch using BranchService soft_delete
+        # BranchService inherits from TemporalService which provides soft_delete
+        # We need to find the branch first to get its ID, as soft_delete usually takes ID
+        # But TemporalService soft_delete takes root_id.
+
+        # Find the branch to get its root_id (branch_id)
+        branch = await self.branch_service.get_by_name_and_project(
+            co.branch_name, co.project_id
+        )
+
+        # Soft delete the branch
+        await self.branch_service.soft_delete(
+            entity_id=branch.branch_id,
+            actor_id=actor_id,
+            control_date=control_date
+        )
 
     async def delete_change_order(
         self,
@@ -1474,6 +1530,13 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             Number of business days (negative if to_date is before from_date)
         """
         from datetime import timedelta
+
+        # Normalize timezones to prevent "can't subtract offset-naive and offset-aware datetimes" error
+        # If one is aware and the other is naive, assume the naive one is in the same timezone
+        if from_date.tzinfo is not None and to_date.tzinfo is None:
+            to_date = to_date.replace(tzinfo=from_date.tzinfo)
+        elif from_date.tzinfo is None and to_date.tzinfo is not None:
+            from_date = from_date.replace(tzinfo=to_date.tzinfo)
 
         if from_date >= to_date:
             return 0

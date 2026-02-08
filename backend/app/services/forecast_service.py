@@ -360,3 +360,51 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
             basis_of_estimate="Initial forecast",
             control_date=control_date,
         )
+
+    async def get_forecasts_for_cost_elements(
+        self,
+        cost_element_ids: "list[UUID]",
+        branch: str = "main",
+    ) -> "dict[UUID, Forecast]":
+        """Get forecasts for multiple cost elements efficiently.
+
+        Args:
+            cost_element_ids: List of cost element UUIDs
+            branch: Branch name (default: "main")
+
+        Returns:
+            Dictionary mapping cost_element_id to Forecast
+        """
+        if not cost_element_ids:
+            return {}
+
+        # Query via CostElement.forecast_id (inverted FK)
+        stmt = (
+            select(
+                CostElement.cost_element_id,
+                Forecast
+            )
+            .join(CostElement, CostElement.forecast_id == Forecast.forecast_id)
+            .where(
+                CostElement.cost_element_id.in_(cost_element_ids),
+                CostElement.branch == branch,
+                Forecast.branch == branch,
+                # CRITICAL: Only match cost elements WITH a forecast
+                CostElement.forecast_id.is_not(None),
+                # "Current" filter (no as_of)
+                func.upper(Forecast.valid_time).is_(None),
+                Forecast.deleted_at.is_(None),
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+        )
+
+        result = await self.session.execute(stmt)
+        
+        forecasts = {}
+        for row in result.all():
+            ce_id, forecast = row
+            forecasts[ce_id] = forecast
+            
+        return forecasts
+

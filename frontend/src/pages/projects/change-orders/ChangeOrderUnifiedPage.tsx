@@ -1,12 +1,13 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { Breadcrumb, message } from "antd";
+import { Breadcrumb, message, Card } from "antd";
 import { Link } from "react-router-dom";
-import { ChangeOrderFormSection } from "@/features/change-orders/components/ChangeOrderFormSection";
+import { useState, useEffect } from "react";
 import { ChangeOrderWorkflowSection } from "@/features/change-orders/components/ChangeOrderWorkflowSection";
 import { ChangeOrderImpactSection } from "@/features/change-orders/components/ChangeOrderImpactSection";
 import { ChangeOrderPageNav } from "@/features/change-orders/components/ChangeOrderPageNav";
 import { ApprovalInfo } from "@/features/change-orders/components/ApprovalInfo";
-import { CollapsibleCard } from "@/components/common/CollapsibleCard";
+import { ChangeOrderSummaryCard } from "@/features/change-orders/components/ChangeOrderSummaryCard";
+import { ChangeOrderModal } from "@/features/change-orders/components/ChangeOrderModal";
 import {
   useChangeOrder,
   useCreateChangeOrder,
@@ -57,9 +58,17 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
   }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const createMode = isCreateMode(changeOrderId);
   const pageTitle = getPageTitle(createMode);
+
+  // Automatically open modal in create mode
+  useEffect(() => {
+    if (createMode) {
+      setIsModalOpen(true);
+    }
+  }, [createMode]);
 
   // Fetch change order data for edit mode
   const { data: changeOrder, isLoading } = useChangeOrder(
@@ -104,11 +113,13 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
         project_id: projectId!,
       } as ChangeOrderCreate;
       await createChangeOrder(createData);
+      // Navigation happens in onSuccess of mutation
     } else {
       await updateChangeOrder({
         id: changeOrderId!,
         data: values as ChangeOrderUpdate,
       });
+      setIsModalOpen(false);
     }
   };
 
@@ -154,21 +165,34 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
       <ChangeOrderPageNav createMode={createMode} />
 
       {/* Form Section */}
-      <CollapsibleCard
-        title="Change Order Details"
-        id="details"
-        style={{ marginBottom: 16 }}
-      >
-        <ChangeOrderFormSection
-          projectId={projectId}
-          changeOrder={changeOrder || null}
-          onSave={handleSave}
-          onCancel={handleCancel}
-          isLocked={changeOrder?.branch_locked || false}
-          existingCodes={existingCodes}
-          isLoading={isLoading}
-        />
-      </CollapsibleCard>
+      {/* Form Section - Only show summary card if not in create mode (modal handles creation) */}
+      {!createMode && (
+        <div style={{ marginBottom: 16 }}>
+          {isLoading && !changeOrder ? (
+            <Card loading title="Change Order Details" />
+          ) : changeOrder ? (
+            <ChangeOrderSummaryCard
+              changeOrder={changeOrder}
+              onEdit={() => setIsModalOpen(true)}
+              isLoading={isLoading}
+            />
+          ) : null}
+        </div>
+      )}
+
+      {/* Modal for Create/Edit */}
+      <ChangeOrderModal
+        open={isModalOpen}
+        onCancel={() => {
+          setIsModalOpen(false);
+          if (createMode) handleCancel();
+        }}
+        onOk={handleSave}
+        confirmLoading={false}
+        initialValues={changeOrder}
+        projectId={projectId!}
+        existingCodes={existingCodes}
+      />
 
       {/* Approval Information (hidden in create mode, shown when impact_level exists) */}
       {!createMode && (

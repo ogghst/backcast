@@ -74,7 +74,7 @@ async def read_change_orders(
     filters: str | None = Query(
         None,
         description="Filters in format 'column:value;column:value1,value2'",
-        example="status:Draft",
+        examples={"status_filter": {"value": "status:Draft"}},
     ),
     sort_field: str | None = Query(None, description="Field to sort by"),
     sort_order: str = Query(
@@ -758,8 +758,9 @@ async def get_change_order_approval_info(
         if co.impact_level:
             branch_name = f"co-{co.code}"
             impact_service = ImpactAnalysisService(service.session)
+            # Optimization: Skip EVM metrics calculation as only financial delta is needed here
             impact_analysis = await impact_service.analyze_impact(
-                change_order_id, branch_name
+                change_order_id, branch_name, include_evm_metrics=False
             )
             financial_impact = {
                 "budget_delta": impact_analysis.kpi_scorecard.budget_delta.delta,
@@ -790,19 +791,23 @@ async def get_change_order_approval_info(
         # Calculate business days remaining until SLA deadline
         sla_business_days_remaining = None
         if co.sla_due_date:
-            from datetime import datetime
+            from datetime import datetime, UTC
 
             sla_business_days_remaining = service._calculate_business_days_remaining(
-                datetime.now(), co.sla_due_date
+                datetime.now(UTC), co.sla_due_date
             )
 
         # Determine SLA status
         sla_status = co.sla_status
         if co.sla_due_date:
-            from datetime import datetime
+            from datetime import datetime, UTC
 
-            now = datetime.now()
-            time_remaining = (co.sla_due_date - now).total_seconds() / 86400  # days
+            now = datetime.now(UTC)
+            # Normalize sla_due_date to UTC if it's naive
+            sla_due = co.sla_due_date
+            if sla_due.tzinfo is None:
+                sla_due = sla_due.replace(tzinfo=UTC)
+            time_remaining = (sla_due - now).total_seconds() / 86400  # days
 
             if time_remaining < 0:
                 sla_status = "overdue"

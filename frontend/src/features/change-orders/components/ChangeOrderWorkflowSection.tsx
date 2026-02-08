@@ -65,7 +65,7 @@ export function ChangeOrderWorkflowSection({
   const [recoveryDialogVisible, setRecoveryDialogVisible] = useState(false);
 
   // Workflow actions - Hook must be top level
-  const { submit, approve, reject, merge, isLoading } = useWorkflowActions(
+  const { submit, review, approve, reject, merge, isLoading } = useWorkflowActions(
     changeOrder?.change_order_id || "",
     { onSuccess: onActionSuccess },
   );
@@ -99,12 +99,14 @@ export function ChangeOrderWorkflowSection({
 
   // Check which actions are available
   const canSubmit = isActionAvailable("SUBMIT", available_transitions);
+  const canReview = isActionAvailable("REVIEW", available_transitions);
   const canApprove = isActionAvailable("APPROVE", available_transitions);
   const canReject = isActionAvailable("REJECT", available_transitions);
   const canMerge = isActionAvailable("MERGE", available_transitions);
 
-  // All actions disabled when locked
-  const actionsDisabled = branch_locked || isLoading;
+  // Actions are only disabled while loading
+  // Note: branch_locked prevents content editing, but should NOT prevent workflow actions
+  const actionsDisabled = isLoading;
 
   // Content component
   const content = (
@@ -168,6 +170,17 @@ export function ChangeOrderWorkflowSection({
                 disabled={actionsDisabled}
               >
                 Submit
+              </Button>
+            )}
+            {canReview && (
+              <Button
+                type="default"
+                icon={<SyncOutlined />}
+                onClick={() => review()}
+                disabled={actionsDisabled}
+                style={{ borderColor: "#1890ff", color: "#1890ff" }}
+              >
+                Put Under Review
               </Button>
             )}
             {canApprove && (

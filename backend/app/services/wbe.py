@@ -492,9 +492,11 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
 
         # Infer level from parent
         if wbe_in.parent_wbe_id:
-            parent = await self.get_by_root_id(wbe_in.parent_wbe_id)
+            # Get the branch for this WBE to lookup parent on same branch
+            branch = wbe_data.get("branch", "main")
+            parent = await self.get_by_root_id(wbe_in.parent_wbe_id, branch=branch)
             if not parent:
-                raise ValueError(f"Parent WBE {wbe_in.parent_wbe_id} not found")
+                raise ValueError(f"Parent WBE {wbe_in.parent_wbe_id} not found on branch {branch}")
             wbe_data["level"] = parent.level + 1
         else:
             wbe_data["level"] = 1
@@ -925,13 +927,24 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             ],
         }
 
-    async def get_by_root_id(self, root_id: UUID, branch: str = "main") -> WBE | None:
-        """Override to include parent_name."""
+    async def get_by_root_id(
+        self, root_id: UUID, branch: str = "main", as_of: datetime | None = None
+    ) -> WBE | None:
+        """Override to include parent_name.
+
+        Args:
+            root_id: Root WBE identifier
+            branch: Branch name (default: "main")
+            as_of: Optional timestamp for time-travel query
+
+        Returns:
+            WBE with parent_name attached, or None if not found
+        """
         from typing import Any, cast
 
 
         stmt = (
-            self._get_base_stmt()
+            self._get_base_stmt(as_of=as_of)
             .where(
                 WBE.wbe_id == root_id,
                 WBE.branch == branch,

@@ -159,7 +159,7 @@ async def test_cost_element_with_baseline(
         control_date=None,
     )
 
-    cost_element = await cost_element_service.create(
+    cost_element = await cost_element_service.create_cost_element(
         element_in=create_schema,
         actor_id=mock_admin_user.user_id,
         branch="main",
@@ -238,7 +238,7 @@ class TestGetScheduleBaseline:
             control_date=None,
         )
 
-        cost_element = await cost_element_service.create(
+        cost_element = await cost_element_service.create_cost_element(
             element_in=create_schema,
             actor_id=mock_admin_user.user_id,
             branch="main",
@@ -303,7 +303,7 @@ class TestCreateScheduleBaseline:
             control_date=None,
         )
 
-        cost_element = await cost_element_service.create(
+        cost_element = await cost_element_service.create_cost_element(
             element_in=create_schema,
             actor_id=mock_admin_user.user_id,
             branch="main",
@@ -514,7 +514,7 @@ class TestBranchIsolation:
             control_date=None,
         )
 
-        _ = await cost_element_service.create(
+        _ = await cost_element_service.create_cost_element(
             element_in=create_schema,
             actor_id=mock_admin_user.user_id,
             branch="change-order-1",
@@ -532,7 +532,7 @@ class TestBranchIsolation:
         from app.models.schemas.schedule_baseline import ScheduleBaselineUpdate
 
         now = datetime.utcnow()
-        _ = await baseline_service.update(
+        _ = await baseline_service.update_schedule_baseline(
             root_id=baseline_co.schedule_baseline_id,
             baseline_in=ScheduleBaselineUpdate(
                 name="Branch Baseline",

@@ -26,3 +26,6 @@ export { ChangeOrderList } from "./ChangeOrderList";
 
 // Impact analysis components
 export { ForecastImpactList } from "./ForecastImpactList";
+export { SideBySideDiff } from "./SideBySideDiff";
+export { type SideBySideDiffProps } from "./SideBySideDiff";
+export { HierarchicalDiffView } from "./HierarchicalDiffView";

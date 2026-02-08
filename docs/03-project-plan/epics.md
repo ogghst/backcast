@@ -115,7 +115,7 @@
 - **E06-U01:** Create change orders ✅
 - **E06-U02:** Automatic branch creation for change orders (`co-{id}`) ✅
 - **E06-U03:** Modify entities in branch (isolated from main) 🔄
-- **E06-U04:** Compare branch to main (impact analysis) ⏳
+- **E06-U04:** Compare branch to main (impact analysis) ✅
 - **E06-U05:** Merge approved change orders ⏳
 - **E06-U06:** Lock/unlock branches ⏳
 - **E06-U07:** Merged view showing main + branch changes ✅
@@ -124,7 +124,7 @@
 **Implementation Details:**
 - **Phase 1 Complete (2026-01-12):** Change Order creation, auto-branch creation, BranchableSoftDeleteCommand
 - **Phase 2 In Progress:** In-branch editing, workflow states (DRAFT/SUBMITTED/APPROVED/REJECTED)
-- **Phase 3 Pending:** Impact analysis, branch comparison
+- **Phase 3 Complete (2026-02-07):** Impact analysis, branch comparison, side-by-side diff, hierarchical diff view
 - **Phase 4 Pending:** Merge workflows, approval processes
 
 **Key Features:**
@@ -133,6 +133,9 @@
 - Branch selector implemented
 - Branch mode with fallback (STRICT/MERGE) for preview
 - Extended WBE and CostElement to BranchableService
+- Side-by-side diff component for entity property comparison
+- Hierarchical diff view (Project → WBE → Cost Elements tree)
+- Dedicated impact analysis route at `/projects/:projectId/change-orders/:id/impact`
 
 **Completed:** Phase 1 (2026-01-12)
 

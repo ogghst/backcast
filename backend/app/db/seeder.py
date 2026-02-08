@@ -12,6 +12,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.seed_context import seed_operation
+from app.models.schemas.change_order import ChangeOrderUpdate
 from app.models.schemas.department import DepartmentCreate
 from app.models.schemas.user import UserRegister
 
@@ -349,7 +350,7 @@ class DataSeeder:
                         item["branch"] = "main"
 
                     ce_in = CostElementCreate(**item)
-                    await ce_service.create(ce_in, actor_id)
+                    await ce_service.create_cost_element(ce_in, actor_id)
                     created_count += 1
                     logger.info(f"Created Cost Element: {ce_in.code}")
 
@@ -394,7 +395,7 @@ class DataSeeder:
                         item["branch"] = "main"
 
                     cr_in = CostRegistrationCreate(**item)
-                    await cr_service.create(cr_in, actor_id)
+                    await cr_service.create_cost_registration(cr_in, actor_id)
                     created_count += 1
                     logger.info(f"Created Cost Registration: {cr_in.amount}")
 
@@ -441,7 +442,7 @@ class DataSeeder:
                         item["branch"] = "main"
 
                     pe_in = ProgressEntryCreate(**item)
-                    await pe_service.create(pe_in, actor_id)
+                    await pe_service.create_progress_entry(pe_in, actor_id)
                     created_count += 1
                     logger.info(
                         f"Created Progress Entry: {pe_in.progress_percentage}%"
@@ -526,7 +527,28 @@ class DataSeeder:
                                 )
                                 logger.info(f"  → Submitted for approval: {co_in.code}")
 
-                            # For Approved status (need to submit first)
+                            # For Under Review status (need to submit first)
+                            elif "Under Review" in target_status:
+                                # First submit
+                                await co_service.submit_for_approval(
+                                    change_order_id=created_co.change_order_id,
+                                    actor_id=actor_id,
+                                    branch="main",  # ChangeOrder entity lives on main
+                                    comment="Auto-submit for seeding",
+                                )
+
+                                # Then transition to Under Review by updating status
+                                # Note: This is a direct status update for seeding purposes
+                                under_review_update = ChangeOrderUpdate(status="Under Review")
+                                await co_service.update_change_order(
+                                    change_order_id=created_co.change_order_id,
+                                    change_order_in=under_review_update,
+                                    actor_id=actor_id,
+                                    branch="main",
+                                )
+                                logger.info(f"  → Under Review: {co_in.code}")
+
+                            # For Approved status (need to submit → under review → approve)
                             elif "Approved" in target_status:
                                 # First submit
                                 await co_service.submit_for_approval(
@@ -534,6 +556,15 @@ class DataSeeder:
                                     actor_id=actor_id,
                                     branch="main",  # ChangeOrder entity lives on main
                                     comment="Auto-submit for seeding",
+                                )
+
+                                # Then transition to Under Review
+                                under_review_update = ChangeOrderUpdate(status="Under Review")
+                                await co_service.update_change_order(
+                                    change_order_id=created_co.change_order_id,
+                                    change_order_in=under_review_update,
+                                    actor_id=actor_id,
+                                    branch="main",
                                 )
 
                                 # Then approve
@@ -546,7 +577,7 @@ class DataSeeder:
                                 )
                                 logger.info(f"  → Approved: {co_in.code}")
 
-                            # For Rejected status (need to submit first)
+                            # For Rejected status (need to submit → under review → reject)
                             elif "Rejected" in target_status:
                                 # First submit
                                 await co_service.submit_for_approval(
@@ -554,6 +585,15 @@ class DataSeeder:
                                     actor_id=actor_id,
                                     branch="main",  # ChangeOrder entity lives on main
                                     comment="Auto-submit for seeding",
+                                )
+
+                                # Then transition to Under Review
+                                under_review_update = ChangeOrderUpdate(status="Under Review")
+                                await co_service.update_change_order(
+                                    change_order_id=created_co.change_order_id,
+                                    change_order_in=under_review_update,
+                                    actor_id=actor_id,
+                                    branch="main",
                                 )
 
                                 # Then reject

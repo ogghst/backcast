@@ -270,3 +270,54 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
 
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def get_latest_progress_for_cost_elements(
+        self,
+        cost_element_ids: list[UUID],
+        as_of: datetime | None = None,
+    ) -> dict[UUID, ProgressEntry]:
+        """Get latest progress entry for multiple cost elements efficiently.
+
+        Args:
+            cost_element_ids: List of cost element UUIDs
+            as_of: Optional timestamp for historical query (time-travel)
+
+        Returns:
+            Dictionary mapping cost_element_id to latest ProgressEntry
+        """
+        if not cost_element_ids:
+            return {}
+
+        from sqlalchemy import func
+
+        stmt = (
+            select(ProgressEntry)
+            .distinct(ProgressEntry.cost_element_id)
+            .where(
+                ProgressEntry.cost_element_id.in_(cost_element_ids)
+            )
+            .order_by(
+                ProgressEntry.cost_element_id,
+                func.lower(ProgressEntry.valid_time).desc()
+            )
+        )
+
+        # Apply time-travel filter
+        if as_of is not None:
+            # Time-travel query: apply standardized bitemporal filter
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            # Current versions only (open-ended valid_time and not deleted)
+            stmt = stmt.where(
+                func.upper(ProgressEntry.valid_time).is_(None),
+                ProgressEntry.deleted_at.is_(None),
+            )
+
+        result = await self.session.execute(stmt)
+        
+        progress_entries = {}
+        for entry in result.scalars().all():
+            progress_entries[entry.cost_element_id] = entry
+            
+        return progress_entries
+

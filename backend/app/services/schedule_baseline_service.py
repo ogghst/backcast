@@ -447,3 +447,53 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         return select(ScheduleBaseline, ce_subq.c.cost_element_name).join(
             ce_subq, ScheduleBaseline.cost_element_id == ce_subq.c.cost_element_id
         )
+
+    async def get_baselines_for_cost_elements(
+        self,
+        cost_element_ids: list[UUID],
+        branch: str = "main",
+    ) -> dict[UUID, ScheduleBaseline]:
+        """Get schedule baselines for multiple cost elements efficiently.
+
+        Args:
+            cost_element_ids: List of cost element UUIDs
+            branch: Branch name (default: "main")
+
+        Returns:
+            Dictionary mapping cost_element_id to ScheduleBaseline
+        """
+        if not cost_element_ids:
+            return {}
+
+        # Query via CostElement.schedule_baseline_id to ensure we get the linked baseline
+        # We need to join CostElement to filter by cost_element_id and get the baseline_id
+        stmt = (
+            select(
+                CostElement.cost_element_id,
+                ScheduleBaseline
+            )
+            .join(
+                ScheduleBaseline,
+                CostElement.schedule_baseline_id == ScheduleBaseline.schedule_baseline_id
+            )
+            .where(
+                CostElement.cost_element_id.in_(cost_element_ids),
+                CostElement.branch == branch,
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+                ScheduleBaseline.branch == branch,
+                func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None),
+                cast(Any, ScheduleBaseline).deleted_at.is_(None),
+            )
+        )
+
+        result = await self.session.execute(stmt)
+        
+        # Map cost_element_id -> ScheduleBaseline
+        baselines = {}
+        for row in result.all():
+            ce_id, baseline = row
+            baselines[ce_id] = baseline
+            
+        return baselines
+

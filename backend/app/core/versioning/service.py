@@ -27,6 +27,16 @@ class TemporalService[TVersionable: VersionableProtocol]:
     - Update (creates new version)
     - Soft delete
 
+    Inheritance Note:
+        Subclasses (e.g., BranchService, WBEService) inherit all methods.
+        Key inherited methods:
+        - `soft_delete(entity_id, actor_id, control_date)` - Uses root_id (UUID)
+        - `get_current_version(root_id, branch)` - Returns active version
+        - `get_as_of(entity_id, as_of, branch)` - Time-travel query
+
+        When calling inherited methods, use the entity's root_id field
+        (e.g., branch_id, wbe_id), NOT composite keys like (name, project_id).
+
     Note: Temporal queries using TSTZRANGE operators need proper setup.
     Currently simplified for basic operations.
     """

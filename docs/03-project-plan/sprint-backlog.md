@@ -1,20 +1,20 @@
 # Current Iteration
 
-**Iteration:** FK Constraint Migration (Technical Debt)
+**Iteration:** Change Order Branch Archival (E06-U08)
 **Start Date:** 2026-02-07
-**Status:** 🏗️ **IN PLANNING**
+**Status:** 🏗️ **IN ANALYSIS**
 
 ---
 
 ## Goal
 
-Migrate all temporal entity foreign keys to reference stable Business Keys (e.g., `user_id`, `project_id`) instead of auto-generated Primary Keys (`id`) to ensure bitemporal data integrity.
+Implement the ability to archive (soft-delete) Change Order branches after they have been merged or rejected, decluttering the active branch list while preserving audit history.
 
 **Key Focus Areas:**
 
-1. **Audit**: Identify all PK-based FKs in temporal entities
-2. **Migration**: Create and test Alembic migrations for Option 1 (Preferred)
-3. **Standards**: Update coding standards and validation guidelines
+1. **Analysis**: Determine best approach for branch archival (Service vs API)
+2. **Implementation**: Add `archive_change_order_branch` to `ChangeOrderService`
+3. **Verification**: Test archival workflow and time-travel access
 
 ---
 
@@ -22,26 +22,27 @@ Migrate all temporal entity foreign keys to reference stable Business Keys (e.g.
 
 | Story                                           | Points | Priority | Status          | Dependencies     |
 | :---------------------------------------------- | :----- | :------- | :-------------- | :--------------- |
-| **[TD-001] Audit FKs in Temporal Entities**      | 3      | High     | 📅 To Do        | N/A              |
-| **[TD-002] Implement Option 1 Migration**       | 13     | High     | 📅 To Do        | TD-001           |
-| **[TD-003] Update Coding Standards**            | 2      | Medium   | 📅 To Do        | TD-002           |
+| **[E06-U08] Delete/Archive Branches**           | 3      | Critical | 🏗️ Analysis     | E06-U05 (Merged) |
 
-**Total Estimated Effort:** 18 points
+**Total Estimated Effort:** 3 points
 
 ---
 
 ## Success Criteria
 
-- [ ] All temporal entities use business key FKs
-- [ ] Migration script tested and validated
-- [ ] Coding standards updated in documentation
-- [ ] No data loss or corruption during migration
+- [ ] `archive_change_order_branch` method implemented
+- [ ] Integration test simulates full lifecycle (Create -> Merge -> Archive)
+- [ ] Archived branches hidden from `get_branches`
+- [ ] Archived branches visible in `get_branches_as_of` (time-travel)
 
 ---
 
 ## Iteration Records
 
 ### Recent Completed Iterations
+
+- **FK Constraint Migration (Technical Debt) (2026-02-07):** ⏸️ Paused/Planned
+  - Initial planning started but context switched to Epic 6 Critical path.
 
 - **Backend RSC Compliance (2026-02-07):** ✅ Complete
   - Refactored `ChangeOrderService` audit logging

@@ -18,6 +18,24 @@ class BranchService(TemporalService[Branch]):  # type: ignore[type-var]
     - Locking branches (prevent writes)
     - Unlocking branches (allow writes)
     - Retrieving branches by composite key (name, project_id)
+
+    Inherited from TemporalService:
+        - `soft_delete(entity_id, actor_id, control_date)` - Soft-delete branch
+          Note: Uses branch_id (UUID), not (name, project_id)
+        - `get_current_version(root_id, branch)` - Get active version
+        - `get_as_of(entity_id, as_of, branch)` - Time-travel query
+        - `create(actor_id, **fields)` - Create new branch
+        - `update(entity_id, actor_id, **updates)` - Update branch
+
+    Example:
+        ```python
+        # Soft-delete a branch
+        branch = await branch_service.get_by_name_and_project("co-001", project_id)
+        await branch_service.soft_delete(
+            entity_id=branch.branch_id,  # Use branch_id, not name!
+            actor_id=actor_id
+        )
+        ```
     """
 
     def __init__(self, session: AsyncSession) -> None:

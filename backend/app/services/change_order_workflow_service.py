@@ -45,7 +45,7 @@ class ChangeOrderWorkflowService:
     # Define valid transitions
     _TRANSITIONS: dict[str, list[str]] = {
         "Draft": ["Submitted for Approval"],
-        "Submitted for Approval": ["Under Review"],
+        "Submitted for Approval": ["Under Review", "Approved", "Rejected"],
         "Under Review": ["Approved", "Rejected"],
         "Rejected": ["Submitted for Approval"],
         "Approved": ["Implemented"],
@@ -296,10 +296,10 @@ class ChangeOrderWorkflowService:
             raise ValueError(f"Change order {change_order_id} not found")
 
         # Validate current status is "Submitted for Approval"
-        if current_co.status != "Submitted for Approval":
+        if current_co.status not in ["Submitted for Approval", "Under Review"]:
             raise ValueError(
                 f"Cannot approve change order in status '{current_co.status}'. "
-                "Only change orders in 'Submitted for Approval' status can be approved."
+                "Only change orders in 'Submitted for Approval' or 'Under Review' status can be approved."
             )
 
         # Get actor (approver) user object
@@ -417,10 +417,10 @@ class ChangeOrderWorkflowService:
             raise ValueError(f"Change order {change_order_id} not found")
 
         # Validate current status is "Submitted for Approval"
-        if current_co.status != "Submitted for Approval":
+        if current_co.status not in ["Submitted for Approval", "Under Review"]:
             raise ValueError(
                 f"Cannot reject change order in status '{current_co.status}'. "
-                "Only change orders in 'Submitted for Approval' status can be rejected."
+                "Only change orders in 'Submitted for Approval' or 'Under Review' status can be rejected."
             )
 
         # Get actor (approver) user object

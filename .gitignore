@@ -50,3 +50,5 @@ coverage.xml
 frontend/playwright-report/index.html
 test-results
 backend/logs
+.mypy_cache
+.pytest_cache

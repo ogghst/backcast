@@ -71,7 +71,11 @@ class ImpactAnalysisService:
         self._evm_service = EVMService(db_session)
 
     async def analyze_impact(
-        self, change_order_id: UUID, branch_name: str, timeout_seconds: int = 300
+        self,
+        change_order_id: UUID,
+        branch_name: str,
+        timeout_seconds: int = 300,
+        include_evm_metrics: bool = True,
     ) -> ImpactAnalysisResponse:
         """Analyze impact of a change order by comparing branches.
 
@@ -94,6 +98,7 @@ class ImpactAnalysisService:
             change_order_id: UUID of the change order
             branch_name: Name of the change branch (e.g., "co-CO-2026-001")
             timeout_seconds: Timeout in seconds (default: 300 = 5 minutes)
+            include_evm_metrics: Whether to include expensive EVM metrics (CPI, SPI, etc.)
 
         Returns:
             ImpactAnalysisResponse with complete comparison data
@@ -127,7 +132,9 @@ class ImpactAnalysisService:
         try:
             # Create analysis task with timeout
             analysis_task = asyncio.create_task(
-                self._perform_analysis(change_order_id, branch_name)
+                self._perform_analysis(
+                    change_order_id, branch_name, include_evm_metrics
+                )
             )
 
             # Wait with timeout
@@ -162,7 +169,10 @@ class ImpactAnalysisService:
             raise
 
     async def _perform_analysis(
-        self, change_order_id: UUID, branch_name: str
+        self,
+        change_order_id: UUID,
+        branch_name: str,
+        include_evm_metrics: bool = True,
     ) -> ImpactAnalysisResponse:
         """Perform the actual impact analysis.
 
@@ -172,6 +182,7 @@ class ImpactAnalysisService:
         Args:
             change_order_id: UUID of the change order
             branch_name: Name of the change branch (e.g., "co-CO-2026-001")
+            include_evm_metrics: Whether to include expensive EVM metrics
 
         Returns:
             ImpactAnalysisResponse with complete comparison data
@@ -296,15 +307,23 @@ class ImpactAnalysisService:
         kpi_scorecard.schedule_duration = schedule_comparison["schedule_duration"]
 
         # Phase 5: Compare EVM metrics
-        evm_comparison = await self._fetch_and_compare_evm_metrics(
-            project_id=project_id,
-            branch_name=branch_name,
-        )
-        kpi_scorecard.cpi = evm_comparison["cpi"]
-        kpi_scorecard.spi = evm_comparison["spi"]
-        kpi_scorecard.tcpi = evm_comparison["tcpi"]
-        kpi_scorecard.eac = evm_comparison["eac"]
-        kpi_scorecard.vac = evm_comparison["vac"]
+        if include_evm_metrics:
+            evm_comparison = await self._fetch_and_compare_evm_metrics(
+                project_id=project_id,
+                branch_name=branch_name,
+            )
+            kpi_scorecard.cpi = evm_comparison["cpi"]
+            kpi_scorecard.spi = evm_comparison["spi"]
+            kpi_scorecard.tcpi = evm_comparison["tcpi"]
+            kpi_scorecard.eac = evm_comparison["eac"]
+            kpi_scorecard.vac = evm_comparison["vac"]
+        else:
+            # Skip expensive calculation if not requested
+            kpi_scorecard.cpi = None
+            kpi_scorecard.spi = None
+            kpi_scorecard.tcpi = None
+            kpi_scorecard.eac = None
+            kpi_scorecard.vac = None
 
         # Compare entities
         entity_changes = await self._compare_entities(project_id, branch_name)

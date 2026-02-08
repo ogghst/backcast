@@ -481,4 +481,49 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
                 "cumulative_amount": float(cumulative_amount),
             })
 
+
         return cumulative_costs
+
+    async def get_totals_for_cost_elements(
+        self,
+        cost_element_ids: list[UUID],
+        as_of: datetime | None = None,
+    ) -> dict[UUID, Decimal]:
+        """Calculate total costs for multiple cost elements efficiently.
+
+        Args:
+            cost_element_ids: List of cost element UUIDs
+            as_of: Optional timestamp for historical query (time-travel)
+
+        Returns:
+            Dictionary mapping cost_element_id to total cost (Decimal)
+        """
+        if not cost_element_ids:
+            return {}
+
+        stmt = (
+            select(
+                CostRegistration.cost_element_id,
+                func.sum(CostRegistration.amount).label("total")
+            )
+            .where(
+                CostRegistration.cost_element_id.in_(cost_element_ids)
+            )
+            .group_by(CostRegistration.cost_element_id)
+        )
+
+        # Apply time-travel filter
+        if as_of is not None:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            stmt = stmt.where(func.upper(CostRegistration.valid_time).is_(None))
+            stmt = stmt.where(CostRegistration.deleted_at.is_(None))
+
+        result = await self.session.execute(stmt)
+        
+        totals = {id: Decimal("0.00") for id in cost_element_ids}
+        for row in result.all():
+            totals[row.cost_element_id] = row.total or Decimal("0.00")
+            
+        return totals
+
