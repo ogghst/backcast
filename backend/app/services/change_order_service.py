@@ -46,7 +46,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
     Key Features:
     - Workflow state management: Draft → Submitted → Approved → Implemented
     - Project-scoped: All COs belong to a specific project
-    - Automatic branch creation: Creates br-{code} branch on CO creation
+    - Automatic branch creation: Creates BR-{code} branch on CO creation
     - Workflow-driven locking: Status changes trigger branch lock/unlock
 
     Note: Change Orders use change_order_id (UUID) as the EVCS root identifier,
@@ -130,7 +130,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         This method:
         1. Creates the Change Order on the main branch
-        2. Creates a corresponding br-{code} branch in the SAME transaction
+        2. Creates a corresponding BR-{code} branch in the SAME transaction
         3. Returns the created Change Order (main branch version)
 
         Args:
@@ -157,7 +157,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         root_id = uuid4()
 
         # Generate branch name from code
-        branch_name = f"br-{code}"
+        branch_name = f"BR-{code}"
 
         # Set branch_name in the data
         co_data["branch_name"] = branch_name
@@ -694,7 +694,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             # But create_change_order creates on main AND branch. So it should be on main.
             raise ValueError("Change Order not found on target branch")
 
-        source_branch = f"br-{current.code}"
+        source_branch = f"BR-{current.code}"
 
         # Check if source branch has active version
         source_version = await self.get_current(change_order_id, branch=source_branch)
@@ -1250,7 +1250,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         Args:
             change_order: The ChangeOrder domain object (already created and committed)
-            branch_name: Name of the change order branch (e.g., "co-CO-2026-001")
+            branch_name: Name of the change order branch (e.g., "BR-CO-2026-001")
 
         Side effects:
             - Updates change_order.impact_analysis_status in database
@@ -1659,7 +1659,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         Only checks active (non-deleted) entities.
 
         Args:
-            source_branch: Source branch name (e.g., "co-123")
+            source_branch: Source branch name (e.g., "BR-123")
             target_branch: Target branch name (default: "main")
 
         Returns:

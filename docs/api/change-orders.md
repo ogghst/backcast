@@ -8,9 +8,10 @@
 
 ## Overview
 
-Change Orders (COs) manage project modifications through isolated branch workflows. Each CO has an associated `co-{code}` branch where changes are developed before merging to the main branch.
+Change Orders (COs) manage project modifications through isolated branch workflows. Each CO has an associated `BR-{code}` branch where changes are developed before merging to the main branch.
 
 **Key Features:**
+
 - **Branch Isolation:** Automatic branch creation for each CO
 - **Full Entity Merge:** Merges WBEs, CostElements, and the CO entity itself
 - **Workflow Tracking:** Status transitions (Draft → Submitted → Approved → Implemented)
@@ -41,6 +42,7 @@ Change Orders (COs) manage project modifications through isolated branch workflo
 ```
 
 **Status Values:**
+
 - `Draft` - Initial state, editable
 - `Submitted for Approval` - Pending review
 - `Approved` - Ready for merge
@@ -74,6 +76,7 @@ Retrieve paginated change orders for a project.
 **Response:** `PaginatedResponse[ChangeOrderPublic]`
 
 **Example:**
+
 ```bash
 GET /api/v1/change-orders?project_id=123e4567-e89b-12d3-a456-426614174000&page=1&per_page=20
 ```
@@ -87,6 +90,7 @@ GET /api/v1/change-orders?project_id=123e4567-e89b-12d3-a456-426614174000&page=1
 Create a new change order with automatic branch creation.
 
 **Request Body:**
+
 ```json
 {
   "code": "CO-2026-001",
@@ -100,11 +104,13 @@ Create a new change order with automatic branch creation.
 **Response:** `201 Created` + `ChangeOrderPublic`
 
 **Behavior:**
+
 1. Creates CO on `main` branch
-2. Automatically creates `co-{code}` branch
+2. Automatically creates `BR-{code}` branch
 3. Returns created CO with branch information
 
 **Example:**
+
 ```bash
 POST /api/v1/change-orders
 {
@@ -125,15 +131,18 @@ POST /api/v1/change-orders
 Retrieve a specific change order by UUID.
 
 **Path Parameters:**
+
 - `change_order_id` (UUID) - Root ID of the change order
 
 **Query Parameters:**
+
 - `branch` (string) - Branch name (default: "main")
 - `as_of` (datetime) - Time travel query
 
 **Response:** `200 OK` + `ChangeOrderPublic`
 
 **Example:**
+
 ```bash
 GET /api/v1/change-orders/123e4567-e89b-12d3-a456-426614174000
 ```
@@ -147,14 +156,17 @@ GET /api/v1/change-orders/123e4567-e89b-12d3-a456-426614174000
 Retrieve a change order by business code.
 
 **Path Parameters:**
+
 - `code` (string) - Business code (e.g., "CO-2026-001")
 
 **Query Parameters:**
+
 - `branch` (string) - Branch name (default: "main")
 
 **Response:** `200 OK` + `ChangeOrderPublic`
 
 **Example:**
+
 ```bash
 GET /api/v1/change-orders/by-code/CO-2026-001
 ```
@@ -168,31 +180,35 @@ GET /api/v1/change-orders/by-code/CO-2026-001
 Update change order metadata (creates new version).
 
 **Path Parameters:**
+
 - `change_order_id` (UUID) - Root ID of the change order
 
 **Request Body:**
+
 ```json
 {
   "title": "Updated Title",
   "description": "Updated description",
   "status": "Submitted for Approval",
-  "branch": "co-CO-2026-001"
+  "branch": "BR-CO-2026-001"
 }
 ```
 
 **Response:** `200 OK` + `ChangeOrderPublic`
 
 **Behavior:**
+
 - Creates new version on specified branch
 - Auto-forks from main if no version exists on target branch
 
 **Example:**
+
 ```bash
 PUT /api/v1/change-orders/123e4567-e89b-12d3-a456-426614174000
 {
   "title": "Updated Title",
   "status": "Approved",
-  "branch": "co-CO-2026-001"
+  "branch": "BR-CO-2026-001"
 }
 ```
 
@@ -205,14 +221,17 @@ PUT /api/v1/change-orders/123e4567-e89b-12d3-a456-426614174000
 Soft delete a change order (marks current version as deleted).
 
 **Path Parameters:**
+
 - `change_order_id` (UUID) - Root ID of the change order
 
 **Query Parameters:**
+
 - `control_date` (datetime) - Optional control date for deletion
 
 **Response:** `204 No Content`
 
 **Example:**
+
 ```bash
 DELETE /api/v1/change-orders/123e4567-e89b-12d3-a456-426614174000
 ```
@@ -226,15 +245,18 @@ DELETE /api/v1/change-orders/123e4567-e89b-12d3-a456-426614174000
 Get complete version history for a change order.
 
 **Path Parameters:**
+
 - `change_order_id` (UUID) - Root ID of the change order
 
 **Response:** `200 OK` + `list[ChangeOrderPublic]`
 
 **Behavior:**
+
 - Returns all versions across all branches
 - Shows complete audit trail
 
 **Example:**
+
 ```bash
 GET /api/v1/change-orders/123e4567-e89b-12d3-a456-426614174000/history
 ```
@@ -248,17 +270,20 @@ GET /api/v1/change-orders/123e4567-e89b-12d3-a456-426614174000/history
 Check for merge conflicts between source and target branches.
 
 **Path Parameters:**
+
 - `change_order_id` (UUID) - Root ID of the change order
 
 **Query Parameters:**
-- `source_branch` (string) - Source branch name (e.g., "co-CO-2026-001")
+
+- `source_branch` (string) - Source branch name (e.g., "BR-CO-2026-001")
 - `target_branch` (string) - Target branch name (default: "main")
 
 **Response:** `200 OK` + `list[dict]` (conflict details) or empty list
 
 **Example:**
+
 ```bash
-GET /api/v1/change-orders/123e4567-e89b-12d3-a456-426614174000/merge-conflicts?source_branch=co-CO-2026-001&target_branch=main
+GET /api/v1/change-orders/123e4567-e89b-12d3-a456-426614174000/merge-conflicts?source_branch=BR-CO-2026-001&target_branch=main
 ```
 
 ---
@@ -270,9 +295,11 @@ GET /api/v1/change-orders/123e4567-e89b-12d3-a456-426614174000/merge-conflicts?s
 Merge a Change Order's branch into the target branch.
 
 **Path Parameters:**
+
 - `change_order_id` (UUID) - Root ID of the change order
 
 **Request Body:**
+
 ```json
 {
   "target_branch": "main",
@@ -283,7 +310,8 @@ Merge a Change Order's branch into the target branch.
 **Response:** `200 OK` + `ChangeOrderPublic`
 
 **Behavior:**
-1. Infers source branch from CO code (e.g., `co-{code}`)
+
+1. Infers source branch from CO code (e.g., `BR-{code}`)
 2. Checks for merge conflicts (returns 409 if conflicts exist)
 3. Orchestrates full branch merge:
    - **WBEs:** All Work Breakdown Elements from source branch
@@ -293,12 +321,14 @@ Merge a Change Order's branch into the target branch.
 5. Stores merge comment in audit log (if provided)
 
 **Status Codes:**
+
 - `200 OK` - Merge successful
 - `404 Not Found` - Change Order not found
 - `409 Conflict` - Merge conflicts detected
 - `400 Bad Request` - Invalid request or locked branch
 
 **Example:**
+
 ```bash
 POST /api/v1/change-orders/123e4567-e89b-12d3-a456-426614174000/merge
 {
@@ -318,14 +348,17 @@ The enhanced merge orchestrates all branchable entities:
 | **ChangeOrder** | Merge CO entity and update status | `ChangeOrderService.merge_branch()` |
 
 **Soft-Delete Handling:**
+
 - Entities soft-deleted on source branch are soft-deleted on target
 - Maintains data integrity across branches
 
 **Transactional Integrity:**
+
 - All merges succeed or all fail (atomic operation)
 - Rollback on any error
 
 **Related Services:**
+
 - `EntityDiscoveryService` - Discovers all entities in source branch
 - `BranchableService` - Provides merge_branch capability for each entity
 - `ChangeOrderService` - Orchestrates the full merge workflow
@@ -339,14 +372,17 @@ The enhanced merge orchestrates all branchable entities:
 Revert a change order to its previous version.
 
 **Path Parameters:**
+
 - `change_order_id` (UUID) - Root ID of the change order
 
 **Query Parameters:**
+
 - `branch` (string) - Branch to revert on (default: "main")
 
 **Response:** `200 OK` + `ChangeOrderPublic`
 
 **Example:**
+
 ```bash
 POST /api/v1/change-orders/123e4567-e89b-12d3-a456-426614174000/revert?branch=main
 ```
@@ -360,22 +396,26 @@ POST /api/v1/change-orders/123e4567-e89b-12d3-a456-426614174000/revert?branch=ma
 Get impact analysis by comparing branches.
 
 **Path Parameters:**
+
 - `change_order_id` (UUID) - Root ID of the change order
 
 **Query Parameters:**
-- `branch_name` (string) - Branch to compare (e.g., "co-CO-2026-001")
+
+- `branch_name` (string) - Branch to compare (e.g., "BR-CO-2026-001")
 
 **Response:** `200 OK` + `ImpactAnalysisResponse`
 
 **Includes:**
+
 - KPI Scorecard (BAC, Budget Delta, Gross Margin)
 - Entity Changes (Added/Modified/Removed WBEs and CostElements)
 - Waterfall Chart (cost bridge visualization)
 - Time Series (weekly S-curve budget comparison)
 
 **Example:**
+
 ```bash
-GET /api/v1/change-orders/123e4567-e89b-12d3-a456-426614174000/impact?branch_name=co-CO-2026-001
+GET /api/v1/change-orders/123e4567-e89b-12d3-a456-426614174000/impact?branch_name=BR-CO-2026-001
 ```
 
 ---
@@ -449,6 +489,7 @@ All endpoints require specific permissions:
 ## Changelog
 
 ### 2026-01-26 - v1.0
+
 - **Enhanced Merge Behavior:** Merge endpoint now orchestrates ALL branch content (WBEs, CostElements, ChangeOrder)
 - **Entity Discovery:** Added `EntityDiscoveryService` for discovering entities in branches
 - **Soft-Delete Propagation:** Soft-deleted entities are properly merged to target branch
@@ -461,5 +502,6 @@ All endpoints require specific permissions:
 ## OpenAPI Specification
 
 Interactive API documentation available at:
+
 - **Swagger UI:** `http://localhost:8000/docs`
 - **OpenAPI JSON:** `http://localhost:8000/openapi.json`

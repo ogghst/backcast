@@ -102,7 +102,7 @@ class FinancialImpactService:
             raise ValueError(f"Change order {change_order_id} not found")
 
         project_id = change_order.project_id
-        branch_name = f"br-{change_order.code}"
+        branch_name = f"BR-{change_order.code}"
 
         # Calculate total budget from main branch
         main_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
@@ -201,7 +201,7 @@ class FinancialImpactService:
             raise ValueError(f"Change order {change_order_id} not found")
 
         project_id = change_order.project_id
-        branch_name = f"br-{change_order.code}"
+        branch_name = f"BR-{change_order.code}"
 
         # Calculate budgets
         main_budget_stmt = select(func.sum(WBE.budget_allocation)).where(

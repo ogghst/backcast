@@ -10,6 +10,7 @@
 ### Current State
 
 The change order edit experience currently involves:
+
 1. **Edit Modal** ([`ChangeOrderModal.tsx`](../../../frontend/src/features/change-orders/components/ChangeOrderModal.tsx)): Opens when clicking "Edit" button in the list
 2. **Workflow Modal** ([`ChangeOrderWorkflowModal.tsx`](../../../frontend/src/features/change-orders/components/ChangeOrderWorkflowModal.tsx)): Opens on row click, showing workflow stepper and action buttons
 3. **Impact Analysis Page** ([`ImpactAnalysisDashboard.tsx`](../../../frontend/src/features/change-orders/components/ImpactAnalysisDashboard.tsx)): Separate page at `/projects/:projectId/change-orders/:changeOrderId/impact`
@@ -17,6 +18,7 @@ The change order edit experience currently involves:
 ### User Intent
 
 The user wants to consolidate these into a **single unified page** that:
+
 - Handles both **create** and **edit** operations
 - Displays **all relevant information** in one view
 - Includes sections for:
@@ -74,6 +76,7 @@ The user wants to consolidate these into a **single unified page** that:
 **Workflow States:** Draft → Submitted → Approved/Rejected → Implemented
 
 **Key Business Requirements:**
+
 - Branch isolation for changes
 - Lock branch on submission
 - Impact analysis before approval
@@ -86,7 +89,7 @@ The user wants to consolidate these into a **single unified page** that:
 
 - **Context #7: Change Order Processing** ([01-bounded-contexts.md](../../../02-architecture/01-bounded-contexts.md#7-change-order-processing))
   - Branch creation, modification, comparison, merging
-  - Automatic branch creation (`co-{id}`)
+  - Automatic branch creation (`BR-{id}`)
   - Branch locking/unlocking
 
 - **Context F0: Core Architecture** (Frontend)
@@ -155,12 +158,14 @@ The user wants to consolidate these into a **single unified page** that:
 | [`BranchLockIndicator.tsx`](../../../frontend/src/features/change-orders/components/BranchLockIndicator.tsx) | Lock status | Use directly |
 
 **API Hooks:** [`frontend/src/features/change-orders/api/useChangeOrders.ts`](../../../frontend/src/features/change-orders/api/useChangeOrders.ts)
+
 - `useChangeOrder(id)` - Fetch single CO
 - `useCreateChangeOrder()` - Create mutation
 - `useUpdateChangeOrder()` - Update mutation
 - `useImpactAnalysis(id, branch)` - Impact data
 
 **Current Routing:** ([`frontend/src/routes/index.tsx`](../../../frontend/src/routes/index.tsx))
+
 ```tsx
 {
   path: "/projects/:projectId/change-orders/:changeOrderId/impact",
@@ -193,6 +198,7 @@ The user wants to consolidate these into a **single unified page** that:
   - URL params for tab navigation
 
 - **Data Flow:**
+
   ```
   Route Params (projectId, changeOrderId?)
     → useChangeOrder() hook
@@ -201,6 +207,7 @@ The user wants to consolidate these into a **single unified page** that:
   ```
 
 - **Routing:**
+
   ```tsx
   // Edit existing
   /projects/:projectId/change-orders/:changeOrderId
@@ -455,12 +462,14 @@ This decision is recorded and will guide the PLAN and DO phases.
 | [`routes/index.tsx`](../../../frontend/src/routes/index.tsx) | Current routing | Add detail routes |
 
 **Current Routes:**
+
 ```
 /projects/:projectId/change-orders                          → List page
 /projects/:projectId/change-orders/:changeOrderId/impact  → Impact page (only)
 ```
 
 **Proposed Routes (Option 2 - Selected):**
+
 ```
 /projects/:projectId/change-orders                          → List page (unchanged)
 /projects/:projectId/change-orders/new                     → Create new CO

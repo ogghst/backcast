@@ -92,7 +92,7 @@ export function ChangeOrderImpactAnalysisPage(): JSX.Element {
           </h1>
           <p style={{ color: "#8c8c8c", margin: 0 }}>
             Project: {project?.code || projectId}
-            {changeOrder && ` • Branch: co-${changeOrder.code}`}
+            {changeOrder && ` • Branch: BR-${changeOrder.code}`}
           </p>
         </div>
         <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>
@@ -104,7 +104,7 @@ export function ChangeOrderImpactAnalysisPage(): JSX.Element {
       {!isLoading && changeOrder && (
         <ImpactAnalysisDashboard
           changeOrderId={changeOrderId!}
-          branchName={`co-${changeOrder.code}`}
+          branchName={`BR-${changeOrder.code}`}
         />
       )}
     </div>

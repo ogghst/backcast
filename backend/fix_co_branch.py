@@ -25,7 +25,7 @@ async def fix_co_branch():
             print("Change Order CO-2026-001 not found")
             return
 
-        expected_branch = f"co-{co.code}"
+        expected_branch = f"BR-{co.code}"
         print(f"Creating branch: {expected_branch}")
         print(f"Project ID: {co.project_id}")
 

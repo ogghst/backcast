@@ -10,6 +10,7 @@
 The EVM (Earned Value Management) API provides generic endpoints for calculating and retrieving EVM metrics across multiple entity types: **Cost Elements**, **WBEs** (Work Breakdown Elements), and **Projects**.
 
 All endpoints support:
+
 - **Time-travel queries** via `control_date` parameter
 - **Branch isolation** via `branch` and `branch_mode` parameters
 - **Multi-entity aggregation** via batch endpoint
@@ -42,6 +43,7 @@ Authorization: Bearer <jwt_token>
 Get comprehensive EVM metrics for a single entity.
 
 **Endpoint:**
+
 ```http
 GET /api/v1/evm/{entity_type}/{entity_id}/metrics
 ```
@@ -125,6 +127,7 @@ curl -X GET "http://localhost:8020/api/v1/evm/cost_element/123e4567-e89b-12d3-a4
 Get historical EVM metrics as time-series data for charts.
 
 **Endpoint:**
+
 ```http
 GET /api/v1/evm/{entity_type}/{entity_id}/timeseries
 ```
@@ -229,6 +232,7 @@ curl -X GET "http://localhost:8020/api/v1/evm/cost_element/123e4567-e89b-12d3-a4
 Get aggregated EVM metrics for multiple entities.
 
 **Endpoint:**
+
 ```http
 POST /api/v1/evm/batch
 ```
@@ -326,6 +330,7 @@ curl -X POST "http://localhost:8020/api/v1/evm/batch" \
 **Description:** Individual budget line items (leaf level)
 
 **Metrics Calculation:**
+
 - **BAC**: From `cost_element.budget_amount`
 - **PV**: From schedule baseline progression strategy
 - **AC**: Sum of cost registrations for this cost element
@@ -333,6 +338,7 @@ curl -X POST "http://localhost:8020/api/v1/evm/batch" \
 - **EAC, VAC, ETC**: From latest forecast
 
 **Aggregation:**
+
 - Single entity (no child aggregation)
 
 ### WBE (`wbe`)
@@ -340,15 +346,18 @@ curl -X POST "http://localhost:8020/api/v1/evm/batch" \
 **Description:** Work Breakdown Elements (groups of cost elements)
 
 **Metrics Calculation:**
+
 - Aggregates from all child cost elements
 - Uses hierarchical aggregation (sum + weighted avg)
 
 **Aggregation:**
+
 - Fetches all cost elements where `cost_element.wbe_id = wbe.id`
 - Calculates metrics for each child cost element
 - Aggregates using sum for amounts, weighted avg for indices
 
 **Date Range (Time-Series):**
+
 - Start: `min(child.baseline.start_date)`
 - End: `max(child.baseline.end_date)`
 
@@ -357,15 +366,18 @@ curl -X POST "http://localhost:8020/api/v1/evm/batch" \
 **Description:** Projects (groups of WBEs)
 
 **Metrics Calculation:**
+
 - Aggregates from all child WBEs
 - Uses hierarchical aggregation (sum + weighted avg)
 
 **Aggregation:**
+
 - Fetches all WBEs where `wbe.project_id = project.id`
 - Calculates WBE metrics (which aggregate from cost elements)
 - Aggregates WBE metrics using sum for amounts, weighted avg for indices
 
 **Date Range (Time-Series):**
+
 - Start: `project.start_date`
 - End: `max(project.target_end_date, control_date)`
 
@@ -400,10 +412,10 @@ GET /api/v1/evm/cost_element/{id}/metrics?control_date=2025-12-31T23:59:59Z
 GET /api/v1/evm/cost_element/{id}/metrics?branch=main
 
 # Get EVM for change order branch
-GET /api/v1/evm/cost_element/{id}/metrics?branch=co-001-feature-addition
+GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001-feature-addition
 
 # Get EVM for change order with strict mode (no fallback to parent)
-GET /api/v1/evm/cost_element/{id}/metrics?branch=co-001&branch_mode=strict
+GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001&branch_mode=strict
 ```
 
 ### Branch Modes
@@ -447,6 +459,7 @@ The following indexes optimize EVM queries:
 ### Common Error Responses
 
 **404 Not Found:**
+
 ```json
 {
   "detail": "Cost element with id '123e4567-e89b-12d3-a456-426614174000' not found"
@@ -454,6 +467,7 @@ The following indexes optimize EVM queries:
 ```
 
 **422 Validation Error:**
+
 ```json
 {
   "detail": [
@@ -467,6 +481,7 @@ The following indexes optimize EVM queries:
 ```
 
 **400 Bad Request (Batch):**
+
 ```json
 {
   "detail": "Invalid request body: entity_type must be one of: cost_element, wbe, project"
@@ -494,6 +509,7 @@ http://localhost:8020/docs
 ```
 
 The Swagger UI includes:
+
 - Interactive API testing
 - Request/response schemas
 - Authentication examples
@@ -513,6 +529,7 @@ The Swagger UI includes:
 ## Changelog
 
 ### 2026-01-22
+
 - Added generic EVM API endpoints (`/api/v1/evm/{entity_type}/{entity_id}/metrics`)
 - Added time-series endpoint (`/api/v1/evm/{entity_type}/{entity_id}/timeseries`)
 - Added batch endpoint (`POST /api/v1/evm/batch`)

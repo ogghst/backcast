@@ -18,13 +18,13 @@ async def check_co_branch():
 
         print(f"Found {len(cos)} change orders with code CO-2026-001")
         for co in cos:
-            expected_branch = f"co-{co.code}"
+            expected_branch = f"BR-{co.code}"
             print(f"\nChange Order:")
             print(f"  ID: {co.change_order_id}")
             print(f"  Code: {co.code}")
             print(f"  Branch: {co.branch}")
             print(f"  Expected branch name: {expected_branch}")
-            print(f"  Actual UUID-based branch: co-{co.change_order_id}")
+            print(f"  Actual UUID-based branch: BR-{co.change_order_id}")
 
 
 if __name__ == "__main__":

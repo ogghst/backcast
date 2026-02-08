@@ -29,11 +29,13 @@ Earned Value Management (EVM) is a project management methodology that integrate
 ### Interpretation Guidelines
 
 **Variances (CV, SV):**
+
 - **Positive**: Under budget / ahead of schedule
 - **Zero**: On budget / on schedule
 - **Negative**: Over budget / behind schedule
 
 **Performance Indices (CPI, SPI):**
+
 - **> 1.0**: Under budget / ahead of schedule
 - **= 1.0**: On budget / on schedule
 - **< 1.0**: Over budget / behind schedule
@@ -98,6 +100,7 @@ ev = bac × progress_percentage / 100
 **Endpoint:** `GET /api/v1/cost-elements/{cost_element_id}/evm`
 
 **Query Parameters:**
+
 - `control_date` (optional): Control date for time-travel query (ISO 8601)
 - `branch` (optional): Branch name (default: "main")
 
@@ -128,6 +131,7 @@ curl -X GET "http://localhost:8020/api/v1/cost-elements/{cost_element_id}/evm?co
 ```
 
 **Interpretation:**
+
 - Budget at Completion: $100,000
 - Planned Value: $25,000 (work scheduled to be complete)
 - Actual Cost: $30,000 (money spent to date)
@@ -156,6 +160,7 @@ GET /api/v1/cost-elements/{id}/evm?control_date=2025-12-31T23:59:59Z
 ```
 
 **Use Cases:**
+
 - Audit historical project performance
 - Compare current vs. past performance
 - Generate trend reports
@@ -170,10 +175,11 @@ Compare EVM metrics across change order branches:
 GET /api/v1/cost-elements/{id}/evm?branch=main
 
 # Get EVM for change order branch
-GET /api/v1/cost-elements/{id}/evm?branch=co-001-feature-addition
+GET /api/v1/cost-elements/{id}/evm?branch=BR-001-feature-addition
 ```
 
 **Use Cases:**
+
 - Compare baseline budget vs. change order budget
 - Analyze cost impact of proposed changes
 - Validate change order justifications
@@ -199,6 +205,7 @@ GET /api/v1/cost-elements/{id}/evm?branch=co-001-feature-addition
 ```
 
 **Validation Rules:**
+
 - `progress_percentage` must be between 0.00 and 100.00
 - `cost_element_id` must reference an existing cost element
 - `reported_by_user_id` must reference an existing user
@@ -218,6 +225,7 @@ Progress can be decreased (e.g., work undone), but requires justification in the
 ```
 
 **Best Practices:**
+
 - Always provide notes when decreasing progress
 - Document the reason for the decrease
 - Reference change orders or inspection reports if applicable
@@ -246,6 +254,7 @@ Progress can be decreased (e.g., work undone), but requires justification in the
 **Endpoint:** `GET /api/v1/progress-entries/cost-element/{cost_element_id}/history`
 
 **Query Parameters:**
+
 - `page` (optional): Page number (default: 1)
 - `per_page` (optional): Items per page (default: 20)
 
@@ -260,6 +269,7 @@ Progress can be decreased (e.g., work undone), but requires justification in the
 **Endpoint:** `GET /api/v1/cost-registrations/aggregated`
 
 **Query Parameters:**
+
 - `cost_element_id`: Cost Element ID to aggregate
 - `period`: Aggregation period (`daily`, `weekly`, `monthly`)
 - `start_date`: Start date (ISO 8601)
@@ -301,6 +311,7 @@ GET /api/v1/cost-registrations/aggregated?cost_element_id={id}&period=weekly&sta
 ```
 
 **Period Boundaries:**
+
 - **Daily**: 00:00:00 to 23:59:59 each day
 - **Weekly**: Monday 00:00:00 to Sunday 23:59:59 (ISO week standard)
 - **Monthly**: 1st 00:00:00 to last day 23:59:59
@@ -310,6 +321,7 @@ GET /api/v1/cost-registrations/aggregated?cost_element_id={id}&period=weekly&sta
 **Endpoint:** `GET /api/v1/cost-registrations/cumulative`
 
 **Query Parameters:**
+
 - `cost_element_id`: Cost Element ID
 - `start_date`: Start date (ISO 8601)
 - `end_date`: End date (ISO 8601, optional)
@@ -365,6 +377,7 @@ If no progress entry exists for a cost element, the EVM API returns:
 ```
 
 **Impact:**
+
 - EV = 0 (no earned value)
 - CV = -AC (all actual cost is variance)
 - CPI = 0 (zero cost efficiency)
@@ -428,7 +441,7 @@ Compare EVM metrics across change order branches:
 GET /api/v1/cost-elements/{id}/evm?branch=main
 
 # Change order branch
-GET /api/v1/cost-elements/{id}/evm?branch=co-001-feature-addition
+GET /api/v1/cost-elements/{id}/evm?branch=BR-001-feature-addition
 ```
 
 ### 4. Cost Trend Analysis

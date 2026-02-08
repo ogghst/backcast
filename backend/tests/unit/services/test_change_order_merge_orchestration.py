@@ -78,8 +78,8 @@ class TestChangeOrderMergeOrchestration:
 
             # Assert
             # discover_all_wbes is called once
-            mock_discovery.discover_all_wbes.assert_called_once_with("co-123")
-            mock_discovery.discover_all_cost_elements.assert_called_once_with("co-123")
+            mock_discovery.discover_all_wbes.assert_called_once_with("BR-123")
+            mock_discovery.discover_all_cost_elements.assert_called_once_with("BR-123")
 
     @pytest.mark.asyncio
     async def test_merge_iterates_wbes(self, db_session: AsyncSession):
@@ -158,14 +158,14 @@ class TestChangeOrderMergeOrchestration:
             mock_wbe_service.merge_branch.assert_any_call(
                 root_id=mock_wbe1.wbe_id,
                 actor_id=actor_id,
-                source_branch="co-456",
+                source_branch="BR-456",
                 target_branch=target_branch,
                 control_date=None,
             )
             mock_wbe_service.merge_branch.assert_any_call(
                 root_id=mock_wbe2.wbe_id,
                 actor_id=actor_id,
-                source_branch="co-456",
+                source_branch="BR-456",
                 target_branch=target_branch,
                 control_date=None,
             )
@@ -325,7 +325,7 @@ class TestChangeOrderMergeOrchestration:
                 "entity_type": "WBE",
                 "entity_id": str(uuid4()),
                 "field": "name",
-                "source_branch": "co-888",
+                "source_branch": "BR-888",
                 "target_branch": "main",
                 "source_value": "Updated Name",
                 "target_value": "Original Name",
@@ -345,4 +345,4 @@ class TestChangeOrderMergeOrchestration:
 
         # Verify the error contains the conflicts
         assert exc_info.value.conflicts == conflicts
-        service._detect_all_merge_conflicts.assert_called_once_with("co-888", "main")
+        service._detect_all_merge_conflicts.assert_called_once_with("BR-888", "main")

@@ -29,7 +29,7 @@ export const WBEModal = ({
   const { branch } = useTimeMachine();
 
   // Check if we're in a change order branch (revenue is only editable in CO branches)
-  const isChangeOrderBranch = branch.startsWith("co-");
+  const isChangeOrderBranch = branch.startsWith("BR-");
 
   useEffect(() => {
     if (open) {

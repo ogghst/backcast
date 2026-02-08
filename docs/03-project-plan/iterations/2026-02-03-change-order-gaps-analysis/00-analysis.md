@@ -16,7 +16,7 @@ The user requested a comprehensive PDCA analysis of the Change Order Management 
 
 1. **Change Order Processing (8.1)**
    - Support modifications to BOTH costs AND revenues
-   - Automatic branch creation (`co-{id}`)
+   - Automatic branch creation (`BR-{id}`)
    - Update WBE budgets, cost elements, AND revenue assignments
    - Maintain original baseline with clear impact tracking
 
@@ -50,12 +50,14 @@ The user requested a comprehensive PDCA analysis of the Change Order Management 
 ### Product Scope
 
 **Relevant User Stories:**
+
 - E06-U01: Create Change Orders ✅ Complete
 - E06-U02: Automatic Branch Creation ✅ Complete
 - E06-U05: Merge Approved Change Orders ✅ Complete
 - **E06-U06 to E06-U17:** NOT DEFINED (Approval Matrix, SLA, Notifications, Rollback)
 
 **Business Requirements:**
+
 - Project Controllers need governance over change order approvals
 - Approvers need SLA tracking to prevent delays
 - Stakeholders need notifications for state transitions
@@ -64,18 +66,21 @@ The user requested a comprehensive PDCA analysis of the Change Order Management 
 ### Architecture Context
 
 **Bounded Contexts Involved:**
+
 - Context 7: Change Order Processing (backend)
 - Context F2: Authentication & Authorization (RBAC)
 - Context 1: User Management (approvers, roles)
 - Context 8: EVM Calculations (impact analysis)
 
 **Existing Patterns:**
+
 - ChangeOrder model with BranchableMixin + VersionableMixin
 - ChangeOrderWorkflowService for state machine
 - ImpactAnalysisService for branch comparison
 - RBAC via `app/services/rbac.py`
 
 **Architectural Constraints:**
+
 - Must use EVCS temporal queries (TSTZRANGE)
 - Must respect branch locking mechanism
 - Must maintain audit trail via ChangeOrderAuditLog
@@ -85,22 +90,26 @@ The user requested a comprehensive PDCA analysis of the Change Order Management 
 **Backend:**
 
 **Existing Related APIs:**
+
 - `/backend/app/api/routes/change_orders.py` - CRUD + merge endpoints
 - `/backend/app/services/change_order_service.py` - Business logic
 - `/backend/app/services/change_order_workflow_service.py` - State machine
 - `/backend/app/services/impact_analysis_service.py` - Branch comparison
 
 **Data Models:**
+
 - `ChangeOrder` - Main entity (branchable, versionable)
 - `ChangeOrderAuditLog` - Audit trail for status transitions
 - `Branch` - Branch metadata with locked flag
 
 **Similar Patterns:**
+
 - User role enum: `Role = Enum("user", "project_manager", "admin")`
 - RBAC service: `has_permission(user, permission_name)`
 - State machine: `ChangeOrderWorkflowService` with valid transitions
 
 **Missing Infrastructure:**
+
 - No approval matrix service
 - No business day calculator
 - No notification service
@@ -110,15 +119,18 @@ The user requested a comprehensive PDCA analysis of the Change Order Management 
 **Frontend:**
 
 **Comparable Components:**
+
 - `ChangeOrderUnifiedPage.tsx` - Main change order UI
 - Workflow stepper component (Status: Draft → Submitted → Approved)
 - Impact analysis charts (waterfall, KPI scorecard)
 
 **State Management:**
+
 - TanStack Query for server state (`useChangeOrders`, `useImpactAnalysis`)
 - No notification store (missing)
 
 **Routing Structure:**
+
 - `/projects/:projectId/change-orders` - List page
 - `/projects/:projectId/change-orders/:id` - Detail page
 
@@ -133,6 +145,7 @@ The user requested a comprehensive PDCA analysis of the Change Order Management 
 Split implementation into 4 phases to manage risk and deliver value incrementally:
 
 **Phase 1: Approval Governance (P0) - 2-3 weeks**
+
 - Add financial impact calculation to ImpactAnalysisService
 - Add approval matrix service (impact level → approver role)
 - Add SLA deadline calculator (business days)
@@ -140,16 +153,19 @@ Split implementation into 4 phases to manage risk and deliver value incrementall
 - Create API endpoints for approve/reject
 
 **Phase 2: Revenue Modification (P1) - 1 week**
+
 - Add revenue delta to impact analysis
 - Allow revenue modifications in change order branches
 
 **Phase 3: Notification System (P1) - 2-3 weeks**
+
 - SMTP configuration (internal or SendGrid)
 - Notification service + email templates
 - In-app notification center UI
 - Daily digest job scheduler (APScheduler)
 
 **Phase 4: Automated Rollback (P2) - 1-2 weeks**
+
 - Rollback endpoint with 24-hour validation
 - Auto-create reversal change order
 - Rollback justification workflow
@@ -157,27 +173,32 @@ Split implementation into 4 phases to manage risk and deliver value incrementall
 **UX Design:**
 
 **Phase 1:**
+
 - Change Order detail page shows impact level badge (Low/Medium/High/Critical)
 - Approver assignment auto-calculated on submit
 - Approve/Reject buttons with authority check
 - SLA countdown timer (Days remaining: 3/15)
 
 **Phase 2:**
+
 - Impact analysis shows revenue delta alongside budget delta
 - Total profit impact (budget + revenue) displayed
 
 **Phase 3:**
+
 - Notification bell in header with unread count
 - Email notifications for state transitions
 - Daily digest email at 8:00 AM
 
 **Phase 4:**
+
 - Rollback button on implemented COs (<24 hours)
 - Rollback confirmation modal with justification
 
 **Implementation:**
 
 **Phase 1 Key Files:**
+
 ```
 backend/app/models/domain/change_order.py
   + financial_impact: Mapped[Decimal]
@@ -201,6 +222,7 @@ backend/app/api/routes/change_orders.py
 ```
 
 **Phase 3 Key Files:**
+
 ```
 backend/app/models/domain/notification.py
 backend/app/services/notification_service.py
@@ -272,6 +294,7 @@ Same UI, but workflow controlled by external engine.
 **Implementation:**
 
 **Key Infrastructure:**
+
 ```
 backend/app/workflow/
   + camunda_client.py
@@ -340,23 +363,28 @@ docker-compose.yml
 ## References
 
 ### Functional Requirements
+
 - `/docs/01-product-scope/functional-requirements.md` Section 8 (Change Order Management)
 
 ### Architecture
+
 - `/docs/02-architecture/01-bounded-contexts.md` Context 7 (Change Order Processing)
 - `/docs/02-architecture/backend/coding-standards.md`
 
 ### Current Implementation
+
 - `/backend/app/models/domain/change_order.py` - ChangeOrder model
 - `/backend/app/services/change_order_service.py` - CRUD + merge logic
 - `/backend/app/services/change_order_workflow_service.py` - State machine
 - `/backend/app/services/impact_analysis_service.py` - Impact comparison
 
 ### Project Plan
+
 - `/docs/03-project-plan/product-backlog.md` - E06 epic stories
 - `/docs/03-project-plan/sprint-backlog.md` - Current iteration
 
 ### Related Iterations
+
 - `/docs/03-project-plan/iterations/2026-01-11-change-orders-implementation/` - Original CO implementation
 
 ---

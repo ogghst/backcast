@@ -317,7 +317,7 @@ class TestWBERevenueAllocationValidation:
                 name="WBE Branch",
                 budget_allocation=Decimal("100000.00"),
                 revenue_allocation=Decimal("100000.00"),
-                branch="co-1",  # Different branch
+                branch="BR-1",  # Different branch
             ),
             user_id,
         )
@@ -331,7 +331,7 @@ class TestWBERevenueAllocationValidation:
         total_main = sum(w.revenue_allocation or Decimal("0") for w in wbes_main)
         assert total_main == Decimal("100000.00")
 
-        wbes_branch = await service.get_by_project(project.project_id, branch="co-1")
+        wbes_branch = await service.get_by_project(project.project_id, branch="BR-1")
         total_branch = sum(w.revenue_allocation or Decimal("0") for w in wbes_branch)
         assert total_branch == Decimal("100000.00")
 

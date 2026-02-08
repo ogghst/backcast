@@ -20,7 +20,7 @@ class Branch(EntityBase, VersionableMixin):
     """Branch entity for tracking branch metadata and lock state.
 
     Attributes:
-        name: Branch name (e.g., 'main' or 'co-CO-2026-001')
+        name: Branch name (e.g., 'main' or 'BR-CO-2026-001')
         project_id: Project this branch belongs to (references projects.project_id, not projects.id)
         branch_id: Unique identifier for the branch (independent of name/project)
         type: Branch type ('main' or 'change_order')

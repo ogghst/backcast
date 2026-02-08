@@ -288,7 +288,7 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
 
         Returns:
             List of BranchPublic objects, always including "main" plus any
-            change order branches (co-{code}) for this project.
+            change order branches (BR-{code}) for this project.
 
         Requires read permission.
         """
@@ -344,8 +344,8 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             change_order_id = None
 
             if branch_entity.type == "change_order":
-                # Extract code from branch name (e.g., "co-CO-2026-001" -> "CO-2026-001")
-                code = branch_entity.name.replace("co-", "", 1)
+                # Extract code from branch name (e.g., "BR-CO-2026-001" -> "CO-2026-001")
+                code = branch_entity.name.replace("BR-", "", 1)
 
                 # Get the current change order on main branch to get its status
                 co_stmt = select(ChangeOrder).where(

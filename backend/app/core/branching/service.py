@@ -678,7 +678,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
 
         Example:
             >>> branches = await service.list_branches(project_id)
-            >>> print(branches)  # ['main', 'co-123', 'co-456']
+            >>> print(branches)  # ['main', 'BR-123', 'BR-456']
         """
         root_field = self._get_root_field_name()
 
@@ -716,7 +716,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
 
         Args:
             root_id: Root entity ID
-            source_branch: Source branch name (e.g., "co-123")
+            source_branch: Source branch name (e.g., "BR-123")
             target_branch: Target branch name (default: "main")
 
         Returns:
@@ -864,7 +864,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
 
         Example:
             >>> comparison = await service.compare_branches(
-            ...     project_id, "main", "co-123"
+            ...     project_id, "main", "BR-123"
             ... )
             >>> print(comparison['branch_a'].name)
             >>> print(comparison['branch_b'].name)

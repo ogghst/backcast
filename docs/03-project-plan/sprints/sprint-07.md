@@ -8,7 +8,7 @@
 **Stories:**
 
 - [x] E06-U01: Create change orders
-- [x] E06-U02: Automatic branch creation for change orders (`co-{id}`)
+- [x] E06-U02: Automatic branch creation for change orders (`BR-{id}`)
 - [🔄] E06-U03: Modify entities in branch (isolated from main) - Phase 2
 - [ ] E06-U04: Compare branch to main (impact analysis) - Phase 3
 - [ ] E06-U05: Merge approved change orders - Phase 4
@@ -25,7 +25,7 @@
 
 **Features:**
 
-- Deep copy on branch creation (`co-{short_id}`)
+- Deep copy on branch creation (`BR-{short_id}`)
 - Branch comparison with financial impact analysis
 - Atomic merge operation
 - Branch locking mechanism
@@ -41,7 +41,7 @@
 
 - Change Order entity with full EVCS support
 - 7 API endpoints (GET /change-orders, POST /change-orders, GET /change-orders/{id}, PUT /change-orders/{id}, DELETE /change-orders/{id}, GET /change-orders/{id}/history, POST /change-orders/{id}/approve)
-- Automatic branch creation on CO creation (`co-{short_id}`)
+- Automatic branch creation on CO creation (`BR-{short_id}`)
 - BranchableSoftDeleteCommand for branch-aware deletion
 - Frontend components: ChangeOrderList, ChangeOrderModal
 - Extended WBE and CostElement to BranchableService

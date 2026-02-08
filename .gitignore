@@ -52,3 +52,4 @@ test-results
 backend/logs
 .mypy_cache
 .pytest_cache
+htmlcov/

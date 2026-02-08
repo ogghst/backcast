@@ -95,7 +95,7 @@ class ImpactAnalysisService:
 
         Args:
             change_order_id: UUID of the change order
-            branch_name: Name of the change branch (e.g., "co-CO-2026-001")
+            branch_name: Name of the change branch (e.g., "BR-CO-2026-001")
             branch_mode: MERGE (default) shows merged result, STRICT shows isolated comparison
             timeout_seconds: Timeout in seconds (default: 300 = 5 minutes)
             include_evm_metrics: Whether to include expensive EVM metrics (CPI, SPI, etc.)
@@ -182,7 +182,7 @@ class ImpactAnalysisService:
 
         Args:
             change_order_id: UUID of the change order
-            branch_name: Name of the change branch (e.g., "co-CO-2026-001")
+            branch_name: Name of the change branch (e.g., "BR-CO-2026-001")
             branch_mode: MERGE mode calculates merged values, STRICT mode calculates isolated values
             include_evm_metrics: Whether to include expensive EVM metrics
 
@@ -223,16 +223,6 @@ class ImpactAnalysisService:
         main_bac_result = await self._db.execute(main_bac_stmt)
         main_bac = main_bac_result.scalar() or Decimal("0")
 
-        # Calculate KPIs from change branch
-        change_bac_stmt = select(func.sum(WBE.budget_allocation)).where(
-            WBE.project_id == project_id,
-            WBE.branch == branch_name,
-            func.upper(cast(Any, WBE).valid_time).is_(None),
-            cast(Any, WBE).deleted_at.is_(None),
-        )
-        change_bac_result = await self._db.execute(change_bac_stmt)
-        change_bac = change_bac_result.scalar() or Decimal("0")
-
         # Calculate revenue from main branch
         main_revenue_stmt = select(func.sum(WBE.revenue_allocation)).where(
             WBE.project_id == project_id,
@@ -243,15 +233,50 @@ class ImpactAnalysisService:
         main_revenue_result = await self._db.execute(main_revenue_stmt)
         main_revenue = main_revenue_result.scalar() or Decimal("0")
 
-        # Calculate revenue from change branch
-        change_revenue_stmt = select(func.sum(WBE.revenue_allocation)).where(
+        # MERGE MODE: Calculate KPIs from merged view (main + branch overrides)
+        # Step 1: Get all main WBEs
+        main_wbes_stmt = select(WBE).where(
+            WBE.project_id == project_id,
+            WBE.branch == "main",
+            func.upper(cast(Any, WBE).valid_time).is_(None),
+            cast(Any, WBE).deleted_at.is_(None),
+        )
+        main_wbes_result = await self._db.execute(main_wbes_stmt)
+        main_wbes = {wbe.wbe_id: wbe for wbe in main_wbes_result.scalars().all()}
+
+        # Step 2: Get branch WBEs (overrides)
+        branch_wbes_stmt = select(WBE).where(
             WBE.project_id == project_id,
             WBE.branch == branch_name,
             func.upper(cast(Any, WBE).valid_time).is_(None),
             cast(Any, WBE).deleted_at.is_(None),
         )
-        change_revenue_result = await self._db.execute(change_revenue_stmt)
-        change_revenue = change_revenue_result.scalar() or Decimal("0")
+        branch_wbes_result = await self._db.execute(branch_wbes_stmt)
+        branch_wbes = {wbe.wbe_id: wbe for wbe in branch_wbes_result.scalars().all()}
+
+        # Step 3: Build merged view and calculate KPIs
+        merged_bac = Decimal("0")
+        merged_revenue = Decimal("0")
+
+        # Include all main WBEs, using branch override if exists
+        for wbe_id, main_wbe in main_wbes.items():
+            if wbe_id in branch_wbes:
+                # Use branch version (override)
+                merged_bac += branch_wbes[wbe_id].budget_allocation or Decimal("0")
+                merged_revenue += branch_wbes[wbe_id].revenue_allocation or Decimal("0")
+            else:
+                # Use main version (no override)
+                merged_bac += main_wbe.budget_allocation or Decimal("0")
+                merged_revenue += main_wbe.revenue_allocation or Decimal("0")
+
+        # Include WBEs that exist only on branch (new entities)
+        for wbe_id, branch_wbe in branch_wbes.items():
+            if wbe_id not in main_wbes:
+                merged_bac += branch_wbe.budget_allocation or Decimal("0")
+                merged_revenue += branch_wbe.revenue_allocation or Decimal("0")
+
+        change_bac = merged_bac
+        change_revenue = merged_revenue
 
         # For simplicity, budget_total = bac (total WBE budget allocation)
         main_budget_total = main_bac
@@ -431,11 +456,19 @@ class ImpactAnalysisService:
     async def _compare_entities(
         self, project_id: UUID, branch_name: str
     ) -> EntityChanges:
-        """Compare entities between main and change branch.
+        """Compare entities between main and merged (main + branch) view.
+
+        Uses MERGE mode semantics per temporal-query-reference.md:
+        - Main branch: All entities on "main"
+        - Merged view: Branch entities override main entities with same ID,
+          main entities without branch override remain as-is
+
+        This ensures "what-if" analysis shows the complete picture: base project
+        with change order modifications overlaid.
 
         Args:
             project_id: UUID of the project
-            branch_name: Name of the change branch (e.g., "co-CO-2026-001")
+            branch_name: Name of the change branch (e.g., "BR-CO-2026-001")
 
         Returns:
             EntityChanges with added/modified/removed WBEs and Cost Elements
@@ -452,10 +485,10 @@ class ImpactAnalysisService:
             .order_by(cast(Any, WBE).valid_time.desc())
         )
         main_wbes_result = await self._db.execute(main_wbes_stmt)
-        main_wbes = main_wbes_result.scalars().all()
+        main_wbes = list(main_wbes_result.scalars().all())
 
-        # Get current WBEs from change branch
-        change_wbes_stmt = (
+        # Get WBEs from change branch (branch-specific entities only)
+        branch_wbes_stmt = (
             select(WBE)
             .where(
                 WBE.project_id == project_id,
@@ -465,11 +498,30 @@ class ImpactAnalysisService:
             )
             .order_by(cast(Any, WBE).valid_time.desc())
         )
-        change_wbes_result = await self._db.execute(change_wbes_stmt)
-        change_wbes = change_wbes_result.scalars().all()
+        branch_wbes_result = await self._db.execute(branch_wbes_stmt)
+        branch_wbes = list(branch_wbes_result.scalars().all())
 
-        # Compare WBEs
-        wbe_changes = self._compare_wbe_lists(list(main_wbes), list(change_wbes))
+        # MERGE MODE: Build merged WBE view (branch overrides main)
+        main_wbe_map = {wbe.wbe_id: wbe for wbe in main_wbes}
+        branch_wbe_map = {wbe.wbe_id: wbe for wbe in branch_wbes}
+
+        # Merged view: start with main, overlay branch entities
+        merged_wbes: list[WBE] = []
+        for wbe_id, main_wbe in main_wbe_map.items():
+            if wbe_id in branch_wbe_map:
+                # Branch has override for this entity
+                merged_wbes.append(branch_wbe_map[wbe_id])
+            else:
+                # No branch override - use main (unchanged)
+                merged_wbes.append(main_wbe)
+
+        # Add any WBEs that exist only on branch (new entities)
+        for wbe_id, branch_wbe in branch_wbe_map.items():
+            if wbe_id not in main_wbe_map:
+                merged_wbes.append(branch_wbe)
+
+        # Compare WBEs: main vs merged view
+        wbe_changes = self._compare_wbe_lists(main_wbes, merged_wbes)
 
         # Get current Cost Elements from main branch
         main_ce_stmt = (
@@ -484,10 +536,10 @@ class ImpactAnalysisService:
             .order_by(cast(Any, CostElement).valid_time.desc())
         )
         main_ce_result = await self._db.execute(main_ce_stmt)
-        main_cost_elements = main_ce_result.scalars().all()
+        main_cost_elements = list(main_ce_result.scalars().all())
 
-        # Get current Cost Elements from change branch
-        change_ce_stmt = (
+        # Get Cost Elements from change branch (branch-specific only)
+        branch_ce_stmt = (
             select(CostElement)
             .join(WBE, CostElement.wbe_id == WBE.wbe_id)
             .where(
@@ -498,12 +550,27 @@ class ImpactAnalysisService:
             )
             .order_by(cast(Any, CostElement).valid_time.desc())
         )
-        change_ce_result = await self._db.execute(change_ce_stmt)
-        change_cost_elements = change_ce_result.scalars().all()
+        branch_ce_result = await self._db.execute(branch_ce_stmt)
+        branch_cost_elements = list(branch_ce_result.scalars().all())
 
-        # Compare Cost Elements
+        # MERGE MODE: Build merged CostElement view (branch overrides main)
+        main_ce_map = {ce.cost_element_id: ce for ce in main_cost_elements}
+        branch_ce_map = {ce.cost_element_id: ce for ce in branch_cost_elements}
+
+        merged_cost_elements: list[CostElement] = []
+        for ce_id, main_ce in main_ce_map.items():
+            if ce_id in branch_ce_map:
+                merged_cost_elements.append(branch_ce_map[ce_id])
+            else:
+                merged_cost_elements.append(main_ce)
+
+        for ce_id, branch_ce in branch_ce_map.items():
+            if ce_id not in main_ce_map:
+                merged_cost_elements.append(branch_ce)
+
+        # Compare Cost Elements: main vs merged view
         ce_changes = self._compare_cost_element_lists(
-            list(main_cost_elements), list(change_cost_elements)
+            main_cost_elements, merged_cost_elements
         )
 
         # Compare Cost Registrations (actual costs)
@@ -521,41 +588,139 @@ class ImpactAnalysisService:
             .order_by(CostRegistration.valid_time.desc())
         )
         main_cr_result = await self._db.execute(main_cr_stmt)
-        main_cost_registrations = main_cr_result.scalars().all()
+        main_cost_registrations = list(main_cr_result.scalars().all())
 
-        # Get current Cost Registrations from change branch
+        # Get Cost Registrations linked to branch CostElements
         # CRITICAL: Filter CostElement by branch because CostRegistration is NOT branchable
-        change_cr_stmt = (
+        branch_cr_stmt = (
             select(CostRegistration)
             .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
             .join(WBE, CostElement.wbe_id == WBE.wbe_id)
             .where(
                 WBE.project_id == project_id,
-                CostElement.branch == branch_name,  # STRICT: Only match change branch CostElements
+                CostElement.branch == branch_name,  # Branch-specific CostElements
                 CostRegistration.deleted_at.is_(None),
                 func.upper(CostRegistration.valid_time).is_(None),
             )
         )
-        # Note: CostRegistration is versionable but NOT branchable, so we filter by CostElement branch
-        # This ensures we compare costs as they apply to each branch's version of CostElements
-        change_cr_result = await self._db.execute(change_cr_stmt)
-        change_cost_registrations = change_cr_result.scalars().all()
+        branch_cr_result = await self._db.execute(branch_cr_stmt)
+        branch_cost_registrations = list(branch_cr_result.scalars().all())
 
-        # Compare Cost Registrations
+        # MERGE MODE: Build merged CostRegistration view
+        # Note: CostRegistration is NOT branchable - it's linked to CostElements
+        # We merge by looking at which CostElements are in the merged view
+        merged_ce_ids = {ce.cost_element_id for ce in merged_cost_elements}
+
+        # For CRs, we include:
+        # - CRs linked to main CostElements that are NOT overridden by branch
+        # - CRs linked to branch CostElements
+        main_cr_map = {cr.cost_registration_id: cr for cr in main_cost_registrations}
+        branch_cr_map = {cr.cost_registration_id: cr for cr in branch_cost_registrations}
+
+        merged_cost_registrations: list[CostRegistration] = []
+        # CRITICAL: Only include registrations linked to CostElements in the merged view
+        # This reflects MERGE mode semantics for actual costs
+        for cr_id, main_cr in main_cr_map.items():
+            if main_cr.cost_element_id in merged_ce_ids:
+                if cr_id in branch_cr_map:
+                    merged_cost_registrations.append(branch_cr_map[cr_id])
+                else:
+                    merged_cost_registrations.append(main_cr)
+
+        for cr_id, branch_cr in branch_cr_map.items():
+            if cr_id not in main_cr_map:
+                if branch_cr.cost_element_id in merged_ce_ids:
+                    merged_cost_registrations.append(branch_cr)
+
+        # Compare Cost Registrations: main vs merged view
         cr_changes = self._compare_cost_registration_lists(
-            list(main_cost_registrations), list(change_cost_registrations)
+            main_cost_registrations, merged_cost_registrations
+        )
+
+        # Aggregate cost deltas by WBE and Cost Element for enriched entity changes
+        # Map of root_id -> total cost delta
+        wbe_cost_deltas: dict[UUID, Decimal] = {}
+        ce_cost_deltas: dict[UUID, Decimal] = {}
+
+        for cr_change in cr_changes:
+            # We need to find the registration to get its WBE/CE links
+            # Searching for the change in our maps
+            # (In a real system, we'd do this more efficiently during collation)
+            cr_id = None
+            # Extract root_id from CR ID (reversing the shift)
+            # This is tricky since int(root_id.int >> 96) is lossy.
+            # Better: use the original maps we already have.
+            pass
+
+        # RE-IMPLEMENTING COLLATION: Build cost delta maps directly from CR lists
+        main_cr_map = {cr.cost_registration_id: cr for cr in main_cost_registrations}
+        merged_cr_map = {cr.cost_registration_id: cr for cr in merged_cost_registrations}
+        all_cr_ids = set(main_cr_map.keys()) | set(merged_cr_map.keys())
+
+        for cr_id in all_cr_ids:
+            main_cr = main_cr_map.get(cr_id)
+            merged_cr = merged_cr_map.get(cr_id)
+            
+            delta = Decimal("0")
+            ref_cr = None
+
+            if main_cr is None:
+                # Added in branch
+                delta = merged_cr.amount  # type: ignore
+                ref_cr = merged_cr
+            elif merged_cr is None:
+                # Removed in branch
+                delta = -main_cr.amount
+                ref_cr = main_cr
+            else:
+                delta = merged_cr.amount - main_cr.amount
+                ref_cr = merged_cr
+
+            if delta != 0 and ref_cr:
+                # Link to CostElement
+                ce_id = ref_cr.cost_element_id
+                ce_cost_deltas[ce_id] = ce_cost_deltas.get(ce_id, Decimal("0")) + delta
+                
+                # We need to find the WBE for this CE to aggregate up
+                # Optimization: we have merged_cost_elements list
+                pass
+
+        # Map CE -> WBE for aggregation
+        ce_to_wbe_map: dict[UUID, UUID] = {}
+        for ce in merged_cost_elements:
+            ce_to_wbe_map[ce.cost_element_id] = ce.wbe_id
+        for ce in main_cost_elements:
+            if ce.cost_element_id not in ce_to_wbe_map:
+                ce_to_wbe_map[ce.cost_element_id] = ce.wbe_id
+
+        # Aggregate CE cost deltas into WBE cost deltas
+        for ce_id, delta in ce_cost_deltas.items():
+            wbe_id = ce_to_wbe_map.get(ce_id)
+            if wbe_id:
+                wbe_cost_deltas[wbe_id] = wbe_cost_deltas.get(wbe_id, Decimal("0")) + delta
+
+        # Compare WBEs: main vs merged view with cost deltas
+        wbe_changes = self._compare_wbe_lists(main_wbes, merged_wbes, wbe_cost_deltas)
+
+        # Compare Cost Elements: main vs merged view with cost deltas
+        ce_changes = self._compare_cost_element_lists(
+            main_cost_elements, merged_cost_elements, ce_cost_deltas
         )
 
         return EntityChanges(wbes=wbe_changes, cost_elements=ce_changes, cost_registrations=cr_changes)
 
     def _compare_wbe_lists(
-        self, main_wbes: list[WBE], change_wbes: list[WBE]
+        self,
+        main_wbes: list[WBE],
+        change_wbes: list[WBE],
+        cost_deltas: dict[UUID, Decimal] | None = None,
     ) -> list[EntityChange]:
         """Compare two lists of WBEs and identify changes.
 
         Args:
             main_wbes: WBEs from main branch
-            change_wbes: WBEs from change branch
+            change_wbes: WBEs from change branch (merged view)
+            cost_deltas: Optional map of wbe_id -> aggregated cost delta
 
         Returns:
             List of EntityChange objects
@@ -566,24 +731,28 @@ class ImpactAnalysisService:
 
         changes: list[EntityChange] = []
         all_root_ids = set(main_wbe_map.keys()) | set(change_wbe_map.keys())
+        cost_deltas = cost_deltas or {}
 
         for root_id in all_root_ids:
             main_wbe = main_wbe_map.get(root_id)
             change_wbe = change_wbe_map.get(root_id)
+            cost_delta = cost_deltas.get(root_id)
 
             if main_wbe is None:
                 # Added in change branch
                 assert (
                     change_wbe is not None
                 )  # Logically: root_id in union but not in main
+                
+                # For added entities, we show the full value as the delta
                 changes.append(
                     EntityChange(
                         id=int(root_id.int >> 96),  # Simplified ID conversion
                         name=change_wbe.name,
                         change_type="added",
-                        budget_delta=None,
-                        revenue_delta=None,
-                        cost_delta=None,
+                        budget_delta=change_wbe.budget_allocation,
+                        revenue_delta=change_wbe.revenue_allocation,
+                        cost_delta=cost_delta,
                     )
                 )
             elif change_wbe is None:
@@ -596,7 +765,7 @@ class ImpactAnalysisService:
                         change_type="removed",
                         budget_delta=-main_wbe.budget_allocation,  # Negative impact
                         revenue_delta=-main_revenue,  # Negative revenue impact
-                        cost_delta=None,
+                        cost_delta=cost_delta,
                     )
                 )
             else:
@@ -606,7 +775,7 @@ class ImpactAnalysisService:
                 change_revenue = change_wbe.revenue_allocation or Decimal("0")
                 revenue_delta = change_revenue - main_revenue
 
-                if budget_delta != 0 or revenue_delta != 0:
+                if budget_delta != 0 or revenue_delta != 0 or cost_delta:
                     changes.append(
                         EntityChange(
                             id=int(root_id.int >> 96),
@@ -614,20 +783,24 @@ class ImpactAnalysisService:
                             change_type="modified",
                             budget_delta=budget_delta if budget_delta != 0 else None,
                             revenue_delta=revenue_delta if revenue_delta != 0 else None,
-                            cost_delta=None,
+                            cost_delta=cost_delta,
                         )
                     )
 
         return changes
 
     def _compare_cost_element_lists(
-        self, main_ces: list[CostElement], change_ces: list[CostElement]
+        self,
+        main_ces: list[CostElement],
+        change_ces: list[CostElement],
+        cost_deltas: dict[UUID, Decimal] | None = None,
     ) -> list[EntityChange]:
         """Compare two lists of Cost Elements and identify changes.
 
         Args:
             main_ces: Cost Elements from main branch
-            change_ces: Cost Elements from change branch
+            change_ces: Cost Elements from change branch (merged view)
+            cost_deltas: Optional map of cost_element_id -> aggregated cost delta
 
         Returns:
             List of EntityChange objects
@@ -638,24 +811,28 @@ class ImpactAnalysisService:
 
         changes: list[EntityChange] = []
         all_root_ids = set(main_ce_map.keys()) | set(change_ce_map.keys())
+        cost_deltas = cost_deltas or {}
 
         for root_id in all_root_ids:
             main_ce = main_ce_map.get(root_id)
             change_ce = change_ce_map.get(root_id)
+            cost_delta = cost_deltas.get(root_id)
 
             if main_ce is None:
                 # Added in change branch
                 assert (
                     change_ce is not None
                 )  # Logically: root_id in union but not in main
+                
+                # For added entities, show full value as delta
                 changes.append(
                     EntityChange(
                         id=int(root_id.int >> 96),
                         name=change_ce.name,
                         change_type="added",
-                        budget_delta=None,
+                        budget_delta=change_ce.budget_amount,
                         revenue_delta=None,
-                        cost_delta=None,
+                        cost_delta=cost_delta,
                     )
                 )
             elif change_ce is None:
@@ -667,21 +844,21 @@ class ImpactAnalysisService:
                         change_type="removed",
                         budget_delta=-main_ce.budget_amount,
                         revenue_delta=None,
-                        cost_delta=None,
+                        cost_delta=cost_delta,
                     )
                 )
             else:
                 # Exists in both - check for modifications
                 budget_delta = change_ce.budget_amount - main_ce.budget_amount
-                if budget_delta != 0:
+                if budget_delta != 0 or cost_delta:
                     changes.append(
                         EntityChange(
                             id=int(root_id.int >> 96),
                             name=change_ce.name,
                             change_type="modified",
-                            budget_delta=budget_delta,
+                            budget_delta=budget_delta if budget_delta != 0 else None,
                             revenue_delta=None,
-                            cost_delta=None,
+                            cost_delta=cost_delta,
                         )
                     )
 

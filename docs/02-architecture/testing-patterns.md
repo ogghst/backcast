@@ -211,11 +211,11 @@ entity = await service.get_current(entity_id)
 
 ```python
 # BAD - Assumes branch naming convention
-branch_name = "co-001"
+branch_name = "BR-001"
 
 # GOOD - Use service-returned value
 created_co = await service.create(...)
-branch_name = created_co.branch_name  # e.g., "co-CO-001"
+branch_name = created_co.branch_name  # e.g., "BR-CO-001"
 ```
 
 ---

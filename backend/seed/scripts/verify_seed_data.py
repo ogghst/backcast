@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from uuid import UUID
 
-SEED_DIR = Path(__file__).parent
+SEED_DIR = Path(__file__).parent.parent
 
 
 def load_json(filename: str) -> list[dict]:
@@ -200,12 +200,12 @@ def main():
     print("=" * 70)
 
     scenarios = [
-        ("CO-A", "br-CO-2026-001", "Scope Addition", 2, 5, 5),
-        ("CO-B", "br-CO-2026-002", "Scope Modification", 3, 3, 3),
-        ("CO-C", "br-CO-2026-006", "Scope Reduction", 2, 2, 2),
-        ("CO-D", "br-CO-2026-003", "Schedule Only", 0, 0, 5),
-        ("CO-E", "br-CO-2026-004", "Cost Reallocation", 0, 5, 0),
-        ("CO-F", "br-CO-2026-005", "Critical Addition", 5, 25, 25),
+        ("CO-A", "BR-CO-2026-001", "Scope Addition", 2, 5, 5),
+        ("CO-B", "BR-CO-2026-002", "Scope Modification", 3, 3, 3),
+        ("CO-C", "BR-CO-2026-006", "Scope Reduction", 2, 2, 2),
+        ("CO-D", "BR-CO-2026-003", "Schedule Only", 0, 0, 5),
+        ("CO-E", "BR-CO-2026-004", "Cost Reallocation", 0, 5, 0),
+        ("CO-F", "BR-CO-2026-005", "Critical Addition", 5, 25, 25),
     ]
 
     all_scenarios_valid = True

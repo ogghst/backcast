@@ -9,7 +9,7 @@ class BranchPublic(BaseModel):
     """Schema for a branch option."""
 
     branch_id: UUID | None = Field(None, description="Unique branch ID")
-    name: str = Field(..., description="Branch name (e.g. 'main' or 'co-CO-123')")
+    name: str = Field(..., description="Branch name (e.g. 'main' or 'BR-CO-123')")
     type: Literal["main", "change_order"] = Field(..., description="Type of branch")
     is_default: bool = Field(False, description="Whether this is the default branch")
     created_at: datetime | None = Field(None, description="When branch was created")

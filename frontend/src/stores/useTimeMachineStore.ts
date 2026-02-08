@@ -98,7 +98,7 @@ const DEFAULT_PROJECT_SETTINGS: ProjectTimeMachineSettings = {
  * selectTime(new Date('2026-01-15'));
  *
  * // Switch branch
- * selectBranch('co-001');
+ * selectBranch('BR-001');
  * ```
  */
 export const useTimeMachineStore = create<TimeMachineState>()(

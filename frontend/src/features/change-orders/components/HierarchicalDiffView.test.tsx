@@ -9,8 +9,8 @@ describe("HierarchicalDiffView", () => {
   });
 
   const mockImpactData: ImpactAnalysisResponse = {
-    change_order_id: "co-123",
-    branch_name: "co-CO-2026-001",
+    change_order_id: "BR-123",
+    branch_name: "BR-CO-2026-001",
     main_branch_name: "main",
     kpi_scorecard: {
       budget_variance: "0.00",

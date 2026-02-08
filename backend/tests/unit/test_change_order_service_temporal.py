@@ -53,7 +53,7 @@ async def test_create_change_order_temporal_branch_creation(db_session):
     assert co.valid_time.lower == control_date
 
     # Assert: Branch created correctly
-    branch_name = f"co-{co.code}"
+    branch_name = f"BR-{co.code}"
     branch_service = service.branch_service
 
     # Fetch branch using standard lookup (should find it as it's current)
@@ -94,7 +94,7 @@ async def test_change_order_workflow_locking_temporal(db_session):
     )
     co = await service.create_change_order(co_in, actor_id)
 
-    branch_name = f"co-{co.code}"
+    branch_name = f"BR-{co.code}"
 
     # Verify initial state
     branch_v1 = await service.branch_service.get_by_name_and_project(branch_name, project.project_id)

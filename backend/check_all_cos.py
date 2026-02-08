@@ -16,7 +16,7 @@ async def check_all_cos():
 
         print(f"Found {len(cos)} change orders:")
         for co in cos:
-            expected_branch = f"co-{co.code}"
+            expected_branch = f"BR-{co.code}"
             print(f"\n  Code: {co.code}")
             print(f"    ID: {co.change_order_id}")
             print(f"    Project ID: {co.project_id}")

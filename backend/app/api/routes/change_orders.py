@@ -91,7 +91,7 @@ async def read_change_orders(
     """Retrieve change orders for a project with pagination.
 
     Change Orders are always scoped to a specific project.
-    The auto-created branch for each CO is named `br-{code}`.
+    The auto-created branch for each CO is named `BR-{code}`.
 
     Requires read permission.
     """
@@ -161,7 +161,7 @@ async def create_change_order(
 
     This endpoint:
     1. Creates the Change Order on the main branch
-    2. Automatically creates a `br-{code}` branch for isolated work
+    2. Automatically creates a `BR-{code}` branch for isolated work
     3. Returns the created Change Order
 
     The auto-created branch allows changes to be developed in isolation
@@ -371,7 +371,7 @@ async def read_change_order_history(
 )
 async def get_merge_conflicts(
     change_order_id: UUID,
-    source_branch: str = Query(..., description="Source branch name (e.g., 'co-123')"),
+    source_branch: str = Query(..., description="Source branch name (e.g., 'BR-123')"),
     target_branch: str = Query(
         "main", description="Target branch name (default: 'main')"
     ),
@@ -411,7 +411,7 @@ async def merge_change_order(
 ) -> ChangeOrderPublic:
     """Merge a Change Order's branch into the target branch.
 
-    Infers the source branch from the Change Order code (e.g., `br-{code}`).
+    Infers the source branch from the Change Order code (e.g., `BR-{code}`).
 
     Checks for merge conflicts before proceeding. If conflicts exist,
     returns 409 with conflict details.
@@ -429,7 +429,7 @@ async def merge_change_order(
                 detail=f"Change Order {change_order_id} not found",
             )
 
-        source_branch = f"br-{current.code}"
+        source_branch = f"BR-{current.code}"
 
         # Check for conflicts
         conflicts = await service._detect_merge_conflicts(
@@ -528,7 +528,7 @@ async def revert_change_order(
 async def get_change_order_impact(
     change_order_id: UUID,
     branch_name: str = Query(
-        ..., description="Branch name to compare (e.g., 'br-CO-2026-001')"
+        ..., description="Branch name to compare (e.g., 'BR-CO-2026-001')"
     ),
     mode: str = Query(
         "merged",
@@ -775,7 +775,7 @@ async def get_change_order_approval_info(
         financial_impact = None
         financial_impact = None
         if co.impact_level:
-            branch_name = f"br-{co.code}"
+            branch_name = f"BR-{co.code}"
             impact_service = ImpactAnalysisService(service.session)
             # Optimization: Skip EVM metrics calculation as only financial delta is needed here
             impact_analysis = await impact_service.analyze_impact(

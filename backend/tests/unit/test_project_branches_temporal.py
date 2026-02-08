@@ -40,7 +40,7 @@ async def test_get_project_branches_temporal(db_session):
     # Branch 2 (CO) created later
     # We simulate temporal aspect by just creating it.
     branch_co = Branch(
-        name="co-CO-TEST-1",
+        name="BR-CO-TEST-1",
         type="change_order",
         project_id=project.project_id,
         created_by=user_id
@@ -73,11 +73,11 @@ async def test_get_project_branches_temporal(db_session):
     assert len(result_current) == 2
     names_current = {b.name for b in result_current}
     assert "main" in names_current
-    assert "co-CO-TEST-1" in names_current
+    assert "BR-CO-TEST-1" in names_current
 
     names_past = {b.name for b in result_past}
     assert "main" in names_past
-    assert "co-CO-TEST-1" not in names_past
+    assert "BR-CO-TEST-1" not in names_past
     # Depending on T1 vs t_before_co, main might be there.
     # If t_before_co < main.valid_time.lower, then empty?
     # But main was created before CO. So t_before_co should be >= main time?

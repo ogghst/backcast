@@ -9,11 +9,13 @@ This seed data demonstrates 6 different change order scenarios with complete bit
 ## Change Order Scenarios
 
 ### CO-2026-001: Scope Addition
-**Branch:** `co-a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d`
+
+**Branch:** `BR-a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d`
 **Status:** Draft
 **Impact:** MEDIUM
 
 **Changes:**
+
 - Adds 2 new L3 WBEs (secondary conveyor system)
 - Adds 5 new cost elements (LAB, MAT, EQP, SUB, TRV)
 - Adds 5 new schedule baselines
@@ -25,11 +27,13 @@ This seed data demonstrates 6 different change order scenarios with complete bit
 ---
 
 ### CO-2026-002: Scope Modification
-**Branch:** `co-b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e`
+
+**Branch:** `BR-b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e`
 **Status:** Submitted for Approval
 **Impact:** HIGH
 
 **Changes:**
+
 - Modifies 3 existing WBEs (safety upgrades)
 - Modifies 3 existing cost elements (+10% budget each)
 - Modifies 3 existing schedule baselines (extended +2 weeks)
@@ -41,11 +45,13 @@ This seed data demonstrates 6 different change order scenarios with complete bit
 ---
 
 ### CO-2026-006: Scope Reduction (REJECTED)
-**Branch:** `co-f6a7b8c9-d0e1-4f6a-3b4c-5d6e7f8a9b0c`
+
+**Branch:** `BR-f6a7b8c9-d0e1-4f6a-3b4c-5d6e7f8a9b0c`
 **Status:** Rejected
 **Impact:** HIGH
 
 **Changes:**
+
 - Soft-deletes 2 existing L3 WBEs
 - Soft-deletes 2 existing cost elements
 - Soft-deletes 2 existing schedule baselines
@@ -58,11 +64,13 @@ This seed data demonstrates 6 different change order scenarios with complete bit
 ---
 
 ### CO-2026-003: Schedule Adjustment Only
-**Branch:** `co-c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f`
+
+**Branch:** `BR-c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f`
 **Status:** Approved
 **Impact:** LOW
 
 **Changes:**
+
 - Modifies 5 existing schedule baselines only
 - Changes progression type: LINEAR → GAUSSIAN
 - No WBE or cost element changes
@@ -74,11 +82,13 @@ This seed data demonstrates 6 different change order scenarios with complete bit
 ---
 
 ### CO-2026-004: Cost Reallocation
-**Branch:** `co-d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a`
+
+**Branch:** `BR-d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a`
 **Status:** Draft
 **Impact:** MEDIUM
 
 **Changes:**
+
 - Modifies 5 existing cost elements only
 - LAB cost elements: +$20K × 2 = +$40K
 - MAT cost elements: -$13.33K × 3 = -$40K
@@ -91,11 +101,13 @@ This seed data demonstrates 6 different change order scenarios with complete bit
 ---
 
 ### CO-2026-005: Critical Scope Addition
-**Branch:** `co-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b`
+
+**Branch:** `BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b`
 **Status:** Submitted for Approval
 **Impact:** CRITICAL
 
 **Changes:**
+
 - Adds complete 5-WBE hierarchy (1 L1, 2 L2, 2 L3)
 - Adds 25 new cost elements (5 per WBE)
 - Adds 25 new schedule baselines
@@ -169,16 +181,16 @@ main branch (baseline)
   │   └─ branch: "main"
   │   └─ parent_id: null
   │
-  └─→ co-a1b2c3d4 branch (change order)
+  └─→ BR-a1b2c3d4 branch (change order)
       │
       ├─→ WBE-001 (version 2 - cloned)
       │   └─ valid_time: [2026-02-01, ∞)
-      │   └─ branch: "co-a1b2c3d4-..."
+      │   └─ branch: "BR-a1b2c3d4-..."
       │   └─ parent_id: <WBE-001 version 1 ID>
       │
       └─→ WBE-003 (version 1 - new)
           └─ valid_time: [2026-02-01, ∞)
-          └─ branch: "co-a1b2c3d4-..."
+          └─ branch: "BR-a1b2c3d4-..."
           └─ parent_id: null (new entity)
 ```
 
@@ -210,13 +222,13 @@ Migration: Inverted FK (cost_elements.schedule_baseline_id → schedule_baseline
 # Test: Budget delta between branches
 async def test_budget_impact_co_a():
     main_budget = await get_project_budget(project_id, branch="main")
-    co_budget = await get_project_budget(project_id, branch="co-a1b2c3d4-...")
+    co_budget = await get_project_budget(project_id, branch="BR-a1b2c3d4-...")
     assert co_budget - main_budget == 150000.00
 
 # Test: Timeline impact
 async def test_schedule_impact_co_f():
     main_end = await get_project_end_date(project_id, branch="main")
-    co_end = await get_project_end_date(project_id, branch="co-e5f6a7b8-...")
+    co_end = await get_project_end_date(project_id, branch="BR-e5f6a7b8-...")
     assert (co_end - main_end).days == 180  # 6 months
 ```
 
@@ -247,14 +259,14 @@ async def test_soft_delete_detection():
 # Test: Parent ID chain traversal
 async def test_version_chain():
     main_wbe = await get_wbe(wbe_id="...", branch="main")
-    co_wbe = await get_wbe(wbe_id="...", branch="co-b2c3d4e5-...")
+    co_wbe = await get_wbe(wbe_id="...", branch="BR-b2c3d4e5-...")
     assert co_wbe.parent_id == main_wbe.id
     assert co_wbe.wbe_id == main_wbe.wbe_id  # Same root ID
 
 # Test: Soft delete revert capability
 async def test_revert_soft_delete():
     # Soft delete on CO-C branch
-    await soft_delete_wbe(wbe_id, branch="co-f6a7b8c9-...")
+    await soft_delete_wbe(wbe_id, branch="BR-f6a7b8c9-...")
     # Verify main branch unaffected
     main_wbe = await get_wbe(wbe_id, branch="main")
     assert main_wbe.deleted_at is None
@@ -266,7 +278,7 @@ async def test_revert_soft_delete():
 # Test: Conflict detection
 async def test_merge_conflicts():
     conflicts = await detect_merge_conflicts(
-        source_branch="co-a1b2c3d4-...",
+        source_branch="BR-a1b2c3d4-...",
         target_branch="main"
     )
     # Should detect 2 new WBEs that need merging
@@ -276,7 +288,7 @@ async def test_merge_conflicts():
 async def test_merge_budget_reconciliation():
     current_budget = await get_project_budget(project_id, branch="main")
     merge_budget = await calculate_merge_impact(
-        source_branch="co-e5f6a7b8-...",
+        source_branch="BR-e5f6a7b8-...",
         target_branch="main"
     )
     assert merge_budget.delta == 375000.00
@@ -288,7 +300,7 @@ async def test_merge_budget_reconciliation():
 # Test: Progression type changes (CO-D)
 async def test_progression_type_change():
     main_baseline = await get_schedule_baseline(cost_element_id, branch="main")
-    co_baseline = await get_schedule_baseline(cost_element_id, branch="co-c3d4e5f6-...")
+    co_baseline = await get_schedule_baseline(cost_element_id, branch="BR-c3d4e5f6-...")
     assert main_baseline.progression_type == "LINEAR"
     assert co_baseline.progression_type == "GAUSSIAN"
     assert main_baseline.budget_amount == co_baseline.budget_amount  # Unchanged
@@ -372,7 +384,7 @@ main_budget = await service.get_budget(
 
 co_budget = await service.get_budget(
     project_id="877c4cba-b30e-54c1-b25d-c73fb364019d",
-    branch="co-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b"
+    branch="BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b"
 )
 
 print(f"Main Budget: ${main_budget:,.2f}")
@@ -383,6 +395,7 @@ print(f"Increase: ${co_budget - main_budget:,.2f}")
 ## Expected Test Results
 
 ### CO-A (Scope Addition)
+
 - Budget: +$150,000
 - Timeline: +90 days
 - New WBEs: 2
@@ -390,6 +403,7 @@ print(f"Increase: ${co_budget - main_budget:,.2f}")
 - New Schedule Baselines: 5
 
 ### CO-B (Scope Modification)
+
 - Budget: +$45,000
 - Timeline: +14 days
 - Modified WBEs: 3
@@ -397,6 +411,7 @@ print(f"Increase: ${co_budget - main_budget:,.2f}")
 - Modified Schedule Baselines: 3
 
 ### CO-C (Scope Reduction)
+
 - Budget: -$125,000
 - Timeline: -30 days
 - Soft-deleted WBEs: 2
@@ -405,12 +420,14 @@ print(f"Increase: ${co_budget - main_budget:,.2f}")
 - Status: REJECTED
 
 ### CO-D (Schedule Only)
+
 - Budget: $0
 - Timeline: 0 days
 - Modified Schedule Baselines: 5
 - Progression Type: LINEAR → GAUSSIAN
 
 ### CO-E (Cost Reallocation)
+
 - Budget: $0 (net)
 - Timeline: 0 days
 - Modified Cost Elements: 5
@@ -418,6 +435,7 @@ print(f"Increase: ${co_budget - main_budget:,.2f}")
 - MAT: -$40,000
 
 ### CO-F (Critical Addition)
+
 - Budget: +$375,000
 - Timeline: +180 days
 - New WBEs: 5

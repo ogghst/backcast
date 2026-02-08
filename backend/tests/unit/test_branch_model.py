@@ -26,7 +26,7 @@ async def test_branch_creation_with_composite_key(db_session):
 
     # Act: Create a branch
     branch = Branch(
-        name="co-CO-2026-001",
+        name="BR-CO-2026-001",
         project_id=project.project_id,
         type="change_order",
         locked=False,
@@ -36,7 +36,7 @@ async def test_branch_creation_with_composite_key(db_session):
     await db_session.flush()
 
     # Assert: Branch was created with expected values
-    assert branch.name == "co-CO-2026-001"
+    assert branch.name == "BR-CO-2026-001"
     assert branch.project_id == project.project_id
     assert branch.type == "change_order"
     assert branch.locked is False
@@ -88,7 +88,7 @@ async def test_branch_locked_can_be_toggled(db_session):
     await db_session.flush()
 
     branch = Branch(
-        name="co-CO-2026-003",
+        name="BR-CO-2026-003",
         project_id=project.project_id,
         type="change_order",
         locked=False,
@@ -128,7 +128,7 @@ async def test_branch_soft_delete(db_session):
     await db_session.flush()
 
     branch = Branch(
-        name="co-CO-2026-004",
+        name="BR-CO-2026-004",
         project_id=project.project_id,
         type="change_order",
         locked=False,

@@ -98,7 +98,7 @@ async def test_change_order_branch_visibility_future_control_date(
     branches = response.json()
 
     # 4. Verify Branch DOES NOT Exist (since it is in the future)
-    co_branch = next((b for b in branches if b["name"] == "co-CO-FUTURE-001"), None)
+    co_branch = next((b for b in branches if b["name"] == "BR-CO-FUTURE-001"), None)
     assert co_branch is None, "Future Change Order branch SHOULD NOT be visible by default"
 
     # 5. Get Project Branches (Time Travel to Future)
@@ -110,7 +110,7 @@ async def test_change_order_branch_visibility_future_control_date(
     branches_future = response_future.json()
 
     # 6. Verify Branch Exists in Future
-    co_branch_future = next((b for b in branches_future if b["name"] == "co-CO-FUTURE-001"), None)
+    co_branch_future = next((b for b in branches_future if b["name"] == "BR-CO-FUTURE-001"), None)
     assert co_branch_future is not None, "Future Change Order branch SHOULD be visible with time travel"
 
     # 7. Verify Change Order Status

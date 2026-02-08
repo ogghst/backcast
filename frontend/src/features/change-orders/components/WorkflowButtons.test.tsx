@@ -26,14 +26,14 @@ describe("WorkflowButtons", () => {
   let queryClient: QueryClient;
 
   const mockChangeOrder: ChangeOrderPublic = {
-    id: "co-123",
-    change_order_id: "co-123",
+    id: "BR-123",
+    change_order_id: "BR-123",
     code: "CO-001",
     title: "Test Change Order",
     status: "Draft",
     description: "Test description",
     project_id: "proj-123",
-    branch: "co-CO-001",
+    branch: "BR-CO-001",
     branch_locked: false,
     available_transitions: ["Submitted for Approval"],
     created_at: "2024-01-01T00:00:00Z",
@@ -179,7 +179,7 @@ describe("WorkflowButtons", () => {
 
       // Wait for modal to appear
       await waitFor(() => {
-        expect(screen.getByText(/Merge co-CO-001/i)).toBeInTheDocument();
+        expect(screen.getByText(/Merge BR-CO-001/i)).toBeInTheDocument();
       });
     });
 
@@ -191,7 +191,7 @@ describe("WorkflowButtons", () => {
           entity_type: "WBE",
           entity_id: "wbe-123",
           field: "budget",
-          source_branch: "co-CO-001",
+          source_branch: "BR-CO-001",
           target_branch: "main",
           source_value: "50000",
           target_value: "45000",

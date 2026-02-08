@@ -11,7 +11,7 @@ export type BranchPublic = {
      */
     branch_id?: (string | null);
     /**
-     * Branch name (e.g. 'main' or 'co-CO-123')
+     * Branch name (e.g. 'main' or 'BR-CO-123')
      */
     name: string;
     /**

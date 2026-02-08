@@ -27,6 +27,7 @@ def _compare_schedule_baselines(
 ```
 
 **Parameters:**
+
 - `main_start_date`: Schedule start date in main branch
 - `main_end_date`: Schedule end date in main branch
 - `main_duration`: Schedule duration in days (main branch)
@@ -37,6 +38,7 @@ def _compare_schedule_baselines(
 - `change_progression_type`: Progression type in change branch
 
 **Returns:** `ScheduleBaselineComparison` TypedDict
+
 ```python
 {
     "start_delta_days": int,        # Days difference (change - main)
@@ -49,6 +51,7 @@ def _compare_schedule_baselines(
 ```
 
 **Example:**
+
 ```python
 result = service._compare_schedule_baselines(
     main_start_date=datetime(2026, 1, 1, tzinfo=UTC),
@@ -86,6 +89,7 @@ def _compare_evm_metrics(
 ```
 
 **Parameters:**
+
 - `main_cpi`: Cost Performance Index in main branch (EV/AC)
 - `change_cpi`: Cost Performance Index in change branch
 - `main_spi`: Schedule Performance Index in main branch (EV/PV)
@@ -96,6 +100,7 @@ def _compare_evm_metrics(
 - `change_eac`: Estimate at Completion in change branch
 
 **Returns:** `EVMMetricsComparison` TypedDict
+
 ```python
 {
     "cpi_delta": Decimal,  # Cost Performance Index delta (change - main)
@@ -115,6 +120,7 @@ def _compare_evm_metrics(
 | **EAC** | BAC / CPI (forecast) | - | Estimate of final cost |
 
 **Example:**
+
 ```python
 result = service._compare_evm_metrics(
     main_cpi=Decimal("1.0"),
@@ -146,10 +152,12 @@ def _compare_vac(
 ```
 
 **Parameters:**
+
 - `main_vac`: Variance at Completion in main branch (BAC - EAC)
 - `change_vac`: Variance at Completion in change branch (BAC - EAC)
 
 **Returns:** `VACComparison` TypedDict
+
 ```python
 {
     "vac_delta": Decimal,  # Variance at Completion delta (change - main)
@@ -167,6 +175,7 @@ def _compare_vac(
 | **VAC < 0** | Over budget (unfavorable) |
 
 **Example:**
+
 ```python
 result = service._compare_vac(
     main_vac=Decimal("0"),          # On budget
@@ -199,7 +208,7 @@ async def analyze_change_order_impact(
 
     # 1. Get change order details
     change_order = await service._get_change_order(change_order_id)
-    branch_name = f"co-{change_order.change_order_number}"
+    branch_name = f"BR-{change_order.change_order_number}"
 
     # 2. Fetch schedule baselines
     main_schedule = await service._fetch_schedule_baseline(
@@ -325,16 +334,19 @@ All methods handle edge cases gracefully:
 ## Testing
 
 Unit tests are located in:
+
 ```
 backend/tests/unit/services/test_impact_analysis_service.py
 ```
 
 Test classes:
+
 - `TestImpactAnalysisServiceScheduleBaselineComparison` (4 tests)
 - `TestImpactAnalysisServiceEVMComparison` (3 tests)
 - `TestImpactAnalysisServiceVACProjections` (3 tests)
 
 Run tests:
+
 ```bash
 cd backend
 uv run pytest tests/unit/services/test_impact_analysis_service.py -v

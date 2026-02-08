@@ -24,10 +24,10 @@ import { usePermission } from "@/hooks/usePermission";
 const { Header, Content, Footer, Sider } = Layout;
 
 /**
- * Check if a branch name is a change order branch (co-{code} pattern)
+ * Check if a branch name is a change order branch (BR-{code} pattern)
  */
 function isChangeOrderBranch(branch: string): boolean {
-  return branch.startsWith("co-");
+  return branch.startsWith("BR-");
 }
 
 const AppLayout: React.FC = () => {

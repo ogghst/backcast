@@ -101,7 +101,7 @@ def upgrade() -> None:
 
     # Create indexes
     # Note: code is NOT unique because the same code appears in multiple branches
-    # (main, co-CO-001, co-CO-002, etc.)
+    # (main, BR-CO-001, BR-CO-002, etc.)
     op.create_index(
         op.f("ix_change_orders_change_order_id"),
         "change_orders",

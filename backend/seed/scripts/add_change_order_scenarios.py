@@ -18,13 +18,13 @@ from uuid import uuid4, UUID
 SEED_DIR = Path(__file__).parent
 
 # Change order branch IDs
-# Change order branch IDs (using br-{code} format to match ChangeOrderService behavior)
-BRANCH_CO_A = "br-CO-2026-001"
-BRANCH_CO_B = "br-CO-2026-002"
-BRANCH_CO_C = "br-CO-2026-006"
-BRANCH_CO_D = "br-CO-2026-003"
-BRANCH_CO_E = "br-CO-2026-004"
-BRANCH_CO_F = "br-CO-2026-005"
+# Change order branch IDs (using BR-{code} format to match ChangeOrderService behavior)
+BRANCH_CO_A = "BR-CO-2026-001"
+BRANCH_CO_B = "BR-CO-2026-002"
+BRANCH_CO_C = "BR-CO-2026-006"
+BRANCH_CO_D = "BR-CO-2026-003"
+BRANCH_CO_E = "BR-CO-2026-004"
+BRANCH_CO_F = "BR-CO-2026-005"
 
 # Project IDs
 PROJECT_1_ID = "d54fbbe6-f3df-51db-9c3e-9408700442be"

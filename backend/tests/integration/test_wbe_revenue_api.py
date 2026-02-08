@@ -282,7 +282,7 @@ class TestWBERevenueAllocationAPI:
         client: AsyncClient,
         db_session: AsyncSession,
     ):
-        """T-I005: Branch isolation - create in branch co-1 doesn't affect main."""
+        """T-I005: Branch isolation - create in branch BR-1 doesn't affect main."""
         # Arrange: Create project in main branch
         from app.models.domain.project import Project
 
@@ -315,7 +315,7 @@ class TestWBERevenueAllocationAPI:
         )
         assert response1.status_code == 201
 
-        # Act: Create WBE in co-1 branch with same allocation
+        # Act: Create WBE in BR-1 branch with same allocation
         # This should succeed because branches are isolated
         response2 = await client.post(
             "/api/v1/wbes",
@@ -325,7 +325,7 @@ class TestWBERevenueAllocationAPI:
                 "name": "WBE Branch",
                 "budget_allocation": "100000.00",
                 "revenue_allocation": "100000.00",
-                "branch": "co-1",
+                "branch": "BR-1",
             },
         )
 
@@ -333,5 +333,5 @@ class TestWBERevenueAllocationAPI:
         assert response2.status_code == 201
         data = response2.json()
         assert data["revenue_allocation"] == "100000.00"
-        assert data["branch"] == "co-1"
+        assert data["branch"] == "BR-1"
 

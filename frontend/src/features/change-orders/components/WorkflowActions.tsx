@@ -309,7 +309,7 @@ export function WorkflowActions({
         ) : (
           <>
             <MergeConfirmationContent
-              sourceBranch={`co-${changeOrder.code}`}
+              sourceBranch={`BR-${changeOrder.code}`}
               targetBranch="main"
               targetStatus="Implemented"
             />

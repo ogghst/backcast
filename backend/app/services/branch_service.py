@@ -30,7 +30,7 @@ class BranchService(TemporalService[Branch]):  # type: ignore[type-var]
     Example:
         ```python
         # Soft-delete a branch
-        branch = await branch_service.get_by_name_and_project("co-001", project_id)
+        branch = await branch_service.get_by_name_and_project("BR-001", project_id)
         await branch_service.soft_delete(
             entity_id=branch.branch_id,  # Use branch_id, not name!
             actor_id=actor_id

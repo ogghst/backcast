@@ -5,6 +5,7 @@ Comprehensive change order management with workflow, approval authority, and imp
 ## Overview
 
 The Change Orders feature provides full lifecycle management for project change requests, including:
+
 - Draft creation with automatic branch isolation
 - Financial impact analysis
 - Authority-based approval workflow
@@ -201,6 +202,7 @@ function ChangeOrderDetail({ changeOrder }: { changeOrder: ChangeOrderPublic }) 
 ```
 
 The component automatically:
+
 - Shows "Submit for Approval" only to the creator when status is Draft
 - Shows "Approve"/"Reject" only to authorized users
 - Displays authority level badges
@@ -227,7 +229,7 @@ type ChangeOrderPublic = {
   created_at?: string;           // When this version was created
   updated_by?: string;           // User who last updated
   updated_at?: string;           // When last updated
-  branch: string;                // Branch name (e.g., co-CO-2026-001)
+  branch: string;                // Branch name (e.g., BR-CO-2026-001)
   parent_id?: string;            // Parent version ID
   deleted_at?: string;           // Soft delete timestamp
   available_transitions?: string[]; // Valid status transitions
@@ -376,6 +378,7 @@ import { WorkflowActions } from "@/features/change-orders/components";
 ```
 
 The new `WorkflowActions` component includes:
+
 - Authority-based visibility (only shows buttons user can use)
 - Authority level badges on approve/reject buttons
 - Disabled state with tooltips for unauthorized users

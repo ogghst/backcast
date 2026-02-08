@@ -27,7 +27,7 @@ async def test_create_cost_element_in_non_main_branch_no_default(
     were incorrectly saved to 'main' due to schema default value.
     
     The test verifies:
-    1. Element is created in the specified branch ('co-CO-2026-001')
+    1. Element is created in the specified branch ('BR-CO-2026-001')
     2. Element does NOT exist in 'main' branch
     3. branch field in request body is respected
     """
@@ -118,7 +118,7 @@ async def test_create_cost_element_in_non_main_branch_no_default(
         wbe_id = wbe_res.json()["wbe_id"]
 
         # 2. Create cost element in CO branch
-        co_branch = "co-CO-2026-001"
+        co_branch = "BR-CO-2026-001"
         element_data = {
             "code": f"CE-{uuid4().hex[:4].upper()}",
             "name": "CO Branch Element",

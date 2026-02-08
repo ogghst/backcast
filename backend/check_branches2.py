@@ -23,7 +23,7 @@ async def check_branches():
             return
 
         print(f"Project ID: {co.project_id}")
-        print(f"Expected change branch: co-{co.code}")
+        print(f"Expected change branch: BR-{co.code}")
 
         # Use the correct PostgreSQL upper() function for ranges
         current_wbes_stmt = select(WBE).where(

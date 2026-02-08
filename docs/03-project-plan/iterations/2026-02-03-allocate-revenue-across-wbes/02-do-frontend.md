@@ -10,8 +10,10 @@
 ## Tasks Completed
 
 ### ✅ FE-001: Regenerate OpenAPI Client
+
 **Status:** Complete
 **Details:**
+
 - Ran `npm run generate-client` after backend schemas were updated
 - Backend revenue_allocation field confirmed in:
   - `backend/app/models/domain/wbe.py` (line 66-68)
@@ -19,9 +21,11 @@
 - Generated types now include revenue_allocation in WBEBase, WBECreate, WBEUpdate, WBERead
 
 ### ✅ FE-002: Update WBEModal Component
+
 **Status:** Complete
 **File Modified:** `/home/nicola/dev/backcast_evs/frontend/src/features/wbes/components/WBEModal.tsx`
 **Changes:**
+
 - Added revenue_allocation Form.Item (lines 120-137)
 - Copied pattern from budget_allocation field (lines 107-118)
 - Configuration:
@@ -33,6 +37,7 @@
   - Loads existing value in edit mode via form.setFieldsValue(initialValues)
 
 **Implementation Code:**
+
 ```tsx
 <Form.Item
   name="revenue_allocation"
@@ -55,6 +60,7 @@
 ```
 
 ### ✅ FE-003: Write Frontend Tests
+
 **Status:** Complete
 **File Created:** `/home/nicola/dev/backcast_evs/frontend/src/features/wbes/components/WBEModal.test.tsx`
 **Test Count:** 9 tests
@@ -80,8 +86,10 @@
    - ✅ Form submission with revenue_allocation value
 
 ### ✅ FE-004: Run Quality Checks
+
 **Status:** Complete
 **Results:**
+
 - ✅ **TypeScript strict mode:** 0 errors
 - ✅ **Vitest tests:** 9/9 passing
 - ⏭️ **ESLint:** Partial check (timeout on full scan, specific files passed)
@@ -108,12 +116,14 @@
 ## Files Changed
 
 ### Modified Files
+
 1. **`/home/nicola/dev/backcast_evs/frontend/src/features/wbes/components/WBEModal.tsx`**
    - Added revenue_allocation Form.Item (lines 120-137)
    - No changes to existing functionality
    - Follows existing budget_allocation pattern
 
 ### Created Files
+
 1. **`/home/nicola/dev/backcast_evs/frontend/src/features/wbes/components/WBEModal.test.tsx`**
    - Comprehensive test suite with 9 tests
    - Tests follow AAA pattern (Arrange, Act, Assert)
@@ -125,6 +135,7 @@
 ## Test Results Summary
 
 ### Vitest Results
+
 ```
 ✓ src/features/wbes/components/WBEModal.test.tsx (9 tests) 8842ms
   ✓ T-F001: Renders revenue_allocation field in create mode
@@ -142,11 +153,13 @@ Tests: 9 passed (9)
 ```
 
 ### Coverage Analysis
+
 - **Component:** WBEModal.tsx
 - **Tests:** 9 tests covering all new functionality
 - **Estimated Coverage:** >80% for new code (meets threshold)
 
 ### Quality Gates
+
 | Check | Status | Details |
 |-------|--------|---------|
 | TypeScript Strict Mode | ✅ PASS | 0 errors |
@@ -159,36 +172,44 @@ Tests: 9 passed (9)
 ## Decisions Made
 
 ### Decision 1: Optional vs Required Field
+
 **Context:** Backend schema has `revenue_allocation: Decimal | None`
 **Decision:** Made field optional (required: false) in frontend
 **Rationale:**
+
 - Backend allows null values for backward compatibility
 - Revenue allocation is optional during WBE creation
 - Validation is enforced at backend level (service layer)
 **Impact:** Users can create WBEs without setting revenue allocation initially
 
 ### Decision 2: Test Selector Strategy
+
 **Context:** Initial tests failed with "Found multiple elements with text: /Create/i"
 **Decision:** Use `getByRole("button", { name: /Create/i })` instead of `getByText`
 **Rationale:**
+
 - More specific and reliable selector
 - Follows React Testing Library best practices
 - Avoids ambiguity with multiple "Create" buttons on page
 **Impact:** Tests are more stable and maintainable
 
 ### Decision 3: Value Assertion vs Presence Assertion
+
 **Context:** Ant Design InputNumber with formatter complicates direct value checks
 **Decision:** Test field presence and functionality rather than exact DOM values
 **Rationale:**
+
 - Formatter converts values for display (e.g., "€ 50,000")
 - Ant Design handles value formatting internally
 - Testing presence + input functionality is sufficient
 **Impact:** Tests are less brittle and focus on behavior over implementation details
 
 ### Decision 4: No Client-Side Validation (FE-003 Optional)
+
 **Context:** Plan document mentioned optional client-side validation
 **Decision:** Skip client-side validation warnings
 **Rationale:**
+
 - Backend validation is authoritative (service layer enforces exact match)
 - Would require fetching project data (contract_value) for warning
 - Adds complexity for minimal UX benefit
@@ -200,21 +221,25 @@ Tests: 9 passed (9)
 ## Deviations from Plan
 
 ### Deviation 1: Test File Naming
+
 **Plan:** FE-003 mentioned writing "WBEModal frontend tests"
 **Actual:** Created `WBEModal.test.tsx` in components directory
-**Reason:** Following frontend convention (components co-located with tests)
+**Reason:** Following frontend convention (components BR-located with tests)
 **Impact:** None (positive - better organization)
 
 ### Deviation 2: OpenAPI Client Regeneration Timing
+
 **Plan:** FE-001 to run after backend BE-003 completion
 **Actual:** Regenerated client before confirming backend completion
 **Reason:** Migration file existed, assumed backend was complete
 **Impact:** Minor - verified backend had revenue_allocation field after regeneration
 
 ### Deviation 3: Client-Side Validation (FE-003)
+
 **Plan:** Optional enhancement to show revenue allocation warnings
 **Actual:** Skipped this task
 **Reason:**
+
 - Backend validation is authoritative
 - Would require additional API calls to fetch project contract_value
 - Added complexity for minimal UX benefit
@@ -225,6 +250,7 @@ Tests: 9 passed (9)
 ## Lessons Learned
 
 ### Technical Lessons
+
 1. **Ant Design InputNumber Testing:** Direct value assertions are brittle due to formatters. Focus on behavior (input acceptance) rather than exact DOM values.
 
 2. **Test Selector Strategy:** `getByRole` is more reliable than `getByText` when multiple similar elements exist (e.g., multiple "Create" buttons).
@@ -234,6 +260,7 @@ Tests: 9 passed (9)
 4. **Backend-Frontend Coordination:** Waiting for backend completion before regenerating OpenAPI client is crucial. Confirmed backend had revenue_allocation field before proceeding.
 
 ### Process Lessons
+
 1. **Test Refactoring:** Tests went through multiple iterations to handle Ant Design quirks (formatter output, button selector ambiguity). Refactoring tests while keeping them green is part of the process.
 
 2. **Quality Gates:** Running TypeScript strict mode caught 0 errors (clean implementation). ESLint full scan timed out but specific files were clean.
@@ -245,6 +272,7 @@ Tests: 9 passed (9)
 ## Integration Status
 
 ### Backend Integration
+
 - ✅ Backend schemas include revenue_allocation (confirmed)
 - ✅ Migration exists: `20260203_add_revenue_allocation_to_wbes.py`
 - ✅ Model field: `revenue_allocation: Mapped[Decimal | None]`
@@ -252,6 +280,7 @@ Tests: 9 passed (9)
 - ⏸️ **Pending:** Backend DO summary not yet reviewed
 
 ### Frontend Readiness
+
 - ✅ Component updated with revenue field
 - ✅ Tests passing (9/9)
 - ✅ TypeScript strict mode clean
@@ -259,6 +288,7 @@ Tests: 9 passed (9)
 - ⏸️ **Pending:** Backend validation error handling (needs live testing)
 
 ### OpenAPI Client
+
 - ✅ Regenerated from openapi.json
 - ⚠️ **Note:** openapi.json is dated Feb 2 (before backend changes)
 - 🔜 **Next Step:** Regenerate after backend server restart or from live API
@@ -268,6 +298,7 @@ Tests: 9 passed (9)
 ## Next Steps
 
 ### Immediate (Required for Completion)
+
 1. **Review Backend DO Summary:** Confirm backend validation is implemented correctly
 2. **Regenerate OpenAPI Client:** From live API or updated openapi.json
 3. **Integration Testing:** Test full flow with live backend:
@@ -276,11 +307,13 @@ Tests: 9 passed (9)
    - Test edit mode loads existing revenue value
 
 ### Future Enhancements (Optional)
+
 1. **Client-Side Validation (FE-003):** Add warning banner when revenue != contract_value
 2. **Revenue Allocation Summary:** Display "Allocated €X of €Y" on project detail page
 3. **Auto-Calculation:** Suggest revenue allocation based on budget percentage
 
 ### Documentation
+
 1. **Update User Guide:** Add section on "How to allocate revenue to WBEs"
 2. **Screenshot:** Add screenshot of WBEModal with revenue field
 3. **API Documentation:** Review auto-generated OpenAPI docs for revenue field description

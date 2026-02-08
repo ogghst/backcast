@@ -50,7 +50,7 @@ interface TimeMachineExpandedProps {
  *     timelineData={{
  *       startDate: new Date('2025-01-01'),
  *       endDate: null,
- *       branches: ['main', 'co-001'],
+ *       branches: ['main', 'BR-001'],
  *       events: [],
  *     }}
  *   />

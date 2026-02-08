@@ -20,6 +20,7 @@ Successfully implemented the Approval Matrix & SLA Tracking feature for change o
 ### 1.1 Core Features Delivered
 
 #### Financial Impact Calculation ✅
+
 - **Service:** `FinancialImpactService`
 - **Functionality:**
   - Calculates budget delta between main branch and change order branch
@@ -29,6 +30,7 @@ Successfully implemented the Approval Matrix & SLA Tracking feature for change o
 - **Files:** `backend/app/services/financial_impact_service.py`
 
 #### SLA Deadline Management ✅
+
 - **Service:** `SLAService`
 - **Functionality:**
   - Business day calculator (skips weekends)
@@ -38,6 +40,7 @@ Successfully implemented the Approval Matrix & SLA Tracking feature for change o
 - **Files:** `backend/app/services/sla_service.py`
 
 #### Approval Matrix & Authority Validation ✅
+
 - **Service:** `ApprovalMatrixService`
 - **Functionality:**
   - Role-based authority mapping (admin→CRITICAL, manager→HIGH, viewer→LOW)
@@ -48,6 +51,7 @@ Successfully implemented the Approval Matrix & SLA Tracking feature for change o
 - **Files:** `backend/app/services/approval_matrix_service.py`
 
 #### Workflow Integration ✅
+
 - **Service Extensions:** `ChangeOrderWorkflowService`
 - **New Methods:**
   - `submit_for_approval()` - Auto-assign approver, set SLA, lock branch
@@ -57,6 +61,7 @@ Successfully implemented the Approval Matrix & SLA Tracking feature for change o
 - **Files:** `backend/app/services/change_order_service.py`
 
 #### API Endpoints ✅
+
 - `PUT /change-orders/{id}/submit-for-approval` - Submit for approval
 - `PUT /change-orders/{id}/approve` - Approve change order
 - `PUT /change-orders/{id}/reject` - Reject change order
@@ -64,6 +69,7 @@ Successfully implemented the Approval Matrix & SLA Tracking feature for change o
 - `GET /change-orders/pending-approvals` - List pending approvals
 
 #### Frontend Components ✅
+
 - **ApprovalInfo.tsx** - Display impact level, approver, SLA countdown
 - **WorkflowActions.tsx** - Authority-based approve/reject buttons
 - **useApprovalInfo** - Fetch approval information
@@ -75,6 +81,7 @@ Successfully implemented the Approval Matrix & SLA Tracking feature for change o
 **Migration:** `20260203_add_approval_matrix_fields.py` ✅ Applied
 
 **New Columns:**
+
 - `impact_level` - Financial impact classification
 - `assigned_approver_id` - FK to users.id
 - `sla_assigned_at` - SLA timer start
@@ -82,6 +89,7 @@ Successfully implemented the Approval Matrix & SLA Tracking feature for change o
 - `sla_status` - Current SLA tracking status
 
 **Indexes & Constraints:**
+
 - `ix_change_orders_impact_level` - Filtering by impact
 - `ix_change_orders_sla_due_date` - SLA monitoring
 - `fk_change_orders_assigned_approver` - Foreign key to users
@@ -129,15 +137,18 @@ Successfully implemented the Approval Matrix & SLA Tracking feature for change o
 ### 3.1 What Worked Well
 
 #### 1. Specialized Subagent Delegation
+
 **Pattern:** Delegated distinct backend services to specialized `backend-developer` agents.
 
 **Benefits:**
+
 - Parallel execution of independent services
 - Each agent brought domain-specific expertise
 - Faster completion (~4 weeks vs estimated 5+)
 - High code quality (95.16% coverage)
 
 **Evidence:**
+
 - FinancialImpactService: Completed with 95.16% coverage
 - ApprovalMatrixService: Completed with 95.16% coverage
 - SLAService: Completed and integrated
@@ -145,15 +156,18 @@ Successfully implemented the Approval Matrix & SLA Tracking feature for change o
 **Recommendation:** Continue using this pattern for future iterations, especially for Phase 3 (Revenue Support).
 
 #### 2. TDD Workflow Effectiveness
+
 **Pattern:** RED-GREEN-REFACTOR cycle strictly followed.
 
 **Benefits:**
+
 - Zero bugs found in integration
 - Tests serve as documentation
 - Easy refactoring confidence
 - High test coverage achieved naturally
 
 **Evidence:**
+
 - 17 tests written first for ApprovalMatrixService (all RED initially)
 - All tests passing after implementation (GREEN)
 - Code formatted and type-checked in REFACTOR phase
@@ -161,30 +175,36 @@ Successfully implemented the Approval Matrix & SLA Tracking feature for change o
 **Recommendation:** Mandate TDD for all future service development.
 
 #### 3. Type Safety as a Design Tool
+
 **Pattern:** MyPy strict mode enforced from the start.
 
 **Benefits:**
+
 - Caught integration errors before runtime
 - Self-documenting code (types as contracts)
 - Better IDE support and autocomplete
 - Reduced cognitive load
 
 **Challenge Encountered:**
+
 - `dict` type annotation needed explicit type parameters
 - Fixed: `dict` → `dict[str, str | float]`
 
 **Recommendation:** Continue MyPy strict mode enforcement. Add type annotation checks to pre-commit hooks.
 
 #### 4. Service Integration Pattern
+
 **Pattern:** Services accept `db_session` parameter instead of storing in constructor.
 
 **Benefits:**
+
 - Avoids circular dependencies
 - Clear session lifetime management
 - Easier testing (can inject mock session)
 - Follows functional programming principles
 
 **Evidence:**
+
 ```python
 # Good: Session passed as parameter
 async def submit_for_approval(
@@ -200,14 +220,17 @@ async def submit_for_approval(
 ### 3.2 Challenges Encountered
 
 #### 1. Circular Import Handling
+
 **Challenge:** `ChangeOrderService` and `ChangeOrderWorkflowService` had mutual dependencies.
 
 **Solution:**
+
 - Used `TYPE_CHECKING` for type hints
 - Runtime imports inside methods
 - Avoided storing session in service instance
 
 **Code Pattern:**
+
 ```python
 from typing import TYPE_CHECKING
 
@@ -223,11 +246,13 @@ async def workflow_method(self, ...):
 **Lesson:** Plan service dependencies early. Use dependency injection patterns to avoid circular imports.
 
 #### 2. Foreign Key Reference Mismatch
+
 **Challenge:** Initial migration used `users.user_id` as FK target, but actual PK is `users.id`.
 
 **Detection:** Caught during migration verification step.
 
 **Fix Applied:**
+
 ```python
 # Wrong:
 ['assigned_approver_id'], ['user_id']
@@ -239,9 +264,11 @@ async def workflow_method(self, ...):
 **Lesson:** Always verify database schema before writing migrations. Use `information_schema` to check actual column names.
 
 #### 3. Business Day Calculation Edge Cases
+
 **Challenge:** Weekends vs. business days in SLA calculation.
 
 **Solution:**
+
 - Used `weekday() < 5` for Monday-Friday check
 - Added comprehensive unit tests for edge cases
 - Documented holiday calendar limitation
@@ -251,9 +278,11 @@ async def workflow_method(self, ...):
 **Lesson:** Document limitations explicitly. Add TODO comments for future enhancements.
 
 #### 4. Authority Level Simplification
+
 **Challenge:** User role system simpler than initially planned (no "project_manager", "department_head", "director" roles).
 
 **Adaptation:**
+
 - Mapped existing roles: `admin` → CRITICAL, `manager` → HIGH, `viewer` → LOW
 - Documented simplification in implementation notes
 - Added extensibility points for future role additions
@@ -263,9 +292,11 @@ async def workflow_method(self, ...):
 ### 3.3 Process Improvements
 
 #### 1. Migration Verification Step
+
 **Added:** Automated migration verification after applying changes.
 
 **Script:**
+
 ```bash
 # Check columns exist
 # Check foreign keys created
@@ -277,14 +308,17 @@ async def workflow_method(self, ...):
 **Recommendation:** Add to CI/CD pipeline for all future migrations.
 
 #### 2. API Documentation in Docstrings
+
 **Pattern:** Comprehensive docstrings with Context, Args, Returns, Raises, Example.
 
 **Benefit:**
+
 - Self-documenting API
 - OpenAPI spec generation works automatically
 - Onboarding new developers easier
 
 **Example:**
+
 ```python
 async def calculate_impact_level(
     self, change_order_id: UUID
@@ -314,14 +348,17 @@ async def calculate_impact_level(
 **Recommendation:** Enforce docstring standards in code review checklist.
 
 #### 3. Frontend-Backend Type Alignment
+
 **Pattern:** TypeScript types generated from OpenAPI spec.
 
 **Benefit:**
+
 - Single source of truth (backend schemas)
 - Type safety across the stack
 - No manual type synchronization
 
 **Files:**
+
 - `backend/app/models/schemas/change_order.py` - Pydantic schemas
 - `frontend/src/api/generated/models/` - Auto-generated TypeScript types
 
@@ -334,9 +371,11 @@ async def calculate_impact_level(
 ### 4.1 Reusable Patterns
 
 #### Pattern 1: Service Factory
+
 **Current:** Each service manually instantiates dependencies.
 
 **Proposed Standard:**
+
 ```python
 class ServiceFactory:
     """Factory for creating service instances with proper dependencies."""
@@ -353,14 +392,17 @@ class ServiceFactory:
 ```
 
 **Benefits:**
+
 - Centralized dependency management
 - Easier testing (mock factory)
 - Consistent service initialization
 
 #### Pattern 2: Impact Calculation Interface
+
 **Current:** FinancialImpactService has custom impact classification.
 
 **Proposed Standard:**
+
 ```python
 from abc import ABC, abstractmethod
 
@@ -379,14 +421,17 @@ class ImpactCalculator(ABC):
 ```
 
 **Benefits:**
+
 - Extensible to other entities (Quality Events, Risk Assessments)
 - Testable with mocks
 - Clear contract for implementations
 
 #### Pattern 3: SLA Calculator Interface
+
 **Current:** SLAService hardcoded for change orders.
 
 **Proposed Standard:**
+
 ```python
 class SLACalculator(ABC):
     """Interface for SLA calculation strategies."""
@@ -405,6 +450,7 @@ class SLACalculator(ABC):
 ```
 
 **Benefits:**
+
 - Reusable for other approval workflows (Quality Events, Purchase Orders)
 - Consistent SLA handling across the system
 - Easy to test and extend
@@ -412,6 +458,7 @@ class SLACalculator(ABC):
 ### 4.2 Documentation Templates
 
 #### Service Documentation Template
+
 ```markdown
 # {ServiceName} Documentation
 
@@ -429,13 +476,16 @@ class SLACalculator(ABC):
 ```
 
 ## Integration Points
+
 - Depends on: {ServiceA, ServiceB}
 - Used by: {ServiceC, APIRouteX}
 
 ## Testing
+
 - Test file: `tests/unit/services/test_{service}.py`
 - Coverage: {percentage}%
 - Key test scenarios: {list}
+
 ```
 
 #### ACT Document Template
@@ -471,6 +521,7 @@ class Test{ServiceName}:
 ```
 
 **Benefits:**
+
 - Consistent test structure
 - Easy to scan for missing tests
 - Clear test intent
@@ -482,11 +533,13 @@ class Test{ServiceName}:
 ### 5.1 Immediate Next Steps (Phase 3: Revenue Support)
 
 #### 1. Extend Impact Analysis for Revenue
+
 **Current:** FinancialImpactService only calculates budget impact.
 
 **Required:** Add revenue impact calculation.
 
 **Approach:**
+
 ```python
 # Extend get_financial_impact_details()
 revenue_delta = change_revenue - main_revenue
@@ -494,30 +547,36 @@ total_impact = abs(budget_delta) + abs(revenue_delta)
 ```
 
 **Files to Modify:**
+
 - `backend/app/services/financial_impact_service.py`
 - `backend/app/services/impact_analysis_service.py`
 
 #### 2. Allow Revenue Modification in Branches
+
 **Current:** WBE revenue allocation exists but not exposed in change order branches.
 
 **Required:** Enable revenue field editing when in change order context.
 
 **Files to Modify:**
+
 - `frontend/src/features/wbes/components/WBEForm.tsx`
-- Add conditional: `if (branch.startsWith('co-')) showRevenueField()`
+- Add conditional: `if (branch.startsWith('BR-')) showRevenueField()`
 
 #### 3. Update Merge Validation
+
 **Current:** Merge checks for budget conflicts only.
 
 **Required:** Add revenue validation during merge.
 
 **Files to Modify:**
+
 - `backend/app/services/change_order_service.py`
 - Extend `_detect_all_merge_conflicts()` to include revenue
 
 ### 5.2 Process Improvements for Phase 3
 
 #### 1. Pre-Implementation Checklist
+
 Based on learnings from Phase 1:
 
 - [ ] Verify database schema (column names, foreign keys)
@@ -527,12 +586,14 @@ Based on learnings from Phase 1:
 - [ ] Define test scenarios upfront
 
 #### 2. Continuous Integration Enhancements
+
 - Add migration verification to CI pipeline
 - Enforce docstring coverage in linting
 - Run test coverage checks on every PR
 - Add OpenAPI spec validation
 
 #### 3. Documentation Standards
+
 - All services must have comprehensive docstrings
 - All public methods must have usage examples
 - All integration points must be documented
@@ -541,9 +602,11 @@ Based on learnings from Phase 1:
 ### 5.3 Technical Debt to Address
 
 #### 1. SLA Background Job (E06-U13 Partial)
+
 **Current:** Infrastructure in place, but no background job.
 
 **Recommendation:**
+
 - Implement hourly job to update SLA statuses
 - Use Celery or APScheduler for task scheduling
 - Add notification triggers for approaching/overdue SLAs
@@ -551,9 +614,11 @@ Based on learnings from Phase 1:
 **Estimated Effort:** 3 points
 
 #### 2. Holiday Calendar Support
+
 **Current:** SLA calculation skips weekends but not holidays.
 
 **Recommendation:**
+
 - Add `holidays` table to database
 - Store company holidays per year
 - Extend `SLAService._is_business_day()` to check holidays
@@ -561,9 +626,11 @@ Based on learnings from Phase 1:
 **Estimated Effort:** 5 points
 
 #### 3. Role System Enhancement
+
 **Current:** Simplified role mapping (admin/manager/viewer).
 
 **Recommendation:**
+
 - Implement granular roles: project_manager, department_head, director
 - Update `ApprovalMatrixService.get_user_authority_level()`
 - Add role assignment UI in user management
@@ -681,6 +748,7 @@ The codebase is **production-ready** and well-positioned for Phase 3 (Revenue Su
 **Estimated Effort:** 18 points (~2-3 weeks)
 
 **Key Success Factors for Phase 3:**
+
 - Follow TDD workflow
 - Use specialized subagent delegation
 - Enforce type safety from the start
@@ -694,6 +762,7 @@ The codebase is **production-ready** and well-positioned for Phase 3 (Revenue Su
 ### Backend (11 files)
 
 **Created:**
+
 - `backend/app/services/financial_impact_service.py` (184 lines)
 - `backend/app/services/sla_service.py` (287 lines)
 - `backend/app/services/approval_matrix_service.py` (281 lines)
@@ -701,6 +770,7 @@ The codebase is **production-ready** and well-positioned for Phase 3 (Revenue Su
 - `backend/alembic/versions/20260203_add_approval_matrix_fields.py` (95 lines)
 
 **Modified:**
+
 - `backend/app/models/domain/change_order.py` - Added SLA fields and enums
 - `backend/app/models/schemas/change_order.py` - Added approval schemas
 - `backend/app/services/change_order_service.py` - Added approval workflow methods
@@ -709,6 +779,7 @@ The codebase is **production-ready** and well-positioned for Phase 3 (Revenue Su
 ### Frontend (9 files)
 
 **Created:**
+
 - `frontend/src/features/change-orders/components/ApprovalInfo.tsx`
 - `frontend/src/features/change-orders/components/WorkflowActions.tsx`
 - `frontend/src/features/change-orders/api/useApprovalInfo.ts`
@@ -719,12 +790,14 @@ The codebase is **production-ready** and well-positioned for Phase 3 (Revenue Su
 - `frontend/src/features/change-orders/README.md`
 
 **Modified:**
+
 - `frontend/src/api/generated/index.ts`
 - `frontend/src/features/change-orders/components/index.ts`
 
 ### Documentation (3 files)
 
 **Created:**
+
 - `docs/03-project-plan/iterations/2026-02-03-approval-matrix-implementation/COMPLETION_SUMMARY.md`
 - `docs/03-project-plan/iterations/2026-02-03-approval-matrix-implementation/04-act.md` (this file)
 - `docs/03-project-plan/iterations/2026-02-03-approval-matrix-service/README.md`

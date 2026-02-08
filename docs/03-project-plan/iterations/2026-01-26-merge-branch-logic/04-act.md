@@ -77,11 +77,12 @@ When working with branchable entities that may be soft-deleted, use the Entity D
 Example:
 ```python
 # For normal queries (exclude deleted)
-active_wbes = await discovery_service.discover_wbes(branch="co-123")
+active_wbes = await discovery_service.discover_wbes(branch="BR-123")
 
 # For merge operations (include deleted)
-all_wbes = await discovery_service.discover_all_wbes(branch="co-123")
+all_wbes = await discovery_service.discover_all_wbes(branch="BR-123")
 ```
+
 ```
 
 #### Merge Orchestration Pattern (Added to Coding Standards)
@@ -98,12 +99,14 @@ When implementing merge operations for branchable entities:
        raise MergeConflictError(conflicts)
    ```
 
-2. **Discover All Entities**: Use entity discovery to find all entities including soft-deleted
+1. **Discover All Entities**: Use entity discovery to find all entities including soft-deleted
+
    ```python
    all_entities = await discovery_service.discover_all_wbes(source_branch)
    ```
 
-3. **Handle Soft-Deletes**: Check deleted_at and propagate soft-deletes
+2. **Handle Soft-Deletes**: Check deleted_at and propagate soft-deletes
+
    ```python
    for entity in all_entities:
        if entity.deleted_at is not None:
@@ -112,7 +115,8 @@ When implementing merge operations for branchable entities:
            await service.merge_branch(root_id=entity.id, source_branch=source_branch, target_branch=target_branch)
    ```
 
-4. **Transactional Integrity**: Wrap entire merge in transaction for all-or-nothing behavior
+3. **Transactional Integrity**: Wrap entire merge in transaction for all-or-nothing behavior
+
 ```
 
 ---
@@ -273,6 +277,7 @@ When implementing merge operations for branchable entities:
 ## Appendix: Final Test Results
 
 ```
+
 tests/unit/services/test_entity_discovery_service.py ...... [46%]
 tests/unit/services/test_change_order_merge_orchestration.py ..... [76%]
 tests/integration/test_change_order_full_merge.py .... [100%]
@@ -280,6 +285,7 @@ tests/performance/test_merge_performance.py .. [100%]
 tests/api/test_change_order_merge_endpoint.py .. [100%]
 
 ================== 19 passed, 2 skipped in 19.70s ==================
+
 ```
 
 **Test Breakdown:**

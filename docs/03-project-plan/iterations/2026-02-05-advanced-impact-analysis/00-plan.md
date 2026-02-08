@@ -54,7 +54,7 @@ Phase 5 extends the impact analysis capabilities to include **schedule implicati
                 │                           │
         ┌───────▼────────┐          ┌──────▼──────────┐
         │  Main Branch   │          │ Change Branch   │
-        │  (project_id)  │          │ (co-xxx)        │
+        │  (project_id)  │          │ (BR-xxx)        │
         └───────┬────────┘          └──────┬──────────┘
                 │                           │
                 └─────────────┬─────────────┘
@@ -111,15 +111,18 @@ Phase 5 extends the impact analysis capabilities to include **schedule implicati
 **Changes Required:**
 
 1.1. **Add schedule baseline comparison logic** (3 points)
-   - Create `_compare_schedule_baselines()` method
-   - Fetch ScheduleBaseline entities for main and change branches
-   - Extract start_date, end_date, progression_type
-   - Calculate duration for each branch
-   - Calculate deltas: start_delta, end_delta, duration_delta
-   - Detect progression_type changes
+
+- Create `_compare_schedule_baselines()` method
+- Fetch ScheduleBaseline entities for main and change branches
+- Extract start_date, end_date, progression_type
+- Calculate duration for each branch
+- Calculate deltas: start_delta, end_delta, duration_delta
+- Detect progression_type changes
 
 1.2. **Update KPIScorecard schema** (2 points)
-   - Add schedule-related fields to KPIScorecard in `impact_analysis.py`:
+
+- Add schedule-related fields to KPIScorecard in `impact_analysis.py`:
+
      ```python
      schedule_start_date: KPIMetric | None = None
      schedule_end_date: KPIMetric | None = None
@@ -127,11 +130,13 @@ Phase 5 extends the impact analysis capabilities to include **schedule implicati
      ```
 
 1.3. **Integrate schedule analysis into analyze_impact()** (2 points)
-   - Call `_compare_schedule_baselines()` after WBE comparison
-   - Populate schedule fields in KPIScorecard
-   - Handle edge cases (missing schedule baselines)
+
+- Call `_compare_schedule_baselines()` after WBE comparison
+- Populate schedule fields in KPIScorecard
+- Handle edge cases (missing schedule baselines)
 
 **Acceptance Criteria:**
+
 - ✅ Schedule start date delta calculated correctly
 - ✅ Schedule end date delta calculated correctly
 - ✅ Schedule duration delta calculated (in days)
@@ -148,19 +153,23 @@ Phase 5 extends the impact analysis capabilities to include **schedule implicati
 **Changes Required:**
 
 2.1. **Integrate EVMService** (3 points)
-   - Add EVMService dependency injection in `__init__()`
-   - Import EVMService and EVMMetricsRead
-   - Create `_calculate_evm_metrics()` helper method
+
+- Add EVMService dependency injection in `__init__()`
+- Import EVMService and EVMMetricsRead
+- Create `_calculate_evm_metrics()` helper method
 
 2.2. **Implement EVM comparison logic** (3 points)
-   - Call `EVMService.calculate_metrics()` for main branch
-   - Call `EVMService.calculate_metrics()` for change branch
-   - Extract CPI, SPI, TCPI, EAC from both results
-   - Calculate deltas: cpi_delta, spi_delta, tcpi_delta, eac_delta
-   - Handle edge cases (division by zero, missing data)
+
+- Call `EVMService.calculate_metrics()` for main branch
+- Call `EVMService.calculate_metrics()` for change branch
+- Extract CPI, SPI, TCPI, EAC from both results
+- Calculate deltas: cpi_delta, spi_delta, tcpi_delta, eac_delta
+- Handle edge cases (division by zero, missing data)
 
 2.3. **Update KPIScorecard schema** (2 points)
-   - Uncomment and enable EVM metrics in `impact_analysis.py`:
+
+- Uncomment and enable EVM metrics in `impact_analysis.py`:
+
      ```python
      eac: KPIMetric | None = None  # Estimate at Completion
      cpi: KPIMetric | None = None  # Cost Performance Index
@@ -169,6 +178,7 @@ Phase 5 extends the impact analysis capabilities to include **schedule implicati
      ```
 
 **Acceptance Criteria:**
+
 - ✅ CPI calculated for both branches
 - ✅ SPI calculated for both branches
 - ✅ TCPI calculated for both branches
@@ -186,23 +196,28 @@ Phase 5 extends the impact analysis capabilities to include **schedule implicati
 **Changes Required:**
 
 3.1. **Extract VAC from EVM metrics** (2 points)
-   - VAC is already calculated by EVMService (BAC - EAC)
-   - Extract VAC from main branch metrics
-   - Extract VAC from change branch metrics
-   - Calculate VAC delta
+
+- VAC is already calculated by EVMService (BAC - EAC)
+- Extract VAC from main branch metrics
+- Extract VAC from change branch metrics
+- Calculate VAC delta
 
 3.2. **Update KPIScorecard schema** (2 points)
-   - Add VAC field to KPIScorecard in `impact_analysis.py`:
+
+- Add VAC field to KPIScorecard in `impact_analysis.py`:
+
      ```python
      vac: KPIMetric | None = None  # Variance at Completion
      ```
 
 3.3. **Integrate VAC into analyze_impact()** (2 points)
-   - Populate VAC field in KPIScorecard
-   - Handle edge cases (EAC not calculated yet)
-   - Add validation for VAC projections
+
+- Populate VAC field in KPIScorecard
+- Handle edge cases (EAC not calculated yet)
+- Add validation for VAC projections
 
 **Acceptance Criteria:**
+
 - ✅ VAC calculated for main branch
 - ✅ VAC calculated for change branch
 - ✅ VAC delta calculated correctly
@@ -218,22 +233,26 @@ Phase 5 extends the impact analysis capabilities to include **schedule implicati
 **Changes Required:**
 
 4.1. **Add schedule KPI card** (2 points)
-   - Display schedule duration with delta
-   - Format as days with +/- indicator
-   - Color coding: Red (longer), Green (shorter)
+
+- Display schedule duration with delta
+- Format as days with +/- indicator
+- Color coding: Red (longer), Green (shorter)
 
 4.2. **Add EVM KPI cards** (2 points)
-   - Display CPI with delta (target: ≥1.0)
-   - Display SPI with delta (target: ≥1.0)
-   - Display VAC projection with delta
-   - Color coding: Red (below target), Green (above target)
+
+- Display CPI with delta (target: ≥1.0)
+- Display SPI with delta (target: ≥1.0)
+- Display VAC projection with delta
+- Color coding: Red (below target), Green (above target)
 
 4.3. **Update grid layout** (1 point)
-   - Expand from 4 columns to 6-8 columns or
-   - Use scrollable container or
-   - Use tabbed interface for grouped KPIs
+
+- Expand from 4 columns to 6-8 columns or
+- Use scrollable container or
+- Use tabbed interface for grouped KPIs
 
 **Acceptance Criteria:**
+
 - ✅ Schedule duration displayed
 - ✅ CPI displayed with target indicator
 - ✅ SPI displayed with target indicator
@@ -245,29 +264,33 @@ Phase 5 extends the impact analysis capabilities to include **schedule implicati
 ### Task 5: Testing & Quality Assurance (8 points)
 
 **Files:**
+
 - `backend/tests/unit/services/test_impact_analysis_service.py`
 - `frontend/src/features/change-orders/components/KPICards.test.tsx`
 
 **Test Coverage Required:**
 
 5.1. **Backend Unit Tests** (5 points)
-   - Schedule comparison tests (3 tests)
-   - EVM comparison tests (4 tests)
-   - VAC projection tests (2 tests)
-   - Edge case tests (2 tests)
-   - Integration test (1 test)
+
+- Schedule comparison tests (3 tests)
+- EVM comparison tests (4 tests)
+- VAC projection tests (2 tests)
+- Edge case tests (2 tests)
+- Integration test (1 test)
 
 5.2. **Frontend Unit Tests** (2 points)
-   - Schedule KPI card rendering
-   - EVM KPI cards rendering
-   - Color coding logic
-   - Layout responsiveness
+
+- Schedule KPI card rendering
+- EVM KPI cards rendering
+- Color coding logic
+- Layout responsiveness
 
 5.3. **Quality Gates** (1 point)
-   - MyPy strict mode: 0 errors
-   - Ruff linting: 0 errors
-   - ESLint: 0 errors
-   - Test coverage: ≥80% for new code
+
+- MyPy strict mode: 0 errors
+- Ruff linting: 0 errors
+- ESLint: 0 errors
+- Test coverage: ≥80% for new code
 
 ---
 
@@ -332,12 +355,14 @@ class KPIScorecard(BaseModel):
 ## Dependencies & Prerequisites
 
 ### Internal Dependencies
+
 - ✅ EVMService fully implemented and tested
 - ✅ ImpactAnalysisService from Phase 3
 - ✅ KPIScorecard schema from Phase 3
 - ✅ Frontend KPICards component from Phase 3
 
 ### External Dependencies
+
 - ✅ SQLAlchemy 2.0 (async)
 - ✅ Pydantic v2
 - ✅ Ant Design 6 (frontend)
@@ -375,6 +400,7 @@ class KPIScorecard(BaseModel):
 ## Definition of Done
 
 A task is considered "Done" when:
+
 1. Code is implemented and follows coding standards
 2. Unit tests written and passing (TDD approach)
 3. Code review completed (self-review)

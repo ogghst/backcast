@@ -23,7 +23,7 @@ async def check_branches():
 
         print(f"Change Order: {co.code}")
         print(f"Project ID: {co.project_id}")
-        print(f"Expected branch: co-CO-2026-001")
+        print(f"Expected branch: BR-CO-2026-001")
         print()
 
         # Check main branch
@@ -47,13 +47,13 @@ async def check_branches():
             print(f"  - {wbe.code}: {wbe.budget_allocation}")
         print()
 
-        # Check co-CO-2026-001 branch
+        # Check BR-CO-2026-001 branch
         print("=" * 60)
-        print("co-CO-2026-001 BRANCH")
+        print("BR-CO-2026-001 BRANCH")
         print("=" * 60)
         co_wbe_stmt = select(WBE).where(
             WBE.project_id == co.project_id,
-            WBE.branch == "co-CO-2026-001",
+            WBE.branch == "BR-CO-2026-001",
             func.upper(WBE.valid_time).is_(None),
             WBE.deleted_at.is_(None),
         )

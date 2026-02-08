@@ -30,7 +30,7 @@
 - **Dependencies:** E04-U02 (WBE creation)
 - **Acceptance Criteria:**
   - UI for creating change orders with title, description, reason
-  - Automatic branch creation (`co-{id}`) on save
+  - Automatic branch creation (`BR-{id}`) on save
   - Change order appears in list with status (Draft/Submitted/Approved/Merged)
   - RBAC: Only Project Managers can create change orders
 - **Estimated Complexity:** Simple
@@ -44,7 +44,7 @@
 - **Business Value:** CRITICAL - Automates branch workflow
 - **Dependencies:** E06-U01 ✅
 - **Acceptance Criteria:**
-  - Branch `co-{id}` created automatically when change order is saved
+  - Branch `BR-{id}` created automatically when change order is saved
   - Branch initialized as copy of current main state
   - Branch metadata includes change order ID and creator
 - **Estimated Complexity:** Simple

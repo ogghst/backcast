@@ -12,8 +12,8 @@ vi.mock("../hooks/useWorkflowInfo", () => ({
 }));
 
 const mockChangeOrder: ChangeOrderPublic = {
-  id: "co-123",
-  change_order_id: "co-123",
+  id: "BR-123",
+  change_order_id: "BR-123",
   code: "CO-2026-001",
   title: "Test Change Order",
   status: "Draft",
@@ -21,7 +21,7 @@ const mockChangeOrder: ChangeOrderPublic = {
   justification: "Test justification",
   effective_date: "2026-01-15",
   project_id: "proj-123",
-  branch: "co-CO-2026-001",
+  branch: "BR-CO-2026-001",
   branch_locked: false,
   available_transitions: ["Submitted"],
   created_at: "2024-01-01T00:00:00Z",

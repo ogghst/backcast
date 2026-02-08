@@ -147,14 +147,14 @@ async def test_get_impact_success(
 ) -> None:
     """Test successful impact analysis retrieval.
 
-    Acceptance Criteria:
+    Acceptance Criteria (MERGE mode):
     - Returns 200 status
     - Response contains all required fields
-    - KPI scorecard populated with main branch values
-    - Entity changes empty (no branch modifications yet)
+    - KPI scorecard shows main vs merged view (main + branch overrides)
+    - Since branch has no overrides, merged = main, so no entity changes
     """
     co_id = test_change_order["change_order_id"]
-    branch_name = f"co-{test_change_order['code']}"
+    branch_name = f"BR-{test_change_order['code']}"
 
     # Get impact analysis
     response = await client.get(
@@ -178,21 +178,20 @@ async def test_get_impact_success(
     assert "budget_delta" in kpi
     assert "gross_margin" in kpi
 
-    # Main branch should have budget (sum of 3 WBEs: 450000)
-    # Change branch is empty (no WBEs), so delta is -450000.00
+    # MERGE MODE: Main branch has budget (sum of 3 WBEs: 450000)
+    # Branch has no overrides, so merged view = main (450000)
+    # Therefore change_value = main_value and delta = 0
     assert kpi["bac"]["main_value"] == "450000.00"
-    assert kpi["bac"]["change_value"] == "0"  # Empty branch
-    assert kpi["bac"]["delta"] == "-450000.00"
+    assert kpi["bac"]["change_value"] == "450000.00"  # Merged = main (no overrides)
+    assert kpi["bac"]["delta"] == "0.00"  # No delta when merged = main
 
     # Verify entity changes
-    # Since change branch is empty, all 3 WBEs from main are "removed"
+    # MERGE MODE: Since branch has no entity overrides, merged = main
+    # Therefore no entities are "changed" (added/modified/removed)
     entity_changes = data["entity_changes"]
     assert "wbes" in entity_changes
     assert "cost_elements" in entity_changes
-    assert len(entity_changes["wbes"]) == 3
-    # All WBEs should be marked as "removed"
-    for wbe in entity_changes["wbes"]:
-        assert wbe["change_type"] == "removed"
+    assert len(entity_changes["wbes"]) == 0  # No changes when merged = main
     assert len(entity_changes["cost_elements"]) == 0
 
     # Verify waterfall chart
@@ -219,7 +218,7 @@ async def test_get_impact_not_found(client: AsyncClient) -> None:
     fake_id = uuid4()
 
     response = await client.get(
-        f"/api/v1/change-orders/{fake_id}/impact", params={"branch_name": "co-fake"}
+        f"/api/v1/change-orders/{fake_id}/impact", params={"branch_name": "BR-fake"}
     )
 
     assert response.status_code == 404
@@ -260,7 +259,7 @@ async def test_get_impact_with_branch_modifications(
     """
 
     co_id = test_change_order["change_order_id"]
-    branch_name = f"co-{test_change_order['code']}"
+    branch_name = f"BR-{test_change_order['code']}"
     project_id = test_change_order["project_id"]
 
     # Get the first WBE from main

@@ -31,7 +31,7 @@ class EntityDiscoveryService:
         """Discover all active WBEs in the specified branch.
 
         Args:
-            branch: Branch name to search (e.g., "co-123")
+            branch: Branch name to search (e.g., "BR-123")
 
         Returns:
             List of WBEs where branch matches and deleted_at IS NULL
@@ -46,7 +46,7 @@ class EntityDiscoveryService:
         """Discover all active CostElements in the specified branch.
 
         Args:
-            branch: Branch name to search (e.g., "co-123")
+            branch: Branch name to search (e.g., "BR-123")
 
         Returns:
             List of CostElements where branch matches and deleted_at IS NULL
@@ -61,7 +61,7 @@ class EntityDiscoveryService:
         """Discover all active Projects in the specified branch.
 
         Args:
-            branch: Branch name to search (e.g., "co-123")
+            branch: Branch name to search (e.g., "BR-123")
 
         Returns:
             List of Projects where branch matches and deleted_at IS NULL
@@ -76,7 +76,7 @@ class EntityDiscoveryService:
         """Discover all WBEs in the specified branch, including soft-deleted.
 
         Args:
-            branch: Branch name to search (e.g., "co-123")
+            branch: Branch name to search (e.g., "BR-123")
 
         Returns:
             List of all WBEs where branch matches (including deleted)
@@ -89,7 +89,7 @@ class EntityDiscoveryService:
         """Discover all CostElements in the specified branch, including soft-deleted.
 
         Args:
-            branch: Branch name to search (e.g., "co-123")
+            branch: Branch name to search (e.g., "BR-123")
 
         Returns:
             List of all CostElements where branch matches (including deleted)

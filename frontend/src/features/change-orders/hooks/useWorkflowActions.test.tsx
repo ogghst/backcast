@@ -118,7 +118,7 @@ describe("useWorkflowActions", () => {
 
   describe("useWorkflowActions hook", () => {
     it("should return action methods", () => {
-      const { result } = renderHook(() => useWorkflowActions("co-123"), {
+      const { result } = renderHook(() => useWorkflowActions("BR-123"), {
         wrapper,
       });
 
@@ -138,7 +138,7 @@ describe("useWorkflowActions", () => {
         isPending: true,
       } as unknown as ReturnType<typeof useUpdateChangeOrder>);
 
-      const { result } = renderHook(() => useWorkflowActions("co-123"), {
+      const { result } = renderHook(() => useWorkflowActions("BR-123"), {
         wrapper,
       });
 
@@ -146,7 +146,7 @@ describe("useWorkflowActions", () => {
     });
 
     it("should call submit with correct status", async () => {
-      const { result } = renderHook(() => useWorkflowActions("co-123"), {
+      const { result } = renderHook(() => useWorkflowActions("BR-123"), {
         wrapper,
       });
 
@@ -159,7 +159,7 @@ describe("useWorkflowActions", () => {
     });
 
     it("should call approve with correct status", async () => {
-      const { result } = renderHook(() => useWorkflowActions("co-123"), {
+      const { result } = renderHook(() => useWorkflowActions("BR-123"), {
         wrapper,
       });
 
@@ -171,7 +171,7 @@ describe("useWorkflowActions", () => {
     });
 
     it("should call reject with correct status", async () => {
-      const { result } = renderHook(() => useWorkflowActions("co-123"), {
+      const { result } = renderHook(() => useWorkflowActions("BR-123"), {
         wrapper,
       });
 
@@ -183,7 +183,7 @@ describe("useWorkflowActions", () => {
     });
 
     it("should call merge with merge request", async () => {
-      const { result } = renderHook(() => useWorkflowActions("co-123"), {
+      const { result } = renderHook(() => useWorkflowActions("BR-123"), {
         wrapper,
       });
 
@@ -198,7 +198,7 @@ describe("useWorkflowActions", () => {
     });
 
     it("should call merge with default target branch when not specified", async () => {
-      const { result } = renderHook(() => useWorkflowActions("co-123"), {
+      const { result } = renderHook(() => useWorkflowActions("BR-123"), {
         wrapper,
       });
 
@@ -213,7 +213,7 @@ describe("useWorkflowActions", () => {
       const onSuccess = vi.fn();
 
       const { result } = renderHook(
-        () => useWorkflowActions("co-123", { onSuccess }),
+        () => useWorkflowActions("BR-123", { onSuccess }),
         { wrapper },
       );
 
@@ -243,7 +243,7 @@ describe("useWorkflowActions", () => {
       );
 
       const { result } = renderHook(
-        () => useWorkflowActions("co-123", { onError }),
+        () => useWorkflowActions("BR-123", { onError }),
         { wrapper },
       );
 

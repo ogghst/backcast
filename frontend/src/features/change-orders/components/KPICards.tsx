@@ -110,18 +110,18 @@ const KPIMetricCard = ({
   const changeValue = formatCurrency(metric.change_value);
   const mergedValue = metric.merged_value ? formatCurrency(metric.merged_value) : null;
 
-  // Display merged_value if available, otherwise fall back to change_value
-  const displayValue = mergedValue ?? changeValue;
+  // Use delta for Statistic component to show the difference
+  const rawDisplayValue = metric.delta;
 
   return (
     <Card bordered>
       <Statistic
         title={title}
-        value={displayValue ?? "0"}
+        value={rawDisplayValue ?? 0}
         precision={2}
         styles={{ content: { color } }}
         prefix={icon}
-        suffix="€"
+        // Remove suffix as formatCurrency adds the symbol
         formatter={(value) => formatCurrency(String(value))}
       />
       <div style={{ marginTop: 8, fontSize: 12, color: "#8c8c8c" }}>
@@ -223,18 +223,18 @@ const ScheduleDurationCard = ({
   const changeValue = formatDays(metric.change_value);
   const mergedValue = metric.merged_value ? formatDays(metric.merged_value) : null;
 
-  // Display merged_value if available, otherwise fall back to change_value
-  const displayValue = mergedValue ?? changeValue;
+  // Use raw values for Statistic component
+  const rawDisplayValue = metric.merged_value ?? metric.change_value;
 
   return (
     <Card bordered>
       <Statistic
         title={title}
-        value={displayValue ?? "0"}
+        value={rawDisplayValue ?? 0}
         precision={0}
         styles={{ content: { color } }}
         prefix={icon}
-        suffix="days"
+        // Remove suffix as formatDays adds the unit
         formatter={(value) => formatDays(String(value))}
       />
       <div style={{ marginTop: 8, fontSize: 12, color: "#8c8c8c" }}>

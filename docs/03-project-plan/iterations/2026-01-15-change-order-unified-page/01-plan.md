@@ -331,14 +331,14 @@
 ```typescript
 // frontend/src/test/fixtures/changeOrders.ts
 export const mockChangeOrder: ChangeOrderPublic = {
-  change_order_id: "test-co-id",
+  change_order_id: "test-BR-id",
   code: "CO-2026-001",
   title: "Test Change Order",
   description: "Test description",
   justification: "Test justification",
   effective_date: "2026-01-15",
   status: "Draft",
-  branch: "co-CO-2026-001",
+  branch: "BR-CO-2026-001",
   branch_locked: false,
   available_transitions: ["submit", "delete"],
   project_id: "test-project-id",
@@ -356,7 +356,7 @@ export const mockImpactData: ImpactAnalysisResponse = {
   waterfall: { /* ... */ },
   time_series: [],
   entity_changes: [],
-  branch_name: "co-CO-2026-001",
+  branch_name: "BR-CO-2026-001",
 };
 ```
 
@@ -449,20 +449,24 @@ After implementation:
 **Existing Patterns to Follow:**
 
 **Frontend Layout Pattern:**
+
 - [`frontend/src/pages/projects/ProjectLayout.tsx`](../../../frontend/src/pages/projects/ProjectLayout.tsx) - Layout wrapper pattern
 - [`frontend/src/pages/projects/ProjectOverview.tsx`](../../../frontend/src/pages/projects/ProjectOverview.tsx) - Page component structure
 
 **Frontend Components:**
+
 - [`frontend/src/features/change-orders/components/ChangeOrderModal.tsx`](../../../frontend/src/features/change-orders/components/ChangeOrderModal.tsx) - Form logic extraction
 - [`frontend/src/features/change-orders/components/ChangeOrderWorkflowModal.tsx`](../../../frontend/src/features/change-orders/components/ChangeOrderWorkflowModal.tsx) - Workflow integration
 - [`frontend/src/features/change-orders/components/ImpactAnalysisDashboard.tsx`](../../../frontend/src/features/change-orders/components/ImpactAnalysisDashboard.tsx) - Impact section source
 - [`frontend/src/components/navigation/PageNavigation.tsx`](../../../frontend/src/components/navigation/PageNavigation.tsx) - Navigation pattern reference
 
 **Frontend Hooks:**
+
 - [`frontend/src/features/change-orders/hooks/useWorkflowActions.ts`](../../../frontend/src/features/change-orders/hooks/useWorkflowActions.ts) - Workflow action pattern
 - [`frontend/src/features/change-orders/api/useChangeOrders.ts`](../../../frontend/src/features/change-orders/api/useChangeOrders.ts) - Data fetching pattern
 
 **Frontend Tests:**
+
 - [`frontend/src/features/change-orders/components/WorkflowButtons.test.tsx`](../../../frontend/src/features/change-orders/components/WorkflowButtons.test.tsx) - Test pattern reference
 - [`frontend/src/pages/projects/ProjectOverview.test.tsx`](../../../frontend/src/pages/projects/ProjectOverview.test.tsx) - Page test pattern
 
@@ -619,7 +623,7 @@ test.describe("Change Order Unified Page", () => {
   });
 
   test("should show unsaved changes prompt", async ({ page }) => {
-    await page.goto("/projects/test-project/change-orders/test-co-id");
+    await page.goto("/projects/test-project/change-orders/test-BR-id");
     await page.getByLabel("Title").fill("Modified Title");
     await page.getByRole("link", { name: "Back to List" }).click();
 

@@ -188,7 +188,7 @@ class TestCalculateImpactLevel:
             name="WBE 1",
             budget_allocation=33000,
             revenue_allocation=38000,
-            branch=f"co-{code}",
+            branch=f"BR-{code}",
             parent_id=wbe_main_1.id,
             created_by=uuid4(),
         )
@@ -199,7 +199,7 @@ class TestCalculateImpactLevel:
             name="WBE 2",
             budget_allocation=22000,
             revenue_allocation=27000,
-            branch=f"co-{code}",
+            branch=f"BR-{code}",
             parent_id=wbe_main_2.id,
             created_by=uuid4(),
         )
@@ -267,7 +267,7 @@ class TestCalculateImpactLevel:
             name="WBE 1",
             budget_allocation=45000,
             revenue_allocation=50000,
-            branch=f"co-{code}",
+            branch=f"BR-{code}",
             parent_id=wbe_main_1.id,
             created_by=uuid4(),
         )
@@ -278,7 +278,7 @@ class TestCalculateImpactLevel:
             name="WBE 2",
             budget_allocation=30000,
             revenue_allocation=35000,
-            branch=f"co-{code}",
+            branch=f"BR-{code}",
             parent_id=wbe_main_2.id,
             created_by=uuid4(),
         )
@@ -346,7 +346,7 @@ class TestCalculateImpactLevel:
             name="WBE 1",
             budget_allocation=75000,
             revenue_allocation=80000,
-            branch=f"co-{code}",
+            branch=f"BR-{code}",
             parent_id=wbe_main_1.id,
             created_by=uuid4(),
         )
@@ -357,7 +357,7 @@ class TestCalculateImpactLevel:
             name="WBE 2",
             budget_allocation=50000,
             revenue_allocation=55000,
-            branch=f"co-{code}",
+            branch=f"BR-{code}",
             parent_id=wbe_main_2.id,
             created_by=uuid4(),
         )
@@ -425,7 +425,7 @@ class TestCalculateImpactLevel:
             name="WBE 1",
             budget_allocation=120000,
             revenue_allocation=125000,
-            branch=f"co-{code}",
+            branch=f"BR-{code}",
             parent_id=wbe_main_1.id,
             created_by=uuid4(),
         )
@@ -436,7 +436,7 @@ class TestCalculateImpactLevel:
             name="WBE 2",
             budget_allocation=80000,
             revenue_allocation=85000,
-            branch=f"co-{code}",
+            branch=f"BR-{code}",
             parent_id=wbe_main_2.id,
             created_by=uuid4(),
         )
@@ -551,7 +551,7 @@ class TestCalculateImpactLevel:
             name="WBE 1",
             budget_allocation=30000,
             revenue_allocation=35000,
-            branch=f"co-{code}",
+            branch=f"BR-{code}",
             parent_id=wbe_main_1.id,
             created_by=uuid4(),
         )
@@ -562,7 +562,7 @@ class TestCalculateImpactLevel:
             name="WBE 2",
             budget_allocation=20000,
             revenue_allocation=25000,
-            branch=f"co-{code}",
+            branch=f"BR-{code}",
             parent_id=wbe_main_2.id,
             created_by=uuid4(),
         )
@@ -626,7 +626,7 @@ class TestGetFinancialImpactDetails:
             name="WBE 1",
             budget_allocation=55000,
             revenue_allocation=65000,
-            branch=f"co-{code}",
+            branch=f"BR-{code}",
             parent_id=wbe_main.id,
             created_by=uuid4(),
         )
@@ -703,7 +703,7 @@ class TestGetFinancialImpactDetails:
             name="WBE 1",
             budget_allocation=45000,
             revenue_allocation=50000,
-            branch=f"co-{code}",
+            branch=f"BR-{code}",
             parent_id=wbe_main_1.id,
             created_by=uuid4(),
         )
@@ -714,7 +714,7 @@ class TestGetFinancialImpactDetails:
             name="WBE 2",
             budget_allocation=30000,
             revenue_allocation=35000,
-            branch=f"co-{code}",
+            branch=f"BR-{code}",
             parent_id=wbe_main_2.id,
             created_by=uuid4(),
         )
@@ -787,7 +787,7 @@ class TestGetFinancialImpactDetails:
             name="WBE 1",
             budget_allocation=45000,
             revenue_allocation=50000,
-            branch=f"co-{code}",
+            branch=f"BR-{code}",
             parent_id=wbe_main_1.id,
             created_by=uuid4(),
         )
@@ -798,7 +798,7 @@ class TestGetFinancialImpactDetails:
             name="WBE 2",
             budget_allocation=30000,
             revenue_allocation=35000,
-            branch=f"co-{code}",
+            branch=f"BR-{code}",
             parent_id=wbe_main_2.id,
             created_by=uuid4(),
         )

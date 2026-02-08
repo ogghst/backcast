@@ -140,7 +140,7 @@ async def test_to_public_branch_locked_true_when_branch_locked(
         title="Locked CO",
         status="Under Review",
         branch="main",
-        branch_name="co-CO-003",
+        branch_name="BR-CO-003",
         created_by=user_id,
         parent_id=None,
         deleted_at=None,
@@ -155,7 +155,7 @@ async def test_to_public_branch_locked_true_when_branch_locked(
 
     # Mock branch service to return a locked branch
     locked_branch = Branch(
-        name="co-CO-003",
+        name="BR-CO-003",
         project_id=project_id,
         type="change_order",
         locked=True,
@@ -172,7 +172,7 @@ async def test_to_public_branch_locked_true_when_branch_locked(
     # Assert
     assert result.branch_locked is True, "Branch should be reported as locked"
     service.branch_service.get_by_name_and_project.assert_called_once_with(
-        name="co-CO-003",
+        name="BR-CO-003",
         project_id=project_id,
     )
 
@@ -199,7 +199,7 @@ async def test_to_public_branch_locked_false_when_branch_unlocked(
         title="Unlocked CO",
         status="Draft",
         branch="main",
-        branch_name="co-CO-004",
+        branch_name="BR-CO-004",
         created_by=user_id,
         parent_id=None,
         deleted_at=None,
@@ -214,7 +214,7 @@ async def test_to_public_branch_locked_false_when_branch_unlocked(
 
     # Mock branch service to return an unlocked branch
     unlocked_branch = Branch(
-        name="co-CO-004",
+        name="BR-CO-004",
         project_id=project_id,
         type="change_order",
         locked=False,
@@ -252,7 +252,7 @@ async def test_to_public_rejected_status_allows_resubmission(db_session: AsyncSe
         title="Rejected CO",
         status="Rejected",
         branch="main",
-        branch_name="co-CO-005",
+        branch_name="BR-CO-005",
         created_by=user_id,
         parent_id=None,
         deleted_at=None,
@@ -304,7 +304,7 @@ async def test_to_public_approved_status_allows_implemented_only(
         title="Approved CO",
         status="Approved",
         branch="main",
-        branch_name="co-CO-006",
+        branch_name="BR-CO-006",
         created_by=user_id,
         parent_id=None,
         deleted_at=None,

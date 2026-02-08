@@ -29,13 +29,15 @@ Successfully implemented revenue modification support for change orders, enablin
 
 **File:** `backend/app/services/impact_analysis_service.py`
 
-#### Changes Made:
+#### Changes Made
+
 - **Extended `KPIScorecard` schema** to include `revenue_delta` field
 - **Updated `analyze_impact()` method** to calculate revenue totals from both branches
 - **Enhanced `_compare_kpis()` method** to calculate revenue delta and percentage
 - **Improved `_compare_wbe_lists()` method** to include revenue changes in entity comparisons
 
-#### Revenue Calculation Logic:
+#### Revenue Calculation Logic
+
 ```python
 # Calculate total revenue from each branch
 main_revenue_total = sum(wbe.revenue_allocation or 0 for wbe in main_wbes)
@@ -46,12 +48,14 @@ revenue_delta = change_revenue_total - main_revenue_total
 revenue_delta_percent = (revenue_delta / main_revenue_total * 100) if main_revenue_total > 0 else None
 ```
 
-#### Test Coverage:
+#### Test Coverage
+
 - **5 new test cases** added specifically for revenue impact
 - **All 13 tests passing** (8 existing + 5 new)
 - Coverage increased: 27.97% → 38.56% for ImpactAnalysisService
 
 **Test Cases:**
+
 1. `test_compare_kpis_with_revenue_delta` - Positive revenue delta calculation
 2. `test_compare_kpis_revenue_zero_main` - Edge case: zero revenue in main
 3. `test_compare_kpis_revenue_no_change` - No revenue change scenario
@@ -61,11 +65,13 @@ revenue_delta_percent = (revenue_delta / main_revenue_total * 100) if main_reven
 ### 2. Frontend: Revenue Impact Display ✅
 
 **Files Modified:**
+
 - `frontend/src/api/generated/models/KPIScorecard.ts`
 - `frontend/src/features/change-orders/components/KPICards.tsx`
 - `frontend/src/features/change-orders/components/KPICards.optimized.tsx`
 
-#### Changes Made:
+#### Changes Made
+
 - **Added `revenue_delta: KPIMetric` field** to KPIScorecard TypeScript interface
 - **Created "Revenue Allocation" KPI card** in impact analysis view
 - **Updated grid layout** from 3 columns to 4 columns for better display
@@ -74,13 +80,15 @@ revenue_delta_percent = (revenue_delta / main_revenue_total * 100) if main_reven
   - Green (↓): Negative revenue change (CONCERNING)
   - Gray (-): No change
 
-#### KPI Cards Now Display:
+#### KPI Cards Now Display
+
 1. Budget at Completion
 2. Total Budget Allocation
 3. **Revenue Allocation** ✨ - **NEW**
 4. Gross Margin
 
-#### User Experience:
+#### User Experience
+
 - Clear visual distinction between budget and revenue changes
 - EUR currency formatting
 - Percentage changes with +/- indicators
@@ -90,10 +98,11 @@ revenue_delta_percent = (revenue_delta / main_revenue_total * 100) if main_reven
 
 **File:** `frontend/src/features/wbes/components/WBEModal.tsx`
 
-#### Changes Made:
+#### Changes Made
+
 - **Added TimeMachine context integration** to detect current branch
 - **Implemented conditional rendering** based on branch context:
-  - Show revenue field in change order branches (`co-*`)
+  - Show revenue field in change order branches (`BR-*`)
   - Hide revenue field in main branch (system-controlled)
 - **Added InputNumber field** with:
   - EUR currency formatting
@@ -105,10 +114,11 @@ revenue_delta_percent = (revenue_delta / main_revenue_total * 100) if main_reven
   - Non-negative validation
   - User-friendly error messages
 
-#### Conditional Display Logic:
+#### Conditional Display Logic
+
 ```typescript
 const { branch } = useTimeMachine();
-const isChangeOrderBranch = branch.startsWith("co-");
+const isChangeOrderBranch = branch.startsWith("BR-");
 
 {isChangeOrderBranch && (
   <Form.Item name="revenue_allocation" label="Revenue Allocation (€)">
@@ -117,7 +127,8 @@ const isChangeOrderBranch = branch.startsWith("co-");
 )}
 ```
 
-#### Test Coverage:
+#### Test Coverage
+
 - **Updated test wrapper** to include TimeMachineProvider
 - **Verified conditional rendering** in main branch (field hidden)
 - **All 10 tests passing**
@@ -127,6 +138,7 @@ const isChangeOrderBranch = branch.startsWith("co-");
 ## Quality Metrics
 
 ### Backend
+
 | Metric | Target | Achieved | Status |
 |--------|--------|----------|--------|
 | **MyPy Strict Mode** | 0 errors | 0 errors | ✅ Pass |
@@ -135,6 +147,7 @@ const isChangeOrderBranch = branch.startsWith("co-");
 | **Tests Passing** | 100% | 13/13 (100%) | ✅ Pass |
 
 ### Frontend
+
 | Metric | Target | Achieved | Status |
 |--------|--------|----------|--------|
 | **TypeScript Strict Mode** | 0 errors | 0 errors | ✅ Pass |
@@ -160,6 +173,7 @@ const isChangeOrderBranch = branch.startsWith("co-");
 ### Backend (3 files)
 
 **Modified:**
+
 1. `backend/app/models/schemas/impact_analysis.py` - Added `revenue_delta` to KPIScorecard
 2. `backend/app/services/impact_analysis_service.py` - Revenue calculation logic
 3. `backend/tests/unit/services/test_impact_analysis_service.py` - 5 new tests
@@ -167,6 +181,7 @@ const isChangeOrderBranch = branch.startsWith("co-");
 ### Frontend (5 files)
 
 **Modified:**
+
 1. `frontend/src/api/generated/models/KPIScorecard.ts` - Added revenue_delta field
 2. `frontend/src/features/change-orders/components/KPICards.tsx` - Revenue KPI card
 3. `frontend/src/features/change-orders/components/KPICards.optimized.tsx` - Revenue KPI card
@@ -178,6 +193,7 @@ const isChangeOrderBranch = branch.startsWith("co-");
 ## Integration with Existing Features
 
 ### Reuses Existing Patterns
+
 - **WBE.revenue_allocation field** - Already existed, now properly utilized
 - **FinancialImpactService** - Referenced for calculation patterns
 - **EntityChange schema** - Already had `revenue_delta` field
@@ -185,6 +201,7 @@ const isChangeOrderBranch = branch.startsWith("co-");
 - **KPICards pattern** - Followed existing KPI display conventions
 
 ### Maintains Backward Compatibility
+
 - ✅ Main branch revenue remains system-controlled
 - ✅ Existing budget calculations unchanged
 - ✅ All existing tests still passing
@@ -195,6 +212,7 @@ const isChangeOrderBranch = branch.startsWith("co-");
 ## Testing Summary
 
 ### Backend Tests
+
 ```bash
 $ uv run pytest tests/unit/services/test_impact_analysis_service.py -v
 
@@ -210,6 +228,7 @@ tests/unit/services/test_impact_analysis_service.py::TestImpactAnalysisServiceRe
 ```
 
 ### Frontend Tests
+
 ```bash
 $ npm test -- WBEModal.test.tsx
 
@@ -236,7 +255,7 @@ $ npm test -- WBEModal.test.tsx
 
 ### Modifying Revenue in Change Orders
 
-1. Navigate to a project in a change order branch (co-***)
+1. Navigate to a project in a change order branch (BR-***)
 2. Edit a WBE (Work Breakdown Element)
 3. **Revenue Allocation (€)** field is visible
 4. Enter new revenue amount (e.g., €50,000.00)
@@ -286,7 +305,7 @@ $ npm test -- WBEModal.test.tsx
 2. **Conditional Form Fields**
    - **Challenge:** Show revenue field only in change orders
    - **Solution:** Use TimeMachine context to detect branch prefix
-   - **Test:** Verified field hidden in main, shown in co-*
+   - **Test:** Verified field hidden in main, shown in BR-*
 
 3. **Type Safety**
    - **Challenge:** Ensure revenue_delta propagates through all layers
@@ -327,6 +346,7 @@ $ npm test -- WBEModal.test.tsx
 ## Next Steps
 
 ### Optional Enhancements
+
 1. **Revenue Validation Rules** (3 points)
    - Add project contract value limit
    - Warn when revenue exceeds contract
@@ -343,7 +363,9 @@ $ npm test -- WBEModal.test.tsx
    - Revenue impact on profit margins
 
 ### Recommended Path
+
 Proceed with **Phase 5: Advanced Impact Analysis** (21 points) to add:
+
 - Schedule implication analysis
 - EVM performance index projections
 - Variance at Completion (VAC) projections

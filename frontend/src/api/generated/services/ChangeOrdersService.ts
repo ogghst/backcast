@@ -19,7 +19,7 @@ export class ChangeOrdersService {
      * Retrieve change orders for a project with pagination.
      *
      * Change Orders are always scoped to a specific project.
-     * The auto-created branch for each CO is named `co-{code}`.
+     * The auto-created branch for each CO is named `BR-{code}`.
      *
      * Requires read permission.
      * @param projectId Filter by project ID
@@ -73,7 +73,7 @@ export class ChangeOrdersService {
      *
      * This endpoint:
      * 1. Creates the Change Order on the main branch
-     * 2. Automatically creates a `co-{code}` branch for isolated work
+     * 2. Automatically creates a `BR-{code}` branch for isolated work
      * 3. Returns the created Change Order
      *
      * The auto-created branch allows changes to be developed in isolation
@@ -256,7 +256,7 @@ export class ChangeOrdersService {
      *
      * Requires read permission.
      * @param changeOrderId
-     * @param sourceBranch Source branch name (e.g., 'co-123')
+     * @param sourceBranch Source branch name (e.g., 'BR-123')
      * @param targetBranch Target branch name (default: 'main')
      * @returns any Successful Response
      * @throws ApiError
@@ -285,7 +285,7 @@ export class ChangeOrdersService {
      * Merge Change Order
      * Merge a Change Order's branch into the target branch.
      *
-     * Infers the source branch from the Change Order code (e.g., `co-{code}`).
+     * Infers the source branch from the Change Order code (e.g., `BR-{code}`).
      *
      * Checks for merge conflicts before proceeding. If conflicts exist,
      * returns 409 with conflict details.
@@ -360,7 +360,7 @@ export class ChangeOrdersService {
      *
      * Requires read permission.
      * @param changeOrderId
-     * @param branchName Branch name to compare (e.g., 'co-CO-2026-001')
+     * @param branchName Branch name to compare (e.g., 'BR-CO-2026-001')
      * @param mode Comparison mode: merged (main+change) or isolated (change only)
      * @returns ImpactAnalysisResponse Successful Response
      * @throws ApiError

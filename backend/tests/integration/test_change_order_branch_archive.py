@@ -27,7 +27,7 @@ class TestChangeOrderBranchArchive:
         
         Scenario:
         1. Create CO, approve, and merge it (Status: Implemented).
-        2. Verify branch 'co-{code}' is active.
+        2. Verify branch 'BR-{code}' is active.
         3. Archive the branch.
         4. Verify branch is hidden from active list.
         5. Verify branch is visible in time-travel query.
@@ -37,7 +37,7 @@ class TestChangeOrderBranchArchive:
         project_id = uuid4()
         co_id = uuid4()
         co_code = "ARCH-001"
-        branch_name = f"co-{co_code}"
+        branch_name = f"BR-{co_code}"
 
         co_service = ChangeOrderService(db_session)
         branch_service = BranchService(db_session)

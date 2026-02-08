@@ -79,11 +79,13 @@ This document defines the bounded contexts used to partition the Backcast EVS sy
 
 **Description:**
 Cost Element Types are organizational reference data that enable:
+
 - Consistent cost categorization across projects
 - Cross-project cost comparability
 - Department ownership of cost types
 
 **Key Entities:**
+
 - `CostElementType` - Standardized cost category (code, name, description, department_id)
 - Satisfies: `VersionableProtocol` (NOT branchable)
 
@@ -144,6 +146,7 @@ Cost Elements are the leaf level of the project hierarchy where budgets are allo
   - Full CRUD with nested endpoints under cost elements
 
 **Relationship Architecture (as of 2026-01-18):**
+
 - **Inverted FK**: cost_elements.schedule_baseline_id → schedule_baselines.schedule_baseline_id
 - **Constraint**: Unique constraint on schedule_baseline_id enforces 1:1 relationship
 - **API Pattern**: Nested endpoints `/api/v1/cost-elements/{id}/schedule-baseline`
@@ -168,7 +171,7 @@ Cost Elements are the leaf level of the project hierarchy where budgets are allo
 
 **Key Operations:**
 
-- Automatic branch creation for change orders (`co-{id}`)
+- Automatic branch creation for change orders (`BR-{id}`)
 - Branch isolation for modifications
 - Branch comparison for impact analysis
 - Branch merge for approved change orders

@@ -10,6 +10,7 @@
 The following terms shall be used consistently across all project documentation:
 
 **Earned Value Management Terms:**
+
 - "Percent Complete" (preferred) - Use instead of "Physical Completion" or "% di completamento"
 - "Earned Value (EV)" - Use instead of "EV Calculation"
 - "Gaussian Progression" (capitalized) - Use instead of "gaussian" (lowercase)
@@ -17,20 +18,24 @@ The following terms shall be used consistently across all project documentation:
 - "Schedule Performance Index (SPI)" - Always use full term on first use in each section
 
 **Quality Terms:**
+
 - "Quality Event" (preferred) - Use instead of "Quality Incident"
 
 **Branching Terms:**
+
 - "Source Branch" - The branch from which a change order branch is forked
 - "Target Branch" - The branch receiving merged changes (typically main)
 - "Branch States: Active, Locked, Archived" - Use these exact terms (not "merged")
 
 **Financial Terms:**
+
 - "Budget at Completion (BAC)" - Always use full term on first use
 - "Estimate at Completion (EAC)" - Always use full term on first use
 - "Estimate to Complete (ETC)" - Always use full term on first use
 - "Variance at Completion (VAC)" - Always use full term on first use
 
 **Date/Time Terms:**
+
 - "Control Date" - The temporal reference point for time machine queries
 - "Registration Date" - When a record was created or took effect
 - "Baseline Date" - The date a baseline snapshot was taken
@@ -49,7 +54,7 @@ Individual machine or major deliverable sold to customer within a project. Prima
 Represents a specific department or discipline responsible for delivering portions of work within a WBE. Most granular level of budget tracking and cost imputation.
 
 **Branch**  
-Isolated workspace for modifying project data. Types: main (production), co-{id} (change orders).
+Isolated workspace for modifying project data. Types: main (production), BR-{id} (change orders).
 
 **Control Date**  
 Selected date determining what data is visible/calculable. Supports time-travel queries.
@@ -137,7 +142,7 @@ Applying changes from a branch back into main branch. Atomic operation (all-or-n
 Formal request to modify project scope, budget, or schedule. Creates isolated branch for safe experimentation.
 
 **Change Order Branch**  
-Isolated workspace (`co-{id}`) where change order modifications are made before merging to main.
+Isolated workspace (`BR-{id}`) where change order modifications are made before merging to main.
 
 **Branch Lock**  
 Prevents modifications to a branch. Used when branch should be read-only (e.g., under review).
@@ -180,6 +185,7 @@ Permanent record of all data changes: what, who, when, why. Immutable and non-de
 
 **Forecast Type**  
 Method used to create forecast:
+
 - **Bottom-Up:** Detailed estimation from ground up
 - **Performance-Based:** Using historical <|CURSOR_LOCATION|>performance trends (e.g., CPI)
 - **Management Judgment:** Expert opinion/experience
@@ -193,6 +199,7 @@ Date when forecast was created. Must be in past. Maximum 3 per cost element.
 
 **Progression Type**  
 How planned work is distributed over time:
+
 - **Linear:** Even distribution
 - **Gaussian:** Bell curve, peak at midpoint
 - **Logarithmic:** Slow start, accelerating finish
@@ -262,5 +269,6 @@ Access to summary dashboards and executive reports.
 ---
 
 **See Also:**
+
 - [Functional Requirements](functional-requirements.md) - Detailed system requirements
 - [EVM Requirements](evm-requirements.md) - EVM calculations and formulas

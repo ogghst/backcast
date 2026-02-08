@@ -4,6 +4,7 @@
 **Epic:** E006 (Branching & Change Order Management)
 **Status:** Analysis Phase
 **Related Docs:**
+
 - [Change Management User Stories](../../../01-product-scope/change-management-user-stories.md)
 - [Product Backlog](../../product-backlog.md)
 - [EVCS Architecture](../../../02-architecture/backend/contexts/evcs-core/)
@@ -17,7 +18,7 @@
 The user requests implementation of the Change Management system as specified in the product documentation. The system must:
 
 1. **Support Change Order Lifecycle**: Draft → Submitted → Approved/Rejected → Implemented → Archived
-2. **Automatic Branch Creation**: Each Change Order (CO) spawns a dedicated branch (`co-{id}`)
+2. **Automatic Branch Creation**: Each Change Order (CO) spawns a dedicated branch (`BR-{id}`)
 3. **Isolated Development**: Users modify project data (WBEs, Cost Elements, Budgets) in the CO branch without affecting main
 4. **Impact Analysis**: Visual comparison between CO branch and main branch before approval
 5. **Merge Implementation**: Approved COs merge changes into target branch
@@ -25,6 +26,7 @@ The user requests implementation of the Change Management system as specified in
 7. **View Modes**: Toggle between "Isolated" (changes only) and "Merged" (full project context) views
 
 **Key Assumptions:**
+
 - EVCS Core (bitemporal versioning + branching) is already implemented
 - Project, WBE, and CostElement entities are fully branchable
 - Basic ChangeOrderVersion model exists but needs workflow completion
@@ -67,12 +69,14 @@ The user requests implementation of the Change Management system as specified in
 ### Architecture Context
 
 **Bounded Contexts Involved:**
+
 1. **E006 (Branching & Change Order Management)** - Primary context
 2. **E003 (Entity Versioning System)** - Provides EVCS Core foundation
 3. **E004 (Project Structure Management)** - Projects, WBEs, Cost Elements
 4. **E008 (EVM Calculations & Reporting)** - Impact metrics (BAC, EAC, margins)
 
 **Existing Patterns:**
+
 - **Protocol-Based Architecture**: `SimpleEntityProtocol`, `VersionableProtocol`, `BranchableProtocol`
 - **Generic Services**: `TemporalService[T]`, `BranchableService[T]`
 - **Command Pattern**: Create/Update/Delete commands with version chaining
@@ -106,6 +110,7 @@ The user requests implementation of the Change Management system as specified in
 | `Branch` | `models/domain/branch.py` | Simple (non-versioned) |
 
 **Similar Patterns:**
+
 - All entities use `BranchableMixin` for branch isolation
 - Repository layer provides `get_by_branch()` and `get_active_version()` methods
 - Services inherit from `BranchableService[T]` for automatic branching support
@@ -124,11 +129,13 @@ The user requests implementation of the Change Management system as specified in
 | `ProjectForm` | `features/projects/ProjectForm.tsx` | Medium - pattern reference |
 
 **State Management:**
+
 - **Server State**: TanStack Query for API data (existing pattern)
 - **Client State**: Zustand for UI state (needs new CO workflow store)
 - **Routing**: React Router v6 (needs CO routes)
 
 **Routing Structure:**
+
 ```
 /current: /projects, /projects/:id, /wbes, /wbes/:id, /cost-elements, /cost-elements/:id
 /needed: /change-orders, /change-orders/:id, /change-orders/:id/impact
@@ -141,12 +148,14 @@ The user requests implementation of the Change Management system as specified in
 ### Option 1: Phased Rollout (Incremental Delivery)
 
 **Architecture & Design:**
+
 - **Phase 1**: Core Change Order CRUD + Auto-branch creation (E06-U01, U02)
 - **Phase 2**: In-branch editing + Branch management (E06-U03, U06, U07, U08)
 - **Phase 3**: Impact analysis engine (E06-U04)
 - **Phase 4**: Merge workflow completion (E06-U05)
 
 **Component Structure:**
+
 ```
 Backend:
 - app/services/change_order.py (extend existing)
@@ -164,12 +173,14 @@ Frontend:
 ```
 
 **UX Design:**
+
 - **Phase 1**: Simple CO list and create form, automatic branch switching prompt
 - **Phase 2**: Branch isolation indicators, view mode toggle, lock/unlock controls
 - **Phase 3**: Visual impact dashboard with charts (waterfall, S-curves)
 - **Phase 4**: Merge confirmation modal, rollback capability
 
 **Implementation:**
+
 - Extend existing `ChangeOrderService` with workflow methods
 - Add `ImpactAnalysisService` for branch comparison
 - Create new change order feature module in frontend
@@ -177,6 +188,7 @@ Frontend:
 - Leverage existing chart library (if any) or add Recharts/Chart.js
 
 **Trade-offs:**
+
 | Aspect | Assessment |
 |--------|------------|
 | Pros | - Early value delivery, incremental validation<br>- Lower risk per phase<br>- Easier to adjust based on feedback |
@@ -190,11 +202,13 @@ Frontend:
 ### Option 2: Full Stack Implementation (Monolithic Sprint)
 
 **Architecture & Design:**
+
 - Single focused sprint implementing all 8 user stories
 - Parallel development tracks: backend workflow + frontend UI
 - Feature flags to enable capabilities as they complete
 
 **Component Structure:**
+
 ```
 Same as Option 1, but all implemented in one iteration
 
@@ -204,17 +218,20 @@ Additional:
 ```
 
 **UX Design:**
+
 - Complete change management UI from day one
 - Guided onboarding for first-time users
 - Progressive disclosure of advanced features
 
 **Implementation:**
+
 - All backend endpoints implemented upfront
 - Frontend components built in order of dependency
 - Integration testing after all components complete
 - Single comprehensive release
 
 **Trade-offs:**
+
 | Aspect | Assessment |
 |--------|------------|
 | Pros | - Complete feature set available sooner<br>- Consistent UI/UX across all capabilities<br>- Single testing/release cycle |
@@ -228,11 +245,13 @@ Additional:
 ### Option 3: Workflow-First (Backend-Driven)
 
 **Architecture & Design:**
+
 - Prioritize backend workflow engine and state machine
 - Build minimal frontend UI for workflow progression
 - Add rich visualization (impact analysis) in follow-up
 
 **Component Structure:**
+
 ```
 Backend Priority:
 1. ChangeOrderStateMachine (state transitions, validation)
@@ -246,17 +265,20 @@ Frontend MVP:
 ```
 
 **UX Design:**
+
 - Functional workflow over visual polish
 - CLI-style operations via UI initially
 - Impact analysis as spreadsheet-style diff initially
 
 **Implementation:**
+
 - Focus on robust state machine and data integrity
 - Use existing BranchSelector as primary UI
 - Add status-based action enablement
 - Impact analysis as simple data tables first
 
 **Trade-offs:**
+
 | Aspect | Assessment |
 |--------|------------|
 | Pros | - Ensures data integrity first<br>- Lower UI development cost initially<br>- Faster backend validation |
@@ -300,6 +322,7 @@ Frontend MVP:
 | 4 | E06-U05 | 13 | Merge workflow |
 
 **Alternative consideration:** Choose **Option 2** if:
+
 - Team has parallel frontend/backend capacity
 - Stakeholders need complete feature set quickly
 - Risk tolerance is higher

@@ -4,9 +4,9 @@
 
 The user wants to operationalize the branching strategy defined in the Product Scope. Specifically:
 
-1.  **Branch Attributes**: Ensure branches have attributes as per functional requirements (implicitly handled via Change Order metadata).
-2.  **Branch Listing**: The frontend `BranchSelector` must dynamically query and list active branches for the _current project_.
-3.  **Active Branches**: Defined as the "main" branch plus any active Change Order branches (`co-{code}`) derived from Change Orders that are not yet merged/closed (or perhaps all, depending on history requirements).
+1. **Branch Attributes**: Ensure branches have attributes as per functional requirements (implicitly handled via Change Order metadata).
+2. **Branch Listing**: The frontend `BranchSelector` must dynamically query and list active branches for the _current project_.
+3. **Active Branches**: Defined as the "main" branch plus any active Change Order branches (`BR-{code}`) derived from Change Orders that are not yet merged/closed (or perhaps all, depending on history requirements).
 
 **Assumptions**:
 
@@ -19,7 +19,7 @@ The user wants to operationalize the branching strategy defined in the Product S
 **Product Scope:**
 
 - `functional-requirements.md`: "Dropdown lists all branches (main + active change order branches)".
-- `branching-requirements.md`: Branch naming `co-{change_order_id}` (or code). Operation `GET /api/v1/projects/{project_id}?branch=...`.
+- `branching-requirements.md`: Branch naming `BR-{change_order_id}` (or code). Operation `GET /api/v1/projects/{project_id}?branch=...`.
 - `epics.md`: Epic 6 (Branching & Change Order Management) covers this.
 
 **Architecture Context:**
@@ -55,7 +55,7 @@ Create a specific endpoint that aggregates `main` and all valid change order bra
 - **Logic**:
   1. Always return 'main'.
   2. Query `ChangeOrders` where `project_id` matches and `status` is active (Draft, Submitted, Under Review, Approved).
-  3. Map COs to branch names `co-{code}`.
+  3. Map COs to branch names `BR-{code}`.
 
 **UX Design:**
 
@@ -71,6 +71,7 @@ Create a specific endpoint that aggregates `main` and all valid change order bra
 - Frontend: Wrap `BranchSelector` in `Header` to be context-aware.
 
 **Trade-offs:**
+
 | Aspect | Assessment |
 |--------|------------|
 | Pros | Clean API contract; Backend owns the logic of what constitutes a "branch"; optimized query. |
@@ -86,7 +87,7 @@ Frontend queries Change Orders and constructs the branch list locally.
 **Architecture & Design:**
 
 - Frontend uses existing `GET /api/v1/change-orders?project_id={id}`.
-- Logic in Frontend to manually append 'main' and format `co-{code}`.
+- Logic in Frontend to manually append 'main' and format `BR-{code}`.
 
 **Implementation:**
 
@@ -94,10 +95,11 @@ Frontend queries Change Orders and constructs the branch list locally.
 - Filter/Map results to `BranchOption[]`.
 
 **Trade-offs:**
+
 | Aspect | Assessment |
 |--------|------------|
 | Pros | No backend changes needed immediately. |
-| Cons | Leaks business logic (naming convention `co-{code}`) to frontend; Over-fetches data (full CO details) just for a dropdown; "main" logic duplication. |
+| Cons | Leaks business logic (naming convention `BR-{code}`) to frontend; Over-fetches data (full CO details) just for a dropdown; "main" logic duplication. |
 | Complexity | Low |
 | Maintainability | Fair |
 | Performance | Fair (Fetching full CO objects) |
@@ -111,6 +113,7 @@ List all branches for all projects.
 - `GET /api/v1/branches` covers everything.
 
 **Trade-offs:**
+
 | Aspect | Assessment |
 |--------|------------|
 | Pros | Simple usage if context is missing. |
@@ -136,5 +139,5 @@ List all branches for all projects.
 
 ## Questions for Decision
 
-1.  Should the `BranchSelector` be visible/active when _not_ in a specific project context (e.g., Dashboard)? (Assumption: No, or just 'main').
-2.  Should we include "Implemented" or "Closed" Change Orders in the branch list (read-only historical view)? (Assumption: Yes, for time-travel/audit, maybe separated visually).
+1. Should the `BranchSelector` be visible/active when _not_ in a specific project context (e.g., Dashboard)? (Assumption: No, or just 'main').
+2. Should we include "Implemented" or "Closed" Change Orders in the branch list (read-only historical view)? (Assumption: Yes, for time-travel/audit, maybe separated visually).

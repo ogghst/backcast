@@ -40,7 +40,7 @@ class TestChangeOrderImpactAnalysisSerialization:
         change_order_id = uuid4()
         impact_response = ImpactAnalysisResponse(
             change_order_id=change_order_id,
-            branch_name="co-test-integration-001",
+            branch_name="BR-test-integration-001",
             main_branch_name="main",
             kpi_scorecard={
                 "bac": {
@@ -131,7 +131,7 @@ class TestChangeOrderImpactAnalysisSerialization:
         change_order_id = uuid4()
         impact_response = ImpactAnalysisResponse(
             change_order_id=change_order_id,
-            branch_name="co-test-serialization",
+            branch_name="BR-test-serialization",
             main_branch_name="main",
             kpi_scorecard={
                 "bac": {

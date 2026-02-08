@@ -31,7 +31,7 @@ async def test_impact_analysis():
         service = ImpactAnalysisService(session)
         analysis = await service.analyze_impact(
             change_order_id=co.change_order_id,
-            branch_name="co-CO-2026-001",
+            branch_name="BR-CO-2026-001",
             branch_mode=BranchMode.MERGE,
         )
 
@@ -55,7 +55,7 @@ async def test_impact_analysis():
         print("=" * 60)
         analysis_strict = await service.analyze_impact(
             change_order_id=co.change_order_id,
-            branch_name="co-CO-2026-001",
+            branch_name="BR-CO-2026-001",
             branch_mode=BranchMode.STRICT,
         )
 

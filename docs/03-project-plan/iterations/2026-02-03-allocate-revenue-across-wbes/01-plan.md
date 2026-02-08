@@ -265,7 +265,7 @@ tasks:
 | T-006   | test_create_wbe_with_valid_revenue_allocation_succeeds            | AC-1      | Integration  | POST /wbes with revenue_allocation=100000 returns 201, WBERead includes revenue_allocation                   |
 | T-007   | test_update_wbe_with_valid_revenue_allocation_succeeds            | AC-1      | Integration  | PUT /wbes/{id} with new revenue_allocation returns 200, validation passes                                   |
 | T-008   | test_revenue_allocation_versioning_creates_history                 | AC-3      | Integration  | Create WBE (revenue=50000), update (revenue=60000), history endpoint returns 2 versions with different values |
-| T-009   | test_revenue_allocation_branch_isolation                           | AC-3      | Integration  | Create branch co-1, update WBE revenue, main branch unchanged, co-1 has new value                            |
+| T-009   | test_revenue_allocation_branch_isolation                           | AC-3      | Integration  | Create branch BR-1, update WBE revenue, main branch unchanged, BR-1 has new value                            |
 
 ### Test Infrastructure Needs
 
@@ -326,7 +326,7 @@ async def wbe_with_revenue(session, project_with_contract_value, test_user):
 
 - Seed data: project with contract_value=100000.00
 - Clean state: Each test uses rollback transaction isolation
-- Branch data: Test fixtures for main branch and co-1 branch
+- Branch data: Test fixtures for main branch and BR-1 branch
 
 ---
 
@@ -444,6 +444,7 @@ async def wbe_with_revenue(session, project_with_contract_value, test_user):
 **Tasks:** BE-001 through BE-009
 
 **Deliverables:**
+
 - Database migration created and tested
 - WBE model updated with revenue_allocation field
 - WBE schemas updated (all 4 schemas)
@@ -452,6 +453,7 @@ async def wbe_with_revenue(session, project_with_contract_value, test_user):
 - MyPy strict mode, Ruff linting, 80%+ coverage achieved
 
 **Definition of Done:**
+
 - All backend tests pass (pytest)
 - MyPy reports 0 errors
 - Ruff reports 0 errors
@@ -463,12 +465,14 @@ async def wbe_with_revenue(session, project_with_contract_value, test_user):
 **Tasks:** FE-001 through FE-004
 
 **Deliverables:**
+
 - OpenAPI client regenerated with new field
 - WBEModal component updated with revenue_allocation field
 - Frontend tests pass (rendering, validation, error display)
 - TypeScript strict mode, ESLint clean
 
 **Definition of Done:**
+
 - All frontend tests pass (npm test)
 - TypeScript reports 0 type errors
 - ESLint reports 0 errors
@@ -480,11 +484,13 @@ async def wbe_with_revenue(session, project_with_contract_value, test_user):
 **Tasks:** DOC-001, DOC-002
 
 **Deliverables:**
+
 - API documentation reviewed and confirmed
 - User guide updated with revenue allocation workflow
 - End-to-end testing performed
 
 **Definition of Done:**
+
 - OpenAPI docs show revenue_allocation field
 - User guide includes step-by-step instructions
 - E2E test passes (create project → allocate revenue → verify validation)
@@ -494,6 +500,7 @@ async def wbe_with_revenue(session, project_with_contract_value, test_user):
 **Tasks:** Code review, merge, deploy, smoke test
 
 **Deliverables:**
+
 - Code reviewed and approved
 - Merged to main branch
 - Backend migration deployed to staging
@@ -502,6 +509,7 @@ async def wbe_with_revenue(session, project_with_contract_value, test_user):
 - Production deployment (if approved)
 
 **Definition of Done:**
+
 - PR approved by reviewer
 - Staging environment smoke test passes
 - Production deployment successful

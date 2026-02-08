@@ -22,7 +22,7 @@ async def find_correct_branch():
             print("Change Order CO-2026-001 not found")
             return
 
-        expected_branch = f"co-{co.code}"
+        expected_branch = f"BR-{co.code}"
         print(f"Expected branch: {expected_branch}")
 
         # Check if any WBEs exist with that branch
@@ -40,7 +40,7 @@ async def find_correct_branch():
             budget = sum(w.budget_allocation for w in wbes)
             print(f"Total budget: {budget}")
 
-        # Check what the actual issue is - the co-xxx branches are project-based
+        # Check what the actual issue is - the BR-xxx branches are project-based
         print("\nActual branches in database:")
         all_wbes_stmt = select(WBE).where(
             WBE.project_id == co.project_id,
@@ -52,7 +52,7 @@ async def find_correct_branch():
 
         branches = set(w.branch for w in all_wbes)
         for branch in sorted(branches):
-            if branch.startswith("co-"):
+            if branch.startswith("BR-"):
                 branch_wbes = [w for w in all_wbes if w.branch == branch]
                 budget = sum(w.budget_allocation for w in branch_wbes)
                 print(f"  {branch}: {budget} ({len(branch_wbes)} WBEs)")

@@ -1367,7 +1367,7 @@
           "Projects"
         ],
         "summary": "Read Project Branches",
-        "description": "Get all branches for a project.\n\nReturns the main branch plus any change order branches (co-{code})\nthat exist for this project.\n\nRequires read permission.",
+        "description": "Get all branches for a project.\n\nReturns the main branch plus any change order branches (BR-{code})\nthat exist for this project.\n\nRequires read permission.",
         "operationId": "get_project_branches",
         "security": [
           {
@@ -4436,7 +4436,7 @@
           "Change Orders"
         ],
         "summary": "Read Change Orders",
-        "description": "Retrieve change orders for a project with pagination.\n\nChange Orders are always scoped to a specific project.\nThe auto-created branch for each CO is named `co-{code}`.\n\nRequires read permission.",
+        "description": "Retrieve change orders for a project with pagination.\n\nChange Orders are always scoped to a specific project.\nThe auto-created branch for each CO is named `BR-{code}`.\n\nRequires read permission.",
         "operationId": "get_change_orders",
         "security": [
           {
@@ -4625,7 +4625,7 @@
           "Change Orders"
         ],
         "summary": "Create Change Order",
-        "description": "Create a new change order with automatic branch creation.\n\nThis endpoint:\n1. Creates the Change Order on the main branch\n2. Automatically creates a `co-{code}` branch for isolated work\n3. Returns the created Change Order\n\nThe auto-created branch allows changes to be developed in isolation\nbefore merging to main when approved.\n\nRequires create permission.",
+        "description": "Create a new change order with automatic branch creation.\n\nThis endpoint:\n1. Creates the Change Order on the main branch\n2. Automatically creates a `BR-{code}` branch for isolated work\n3. Returns the created Change Order\n\nThe auto-created branch allows changes to be developed in isolation\nbefore merging to main when approved.\n\nRequires create permission.",
         "operationId": "create_change_order",
         "security": [
           {
@@ -5005,10 +5005,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Source branch name (e.g., 'co-123')",
+              "description": "Source branch name (e.g., 'BR-123')",
               "title": "Source Branch"
             },
-            "description": "Source branch name (e.g., 'co-123')"
+            "description": "Source branch name (e.g., 'BR-123')"
           },
           {
             "name": "target_branch",
@@ -5058,7 +5058,7 @@
           "Change Orders"
         ],
         "summary": "Merge Change Order",
-        "description": "Merge a Change Order's branch into the target branch.\n\nInfers the source branch from the Change Order code (e.g., `co-{code}`).\n\nChecks for merge conflicts before proceeding. If conflicts exist,\nreturns 409 with conflict details.\n\nRequires update permission.",
+        "description": "Merge a Change Order's branch into the target branch.\n\nInfers the source branch from the Change Order code (e.g., `BR-{code}`).\n\nChecks for merge conflicts before proceeding. If conflicts exist,\nreturns 409 with conflict details.\n\nRequires update permission.",
         "operationId": "merge_change_order",
         "security": [
           {
@@ -5202,10 +5202,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Branch name to compare (e.g., 'co-CO-2026-001')",
+              "description": "Branch name to compare (e.g., 'BR-CO-2026-001')",
               "title": "Branch Name"
             },
-            "description": "Branch name to compare (e.g., 'co-CO-2026-001')"
+            "description": "Branch name to compare (e.g., 'BR-CO-2026-001')"
           },
           {
             "name": "mode",
@@ -7572,7 +7572,7 @@
           "name": {
             "type": "string",
             "title": "Name",
-            "description": "Branch name (e.g. 'main' or 'co-CO-123')"
+            "description": "Branch name (e.g. 'main' or 'BR-CO-123')"
           },
           "type": {
             "type": "string",
@@ -9844,7 +9844,7 @@
           "branch_name": {
             "type": "string",
             "title": "Branch Name",
-            "description": "Branch name being compared (e.g., 'co-CO-2026-001')"
+            "description": "Branch name being compared (e.g., 'BR-CO-2026-001')"
           },
           "main_branch_name": {
             "type": "string",

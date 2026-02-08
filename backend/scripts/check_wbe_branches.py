@@ -12,14 +12,14 @@ async def check_wbe_branches():
     async with async_session_maker() as session:
         # Check if WBEs exist on CO-2026-003 branch
         change_branch_stmt = select(WBE).where(
-            WBE.branch == 'co-CO-2026-003',
+            WBE.branch == 'BR-CO-2026-003',
             func.upper(cast(Any, WBE).valid_time).is_(None),
             cast(Any, WBE).deleted_at.is_(None),
         )
         result = await session.execute(change_branch_stmt)
         wbes = result.scalars().all()
 
-        print(f'WBEs on co-CO-2026-003 branch: {len(wbes)}')
+        print(f'WBEs on BR-CO-2026-003 branch: {len(wbes)}')
         for wbe in wbes:
             print(f'  - {wbe.name}: budget={wbe.budget_allocation}, id={wbe.wbe_id}')
 

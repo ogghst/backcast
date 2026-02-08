@@ -216,7 +216,7 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
       {/* Impact Section (hidden in create mode) */}
       <ChangeOrderImpactSection
         changeOrderId={changeOrderId || null}
-        branch={changeOrder ? `co-${changeOrder.code}` : null}
+        branch={changeOrder ? `BR-${changeOrder.code}` : null}
         useCollapsibleCard
       />
     </div>

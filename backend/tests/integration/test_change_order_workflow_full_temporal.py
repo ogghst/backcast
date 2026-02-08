@@ -261,7 +261,7 @@ class TestChangeOrderWorkflowFullTemporal:
         assert co.code == "CO-2026-001"
         assert co.status == "Draft"
         assert co.branch == "main"
-        assert co.branch_name == "co-CO-2026-001"
+        assert co.branch_name == "BR-CO-2026-001"
 
         source_branch = co.branch_name
 

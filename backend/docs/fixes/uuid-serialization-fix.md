@@ -44,7 +44,7 @@ The `mode='json'` parameter instructs Pydantic to convert all non-JSON-serializa
 # impact_analysis.model_dump() returns:
 {
     "change_order_id": UUID('12345678-1234-5678-1234-567812345678'),  # UUID object
-    "branch_name": "co-test-001",
+    "branch_name": "BR-test-001",
     ...
 }
 
@@ -57,7 +57,7 @@ The `mode='json'` parameter instructs Pydantic to convert all non-JSON-serializa
 # impact_analysis.model_dump(mode='json') returns:
 {
     "change_order_id": "12345678-1234-5678-1234-567812345678",  # String
-    "branch_name": "co-test-001",
+    "branch_name": "BR-test-001",
     ...
 }
 
@@ -73,6 +73,7 @@ The `mode='json'` parameter instructs Pydantic to convert all non-JSON-serializa
 ## Tests Added
 
 ### Unit Tests
+
 Created comprehensive unit tests in `/home/nicola/dev/backcast_evs/backend/tests/test_uuid_serialization_fix.py`:
 
 1. `test_impact_analysis_response_model_dump_json_mode` - Verifies UUIDs are converted to strings
@@ -80,6 +81,7 @@ Created comprehensive unit tests in `/home/nicola/dev/backcast_evs/backend/tests
 3. `test_uuid_serialization_roundtrip` - Verifies UUID → JSON → UUID preservation
 
 ### Integration Tests
+
 Created integration test in `/home/nicola/dev/backcast_evs/backend/tests/integration/test_change_order_impact_analysis_serialization.py`:
 
 1. `test_impact_analysis_stores_with_uuid_serialization` - Tests complete storage workflow
@@ -100,27 +102,32 @@ $ uv run pytest tests/integration/test_change_order_impact_analysis_serializatio
 ## Quality Checks
 
 ### Ruff Linting
+
 ```bash
 $ uv run ruff check app/services/change_order_service.py app/services/impact_analysis_service.py --fix
 All checks passed!
 ```
 
 ### MyPy Type Checking
+
 Pre-existing MyPy errors are unrelated to this fix. The fix itself doesn't introduce any new type errors.
 
 ## Impact Analysis
 
 ### What This Fixes
+
 - Change orders can now be successfully submitted for approval
 - Impact analysis results with UUIDs are properly stored in JSONB columns
 - The workflow transition Draft → Submitted for Approval → Approved/Rejected works correctly
 
 ### What This Doesn't Break
+
 - All existing functionality remains intact
 - UUIDs can still be retrieved and converted back from JSON
 - No migration required (data format is compatible)
 
 ### Backward Compatibility
+
 - Existing impact analysis results in the database are unaffected
 - The JSON serialization format is standard and compatible
 - UUID strings can be converted back to UUID objects when needed

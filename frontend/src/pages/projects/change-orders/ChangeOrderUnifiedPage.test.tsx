@@ -27,8 +27,8 @@ const mockChangeOrdersData: any = { items: [], total: 0 };
 // Mock the change order API hooks
 vi.mock("@/features/change-orders/api/useChangeOrders", () => ({
   useChangeOrder: (id?: string) => ({
-    data: id === "co-123" ? {
-      change_order_id: "co-123",
+    data: id === "BR-123" ? {
+      change_order_id: "BR-123",
       code: "CO-2026-001",
       title: "Test Change Order",
       status: "Draft",
@@ -36,7 +36,7 @@ vi.mock("@/features/change-orders/api/useChangeOrders", () => ({
       justification: "Test justification",
       effective_date: "2026-01-15",
       project_id: "test-project",
-      branch: "co-CO-2026-001",
+      branch: "BR-CO-2026-001",
       branch_locked: false,
       available_transitions: ["Submitted"],
       created_at: "2024-01-01T00:00:00Z",
@@ -209,7 +209,7 @@ describe("ChangeOrderUnifiedPage", () => {
     // Arrange & Act
     render(
       <MemoryRouter
-        initialEntries={["/projects/test-project/change-orders/co-123"]}
+        initialEntries={["/projects/test-project/change-orders/BR-123"]}
       >
         <Routes>
           <Route

@@ -98,8 +98,8 @@ async def test_update_wbe_in_change_order_branch_fallback_to_main(
 
     Scenario:
     1. Create a WBE on main branch
-    2. Try to update it on a change order branch (co-123) where it doesn't exist
-    3. Verify the update succeeds and creates a new version on co-123
+    2. Try to update it on a change order branch (BR-123) where it doesn't exist
+    3. Verify the update succeeds and creates a new version on BR-123
 
     This test validates the fix for the 404 error when updating WBEs in
     change order branches for the first time.
@@ -122,7 +122,7 @@ async def test_update_wbe_in_change_order_branch_fallback_to_main(
     # Step 2: Update the WBE in a change order branch where it doesn't exist yet
     wbe_update = {
         "name": "Updated WBE in CO Branch",
-        "branch": "co-123",  # Change order branch
+        "branch": "BR-123",  # Change order branch
     }
 
     # This should NOT raise a 404 error
@@ -133,20 +133,20 @@ async def test_update_wbe_in_change_order_branch_fallback_to_main(
     assert response.status_code == 200
     updated_wbe = cast(dict[str, Any], response.json())
 
-    # Step 3: Verify the update created a new version on co-123
+    # Step 3: Verify the update created a new version on BR-123
     assert updated_wbe["wbe_id"] == created_wbe["wbe_id"]
     assert updated_wbe["name"] == "Updated WBE in CO Branch"
-    assert updated_wbe["branch"] == "co-123"  # New version on change order branch
+    assert updated_wbe["branch"] == "BR-123"  # New version on change order branch
     # Note: parent_id is not returned in the API response
 
-    # Verify we can retrieve the WBE on the co-123 branch
+    # Verify we can retrieve the WBE on the BR-123 branch
     response = await client.get(
-        f"/api/v1/wbes/{created_wbe['wbe_id']}?branch=co-123"
+        f"/api/v1/wbes/{created_wbe['wbe_id']}?branch=BR-123"
     )
     assert response.status_code == 200
     co_version = cast(dict[str, Any], response.json())
     assert co_version["name"] == "Updated WBE in CO Branch"
-    assert co_version["branch"] == "co-123"
+    assert co_version["branch"] == "BR-123"
 
 
 @pytest.mark.asyncio
@@ -160,9 +160,9 @@ async def test_update_wbe_existing_on_change_order_branch(
 
     Scenario:
     1. Create a WBE on main branch
-    2. Create a version on co-123 branch
-    3. Update it again on co-123 branch
-    4. Verify it updates the existing co-123 version
+    2. Create a version on BR-123 branch
+    3. Update it again on BR-123 branch
+    4. Verify it updates the existing BR-123 version
     """
     # Step 1: Create on main
     wbe_data = {
@@ -177,10 +177,10 @@ async def test_update_wbe_existing_on_change_order_branch(
     assert response.status_code == 201
     main_wbe = cast(dict[str, Any], response.json())
 
-    # Step 2: Create a version on co-123
+    # Step 2: Create a version on BR-123
     wbe_update_first = {
         "name": "First CO Update",
-        "branch": "co-123",
+        "branch": "BR-123",
     }
 
     response = await client.put(
@@ -188,13 +188,13 @@ async def test_update_wbe_existing_on_change_order_branch(
     )
     assert response.status_code == 200
     first_co_wbe = cast(dict[str, Any], response.json())
-    assert first_co_wbe["branch"] == "co-123"
+    assert first_co_wbe["branch"] == "BR-123"
     assert first_co_wbe["name"] == "First CO Update"
 
-    # Step 3: Update again on co-123
+    # Step 3: Update again on BR-123
     wbe_update_second = {
         "name": "Second CO Update",
-        "branch": "co-123",
+        "branch": "BR-123",
     }
 
     response = await client.put(
@@ -203,7 +203,7 @@ async def test_update_wbe_existing_on_change_order_branch(
     assert response.status_code == 200
     second_co_wbe = cast(dict[str, Any], response.json())
 
-    # Step 4: Verify it updated the co-123 version
-    assert second_co_wbe["branch"] == "co-123"
+    # Step 4: Verify it updated the BR-123 version
+    assert second_co_wbe["branch"] == "BR-123"
     assert second_co_wbe["name"] == "Second CO Update"
     # Note: parent_id is not returned in the API response

@@ -23,7 +23,7 @@ async def check_branches():
             return
 
         print(f"Project ID: {co.project_id}")
-        print(f"Expected change branch: co-{co.code}")
+        print(f"Expected change branch: BR-{co.code}")
 
         # Get ALL current WBEs (where upper bound of valid_time is null)
         current_wbes_stmt = select(WBE).where(

@@ -41,7 +41,7 @@ class TestUUIDSerializationFix:
         change_order_id = uuid4()
         impact_response = ImpactAnalysisResponse(
             change_order_id=change_order_id,
-            branch_name="co-test-001",
+            branch_name="BR-test-001",
             main_branch_name="main",
             kpi_scorecard=KPIScorecard(
                 bac=KPIMetric(
@@ -125,7 +125,7 @@ class TestUUIDSerializationFix:
         change_order_id = uuid4()
         impact_response = ImpactAnalysisResponse(
             change_order_id=change_order_id,
-            branch_name="co-test-001",
+            branch_name="BR-test-001",
             main_branch_name="main",
             kpi_scorecard=KPIScorecard(
                 bac=KPIMetric(

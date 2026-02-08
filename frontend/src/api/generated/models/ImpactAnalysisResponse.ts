@@ -15,7 +15,7 @@ export type ImpactAnalysisResponse = {
      */
     change_order_id: string;
     /**
-     * Branch name being compared (e.g., 'co-CO-2026-001')
+     * Branch name being compared (e.g., 'BR-CO-2026-001')
      */
     branch_name: string;
     /**

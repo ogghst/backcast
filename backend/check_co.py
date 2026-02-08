@@ -45,7 +45,7 @@ async def check_co_data():
         print(f"Main total budget: {main_budget}")
 
         # Get change branch WBEs
-        branch_name = f"co-{co.code}"
+        branch_name = f"BR-{co.code}"
         change_wbe_stmt = select(WBE).where(
             WBE.project_id == co.project_id,
             WBE.branch == branch_name,

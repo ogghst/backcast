@@ -495,6 +495,11 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             # Get the branch for this WBE to lookup parent on same branch
             branch = wbe_data.get("branch", "main")
             parent = await self.get_by_root_id(wbe_in.parent_wbe_id, branch=branch)
+            
+            # Fallback to main if parent not found on specific branch
+            if not parent and branch != "main":
+                parent = await self.get_by_root_id(wbe_in.parent_wbe_id, branch="main")
+            
             if not parent:
                 raise ValueError(f"Parent WBE {wbe_in.parent_wbe_id} not found on branch {branch}")
             wbe_data["level"] = parent.level + 1
@@ -579,6 +584,11 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             if new_parent_id:
                 # CRITICAL: Use the same branch when looking up parent WBE
                 parent = await self.get_by_root_id(new_parent_id, branch=branch)
+                
+                # Fallback to main if parent not found on specific branch
+                if not parent and branch != "main":
+                    parent = await self.get_by_root_id(new_parent_id, branch="main")
+
                 if not parent:
                     raise ValueError(f"Parent WBE {new_parent_id} not found on branch {branch}")
                 update_data["level"] = parent.level + 1

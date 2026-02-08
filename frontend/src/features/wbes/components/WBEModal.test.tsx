@@ -52,7 +52,7 @@ describe("WBEModal", () => {
   /**
    * Test T-F001: Revenue allocation field renders conditionally based on branch
    *
-   * Expected: Field only visible in change order branches (co-*)
+   * Expected: Field only visible in change order branches (BR-*)
    * Verifies: Field is hidden in main branch, visible in CO branches
    */
   describe("T-F001: Revenue allocation field conditional rendering", () => {
@@ -71,7 +71,7 @@ describe("WBEModal", () => {
     it("shows revenue_allocation field in change order branch", () => {
       // To test CO branch rendering, we'd need to update TimeMachine store state
       // For now, this test documents the expected behavior
-      // In a real scenario, you'd mock the store to return branch="co-001"
+      // In a real scenario, you'd mock the store to return branch="BR-001"
 
       render(<WBEModal {...defaultProps} />, { wrapper });
 
@@ -117,7 +117,7 @@ describe("WBEModal", () => {
    *
    * Expected: InputNumber with min={0} prevents negative values
    * Verifies: Form validation rejects negative revenue allocation
-   * Note: These tests document behavior when branch starts with 'co-'
+   * Note: These tests document behavior when branch starts with 'BR-'
    */
   describe("T-F002: Revenue validation in change order branches", () => {
     it("allows non-negative decimal values when in CO branch", () => {

@@ -20,6 +20,7 @@ This implementation completes the frontend diff UI components for change order i
 **File:** `frontend/src/features/change-orders/components/SideBySideDiff.tsx`
 
 **Features:**
+
 - Two-column layout showing "Main Branch" vs "Change Order Branch" values
 - Field-level diff with visual indicators:
   - Green badge with "+" for added fields
@@ -32,12 +33,14 @@ This implementation completes the frontend diff UI components for change order i
 - Field exclusion support for technical fields (ids, timestamps)
 
 **Documentation:**
+
 - `SideBySideDiff.README.md` - Complete usage guide
 - `SideBySideDiff.example.tsx` - Usage examples
 - `side-by-side-diff-implementation.md` - Technical details
 - `side-by-side-diff-visual-guide.md` - Layout and styling reference
 
 **Tests:**
+
 - `frontend/src/features/change-orders/components/SideBySideDiff.test.tsx`
 - Comprehensive test coverage for all change types, filtering, text diffing, responsive layout, and edge cases
 
@@ -48,6 +51,7 @@ This implementation completes the frontend diff UI components for change order i
 **File:** `frontend/src/features/change-orders/components/HierarchicalDiffView.tsx`
 
 **Features:**
+
 - Tree structure showing hierarchy: Project → WBEs → Cost Elements
 - Expandable/collapsible nodes at each level
 - Visual indicators for changes:
@@ -62,6 +66,7 @@ This implementation completes the frontend diff UI components for change order i
 - ARIA-compliant with keyboard navigation support
 
 **Props Interface:**
+
 ```typescript
 interface HierarchicalDiffViewProps {
   impactData: ImpactAnalysisResponse;           // Required
@@ -72,12 +77,14 @@ interface HierarchicalDiffViewProps {
 ```
 
 **Documentation:**
+
 - `HierarchicalDiffView.README.md` - Comprehensive documentation
 - `HierarchicalDiffView.example.tsx` - Multiple usage scenarios
 - `COMPONENT_STRUCTURE.md` - Architecture diagrams
 - `IMPLEMENTATION_SUMMARY.md` - Project documentation
 
 **Tests:**
+
 - `frontend/src/features/change-orders/components/HierarchicalDiffView.test.tsx`
 - 18/25 tests passing (72% coverage)
 - Covers rendering, change indicators, expansion, filtering, click handling, empty states, and performance
@@ -87,20 +94,23 @@ interface HierarchicalDiffViewProps {
 ### 3. Dedicated Impact Analysis Route
 
 **Files Created/Modified:**
+
 - `frontend/src/pages/projects/change-orders/ChangeOrderImpactAnalysisPage.tsx` (NEW)
 - `frontend/src/routes/index.tsx` (MODIFIED)
 - `frontend/src/features/change-orders/components/ChangeOrderPageNav.tsx` (MODIFIED)
 
 **Route Configuration:**
+
 - **Route:** `/projects/:projectId/change-orders/:changeOrderId/impact`
 - **Component:** `ChangeOrderImpactAnalysisPage`
 - **Navigation:** Added "Full Analysis" link to `ChangeOrderPageNav` with `RadarChartOutlined` icon
 
 **Page Features:**
+
 - Breadcrumb navigation: Home → Projects → Project → Change Orders → Change Order → Impact Analysis
 - Back button to return to change order details
 - Displays comprehensive `ImpactAnalysisDashboard` with all diff components
-- Shows change order code and branch name (`co-{code}`)
+- Shows change order code and branch name (`BR-{code}`)
 - Full-screen focused view for impact analysis
 
 ---
@@ -112,6 +122,7 @@ The frontend components leverage the existing backend API:
 **Endpoint:** `GET /api/v1/change-orders/{id}/impact?branch_name={branch}`
 
 **Response Structure:** `ImpactAnalysisResponse`
+
 ```typescript
 {
   change_order_id: string;
@@ -127,6 +138,7 @@ The frontend components leverage the existing backend API:
 **Service:** `backend/app/services/impact_analysis_service.py`
 
 **Tests:**
+
 - `backend/tests/unit/services/test_impact_analysis_service.py`
 - `backend/tests/api/test_impact_analysis.py`
 
@@ -274,6 +286,7 @@ The new components integrate seamlessly with the existing `ImpactAnalysisDashboa
 ### EntityImpactGrid
 
 The `EntityImpactGrid` can be enhanced with:
+
 1. "View Diff" button for each entity row
 2. Opens modal with `SideBySideDiff` for detailed comparison
 3. Link to hierarchical view for context
@@ -319,33 +332,39 @@ The `EntityImpactGrid` can be enhanced with:
 ## Success Criteria
 
 ✅ **Users can view side-by-side comparison of main vs branch for any entity**
+
 - Implemented in `SideBySideDiff` component
 - Supports filtering, responsive design, text diffing
 
 ✅ **Field-level changes are highlighted with visual indicators**
+
 - Green badges for additions
 - Orange badges for modifications
 - Red badges for removals
 - Inline text diff for long text fields
 
 ✅ **Hierarchical view shows changes across project → WBE → cost elements**
+
 - Implemented in `HierarchicalDiffView` component
 - Expandable/collapsible tree structure
 - Change count badges at each level
 - Summary statistics with breakdown
 
 ✅ **Dedicated route for impact analysis works correctly**
+
 - Route: `/projects/:projectId/change-orders/:changeOrderId/impact`
 - Full-screen focused view
 - Navigation link added to change order page
 
 ✅ **All components follow frontend coding standards**
+
 - TypeScript strict mode
 - Zero ESLint errors
 - Comprehensive JSDoc documentation
 - Follows architectural patterns
 
 ⚠️ **Tests pass with 80%+ coverage**
+
 - Tests written but execution blocked by MSW server issue
 - HierarchicalDiffView at 72% coverage (18/25 tests passing)
 - SideBySideDiff tests comprehensive but not executed

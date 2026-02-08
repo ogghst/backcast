@@ -5,6 +5,7 @@
 **Iteration:** Phase 2 - Branch Management & In-Branch Editing
 **Status:** Planning Phase
 **Related Docs:**
+
 - [Phase 1 Implementation](../phase1/01-plan.md)
 - [Change Management User Stories](../../../../01-product-scope/change-management-user-stories.md)
 - [Product Backlog](../../../product-backlog.md)
@@ -16,8 +17,9 @@
 Phase 1 successfully implemented the foundational Change Order system:
 
 **Completed (Phase 1):**
+
 - ✅ E06-U01: Create Change Orders with automatic branch creation
-- ✅ E06-U02: Automatic Branch Creation (`co-{code}` pattern)
+- ✅ E06-U02: Automatic Branch Creation (`BR-{code}` pattern)
 - ✅ Change Order CRUD API with full RBAC
 - ✅ Change Order Service with BranchableService integration
 - ✅ Frontend ChangeOrderList and ChangeOrderModal components
@@ -27,12 +29,14 @@ Phase 1 successfully implemented the foundational Change Order system:
 - ✅ Status field in Change Order form (Select with Draft/Submitted/Under Review/Approved/Rejected/Implemented/Closed)
 
 **Backend Infrastructure Ready:**
+
 - `BranchableService[T]` with `get_current()`, `create_branch()`, `merge_branch()`, `soft_delete()`
 - Branch mode filtering (STRICT vs MERGE) implemented in `_apply_branch_mode_filter()`
 - Repository pattern with `get_by_branch()` and `get_active_version()` methods
 - All entities use `BranchableMixin` with `branch` column (String(80), default "main")
 
 **Frontend Infrastructure Ready:**
+
 - `useTimeMachineStore` with `selectedBranch`, `viewMode` (merged/isolated)
 - `useBranchParam()`, `useModeParam()` hooks for API integration
 - BranchSelector component for branch switching
@@ -68,11 +72,13 @@ Phase 1 successfully implemented the foundational Change Order system:
 ### Architecture Context
 
 **Bounded Contexts Involved:**
+
 1. **E006 (Branching & Change Order Management)** - Primary context
 2. **E004 (Project Structure Management)** - Projects, WBEs, Cost Elements (need branch awareness)
 3. **E003 (Entity Versioning System)** - EVCS Core foundation (complete)
 
 **Existing Patterns to Leverage:**
+
 - **BranchableService[T]**: Generic branch operations already implemented
 - **BranchMode Enum**: STRICT (isolated) vs MERGE (composite) filtering
 - **TimeMachineStore**: Frontend state management for branch/mode selection
@@ -83,6 +89,7 @@ Phase 1 successfully implemented the foundational Change Order system:
 #### Backend - Current State
 
 **Existing Branch/Mode Implementation** ([`backend/app/api/routes/wbes.py`](../../../../../../backend/app/api/routes/wbes.py)):
+
 - ✅ **ALREADY IMPLEMENTED**: `branch` query parameter (default: "main")
 - ✅ **ALREADY IMPLEMENTED**: `mode` query parameter with "merged" or "isolated" values
 - ✅ **ALREADY IMPLEMENTED**: `as_of` query parameter for time travel
@@ -90,6 +97,7 @@ Phase 1 successfully implemented the foundational Change Order system:
 - ✅ Passes to service layer with `branch_mode` parameter
 
 **Branching Infrastructure** ([`backend/app/core/branching/service.py`](../../../../../../backend/app/core/branching/service.py)):
+
 - ✅ `_apply_branch_mode_filter()` implements STRICT vs MERGE logic
 - ✅ `get_as_of()` supports time-travel with branch mode
 - ✅ `get_current()` retrieves active version on specific branch
@@ -98,11 +106,13 @@ Phase 1 successfully implemented the foundational Change Order system:
 - ⚠️ **Gap**: No branch locking mechanism
 
 **Entity Models** (from [`backend/app/models/mixins.py`](../../../../../../backend/app/models/mixins.py)):
+
 - ✅ `BranchableMixin` provides `branch: Mapped[str]` column (String(80), default "main")
 - ✅ All branchable entities (Project, WBE, CostElement, ChangeOrder) include this mixin
 - ✅ Each entity version is tagged with its branch
 
 **Entity Services** (Projects, WBEs, Cost Elements):
+
 - ✅ `WBEService` **ALREADY** extends `BranchableService[T]` with branch support
 - ✅ All services inherit `create_branch()`, `merge_branch()`, `update()` methods
 - ✅ WBE list endpoint **ALREADY** has branch/mode/as_of parameters
@@ -110,6 +120,7 @@ Phase 1 successfully implemented the foundational Change Order system:
 - ⚠️ **Gap**: No `branches` table for lock state tracking
 
 **Change Order Service** ([`backend/app/services/change_order_service.py`](../../../../../../backend/app/services/change_order_service.py)):
+
 - ⚠️ **CRITICAL GAP**: Branch creation is **NOT** in same transaction as CO creation
 - ✅ `create_change_order()` creates CO on main branch only
 - ✅ Has `create_branch()` method available via parent `BranchableService`
@@ -121,6 +132,7 @@ Phase 1 successfully implemented the foundational Change Order system:
 #### Frontend - Current State
 
 **View Mode Selector** ([`frontend/src/components/time-machine/ViewModeSelector.tsx`](../../../../../../frontend/src/components/time-machine/ViewModeSelector.tsx)):
+
 - ✅ **ALREADY IMPLEMENTED**: Segmented control for "merged" vs "isolated" mode
 - ✅ Uses Ant Design `Segmented` component
 - ✅ Icons: `MergeCellsOutlined` (merged) and `SplitCellsOutlined` (isolated)
@@ -128,23 +140,27 @@ Phase 1 successfully implemented the foundational Change Order system:
 - ✅ Supports `compact` prop for smaller displays
 
 **Time Machine Store** ([`frontend/src/stores/useTimeMachineStore.ts`](../../../../../../frontend/src/stores/useTimeMachineStore.ts)):
+
 - ✅ `selectedBranch`: Persisted per project
 - ✅ `viewMode`: "merged" or "isolated" (BranchMode type)
 - ✅ `useBranchParam()`, `useModeParam()` hooks for API calls
 - ⚠️ **Gap**: No integration with entity CRUD operations
 
 **Change Order Modal** ([`frontend/src/features/change-orders/components/ChangeOrderModal.tsx`](../../../../../../frontend/src/features/change-orders/components/ChangeOrderModal.tsx)):
+
 - ✅ Status select box exists with all workflow states
 - ✅ Auto-generates branch name from CO code
 - ⚠️ **Gap**: Status change doesn't trigger branch lock/unlock
 
 **Branch Selector** ([`frontend/src/components/time-machine/BranchSelector.tsx`](../../../../../../frontend/src/components/time-machine/BranchSelector.tsx)):
+
 - ✅ Dropdown for branch selection
 - ✅ Visual branch tags
 - ⚠️ **Gap**: No lock/unlock indicators
 - ⚠️ **Gap**: View mode toggle not integrated in TimeMachine container
 
 **Entity Forms** (ProjectForm, WBEForm, CostElementForm):
+
 - ✅ CRUD operations working
 - ⚠️ **Gap**: No branch context awareness
 - ⚠️ **Gap**: No branch switching prompts
@@ -159,6 +175,7 @@ Phase 1 successfully implemented the foundational Change Order system:
 **What specific problem are we solving?**
 
 Users can create Change Orders with automatic branch creation (Phase 1), but they cannot:
+
 1. **Edit entities (Projects, WBEs, Cost Elements) within the isolated branch context**
 2. **Toggle between "Isolated" (changes only) and "Merged" (composite) view modes**
 3. **Lock branches automatically when status changes to "Submitted"**
@@ -167,6 +184,7 @@ Users can create Change Orders with automatic branch creation (Phase 1), but the
 **Why is it important now?**
 
 Phase 1 delivered the foundation, but without in-branch editing, the Change Management workflow is incomplete. Users need to:
+
 - Define scope changes in isolation (create new WBEs, modify budgets, adjust schedules)
 - Preview the merged state (main + branch changes) before submission
 - Have branches automatically lock when submitted for review
@@ -270,7 +288,7 @@ Phase 1 delivered the foundation, but without in-branch editing, the Change Mana
 3. `ViewModeSelector` component already exists - just needs integration
 4. All entity services (Project, WBE, CostElement) extend `BranchableService[T]`
 5. Frontend `useTimeMachineStore` is the single source of truth for branch/mode state
-6. Branch names follow the pattern: `main` or `co-{code}`
+6. Branch names follow the pattern: `main` or `BR-{code}`
 7. Status workflow is already in Change Order form (select box), just needs enforcement
 8. **CRITICAL**: Branch creation must be in SAME transaction as Change Order creation
 9. **Workflow Flexibility**: ChangeOrderWorkflowService will be designed to be replaceable with full business process workflow engine in future iterations
@@ -296,6 +314,7 @@ This Phase 2 implementation aligns with the following requirements from [`functi
 > "The system shall track change order status through defined workflow states including draft, submitted for approval, under review, approved, rejected, and implemented."
 
 **Phase 2 Implementation:**
+
 - **Flexible Workflow Service**: `ChangeOrderWorkflowService` provides:
   - `get_next_status(current: str) -> str | None` - Returns next valid status from current
   - `get_available_transitions(current: str) -> List[str]` - All possible statuses from current
@@ -304,12 +323,14 @@ This Phase 2 implementation aligns with the following requirements from [`functi
   - `can_edit_on_status(status: str) -> bool` - Whether modifications allowed
 
 **Current Workflow States (from FR-8.3):**
+
 ```
 Draft → Submitted for Approval → Under Review → Approved → Implemented
                                       ↘ Rejected
 ```
 
 **Branch Locking Rules (Phase 2):**
+
 - `Draft` → `Submitted for Approval`: **LOCK** branch (prevents edits during review)
 - `Submitted for Approval` → `Under Review`: Branch remains **LOCKED**
 - `Under Review` → `Rejected`: **UNLOCK** branch (allow revisions)
@@ -326,6 +347,7 @@ The `ChangeOrderWorkflowService` is designed as a simple state machine that can 
 > "The interface shall include a persistent branch selector in the application header... The branch name shall be prominently displayed to indicate the current context. Branch status indicators (active, locked, merged) shall be visible in the selector. Locked branches shall be visually distinguished and prevent modification operations."
 
 **Phase 2 Implementation:**
+
 - ✅ BranchSelector already exists (Phase 1)
 - 🔄 Add lock icon indicators (Phase 2)
 - 🔄 Add visual distinction for locked branches (Phase 2)
@@ -425,10 +447,10 @@ CREATE INDEX ix_change_orders_branch_name ON change_orders(branch_name);
     │                                                                       │
     │ 1. Branch Creation (via Change Order)                                │
     │    - User creates ChangeOrder: code='CO-2026-001', project_id=P1     │
-    │    - System generates branch_name: 'co-CO-2026-001'                  │
+    │    - System generates branch_name: 'BR-CO-2026-001'                  │
     │    - INSERT INTO branches (name, project_id, type)                   │
-    │      VALUES ('co-CO-2026-001', P1, 'change_order')                   │
-    │    - UPDATE change_orders SET branch_name='co-CO-2026-001'           │
+    │      VALUES ('BR-CO-2026-001', P1, 'change_order')                   │
+    │    - UPDATE change_orders SET branch_name='BR-CO-2026-001'           │
     │      WHERE change_order_id=<co_id>                                   │
     │                                                                       │
     │ 2. Branch Isolation (Project-Scoped)                                 │
@@ -448,7 +470,7 @@ CREATE INDEX ix_change_orders_branch_name ON change_orders(branch_name);
     │                                                                       │
     │ 5. Query Filtering                                                   │
     │    - SELECT * FROM wbe_versions                                       │
-    │    - WHERE branch = 'co-CO-2026-001'                                 │
+    │    - WHERE branch = 'BR-CO-2026-001'                                 │
     │    - AND project_id = <current_project_id>                           │
     │    - AND deleted_at IS NULL                                          │
     │    - AND valid_time @> NOW()                                         │
@@ -471,25 +493,25 @@ CREATE INDEX ix_change_orders_branch_name ON change_orders(branch_name);
        │   - status='Draft'                                                │
        │                                                                     │
        │ System actions:                                                     │
-       │   1. Generate branch_name: 'co-CO-2026-001'                       │
+       │   1. Generate branch_name: 'BR-CO-2026-001'                       │
        │   2. INSERT INTO branches (name, project_id, type)                 │
-       │      VALUES ('co-CO-2026-001', P1, 'change_order')                 │
-       │   3. UPDATE change_orders SET branch_name='co-CO-2026-001'         │
+       │      VALUES ('BR-CO-2026-001', P1, 'change_order')                 │
+       │   3. UPDATE change_orders SET branch_name='BR-CO-2026-001'         │
        │      WHERE change_order_id=<co_id>                                 │
-       │   4. Entity versions created with branch='co-CO-2026-001'         │
+       │   4. Entity versions created with branch='BR-CO-2026-001'         │
        └─────────────────────────────────────────────────────────────────────┘
 
     2. ISOLATED EDITING (Phase 2 - This Iteration)
        ┌─────────────────────────────────────────────────────────────────────┐
        │ User selects branch from BranchSelector                             │
-       │ → TimeMachineStore.selectBranch('co-CO-2026-001')                  │
-       │ → Frontend: useBranchParam() returns 'co-CO-2026-001'              │
-       │ → API: GET /api/v1/wbes?branch=co-CO-2026-001                      │
+       │ → TimeMachineStore.selectBranch('BR-CO-2026-001')                  │
+       │ → Frontend: useBranchParam() returns 'BR-CO-2026-001'              │
+       │ → API: GET /api/v1/wbes?branch=BR-CO-2026-001                      │
        │ → Service: Applies branch filter via BranchableService             │
-       │ → Result: Only WBE versions with branch='co-CO-2026-001' returned  │
+       │ → Result: Only WBE versions with branch='BR-CO-2026-001' returned  │
        │                                                                     │
        │ User creates/edits entities in branch:                             │
-       │ → New versions created with branch='co-CO-2026-001'                │
+       │ → New versions created with branch='BR-CO-2026-001'                │
        │ → Main branch remains untouched                                     │
        └─────────────────────────────────────────────────────────────────────┘
 
@@ -503,7 +525,7 @@ CREATE INDEX ix_change_orders_branch_name ON change_orders(branch_name);
        │   2. Get branch_name from ChangeOrder.branch_name                  │
        │   3. UPDATE branches                                                │
        │      SET locked=TRUE                                                │
-       │      WHERE name='co-CO-2026-001'                                   │
+       │      WHERE name='BR-CO-2026-001'                                   │
        │        AND project_id=<change_order.project_id>                    │
        │   4. All subsequent write operations to branch return 403          │
        │                                                                     │
@@ -519,7 +541,7 @@ CREATE INDEX ix_change_orders_branch_name ON change_orders(branch_name);
        │   1. Execute merge via MergeBranchCommand                          │
        │      (copy branch versions to main, handle conflicts)               │
        │   2. UPDATE branches SET deleted_at=NOW()                          │
-       │      WHERE name='co-CO-2026-001' AND project_id=P1                 │
+       │      WHERE name='BR-CO-2026-001' AND project_id=P1                 │
        │      (soft delete / archive the branch)                            │
        │   3. ChangeOrder marked as 'Implemented'                          │
        └─────────────────────────────────────────────────────────────────────┘
@@ -547,7 +569,7 @@ change_orders table (main branch):
 ┌──────────────────────────────────────────────────────────────────────────┐
 │ change_order_id │ code          │ project_id │ branch_name    │ status    │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ co-xxx-uuid     │ CO-2026-001   │ prj-001    │ co-CO-2026-001 │ Draft     │
+│ BR-xxx-uuid     │ CO-2026-001   │ prj-001    │ BR-CO-2026-001 │ Draft     │
 └──────────────────────────────────────────────────────────────────────────┘
 
 branches table:
@@ -555,7 +577,7 @@ branches table:
 │ name            │ project_id │ type         │ locked │ deleted_at       │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ main            │ prj-001    │ main         │ FALSE  │ NULL             │
-│ co-CO-2026-001  │ prj-001    │ change_order │ FALSE  │ NULL             │
+│ BR-CO-2026-001  │ prj-001    │ change_order │ FALSE  │ NULL             │
 └──────────────────────────────────────────────────────────────────────────┘
 
 wbe_versions table (per-project isolation):
@@ -564,30 +586,30 @@ wbe_versions table (per-project isolation):
 ├──────────────────────────────────────────────────────────────────────────┤
 │ 1  │ wbe-1  │ prj-001    │ main            │ WBE-001 │ 100k   │ NULL     │
 │ 2  │ wbe-1  │ prj-001    │ main            │ WBE-001 │ 120k   │ 1        │ ← Main cur
-│ 3  │ wbe-1  │ prj-001    │ co-CO-2026-001  │ WBE-001 │ 100k   │ NULL     │ ← Branch copy
-│ 4  │ wbe-1  │ prj-001    │ co-CO-2026-001  │ WBE-001 │ 150k   │ 3        │ ← Modified
-│ 5  │ wbe-2  │ prj-001    │ co-CO-2026-001  │ WBE-002 │ 50k    │ NULL     │ ← New in branch
+│ 3  │ wbe-1  │ prj-001    │ BR-CO-2026-001  │ WBE-001 │ 100k   │ NULL     │ ← Branch copy
+│ 4  │ wbe-1  │ prj-001    │ BR-CO-2026-001  │ WBE-001 │ 150k   │ 3        │ ← Modified
+│ 5  │ wbe-2  │ prj-001    │ BR-CO-2026-001  │ WBE-002 │ 50k    │ NULL     │ ← New in branch
 │ 6  │ wbe-3  │ prj-002    │ main            │ WBE-003 │ 200k   │ NULL     │ ← Diff project!
-│ 7  │ wbe-3  │ prj-002    │ co-CO-2026-001  │ WBE-003 │ 250k   │ 6        │ ← Same branch,
+│ 7  │ wbe-3  │ prj-002    │ BR-CO-2026-001  │ WBE-003 │ 250k   │ 6        │ ← Same branch,
 │                                                                            │   diff project
 └──────────────────────────────────────────────────────────────────────────┘
 
 Key observations:
-- Branch 'co-CO-2026-001' exists in BOTH projects (prj-001 and prj-002)
+- Branch 'BR-CO-2026-001' exists in BOTH projects (prj-001 and prj-002)
 - Same branch name, different project isolation
 - Query filters by (branch, project_id) tuple
 
 Query Examples:
 
-1. GET /api/v1/wbes?branch=co-CO-2026-001&project=prj-001
+1. GET /api/v1/wbes?branch=BR-CO-2026-001&project=prj-001
    → Returns: wbe_versions.id IN (3, 4, 5)
-   → Only WBEs in prj-001 on branch 'co-CO-2026-001'
+   → Only WBEs in prj-001 on branch 'BR-CO-2026-001'
 
 2. GET /api/v1/wbes?branch=main&project=prj-001
    → Returns: wbe_versions.id IN (1, 2)
    → Only WBEs in prj-001 on main branch
 
-3. GET /api/v1/wbes?branch=co-CO-2026-001&project=prj-002
+3. GET /api/v1/wbes?branch=BR-CO-2026-001&project=prj-002
    → Returns: wbe_versions.id IN (6, 7)
    → Completely different context (same branch, different project)
 
@@ -595,16 +617,16 @@ Write Operations with Locking:
 
 1. User updates ChangeOrder status: Draft → Submitted
    → UPDATE branches SET locked=TRUE
-      WHERE name='co-CO-2026-001' AND project_id='prj-001'
+      WHERE name='BR-CO-2026-001' AND project_id='prj-001'
    → Only locks branch in prj-001
 
 2. Attempt to create WBE on locked branch:
-   → POST /api/v1/wbes (with branch=co-CO-2026-001, project_id=prj-001)
+   → POST /api/v1/wbes (with branch=BR-CO-2026-001, project_id=prj-001)
    → Service checks: branches.locked for (name, project_id)
-   → Returns 403: "Branch 'co-CO-2026-001' in project 'prj-001' is locked"
+   → Returns 403: "Branch 'BR-CO-2026-001' in project 'prj-001' is locked"
 
 3. Write to same branch in different project:
-   → POST /api/v1/wbes (with branch=co-CO-2026-001, project_id=prj-002)
+   → POST /api/v1/wbes (with branch=BR-CO-2026-001, project_id=prj-002)
    → Service checks: branches.locked for (name, project_id)
    → SUCCEEDS (branch in prj-002 is NOT locked)
 ```
@@ -618,6 +640,7 @@ Write Operations with Locking:
 **Approach Summary:**
 
 Extend existing entity CRUD operations to be branch-aware by:
+
 1. Adding `branch` query parameter to all list endpoints (NOT `mode` - that's frontend-only)
 2. Updating entity services to respect `branch` parameter from request
 3. Adding visual indicators to forms showing current branch context
@@ -626,7 +649,7 @@ Extend existing entity CRUD operations to be branch-aware by:
 
 **Design Patterns:**
 
-- **Query Parameter Injection**: `branch` passed via query string (e.g., `?branch=co-CO-2026-001`)
+- **Query Parameter Injection**: `branch` passed via query string (e.g., `?branch=BR-CO-2026-001`)
 - **Frontend State Management**: TimeMachineStore holds `viewMode` (merged/isolated) for client-side filtering
 - **Repository Pattern**: `get_by_branch()` and `get_active_version()` already implemented
 - **State Machine**: Change Order status change triggers branch lock/unlock
@@ -692,16 +715,16 @@ Frontend:
 
 ```python
 # Existing WBE implementation (pattern to follow):
-GET /api/v1/wbes?branch=co-CO-2026-001&mode=isolated&as_of=2026-01-01T00:00:00Z
+GET /api/v1/wbes?branch=BR-CO-2026-001&mode=isolated&as_of=2026-01-01T00:00:00Z
 
 # Modify Projects endpoint (ADD branch/mode/as_of):
-GET /api/v1/projects?branch=co-CO-2026-001&mode=isolated
+GET /api/v1/projects?branch=BR-CO-2026-001&mode=isolated
 
 # Modify Cost Elements endpoint (ADD branch/mode/as_of):
-GET /api/v1/cost-elements?branch=co-CO-2026-001&mode=isolated
+GET /api/v1/cost-elements?branch=BR-CO-2026-001&mode=isolated
 
 # Modify Change Orders endpoint (ADD branch/mode/as_of):
-GET /api/v1/change-orders?branch=co-CO-2026-001&mode=isolated
+GET /api/v1/change-orders?branch=BR-CO-2026-001&mode=isolated
 
 # Note: branch is OPTIONAL - defaults to "main"
 # Note: mode is OPTIONAL - defaults to "merged" (from WBE implementation)
@@ -718,9 +741,9 @@ POST /api/v1/branches/{name}/project/{project_id}/unlock
     → Unlock branch (allows writes)
 
 # Example:
-POST /api/v1/branches/co-CO-2026-001/project/prj-001-uuid/lock
-    → Locks branch 'co-CO-2026-001' in project 'prj-001-uuid'
-    → Does NOT affect 'co-CO-2026-001' in other projects
+POST /api/v1/branches/BR-CO-2026-001/project/prj-001-uuid/lock
+    → Locks branch 'BR-CO-2026-001' in project 'prj-001-uuid'
+    → Does NOT affect 'BR-CO-2026-001' in other projects
 ```
 
 **Frontend Data Flow:**
@@ -732,16 +755,16 @@ POST /api/v1/branches/co-CO-2026-001/project/prj-001-uuid/lock
 
 User Interaction:
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ User selects "co-CO-2026-001" from BranchSelector                          │
-│ → TimeMachineStore.selectBranch('co-CO-2026-001')                          │
-│ → useBranchParam() returns 'co-CO-2026-001'                                │
+│ User selects "BR-CO-2026-001" from BranchSelector                          │
+│ → TimeMachineStore.selectBranch('BR-CO-2026-001')                          │
+│ → useBranchParam() returns 'BR-CO-2026-001'                                │
 └─────────────────────────────────────────────────────────────────────────────┘
                               ↓
 API Call:
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ const branch = useBranchParam()  // 'co-CO-2026-001'                       │
+│ const branch = useBranchParam()  // 'BR-CO-2026-001'                       │
 │ const { data } = useProjects.useList({ branch })  // Query param            │
-│ → GET /api/v1/projects?branch=co-CO-2026-001                               │
+│ → GET /api/v1/projects?branch=BR-CO-2026-001                               │
 └─────────────────────────────────────────────────────────────────────────────┘
                               ↓
 Backend Processing:
@@ -781,12 +804,13 @@ Frontend Display (View Mode):
 **UX Design:**
 
 - **Branch Switching Prompt**: When user clicks "Edit" on a Draft CO, show modal:
+
   ```
   ┌─────────────────────────────────────────────────────────────┐
   │  Switch to Change Branch                                     │
   ├─────────────────────────────────────────────────────────────┤
   │  To edit this Change Order, switch to branch:               │
-  │  co-CO-2026-001                                             │
+  │  BR-CO-2026-001                                             │
   │                                                              │
   │  [Cancel]          [Switch & Edit]                          │
   └─────────────────────────────────────────────────────────────┘
@@ -795,6 +819,7 @@ Frontend Display (View Mode):
 - **Header Color Change**: When on change branch, header background becomes amber (`#F59E0B`)
 
 - **View Mode Toggle**: Segmented control in Time Machine:
+
   ```
   ┌───────────────────────────────────┐
   │  [ Isolated  |  Merged ]          │
@@ -804,9 +829,10 @@ Frontend Display (View Mode):
 - **Lock Icon**: 🔒 appears next to locked branches in selector
 
 - **Branch Context Banner** (when on change branch):
+
   ```
   ┌─────────────────────────────────────────────────────────────┐
-  │  🟠 Working in: co-CO-2026-001  [Switch to Main]           │
+  │  🟠 Working in: BR-CO-2026-001  [Switch to Main]           │
   └─────────────────────────────────────────────────────────────┘
   ```
 
@@ -1149,7 +1175,7 @@ User Action: Submit CO for Approval
         ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ branch_service.lock(                                        │
-│     name="co-CO-2026-001",                                  │
+│     name="BR-CO-2026-001",                                  │
 │     project_id=...                                          │
 │ )                                                           │
 │ → UPDATE branches SET locked = TRUE                         │
@@ -1205,34 +1231,37 @@ User Action: Submit CO for Approval
 **First 5 Test Cases (Ordered Simple → Complex):**
 
 1. **test_branch_param_passed_to_list_endpoint**:
+
    ```python
    async def test_branch_param_filters_wbe_list(session):
        # Create WBE in main
        wbe_main = await wbe_service.create(..., branch="main")
        # Create WBE in branch
-       wbe_branch = await wbe_service.create(..., branch="co-001")
+       wbe_branch = await wbe_service.create(..., branch="BR-001")
 
        # Query with branch param
-       result = await client.get("/api/v1/wbes?branch=co-001")
+       result = await client.get("/api/v1/wbes?branch=BR-001")
 
        assert len(result) == 1
        assert result[0]["id"] == str(wbe_branch.id)
    ```
 
 2. **test_lock_branch_prevents_update**:
+
    ```python
    async def test_locked_branch_rejects_wbe_update(session):
        # Create branch and lock it
-       await branch_service.lock("co-001")
+       await branch_service.lock("BR-001")
 
        # Attempt update → expect 403
-       response = await client.put(f"/api/v1/wbes/{wbe_id}?branch=co-001", ...)
+       response = await client.put(f"/api/v1/wbes/{wbe_id}?branch=BR-001", ...)
 
        assert response.status_code == 403
        assert "locked" in response.json()["detail"].lower()
    ```
 
 3. **test_change_order_status_locks_branch**:
+
    ```python
    async def test_status_submitted_locks_branch(session):
        # Create CO (Draft, branch unlocked)
@@ -1242,38 +1271,40 @@ User Action: Submit CO for Approval
        await change_order_service.update(co.change_order_id, status="Submitted")
 
        # Verify branch is locked
-       branch = await branch_service.get_by_name("co-CO-2026-001")
+       branch = await branch_service.get_by_name("BR-CO-2026-001")
        assert branch.locked is True
    ```
 
 4. **test_view_mode_isolated_filters_list**:
+
    ```typescript
    test("isolated mode shows only branch entities", () => {
      const { result } = renderHook(() => useTimeMachineStore());
 
      // Set branch and mode
      act(() => {
-       result.current.selectBranch("co-001");
+       result.current.selectBranch("BR-001");
        result.current.selectViewMode("isolated");
      });
 
      // Verify filtering
-     const filtered = filterEntitiesByViewMode(entities, "co-001", "isolated");
+     const filtered = filterEntitiesByViewMode(entities, "BR-001", "isolated");
      expect(filtered).toEqual([entities[1]]); // Only branch entity
    });
    ```
 
 5. **test_view_mode_merged_shows_composite**:
+
    ```typescript
    test("merged mode shows main + branch", () => {
      const { result } = renderHook(() => useTimeMachineStore());
 
      act(() => {
-       result.current.selectBranch("co-001");
+       result.current.selectBranch("BR-001");
        result.current.selectViewMode("merged");
      });
 
-     const filtered = filterEntitiesByViewMode(entities, "co-001", "merged");
+     const filtered = filterEntitiesByViewMode(entities, "BR-001", "merged");
      expect(filtered).toHaveLength(3); // Main + branch (merged)
    });
    ```
@@ -1359,17 +1390,20 @@ User Action: Submit CO for Approval
 ### Prerequisites
 
 **Must Complete First:**
+
 - ✅ Phase 1 complete (E06-U01, U02)
 - ✅ All entity services extend `BranchableService[T]`
 - ✅ TimeMachineStore with branch/mode state
 - ✅ Change Order status field in form
 
 **Documentation Updates:**
+
 - API docs: Auto-generated from FastAPI (no manual work)
 - User guide: Add "Working with Change Orders" section
 - Architecture: Update branching diagram with lock status
 
 **Infrastructure Needs:**
+
 - Database migration script
 - Test data with multiple branches
 - E2E test environment with branch isolation

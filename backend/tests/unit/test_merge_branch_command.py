@@ -65,7 +65,7 @@ async def test_merge_branch_with_explicit_control_date(
     await service.create_branch(
         root_id=project.project_id,
         actor_id=admin_user.user_id,
-        new_branch="co-001",
+        new_branch="BR-001",
         control_date=datetime(2026, 1, 11, tzinfo=UTC),
     )
 
@@ -74,7 +74,7 @@ async def test_merge_branch_with_explicit_control_date(
         root_id=project.project_id,
         project_in=ProjectUpdate(name="Modified on Branch"),
         actor_id=admin_user.user_id,
-        branch="co-001",
+        branch="BR-001",
         control_date=datetime(2026, 1, 12, tzinfo=UTC),
     )
 
@@ -83,7 +83,7 @@ async def test_merge_branch_with_explicit_control_date(
         entity_class=Project,
         root_id=project.project_id,
         actor_id=admin_user.user_id,
-        source_branch="co-001",
+        source_branch="BR-001",
         target_branch="main",
         control_date=control_date,
     )
@@ -125,7 +125,7 @@ async def test_merge_branch_with_control_date_none(
     await service.create_branch(
         root_id=project.project_id,
         actor_id=admin_user.user_id,
-        new_branch="co-002",
+        new_branch="BR-002",
         control_date=datetime(2026, 1, 11, tzinfo=UTC),
     )
 
@@ -134,7 +134,7 @@ async def test_merge_branch_with_control_date_none(
         root_id=project.project_id,
         project_in=ProjectUpdate(name="Modified on Branch"),
         actor_id=admin_user.user_id,
-        branch="co-002",
+        branch="BR-002",
         control_date=datetime(2026, 1, 12, tzinfo=UTC),
     )
 
@@ -143,7 +143,7 @@ async def test_merge_branch_with_control_date_none(
         entity_class=Project,
         root_id=project.project_id,
         actor_id=admin_user.user_id,
-        source_branch="co-002",
+        source_branch="BR-002",
         target_branch="main",
         control_date=None,  # Explicitly None
     )
@@ -187,7 +187,7 @@ async def test_merge_branch_control_date_in_past(
     await service.create_branch(
         root_id=project.project_id,
         actor_id=admin_user.user_id,
-        new_branch="co-003",
+        new_branch="BR-003",
         control_date=datetime(2025, 12, 22, tzinfo=UTC),
     )
 
@@ -196,7 +196,7 @@ async def test_merge_branch_control_date_in_past(
         root_id=project.project_id,
         project_in=ProjectUpdate(name="Modified on Branch"),
         actor_id=admin_user.user_id,
-        branch="co-003",
+        branch="BR-003",
         control_date=datetime(2025, 12, 24, tzinfo=UTC),
     )
 
@@ -205,7 +205,7 @@ async def test_merge_branch_control_date_in_past(
         entity_class=Project,
         root_id=project.project_id,
         actor_id=admin_user.user_id,
-        source_branch="co-003",
+        source_branch="BR-003",
         target_branch="main",
         control_date=past_date,
     )
@@ -246,7 +246,7 @@ async def test_merge_branch_control_date_utc_aware(
     await service.create_branch(
         root_id=project.project_id,
         actor_id=admin_user.user_id,
-        new_branch="co-004",
+        new_branch="BR-004",
         control_date=datetime(2026, 1, 11, tzinfo=UTC),
     )
 
@@ -255,7 +255,7 @@ async def test_merge_branch_control_date_utc_aware(
         root_id=project.project_id,
         project_in=ProjectUpdate(name="Modified on Branch"),
         actor_id=admin_user.user_id,
-        branch="co-004",
+        branch="BR-004",
         control_date=datetime(2026, 1, 12, tzinfo=UTC),
     )
 
@@ -265,7 +265,7 @@ async def test_merge_branch_control_date_utc_aware(
         entity_class=Project,
         root_id=project.project_id,
         actor_id=admin_user.user_id,
-        source_branch="co-004",
+        source_branch="BR-004",
         target_branch="main",
         control_date=utc_aware_date,
     )

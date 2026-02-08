@@ -282,7 +282,7 @@ async def read_project_branches(
 ) -> list[BranchPublic]:
     """Get all branches for a project.
 
-    Returns the main branch plus any change order branches (co-{code})
+    Returns the main branch plus any change order branches (BR-{code})
     that exist for this project.
 
     Requires read permission.
