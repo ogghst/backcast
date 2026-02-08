@@ -247,7 +247,7 @@ class TestImpactAnalysisServiceGenerateTimeSeries:
         # Arrange
         service = ImpactAnalysisService(db_session)
         project_id = uuid4()
-        branch_name = "co-test-001"
+        branch_name = "br-test-001"
 
         # Act - This will return empty results since project has no WBEs
         result = await service._generate_time_series(project_id, branch_name)
@@ -410,7 +410,7 @@ class TestImpactAnalysisServiceRevenueImpact:
             name="Assembly Station",
             budget_allocation=Decimal("55000.00"),
             revenue_allocation=Decimal("70000.00"),
-            branch="co-test-001",
+            branch="br-test-001",
         )
 
         service = ImpactAnalysisService(db_session)

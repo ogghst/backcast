@@ -4539,10 +4539,14 @@
                 }
               ],
               "description": "Filters in format 'column:value;column:value1,value2'",
+              "examples": {
+                "status_filter": {
+                  "value": "status:Draft"
+                }
+              },
               "title": "Filters"
             },
-            "description": "Filters in format 'column:value;column:value1,value2'",
-            "example": "status:Draft"
+            "description": "Filters in format 'column:value;column:value1,value2'"
           },
           {
             "name": "sort_field",
@@ -5174,7 +5178,7 @@
           "Change Orders"
         ],
         "summary": "Get Change Order Impact",
-        "description": "Get impact analysis for a change order by comparing branches.\n\nAnalyzes the financial and schedule impact of a change order by comparing\ndata between the main branch and the specified change branch.\n\nReturns:\n    - KPI Scorecard: BAC, Budget Delta, Gross Margin comparison\n    - Entity Changes: Added/Modified/Removed WBEs and Cost Elements\n    - Waterfall Chart: Cost bridge visualization\n    - Time Series: Weekly S-curve budget comparison\n\nRequires read permission.",
+        "description": "Get impact analysis for a change order by comparing branches.\n\nAnalyzes the financial and schedule impact of a change order by comparing\ndata between the main branch and the specified change branch.\n\nModes:\n- merged: Shows merged result (main + change delta) - most intuitive for users\n- isolated: Shows isolated comparison (delta only) - for detailed analysis\n\nReturns:\n    - KPI Scorecard: BAC, Budget Delta, Gross Margin comparison\n    - Entity Changes: Added/Modified/Removed WBEs and Cost Elements\n    - Waterfall Chart: Cost bridge visualization\n    - Time Series: Weekly S-curve budget comparison\n\nRequires read permission.",
         "operationId": "get_change_order_impact",
         "security": [
           {
@@ -5202,6 +5206,19 @@
               "title": "Branch Name"
             },
             "description": "Branch name to compare (e.g., 'co-CO-2026-001')"
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(merged|isolated)$",
+              "description": "Comparison mode: merged (main+change) or isolated (change only)",
+              "default": "merged",
+              "title": "Mode"
+            },
+            "description": "Comparison mode: merged (main+change) or isolated (change only)"
           }
         ],
         "responses": {
@@ -5421,6 +5438,77 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/ChangeOrderApproval"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeOrderPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/change-orders/{change_order_id}/recover": {
+      "post": {
+        "tags": [
+          "Change Orders"
+        ],
+        "summary": "Recover Change Order",
+        "description": "Recover a stuck change order workflow (admin only).\n\nAdmin-only endpoint to recover stuck workflows when impact analysis\nfails or the change order gets stuck in an intermediate state.\nAllows manual override of impact level and approver assignment.\n\nRequires change-order-recover permission (admin only).\n\nArgs:\n    change_order_id: UUID of the stuck change order\n    recovery_data: Recovery request with impact level, approver, and reason\n\nReturns:\n    Updated ChangeOrder with recovered workflow state\n\nRaises:\n    HTTPException: If change order not stuck, invalid data, or not authorized",
+        "operationId": "recover_change_order",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "change_order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Change Order Id"
+            }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch name",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch name"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeOrderRecoveryRequest"
               }
             }
           }
@@ -7937,6 +8025,43 @@
         "title": "ChangeOrderPublic",
         "description": "Schema for Change Order API responses."
       },
+      "ChangeOrderRecoveryRequest": {
+        "properties": {
+          "impact_level": {
+            "type": "string",
+            "pattern": "^(LOW|MEDIUM|HIGH|CRITICAL)$",
+            "title": "Impact Level",
+            "description": "Manual impact level assignment"
+          },
+          "assigned_approver_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Assigned Approver Id",
+            "description": "User to assign as approver (use User.id, not User.user_id)"
+          },
+          "skip_impact_analysis": {
+            "type": "boolean",
+            "title": "Skip Impact Analysis",
+            "description": "Skip impact analysis and use manual values",
+            "default": true
+          },
+          "recovery_reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 10,
+            "title": "Recovery Reason",
+            "description": "Explanation for recovery (required for audit)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "impact_level",
+          "assigned_approver_id",
+          "recovery_reason"
+        ],
+        "title": "ChangeOrderRecoveryRequest",
+        "description": "Request to recover a stuck change order workflow.\n\nContext: Admin-only endpoint to recover stuck change orders when\nimpact analysis fails or workflow gets stuck in intermediate states.\n\nArgs:\n    impact_level: Manual impact level assignment (LOW/MEDIUM/HIGH/CRITICAL)\n    assigned_approver_id: User to assign as approver\n    skip_impact_analysis: Skip impact analysis and use manual values\n    recovery_reason: Explanation for recovery (10-500 chars)"
+      },
       "ChangeOrderUpdate": {
         "properties": {
           "code": {
@@ -9788,7 +9913,20 @@
               }
             ],
             "title": "Change Value",
-            "description": "Value in change branch"
+            "description": "Value in change branch (isolated)"
+          },
+          "merged_value": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merged Value",
+            "description": "Merged value (main + change delta) when mode=merged"
           },
           "delta": {
             "type": "string",

@@ -11,9 +11,13 @@ export type KPIMetric = {
      */
     main_value?: (string | null);
     /**
-     * Value in change branch
+     * Value in change branch (isolated)
      */
     change_value?: (string | null);
+    /**
+     * Merged value (main + change delta) when mode=merged
+     */
+    merged_value?: (string | null);
     /**
      * Absolute difference (change - main)
      */

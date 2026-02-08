@@ -71,7 +71,11 @@ class KPIMetric(BaseModel):
     )
     change_value: Decimal | None = Field(
         default=None,
-        description="Value in change branch",
+        description="Value in change branch (isolated)",
+    )
+    merged_value: Decimal | None = Field(
+        default=None,
+        description="Merged value (main + change delta) when mode=merged",
     )
     delta: Decimal = Field(
         default=Decimal("0"),

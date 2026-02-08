@@ -108,12 +108,16 @@ const KPIMetricCard = ({
   const { color, icon } = getDeltaDisplay(metric.delta);
   const mainValue = formatCurrency(metric.main_value);
   const changeValue = formatCurrency(metric.change_value);
+  const mergedValue = metric.merged_value ? formatCurrency(metric.merged_value) : null;
+
+  // Display merged_value if available, otherwise fall back to change_value
+  const displayValue = mergedValue ?? changeValue;
 
   return (
     <Card bordered>
       <Statistic
         title={title}
-        value={metric.change_value ?? "0"}
+        value={displayValue ?? "0"}
         precision={2}
         styles={{ content: { color } }}
         prefix={icon}
@@ -124,6 +128,11 @@ const KPIMetricCard = ({
         <div>
           Main: <strong>{mainValue}</strong>
         </div>
+        {mergedValue && (
+          <div>
+            Merged: <strong>{mergedValue}</strong>
+          </div>
+        )}
         <div>
           Change: <strong>{changeValue}</strong>
         </div>
@@ -158,16 +167,16 @@ const PerformanceIndexCard = ({
   metric: KPIMetric;
   target: string;
 }) => {
-  const value = metric.change_value ?? "0";
-  const color = getPerformanceIndexColor(value);
+  const mergedValue = metric.merged_value ?? metric.change_value ?? "0";
+  const color = getPerformanceIndexColor(mergedValue);
   const mainValue = formatNumber(metric.main_value);
-  const changeValue = formatNumber(value);
+  const changeValue = formatNumber(metric.change_value);
 
   return (
     <Card bordered>
       <Statistic
         title={title}
-        value={value}
+        value={mergedValue}
         precision={2}
         styles={{ content: { color } }}
         valueStyle={{ color }}
@@ -176,6 +185,11 @@ const PerformanceIndexCard = ({
         <div>
           Main: <strong>{mainValue}</strong>
         </div>
+        {metric.merged_value && (
+          <div>
+            Merged: <strong>{formatNumber(metric.merged_value)}</strong>
+          </div>
+        )}
         <div>
           Change: <strong>{changeValue}</strong>
         </div>
@@ -207,12 +221,16 @@ const ScheduleDurationCard = ({
   const { icon, prefix } = getDeltaDisplay(metric.delta);
   const mainValue = formatDays(metric.main_value);
   const changeValue = formatDays(metric.change_value);
+  const mergedValue = metric.merged_value ? formatDays(metric.merged_value) : null;
+
+  // Display merged_value if available, otherwise fall back to change_value
+  const displayValue = mergedValue ?? changeValue;
 
   return (
     <Card bordered>
       <Statistic
         title={title}
-        value={metric.change_value ?? "0"}
+        value={displayValue ?? "0"}
         precision={0}
         styles={{ content: { color } }}
         prefix={icon}
@@ -223,6 +241,11 @@ const ScheduleDurationCard = ({
         <div>
           Main: <strong>{mainValue}</strong>
         </div>
+        {mergedValue && (
+          <div>
+            Merged: <strong>{mergedValue}</strong>
+          </div>
+        )}
         <div>
           Change: <strong>{changeValue}</strong>
         </div>

@@ -132,7 +132,8 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     details: () => ["change-orders", "detail"] as const,
     detail: (id: string, context?: any) =>
       ["change-orders", "detail", id, context] as const,
-    impact: (id: string) => ["change-orders", id, "impact"] as const,
+    impact: (id: string, branchName?: string, mode?: string) =>
+      ["change-orders", id, "impact", branchName, mode] as const,
     mergeConflicts: (
       changeOrderId: string,
       sourceBranch: string,

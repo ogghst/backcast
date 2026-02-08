@@ -91,7 +91,7 @@ async def read_change_orders(
     """Retrieve change orders for a project with pagination.
 
     Change Orders are always scoped to a specific project.
-    The auto-created branch for each CO is named `co-{code}`.
+    The auto-created branch for each CO is named `br-{code}`.
 
     Requires read permission.
     """
@@ -99,7 +99,9 @@ async def read_change_orders(
     from app.models.schemas.common import PaginatedResponse
 
     # Parse mode string to BranchMode enum
-    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
+    # Note: branch_mode is parsed but not currently used by get_change_orders service
+    # This is reserved for future implementation of MERGE/STRICT mode filtering
+    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT  # noqa: F841
 
     # Calculate skip from page number
     skip = (page - 1) * per_page
@@ -159,7 +161,7 @@ async def create_change_order(
 
     This endpoint:
     1. Creates the Change Order on the main branch
-    2. Automatically creates a `co-{code}` branch for isolated work
+    2. Automatically creates a `br-{code}` branch for isolated work
     3. Returns the created Change Order
 
     The auto-created branch allows changes to be developed in isolation
@@ -409,7 +411,7 @@ async def merge_change_order(
 ) -> ChangeOrderPublic:
     """Merge a Change Order's branch into the target branch.
 
-    Infers the source branch from the Change Order code (e.g., `co-{code}`).
+    Infers the source branch from the Change Order code (e.g., `br-{code}`).
 
     Checks for merge conflicts before proceeding. If conflicts exist,
     returns 409 with conflict details.
@@ -427,7 +429,7 @@ async def merge_change_order(
                 detail=f"Change Order {change_order_id} not found",
             )
 
-        source_branch = f"co-{current.code}"
+        source_branch = f"br-{current.code}"
 
         # Check for conflicts
         conflicts = await service._detect_merge_conflicts(
@@ -526,7 +528,12 @@ async def revert_change_order(
 async def get_change_order_impact(
     change_order_id: UUID,
     branch_name: str = Query(
-        ..., description="Branch name to compare (e.g., 'co-CO-2026-001')"
+        ..., description="Branch name to compare (e.g., 'br-CO-2026-001')"
+    ),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Comparison mode: merged (main+change) or isolated (change only)",
     ),
     service: ImpactAnalysisService = Depends(get_impact_analysis_service),
 ) -> ImpactAnalysisResponse:
@@ -534,6 +541,10 @@ async def get_change_order_impact(
 
     Analyzes the financial and schedule impact of a change order by comparing
     data between the main branch and the specified change branch.
+
+    Modes:
+    - merged: Shows merged result (main + change delta) - most intuitive for users
+    - isolated: Shows isolated comparison (delta only) - for detailed analysis
 
     Returns:
         - KPI Scorecard: BAC, Budget Delta, Gross Margin comparison
@@ -543,8 +554,15 @@ async def get_change_order_impact(
 
     Requires read permission.
     """
+    from app.core.versioning.enums import BranchMode
+
+    # Parse mode string to BranchMode enum
+    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
+
     try:
-        impact_analysis = await service.analyze_impact(change_order_id, branch_name)
+        impact_analysis = await service.analyze_impact(
+            change_order_id, branch_name, branch_mode=branch_mode
+        )
         return impact_analysis
     except ValueError as e:
         raise HTTPException(
@@ -755,8 +773,9 @@ async def get_change_order_approval_info(
 
         # Calculate financial impact
         financial_impact = None
+        financial_impact = None
         if co.impact_level:
-            branch_name = f"co-{co.code}"
+            branch_name = f"br-{co.code}"
             impact_service = ImpactAnalysisService(service.session)
             # Optimization: Skip EVM metrics calculation as only financial delta is needed here
             impact_analysis = await impact_service.analyze_impact(
@@ -791,7 +810,7 @@ async def get_change_order_approval_info(
         # Calculate business days remaining until SLA deadline
         sla_business_days_remaining = None
         if co.sla_due_date:
-            from datetime import datetime, UTC
+            from datetime import UTC, datetime
 
             sla_business_days_remaining = service._calculate_business_days_remaining(
                 datetime.now(UTC), co.sla_due_date
@@ -800,7 +819,7 @@ async def get_change_order_approval_info(
         # Determine SLA status
         sla_status = co.sla_status
         if co.sla_due_date:
-            from datetime import datetime, UTC
+            from datetime import UTC, datetime
 
             now = datetime.now(UTC)
             # Normalize sla_due_date to UTC if it's naive

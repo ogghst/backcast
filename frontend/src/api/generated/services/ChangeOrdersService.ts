@@ -6,6 +6,7 @@ import type { ApprovalInfoPublic } from '../models/ApprovalInfoPublic';
 import type { ChangeOrderApproval } from '../models/ChangeOrderApproval';
 import type { ChangeOrderCreate } from '../models/ChangeOrderCreate';
 import type { ChangeOrderPublic } from '../models/ChangeOrderPublic';
+import type { ChangeOrderRecoveryRequest } from '../models/ChangeOrderRecoveryRequest';
 import type { ChangeOrderUpdate } from '../models/ChangeOrderUpdate';
 import type { ImpactAnalysisResponse } from '../models/ImpactAnalysisResponse';
 import type { MergeRequest } from '../models/MergeRequest';
@@ -347,6 +348,10 @@ export class ChangeOrdersService {
      * Analyzes the financial and schedule impact of a change order by comparing
      * data between the main branch and the specified change branch.
      *
+     * Modes:
+     * - merged: Shows merged result (main + change delta) - most intuitive for users
+     * - isolated: Shows isolated comparison (delta only) - for detailed analysis
+     *
      * Returns:
      * - KPI Scorecard: BAC, Budget Delta, Gross Margin comparison
      * - Entity Changes: Added/Modified/Removed WBEs and Cost Elements
@@ -356,12 +361,14 @@ export class ChangeOrdersService {
      * Requires read permission.
      * @param changeOrderId
      * @param branchName Branch name to compare (e.g., 'co-CO-2026-001')
+     * @param mode Comparison mode: merged (main+change) or isolated (change only)
      * @returns ImpactAnalysisResponse Successful Response
      * @throws ApiError
      */
     public static getChangeOrderImpact(
         changeOrderId: string,
         branchName: string,
+        mode: string = 'merged',
     ): CancelablePromise<ImpactAnalysisResponse> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -371,6 +378,7 @@ export class ChangeOrdersService {
             },
             query: {
                 'branch_name': branchName,
+                'mode': mode,
             },
             errors: {
                 422: `Validation Error`,
@@ -475,6 +483,52 @@ export class ChangeOrdersService {
         return __request(OpenAPI, {
             method: 'PUT',
             url: '/api/v1/change-orders/{change_order_id}/reject',
+            path: {
+                'change_order_id': changeOrderId,
+            },
+            query: {
+                'branch': branch,
+            },
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Recover Change Order
+     * Recover a stuck change order workflow (admin only).
+     *
+     * Admin-only endpoint to recover stuck workflows when impact analysis
+     * fails or the change order gets stuck in an intermediate state.
+     * Allows manual override of impact level and approver assignment.
+     *
+     * Requires change-order-recover permission (admin only).
+     *
+     * Args:
+     * change_order_id: UUID of the stuck change order
+     * recovery_data: Recovery request with impact level, approver, and reason
+     *
+     * Returns:
+     * Updated ChangeOrder with recovered workflow state
+     *
+     * Raises:
+     * HTTPException: If change order not stuck, invalid data, or not authorized
+     * @param changeOrderId
+     * @param requestBody
+     * @param branch Branch name
+     * @returns ChangeOrderPublic Successful Response
+     * @throws ApiError
+     */
+    public static recoverChangeOrder(
+        changeOrderId: string,
+        requestBody: ChangeOrderRecoveryRequest,
+        branch: string = 'main',
+    ): CancelablePromise<ChangeOrderPublic> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/change-orders/{change_order_id}/recover',
             path: {
                 'change_order_id': changeOrderId,
             },

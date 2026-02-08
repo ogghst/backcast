@@ -200,12 +200,12 @@ def main():
     print("=" * 70)
 
     scenarios = [
-        ("CO-A", "co-a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d", "Scope Addition", 2, 5, 5),
-        ("CO-B", "co-b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e", "Scope Modification", 3, 3, 3),
-        ("CO-C", "co-f6a7b8c9-d0e1-4f6a-3b4c-5d6e7f8a9b0c", "Scope Reduction", 2, 2, 2),
-        ("CO-D", "co-c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f", "Schedule Only", 0, 0, 5),
-        ("CO-E", "co-d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a", "Cost Reallocation", 0, 5, 0),
-        ("CO-F", "co-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b", "Critical Addition", 5, 25, 25),
+        ("CO-A", "br-CO-2026-001", "Scope Addition", 2, 5, 5),
+        ("CO-B", "br-CO-2026-002", "Scope Modification", 3, 3, 3),
+        ("CO-C", "br-CO-2026-006", "Scope Reduction", 2, 2, 2),
+        ("CO-D", "br-CO-2026-003", "Schedule Only", 0, 0, 5),
+        ("CO-E", "br-CO-2026-004", "Cost Reallocation", 0, 5, 0),
+        ("CO-F", "br-CO-2026-005", "Critical Addition", 5, 25, 25),
     ]
 
     all_scenarios_valid = True

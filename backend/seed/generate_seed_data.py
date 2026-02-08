@@ -22,12 +22,13 @@ PROJECT_1_ID = UUID("d54fbbe6-f3df-51db-9c3e-9408700442be")
 PROJECT_2_ID = UUID("877c4cba-b30e-54c1-b25d-c73fb364019d")
 
 # Change order branch IDs
-BRANCH_CO_A = "co-a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d"
-BRANCH_CO_B = "co-b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e"
-BRANCH_CO_C = "co-f6a7b8c9-d0e1-4f6a-3b4c-5d6e7f8a9b0c"
-BRANCH_CO_D = "co-c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f"
-BRANCH_CO_E = "co-d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a"
-BRANCH_CO_F = "co-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b"
+# Change order branch IDs (using br-{code} format to match ChangeOrderService behavior)
+BRANCH_CO_A = "br-CO-2026-001"
+BRANCH_CO_B = "br-CO-2026-002"
+BRANCH_CO_C = "br-CO-2026-006"
+BRANCH_CO_D = "br-CO-2026-003"
+BRANCH_CO_E = "br-CO-2026-004"
+BRANCH_CO_F = "br-CO-2026-005"
 
 # Progression types
 PROGRESSION_TYPES = ["LINEAR", "GAUSSIAN", "LOGARITHMIC"]
@@ -99,9 +100,12 @@ def generate_schedule_baselines() -> list[dict]:
             prog_type = "LINEAR"  # Linear for travel
 
         # Main branch baseline
+        # Use existing baseline ID if available (to preserve links from cost_elements.json)
+        baseline_id = ce.get("schedule_baseline_id") or str(uuid4())
+        
         baseline = {
             "id": str(uuid4()),
-            "schedule_baseline_id": str(uuid4()),
+            "schedule_baseline_id": baseline_id,
             "cost_element_id": str(ce_id),
             "name": f"Baseline for {code}",
             "start_date": start.isoformat(),

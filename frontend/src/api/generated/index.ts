@@ -14,6 +14,7 @@ export { BranchPublic } from './models/BranchPublic';
 export type { ChangeOrderApproval } from './models/ChangeOrderApproval';
 export type { ChangeOrderCreate } from './models/ChangeOrderCreate';
 export type { ChangeOrderPublic } from './models/ChangeOrderPublic';
+export type { ChangeOrderRecoveryRequest } from './models/ChangeOrderRecoveryRequest';
 export type { ChangeOrderUpdate } from './models/ChangeOrderUpdate';
 export type { CostElementCreate } from './models/CostElementCreate';
 export type { CostElementRead } from './models/CostElementRead';

@@ -74,19 +74,18 @@ class ImpactAnalysisService:
         self,
         change_order_id: UUID,
         branch_name: str,
+        branch_mode: BranchMode = BranchMode.MERGE,
         timeout_seconds: int = 300,
         include_evm_metrics: bool = True,
     ) -> ImpactAnalysisResponse:
         """Analyze impact of a change order by comparing branches.
 
         Context: Compares financial and schedule metrics between main branch
-        and change order branch to show the delta impact. This is intentionally
-        a comparison (not a merge) to help users understand what will change.
+        and change order branch to show the delta impact or merged result.
 
-        Branch Mode: This service always uses STRICT (isolated) mode for both
-        branches because we're comparing two separate views:
-        - Main branch view: "What's the current state?"
-        - Change branch view: "What will change if we merge this CO?"
+        Branch Mode:
+        - MERGE mode: Shows merged result (main + change delta) - most intuitive for users
+        - STRICT mode: Shows isolated comparison (delta only) - for detailed analysis
 
         CostRegistration Note: CostRegistrations are NOT branchable (global facts).
         When joining CostRegistration → CostElement, we must filter by branch to
@@ -97,6 +96,7 @@ class ImpactAnalysisService:
         Args:
             change_order_id: UUID of the change order
             branch_name: Name of the change branch (e.g., "co-CO-2026-001")
+            branch_mode: MERGE (default) shows merged result, STRICT shows isolated comparison
             timeout_seconds: Timeout in seconds (default: 300 = 5 minutes)
             include_evm_metrics: Whether to include expensive EVM metrics (CPI, SPI, etc.)
 
@@ -133,7 +133,7 @@ class ImpactAnalysisService:
             # Create analysis task with timeout
             analysis_task = asyncio.create_task(
                 self._perform_analysis(
-                    change_order_id, branch_name, include_evm_metrics
+                    change_order_id, branch_name, branch_mode, include_evm_metrics
                 )
             )
 
@@ -172,6 +172,7 @@ class ImpactAnalysisService:
         self,
         change_order_id: UUID,
         branch_name: str,
+        branch_mode: BranchMode,
         include_evm_metrics: bool = True,
     ) -> ImpactAnalysisResponse:
         """Perform the actual impact analysis.
@@ -182,6 +183,7 @@ class ImpactAnalysisService:
         Args:
             change_order_id: UUID of the change order
             branch_name: Name of the change branch (e.g., "co-CO-2026-001")
+            branch_mode: MERGE mode calculates merged values, STRICT mode calculates isolated values
             include_evm_metrics: Whether to include expensive EVM metrics
 
         Returns:
@@ -295,12 +297,14 @@ class ImpactAnalysisService:
             change_actual_costs=change_actual_costs,
             main_revenue_total=main_revenue,
             change_revenue_total=change_revenue,
+            branch_mode=branch_mode,
         )
 
         # Phase 5: Compare schedule baselines
         schedule_comparison = await self._fetch_and_compare_schedule_baselines(
             project_id=project_id,
             branch_name=branch_name,
+            branch_mode=branch_mode,
         )
         kpi_scorecard.schedule_start_date = schedule_comparison["schedule_start_date"]
         kpi_scorecard.schedule_end_date = schedule_comparison["schedule_end_date"]
@@ -311,6 +315,7 @@ class ImpactAnalysisService:
             evm_comparison = await self._fetch_and_compare_evm_metrics(
                 project_id=project_id,
                 branch_name=branch_name,
+                branch_mode=branch_mode,
             )
             kpi_scorecard.cpi = evm_comparison["cpi"]
             kpi_scorecard.spi = evm_comparison["spi"]
@@ -365,6 +370,7 @@ class ImpactAnalysisService:
         change_actual_costs: Decimal,
         main_revenue_total: Decimal,
         change_revenue_total: Decimal,
+        branch_mode: BranchMode = BranchMode.MERGE,
     ) -> KPIScorecard:
         """Compare KPIs between main and change branch.
 
@@ -379,6 +385,7 @@ class ImpactAnalysisService:
             change_actual_costs: Actual costs (AC) in change branch
             main_revenue_total: Total revenue in main branch
             change_revenue_total: Total revenue in change branch
+            branch_mode: MERGE mode calculates merged values, STRICT mode calculates isolated values
 
         Returns:
             KPIScorecard with all comparisons
@@ -394,9 +401,21 @@ class ImpactAnalysisService:
                 delta_percent = None
             else:
                 delta_percent = float(delta / main * 100)
+
+            # Calculate merged value when in MERGE mode
+            merged_value = None
+            if branch_mode == BranchMode.MERGE:
+                # If change branch is empty (0), it means "no changes", not "delete everything"
+                # In this case, merged value should equal main value
+                if change == 0 and main > 0:
+                    merged_value = main  # No changes - merged equals main
+                else:
+                    merged_value = main + delta  # Normal merge calculation
+
             return KPIMetric(
                 main_value=main,
                 change_value=change,
+                merged_value=merged_value,
                 delta=delta,
                 delta_percent=delta_percent,
             )
@@ -994,12 +1013,14 @@ class ImpactAnalysisService:
         self,
         project_id: UUID,
         branch_name: str,
+        branch_mode: BranchMode = BranchMode.MERGE,
     ) -> dict[str, KPIMetric | None]:
         """Fetch and compare schedule baselines between main and change branches.
 
         Args:
             project_id: UUID of the project
             branch_name: Name of the change branch
+            branch_mode: MERGE mode calculates merged values, STRICT mode calculates isolated values
 
         Returns:
             Dictionary with schedule_start_date, schedule_end_date, schedule_duration KPIMetrics
@@ -1111,9 +1132,16 @@ class ImpactAnalysisService:
             change_ts = Decimal(str(int(change_dt.timestamp())))
             delta = change_ts - main_ts
             # Percent change for dates doesn't make sense, set to None
+
+            # Calculate merged value when in MERGE mode
+            merged_value = None
+            if branch_mode == BranchMode.MERGE:
+                merged_value = main_ts + delta
+
             return KPIMetric(
                 main_value=main_ts,
                 change_value=change_ts,
+                merged_value=merged_value,
                 delta=delta,
                 delta_percent=None,
             )
@@ -1124,9 +1152,16 @@ class ImpactAnalysisService:
             delta_percent = (
                 float((change_dur - main_dur) / main_dur * 100) if main_dur > 0 else None
             )
+
+            # Calculate merged value when in MERGE mode
+            merged_value = None
+            if branch_mode == BranchMode.MERGE:
+                merged_value = Decimal(str(main_dur)) + delta
+
             return KPIMetric(
                 main_value=Decimal(str(main_dur)),
                 change_value=Decimal(str(change_dur)),
+                merged_value=merged_value,
                 delta=delta,
                 delta_percent=delta_percent,
             )
@@ -1141,12 +1176,14 @@ class ImpactAnalysisService:
         self,
         project_id: UUID,
         branch_name: str,
+        branch_mode: BranchMode = BranchMode.MERGE,
     ) -> dict[str, KPIMetric | None]:
         """Fetch and compare EVM metrics between main and change branches.
 
         Args:
             project_id: UUID of the project
             branch_name: Name of the change branch
+            branch_mode: MERGE mode calculates merged values, STRICT mode calculates isolated values
 
         Returns:
             Dictionary with cpi, spi, tcpi, eac, vac KPIMetrics
@@ -1209,9 +1246,21 @@ class ImpactAnalysisService:
                 delta_percent = (
                     float(delta / main_val * 100) if main_val != 0 else None
                 )
+
+                # Calculate merged value when in MERGE mode
+                merged_value = None
+                if branch_mode == BranchMode.MERGE:
+                    # If change branch has no data (equals 0 when main > 0), it means "no changes"
+                    # In this case, merged value should equal main value
+                    if change_val == 0 and main_val > 0:
+                        merged_value = main_val  # No changes - merged equals main
+                    else:
+                        merged_value = main_val + delta  # Normal merge calculation
+
                 return KPIMetric(
                     main_value=main_val,
                     change_value=change_val,
+                    merged_value=merged_value,
                     delta=delta,
                     delta_percent=delta_percent,
                 )

@@ -21,7 +21,7 @@ class TestChangeOrderServiceCreate:
         - Change Order created with Draft status
         - Correct project_id association
         - All metadata fields populated
-        - Auto-branch created (co-{code})
+        - Auto-branch created (br-{code})
         """
         # Arrange
         service = ChangeOrderService(db_session)
@@ -460,7 +460,7 @@ class TestChangeOrderServiceImpactScore:
 
         impact_analysis = ImpactAnalysisResponse(
             change_order_id=uuid4(),
-            branch_name="co-TEST-001",
+            branch_name="br-TEST-001",
             main_branch_name="main",
             kpi_scorecard=kpi_scorecard,
             entity_changes=EntityChanges(wbes=[], cost_elements=[], cost_registrations=[]),
@@ -515,7 +515,7 @@ class TestChangeOrderServiceImpactScore:
 
         impact_analysis = ImpactAnalysisResponse(
             change_order_id=uuid4(),
-            branch_name="co-TEST-002",
+            branch_name="br-TEST-002",
             main_branch_name="main",
             kpi_scorecard=kpi_scorecard,
             entity_changes=EntityChanges(wbes=[], cost_elements=[], cost_registrations=[]),
@@ -574,7 +574,7 @@ class TestChangeOrderServiceImpactScore:
 
         impact_analysis = ImpactAnalysisResponse(
             change_order_id=uuid4(),
-            branch_name="co-TEST-003",
+            branch_name="br-TEST-003",
             main_branch_name="main",
             kpi_scorecard=kpi_scorecard,
             entity_changes=EntityChanges(wbes=[], cost_elements=[], cost_registrations=[]),
@@ -964,7 +964,7 @@ class TestChangeOrderServiceApproverAssignment:
 
         impact_analysis = ImpactAnalysisResponse(
             change_order_id=uuid4(),
-            branch_name="co-TEST-APPR",
+            branch_name="br-TEST-APPR",
             main_branch_name="main",
             kpi_scorecard=kpi_scorecard,
             entity_changes=EntityChanges(wbes=[], cost_elements=[], cost_registrations=[]),

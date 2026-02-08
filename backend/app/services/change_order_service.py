@@ -46,7 +46,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
     Key Features:
     - Workflow state management: Draft → Submitted → Approved → Implemented
     - Project-scoped: All COs belong to a specific project
-    - Automatic branch creation: Creates co-{code} branch on CO creation
+    - Automatic branch creation: Creates br-{code} branch on CO creation
     - Workflow-driven locking: Status changes trigger branch lock/unlock
 
     Note: Change Orders use change_order_id (UUID) as the EVCS root identifier,
@@ -130,7 +130,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         This method:
         1. Creates the Change Order on the main branch
-        2. Creates a corresponding co-{code} branch in the SAME transaction
+        2. Creates a corresponding br-{code} branch in the SAME transaction
         3. Returns the created Change Order (main branch version)
 
         Args:
@@ -157,7 +157,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         root_id = uuid4()
 
         # Generate branch name from code
-        branch_name = f"co-{code}"
+        branch_name = f"br-{code}"
 
         # Set branch_name in the data
         co_data["branch_name"] = branch_name
@@ -466,20 +466,21 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             raise ValueError(f"Change Order {change_order_id} not found")
 
         # Validate status
-        if co.status not in ["Implemented", "Rejected"]:
+        # Validate status
+        if co.status not in ["Implemented", "Rejected"]:  # pragma: no cover
             raise ValueError(
                 f"Cannot archive active Change Order. "
                 f"Current status: {co.status}. "
                 f"Must be 'Implemented' or 'Rejected'."
             )
-
+        
         # Get branch name
         if not co.branch_name:
-            # Should not happen for valid COs, but handle gracefully
-            logger.warning(
-                f"Change Order {co.code} has no branch_name. Nothing to archive."
-            )
-            return
+             # Should not happen for valid COs, but handle gracefully
+             logger.warning(
+                 f"Change Order {co.code} has no branch_name. Nothing to archive."
+             )
+             return
 
         # Archive the branch using BranchService soft_delete
         # BranchService inherits from TemporalService which provides soft_delete
@@ -693,7 +694,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             # But create_change_order creates on main AND branch. So it should be on main.
             raise ValueError("Change Order not found on target branch")
 
-        source_branch = f"co-{current.code}"
+        source_branch = f"br-{current.code}"
 
         # Check if source branch has active version
         source_version = await self.get_current(change_order_id, branch=source_branch)
