@@ -5,12 +5,11 @@ They are versionable (NOT branchable) - progress is a global fact across all bra
 This allows change orders to compare branch budgets vs actual progress.
 """
 
-from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, Text
+from sqlalchemy import ForeignKey, Numeric, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 

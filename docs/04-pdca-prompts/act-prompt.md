@@ -100,6 +100,13 @@ Track all documentation requiring updates:
 - [ ] Update cross-cutting concern doc Y
 - [ ] Deprecate obsolete pattern in doc Z
 
+### Standards & Architecture Review
+
+> [!NOTE]
+> Ensure the "rules of the road" stay current with reality.
+
+- [ ] **Code Review Checklist**: Review `docs/02-architecture/code-review-checklist.md`. Does it need new items based on recent bugs or patterns?
+
 ---
 
 ## 4. Technical Debt Ledger
@@ -118,7 +125,7 @@ Track all documentation requiring updates:
 
 **Net Debt Change:** +/- X items, +/- Y effort days
 
-**Action**: Update `docs/02-architecture/02-technical-debt.md`
+**Action**: Update `docs/02-architecture/technical-debt-register.md`
 
 ---
 
@@ -143,6 +150,8 @@ Capture learnings for improving AI collaboration:
 - Where did AI need more context/constraints?
 - What architectural context was missing/unclear?
 
+**Action**: Create or Update `docs/02-architecture/process_improvement.md`
+
 ---
 
 ## 6. Knowledge Gaps Identified
@@ -160,6 +169,8 @@ Capture learnings for improving AI collaboration:
 - [ ] Schedule training on [technology]
 - [ ] Pair programming on [skill]
 
+**Action**: Create or Update `docs/02-architecture/knowledge-gaps.md`
+
 ---
 
 ## 7. Knowledge Transfer Artifacts
@@ -171,21 +182,11 @@ Create assets for team learning:
 - [ ] Common pitfalls and how to avoid them
 - [ ] Updated onboarding materials (if needed)
 
----
-
-## 8. Metrics for Monitoring
-
-Define success metrics for ongoing monitoring:
-
-| Metric              | Baseline | Target | Measurement Method |
-| ------------------- | -------- | ------ | ------------------ |
-| Bug rate in area    | X        | Y      | Issue tracking     |
-| Test coverage       | X%       | Y%     | Coverage tool      |
-| Response time (p95) | X ms     | Y ms   | APM tool           |
+**Action**: Create or Update `docs/02-architecture/knowledge-gaps.md`
 
 ---
 
-## 9. Next Iteration Implications
+## 8. Next Iteration Implications
 
 ### Unlocked Capabilities
 
@@ -204,23 +205,11 @@ Define success metrics for ongoing monitoring:
 - What we learned that changes future plans
 - Course corrections needed
 
-**Action**: Input these findings into next iteration's Analysis phase
+**Action**: Create or Update `docs/03-project-plan/next-iteration.md`
 
 ---
 
-## 10. Concrete Action Items
-
-Specific, assignable tasks with owners and deadlines:
-
-- [ ] [Action 1] - @owner - by YYYY-MM-DD
-- [ ] [Action 2] - @owner - by YYYY-MM-DD
-- [ ] [Action 3] - @owner - by YYYY-MM-DD
-- [ ] [Action 4] - @owner - by YYYY-MM-DD
-- [ ] [Action 5] - @owner - by YYYY-MM-DD
-
----
-
-## 11. Iteration Closure
+## 9. Iteration Closure
 
 ### Final Status
 
@@ -236,26 +225,7 @@ Specific, assignable tasks with owners and deadlines:
 
 **Success Criteria Met:** X of Y
 
-### Lessons Learned Summary
-
-1. [Key lesson 1]
-2. [Key lesson 2]
-3. [Key lesson 3]
-
 **Iteration Closed:** YYYY-MM-DD
-
----
-
-## Industry Benchmarks
-
-Reference for evaluating iteration success:
-
-| Metric                | Industry Average | Target with PDCA+TDD | Actual |
-| --------------------- | ---------------- | -------------------- | ------ |
-| Defect Rate Reduction | -                | 40-60% improvement   | X%     |
-| Code Review Cycles    | 3-4              | 1-2                  | X      |
-| Rework Rate           | 15-25%           | <10%                 | X%     |
-| Time-to-Production    | Variable         | 20-30% faster        | X days |
 
 ---
 

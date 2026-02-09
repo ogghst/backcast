@@ -52,7 +52,7 @@ class TestBranchLockEnforcement:
         )
 
         # Create a change order branch
-        co_branch = "co-001"
+        co_branch = "BR-001"
         await wbe_service.create_branch(
             root_id=wbe_root_id,
             actor_id=test_user_id,
@@ -121,7 +121,7 @@ class TestBranchLockEnforcement:
         )
 
         # Create a change order branch
-        co_branch = "co-002"
+        co_branch = "BR-002"
         await wbe_service.create_branch(
             root_id=wbe_root_id,
             actor_id=test_user_id,
@@ -177,7 +177,7 @@ class TestBranchLockEnforcement:
         branch_service = BranchService(db_session)
 
         # Create a branch for the project
-        co_branch = "co-003"
+        co_branch = "BR-003"
         new_branch = Branch(
             name=co_branch,
             project_id=project_id,
@@ -284,7 +284,7 @@ class TestBranchLockEnforcement:
         )
 
         # Create an unlocked branch
-        co_branch = "co-004"
+        co_branch = "BR-004"
         await wbe_service.create_branch(
             root_id=wbe_root_id,
             actor_id=test_user_id,

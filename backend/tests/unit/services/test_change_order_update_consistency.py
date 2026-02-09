@@ -181,7 +181,7 @@ async def test_change_order_crud_lifecycle(db_session: AsyncSession, admin_user:
 
     assert co.title == "CRUD Title"
     assert co.status == "Draft"
-    assert co.branch_name == "co-CO-CRUD-001"
+    assert co.branch_name == "BR-CO-CRUD-001"
 
     co_id = co.change_order_id
 

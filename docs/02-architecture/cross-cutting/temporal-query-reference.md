@@ -342,6 +342,7 @@ stmt.where(
 > **NEVER implement custom temporal filters. ALWAYS use `TemporalService._apply_bitemporal_filter()`.**
 >
 > The standardized filter includes critical components that custom implementations often miss:
+>
 > - `func.lower(valid_time) <= as_of` - Prevents future entities from being included
 > - TIMESTAMP casting - Ensures proper timezone handling
 >
@@ -363,6 +364,7 @@ else:
 ```
 
 **Real-World Impact:**
+
 - Cost element metrics (`used`, `remaining`, `AC`, `ETC`) were incorrect
 - Historical cost analysis produced wrong sums
 - Budget status calculations were unreliable
@@ -410,6 +412,7 @@ The following custom implementations are justified and documented:
    - **Compliance**: Fixed with TIMESTAMP cast and lower bound check
 
 **Note**: All justified deviations have been remediated to include:
+
 - `TIMESTAMP(timezone=True)` casting for proper timezone handling
 - `func.lower(valid_time) <= as_of_tstz` to prevent future entities from leaking into historical queries
 
@@ -449,7 +452,7 @@ project = await service.get_project_as_of(
 project = await service.get_project_as_of(
     project_id=project_id,
     as_of=as_of,
-    branch="co-123",
+    branch="BR-123",
     branch_mode=BranchMode.MERGE,  # fall back to main
 )
 ```
@@ -488,7 +491,7 @@ WHERE project_id = :id
 
 ```python
 # Try target branch first, fall back to main if not found
-version = await get_current(root_id, branch="co-123")
+version = await get_current(root_id, branch="BR-123")
 if version is None:
     version = await get_current(root_id, branch="main")
 ```

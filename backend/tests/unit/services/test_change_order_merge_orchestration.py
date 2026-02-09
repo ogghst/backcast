@@ -48,9 +48,16 @@ class TestChangeOrderMergeOrchestration:
 
         with patch(
             "app.services.change_order_service.EntityDiscoveryService"
-        ) as MockDiscoveryService:
+        ) as MockDiscoveryService, patch(
+            "app.services.change_order_service.UpdateChangeOrderStatusCommand"
+        ) as MockStatusCommand:
             mock_discovery = AsyncMock()
             MockDiscoveryService.return_value = mock_discovery
+
+            # Mock command execution
+            mock_status_cmd = AsyncMock()
+            MockStatusCommand.return_value = mock_status_cmd
+            mock_status_cmd.execute = AsyncMock()
 
             # Configure discovery to return empty lists
             mock_discovery.discover_all_wbes.return_value = []
@@ -71,8 +78,8 @@ class TestChangeOrderMergeOrchestration:
 
             # Assert
             # discover_all_wbes is called once
-            mock_discovery.discover_all_wbes.assert_called_once_with("co-123")
-            mock_discovery.discover_all_cost_elements.assert_called_once_with("co-123")
+            mock_discovery.discover_all_wbes.assert_called_once_with("BR-123")
+            mock_discovery.discover_all_cost_elements.assert_called_once_with("BR-123")
 
     @pytest.mark.asyncio
     async def test_merge_iterates_wbes(self, db_session: AsyncSession):
@@ -112,9 +119,16 @@ class TestChangeOrderMergeOrchestration:
             "app.services.change_order_service.EntityDiscoveryService"
         ) as MockDiscoveryService, patch(
             "app.services.change_order_service.WBEService"
-        ) as MockWBEService:
+        ) as MockWBEService, patch(
+            "app.services.change_order_service.UpdateChangeOrderStatusCommand"
+        ) as MockStatusCommand:
             mock_discovery = AsyncMock()
             MockDiscoveryService.return_value = mock_discovery
+
+            # Mock command execution
+            mock_status_cmd = AsyncMock()
+            MockStatusCommand.return_value = mock_status_cmd
+            mock_status_cmd.execute = AsyncMock()
 
             # Configure discovery to return 2 WBEs
             mock_discovery.discover_all_wbes.return_value = [mock_wbe1, mock_wbe2]
@@ -144,14 +158,14 @@ class TestChangeOrderMergeOrchestration:
             mock_wbe_service.merge_branch.assert_any_call(
                 root_id=mock_wbe1.wbe_id,
                 actor_id=actor_id,
-                source_branch="co-456",
+                source_branch="BR-456",
                 target_branch=target_branch,
                 control_date=None,
             )
             mock_wbe_service.merge_branch.assert_any_call(
                 root_id=mock_wbe2.wbe_id,
                 actor_id=actor_id,
-                source_branch="co-456",
+                source_branch="BR-456",
                 target_branch=target_branch,
                 control_date=None,
             )
@@ -160,7 +174,7 @@ class TestChangeOrderMergeOrchestration:
     async def test_merge_updates_status_to_implemented(self, db_session: AsyncSession):
         """Test that merge updates CO status to "Implemented" after successful merge.
 
-        Expected: Returned ChangeOrder has status == "Implemented".
+        Expected: UpdateChangeOrderStatusCommand is called with "Implemented".
         """
         # Arrange
         service = ChangeOrderService(db_session)
@@ -183,9 +197,16 @@ class TestChangeOrderMergeOrchestration:
 
         with patch(
             "app.services.change_order_service.EntityDiscoveryService"
-        ) as MockDiscoveryService:
+        ) as MockDiscoveryService, patch(
+            "app.services.change_order_service.UpdateChangeOrderStatusCommand"
+        ) as MockStatusCommand:
             mock_discovery = AsyncMock()
             MockDiscoveryService.return_value = mock_discovery
+
+            # Mock command execution
+            mock_status_cmd = AsyncMock()
+            MockStatusCommand.return_value = mock_status_cmd
+            mock_status_cmd.execute = AsyncMock()
 
             # Configure discovery to return empty lists
             mock_discovery.discover_all_wbes.return_value = []
@@ -198,14 +219,22 @@ class TestChangeOrderMergeOrchestration:
             service._detect_all_merge_conflicts = AsyncMock(return_value=[])
 
             # Act
-            result = await service.merge_change_order(
+            await service.merge_change_order(
                 change_order_id=change_order_id,
                 actor_id=actor_id,
                 target_branch=target_branch,
             )
 
-            # Assert - the status should be updated to "Implemented"
-            assert result.status == "Implemented"
+            # Assert - Command should be called with "Implemented"
+            MockStatusCommand.assert_called_once_with(
+                change_order_id=change_order_id,
+                new_status="Implemented",
+                branch=target_branch,
+            )
+            mock_status_cmd.execute.assert_called_once_with(db_session)
+            
+            # Verify refresh was called
+            db_session.refresh.assert_called_with(mock_co)
 
     @pytest.mark.asyncio
     async def test_merge_rolls_back_on_failure(self, db_session: AsyncSession):
@@ -296,7 +325,7 @@ class TestChangeOrderMergeOrchestration:
                 "entity_type": "WBE",
                 "entity_id": str(uuid4()),
                 "field": "name",
-                "source_branch": "co-888",
+                "source_branch": "BR-888",
                 "target_branch": "main",
                 "source_value": "Updated Name",
                 "target_value": "Original Name",
@@ -316,4 +345,4 @@ class TestChangeOrderMergeOrchestration:
 
         # Verify the error contains the conflicts
         assert exc_info.value.conflicts == conflicts
-        service._detect_all_merge_conflicts.assert_called_once_with("co-888", "main")
+        service._detect_all_merge_conflicts.assert_called_once_with("BR-888", "main")

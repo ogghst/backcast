@@ -256,7 +256,7 @@ await session.commit()
 branched = await service.create_branch(
     root_id=project_id,
     actor_id=user_id,
-    new_branch="co-123",
+    new_branch="BR-123",
     from_branch="main"
 )
 await session.commit()
@@ -270,7 +270,7 @@ await service.update(
     root_id=project_id,
     actor_id=user_id,
     updates={"budget": Decimal("150000")},
-    branch="co-123"
+    branch="BR-123"
 )
 await session.commit()
 ```
@@ -282,7 +282,7 @@ await session.commit()
 merged = await service.merge_branch(
     root_id=project_id,
     actor_id=user_id,
-    source_branch="co-123",
+    source_branch="BR-123",
     target_branch="main"
 )
 await session.commit()

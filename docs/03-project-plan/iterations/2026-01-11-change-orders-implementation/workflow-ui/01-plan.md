@@ -6,6 +6,7 @@
 **Iteration:** Workflow UI - Frontend Workflow State Management
 **Status:** Planning Phase
 **Related Docs:**
+
 - [00-analysis.md](./00-analysis.md) - Detailed problem analysis
 - [Phase 2 Plan](../phase2/01-plan.md) - Backend implementation
 - [Product Backlog](../../../product-backlog.md) - E06-U06-UI definition
@@ -23,6 +24,7 @@ From [`functional-requirements.md`](../../01-product-scope/functional-requiremen
 - **FR-8.3**: "The system shall track change order status through defined workflow states including draft, submitted for approval, under review, approved, rejected, and implemented."
 
 **Gap Identified:**
+
 - ✅ Backend: `ChangeOrderWorkflowService` implements complete state machine
 - ❌ Frontend: `ChangeOrderModal` shows all 7 status options regardless of workflow state
 - ❌ No enforcement of valid transitions in UI
@@ -114,18 +116,21 @@ async def can_edit_on_status(self, status: str) -> bool:
 **What:** The Change Order creation and edit forms display all 7 possible workflow states, allowing users to select invalid workflow transitions and attempt to modify locked branches.
 
 **Why Now:**
+
 - Phase 2 backend workflow service is complete and tested
 - Users are starting to use Change Order creation form
 - Confusing UI leading to failed form submissions
 - Branch locking works but UI doesn't reflect it
 
 **Impact If Not Addressed:**
+
 - **User Experience:** Poor - confusing dropdown with invalid options
 - **Data Integrity:** Medium risk - backend validates but errors occur late
 - **Workflow Enforcement:** Frontend doesn't guide users through valid states
 - **Branch Locking:** Users can waste time editing forms that will fail
 
 **Business Value:**
+
 - **HIGH:** Improves user experience and reduces form submission errors
 - **HIGH:** Enforces workflow rules at UI level (defensive programming)
 - **MEDIUM:** Prevents wasted time on invalid selections
@@ -236,11 +241,13 @@ async def can_edit_on_status(self, status: str) -> bool:
 7. **Low Risk:** Schema extension is additive, no breaking changes
 
 **Why Not Option B:**
+
 - Incomplete solution (doesn't fix edit mode)
 - Violates "backend is source of truth" principle
 - Creates technical debt (frontend workflow rules)
 
 **Why Not Option C:**
+
 - Unnecessary complexity (new endpoint)
 - Additional network call
 - Endpoint proliferation anti-pattern
@@ -303,6 +310,7 @@ frontend/src/features/change-orders/components/ChangeOrderModal.test.tsx
 **Purpose:** Verify that `ChangeOrderService._to_public()` adds the `available_transitions` field.
 
 **Arrange:**
+
 ```python
 # Given
 co = ChangeOrder(
@@ -316,12 +324,14 @@ workflow_service.get_available_transitions.return_value = ["Submitted for Approv
 ```
 
 **Act:**
+
 ```python
 # When
 result = service._to_public(co)
 ```
 
 **Assert:**
+
 ```python
 # Then
 assert result.available_transitions == ["Submitted for Approval"]
@@ -333,17 +343,20 @@ workflow_service.get_available_transitions.assert_called_once_with("Draft")
 **Purpose:** Verify that `can_edit_status` field is populated correctly.
 
 **Arrange:**
+
 ```python
 co = ChangeOrder(status="Under Review")
 workflow_service.can_edit_on_status.return_value = False
 ```
 
 **Act:**
+
 ```python
 result = service._to_public(co)
 ```
 
 **Assert:**
+
 ```python
 assert result.can_edit_status is False
 workflow_service.can_edit_on_status.assert_called_once_with("Under Review")
@@ -354,18 +367,21 @@ workflow_service.can_edit_on_status.assert_called_once_with("Under Review")
 **Purpose:** Verify that `branch_locked` field reflects actual branch state.
 
 **Arrange:**
+
 ```python
-co = ChangeOrder(branch_name="co-CO-001", project_id=project_id)
-branch = Branch(name="co-CO-001", project_id=project_id, locked=True)
+co = ChangeOrder(branch_name="BR-CO-001", project_id=project_id)
+branch = Branch(name="BR-CO-001", project_id=project_id, locked=True)
 branch_service.get_by_name_and_project.return_value = branch
 ```
 
 **Act:**
+
 ```python
 result = service._to_public(co)
 ```
 
 **Assert:**
+
 ```python
 assert result.branch_locked is True
 branch_service.get_by_name_and_project.assert_called_once()
@@ -376,6 +392,7 @@ branch_service.get_by_name_and_project.assert_called_once()
 **Purpose:** Verify frontend create mode shows only Draft option.
 
 **Arrange:**
+
 ```typescript
 // No current status (create mode)
 const { statusOptions } = useWorkflowInfo(
@@ -387,11 +404,13 @@ const { statusOptions } = useWorkflowInfo(
 ```
 
 **Act:**
+
 ```typescript
 const options = statusOptions.value;
 ```
 
 **Assert:**
+
 ```typescript
 expect(options).toEqual([{ label: "Draft", value: "Draft" }]);
 expect(options.length).toBe(1);
@@ -402,6 +421,7 @@ expect(options.length).toBe(1);
 **Purpose:** Verify frontend edit mode shows only available transitions.
 
 **Arrange:**
+
 ```typescript
 // Current status: "Submitted for Approval"
 // Available transitions: ["Under Review"]
@@ -414,11 +434,13 @@ const { statusOptions } = useWorkflowInfo(
 ```
 
 **Act:**
+
 ```typescript
 const options = statusOptions.value;
 ```
 
 **Assert:**
+
 ```typescript
 expect(options).toEqual([{ label: "Under Review", value: "Under Review" }]);
 expect(options).not.toContainEqual({ label: "Draft", value: "Draft" });
@@ -454,6 +476,7 @@ expect(options).not.toContainEqual({ label: "Draft", value: "Draft" });
 **Component Breakdown:**
 
 **Backend:**
+
 ```
 backend/app/
 ├── models/
@@ -473,6 +496,7 @@ tests/
 ```
 
 **Frontend:**
+
 ```
 frontend/src/
 ├── features/
@@ -505,6 +529,7 @@ frontend/src/
 **Overall Risk Level:** **LOW**
 
 **Reasoning:**
+
 - Backend workflow service is already tested and working
 - Schema extension is additive (non-breaking)
 - Clear test strategy with TDD approach

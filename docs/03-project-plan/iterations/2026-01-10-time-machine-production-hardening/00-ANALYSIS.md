@@ -162,6 +162,7 @@ get_as_of(project_id, as_of="2026-01-01", branch="main")
 ```
 
 **Pros:**
+
 | Benefit | Description |
 |---------|-------------|
 | **Conceptual Clarity** | Each branch is an isolated "timeline" - matches Git mental model |
@@ -171,6 +172,7 @@ get_as_of(project_id, as_of="2026-01-01", branch="main")
 | **Merge Semantics** | Clear distinction between "what was on main" vs "what was drafted" |
 
 **Cons:**
+
 | Drawback | Description |
 |----------|-------------|
 | **Missing Context** | Can't easily see "what changes were being proposed at time T" |
@@ -189,6 +191,7 @@ get_as_of(project_id, as_of="2026-01-01", branch=None)  # Returns list from all 
 ```
 
 **Pros:**
+
 | Benefit | Description |
 |---------|-------------|
 | **Complete Picture** | See all parallel development at a point in time |
@@ -197,6 +200,7 @@ get_as_of(project_id, as_of="2026-01-01", branch=None)  # Returns list from all 
 | **No Lost History** | Even deleted branches remain visible in history |
 
 **Cons:**
+
 | Drawback | Description |
 |----------|-------------|
 | **API Complexity** | Returns multiple results, needs different response schema |
@@ -219,10 +223,11 @@ get_as_of(project_id, as_of="2026-01-01", branch="main")
 list_branches_as_of(project_id, as_of="2026-01-01")
 
 # Comparison API: Compare two branches at time T
-compare_branches_as_of(project_id, as_of="2026-01-01", branch_a="main", branch_b="co-123")
+compare_branches_as_of(project_id, as_of="2026-01-01", branch_a="main", branch_b="BR-123")
 ```
 
 **Pros:**
+
 | Benefit | Description |
 |---------|-------------|
 | **Best of Both** | Simple primary use case, power-user features available |
@@ -231,6 +236,7 @@ compare_branches_as_of(project_id, as_of="2026-01-01", branch_a="main", branch_b
 | **Backwards Compatible** | Existing `as_of` queries continue to work |
 
 **Cons:**
+
 | Drawback | Description |
 |----------|-------------|
 | **More APIs** | Additional endpoints to maintain |
@@ -254,13 +260,13 @@ class BranchMode(str, Enum):
     STRICT = "strict"  # Only look at specified branch
     MERGE = "merge"    # Fall back to main if not found on branch
 
-# Strict mode (default): Only branch 'co-123'
-get_as_of(project_id, as_of="2026-01-01", branch="co-123", branch_mode="strict")
-# → Returns entity from co-123, or 404 if not on that branch
+# Strict mode (default): Only branch 'BR-123'
+get_as_of(project_id, as_of="2026-01-01", branch="BR-123", branch_mode="strict")
+# → Returns entity from BR-123, or 404 if not on that branch
 
 # Merge mode: Branch with main fallback
-get_as_of(project_id, as_of="2026-01-01", branch="co-123", branch_mode="merge")
-# → Returns entity from co-123 if exists, else falls back to main
+get_as_of(project_id, as_of="2026-01-01", branch="BR-123", branch_mode="merge")
+# → Returns entity from BR-123 if exists, else falls back to main
 ```
 
 **Implementation Pattern (Already Documented in evcs-implementation-guide.md):**
@@ -292,16 +298,17 @@ def get_as_of_with_fallback(
 
 **Use Case: Change Order Preview**
 
-When viewing a project on change order branch `co-456`:
+When viewing a project on change order branch `BR-456`:
 
-- **WBE-001** modified on `co-456` → Show `co-456` version
-- **WBE-002** not modified on `co-456` → Show `main` version (fallback)
-- **WBE-003** created on `co-456` → Show `co-456` version
-- **WBE-004** deleted on `co-456` → Show nothing (branch-specific deletion)
+- **WBE-001** modified on `BR-456` → Show `BR-456` version
+- **WBE-002** not modified on `BR-456` → Show `main` version (fallback)
+- **WBE-003** created on `BR-456` → Show `BR-456` version
+- **WBE-004** deleted on `BR-456` → Show nothing (branch-specific deletion)
 
 This gives users a "merged view" of what the project would look like if the change order were applied.
 
 **Pros:**
+
 | Benefit | Description |
 |---------|-------------|
 | **Intuitive for Change Orders** | Users see "what would the project look like if this CO is approved?" |
@@ -312,6 +319,7 @@ This gives users a "merged view" of what the project would look like if the chan
 | **Flexible** | Users choose the behavior they need per-query |
 
 **Cons:**
+
 | Drawback | Description |
 |----------|-------------|
 | **Two Queries** | Merge mode may require two database lookups (branch + main) |

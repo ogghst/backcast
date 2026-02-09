@@ -50,7 +50,7 @@ async def test_td57_deleted_after_as_of_should_fallback(db_session):
     await wbe_service.create_branch(
         root_id=wbe_id,
         actor_id=actor_id,
-        new_branch="co-123",
+        new_branch="BR-123",
         from_branch="main",
     )
     await db_session.commit()
@@ -60,7 +60,7 @@ async def test_td57_deleted_after_as_of_should_fallback(db_session):
     await db_session.commit()  # Ensure transaction is committed
 
     # Delete WBE on the change order branch
-    await wbe_service.soft_delete(root_id=wbe_id, actor_id=actor_id, branch="co-123")
+    await wbe_service.soft_delete(root_id=wbe_id, actor_id=actor_id, branch="BR-123")
     await db_session.commit()
 
     after_deletion = datetime.now(UTC) + timedelta(seconds=1)
@@ -70,12 +70,12 @@ async def test_td57_deleted_after_as_of_should_fallback(db_session):
     result_before = await wbe_service.get_as_of(
         entity_id=wbe_id,
         as_of=before_deletion,
-        branch="co-123",
+        branch="BR-123",
         branch_mode=BranchMode.MERGE,
     )
 
     # This should return the main branch version because at T=before_deletion,
-    # the entity was NOT deleted on co-123 yet
+    # the entity was NOT deleted on BR-123 yet
     assert result_before is not None, (
         "Entity deleted AFTER as_of should fall back to main "
         "(deletion hadn't happened yet at query time)"
@@ -85,12 +85,12 @@ async def test_td57_deleted_after_as_of_should_fallback(db_session):
     result_after = await wbe_service.get_as_of(
         entity_id=wbe_id,
         as_of=after_deletion,
-        branch="co-123",
+        branch="BR-123",
         branch_mode=BranchMode.MERGE,
     )
 
     # This should return None because at T=after_deletion,
-    # the entity WAS deleted on co-123
+    # the entity WAS deleted on BR-123
     assert result_after is None, "Entity deleted BEFORE as_of should NOT fall back to main"
 
 
@@ -126,13 +126,13 @@ async def test_td57_deleted_before_as_of_no_fallback(db_session):
     await wbe_service.create_branch(
         root_id=wbe_id,
         actor_id=actor_id,
-        new_branch="co-123",
+        new_branch="BR-123",
         from_branch="main",
     )
     await db_session.commit()
 
     # Delete WBE on the change order branch
-    await wbe_service.soft_delete(root_id=wbe_id, actor_id=actor_id, branch="co-123")
+    await wbe_service.soft_delete(root_id=wbe_id, actor_id=actor_id, branch="BR-123")
     await db_session.commit()
 
     # Query AFTER deletion timestamp
@@ -141,11 +141,11 @@ async def test_td57_deleted_before_as_of_no_fallback(db_session):
     result = await wbe_service.get_as_of(
         entity_id=wbe_id,
         as_of=as_of,
-        branch="co-123",
+        branch="BR-123",
         branch_mode=BranchMode.MERGE,
     )
 
-    # Should NOT fall back to main because entity was deleted on co-123
+    # Should NOT fall back to main because entity was deleted on BR-123
     assert result is None, "Deleted entity on branch should NOT fall back to main"
 
     # But querying main directly should still work

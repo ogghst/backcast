@@ -18,5 +18,9 @@ export type UserRegister = {
      * Password must be at least 8 characters
      */
     password: string;
+    /**
+     * Optional control date for creation (valid_time start)
+     */
+    control_date?: (string | null);
 };
 

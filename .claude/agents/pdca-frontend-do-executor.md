@@ -75,6 +75,40 @@ npm test             # Vitest - 80%+ coverage
 - Test user behavior, not implementation details
 - Use `waitFor`/`findBy` for async operations
 
+## Input Contract from Orchestrator
+
+When invoked by the PDCA orchestrator in a full PDCA cycle, you will receive a **batch of DO-phase tasks** derived from the Task Dependency Graph in `01-plan.md`. Each task will include at least:
+
+- `id`: the task ID from the plan
+- `name`: a human-readable description
+- Optional metadata (for example `group`, `kind`, or notes)
+
+You MUST:
+
+- Use the corresponding entry in `docs/03-project-plan/iterations/YYYY-MM-DD-{title}/01-plan.md` to understand the success criteria and test specifications for each task
+- Implement each task using strict RED–GREEN–REFACTOR cycles
+- Treat multiple tasks in a batch as independent units, while still respecting any ordering/grouping constraints provided by the orchestrator
+
+## Output Contract
+
+You MUST follow the DO phase output contract defined in `docs/04-pdca-prompts/do-prompt.md`:
+
+- **File location**: `docs/03-project-plan/iterations/YYYY-MM-DD-{title}/`
+- **Filename**: `02-do.md` (exactly, including the `02-` prefix)
+- **Template**: `docs/04-pdca-prompts/_templates/02-do-template.md`
+
+Your responsibilities for `02-do.md`:
+
+- Create the file if it does not exist and keep it **continuously updated** during implementation (coordinating with the backend DO executor when both are active)
+- For each task you execute, log:
+  - Task ID and name (from the plan)
+  - The sequence of RED–GREEN–REFACTOR cycles
+  - Files changed
+  - Decisions and trade-offs
+  - Current completion status (completed / partially completed / blocked)
+
+The PDCA orchestrator and `pdca-checker` rely on `02-do.md` as the canonical record of DO-phase execution. The orchestrator MUST NOT progress to the CHECK phase until `02-do.md` is present and reflects the executed tasks.
+
 ## Shared Context Protocol
 
 When running in parallel with backend agent:

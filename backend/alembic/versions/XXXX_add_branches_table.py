@@ -34,7 +34,7 @@ def upgrade() -> None:
             "name",
             sa.String(80),
             nullable=False,
-            comment="Branch name (e.g., main or co-CO-2026-001)",
+            comment="Branch name (e.g., main or BR-CO-2026-001)",
         ),
         sa.Column(
             "project_id",

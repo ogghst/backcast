@@ -12,6 +12,7 @@
 TD-026 (Expose get_as_of in Service Interfaces) has been successfully completed. All 6 services extending `TemporalService` now expose `get_{entity}_as_of()` methods with full bitemporal support, STRICT/MERGE branch modes, and comprehensive documentation.
 
 **Key Outcomes:**
+
 - 6 new service methods added (one per service)
 - Zero breaking changes
 - 100% type safety maintained (MyPy strict mode)
@@ -25,6 +26,7 @@ TD-026 (Expose get_as_of in Service Interfaces) has been successfully completed.
 ### 1. Code Implementation
 
 **Services Updated:**
+
 - [x] `ProjectService.get_project_as_of()` ([project.py:231-264](../../../backend/app/services/project.py#L231-L264))
 - [x] `WBEService.get_wbe_as_of()` ([wbe.py:673-706](../../../backend/app/services/wbe.py#L673-L706))
 - [x] `CostElementService.get_cost_element_as_of()` ([cost_element_service.py:524-617](../../../backend/app/services/cost_element_service.py#L524-L617))
@@ -74,12 +76,13 @@ project = await service.get_project_as_of(
 project = await service.get_project_as_of(
     project_id=project_id,
     as_of=as_of,
-    branch="co-123",
+    branch="BR-123",
     branch_mode=BranchMode.MERGE,  # fall back to main
 )
 ```
 
 **Implementation:** All methods delegate to `TemporalService.get_as_of()` which implements full bitemporal filtering with System Time Travel semantics. See [`TemporalService.get_as_of()`](../../../backend/app/core/versioning/service.py) for implementation details.
+
 ```
 
 ### 3. Technical Debt Register Update
@@ -110,6 +113,7 @@ Updated [`docs/03-project-plan/technical-debt-register.md`](../../technical-debt
 ```
 
 **Updated Summary Statistics:**
+
 - Total Debt Items: 2 (8 completed)
 - Total Estimated Effort: 3 hours
 - Completed Effort: 12 hours
@@ -142,6 +146,7 @@ Updated [`docs/03-project-plan/technical-debt-register.md`](../../technical-debt
 | Tests Added | 24 (planned) | 0 | N/A |
 
 **Note on Tests:** The original plan called for 24 new tests (4 per service). However, since all methods delegate to `TemporalService.get_as_of()` which already has comprehensive test coverage in `tests/unit/core/versioning/test_base_coverage.py`, adding service-level tests would duplicate existing test logic. The base class tests already verify:
+
 - STRICT mode behavior
 - MERGE mode behavior
 - Zombie deletion handling
@@ -185,12 +190,14 @@ Updated [`docs/03-project-plan/technical-debt-register.md`](../../technical-debt
 ### Developer Experience
 
 **Before:**
+
 ```python
 # API layer had to use base class directly
 project = await temporal_service.get_as_of(project_id, as_of, branch)
 ```
 
 **After:**
+
 ```python
 # Service layer provides clean abstraction
 project = await project_service.get_project_as_of(project_id, as_of, branch)
@@ -231,22 +238,26 @@ project = await project_service.get_project_as_of(project_id, as_of, branch)
 ## PDCA Cycle Summary
 
 ### Plan (Do Phase)
+
 - Followed Option 1 (Thin Wrapper Pattern) from analysis
 - Added 6 methods across 6 services
 - Maintained backward compatibility
 
 ### Do (Execute Phase)
+
 - Implemented all 6 methods with proper type hints and docstrings
 - Added required imports (BranchMode, datetime)
 - Custom implementation for CostElementService with relations
 
 ### Check (Verify Phase)
+
 - MyPy strict mode: 0 new errors
 - Ruff linting: 0 errors
 - Backend tests: 197/198 passed (1 pre-existing failure)
 - Frontend tests: Not applicable (backend-only change)
 
 ### Act (Close Phase)
+
 - ✅ Documentation updated (temporal-query-reference.md)
 - ✅ Technical debt register updated (TD-026 marked complete)
 - ✅ PDCA cycle documented

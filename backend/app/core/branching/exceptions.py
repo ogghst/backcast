@@ -70,7 +70,7 @@ class MergeConflictError(Exception):
             "entity_type": "Project",
             "entity_id": "123e4567-e89b-12d3-a456-426614174000",
             "field": "name",
-            "source_branch": "co-123",
+            "source_branch": "BR-123",
             "target_branch": "main",
             "source_value": "Updated Name",
             "target_value": "Original Name",

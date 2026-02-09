@@ -7,11 +7,14 @@ export { CancelablePromise, CancelError } from './core/CancelablePromise';
 export { OpenAPI } from './core/OpenAPI';
 export type { OpenAPIConfig } from './core/OpenAPI';
 
+export type { ApprovalInfoPublic } from './models/ApprovalInfoPublic';
 export type { Body_login } from './models/Body_login';
 export { BranchMode } from './models/BranchMode';
 export { BranchPublic } from './models/BranchPublic';
+export type { ChangeOrderApproval } from './models/ChangeOrderApproval';
 export type { ChangeOrderCreate } from './models/ChangeOrderCreate';
 export type { ChangeOrderPublic } from './models/ChangeOrderPublic';
+export type { ChangeOrderRecoveryRequest } from './models/ChangeOrderRecoveryRequest';
 export type { ChangeOrderUpdate } from './models/ChangeOrderUpdate';
 export type { CostElementCreate } from './models/CostElementCreate';
 export type { CostElementRead } from './models/CostElementRead';

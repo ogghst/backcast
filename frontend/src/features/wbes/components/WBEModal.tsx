@@ -1,6 +1,7 @@
 import { useEffect } from "react";
-import { Modal, Form, Input, InputNumber } from "antd";
+import { Modal, Form, Input, InputNumber, Tooltip } from "antd";
 import type { WBERead, WBECreate, WBEUpdate } from "@/api/generated";
+import { useTimeMachine } from "@/contexts/TimeMachineContext";
 
 interface WBEModalProps {
   open: boolean;
@@ -25,6 +26,10 @@ export const WBEModal = ({
 }: WBEModalProps) => {
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
+  const { branch } = useTimeMachine();
+
+  // Check if we're in a change order branch (revenue is only editable in CO branches)
+  const isChangeOrderBranch = branch.startsWith("BR-");
 
   useEffect(() => {
     if (open) {
@@ -116,6 +121,44 @@ export const WBEModal = ({
             placeholder="0.00"
           />
         </Form.Item>
+
+        {isChangeOrderBranch && (
+          <Form.Item
+            name="revenue_allocation"
+            label={
+              <span>
+                Revenue Allocation (€){" "}
+                <Tooltip title="Revenue allocated to this WBE. Only editable in change order branches.">
+                  <span style={{ cursor: "help", marginLeft: 4 }}>ⓘ</span>
+                </Tooltip>
+              </span>
+            }
+            rules={[
+              {
+                required: false,
+              },
+              {
+                type: "number",
+                min: 0,
+                message: "Revenue allocation must be non-negative",
+              },
+            ]}
+            tooltip="Enter the revenue amount allocated to this WBE"
+          >
+            <InputNumber
+              style={{ width: "100%" }}
+              min={0}
+              precision={2}
+              formatter={(value) =>
+                `€ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+              }
+              parser={(value) =>
+                value?.replace(/€\s?|(,*)/g, "") as unknown as number
+              }
+              placeholder="0.00"
+            />
+          </Form.Item>
+        )}
 
         <Form.Item name="parent_wbe_id" hidden>
           <Input />

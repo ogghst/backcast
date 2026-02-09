@@ -7,7 +7,8 @@
     "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
     "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "cda59e4c-fff8-44e0-8625-cb6eaf244b51"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-CE-2",
@@ -17,7 +18,8 @@
     "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
     "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "6f916070-09a4-44d4-821c-8f8b315acb00"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-CE-3",
@@ -27,7 +29,8 @@
     "cost_element_id": "2450a921-a5a2-5442-b223-62f8884c534a",
     "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "5e98f806-4fb5-444e-829d-38036778fdd5"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-CE-4",
@@ -37,7 +40,8 @@
     "cost_element_id": "345901f0-2c89-5ab3-b4c1-1b76b33507a3",
     "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "d5794439-a605-49cc-b2ee-d78a2e13a4da"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-CE-5",
@@ -47,7 +51,8 @@
     "cost_element_id": "2218bd7e-04da-5f32-b31c-453cc3d3561b",
     "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "ca447a44-0e7d-42f9-bc71-6f9f063ded95"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-1-CE-1",
@@ -57,7 +62,8 @@
     "cost_element_id": "18c26d12-9789-5004-b766-3b099405e884",
     "wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "ceb3c203-cb6a-490f-8f2c-ab78404fe394"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-1-CE-2",
@@ -67,7 +73,8 @@
     "cost_element_id": "fd3e2f3d-d8d0-5057-a1a7-e18ebb866557",
     "wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "f5586230-7fdf-4942-b0c3-230cdb0906b3"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-1-CE-3",
@@ -77,7 +84,8 @@
     "cost_element_id": "24006d86-ae96-5cf0-bd17-3ef736ce942f",
     "wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "2429a9d8-9eec-4a1a-935d-0ff61546a709"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-1-CE-4",
@@ -87,7 +95,8 @@
     "cost_element_id": "801966ec-2479-5ee5-bc12-33d4416aa57e",
     "wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "c74f3a2c-9ab8-4f1a-a623-c5fa35431293"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-1-CE-5",
@@ -97,7 +106,8 @@
     "cost_element_id": "8d884e39-3fe8-58c6-bf44-c368cf232c8a",
     "wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "848c8402-9b61-4035-ae88-9cc58829d813"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-1",
@@ -107,7 +117,8 @@
     "cost_element_id": "25c5b1b5-d7f7-580a-aa53-f8400f647611",
     "wbe_id": "874cdb91-1ad1-5300-9673-21c2e086aacb",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "be10fb0b-145a-4b03-bd1e-ae6a37fccb10"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-2",
@@ -117,7 +128,8 @@
     "cost_element_id": "7892a1c1-cad3-5f9b-884a-d447119170f6",
     "wbe_id": "874cdb91-1ad1-5300-9673-21c2e086aacb",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "2da0fff7-7dd2-4aac-a286-bab0dadf89f6"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-3",
@@ -127,7 +139,8 @@
     "cost_element_id": "b8553a66-0d11-57be-abc2-8f0182bbc7d1",
     "wbe_id": "874cdb91-1ad1-5300-9673-21c2e086aacb",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "d0fdc00a-b191-46fe-86c3-57b277eec2cd"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-4",
@@ -137,7 +150,8 @@
     "cost_element_id": "7952c593-af27-5039-bf6a-327f6e013cf5",
     "wbe_id": "874cdb91-1ad1-5300-9673-21c2e086aacb",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "5a932aa3-7a4f-4ff6-807d-9e8c84f23192"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-5",
@@ -147,7 +161,8 @@
     "cost_element_id": "eda50327-059d-5bb4-b44a-77149f656856",
     "wbe_id": "874cdb91-1ad1-5300-9673-21c2e086aacb",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "120cb7a0-d283-47df-ab31-a987db00e728"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-2-CE-1",
@@ -157,7 +172,8 @@
     "cost_element_id": "195eb39a-9f78-538b-99d7-31ec20bc2119",
     "wbe_id": "a17200de-79c9-5eaa-9959-f4960ccc9b38",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "2c6b030c-397e-4df4-aabd-8c4546bce91c"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-2-CE-2",
@@ -167,7 +183,8 @@
     "cost_element_id": "18d0b34f-5d73-5f0c-bb48-1b72496c12ad",
     "wbe_id": "a17200de-79c9-5eaa-9959-f4960ccc9b38",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "ae94df87-f503-4854-9049-2b03be07ab14"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-2-CE-3",
@@ -177,7 +194,8 @@
     "cost_element_id": "69a715ce-6d9b-5bca-ada1-9238f1b1281e",
     "wbe_id": "a17200de-79c9-5eaa-9959-f4960ccc9b38",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "abb9c6ba-d43f-4bed-8080-17bda4101fda"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-2-CE-4",
@@ -187,7 +205,8 @@
     "cost_element_id": "875a19d2-3b5a-5d2f-bfe2-d4ffaa4b4772",
     "wbe_id": "a17200de-79c9-5eaa-9959-f4960ccc9b38",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "053f4547-7249-47e7-8ef9-b5096f7321f3"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-2-CE-5",
@@ -197,7 +216,8 @@
     "cost_element_id": "f595dbf4-53c2-5334-82bd-857333351bf5",
     "wbe_id": "a17200de-79c9-5eaa-9959-f4960ccc9b38",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "06c4238b-5bae-45c0-aae7-a66e940362ba"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-2-L3-1-CE-1",
@@ -207,7 +227,8 @@
     "cost_element_id": "db065157-537c-5a98-ac94-cc2c8d7d1840",
     "wbe_id": "ea18bdbb-9ad0-5a79-9fa2-46d727a5bc3c",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "4dce6056-717f-4918-855d-f1daf991fb69"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-2-L3-1-CE-2",
@@ -217,7 +238,8 @@
     "cost_element_id": "cf27c180-6ceb-5ca2-bebf-129856b748ff",
     "wbe_id": "ea18bdbb-9ad0-5a79-9fa2-46d727a5bc3c",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "3f5d0ce1-80b4-4502-939e-7d642049bdb5"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-2-L3-1-CE-3",
@@ -227,7 +249,8 @@
     "cost_element_id": "d3678069-6735-51b4-b9fb-fa824b6e42ec",
     "wbe_id": "ea18bdbb-9ad0-5a79-9fa2-46d727a5bc3c",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "a74a728f-85c7-4632-af51-d274d8b0795c"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-2-L3-1-CE-4",
@@ -237,7 +260,8 @@
     "cost_element_id": "3c9dc605-7c47-5203-852f-b047b1ed55d6",
     "wbe_id": "ea18bdbb-9ad0-5a79-9fa2-46d727a5bc3c",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "4091d338-e69e-4bc6-a084-d60692ef5e0c"
   },
   {
     "code": "PRJ-DEMO-001-L1-1-L2-2-L3-1-CE-5",
@@ -247,7 +271,8 @@
     "cost_element_id": "f05c5a1c-ebd1-5a52-9303-4adc353c1de6",
     "wbe_id": "ea18bdbb-9ad0-5a79-9fa2-46d727a5bc3c",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "4fdf5fb0-fc2d-423d-8ada-e3543d8963a3"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-CE-1",
@@ -257,7 +282,8 @@
     "cost_element_id": "4ec38d67-fbfb-5b31-9a74-232d50e2bac5",
     "wbe_id": "8271f58b-2300-5a45-a901-cfb20e5f67de",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "4a063081-ea33-484b-b890-58c32c2d60ba"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-CE-2",
@@ -267,7 +293,8 @@
     "cost_element_id": "ea04bf4a-e770-5dcf-aeb2-c355000f2951",
     "wbe_id": "8271f58b-2300-5a45-a901-cfb20e5f67de",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "ebd63baa-8321-4290-9286-4df6b9ad941a"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-CE-3",
@@ -277,7 +304,8 @@
     "cost_element_id": "6c26f698-47a0-572d-bd99-fb248694bca0",
     "wbe_id": "8271f58b-2300-5a45-a901-cfb20e5f67de",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "4c779af2-d53e-408c-bf0f-69e357623f4e"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-CE-4",
@@ -287,7 +315,8 @@
     "cost_element_id": "0aabb43e-00a5-5241-9a67-bcfe1bc55a87",
     "wbe_id": "8271f58b-2300-5a45-a901-cfb20e5f67de",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "7f9db727-305a-4448-bcfc-7aef475af634"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-CE-5",
@@ -297,7 +326,8 @@
     "cost_element_id": "0b7980a8-ec58-5f95-bef0-67dfd5119b14",
     "wbe_id": "8271f58b-2300-5a45-a901-cfb20e5f67de",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "657b6650-6db6-4c92-93b3-b4dc8113a2b0"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-1-CE-1",
@@ -307,7 +337,8 @@
     "cost_element_id": "b80224e4-e494-57c6-b725-97978f338fea",
     "wbe_id": "60ed9749-441c-5dd5-864c-4f8ef7faf30e",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "0858103b-2107-45ab-8be7-f13dd9f05c6a"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-1-CE-2",
@@ -317,7 +348,8 @@
     "cost_element_id": "5c3d6fca-8789-542f-926e-d7e7fd7a9fa8",
     "wbe_id": "60ed9749-441c-5dd5-864c-4f8ef7faf30e",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "99f25542-60d7-4882-9617-0c88dd624561"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-1-CE-3",
@@ -327,7 +359,8 @@
     "cost_element_id": "9c1481f3-2dd8-5375-8d1b-0c6f4b932ee1",
     "wbe_id": "60ed9749-441c-5dd5-864c-4f8ef7faf30e",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "a3519930-f30c-40a7-a3ec-0db3fde49103"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-1-CE-4",
@@ -337,7 +370,8 @@
     "cost_element_id": "28b1b37b-2331-54eb-85fe-8bd781551e96",
     "wbe_id": "60ed9749-441c-5dd5-864c-4f8ef7faf30e",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "ba076718-f59a-4ac1-95d1-42f6b39ff5ef"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-1-CE-5",
@@ -347,7 +381,8 @@
     "cost_element_id": "a339e96d-c590-546d-8285-1380c2699efc",
     "wbe_id": "60ed9749-441c-5dd5-864c-4f8ef7faf30e",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "b182d8b3-d236-4f18-a3c8-d1b0a43d5dbf"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-1-L3-1-CE-1",
@@ -357,7 +392,8 @@
     "cost_element_id": "350f03a5-1361-574e-b92c-6cd108b2753c",
     "wbe_id": "151ff5e8-4ca8-5ee6-9741-d8d512e31efd",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "59335752-571e-45c1-a4ca-6110287fd1db"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-1-L3-1-CE-2",
@@ -367,7 +403,8 @@
     "cost_element_id": "00d5715e-1289-5c69-b9f3-fe13b65bf956",
     "wbe_id": "151ff5e8-4ca8-5ee6-9741-d8d512e31efd",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "f1e5c7da-fdef-4031-b018-0c3bec140789"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-1-L3-1-CE-3",
@@ -377,7 +414,8 @@
     "cost_element_id": "2be8c9e3-1f8f-50c8-987f-74496a371560",
     "wbe_id": "151ff5e8-4ca8-5ee6-9741-d8d512e31efd",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "abce307e-e812-4272-8d24-bdc9b5ccd180"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-1-L3-1-CE-4",
@@ -387,7 +425,8 @@
     "cost_element_id": "cd985fd2-1a52-5ef6-9278-b07bc64baf60",
     "wbe_id": "151ff5e8-4ca8-5ee6-9741-d8d512e31efd",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "d862bb72-5851-4b30-846f-b88ff1f7e8f8"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-1-L3-1-CE-5",
@@ -397,7 +436,8 @@
     "cost_element_id": "6d30be08-8104-5297-bae2-cdbcfdd75246",
     "wbe_id": "151ff5e8-4ca8-5ee6-9741-d8d512e31efd",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "e89a249b-8552-4722-8599-3826a71f68b0"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-2-CE-1",
@@ -407,7 +447,8 @@
     "cost_element_id": "18891623-1bd9-5d55-ab4a-999512f99915",
     "wbe_id": "535c6084-f565-560e-9beb-4a35b29cf96a",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "b89f5cc0-2a41-4f1a-bcac-6ac990186c12"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-2-CE-2",
@@ -417,7 +458,8 @@
     "cost_element_id": "4aa28c8e-b50b-5564-8e9d-61b9f4c07631",
     "wbe_id": "535c6084-f565-560e-9beb-4a35b29cf96a",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "7a72ef4f-2d33-4f3a-920e-7f10e4fc0191"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-2-CE-3",
@@ -427,7 +469,8 @@
     "cost_element_id": "9ecd3f8d-f655-521c-b0b3-939d663dcfce",
     "wbe_id": "535c6084-f565-560e-9beb-4a35b29cf96a",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "ec128c3c-0caa-42ed-a265-536b4d47b006"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-2-CE-4",
@@ -437,7 +480,8 @@
     "cost_element_id": "bf5b26f1-ce4a-5ea2-8ec6-8d6b767b4e05",
     "wbe_id": "535c6084-f565-560e-9beb-4a35b29cf96a",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "38f518cc-021f-44d6-a610-60bb3ab403b5"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-2-CE-5",
@@ -447,7 +491,8 @@
     "cost_element_id": "b48bdf02-799b-5f88-b1f3-83e9367fd4f3",
     "wbe_id": "535c6084-f565-560e-9beb-4a35b29cf96a",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "ffea85d5-6999-48b3-b746-5021c9e19561"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-2-L3-1-CE-1",
@@ -457,7 +502,8 @@
     "cost_element_id": "f9e035f4-022e-5e37-8903-003b5b6bec29",
     "wbe_id": "c1964b59-7fd0-59b3-ad98-6836a641fd0e",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "5b413caa-f3fd-4765-a625-9b21beda844c"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-2-L3-1-CE-2",
@@ -467,7 +513,8 @@
     "cost_element_id": "6e4a1957-0525-53f4-a992-fb258a0c0580",
     "wbe_id": "c1964b59-7fd0-59b3-ad98-6836a641fd0e",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "50a65f1e-e953-41d5-a798-86a666dbf1e4"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-2-L3-1-CE-3",
@@ -477,7 +524,8 @@
     "cost_element_id": "e1791102-2d94-5897-93c8-ae5840ce2905",
     "wbe_id": "c1964b59-7fd0-59b3-ad98-6836a641fd0e",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "e58cdc57-3e3e-4cd1-901d-09c6049936e3"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-2-L3-1-CE-4",
@@ -487,7 +535,8 @@
     "cost_element_id": "4040af76-0834-53bd-8c1a-2699c6ba23b6",
     "wbe_id": "c1964b59-7fd0-59b3-ad98-6836a641fd0e",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "d6182421-8f48-488b-abce-fdc2ebae1b7d"
   },
   {
     "code": "PRJ-DEMO-001-L1-2-L2-2-L3-1-CE-5",
@@ -497,7 +546,8 @@
     "cost_element_id": "3b3583bd-7114-5117-a752-77a5e9a78802",
     "wbe_id": "c1964b59-7fd0-59b3-ad98-6836a641fd0e",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "4240a8fd-2b56-4848-b7a6-9664ab0af5e7"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-CE-1",
@@ -507,7 +557,8 @@
     "cost_element_id": "2b5d4292-27cb-591c-92e4-e586e02a9de4",
     "wbe_id": "88b1508c-58ce-5f10-8891-81d860df82f1",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "4c5a3f1b-5669-4bf8-8772-04554a212aab"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-CE-2",
@@ -517,7 +568,8 @@
     "cost_element_id": "77515048-e5e3-5a55-8e5d-72c437f92800",
     "wbe_id": "88b1508c-58ce-5f10-8891-81d860df82f1",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "dd9d445c-7a3d-4e56-9b81-6e39c61f71c6"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-CE-3",
@@ -527,7 +579,8 @@
     "cost_element_id": "2a5463e8-95fd-5c87-b780-32194b02dc46",
     "wbe_id": "88b1508c-58ce-5f10-8891-81d860df82f1",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "7cb04eea-c072-43df-98ad-fc487be7cecc"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-CE-4",
@@ -537,7 +590,8 @@
     "cost_element_id": "95b8248c-7b97-5f94-b09d-63aaca9c9f50",
     "wbe_id": "88b1508c-58ce-5f10-8891-81d860df82f1",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "b8fb5271-4df2-49f9-b3e5-7f296631ff0b"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-CE-5",
@@ -547,7 +601,8 @@
     "cost_element_id": "71a09036-5008-5f09-a444-eeecc5e79a41",
     "wbe_id": "88b1508c-58ce-5f10-8891-81d860df82f1",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "fa443eb3-4af7-44d0-9343-e4ae63d3ce0c"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-1-CE-1",
@@ -557,7 +612,8 @@
     "cost_element_id": "6e1f0973-52f9-5b63-90db-9bbecadd7ff9",
     "wbe_id": "3fc36af9-791f-5005-9803-e2fb8a9b62b9",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "79d87693-a7bd-4c0f-bf67-b6a4184bb831"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-1-CE-2",
@@ -567,7 +623,8 @@
     "cost_element_id": "192358d0-2cab-5e8b-af20-ce56ee63d6eb",
     "wbe_id": "3fc36af9-791f-5005-9803-e2fb8a9b62b9",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "a45d35e0-3aad-4158-ad18-992f79eaeb23"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-1-CE-3",
@@ -577,7 +634,8 @@
     "cost_element_id": "fbbd0f38-2790-50aa-8e34-e76b5b795d25",
     "wbe_id": "3fc36af9-791f-5005-9803-e2fb8a9b62b9",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "28d23be1-0fae-435b-8ba8-490b2ba6d752"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-1-CE-4",
@@ -587,7 +645,8 @@
     "cost_element_id": "ef79012e-ee24-575f-addc-77d6d5b9226f",
     "wbe_id": "3fc36af9-791f-5005-9803-e2fb8a9b62b9",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "5ee5458a-a018-46ac-8e24-801c24681df5"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-1-CE-5",
@@ -597,7 +656,8 @@
     "cost_element_id": "c6dcdfde-bfa2-5583-9f31-6502ef4abef6",
     "wbe_id": "3fc36af9-791f-5005-9803-e2fb8a9b62b9",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "c90c6bd4-73b2-4ae6-85fb-28a1f78e5b12"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-1-L3-1-CE-1",
@@ -607,7 +667,8 @@
     "cost_element_id": "fe668ddb-54a8-50c9-b2f9-9bef03724748",
     "wbe_id": "a45c3f10-16bf-5880-a9f7-32cb0a258a45",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "1ee21102-8eae-4441-95de-d90fd8104ff0"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-1-L3-1-CE-2",
@@ -617,7 +678,8 @@
     "cost_element_id": "eb34faf1-1dbb-5b98-a45b-495cba3f0340",
     "wbe_id": "a45c3f10-16bf-5880-a9f7-32cb0a258a45",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "1ea7e72d-4e63-48f5-bee4-e4cfeaa86f89"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-1-L3-1-CE-3",
@@ -627,7 +689,8 @@
     "cost_element_id": "1b0e38ba-ba5f-5ed9-a387-bd9c0156ef33",
     "wbe_id": "a45c3f10-16bf-5880-a9f7-32cb0a258a45",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "eb1cbaf6-5896-4876-8c89-41677ea138a8"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-1-L3-1-CE-4",
@@ -637,7 +700,8 @@
     "cost_element_id": "a8ed82c1-9146-5ea7-90e5-babbb7772d3e",
     "wbe_id": "a45c3f10-16bf-5880-a9f7-32cb0a258a45",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "47b02f72-9caa-4108-ada1-a763d97c171a"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-1-L3-1-CE-5",
@@ -647,7 +711,8 @@
     "cost_element_id": "34b38b7f-3801-5cc9-a6ad-22fe2792b442",
     "wbe_id": "a45c3f10-16bf-5880-a9f7-32cb0a258a45",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "39c2d4a5-5477-4893-9694-4ec202ecace3"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-2-CE-1",
@@ -657,7 +722,8 @@
     "cost_element_id": "a2a0040b-5122-5657-a555-8f955d74ce2e",
     "wbe_id": "059ebf2d-0789-5340-98a6-2733478554f6",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "749946c3-9bd2-4186-914e-8543127a679a"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-2-CE-2",
@@ -667,7 +733,8 @@
     "cost_element_id": "5dde4c26-4131-5f2b-baf5-4d4f65fbeba4",
     "wbe_id": "059ebf2d-0789-5340-98a6-2733478554f6",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "f78d2562-0568-441d-aec3-86998c8496c3"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-2-CE-3",
@@ -677,7 +744,8 @@
     "cost_element_id": "6be0822c-7fc3-5bb0-9025-150fcd9c2799",
     "wbe_id": "059ebf2d-0789-5340-98a6-2733478554f6",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "68a39962-eb29-42fa-b6f3-d39bba6e861e"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-2-CE-4",
@@ -687,7 +755,8 @@
     "cost_element_id": "0248f4ee-14a0-5ebd-8487-8b74f7234196",
     "wbe_id": "059ebf2d-0789-5340-98a6-2733478554f6",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "521676d9-472b-4199-bf8a-63e01a9d6df2"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-2-CE-5",
@@ -697,7 +766,8 @@
     "cost_element_id": "11c265be-2ade-5af5-80fe-0ae9c9f2ecc1",
     "wbe_id": "059ebf2d-0789-5340-98a6-2733478554f6",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "d69baa76-e396-4397-9e49-b83e30f1cbb7"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-2-L3-1-CE-1",
@@ -707,7 +777,8 @@
     "cost_element_id": "faecc50a-01b4-5632-b9a0-cc4a914ebf92",
     "wbe_id": "306563e1-5cdf-51d7-a4b2-98f5922e7955",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "9b96b9c3-e912-4edb-bb23-517a90b40d84"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-2-L3-1-CE-2",
@@ -717,7 +788,8 @@
     "cost_element_id": "5534969a-ee49-5c36-9c0f-c39619762a52",
     "wbe_id": "306563e1-5cdf-51d7-a4b2-98f5922e7955",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "7b83ec33-0281-4846-bfea-cd1174ac46cd"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-2-L3-1-CE-3",
@@ -727,7 +799,8 @@
     "cost_element_id": "ce3ce4c6-0b69-59a7-9d32-c99ffb14e83f",
     "wbe_id": "306563e1-5cdf-51d7-a4b2-98f5922e7955",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "7d0de472-0470-4753-a9e1-1f255dc31cfe"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-2-L3-1-CE-4",
@@ -737,7 +810,8 @@
     "cost_element_id": "c5e5d713-c754-524d-ba7d-82577d56c17f",
     "wbe_id": "306563e1-5cdf-51d7-a4b2-98f5922e7955",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "9acf5beb-e5fb-4dec-b92e-4fbead079af2"
   },
   {
     "code": "PRJ-DEMO-002-L1-1-L2-2-L3-1-CE-5",
@@ -747,7 +821,8 @@
     "cost_element_id": "15a04d78-acb9-5e3c-bcd6-5412618ec321",
     "wbe_id": "306563e1-5cdf-51d7-a4b2-98f5922e7955",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "7b9819b8-b392-4673-8330-76151982a8bd"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-CE-1",
@@ -757,7 +832,8 @@
     "cost_element_id": "db71aba0-33d1-5531-b3d3-404e3e7bc68b",
     "wbe_id": "13793446-c32b-5682-85e4-3376841003ae",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "cbbd20b3-2a16-40c2-b616-dce68e5ebb79"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-CE-2",
@@ -767,7 +843,8 @@
     "cost_element_id": "e9af0829-709d-5efe-a07c-af2821817234",
     "wbe_id": "13793446-c32b-5682-85e4-3376841003ae",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "72b1559f-6bc3-40e7-a03d-8b9aee302746"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-CE-3",
@@ -777,7 +854,8 @@
     "cost_element_id": "1bb170c0-28a6-540a-aeca-1eb277496dca",
     "wbe_id": "13793446-c32b-5682-85e4-3376841003ae",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "ac336c6a-8cb4-4413-9515-1e427ebff129"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-CE-4",
@@ -787,7 +865,8 @@
     "cost_element_id": "831c2398-822f-5bfc-84c5-3bcdb54b4f17",
     "wbe_id": "13793446-c32b-5682-85e4-3376841003ae",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "384f36a4-cdfa-4caf-bbf9-f68a930e1e2d"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-CE-5",
@@ -797,7 +876,8 @@
     "cost_element_id": "663b1c53-d3f4-571a-88f8-ecd720db6003",
     "wbe_id": "13793446-c32b-5682-85e4-3376841003ae",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "cc933cd7-8abc-4198-b0bf-920532af7e0f"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-1-CE-1",
@@ -807,7 +887,8 @@
     "cost_element_id": "e8c6b05f-3040-5a50-961b-75d8b7877c3e",
     "wbe_id": "5449b0d4-1cf3-53f3-b996-40e7ed144474",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "c39335f2-233c-4ee0-98f9-eebbf4a399b4"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-1-CE-2",
@@ -817,7 +898,8 @@
     "cost_element_id": "b2dfb985-e5f9-5140-aea0-750f62d3ec30",
     "wbe_id": "5449b0d4-1cf3-53f3-b996-40e7ed144474",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "90b9f336-1d90-4f43-8127-99b5d55d8876"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-1-CE-3",
@@ -827,7 +909,8 @@
     "cost_element_id": "ac39ae5c-2892-5f2d-ae82-00df68c53c90",
     "wbe_id": "5449b0d4-1cf3-53f3-b996-40e7ed144474",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "e2bad0e5-b8fa-4e35-a0ee-9e800041a289"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-1-CE-4",
@@ -837,7 +920,8 @@
     "cost_element_id": "b487446c-5dd4-522c-bace-01208df90c31",
     "wbe_id": "5449b0d4-1cf3-53f3-b996-40e7ed144474",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "0c9b774d-ce7d-43e8-96c1-13d112e0d628"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-1-CE-5",
@@ -847,7 +931,8 @@
     "cost_element_id": "7fa59408-2d89-59bb-8511-732388992943",
     "wbe_id": "5449b0d4-1cf3-53f3-b996-40e7ed144474",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "730b3b18-7214-4317-829f-833eb2da0be0"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-1-L3-1-CE-1",
@@ -857,7 +942,8 @@
     "cost_element_id": "3a38f4a1-22df-5b15-aef6-2cc1b4f8a1fb",
     "wbe_id": "fb4064a7-8fed-5459-bd87-73440c010974",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "504f88b1-4a78-4a4d-a16e-0aca5412da4e"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-1-L3-1-CE-2",
@@ -867,7 +953,8 @@
     "cost_element_id": "d8acd89c-2085-5a8a-8f37-157e2a5de19a",
     "wbe_id": "fb4064a7-8fed-5459-bd87-73440c010974",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "5cf441ab-11a8-495c-8ff2-e5f412c8b330"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-1-L3-1-CE-3",
@@ -877,7 +964,8 @@
     "cost_element_id": "29485cca-aa91-597f-9fad-0b9ec475f3a8",
     "wbe_id": "fb4064a7-8fed-5459-bd87-73440c010974",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "20de190b-ab03-41dc-8fff-4911ffc5feaf"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-1-L3-1-CE-4",
@@ -887,7 +975,8 @@
     "cost_element_id": "cd25fde8-9c66-5166-b93a-0b169d7bc8d9",
     "wbe_id": "fb4064a7-8fed-5459-bd87-73440c010974",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "5c5da153-745d-46ef-8a89-406678ac5e97"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-1-L3-1-CE-5",
@@ -897,7 +986,8 @@
     "cost_element_id": "d1d386bc-dbe3-543c-b31c-7493aaa99852",
     "wbe_id": "fb4064a7-8fed-5459-bd87-73440c010974",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "dd785817-1268-41c4-a16e-5ad4e9512667"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-2-CE-1",
@@ -907,7 +997,8 @@
     "cost_element_id": "18f139da-d717-5c6e-b28b-e94c857b84ba",
     "wbe_id": "4a4bbb14-6308-520d-b591-9ff0b4c65aad",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "df8902f6-419c-4a9c-92f9-d2b70babce0e"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-2-CE-2",
@@ -917,7 +1008,8 @@
     "cost_element_id": "958f7b68-b17e-54c2-9341-c847c2e86d88",
     "wbe_id": "4a4bbb14-6308-520d-b591-9ff0b4c65aad",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "ef9cc1f2-55c6-4886-b909-4d4cd04b1685"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-2-CE-3",
@@ -927,7 +1019,8 @@
     "cost_element_id": "55ce9227-4ee5-5961-9dca-183146d4a9f3",
     "wbe_id": "4a4bbb14-6308-520d-b591-9ff0b4c65aad",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "f34bc42f-f1f8-47c7-86bc-b1a7765c9b3d"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-2-CE-4",
@@ -937,7 +1030,8 @@
     "cost_element_id": "bcaaab6f-ff9f-5ccd-9923-90abf9da4383",
     "wbe_id": "4a4bbb14-6308-520d-b591-9ff0b4c65aad",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "9fc42394-020a-4a98-8118-65c546f21338"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-2-CE-5",
@@ -947,7 +1041,8 @@
     "cost_element_id": "05129eaf-4aa9-5664-93e8-9978d6c95e1d",
     "wbe_id": "4a4bbb14-6308-520d-b591-9ff0b4c65aad",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "7bfa86b3-7b8c-4abe-b1b7-1e4128bdfd2e"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1-CE-1",
@@ -957,7 +1052,8 @@
     "cost_element_id": "ed9d201e-0118-5e4f-bb49-0c741dbcfd05",
     "wbe_id": "e91f8c2b-42d2-518e-acfd-7201280f9799",
     "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "dc0405c7-7f6d-414d-b255-9cdb614a0778"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1-CE-2",
@@ -967,7 +1063,8 @@
     "cost_element_id": "8d8201c6-8533-5786-8b00-49485188c8c3",
     "wbe_id": "e91f8c2b-42d2-518e-acfd-7201280f9799",
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "0da45741-cc5c-4b33-b11e-b7f8de925e12"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1-CE-3",
@@ -977,7 +1074,8 @@
     "cost_element_id": "8233f89c-e594-50b6-ab0b-94f07fe68d22",
     "wbe_id": "e91f8c2b-42d2-518e-acfd-7201280f9799",
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "b10a6077-9c90-4d4f-8f4a-de57b9cd25be"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1-CE-4",
@@ -987,7 +1085,8 @@
     "cost_element_id": "55313237-02ac-5b0d-8cb7-d991d376ce10",
     "wbe_id": "e91f8c2b-42d2-518e-acfd-7201280f9799",
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "00434ce3-91eb-4725-aca0-031450b6485e"
   },
   {
     "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1-CE-5",
@@ -997,6 +1096,1131 @@
     "cost_element_id": "8779acf4-8b15-5f71-9856-7d1095424caf",
     "wbe_id": "e91f8c2b-42d2-518e-acfd-7201280f9799",
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
-    "control_date": "2026-01-01T00:00:00"
+    "control_date": "2026-01-01T00:00:00",
+    "schedule_baseline_id": "893eb5f9-97f1-48ca-8dfd-5083dc8a17bf"
+  },
+  {
+    "id": "3916808d-d265-405b-8f57-f981cd5e5270",
+    "cost_element_id": "a4700150-fe59-42c2-b4ca-40c8a44584fe",
+    "wbe_id": "efca39b0-6e8c-43eb-9e60-e3b05db8541d",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-2-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 30000.0,
+    "description": "Cost element of type LAB (CO-A new)",
+    "schedule_baseline_id": "d604214f-cba1-4a51-968c-afe3c38e5af2",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+    "parent_id": null
+  },
+  {
+    "id": "aab44e9e-90e5-4158-b30b-f9d31a16e3de",
+    "cost_element_id": "3cb3ea85-3d8e-4e7f-86d5-8e07852391fe",
+    "wbe_id": "efca39b0-6e8c-43eb-9e60-e3b05db8541d",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-2-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 30000.0,
+    "description": "Cost element of type MAT (CO-A new)",
+    "schedule_baseline_id": "c19ba23f-cd9f-4e2f-b279-919ec44e24b8",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+    "parent_id": null
+  },
+  {
+    "id": "89b57189-a703-4f86-bac9-38bb02aec3d8",
+    "cost_element_id": "7f82df31-6899-4f1e-9944-67535f610d56",
+    "wbe_id": "efca39b0-6e8c-43eb-9e60-e3b05db8541d",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-2-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 30000.0,
+    "description": "Cost element of type EQP (CO-A new)",
+    "schedule_baseline_id": "4bd85f4c-7662-4bb4-bce2-ebba0733b731",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+    "parent_id": null
+  },
+  {
+    "id": "3925d50f-4b59-437e-83be-21675b27f767",
+    "cost_element_id": "f7d2d04b-1781-41a2-b1e2-41e80ea83c7e",
+    "wbe_id": "ea4bf2cd-8fb7-4d94-a401-ebb0608da244",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-3-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 30000.0,
+    "description": "Cost element of type SUB (CO-A new)",
+    "schedule_baseline_id": "f25b4453-fcf7-4d73-b2d8-b9899395b04c",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+    "parent_id": null
+  },
+  {
+    "id": "5ac76757-e7e6-4726-be58-5b6afd37a5e3",
+    "cost_element_id": "31f92a33-5385-47e3-a423-8b6930a885e4",
+    "wbe_id": "ea4bf2cd-8fb7-4d94-a401-ebb0608da244",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-3-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 30000.0,
+    "description": "Cost element of type TRV (CO-A new)",
+    "schedule_baseline_id": "93f3c2c9-21cf-4e25-9f74-35a9fa4b8871",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+    "parent_id": null
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1100.0,
+    "description": "Cost element of type LAB (MODIFIED - +10% safety)",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "cda59e4c-fff8-44e0-8625-cb6eaf244b51",
+    "id": "ba0d89c9-9ecf-45a1-a06b-058d0ed9d557",
+    "branch": "BR-b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e",
+    "parent_id": null
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1100.0,
+    "description": "Cost element of type MAT (MODIFIED - +10% safety)",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "6f916070-09a4-44d4-821c-8f8b315acb00",
+    "id": "a7b38004-be24-42b1-9d77-a1d39eebed55",
+    "branch": "BR-b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e",
+    "parent_id": null
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1100.0,
+    "description": "Cost element of type EQP (MODIFIED - +10% safety)",
+    "cost_element_id": "2450a921-a5a2-5442-b223-62f8884c534a",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "5e98f806-4fb5-444e-829d-38036778fdd5",
+    "id": "d5de33a7-f343-44de-a6a7-4c6ada9dc2c9",
+    "branch": "BR-b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e",
+    "parent_id": null
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "description": "Cost element of type LAB",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "cda59e4c-fff8-44e0-8625-cb6eaf244b51",
+    "id": "581cb8d7-c9cd-4516-a265-89e9c3641118",
+    "branch": "BR-f6a7b8c9-d0e1-4f6a-3b4c-5d6e7f8a9b0c",
+    "parent_id": null,
+    "deleted_at": "2026-02-01T00:00:00"
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "description": "Cost element of type MAT",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "6f916070-09a4-44d4-821c-8f8b315acb00",
+    "id": "fe5f4779-b1dd-4fe4-a2ac-0aa490ee7541",
+    "branch": "BR-f6a7b8c9-d0e1-4f6a-3b4c-5d6e7f8a9b0c",
+    "parent_id": null,
+    "deleted_at": "2026-02-01T00:00:00"
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 21000.0,
+    "description": "Cost element of type LAB (REALLOCATED +$20K)",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "cda59e4c-fff8-44e0-8625-cb6eaf244b51",
+    "id": "69b46557-276f-40c1-9a97-ec98c73eeb27",
+    "branch": "BR-d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
+    "parent_id": null
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-L2-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 21000.0,
+    "description": "Cost element of type LAB (REALLOCATED +$20K)",
+    "cost_element_id": "18c26d12-9789-5004-b766-3b099405e884",
+    "wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "ceb3c203-cb6a-490f-8f2c-ab78404fe394",
+    "id": "38a329d4-75e3-4c05-bc23-478ca8ae3ff9",
+    "branch": "BR-d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
+    "parent_id": null
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": -12333.33,
+    "description": "Cost element of type MAT (REALLOCATED -$13.33K)",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "6f916070-09a4-44d4-821c-8f8b315acb00",
+    "id": "9bfe4eda-51a1-4e4d-bcf2-b579d5050a0a",
+    "branch": "BR-d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
+    "parent_id": null
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-L2-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": -12333.33,
+    "description": "Cost element of type MAT (REALLOCATED -$13.33K)",
+    "cost_element_id": "fd3e2f3d-d8d0-5057-a1a7-e18ebb866557",
+    "wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "f5586230-7fdf-4942-b0c3-230cdb0906b3",
+    "id": "78ade000-f637-4b73-9f6c-6d1611769ea7",
+    "branch": "BR-d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
+    "parent_id": null
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": -12333.33,
+    "description": "Cost element of type MAT (REALLOCATED -$13.33K)",
+    "cost_element_id": "7892a1c1-cad3-5f9b-884a-d447119170f6",
+    "wbe_id": "874cdb91-1ad1-5300-9673-21c2e086aacb",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "2da0fff7-7dd2-4aac-a286-bab0dadf89f6",
+    "id": "d7c224f7-9567-4b1a-98f7-72568112bb34",
+    "branch": "BR-d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
+    "parent_id": null
+  },
+  {
+    "id": "2e37e680-d06c-4bdc-81fd-f8c344f6e5ef",
+    "cost_element_id": "41e1352a-415e-486f-9a04-02f0df94dc56",
+    "wbe_id": "2ee714aa-d71c-4c06-994d-9fa86ad0dda2",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "code": "PRJ-DEMO-002-L1-3-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type LAB (CO-F new)",
+    "schedule_baseline_id": "86d9ec2f-01ce-4252-a695-83fdf2500308",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "96d554c3-5e7d-4ce8-8d47-750d2d675f5b",
+    "cost_element_id": "2a8cd870-2227-41be-818d-5e16348f0671",
+    "wbe_id": "2ee714aa-d71c-4c06-994d-9fa86ad0dda2",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "code": "PRJ-DEMO-002-L1-3-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type MAT (CO-F new)",
+    "schedule_baseline_id": "2f7404fa-e478-4e94-a0c2-d23c7e42cd37",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "4789203e-eb36-49eb-9a52-5465561d6010",
+    "cost_element_id": "23e406d9-fd60-4dfc-af52-995ef28b596e",
+    "wbe_id": "2ee714aa-d71c-4c06-994d-9fa86ad0dda2",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
+    "code": "PRJ-DEMO-002-L1-3-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type EQP (CO-F new)",
+    "schedule_baseline_id": "be879ce2-f9f0-46b4-929e-0957215a59ce",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "646704e6-033a-4f23-81fd-86cc2269d0c7",
+    "cost_element_id": "4c433664-d5db-4935-a0f4-503b87effd9a",
+    "wbe_id": "2ee714aa-d71c-4c06-994d-9fa86ad0dda2",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
+    "code": "PRJ-DEMO-002-L1-3-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type SUB (CO-F new)",
+    "schedule_baseline_id": "4f4c8e91-65bb-4926-9b27-846a1c1b2080",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "9a4dc458-bdaf-48e5-b9e5-16cf65a3066e",
+    "cost_element_id": "fb9f1a41-8c48-4750-8beb-8f3f6248119a",
+    "wbe_id": "2ee714aa-d71c-4c06-994d-9fa86ad0dda2",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
+    "code": "PRJ-DEMO-002-L1-3-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type TRV (CO-F new)",
+    "schedule_baseline_id": "1876ccd1-0702-4183-8728-8a40ead8aeb3",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "7df3aa61-76c7-4c96-9bc0-6a62da2e139b",
+    "cost_element_id": "ad323a3a-15ee-4636-84b5-308bb6939e2a",
+    "wbe_id": "11f0c245-61fd-4e8a-b158-f92cd59bc0a0",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type LAB (CO-F new)",
+    "schedule_baseline_id": "2db7a910-ca87-4d73-a1de-207b151acb13",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "1d8a4014-e8ed-49ea-9b48-cb12aa26429a",
+    "cost_element_id": "153256cb-ecfd-44b9-a6da-bcdf1d5ab039",
+    "wbe_id": "11f0c245-61fd-4e8a-b158-f92cd59bc0a0",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type MAT (CO-F new)",
+    "schedule_baseline_id": "0e505eb9-5808-4d35-add9-b562c364ce9e",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "d3964b12-de77-4d46-97f6-864c148d34ed",
+    "cost_element_id": "c1ce65d0-8411-476d-a298-c17c21ab61c4",
+    "wbe_id": "11f0c245-61fd-4e8a-b158-f92cd59bc0a0",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type EQP (CO-F new)",
+    "schedule_baseline_id": "a87b7fbc-82e4-41fb-abc3-9a9c93d04cd9",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "4c6eb21f-c959-4b1e-82e4-64e950730296",
+    "cost_element_id": "506ec9bf-8615-4d87-a3c7-876b51e7d54d",
+    "wbe_id": "11f0c245-61fd-4e8a-b158-f92cd59bc0a0",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type SUB (CO-F new)",
+    "schedule_baseline_id": "8420a372-bfde-4581-9d6e-af902a55ed08",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "84225216-f5e0-483f-9648-5e65d30b48c3",
+    "cost_element_id": "4472b5d9-34cd-49e5-8d0d-772dd804a849",
+    "wbe_id": "11f0c245-61fd-4e8a-b158-f92cd59bc0a0",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type TRV (CO-F new)",
+    "schedule_baseline_id": "7385d652-583f-4587-b172-20e0f85b20a0",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "ab7940ef-7000-491d-9154-f57c75c693eb",
+    "cost_element_id": "1dd3d4e8-e442-412f-a415-1811b5bfe513",
+    "wbe_id": "f10de8a2-097c-405d-b295-fd7a28196b93",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type LAB (CO-F new)",
+    "schedule_baseline_id": "42e7cc20-d6a8-4ab6-bde7-86687e2a06bd",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "a4443823-0689-4eb9-be3d-7862ee95d3da",
+    "cost_element_id": "eb10d065-e7f2-4abd-bba3-edb50de19493",
+    "wbe_id": "f10de8a2-097c-405d-b295-fd7a28196b93",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type MAT (CO-F new)",
+    "schedule_baseline_id": "3ed9c1bf-0058-401d-9503-4b81bb1a7495",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "2c158974-7a2a-4102-9122-b08c6bb6736c",
+    "cost_element_id": "605ca97b-933a-49b2-b16c-5cec32566738",
+    "wbe_id": "f10de8a2-097c-405d-b295-fd7a28196b93",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type EQP (CO-F new)",
+    "schedule_baseline_id": "9d42f592-9264-4b22-90ca-765770ed505c",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "beb0e906-7ac4-410c-aea0-98ab58130fae",
+    "cost_element_id": "d87ae0f0-a051-4c3c-bed2-3eae09fd2d04",
+    "wbe_id": "f10de8a2-097c-405d-b295-fd7a28196b93",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type SUB (CO-F new)",
+    "schedule_baseline_id": "a824d3db-fb62-4bf9-9d7c-35af93acdf68",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "03b25bc0-ea79-4f4c-8414-6c96dbba6af8",
+    "cost_element_id": "989b8369-d8c4-4a38-9229-52cbe2a7fc10",
+    "wbe_id": "f10de8a2-097c-405d-b295-fd7a28196b93",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type TRV (CO-F new)",
+    "schedule_baseline_id": "1b4b8577-74ca-464b-819b-90ff118346ed",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "74c57c23-2275-4861-97fb-b679f6e139d4",
+    "cost_element_id": "f7b143c4-dc58-48a3-b91a-1e55401f1c57",
+    "wbe_id": "b0092f12-1b3d-418b-a11f-431148a39960",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-L3-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type LAB (CO-F new)",
+    "schedule_baseline_id": "bf8d54c1-f8ab-40ed-92c0-2a2f7ab996c3",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "87bf6cca-6faa-488f-a93a-b24e2b7409eb",
+    "cost_element_id": "0384e596-1885-4e57-b2b1-19033fdbe893",
+    "wbe_id": "b0092f12-1b3d-418b-a11f-431148a39960",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-L3-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type MAT (CO-F new)",
+    "schedule_baseline_id": "fb743db2-0a74-450b-bd49-c667a6477ddd",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "46becce8-c9b9-4d4f-82c4-85388c58f7d2",
+    "cost_element_id": "2480127b-b515-49db-8b60-44eb52317693",
+    "wbe_id": "b0092f12-1b3d-418b-a11f-431148a39960",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-L3-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type EQP (CO-F new)",
+    "schedule_baseline_id": "18007872-4308-4666-88b7-ef7d1d247f66",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "9160fe27-7d3d-4803-9df7-1807b473ae34",
+    "cost_element_id": "60a306b2-40f3-4b4f-90f2-acb85f96ee54",
+    "wbe_id": "b0092f12-1b3d-418b-a11f-431148a39960",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-L3-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type SUB (CO-F new)",
+    "schedule_baseline_id": "45771390-32c5-4186-94fe-6793cf7bdb1f",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "ceab768c-5886-4da5-9c44-be2930901d75",
+    "cost_element_id": "3074f687-3391-4e33-b36c-85409ab87d61",
+    "wbe_id": "b0092f12-1b3d-418b-a11f-431148a39960",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-L3-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type TRV (CO-F new)",
+    "schedule_baseline_id": "5e5100ac-4db8-4b49-819a-02412f4fc152",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "cab5e661-3591-4dc2-9000-d1bf5b1c1cd1",
+    "cost_element_id": "ca0544d9-dcd1-4e4c-9b1a-22ff9b46e97d",
+    "wbe_id": "22472532-3ccd-43b5-8378-a3c820d26614",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-L3-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type LAB (CO-F new)",
+    "schedule_baseline_id": "2372e7e5-0a00-4e9a-aa95-78971d2d9896",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "67e488e0-0b80-4a80-922e-b80595cc830e",
+    "cost_element_id": "392e0c0d-7b35-4401-a855-aa8fe068b816",
+    "wbe_id": "22472532-3ccd-43b5-8378-a3c820d26614",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-L3-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type MAT (CO-F new)",
+    "schedule_baseline_id": "a8fd337c-3c33-412e-baa7-817d8f2ec89b",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "ae1d0aad-5602-4055-b159-03680e1e4c8f",
+    "cost_element_id": "03d1b4b6-e794-4334-a4a1-6c8f2a6b0af1",
+    "wbe_id": "22472532-3ccd-43b5-8378-a3c820d26614",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-L3-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type EQP (CO-F new)",
+    "schedule_baseline_id": "5c330e8e-eaf5-4977-a2f3-af184ba612ac",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "5d209c74-a81b-4216-a0e9-6e8b85b97927",
+    "cost_element_id": "a2acfa09-29f1-49bd-8059-6981277a1b20",
+    "wbe_id": "22472532-3ccd-43b5-8378-a3c820d26614",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-L3-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type SUB (CO-F new)",
+    "schedule_baseline_id": "121c5275-c812-4db9-bc9c-d6949d7ffcb8",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "106f4ac9-ee2b-4726-bf5b-c66c549b5629",
+    "cost_element_id": "de3ea17b-b662-439d-90a5-3a8259f2b069",
+    "wbe_id": "22472532-3ccd-43b5-8378-a3c820d26614",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-L3-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type TRV (CO-F new)",
+    "schedule_baseline_id": "be8440e8-d824-47cb-b6c7-d634e1b1ee20",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "parent_id": null
+  },
+  {
+    "id": "be2f2297-fb06-4e1b-b204-ac83384632db",
+    "cost_element_id": "4c08de85-e3da-4040-ba1f-bb39d200248c",
+    "wbe_id": "c1963a57-f67d-4535-a5c7-0a0559abe0bd",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-2-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 30000.0,
+    "description": "Cost element of type LAB (CO-A new)",
+    "schedule_baseline_id": "f271ef06-7f1b-4700-a00a-174a3bd4955a",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-001",
+    "parent_id": null
+  },
+  {
+    "id": "8cf1cf43-30c7-4c1f-90cb-04ff415ef3e1",
+    "cost_element_id": "aa5127ac-e396-4b3d-94a3-ced50fa98666",
+    "wbe_id": "c1963a57-f67d-4535-a5c7-0a0559abe0bd",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-2-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 30000.0,
+    "description": "Cost element of type MAT (CO-A new)",
+    "schedule_baseline_id": "c5f6df32-63a7-45e6-aeaf-bea2e1b08f04",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-001",
+    "parent_id": null
+  },
+  {
+    "id": "c357106f-1625-40f6-a6dc-d4e672b06627",
+    "cost_element_id": "1edb2fe2-5c42-454a-a2b4-7688dd648a89",
+    "wbe_id": "c1963a57-f67d-4535-a5c7-0a0559abe0bd",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-2-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 30000.0,
+    "description": "Cost element of type EQP (CO-A new)",
+    "schedule_baseline_id": "0cac7b17-8b42-4111-b122-848c63f28ff0",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-001",
+    "parent_id": null
+  },
+  {
+    "id": "b8fe0be8-312e-4c11-93c7-0a004be6cf39",
+    "cost_element_id": "f19d08e6-fb9a-45f8-8c46-80ef1c108460",
+    "wbe_id": "5c6ccd86-7bfa-4076-951b-0b59f866888d",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-3-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 30000.0,
+    "description": "Cost element of type SUB (CO-A new)",
+    "schedule_baseline_id": "78db6b07-df4e-44c6-b38c-d7be7fc3b5a3",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-001",
+    "parent_id": null
+  },
+  {
+    "id": "064211e1-696d-4809-afd2-5649e9f6c4ff",
+    "cost_element_id": "2b710dd7-9b38-4cc4-abdc-d360f1db9728",
+    "wbe_id": "5c6ccd86-7bfa-4076-951b-0b59f866888d",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-3-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 30000.0,
+    "description": "Cost element of type TRV (CO-A new)",
+    "schedule_baseline_id": "b99c3e18-3932-474e-b340-92af6bb5f89b",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-001",
+    "parent_id": null
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1100.0,
+    "description": "Cost element of type LAB (MODIFIED - +10% safety)",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "cda59e4c-fff8-44e0-8625-cb6eaf244b51",
+    "id": "5de37eb1-7ed0-4c36-a714-b8ffddede8f8",
+    "branch": "BR-CO-2026-002",
+    "parent_id": null
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1100.0,
+    "description": "Cost element of type MAT (MODIFIED - +10% safety)",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "6f916070-09a4-44d4-821c-8f8b315acb00",
+    "id": "3741675b-41a1-4a04-9424-2c8c5ab2b3fe",
+    "branch": "BR-CO-2026-002",
+    "parent_id": null
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 1100.0,
+    "description": "Cost element of type EQP (MODIFIED - +10% safety)",
+    "cost_element_id": "2450a921-a5a2-5442-b223-62f8884c534a",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "5e98f806-4fb5-444e-829d-38036778fdd5",
+    "id": "601805c9-02a9-413e-8180-b1fc7ae8268f",
+    "branch": "BR-CO-2026-002",
+    "parent_id": null
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 1000.0,
+    "description": "Cost element of type LAB",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "cda59e4c-fff8-44e0-8625-cb6eaf244b51",
+    "id": "b32f0fdd-af9a-4716-9364-cebcdbce8974",
+    "branch": "BR-CO-2026-006",
+    "parent_id": null,
+    "deleted_at": "2026-02-01T00:00:00"
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 1000.0,
+    "description": "Cost element of type MAT",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "6f916070-09a4-44d4-821c-8f8b315acb00",
+    "id": "49e96bc6-0b61-4775-a514-8c1ccdbdb19d",
+    "branch": "BR-CO-2026-006",
+    "parent_id": null,
+    "deleted_at": "2026-02-01T00:00:00"
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 21000.0,
+    "description": "Cost element of type LAB (REALLOCATED +$20K)",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "cda59e4c-fff8-44e0-8625-cb6eaf244b51",
+    "id": "23dfeaf4-3e67-4051-9b09-ca37189db42b",
+    "branch": "BR-CO-2026-004",
+    "parent_id": null
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-L2-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 21000.0,
+    "description": "Cost element of type LAB (REALLOCATED +$20K)",
+    "cost_element_id": "18c26d12-9789-5004-b766-3b099405e884",
+    "wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "ceb3c203-cb6a-490f-8f2c-ab78404fe394",
+    "id": "a911d7c1-89e8-4d41-a366-701f2eaf922c",
+    "branch": "BR-CO-2026-004",
+    "parent_id": null
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 0.0,
+    "description": "Cost element of type MAT (REALLOCATED -$13.33K or to zero)",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "wbe_id": "3a42f62c-96f8-5392-bff1-2e16f97734f0",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "6f916070-09a4-44d4-821c-8f8b315acb00",
+    "id": "ac798c81-3727-40a6-ade6-9d8cdd39cba9",
+    "branch": "BR-CO-2026-004",
+    "parent_id": null
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-L2-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 0.0,
+    "description": "Cost element of type MAT (REALLOCATED -$13.33K or to zero)",
+    "cost_element_id": "fd3e2f3d-d8d0-5057-a1a7-e18ebb866557",
+    "wbe_id": "da6e1632-20b0-536d-b16f-b60a37fb5dc8",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "f5586230-7fdf-4942-b0c3-230cdb0906b3",
+    "id": "bd0a26b5-6dc8-42c1-bae3-e0338765f200",
+    "branch": "BR-CO-2026-004",
+    "parent_id": null
+  },
+  {
+    "code": "PRJ-DEMO-001-L1-1-L2-1-L3-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 0.0,
+    "description": "Cost element of type MAT (REALLOCATED -$13.33K or to zero)",
+    "cost_element_id": "7892a1c1-cad3-5f9b-884a-d447119170f6",
+    "wbe_id": "874cdb91-1ad1-5300-9673-21c2e086aacb",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "control_date": "2026-02-01T00:00:00",
+    "schedule_baseline_id": "2da0fff7-7dd2-4aac-a286-bab0dadf89f6",
+    "id": "ff32de84-70b4-4b9f-ab4e-5b604232586f",
+    "branch": "BR-CO-2026-004",
+    "parent_id": null
+  },
+  {
+    "id": "bd8204e7-268d-44a9-9779-90f3ff800786",
+    "cost_element_id": "3ab0fcb6-4d6a-4001-a601-928094fefdf2",
+    "wbe_id": "44767bad-d726-4abc-b5bf-5d06aa595e5b",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "code": "PRJ-DEMO-002-L1-3-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type LAB (CO-F new)",
+    "schedule_baseline_id": "7ac7efcd-80d7-45fe-864e-8556ae957d03",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "fa6d0da5-a25e-40fb-a2d9-6d29ee854f9e",
+    "cost_element_id": "16368da0-fa64-4935-a375-deb7bf08badd",
+    "wbe_id": "44767bad-d726-4abc-b5bf-5d06aa595e5b",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "code": "PRJ-DEMO-002-L1-3-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type MAT (CO-F new)",
+    "schedule_baseline_id": "3c82e5cd-fc10-4aa7-9c4d-b179a3e2f66d",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "e6866714-f044-45a8-bef4-50b1c8344c92",
+    "cost_element_id": "d2cf5164-57ad-4975-b1ba-e557472cf39b",
+    "wbe_id": "44767bad-d726-4abc-b5bf-5d06aa595e5b",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
+    "code": "PRJ-DEMO-002-L1-3-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type EQP (CO-F new)",
+    "schedule_baseline_id": "66ace4c6-e213-47b3-bda1-69ab710c0a9b",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "0ac06778-1cc9-4931-b7af-22cbfcec2fa9",
+    "cost_element_id": "956923fe-c7b4-4952-847e-682205e33379",
+    "wbe_id": "44767bad-d726-4abc-b5bf-5d06aa595e5b",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
+    "code": "PRJ-DEMO-002-L1-3-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type SUB (CO-F new)",
+    "schedule_baseline_id": "44510ef4-fd04-4e8a-b1b0-b052cba9ea49",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "cc1bc99c-441d-4bf3-bef5-6d80872ee0ec",
+    "cost_element_id": "6cc80006-a1e3-4286-9b34-a705f3970daf",
+    "wbe_id": "44767bad-d726-4abc-b5bf-5d06aa595e5b",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
+    "code": "PRJ-DEMO-002-L1-3-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type TRV (CO-F new)",
+    "schedule_baseline_id": "4eb44e79-01cd-4eaa-b0c2-f804d19f4730",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "cebab0d7-e619-4b71-b3a0-34e4b8a793f1",
+    "cost_element_id": "83344208-8ff6-4936-a679-d4352d03f71f",
+    "wbe_id": "971c0e57-9eb0-4ad2-8082-8ca9f33f229f",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type LAB (CO-F new)",
+    "schedule_baseline_id": "8afd7e00-0f18-4285-97e7-419489b8bda1",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "50d1cc77-db65-47b2-92d9-086d24d3a7e3",
+    "cost_element_id": "1831b511-515b-4906-a6c6-30b46dd785e4",
+    "wbe_id": "971c0e57-9eb0-4ad2-8082-8ca9f33f229f",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type MAT (CO-F new)",
+    "schedule_baseline_id": "26530898-80b1-4c8e-9940-e76fc670dfba",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "e30b31e5-4e6b-4746-a49b-65431d21ace7",
+    "cost_element_id": "f208738b-8697-4cc1-a665-13647e84e517",
+    "wbe_id": "971c0e57-9eb0-4ad2-8082-8ca9f33f229f",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type EQP (CO-F new)",
+    "schedule_baseline_id": "4554b197-93aa-4979-9f53-1180f17620e8",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "7c37a5a9-af9e-457c-83c1-31f7c0cd298d",
+    "cost_element_id": "d209de20-9cb7-4303-b37d-cd81a1452a64",
+    "wbe_id": "971c0e57-9eb0-4ad2-8082-8ca9f33f229f",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type SUB (CO-F new)",
+    "schedule_baseline_id": "cd3edbd4-b9e6-4b41-831a-ee9376eb628a",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "17af2fa5-b2af-45c9-98fe-bcc6ef1b9f4b",
+    "cost_element_id": "8e4d1a01-80e1-42d9-8eb1-8a7024999ab4",
+    "wbe_id": "971c0e57-9eb0-4ad2-8082-8ca9f33f229f",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type TRV (CO-F new)",
+    "schedule_baseline_id": "b22431da-b310-4827-b3b1-64c9dbbe8806",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "05c9a298-5e08-457a-a932-10287d249aca",
+    "cost_element_id": "8f78379c-674f-4eb9-ae67-0836be89a27d",
+    "wbe_id": "062ecb7d-6824-4e27-ace2-4394d9d06f52",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type LAB (CO-F new)",
+    "schedule_baseline_id": "d8bdb65e-957f-4a4f-b7b1-b62c8fc395c4",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "17b4b3bd-8d46-44ce-a37b-3116b9b7d294",
+    "cost_element_id": "a6394671-b8ba-4bc2-b6c2-d05a674b4cbc",
+    "wbe_id": "062ecb7d-6824-4e27-ace2-4394d9d06f52",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type MAT (CO-F new)",
+    "schedule_baseline_id": "b9f3c4e2-5b6a-4dde-b773-20a12e207e20",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "fcfb4a92-ba35-42f3-92f7-2be2b9c14baf",
+    "cost_element_id": "2f4c8f48-f7f6-4f26-9f3d-d73f2ca05576",
+    "wbe_id": "062ecb7d-6824-4e27-ace2-4394d9d06f52",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type EQP (CO-F new)",
+    "schedule_baseline_id": "9df4b3b4-e5d5-4440-a96d-902ad32c6193",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "ce79a43b-48c1-496d-8f71-3c297821cf26",
+    "cost_element_id": "ef418b53-71c6-4e15-a60a-23c4353383e2",
+    "wbe_id": "062ecb7d-6824-4e27-ace2-4394d9d06f52",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type SUB (CO-F new)",
+    "schedule_baseline_id": "c7ca5a73-17d3-4160-8cd6-9afeb071ac6a",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "98c44076-265a-4a7a-be96-fca81787e005",
+    "cost_element_id": "81af61c8-8b66-4560-b1cf-48ad7c39596c",
+    "wbe_id": "062ecb7d-6824-4e27-ace2-4394d9d06f52",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type TRV (CO-F new)",
+    "schedule_baseline_id": "05d3149f-9706-49bd-9752-5ae8641abb49",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "a3125668-f6c3-466b-8a1e-a10fd546a395",
+    "cost_element_id": "a8a474d3-dba4-4b8f-849e-8bbc4377ca88",
+    "wbe_id": "01ef0522-c978-4302-bb76-eb9ab4b2b43d",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-L3-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type LAB (CO-F new)",
+    "schedule_baseline_id": "95049405-563c-4037-8bbb-07ec6985a14e",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "d4edce68-38eb-4f49-baac-e64330831b43",
+    "cost_element_id": "bbd4dd7f-ccd9-4141-943e-71bd420d49c1",
+    "wbe_id": "01ef0522-c978-4302-bb76-eb9ab4b2b43d",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-L3-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type MAT (CO-F new)",
+    "schedule_baseline_id": "acb93bf5-0cc2-4466-8437-2b58a5448646",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "e3e25d09-fb8d-4dc9-b775-998a85a77d15",
+    "cost_element_id": "e76bd5af-a171-4e7b-a49f-a578b5777e3a",
+    "wbe_id": "01ef0522-c978-4302-bb76-eb9ab4b2b43d",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-L3-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type EQP (CO-F new)",
+    "schedule_baseline_id": "59bde0c7-1a89-4c0b-9500-fe79e8e11e1e",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "349c399b-3359-40bf-b48e-ec0c849a79ae",
+    "cost_element_id": "8a8024bb-9494-4b94-9315-ee75fe569420",
+    "wbe_id": "01ef0522-c978-4302-bb76-eb9ab4b2b43d",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-L3-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type SUB (CO-F new)",
+    "schedule_baseline_id": "d1bd8ba3-e54f-4140-b471-b37967d66eb9",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "2d0a1cc7-1602-46d4-971d-2cb023fdc9b0",
+    "cost_element_id": "da2d2e70-07c2-4ea3-b70d-2135ee91cac2",
+    "wbe_id": "01ef0522-c978-4302-bb76-eb9ab4b2b43d",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
+    "code": "PRJ-DEMO-002-L1-3-L2-1-L3-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type TRV (CO-F new)",
+    "schedule_baseline_id": "2773bda9-03d0-4f83-b121-e8e0fd77525d",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "00153cdc-6859-4acf-bfba-8277a0f61ce5",
+    "cost_element_id": "9fabebc1-4792-4ce2-ace2-d6e9fe5ef224",
+    "wbe_id": "6b01c347-6499-476a-bd63-f6b1f2bc3942",
+    "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-L3-1-CE-1",
+    "name": "Cost Element 1",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type LAB (CO-F new)",
+    "schedule_baseline_id": "6ec914f4-12f8-482d-8af2-f2d02fa803ed",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "04280545-7e21-4a22-a5b6-25c35fa484ce",
+    "cost_element_id": "d94e9a28-28da-410c-b970-fcf56fe0bf0e",
+    "wbe_id": "6b01c347-6499-476a-bd63-f6b1f2bc3942",
+    "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-L3-1-CE-2",
+    "name": "Cost Element 2",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type MAT (CO-F new)",
+    "schedule_baseline_id": "77eabc1b-6d19-4540-b1b7-8f621d447e45",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "3ef0c03b-6003-49b1-a931-0f06c9702cc2",
+    "cost_element_id": "d795c8f1-5ece-4805-af03-d1106d373931",
+    "wbe_id": "6b01c347-6499-476a-bd63-f6b1f2bc3942",
+    "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-L3-1-CE-3",
+    "name": "Cost Element 3",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type EQP (CO-F new)",
+    "schedule_baseline_id": "21e86da2-fe2f-4a6b-bae8-77535bac42f7",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "cd45a5e6-24f0-4faa-b4d2-2ec5b98f3af7",
+    "cost_element_id": "d17db7ba-a96a-4595-8a12-e069690499b8",
+    "wbe_id": "6b01c347-6499-476a-bd63-f6b1f2bc3942",
+    "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-L3-1-CE-4",
+    "name": "Cost Element 4",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type SUB (CO-F new)",
+    "schedule_baseline_id": "c68d2102-f085-4602-9b22-47b782f9c1b7",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
+  },
+  {
+    "id": "6803474a-8fd0-40ef-b224-39778d34da2a",
+    "cost_element_id": "30570ed7-9102-4197-a948-7a6a14e4c074",
+    "wbe_id": "6b01c347-6499-476a-bd63-f6b1f2bc3942",
+    "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
+    "code": "PRJ-DEMO-002-L1-3-L2-2-L3-1-CE-5",
+    "name": "Cost Element 5",
+    "budget_amount": 15000.0,
+    "description": "Cost element of type TRV (CO-F new)",
+    "schedule_baseline_id": "e67e04eb-5a2f-458a-95e1-ed261ef733ed",
+    "control_date": "2026-02-01T00:00:00",
+    "branch": "BR-CO-2026-005",
+    "parent_id": null
   }
 ]

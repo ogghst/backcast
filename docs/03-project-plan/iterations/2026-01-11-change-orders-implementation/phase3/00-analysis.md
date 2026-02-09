@@ -5,6 +5,7 @@
 **Phase:** 3 of 4 - Impact Analysis & Comparison
 **Status:** Analysis Phase
 **Related Docs:**
+
 - [Change Management User Stories](../../../../01-product-scope/change-management-user-stories.md)
 - [EVM Requirements](../../../../01-product-scope/evm-requirements.md)
 - [Overall Analysis](../00-analysis.md)
@@ -118,11 +119,13 @@ The system must provide **visual impact analysis** comparing a Change Order bran
 ### 2.2 Architecture Context
 
 **Bounded Contexts Involved:**
+
 1. **E006 (Branching & Change Order Management)** - Primary context
 2. **E004 (Project Structure Management)** - Projects, WBEs, Cost Elements
 3. **E008 (EVM Calculations & Reporting)** - Metrics computation
 
 **Existing Patterns to Leverage:**
+
 - **BranchableService[T]**: Already supports branch-aware queries
 - **TemporalService[T]**: Already supports time-travel queries
 - **BranchMode.MERGE**: Already combines main + branch data
@@ -142,6 +145,7 @@ The system must provide **visual impact analysis** comparing a Change Order bran
 | `GET /api/v1/cost-elements` | [cost_elements.py](../../../../backend/app/api/routes/cost_elements.py) | List Cost Elements with branch/mode | ✅ Complete |
 
 **Key Observation:** All entity endpoints already support:
+
 - `branch` parameter (for branch isolation)
 - `mode` parameter (MERGE vs STRICT)
 - `as_of` parameter (time travel)
@@ -165,6 +169,7 @@ The system must provide **visual impact analysis** comparing a Change Order bran
 #### Frontend - Existing Infrastructure
 
 **Chart Libraries Available:**
+
 - ✅ **Recharts** (^2.15.0) - Declarative React charting library
 - ✅ **@ant-design/charts** (latest) - Additional chart components
 
@@ -178,6 +183,7 @@ The system must provide **visual impact analysis** comparing a Change Order bran
 | `ChangeOrderModal` | [features/change-orders/components/ChangeOrderModal.tsx](../../../../frontend/src/features/change-orders/components/ChangeOrderModal.tsx) | Medium - reference for CO forms |
 
 **State Management:**
+
 - **Server State**: TanStack Query (already in use)
 - **Time Machine Context**: `useTimeMachineParams()` already provides branch/mode/as_of
 - **Routing**: React Router v6 (need to add `/change-orders/:id/impact` route)
@@ -198,11 +204,13 @@ The system must provide **visual impact analysis** comparing a Change Order bran
 ### Option 1: API-First Impact Analysis (Recommended)
 
 **Architecture & Design:**
+
 - **Backend**: Create dedicated `/api/v1/change-orders/{id}/impact` endpoint
 - **Frontend**: Single-page Impact Dashboard consuming the impact API
 - **Calculations**: Backend performs all diff calculations and metric aggregations
 
 **Component Structure:**
+
 ```
 Backend:
 - app/api/routes/change_orders.py
@@ -226,12 +234,13 @@ Frontend:
 ```
 
 **API Response Structure:**
+
 ```python
 class ImpactAnalysisResponse(BaseModel):
     """Complete impact analysis report comparing branches."""
     change_order_id: UUID
     change_order_code: str
-    source_branch: str  # e.g., "co-CO-2026-001"
+    source_branch: str  # e.g., "BR-CO-2026-001"
     target_branch: str  # e.g., "main"
     analyzed_at: datetime
 
@@ -249,6 +258,7 @@ class ImpactAnalysisResponse(BaseModel):
 ```
 
 **UX Design:**
+
 - **Layout**: Tabbed dashboard with KPIs always visible
 - **Interactions**:
   - Hover on waterfall bars expands to show contributing elements
@@ -258,6 +268,7 @@ class ImpactAnalysisResponse(BaseModel):
 - **Caching**: Cache impact analysis for 5 minutes (React Query)
 
 **Implementation:**
+
 1. **Backend Phase 1**: Create `ImpactAnalysisService` with:
    - `compare_projects()`: Fetch project metrics from both branches
    - `compare_wbes()`: Identify added/modified/removed WBEs
@@ -275,6 +286,7 @@ class ImpactAnalysisResponse(BaseModel):
 6. **Frontend Phase 4**: Add Entity Impact Grid with conditional formatting
 
 **Trade-offs:**
+
 | Aspect | Assessment |
 |--------|------------|
 | Pros | - Single API call reduces frontend complexity<br>- Backend controls calculation logic<br>- Easier to cache and optimize<br>- Consistent with existing API patterns |
@@ -288,11 +300,13 @@ class ImpactAnalysisResponse(BaseModel):
 ### Option 2: Client-Side Diff Calculation
 
 **Architecture & Design:**
+
 - **Backend**: No new endpoints (use existing entity list APIs)
 - **Frontend**: Fetch data separately from both branches, compute diffs client-side
 - **Calculations**: Frontend performs all diff logic and metric computation
 
 **Component Structure:**
+
 ```
 Frontend:
 - src/features/change-orders/
@@ -307,20 +321,23 @@ Frontend:
 ```
 
 **UX Design:**
+
 - Same dashboard layout as Option 1
 - **Loading**: Multiple API calls may cause staggered loading
 
 **Implementation:**
+
 1. Create `useBranchComparison()` hook that:
    - Calls `useWBEs({ branch: "main" })`
-   - Calls `useWBEs({ branch: "co-{code}" })`
+   - Calls `useWBEs({ branch: "BR-{code}" })`
    - Calls `useCostElements({ branch: "main" })`
-   - Calls `useCostElements({ branch: "co-{code}" })`
+   - Calls `useCostElements({ branch: "BR-{code}" })`
    - Merges results and computes diffs in useEffect
 
 2. Create dashboard components consuming the comparison data
 
 **Trade-offs:**
+
 | Aspect | Assessment |
 |--------|------------|
 | Pros | - No backend changes required<br>- Frontend has full control over diff logic<br>- Can incrementally load data |
@@ -334,17 +351,20 @@ Frontend:
 ### Option 3: Hybrid Approach (Incremental)
 
 **Architecture & Design:**
+
 - **Backend Phase 1**: Add `/impact` endpoint with KPI comparison only
 - **Backend Phase 2**: Extend endpoint with entity diff data
 - **Frontend**: Start with KPI cards, add charts incrementally
 
 **Implementation:**
+
 1. **Sprint 1**: Backend KPI endpoint + Frontend KPI Cards
 2. **Sprint 2**: Add waterfall chart + financial bridge data
 3. **Sprint 3**: Add S-curves + time-series data
 4. **Sprint 4**: Add entity grid + detailed diff data
 
 **Trade-offs:**
+
 | Aspect | Assessment |
 |--------|------------|
 | Pros | - Early value delivery<br>- Lower risk per sprint<br>- Easier to adjust based on feedback |
@@ -382,6 +402,7 @@ Frontend:
 6. **Type Safety**: Pydantic → TypeScript generation ensures end-to-end type safety
 
 **Alternative consideration:** Choose **Option 2** if:
+
 - Quick proof-of-concept needed for stakeholder validation
 - Backend team capacity is limited
 - Willing to accept performance trade-offs
@@ -697,6 +718,7 @@ export const useImpactAnalysis = (changeOrderId: string) => {
 ### 6.4 Visualization Components
 
 **KPICards.tsx:**
+
 ```typescript
 interface KPICardsProps {
   kpiComparison: KPIScorecard;
@@ -746,6 +768,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpiComparison }) => {
 ```
 
 **WaterfallChart.tsx (using Recharts):**
+
 ```typescript
 interface WaterfallChartProps {
   segments: WaterfallSegment[];
@@ -767,6 +790,7 @@ export const WaterfallChart: React.FC<WaterfallChartProps> = ({ segments }) => {
 ```
 
 **SCurveComparison.tsx (using Recharts):**
+
 ```typescript
 interface SCurveComparisonProps {
   timeSeries: TimeSeriesData;

@@ -14,8 +14,8 @@ from sqlalchemy.orm import Mapped
 class VersionableMixin:
     """Mixin for temporal versioning - compose with EntityBase."""
 
-    valid_time: Mapped[PG_TSTZRANGE]
-    transaction_time: Mapped[PG_TSTZRANGE]
+    valid_time: Any
+    transaction_time: Any
     deleted_at: Mapped[datetime | None]
     created_by: Mapped[UUID]
     deleted_by: Mapped[UUID | None]
@@ -27,7 +27,7 @@ class VersionableMixin:
 
     def undelete(self) -> None: ...
 
-    def clone(self, **overrides: Any) -> VersionableMixin: ...
+    def clone(self, **overrides: Any) -> Any: ...
 
 class BranchableMixin:
     """Mixin for branching - compose with VersionableMixin."""

@@ -9,6 +9,10 @@ import {
   useUpdateChangeOrder,
   useMergeChangeOrder,
 } from "../api/useChangeOrders";
+import {
+  useApproveChangeOrder,
+  useRejectChangeOrder,
+} from "../api/useApprovals";
 import { queryKeys } from "@/api/queryKeys";
 
 interface WorkflowActionsOptions {
@@ -23,7 +27,8 @@ interface WorkflowActionsOptions {
  */
 export const WORKFLOW_ACTIONS = {
   SUBMIT: { label: "Submit", status: "Submitted for Approval" },
-  APPROVE: { label: "Approve", status: "Under Review" },
+  REVIEW: { label: "Put Under Review", status: "Under Review" },
+  APPROVE: { label: "Approve", status: "Approved" },
   REJECT: { label: "Reject", status: "Rejected" },
   MERGE: { label: "Merge to Main", status: "Implemented" },
 } as const;
@@ -46,6 +51,21 @@ export function useWorkflowActions(changeOrderId: string, options?: WorkflowActi
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.branches });
+      options?.onSuccess?.(data);
+    },
+    onError: options?.onError,
+  });
+
+  // Approval/rejection mutations using dedicated endpoints
+  const approveMutation = useApproveChangeOrder({
+    onSuccess: (data) => {
+      options?.onSuccess?.(data);
+    },
+    onError: options?.onError,
+  });
+
+  const rejectMutation = useRejectChangeOrder({
+    onSuccess: (data) => {
       options?.onSuccess?.(data);
     },
     onError: options?.onError,
@@ -76,12 +96,12 @@ export function useWorkflowActions(changeOrderId: string, options?: WorkflowActi
   );
 
   /**
-   * Approve the Change Order (Submitted for Approval → Under Review)
+   * Put the Change Order under review (Submitted for Approval → Under Review)
    */
-  const approve = useCallback(
+  const review = useCallback(
     async (comment?: string) => {
       const data: ChangeOrderUpdate = {
-        status: WORKFLOW_ACTIONS.APPROVE.status,
+        status: WORKFLOW_ACTIONS.REVIEW.status,
         comment,
       };
       return updateMutation.mutateAsync({ id: changeOrderId, data });
@@ -90,17 +110,25 @@ export function useWorkflowActions(changeOrderId: string, options?: WorkflowActi
   );
 
   /**
-   * Reject the Change Order (any status → Rejected)
+   * Approve the Change Order using dedicated approval endpoint
+   */
+  const approve = useCallback(
+    async (comment?: string) => {
+      const approval = { comments: comment || null };
+      return approveMutation.mutateAsync({ id: changeOrderId, approval });
+    },
+    [changeOrderId, approveMutation]
+  );
+
+  /**
+   * Reject the Change Order using dedicated rejection endpoint
    */
   const reject = useCallback(
     async (comment?: string) => {
-      const data: ChangeOrderUpdate = {
-        status: WORKFLOW_ACTIONS.REJECT.status,
-        comment,
-      };
-      return updateMutation.mutateAsync({ id: changeOrderId, data });
+      const approval = { comments: comment || null };
+      return rejectMutation.mutateAsync({ id: changeOrderId, approval });
     },
-    [changeOrderId, updateMutation]
+    [changeOrderId, rejectMutation]
   );
 
   /**
@@ -124,10 +152,11 @@ export function useWorkflowActions(changeOrderId: string, options?: WorkflowActi
 
   return {
     submit,
+    review,
     approve,
     reject,
     merge,
-    isLoading: updateMutation.isPending || mergeMutation.isPending,
+    isLoading: updateMutation.isPending || approveMutation.isPending || rejectMutation.isPending || mergeMutation.isPending,
     mutation: updateMutation,
   };
 }
@@ -139,7 +168,7 @@ export function isActionAvailable(
   action: WorkflowActionKey,
   availableTransitions: string[] | null | undefined
 ): boolean {
-  if (!availableTransitions) return false;
+  if (!availableTransitions) return false;  
   const targetStatus = WORKFLOW_ACTIONS[action].status;
   return availableTransitions.includes(targetStatus);
 }

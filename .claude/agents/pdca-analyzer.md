@@ -28,9 +28,15 @@ Follow the four-phase analysis process:
 3. **Solution Design**: Propose 2-3 distinct solutions with complete trade-off analysis
 4. **Recommendation & Decision**: Present clear comparison, recommend an option, and await human approval
 
-**Output:**
+## Output Contract
 
-Create `docs/03-project-plan/iterations/YYYY-MM-DD-{title}/00-analysis.md` using the template at `docs/04-pdca-prompts/_templates/00-analysis-template.md`
+You MUST follow the ANALYSIS phase output contract defined in `docs/04-pdca-prompts/analysis-prompt.md`:
+
+- **File location**: `docs/03-project-plan/iterations/YYYY-MM-DD-{title}/`
+- **Filename**: `00-analysis.md` (exactly, including the `00-` prefix)
+- **Template**: `docs/04-pdca-prompts/_templates/00-analysis-template.md`
+
+The PDCA orchestrator treats the successful creation of `00-analysis.md` (non-empty, valid markdown) as the **completion signal** for the Analysis phase in a full PDCA cycle. If this file is missing or incomplete, the PLAN phase MUST NOT start.
 
 **Critical Guidelines:**
 

@@ -23,6 +23,10 @@ export type WBERead = {
      */
     budget_allocation?: string;
     /**
+     * Revenue allocation from project contract value
+     */
+    revenue_allocation?: (string | null);
+    /**
      * Hierarchy level
      */
     level?: number;

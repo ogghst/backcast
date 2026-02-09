@@ -5,6 +5,7 @@
 **Phase:** 1 of 4 - Core CO Creation + Auto-Branch Generation
 **Status:** Plan Phase
 **Related Docs:**
+
 - [Analysis](./00-analysis.md)
 - [Change Management User Stories](../../../01-product-scope/change-management-user-stories.md)
 - [Product Backlog](../../product-backlog.md)
@@ -20,10 +21,12 @@
 **Product Scope Alignment:**
 
 This phase implements:
+
 - **User Story 3.1:** Creation of a Change (and Branch Generation)
 - **User Story 3.3:** Updating the Change Metadata (partial - CRUD operations)
 
 Deferred to later phases:
+
 - Story 3.2: Performing Work on a Change (Phase 2)
 - Story 3.4: Impact Analysis (Phase 3)
 - Story 3.5: Submitting the Change (Phase 2)
@@ -38,7 +41,7 @@ The implementation must incorporate:
 1. **Header Branch Indicator** (5.4): Always visible, distinct styling for change branches
 2. **Professional Color Palette** (5.3): State-based colors (Draft: #F59E0B Amber)
 3. **Notifications** (5.4): Toaster confirmations for state changes (branch creation)
-4. **Branch Selector Enhancement**: Visual indicators for change order branches (co-* prefix)
+4. **Branch Selector Enhancement**: Visual indicators for change order branches (BR-* prefix)
 5. **Time Machine Independence**: Date selector independent of branch selection
 
 ### Codebase Analysis
@@ -77,12 +80,14 @@ The implementation must incorporate:
 **Why:** Project Managers need a structured way to propose changes without affecting the production baseline. Currently, users can only modify data on the `main` branch, risking accidental changes to live project data.
 
 **Business Value:**
+
 - Enables formal change control workflows (PMI/PMBOK compliance)
 - Provides audit trail for all proposed changes
 - Isolates work-in-progress from production data
 - Foundation for impact analysis and approval workflows
 
 **If Not Addressed:**
+
 - No change control governance
 - Risk of accidental production data modification
 - Inability to track change proposals
@@ -93,7 +98,7 @@ The implementation must incorporate:
 **Functional Criteria:**
 
 - [ ] PM can create CO with ID, title, description, justification, effective date
-- [ ] System auto-creates branch `co-{change_order_id}` on CO creation
+- [ ] System auto-creates branch `BR-{change_order_id}` on CO creation
 - [ ] CO list displays with status badges (Draft color: #F59E0B)
 - [ ] PM can update CO metadata (description, justification, effective date)
 - [ ] PM can delete draft CO (soft delete + branch cleanup)
@@ -115,7 +120,7 @@ The implementation must incorporate:
 - [ ] Change Orders are per-project (scoped by `project_id`)
 - [ ] Full audit trail (created_by, created_at, updated_by, updated_at)
 - [ ] Soft delete with recovery capability
-- [ ] Branch names are unique and deterministic (`co-{id}`)
+- [ ] Branch names are unique and deterministic (`BR-{id}`)
 
 ### 3. Scope Definition
 
@@ -168,6 +173,7 @@ The implementation must incorporate:
 Implement complete Change Order entity with auto-branch creation, following existing patterns for Project/WBE entities. Frontend and backend developed in parallel with clear API contract.
 
 **Design Patterns:**
+
 - **Backend:** `BranchableProtocol` → `ChangeOrderVersion` model
 - **Service:** Extend `BranchableService[ChangeOrderVersion]`
 - **Command Pattern:** Use `CreateBranchCommand` for auto-branch creation
@@ -177,6 +183,7 @@ Implement complete Change Order entity with auto-branch creation, following exis
 - **Components:** Ant Design forms with status badges
 
 **Component Structure:**
+
 ```
 Backend:
 ├── app/models/domain/change_order.py          # ChangeOrderVersion model
@@ -202,6 +209,7 @@ Frontend:
 ```
 
 **Pros:**
+
 - Follows established patterns (Project, WBE, CostElement)
 - Type-safe end-to-end (Pydantic → TypeScript)
 - Clear separation of concerns
@@ -209,11 +217,13 @@ Frontend:
 - Reuses existing infrastructure (RBAC, filtering, pagination)
 
 **Cons:**
+
 - Requires parallel frontend/backend coordination
 - More initial code than minimal approach
 - Needs API contract alignment
 
 **Test Strategy Impact:**
+
 - Unit tests for service layer (business logic)
 - Integration tests for API endpoints
 - Component tests for React components
@@ -230,21 +240,25 @@ Frontend:
 Implement complete backend first, use generic UI (table + form) initially. Polish frontend in follow-up.
 
 **Design Patterns:**
+
 - Same backend patterns as Option A
 - Frontend: Generic `StandardTable` with minimal customization
 - No dedicated change order UI components initially
 
 **Pros:**
+
 - Faster backend validation
 - Lower frontend development cost initially
 - Can test API contracts immediately
 
 **Cons:**
+
 - Poor initial UX (no status badges, no branch indicators)
 - Frontend debt to address later
 - Doesn't meet Chapter 5 UI requirements
 
 **Test Strategy Impact:**
+
 - Full backend test coverage
 - Minimal frontend testing
 - API-focused E2E tests
@@ -260,15 +274,18 @@ Implement complete backend first, use generic UI (table + form) initially. Polis
 Simplest implementation: CO as non-versioned entity, manual branch creation via API.
 
 **Design Patterns:**
+
 - Backend: `SimpleBase` for ChangeOrder (no versioning)
 - Frontend: Basic CRUD only
 - Branch creation: Separate API call
 
 **Pros:**
+
 - Fastest initial implementation
 - Least code to write
 
 **Cons:**
+
 - Doesn't follow EVCS patterns (inconsistent architecture)
 - No audit trail for CO itself
 - Requires two API calls (create CO, create branch)
@@ -276,6 +293,7 @@ Simplest implementation: CO as non-versioned entity, manual branch creation via 
 - Technical debt immediately
 
 **Test Strategy Impact:**
+
 - Basic CRUD tests
 - No versioning tests
 
@@ -351,26 +369,31 @@ Simplest implementation: CO as non-versioned entity, manual branch creation via 
 ### First 5 Test Cases (Simplest → Most Complex)
 
 **1. `test_change_order_create_success`**
+
 - **Given:** Valid project exists, authenticated PM user
 - **When:** Create ChangeOrder with valid data
 - **Then:** CO created with Draft status, correct project_id
 
 **2. `test_change_order_create_with_auto_branch`**
+
 - **Given:** Valid project exists
 - **When:** Create ChangeOrder
-- **Then:** Branch `co-{id}` automatically created in database
+- **Then:** Branch `BR-{id}` automatically created in database
 
 **3. `test_change_order_list_renders`**
+
 - **Given:** Multiple COs exist (different statuses)
 - **When:** Navigate to `/change-orders`
 - **Then:** Table shows all COs with correct status badges
 
 **4. `test_create_change_order_endpoint`**
+
 - **Given:** Valid project, authenticated user with permission
 - **When:** POST `/api/v1/change-orders/`
 - **Then:** Returns 201 with CO data, branch created
 
 **5. `test_pm_creates_change_order` (E2E)**
+
 - **Given:** User logged in as PM, on change orders page
 - **When:** Click "Add Change Order", fill form, submit
 - **Then:** CO appears in list, branch selector shows new branch
@@ -418,7 +441,7 @@ Simplest implementation: CO as non-versioned entity, manual branch creation via 
 
 1. **Branching System:**
    - `ChangeOrderService` calls `CreateBranchCommand`
-   - Branch name format: `co-{change_order_id}`
+   - Branch name format: `BR-{change_order_id}`
    - Source branch: `main` (default) or specified CO
 
 2. **Project Context:**
@@ -490,6 +513,7 @@ Simplest implementation: CO as non-versioned entity, manual branch creation via 
 **Estimated Duration:** ~6.5 days (assuming 8h/day)
 
 **With Parallel Work:**
+
 - Backend-focused developer: ~3 days (14.5h + 3h buffer + support)
 - Frontend-focused developer: ~3 days (20h + 3h buffer + support)
 - Testing/QA: ~2 days (17.5h)

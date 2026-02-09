@@ -12,6 +12,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.seed_context import seed_operation
+from app.models.schemas.change_order import ChangeOrderUpdate
 from app.models.schemas.department import DepartmentCreate
 from app.models.schemas.user import UserRegister
 
@@ -349,7 +350,7 @@ class DataSeeder:
                         item["branch"] = "main"
 
                     ce_in = CostElementCreate(**item)
-                    await ce_service.create(ce_in, actor_id)
+                    await ce_service.create_cost_element(ce_in, actor_id)
                     created_count += 1
                     logger.info(f"Created Cost Element: {ce_in.code}")
 
@@ -394,7 +395,7 @@ class DataSeeder:
                         item["branch"] = "main"
 
                     cr_in = CostRegistrationCreate(**item)
-                    await cr_service.create(cr_in, actor_id)
+                    await cr_service.create_cost_registration(cr_in, actor_id)
                     created_count += 1
                     logger.info(f"Created Cost Registration: {cr_in.amount}")
 
@@ -441,7 +442,7 @@ class DataSeeder:
                         item["branch"] = "main"
 
                     pe_in = ProgressEntryCreate(**item)
-                    await pe_service.create(pe_in, actor_id)
+                    await pe_service.create_progress_entry(pe_in, actor_id)
                     created_count += 1
                     logger.info(
                         f"Created Progress Entry: {pe_in.progress_percentage}%"
@@ -455,6 +456,167 @@ class DataSeeder:
 
         logger.info(
             f"Progress Entry seeding complete: {created_count} created, {skipped_count} skipped/failed"
+        )
+
+    async def seed_change_orders(self, session: AsyncSession) -> None:
+        """Seed Change Orders from change_orders.json file.
+
+        Args:
+            session: Database session
+        """
+        from app.models.schemas.change_order import ChangeOrderCreate
+        from app.services.change_order_service import ChangeOrderService
+
+        logger.info("Starting Change Order seeding...")
+        co_data = self.load_seed_file("change_orders.json")
+
+        if not co_data:
+            logger.info("No Change Order seed data found or file is empty")
+            return
+
+        co_service = ChangeOrderService(session)
+
+        from uuid import uuid4
+
+        actor_id = uuid4()
+
+        created_count = 0
+        skipped_count = 0
+
+        with seed_operation():
+            for _, item in enumerate(co_data):
+                try:
+                    # Validate with Pydantic schema
+                    co_in = ChangeOrderCreate(**item)
+
+                    # Check if change order already exists
+                    existing_co = await co_service.get_current_by_code(co_in.code, branch="main")
+                    if existing_co:
+                        logger.debug(f"Change Order {co_in.code} already exists, skipping")
+                        skipped_count += 1
+                        continue
+
+                    # Store the target status for workflow transition
+                    target_status = item.get("status", "Draft")
+
+                    # Remove status from create data so it defaults to "Draft"
+                    # This allows us to properly transition through the workflow
+                    create_data = item.copy()
+                    create_data.pop("status", None)
+
+                    # Create change order with Draft status
+                    # Note: Automatic impact analysis runs on creation but may fail if
+                    # project data is incomplete. This is expected during seeding.
+                    co_in_draft = ChangeOrderCreate(**create_data)
+                    created_co = await co_service.create_change_order(
+                        co_in_draft, actor_id=actor_id
+                    )
+                    created_count += 1
+                    logger.info(f"Created Change Order: {co_in.code} - {co_in.title}")
+
+                    # If target status is not Draft, attempt to transition through workflow
+                    if target_status and target_status != "Draft":
+                        try:
+                            # For Submitted for Approval status
+                            if "Submitted for Approval" in target_status:
+                                await co_service.submit_for_approval(
+                                    change_order_id=created_co.change_order_id,
+                                    actor_id=actor_id,
+                                    branch="main",  # ChangeOrder entity lives on main
+                                    comment=f"Seeded status: {target_status}",
+                                )
+                                logger.info(f"  → Submitted for approval: {co_in.code}")
+
+                            # For Under Review status (need to submit first)
+                            elif "Under Review" in target_status:
+                                # First submit
+                                await co_service.submit_for_approval(
+                                    change_order_id=created_co.change_order_id,
+                                    actor_id=actor_id,
+                                    branch="main",  # ChangeOrder entity lives on main
+                                    comment="Auto-submit for seeding",
+                                )
+
+                                # Then transition to Under Review by updating status
+                                # Note: This is a direct status update for seeding purposes
+                                under_review_update = ChangeOrderUpdate(status="Under Review")
+                                await co_service.update_change_order(
+                                    change_order_id=created_co.change_order_id,
+                                    change_order_in=under_review_update,
+                                    actor_id=actor_id,
+                                    branch="main",
+                                )
+                                logger.info(f"  → Under Review: {co_in.code}")
+
+                            # For Approved status (need to submit → under review → approve)
+                            elif "Approved" in target_status:
+                                # First submit
+                                await co_service.submit_for_approval(
+                                    change_order_id=created_co.change_order_id,
+                                    actor_id=actor_id,
+                                    branch="main",  # ChangeOrder entity lives on main
+                                    comment="Auto-submit for seeding",
+                                )
+
+                                # Then transition to Under Review
+                                under_review_update = ChangeOrderUpdate(status="Under Review")
+                                await co_service.update_change_order(
+                                    change_order_id=created_co.change_order_id,
+                                    change_order_in=under_review_update,
+                                    actor_id=actor_id,
+                                    branch="main",
+                                )
+
+                                # Then approve
+                                await co_service.approve_change_order(
+                                    change_order_id=created_co.change_order_id,
+                                    approver_id=actor_id,
+                                    actor_id=actor_id,
+                                    branch="main",  # ChangeOrder entity lives on main
+                                    comments="Auto-approved for seeding",
+                                )
+                                logger.info(f"  → Approved: {co_in.code}")
+
+                            # For Rejected status (need to submit → under review → reject)
+                            elif "Rejected" in target_status:
+                                # First submit
+                                await co_service.submit_for_approval(
+                                    change_order_id=created_co.change_order_id,
+                                    actor_id=actor_id,
+                                    branch="main",  # ChangeOrder entity lives on main
+                                    comment="Auto-submit for seeding",
+                                )
+
+                                # Then transition to Under Review
+                                under_review_update = ChangeOrderUpdate(status="Under Review")
+                                await co_service.update_change_order(
+                                    change_order_id=created_co.change_order_id,
+                                    change_order_in=under_review_update,
+                                    actor_id=actor_id,
+                                    branch="main",
+                                )
+
+                                # Then reject
+                                await co_service.reject_change_order(
+                                    change_order_id=created_co.change_order_id,
+                                    rejecter_id=actor_id,
+                                    actor_id=actor_id,
+                                    branch="main",  # ChangeOrder entity lives on main
+                                    comments="Auto-rejected for seeding",
+                                )
+                                logger.info(f"  → Rejected: {co_in.code}")
+
+                        except Exception as workflow_error:
+                            logger.warning(
+                                f"  Failed to transition {co_in.code} to {target_status}: {workflow_error}"
+                            )
+
+                except Exception as e:
+                    logger.error(f"Failed to seed Change Order {item.get('code')}: {e}")
+                    skipped_count += 1
+
+        logger.info(
+            f"Change Order seeding complete: {created_count} created, {skipped_count} skipped/failed"
         )
 
     async def seed_all(self, session: AsyncSession) -> None:
@@ -489,6 +651,9 @@ class DataSeeder:
 
             # Seed Progress Entries
             await self.seed_progress_entries(session)
+
+            # Seed Change Orders
+            await self.seed_change_orders(session)
 
             # Commit all changes (services usually commit internally for writes?
             # Or depend on session commit at end. If services use execute() they might depend on session commit.)

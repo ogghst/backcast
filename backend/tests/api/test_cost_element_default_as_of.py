@@ -1,7 +1,7 @@
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
-from datetime import datetime, timedelta, timezone
 
 import pytest
 import pytest_asyncio
@@ -126,8 +126,8 @@ async def test_create_future_cost_element_and_query_default(
     client: AsyncClient, setup_dependencies: dict
 ) -> None:
     deps = setup_dependencies
-    future_date = datetime.now(timezone.utc) + timedelta(days=10)
-    
+    future_date = datetime.now(UTC) + timedelta(days=10)
+
     # Use string for budget to avoid Decimal validation issues
     element_data = {
         "code": f"CE-FUTURE-{uuid4().hex[:4].upper()}",

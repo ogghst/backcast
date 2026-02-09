@@ -135,7 +135,7 @@ async def create_cost_element(
 ) -> CostElement:
     """Create a new cost element in specified branch."""
     try:
-        return await service.create(
+        return await service.create_cost_element(
             element_in=element_in,
             actor_id=current_user.user_id,
             branch=element_in.branch,
@@ -475,7 +475,7 @@ async def update_cost_element_schedule_baseline(
 
     # Build update schema
     from app.models.schemas.schedule_baseline import ScheduleBaselineUpdate
-    
+
     update_schema = ScheduleBaselineUpdate(
         branch=branch,
         control_date=control_date,
@@ -483,7 +483,7 @@ async def update_cost_element_schedule_baseline(
     )
 
     # Update baseline
-    updated_baseline = await baseline_service.update(
+    updated_baseline = await baseline_service.update_schedule_baseline(
         root_id=baseline_id,
         baseline_in=update_schema,
         actor_id=current_user.user_id,
@@ -657,6 +657,11 @@ async def read_evm_history(
 async def get_cost_element_forecast(
     cost_element_id: UUID,
     branch: str = Query("main", description="Branch to query"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
     as_of: datetime | None = Query(
         None,
         description="Time travel: get forecast state as of this timestamp (ISO 8601)",
@@ -675,18 +680,23 @@ async def get_cost_element_forecast(
     This endpoint follows the inverted FK pattern, querying via
     cost_element.forecast_id instead of forecast.cost_element_id.
     """
+    from app.core.versioning.enums import BranchMode
+
+    # Parse mode string to BranchMode enum
+    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
+
     # Default to current time if as_of is not provided
     if as_of is None:
         as_of = datetime.now(tz=UTC)
 
     # Get the cost element using service layer
     if as_of:
-        # Time travel query
+        # Time travel query - use branch_mode for fallback
         cost_element = await cost_element_service.get_cost_element_as_of(
-            cost_element_id, as_of, branch=branch
+            cost_element_id, as_of, branch=branch, branch_mode=branch_mode
         )
     else:
-        # Current version
+        # Current version - no branch_mode needed for current queries
         cost_element = await cost_element_service.get_by_id(
             cost_element_id, branch=branch
         )
@@ -791,7 +801,7 @@ async def update_cost_element_forecast(
             update_data["approved_by"] = forecast_in.approved_by
 
         # Update forecast using refactored update method
-        updated_forecast = await forecast_service.update(
+        updated_forecast = await forecast_service.update_forecast(
             forecast_id=existing_forecast.forecast_id,
             forecast_in=forecast_in,
             actor_id=current_user.user_id,

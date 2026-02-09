@@ -15,8 +15,12 @@ export class CostRegistrationsService {
      *
      * Cost registrations track actual expenditures against cost elements.
      * They are versionable but NOT branchable (costs are global facts).
+     * Branch and mode parameters are provided for API consistency and context,
+     * though cost registrations themselves are not branch-specific.
      * @param page Page number (1-indexed)
      * @param perPage Items per page
+     * @param branch Branch to query (for context)
+     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param costElementId Filter by Cost Element ID
      * @param search Search term (description, invoice, vendor)
      * @param filters Filters in format 'column:value;column:value1,value2'
@@ -29,6 +33,8 @@ export class CostRegistrationsService {
     public static getCostRegistrations(
         page: number = 1,
         perPage: number = 20,
+        branch: string = 'main',
+        mode: string = 'merged',
         costElementId?: (string | null),
         search?: (string | null),
         filters?: (string | null),
@@ -42,6 +48,8 @@ export class CostRegistrationsService {
             query: {
                 'page': page,
                 'per_page': perPage,
+                'branch': branch,
+                'mode': mode,
                 'cost_element_id': costElementId,
                 'search': search,
                 'filters': filters,

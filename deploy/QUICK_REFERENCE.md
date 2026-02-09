@@ -15,6 +15,7 @@ Traefik Dashboard Password: backcast
 ```
 
 **Default User Accounts (after seeding):**
+
 ```
 Admin: admin@backcast.org / adminadmin
 All others: *@backcast.org / backcast
@@ -27,12 +28,14 @@ All others: *@backcast.org / backcast
 ## Essential Commands
 
 ### Status Check
+
 ```bash
 cd /home/nicola/dev/backcast_evs/deploy
 docker compose --env-file .env.production ps
 ```
 
 ### View Logs
+
 ```bash
 # All services, follow
 docker compose --env-file .env.production logs -f
@@ -44,6 +47,7 @@ docker compose --env-file .env.production logs -f postgres
 ```
 
 ### Restart Services
+
 ```bash
 # All services
 docker compose --env-file .env.production restart
@@ -53,6 +57,7 @@ docker compose --env-file .env.production restart backend
 ```
 
 ### Full Rebuild
+
 ```bash
 git pull
 docker compose --env-file .env.production build
@@ -61,6 +66,7 @@ docker compose --env-file .env.production run --rm alembic
 ```
 
 ### Stop/Start
+
 ```bash
 # Stop (keeps data)
 docker compose --env-file .env.production down
@@ -77,21 +83,28 @@ docker compose --env-file .env.production down -v
 ## Database Management
 
 ### Access PostgreSQL
+
 ```bash
-docker exec -it backcast_evs_postgres psql -U backcast_prod -d backcast_evs
+### Access PostgreSQL
+docker compose exec postgres psql -U backcast_prod -d backcast_evs
 ```
 
 ### Backup Database
+
 ```bash
-docker exec backcast_evs_postgres pg_dump -U backcast_prod backcast_evs | gzip > backup_$(date +%Y%m%d_%H%M%S).sql.gz
+### Backup Database
+docker compose exec postgres pg_dump -U backcast_prod backcast_evs | gzip > backup_$(date +%Y%m%d_%H%M%S).sql.gz
 ```
 
 ### Restore Database
+
 ```bash
-gunzip -c backup_YYYYMMDD_HHMMSS.sql.gz | docker exec -i backcast_evs_postgres psql -U backcast_prod backcast_evs
+### Restore Database
+gunzip -c backup_YYYYMMDD_HHMMSS.sql.gz | docker compose exec -T postgres psql -U backcast_prod backcast_evs
 ```
 
 ### Run Migrations
+
 ```bash
 docker compose --env-file .env.production run --rm alembic
 ```
@@ -99,18 +112,22 @@ docker compose --env-file .env.production run --rm alembic
 ### Reseed Database
 
 **⚠️ Always backup first!**
+
 ```bash
 # Backup
-docker exec backcast_evs_postgres pg_dump -U backcast_prod backcast_evs | gzip > backup_$(date +%Y%m%d_%H%M%S).sql.gz
+# Backup
+docker compose exec postgres pg_dump -U backcast_prod backcast_evs | gzip > backup_$(date +%Y%m%d_%H%M%S).sql.gz
 ```
 
 **Simple Reseed (Safe - adds missing data only):**
+
 ```bash
 # 1. Copy seed files into container
-docker cp /home/nicola/dev/backcast_evs/backend/seed backcast_evs_backend:/app/
+# 1. Copy seed files into container
+docker compose cp /home/nicola/dev/backcast_evs/backend/seed backend:/app/
 
 # 2. Run seeder
-docker exec -i backcast_evs_backend python3 << 'EOF'
+docker compose exec -T backend python3 << 'EOF'
 import asyncio
 import sys
 sys.path.insert(0, '/app')
@@ -128,24 +145,27 @@ EOF
 ```
 
 **Quick Verification:**
+
 ```bash
-docker exec -it backcast_evs_postgres psql -U backcast_prod -d backcast_evs -c "SELECT 'users', COUNT(*) FROM users UNION ALL SELECT 'departments', COUNT(*) FROM departments;"
+docker compose exec postgres psql -U backcast_prod -d backcast_evs -c "SELECT 'users', COUNT(*) FROM users UNION ALL SELECT 'departments', COUNT(*) FROM departments;"
 ```
 
 **Expected Results:** 5 users, 4 departments (plus projects, WBEs, cost elements)
 
 **Default Accounts:**
-- admin@backcast.org / adminadmin (Admin)
-- pm@backcast.org / backcast (Project Manager)
-- viewer@backcast.org / backcast (Viewer)
-- eng.lead@backcast.org / backcast (Engineering Lead)
-- const.super@backcast.org / backcast (Construction Super)
+
+- <admin@backcast.org> / adminadmin (Admin)
+- <pm@backcast.org> / backcast (Project Manager)
+- <viewer@backcast.org> / backcast (Viewer)
+- <eng.lead@backcast.org> / backcast (Engineering Lead)
+- <const.super@backcast.org> / backcast (Construction Super)
 
 ---
 
 ## Troubleshooting
 
 ### Service Not Starting?
+
 ```bash
 # Check logs
 docker compose --env-file .env.production logs <service>
@@ -159,15 +179,18 @@ docker system df
 ```
 
 ### Database Issues?
+
 ```bash
 # Check PostgreSQL is healthy
 docker compose --env-file .env.production ps postgres
 
 # Check database connection
-docker exec backcast_evs_backend pg_isready -h postgres -U backcast_prod
+# Check database connection
+docker compose exec backend pg_isready -h postgres -U backcast_prod
 ```
 
 ### Clean Up Docker
+
 ```bash
 # Remove unused images
 docker image prune -a
@@ -185,11 +208,11 @@ docker builder prune
 
 | Service | URL | Authentication |
 |---------|-----|----------------|
-| Frontend | https://app.backcast.duckdns.org | None |
-| Backend API | https://api.backcast.duckdns.org | API tokens |
-| API Docs | https://api.backcast.duckdns.org/docs | None |
-| Adminer (DB) | http://db.backcast.duckdns.org | IP whitelist |
-| Traefik Dashboard | http://traefik.backcast.duckdns.org:8080/dashboard/ | admin/backcast |
+| Frontend | <https://app.backcast.duckdns.org> | None |
+| Backend API | <https://api.backcast.duckdns.org> | API tokens |
+| API Docs | <https://api.backcast.duckdns.org/docs> | None |
+| Adminer (DB) | <http://db.backcast.duckdns.org> | IP whitelist |
+| Traefik Dashboard | <http://traefik.backcast.duckdns.org:8080/dashboard/> | admin/backcast |
 
 ---
 
@@ -206,6 +229,7 @@ sudo nano /etc/hosts
 ```
 
 **Add these lines:**
+
 ```hosts
 192.168.1.23  api.backcast.duckdns.org
 192.168.1.23  app.backcast.duckdns.org
@@ -214,10 +238,11 @@ sudo nano /etc/hosts
 ```
 
 **Then access:**
-- Frontend: http://app.backcast.duckdns.org:8080
-- Backend API: http://api.backcast.duckdns.org:8080
-- Adminer: http://db.backcast.duckdns.org:8080
-- Traefik Dashboard: http://traefik.backcast.duckdns.org:8080/dashboard/ (admin/backcast)
+
+- Frontend: <http://app.backcast.duckdns.org:8080>
+- Backend API: <http://api.backcast.duckdns.org:8080>
+- Adminer: <http://db.backcast.duckdns.org:8080>
+- Traefik Dashboard: <http://traefik.backcast.duckdns.org:8080/dashboard/> (admin/backcast)
 
 ---
 
@@ -237,6 +262,7 @@ sudo nano /etc/hosts
 ## Common Issues & Solutions
 
 ### Port 8080 Already in Use
+
 ```bash
 # Find process using port
 sudo lsof -i :8080
@@ -246,6 +272,7 @@ sudo kill <PID>
 ```
 
 ### Permission Denied
+
 ```bash
 # Add user to docker group
 sudo usermod -aG docker $USER
@@ -253,6 +280,7 @@ newgrp docker
 ```
 
 ### Out of Disk Space
+
 ```bash
 # Check Docker usage
 docker system df
@@ -262,6 +290,7 @@ docker system prune -a --volumes
 ```
 
 ### Health Check Failing (but service works)
+
 This is usually OK - health check endpoint may not be implemented. Service is still functional.
 
 ---
@@ -269,16 +298,19 @@ This is usually OK - health check endpoint may not be implemented. Service is st
 ## Backup Checklist
 
 ### Daily (Automated if possible)
+
 - [ ] Database backup
 - [ ] Check service logs for errors
 - [ ] Verify disk space
 
 ### Weekly
+
 - [ ] Review Docker logs
 - [ ] Check for security updates
 - [ ] Test backup restoration
 
 ### Monthly
+
 - [ ] Full system backup (volumes)
 - [ ] Update dependencies
 - [ ] Review access logs
@@ -289,7 +321,7 @@ This is usually OK - health check endpoint may not be implemented. Service is st
 
 | Role | Contact |
 |------|---------|
-| System Admin | nicola@backcast.duckdns.org |
+| System Admin | <nicola@backcast.duckdns.org> |
 | Server Access | SSH: 192.168.1.23, 192.168.1.21 |
 
 ---
@@ -297,16 +329,19 @@ This is usually OK - health check endpoint may not be implemented. Service is st
 ## Quick Deployment Copy-Paste
 
 **Full Restart (keeps data):**
+
 ```bash
 cd /home/nicola/dev/backcast_evs/deploy && docker compose --env-file .env.production down && docker compose --env-file .env.production up -d
 ```
 
 **Check Status:**
+
 ```bash
 cd /home/nicola/dev/backcast_evs/deploy && docker compose --env-file .env.production ps
 ```
 
 **View Logs:**
+
 ```bash
 cd /home/nicola/dev/backcast_evs/deploy && docker compose --env-file .env.production logs -f --tail=50
 ```

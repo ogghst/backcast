@@ -35,15 +35,23 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         """
         super().__init__(ProgressEntry, db)
 
-    async def create(  # type: ignore[override]
-        self, progress_in: ProgressEntryCreate, actor_id: UUID
+    async def create_progress_entry(  # type: ignore[override]
+        self,
+        progress_in: ProgressEntryCreate,
+        actor_id: UUID,
+        control_date: datetime | None = None,
     ) -> ProgressEntry:
         """Create new progress entry using CreateVersionCommand.
 
         Args:
             progress_in: The progress entry data (including optional control_date)
             actor_id: The user creating the progress entry
+            control_date: Optional control date for valid_time (defaults to now)
         """
+        # Extract control_date from schema if not provided
+        if control_date is None:
+            control_date = getattr(progress_in, "control_date", None)
+
         progress_data = progress_in.model_dump(exclude_unset=True)
 
         # Use provided progress_entry_id (for seeding) or generate new one
@@ -56,13 +64,12 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         if progress_percentage < 0 or progress_percentage > 100:
             raise ValueError("Progress percentage must be between 0 and 100")
 
-        # Extract control_date from schema (defaults to now if not provided)
-        # This ensures time-travel queries work correctly with as_of parameter
-        control_date = progress_in.control_date or datetime.now()
+        # If control_date is still None, default to now
+        if control_date is None:
+            control_date = datetime.now(tz=UTC)
 
         # Remove control_date from progress_data if present to avoid duplicate kwarg error
-        if "control_date" in progress_data:
-            del progress_data["control_date"]
+        progress_data.pop("control_date", None)
 
         cmd = CreateVersionCommand(
             entity_class=ProgressEntry,  # type: ignore[type-var,unused-ignore]
@@ -74,11 +81,12 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         return await cmd.execute(self.session)
 
 
-    async def update(  # type: ignore[override]
+    async def update_progress_entry(  # type: ignore[override]
         self,
         progress_entry_id: UUID,
         progress_in: ProgressEntryUpdate,
         actor_id: UUID,
+        control_date: datetime | None = None,
     ) -> ProgressEntry:
         """Update progress entry using UpdateVersionCommand.
 
@@ -86,11 +94,17 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
             progress_entry_id: The progress entry to update
             progress_in: The update data
             actor_id: The user making the update
+            control_date: Optional control date for valid_time (defaults to now)
         """
+        # Extract control_date from schema if not provided
+        if control_date is None:
+            control_date = getattr(progress_in, "control_date", None)
+
         update_data = progress_in.model_dump(exclude_unset=True)
 
-        # Extract control_date from schema (defaults to now if not provided)
-        control_date = progress_in.control_date or datetime.now(tz=UTC)
+        # If control_date is still None, default to now
+        if control_date is None:
+            control_date = datetime.now(tz=UTC)
         update_data.pop("control_date", None)
 
         # Validate progress_percentage if provided
@@ -256,3 +270,54 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
 
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def get_latest_progress_for_cost_elements(
+        self,
+        cost_element_ids: list[UUID],
+        as_of: datetime | None = None,
+    ) -> dict[UUID, ProgressEntry]:
+        """Get latest progress entry for multiple cost elements efficiently.
+
+        Args:
+            cost_element_ids: List of cost element UUIDs
+            as_of: Optional timestamp for historical query (time-travel)
+
+        Returns:
+            Dictionary mapping cost_element_id to latest ProgressEntry
+        """
+        if not cost_element_ids:
+            return {}
+
+        from sqlalchemy import func
+
+        stmt = (
+            select(ProgressEntry)
+            .distinct(ProgressEntry.cost_element_id)
+            .where(
+                ProgressEntry.cost_element_id.in_(cost_element_ids)
+            )
+            .order_by(
+                ProgressEntry.cost_element_id,
+                func.lower(ProgressEntry.valid_time).desc()
+            )
+        )
+
+        # Apply time-travel filter
+        if as_of is not None:
+            # Time-travel query: apply standardized bitemporal filter
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            # Current versions only (open-ended valid_time and not deleted)
+            stmt = stmt.where(
+                func.upper(ProgressEntry.valid_time).is_(None),
+                ProgressEntry.deleted_at.is_(None),
+            )
+
+        result = await self.session.execute(stmt)
+        
+        progress_entries = {}
+        for entry in result.scalars().all():
+            progress_entries[entry.cost_element_id] = entry
+            
+        return progress_entries
+

@@ -127,16 +127,16 @@ async def test_get_branches_with_cos(
     assert resp.status_code == 200
     data = resp.json()
 
-    # Expect 3 branches: main, co-CO-1, co-CO-2
+    # Expect 3 branches: main, BR-CO-1, BR-CO-2
     assert len(data) == 3
 
     names = [b["name"] for b in data]
     assert "main" in names
-    assert "co-CO-1" in names
-    assert "co-CO-2" in names
+    assert "BR-CO-1" in names
+    assert "BR-CO-2" in names
 
     # Check details for CO-1
-    co1_branch = next(b for b in data if b["name"] == "co-CO-1")
+    co1_branch = next(b for b in data if b["name"] == "BR-CO-1")
 
     assert co1_branch["type"] == "change_order"
     assert co1_branch["change_order_code"] == "CO-1"

@@ -161,21 +161,21 @@ async def test_wbe_zombie_check_merge_mode_no_fallback(db_session):
     await wbe_service.create_branch(
         root_id=wbe_id,
         actor_id=actor_id,
-        new_branch="co-123",
+        new_branch="BR-123",
         from_branch="main",
     )
     await db_session.commit()
 
     # Delete WBE on the change order branch
-    await wbe_service.soft_delete(root_id=wbe_id, actor_id=actor_id, branch="co-123")
+    await wbe_service.soft_delete(root_id=wbe_id, actor_id=actor_id, branch="BR-123")
     await db_session.commit()
 
     # Query with MERGE mode after deletion
-    # Should NOT fall back to main because entity was deleted on co-123
+    # Should NOT fall back to main because entity was deleted on BR-123
     result = await wbe_service.get_as_of(
         entity_id=wbe_id,
         as_of=datetime.now(UTC) + timedelta(seconds=1),
-        branch="co-123",
+        branch="BR-123",
         branch_mode=BranchMode.MERGE,
     )
     # Note: This test may fail if MERGE mode fallback logic doesn't properly

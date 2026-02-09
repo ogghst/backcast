@@ -16,6 +16,9 @@ class WBEBase(BaseModel):
     budget_allocation: Decimal = Field(
         Decimal(0), ge=0, description="Budget allocation"
     )
+    revenue_allocation: Decimal | None = Field(
+        None, ge=0, description="Revenue allocation from project contract value"
+    )
     level: int = Field(1, ge=1, description="Hierarchy level")
     parent_wbe_id: UUID | None = Field(None, description="Parent WBE root ID")
     description: str | None = Field(None, max_length=5000, description="Description")
@@ -43,6 +46,7 @@ class WBEUpdate(BaseModel):
 
     name: str | None = Field(None, max_length=255)
     budget_allocation: Decimal | None = Field(None, ge=0)
+    revenue_allocation: Decimal | None = Field(None, ge=0)
     level: int | None = Field(None, ge=1)
     parent_wbe_id: UUID | None = None
     description: str | None = Field(None, max_length=5000)

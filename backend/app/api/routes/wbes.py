@@ -305,6 +305,11 @@ async def delete_wbe(
 async def read_wbe_breadcrumb(
     wbe_id: UUID,
     branch: str = Query("main", description="Branch name"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
     as_of: datetime | None = Query(
         None,
         description="Time travel: get breadcrumb as of this timestamp (ISO 8601)",
@@ -312,13 +317,18 @@ async def read_wbe_breadcrumb(
     service: WBEService = Depends(get_wbe_service),
 ) -> dict[str, Any]:
     """Get breadcrumb trail for a WBE (project + ancestor path). Requires read permission."""
+    from app.core.versioning.enums import BranchMode
+
+    # Parse mode string to BranchMode enum
+    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
+
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
         as_of = datetime.now(tz=UTC)
 
     try:
-        return await service.get_breadcrumb(wbe_id, branch=branch, as_of=as_of)
+        return await service.get_breadcrumb(wbe_id, branch=branch, branch_mode=branch_mode, as_of=as_of)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

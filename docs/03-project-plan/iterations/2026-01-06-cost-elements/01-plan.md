@@ -867,6 +867,7 @@ backend/tests/
    ```
 
 2. **Test 2: List Cost Element Types by Department**
+
    ```python
    async def test_list_by_department():
        # GIVEN: 3 types for Dept A, 2 types for Dept B
@@ -876,7 +877,7 @@ backend/tests/
 
 #### Cost Element Tests
 
-3. **Test 3: Create Cost Element (Happy Path)**
+1. **Test 3: Create Cost Element (Happy Path)**
 
    ```python
    async def test_create_cost_element_success():
@@ -886,7 +887,7 @@ backend/tests/
        # AND: created_by matches actor_id
    ```
 
-4. **Test 4: Department Derivation**
+2. **Test 4: Department Derivation**
 
    ```python
    async def test_department_derivation():
@@ -896,7 +897,7 @@ backend/tests/
        # THEN: Department ID matches Cost Element Type's department
    ```
 
-5. **Test 5: Update Cost Element Creates New Version**
+3. **Test 5: Update Cost Element Creates New Version**
 
    ```python
    async def test_update_creates_new_version():
@@ -907,7 +908,7 @@ backend/tests/
        # AND: v2 created_by matches actor_id
    ```
 
-6. **Test 6: List Cost Elements by WBE**
+4. **Test 6: List Cost Elements by WBE**
 
    ```python
    async def test_list_by_wbe():
@@ -916,7 +917,7 @@ backend/tests/
        # THEN: Returns only 3 cost elements
    ```
 
-7. **Test 7: List Cost Elements by Type**
+5. **Test 7: List Cost Elements by Type**
 
    ```python
    async def test_list_by_type():
@@ -925,13 +926,14 @@ backend/tests/
        # THEN: Returns only matching cost elements
    ```
 
-8. **Test 8: Branch Isolation**
+6. **Test 8: Branch Isolation**
+
    ```python
    async def test_branch_isolation():
        # GIVEN: Cost element exists in 'main'
-       # WHEN: Creating new version in 'co-123'
+       # WHEN: Creating new version in 'BR-123'
        # THEN: 'main' version unchanged
-       # AND: 'co-123' has updated version
+       # AND: 'BR-123' has updated version
    ```
 
 ---

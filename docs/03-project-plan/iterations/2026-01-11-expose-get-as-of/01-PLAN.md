@@ -12,6 +12,7 @@
 This plan implements **Option 1 (Thin Wrapper Pattern)** to expose `TemporalService.get_as_of()` in all services that extend `TemporalService`. The implementation follows the existing `get_{entity}_history()` wrapper pattern used throughout the codebase.
 
 **Scope:**
+
 - Add `get_{entity}_as_of()` methods to 6 services
 - Add service-level tests with zombie check TDD pattern
 - Update documentation to reflect new capabilities
@@ -28,6 +29,7 @@ This plan implements **Option 1 (Thin Wrapper Pattern)** to expose `TemporalServ
 **Priority:** HIGH (required before adding methods)
 
 **Files to Modify:**
+
 1. `backend/app/services/project.py`
 2. `backend/app/services/wbe.py`
 3. `backend/app/services/cost_element_service.py`
@@ -37,6 +39,7 @@ This plan implements **Option 1 (Thin Wrapper Pattern)** to expose `TemporalServ
 
 **Changes:**
 Add import statement:
+
 ```python
 from app.core.versioning.enums import BranchMode
 ```
@@ -139,6 +142,7 @@ async def get_cost_element_as_of(
 
 **Test File Locations:**
 Create new test files:
+
 1. `backend/tests/unit/services/test_project_service_temporal.py`
 2. `backend/tests/unit/services/test_wbe_service_temporal.py`
 3. `backend/tests/unit/services/test_cost_element_service_temporal.py`
@@ -264,6 +268,7 @@ async def test_{entity_snake}_as_of_merge_mode(
 ```
 
 **Fixture Requirements:**
+
 - Use existing `admin_user` fixture from `conftest.py`
 - May need to add `control_date` parameter to existing factory fixtures
 - If factories don't exist, use direct service creation
@@ -315,12 +320,13 @@ project = await service.get_project_as_of(
 project = await service.get_project_as_of(
     project_id=project_id,
     as_of=as_of,
-    branch="co-123",
+    branch="BR-123",
     branch_mode=BranchMode.MERGE,  # fall back to main
 )
 ```
 
 **Implementation:** All methods delegate to `TemporalService.get_as_of()` which implements full bitemporal filtering with System Time Travel semantics. See [`TemporalService.get_as_of()`](../../../backend/app/core/versioning/service.py) for implementation details.
+
 ```
 
 **Also Update:**

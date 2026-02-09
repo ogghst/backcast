@@ -39,24 +39,70 @@ async def read_schedule_baselines(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch to query"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get schedule baselines as of this timestamp (ISO 8601)",
+    ),
     cost_element_id: UUID | None = Query(None, description="Filter by Cost Element ID"),
     session: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    """Retrieve schedule baselines with pagination."""
+    """Retrieve schedule baselines with pagination.
+
+    Supports time-travel queries and branch mode filtering.
+    In MERGE mode, combines results from current branch and main branch.
+    """
     from typing import cast
 
     from sqlalchemy import func, select
+    from sqlalchemy.dialects.postgresql import TIMESTAMP
 
+    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
+
+    # Parse mode string to BranchMode enum
+    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
+
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
 
     skip = (page - 1) * per_page
 
-    # Build query
+    # Build base statement
     stmt = select(ScheduleBaseline).where(
-        ScheduleBaseline.branch == branch,
-        func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None),
         cast(Any, ScheduleBaseline).deleted_at.is_(None),
     )
+
+    # Build query with branch and mode support
+    # In MERGE mode, query both current branch and main
+    # In STRICT mode, only query current branch
+    if branch_mode == BranchMode.MERGE and branch != "main":
+        # Query both branches
+        stmt = stmt.where(ScheduleBaseline.branch.in_([branch, "main"]))
+    else:
+        # Query only current branch
+        stmt = stmt.where(ScheduleBaseline.branch == branch)
+
+    # Apply time-travel filter if as_of is provided
+    if as_of:
+        # Cast as_of to TIMESTAMP(timezone=True) for proper timezone handling with TSTZRANGE
+        from sqlalchemy import cast as sql_cast
+        as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+        stmt = stmt.where(
+            cast(Any, ScheduleBaseline).valid_time.op("@>")(as_of_tstz),
+            func.lower(cast(Any, ScheduleBaseline).valid_time) <= as_of_tstz,
+        )
+    else:
+        # Current version only
+        stmt = stmt.where(
+            func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None)
+        )
 
     # Apply optional filters
     if cost_element_id:

@@ -82,5 +82,29 @@ export type ChangeOrderPublic = {
      * Whether the associated branch is locked
      */
     branch_locked?: boolean;
+    /**
+     * Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)
+     */
+    impact_level?: (string | null);
+    /**
+     * User ID assigned to approve this change order
+     */
+    assigned_approver_id?: (string | null);
+    /**
+     * When the approval SLA started
+     */
+    sla_assigned_at?: (string | null);
+    /**
+     * SLA deadline for approval
+     */
+    sla_due_date?: (string | null);
+    /**
+     * Current SLA tracking status (pending/approaching/overdue)
+     */
+    sla_status?: (string | null);
+    /**
+     * Assigned approver details (user_id, full_name, email, role)
+     */
+    assigned_approver?: (Record<string, any> | null);
 };
 

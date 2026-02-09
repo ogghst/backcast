@@ -4,17 +4,17 @@
 
 ### User Intent
 
-The goal is to finalize the lifecycle of a Change Order by implementing the "Merge" capability. This allows changes developed in an isolated branch (`co-{id}`) to be applied to the target branch (usually `main`), updating the live project baseline. This is a critical feature for the Change Management module (Epic 6, Phase 4).
+The goal is to finalize the lifecycle of a Change Order by implementing the "Merge" capability. This allows changes developed in an isolated branch (`BR-{id}`) to be applied to the target branch (usually `main`), updating the live project baseline. This is a critical feature for the Change Management module (Epic 6, Phase 4).
 
 ### Key Requirements
 
-1.  **Conflict Detection**: Before merging, the system must identify if any entities have been modified effectively in both branches since they diverged.
-2.  **Merge Logic**: If no blocking conflicts exist, apply changes from the source branch to the target branch.
+1. **Conflict Detection**: Before merging, the system must identify if any entities have been modified effectively in both branches since they diverged.
+2. **Merge Logic**: If no blocking conflicts exist, apply changes from the source branch to the target branch.
     - **Create**: Entities new in source -> Create in target.
     - **Update**: Entities modified in source -> Update in target.
     - **Delete**: Entities soft-deleted in source -> Soft-delete in target.
-3.  **Workflow Integration**: The merge action is triggered from the "Approved" state and transitions the CO to "Implemented".
-4.  **Audit Trail**: The operation must be logged, and the source branch should be marked as merged (conceptually, though we might keep it for history).
+3. **Workflow Integration**: The merge action is triggered from the "Approved" state and transitions the CO to "Implemented".
+4. **Audit Trail**: The operation must be logged, and the source branch should be marked as merged (conceptually, though we might keep it for history).
 
 ## 2. Context Discovery
 
@@ -38,7 +38,7 @@ The goal is to finalize the lifecycle of a Change Order by implementing the "Mer
   - _Hypothesis_: The current `merge_branch` in `BranchableService` might only merge _one_ specific entity (e.g., if I merge a Project, does it merge all children?).
   - _Refinement_: If WBEs and Cost Elements are separate aggregates, iterating over _all_ changed entities in a branch is required.
   - **Investigation**: Does `ChangeOrderService.merge_change_order` simply call `merge_branch` on the _Change Order_ entity? If so, that just merges the CO metadata. It does _not_ merge the content of the branch (the WBEs/CostElements).
-  - **Major Gap Identification**: `ChangeOrderService.merge_change_order` must iterate over ALL changed entities in the `co-{id}` branch and merge them to `main`. It cannot just merge the CO record itself.
+  - **Major Gap Identification**: `ChangeOrderService.merge_change_order` must iterate over ALL changed entities in the `BR-{id}` branch and merge them to `main`. It cannot just merge the CO record itself.
 
 ### Codebase Analysis (Frontend)
 
@@ -52,10 +52,10 @@ The goal is to finalize the lifecycle of a Change Order by implementing the "Mer
 
 Modify `ChangeOrderService.merge_change_order` to:
 
-1.  Identify all modified entities in the source branch (`co-{code}`).
-2.  Iterate through them (Projects, WBEs, Cost Elements).
-3.  For each, invoke `BranchableService.merge_branch` (or equivalent command) to merge to `main`.
-4.  Update CO status to "Implemented".
+1. Identify all modified entities in the source branch (`BR-{code}`).
+2. Iterate through them (Projects, WBEs, Cost Elements).
+3. For each, invoke `BranchableService.merge_branch` (or equivalent command) to merge to `main`.
+4. Update CO status to "Implemented".
 
 **Pros**: Explicit control, uses existing granular merge commands.
 **Cons**: Requires discovering all changed entities efficiently.

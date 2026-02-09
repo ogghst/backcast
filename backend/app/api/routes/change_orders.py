@@ -3,18 +3,24 @@
 import logging
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
+
+if TYPE_CHECKING:
+    from app.services.approval_matrix_service import ApprovalMatrixService
 from app.db.session import get_db
 from app.models.domain.user import User
 from app.models.schemas.change_order import (
+    ApprovalInfoPublic,
+    ChangeOrderApproval,
     ChangeOrderCreate,
     ChangeOrderPublic,
+    ChangeOrderRecoveryRequest,
     ChangeOrderUpdate,
     MergeRequest,
 )
@@ -39,6 +45,15 @@ def get_impact_analysis_service(
     return ImpactAnalysisService(session)
 
 
+def get_approval_matrix_service(
+    session: AsyncSession = Depends(get_db),
+) -> "ApprovalMatrixService":
+    """Get ApprovalMatrixService instance."""
+    from app.services.approval_matrix_service import ApprovalMatrixService
+
+    return ApprovalMatrixService(session)
+
+
 @router.get(
     "",
     response_model=None,  # Will be PaginatedResponse[ChangeOrderPublic]
@@ -50,11 +65,16 @@ async def read_change_orders(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
     branch: str = Query("main", description="Branch name"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
     search: str | None = Query(None, description="Search term (code, title)"),
     filters: str | None = Query(
         None,
         description="Filters in format 'column:value;column:value1,value2'",
-        example="status:Draft",
+        examples={"status_filter": {"value": "status:Draft"}},
     ),
     sort_field: str | None = Query(None, description="Field to sort by"),
     sort_order: str = Query(
@@ -71,11 +91,17 @@ async def read_change_orders(
     """Retrieve change orders for a project with pagination.
 
     Change Orders are always scoped to a specific project.
-    The auto-created branch for each CO is named `co-{code}`.
+    The auto-created branch for each CO is named `BR-{code}`.
 
     Requires read permission.
     """
+    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
+
+    # Parse mode string to BranchMode enum
+    # Note: branch_mode is parsed but not currently used by get_change_orders service
+    # This is reserved for future implementation of MERGE/STRICT mode filtering
+    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT  # noqa: F841
 
     # Calculate skip from page number
     skip = (page - 1) * per_page
@@ -135,7 +161,7 @@ async def create_change_order(
 
     This endpoint:
     1. Creates the Change Order on the main branch
-    2. Automatically creates a `co-{code}` branch for isolated work
+    2. Automatically creates a `BR-{code}` branch for isolated work
     3. Returns the created Change Order
 
     The auto-created branch allows changes to be developed in isolation
@@ -345,7 +371,7 @@ async def read_change_order_history(
 )
 async def get_merge_conflicts(
     change_order_id: UUID,
-    source_branch: str = Query(..., description="Source branch name (e.g., 'co-123')"),
+    source_branch: str = Query(..., description="Source branch name (e.g., 'BR-123')"),
     target_branch: str = Query(
         "main", description="Target branch name (default: 'main')"
     ),
@@ -385,7 +411,7 @@ async def merge_change_order(
 ) -> ChangeOrderPublic:
     """Merge a Change Order's branch into the target branch.
 
-    Infers the source branch from the Change Order code (e.g., `co-{code}`).
+    Infers the source branch from the Change Order code (e.g., `BR-{code}`).
 
     Checks for merge conflicts before proceeding. If conflicts exist,
     returns 409 with conflict details.
@@ -403,7 +429,7 @@ async def merge_change_order(
                 detail=f"Change Order {change_order_id} not found",
             )
 
-        source_branch = f"co-{current.code}"
+        source_branch = f"BR-{current.code}"
 
         # Check for conflicts
         conflicts = await service._detect_merge_conflicts(
@@ -502,7 +528,12 @@ async def revert_change_order(
 async def get_change_order_impact(
     change_order_id: UUID,
     branch_name: str = Query(
-        ..., description="Branch name to compare (e.g., 'co-CO-2026-001')"
+        ..., description="Branch name to compare (e.g., 'BR-CO-2026-001')"
+    ),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Comparison mode: merged (main+change) or isolated (change only)",
     ),
     service: ImpactAnalysisService = Depends(get_impact_analysis_service),
 ) -> ImpactAnalysisResponse:
@@ -510,6 +541,10 @@ async def get_change_order_impact(
 
     Analyzes the financial and schedule impact of a change order by comparing
     data between the main branch and the specified change branch.
+
+    Modes:
+    - merged: Shows merged result (main + change delta) - most intuitive for users
+    - isolated: Shows isolated comparison (delta only) - for detailed analysis
 
     Returns:
         - KPI Scorecard: BAC, Budget Delta, Gross Margin comparison
@@ -519,11 +554,357 @@ async def get_change_order_impact(
 
     Requires read permission.
     """
+    from app.core.versioning.enums import BranchMode
+
+    # Parse mode string to BranchMode enum
+    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
+
     try:
-        impact_analysis = await service.analyze_impact(change_order_id, branch_name)
+        impact_analysis = await service.analyze_impact(
+            change_order_id, branch_name, branch_mode=branch_mode
+        )
         return impact_analysis
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(e),
+        ) from e
+
+
+@router.put(
+    "/{change_order_id}/submit-for-approval",
+    response_model=ChangeOrderPublic,
+    operation_id="submit_change_order_for_approval",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-update"))],
+)
+async def submit_change_order_for_approval(
+    change_order_id: UUID,
+    branch: str = Query("main", description="Branch name"),
+    comment: str | None = Query(None, description="Optional comment for audit log"),
+    current_user: User = Depends(get_current_active_user),
+    service: ChangeOrderService = Depends(get_change_order_service),
+) -> ChangeOrderPublic:
+    """Submit a change order for approval with impact calculation and approver assignment.
+
+    This endpoint:
+    1. Calculates financial impact by comparing branches
+    2. Determines impact level (LOW/MEDIUM/HIGH/CRITICAL)
+    3. Assigns appropriate approver based on impact level
+    4. Sets SLA deadline based on impact level
+    5. Locks the branch to prevent further modifications
+    6. Transitions status to "Submitted for Approval"
+
+    Requires update permission.
+    """
+    try:
+        submitted_co = await service.submit_for_approval(
+            change_order_id=change_order_id,
+            actor_id=current_user.user_id,
+            branch=branch,
+            comment=comment,
+        )
+        return await service._to_public(submitted_co)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+
+@router.put(
+    "/{change_order_id}/approve",
+    response_model=ChangeOrderPublic,
+    operation_id="approve_change_order",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-approve"))],
+)
+async def approve_change_order(
+    change_order_id: UUID,
+    approval: ChangeOrderApproval,
+    branch: str = Query("main", description="Branch name"),
+    current_user: User = Depends(get_current_active_user),
+    service: ChangeOrderService = Depends(get_change_order_service),
+) -> ChangeOrderPublic:
+    """Approve a change order and transition to Approved status.
+
+    Validates that the current user has sufficient authority to approve
+    this change order based on its impact level. Records approval with
+    optional comments in the audit log.
+
+    Requires approve permission.
+    """
+    try:
+        approved_co = await service.approve_change_order(
+            change_order_id=change_order_id,
+            approver_id=current_user.user_id,
+            actor_id=current_user.user_id,
+            branch=branch,
+            comments=approval.comments,
+        )
+        return await service._to_public(approved_co)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+
+@router.put(
+    "/{change_order_id}/reject",
+    response_model=ChangeOrderPublic,
+    operation_id="reject_change_order",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-approve"))],
+)
+async def reject_change_order(
+    change_order_id: UUID,
+    approval: ChangeOrderApproval,
+    branch: str = Query("main", description="Branch name"),
+    current_user: User = Depends(get_current_active_user),
+    service: ChangeOrderService = Depends(get_change_order_service),
+) -> ChangeOrderPublic:
+    """Reject a change order and transition to Rejected status.
+
+    Validates that the current user has sufficient authority to reject
+    this change order based on its impact level. Records rejection with
+    optional comments in the audit log and unlocks the branch.
+
+    Requires approve permission.
+    """
+    try:
+        rejected_co = await service.reject_change_order(
+            change_order_id=change_order_id,
+            rejecter_id=current_user.user_id,
+            actor_id=current_user.user_id,
+            branch=branch,
+            comments=approval.comments,
+        )
+        return await service._to_public(rejected_co)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+
+@router.post(
+    "/{change_order_id}/recover",
+    response_model=ChangeOrderPublic,
+    operation_id="recover_change_order",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-recover"))],
+)
+async def recover_change_order(
+    change_order_id: UUID,
+    recovery_data: ChangeOrderRecoveryRequest,
+    branch: str = Query("main", description="Branch name"),
+    current_user: User = Depends(get_current_active_user),
+    service: ChangeOrderService = Depends(get_change_order_service),
+) -> ChangeOrderPublic:
+    """Recover a stuck change order workflow (admin only).
+
+    Admin-only endpoint to recover stuck workflows when impact analysis
+    fails or the change order gets stuck in an intermediate state.
+    Allows manual override of impact level and approver assignment.
+
+    Requires change-order-recover permission (admin only).
+
+    Args:
+        change_order_id: UUID of the stuck change order
+        recovery_data: Recovery request with impact level, approver, and reason
+
+    Returns:
+        Updated ChangeOrder with recovered workflow state
+
+    Raises:
+        HTTPException: If change order not stuck, invalid data, or not authorized
+    """
+    try:
+        recovered_co = await service.recover_change_order(
+            change_order_id=change_order_id,
+            impact_level=recovery_data.impact_level,
+            assigned_approver_id=recovery_data.assigned_approver_id,
+            skip_impact_analysis=recovery_data.skip_impact_analysis,
+            recovery_reason=recovery_data.recovery_reason,
+            actor_id=current_user.id,  # Use User.id, not User.user_id for FK
+            branch=branch,
+        )
+        return await service._to_public(recovered_co)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+
+@router.get(
+    "/{change_order_id}/approval-info",
+    response_model=ApprovalInfoPublic,
+    operation_id="get_change_order_approval_info",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-read"))],
+)
+async def get_change_order_approval_info(
+    change_order_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    service: ChangeOrderService = Depends(get_change_order_service),
+) -> ApprovalInfoPublic:
+    """Get approval information for a change order.
+
+    Returns comprehensive approval information including:
+    - Impact level and financial impact details
+    - Assigned approver details
+    - SLA tracking (assigned date, due date, status, business days remaining)
+    - Whether the current user can approve this change order
+    - Current user's authority level
+
+    Requires read permission.
+    """
+    from app.services.approval_matrix_service import ApprovalMatrixService
+    from app.services.impact_analysis_service import ImpactAnalysisService
+
+    try:
+        # Get change order
+        co = await service.get_current(change_order_id, branch="main")
+        if not co:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Change Order {change_order_id} not found",
+            )
+
+        # Get approval matrix service
+        approval_service = ApprovalMatrixService(service.session)
+
+        # Calculate financial impact
+        financial_impact = None
+        financial_impact = None
+        if co.impact_level:
+            branch_name = f"BR-{co.code}"
+            impact_service = ImpactAnalysisService(service.session)
+            # Optimization: Skip EVM metrics calculation as only financial delta is needed here
+            impact_analysis = await impact_service.analyze_impact(
+                change_order_id, branch_name, include_evm_metrics=False
+            )
+            financial_impact = {
+                "budget_delta": impact_analysis.kpi_scorecard.budget_delta.delta,
+                "revenue_delta": impact_analysis.kpi_scorecard.gross_margin.delta,
+            }
+
+        # Get assigned approver details
+        assigned_approver = None
+        if co.assigned_approver_id:
+            from app.services.user import UserService
+
+            user_service = UserService(service.session)
+            approver = await user_service.get_by_id(co.assigned_approver_id)
+            if approver:
+                assigned_approver = {
+                    "user_id": approver.user_id,
+                    "full_name": approver.full_name,
+                    "email": approver.email,
+                    "role": approver.role,
+                }
+
+        # Get current user's authority level
+        user_authority = approval_service.get_user_authority_level(current_user)
+
+        # Check if current user can approve
+        can_approve = await approval_service.can_approve(current_user, co)
+
+        # Calculate business days remaining until SLA deadline
+        sla_business_days_remaining = None
+        if co.sla_due_date:
+            from datetime import UTC, datetime
+
+            sla_business_days_remaining = service._calculate_business_days_remaining(
+                datetime.now(UTC), co.sla_due_date
+            )
+
+        # Determine SLA status
+        sla_status = co.sla_status
+        if co.sla_due_date:
+            from datetime import UTC, datetime
+
+            now = datetime.now(UTC)
+            # Normalize sla_due_date to UTC if it's naive
+            sla_due = co.sla_due_date
+            if sla_due.tzinfo is None:
+                sla_due = sla_due.replace(tzinfo=UTC)
+            time_remaining = (sla_due - now).total_seconds() / 86400  # days
+
+            if time_remaining < 0:
+                sla_status = "overdue"
+            elif time_remaining < (service._get_sla_days(co.impact_level) / 2):
+                sla_status = "approaching"
+            else:
+                sla_status = "pending"
+
+        return ApprovalInfoPublic(
+            impact_level=co.impact_level,
+            financial_impact=financial_impact,
+            assigned_approver=assigned_approver,
+            sla_assigned_at=co.sla_assigned_at,
+            sla_due_date=co.sla_due_date,
+            sla_status=sla_status,
+            sla_business_days_remaining=sla_business_days_remaining,
+            user_can_approve=can_approve,
+            user_authority=user_authority,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving approval info: {str(e)}",
+        ) from e
+
+
+@router.get(
+    "/pending-approvals",
+    response_model=None,  # Will be PaginatedResponse[ChangeOrderPublic]
+    operation_id="get_pending_approvals",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-read"))],
+)
+async def get_pending_approvals(
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    per_page: int = Query(20, ge=1, description="Items per page"),
+    current_user: User = Depends(get_current_active_user),
+    service: ChangeOrderService = Depends(get_change_order_service),
+) -> dict[str, Any]:
+    """Get change orders pending approval for the current user.
+
+    Filters change orders by:
+    - assigned_approver_id = current_user.user_id
+    - status in ("Submitted for Approval", "Under Review")
+
+    Returns paginated list of change orders awaiting the user's approval.
+
+    Requires read permission.
+    """
+    from app.models.schemas.common import PaginatedResponse
+
+    # Calculate skip from page number
+    skip = (page - 1) * per_page
+
+    try:
+        # Get pending approvals for current user
+        change_orders, total = await service.get_pending_approvals(
+            user_id=current_user.user_id,
+            skip=skip,
+            limit=per_page,
+        )
+
+        # Convert to Pydantic models with workflow metadata
+        items = [await service._to_public(co) for co in change_orders]
+
+        # Return paginated response
+        response = PaginatedResponse[ChangeOrderPublic](
+            items=items,
+            total=total,
+            page=page,
+            per_page=per_page,
+        )
+
+        return response.model_dump()
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving pending approvals: {str(e)}",
         ) from e

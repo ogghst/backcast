@@ -7,7 +7,7 @@ entities implementing BranchableProtocol (e.g. Projects).
 import re
 from datetime import datetime
 from typing import Any, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import NoResultFound
@@ -200,6 +200,29 @@ class BranchableService[TBranchable: BranchableProtocol]:
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def create(
+        self,
+        actor_id: UUID,
+        root_id: UUID | None = None,
+        control_date: datetime | None = None,
+        branch: str = "main",
+        **data: Any,
+    ) -> TBranchable:
+        """Generic creation method for compatibility with TemporalService.
+
+        Delegates to create_root while making root_id optional.
+        """
+        if root_id is None:
+            root_id = uuid4()
+
+        return await self.create_root(
+            root_id=root_id,
+            actor_id=actor_id,
+            control_date=control_date,
+            branch=branch,
+            **data,
+        )
 
     async def create_root(
         self,
@@ -404,7 +427,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
         """
         from sqlalchemy import cast as sql_cast
         from sqlalchemy.dialects.postgresql import TIMESTAMP
-        
+
         # CRITICAL FIX: Cast as_of to TIMESTAMP(timezone=True) for TSTZRANGE comparison
         as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
 
@@ -525,7 +548,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
 
         from sqlalchemy import cast as sql_cast
         from sqlalchemy.dialects.postgresql import TIMESTAMP
-        
+
         # CRITICAL FIX: Cast as_of to TIMESTAMP(timezone=True) for TSTZRANGE comparison
         as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
 
@@ -655,7 +678,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
 
         Example:
             >>> branches = await service.list_branches(project_id)
-            >>> print(branches)  # ['main', 'co-123', 'co-456']
+            >>> print(branches)  # ['main', 'BR-123', 'BR-456']
         """
         root_field = self._get_root_field_name()
 
@@ -693,7 +716,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
 
         Args:
             root_id: Root entity ID
-            source_branch: Source branch name (e.g., "co-123")
+            source_branch: Source branch name (e.g., "BR-123")
             target_branch: Target branch name (default: "main")
 
         Returns:
@@ -841,7 +864,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
 
         Example:
             >>> comparison = await service.compare_branches(
-            ...     project_id, "main", "co-123"
+            ...     project_id, "main", "BR-123"
             ... )
             >>> print(comparison['branch_a'].name)
             >>> print(comparison['branch_b'].name)

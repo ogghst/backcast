@@ -361,11 +361,11 @@ class TestCostElementServiceBranching:
         main_element = await service.create(element_in, actor_id=uuid4(), branch="main")
         element_id = main_element.cost_element_id
 
-        # Act - Update in a different branch (co-123)
+        # Act - Update in a different branch (BR-123)
         update_in = CostElementUpdate(
             budget_amount=Decimal("20000.00"),
         )
-        await service.update(element_id, update_in, actor_id=uuid4(), branch="co-123")
+        await service.update(element_id, update_in, actor_id=uuid4(), branch="BR-123")
 
         # Assert - Main should be unchanged
         main_latest = await service.get_by_id(element_id, branch="main")
@@ -374,10 +374,10 @@ class TestCostElementServiceBranching:
         assert main_latest.branch == "main"
 
         # Branch should have updated version
-        branch_latest = await service.get_by_id(element_id, branch="co-123")
+        branch_latest = await service.get_by_id(element_id, branch="BR-123")
         assert branch_latest is not None
         assert branch_latest.budget_amount == Decimal("20000.00")
-        assert branch_latest.branch == "co-123"
+        assert branch_latest.branch == "BR-123"
 
         # They should have different row IDs but same root ID
         assert branch_latest.id != main_latest.id
@@ -403,22 +403,22 @@ class TestCostElementServiceBranching:
         )
         main_element = await service.create(element_in, actor_id=uuid4(), branch="main")
 
-        # Create element in branch co-999
+        # Create element in branch BR-999
         element_in2 = CostElementCreate(
             code="CE-CO999",
             name="CO Branch",
             wbe_id=hierarchy["wbe"].wbe_id,
             cost_element_type_id=hierarchy["cost_type"].cost_element_type_id,
             budget_amount=Decimal("7000.00"),
-            branch="co-999",
+            branch="BR-999",
         )
         branch_element = await service.create(
-            element_in2, actor_id=uuid4(), branch="co-999"
+            element_in2, actor_id=uuid4(), branch="BR-999"
         )
 
         # Act
         main_list = await service.list(branch="main")
-        branch_list = await service.list(branch="co-999")
+        branch_list = await service.list(branch="BR-999")
 
         # Assert
         main_ids = [e.cost_element_id for e in main_list]

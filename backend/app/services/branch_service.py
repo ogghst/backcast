@@ -1,8 +1,7 @@
 """Service for Branch entity operations."""
 
-from uuid import UUID
-
 from datetime import datetime
+from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import NoResultFound
@@ -19,6 +18,24 @@ class BranchService(TemporalService[Branch]):  # type: ignore[type-var]
     - Locking branches (prevent writes)
     - Unlocking branches (allow writes)
     - Retrieving branches by composite key (name, project_id)
+
+    Inherited from TemporalService:
+        - `soft_delete(entity_id, actor_id, control_date)` - Soft-delete branch
+          Note: Uses branch_id (UUID), not (name, project_id)
+        - `get_current_version(root_id, branch)` - Get active version
+        - `get_as_of(entity_id, as_of, branch)` - Time-travel query
+        - `create(actor_id, **fields)` - Create new branch
+        - `update(entity_id, actor_id, **updates)` - Update branch
+
+    Example:
+        ```python
+        # Soft-delete a branch
+        branch = await branch_service.get_by_name_and_project("BR-001", project_id)
+        await branch_service.soft_delete(
+            entity_id=branch.branch_id,  # Use branch_id, not name!
+            actor_id=actor_id
+        )
+        ```
     """
 
     def __init__(self, session: AsyncSession) -> None:
@@ -42,12 +59,12 @@ class BranchService(TemporalService[Branch]):  # type: ignore[type-var]
             NoResultFound: If branch doesn't exist
         """
         branch = await self.get_by_name_and_project(name, project_id)
-        
+
         # Use UpdateVersionCommand to create a new version with locked status
         from app.core.versioning.commands import UpdateVersionCommand
-        
+
         current_actor = actor_id
-        
+
         cmd = UpdateVersionCommand(
             entity_class=Branch,
             root_id=branch.branch_id,
@@ -73,12 +90,12 @@ class BranchService(TemporalService[Branch]):  # type: ignore[type-var]
             NoResultFound: If branch doesn't exist
         """
         branch = await self.get_by_name_and_project(name, project_id)
-        
+
         # Use UpdateVersionCommand to create a new version with unlocked status
         from app.core.versioning.commands import UpdateVersionCommand
-        
+
         current_actor = actor_id
-        
+
         cmd = UpdateVersionCommand(
             entity_class=Branch,
             root_id=branch.branch_id,
@@ -108,12 +125,12 @@ class BranchService(TemporalService[Branch]):  # type: ignore[type-var]
         )
         result = await self.session.execute(stmt)
         branch = result.scalar_one_or_none()
-        
+
         if branch is None:
             raise NoResultFound(
                 f"Branch not found: name={name}, project_id={project_id}"
             )
-            
+
         return branch
 
     async def get_by_name_as_of(

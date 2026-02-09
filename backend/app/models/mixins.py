@@ -62,10 +62,10 @@ class VersionableMixin:
     def clone(self, **overrides: Any) -> Self:
         """Clone this version for updates, branches, or merges."""
         from sqlalchemy import inspect
-        
+
         mapper = inspect(self.__class__)
         data = {}
-        
+
         # Iterate over all mapped columns to get the correct Python attribute names
         for prop in mapper.attrs:
             # We only want column-mapped properties (not relationships)

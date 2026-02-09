@@ -27,7 +27,7 @@ async def test_lock_branch_sets_locked_true(db_session):
     await db_session.flush()
 
     branch = Branch(
-        name="co-CO-2026-001",
+        name="BR-CO-2026-001",
         project_id=project.project_id,
         type="change_order",
         locked=False,
@@ -39,7 +39,7 @@ async def test_lock_branch_sets_locked_true(db_session):
     # Act: Lock the branch
     service = BranchService(db_session)
     locked_branch = await service.lock(
-        name="co-CO-2026-001", project_id=project.project_id, actor_id=user_id
+        name="BR-CO-2026-001", project_id=project.project_id, actor_id=user_id
     )
 
     # Assert: Branch is locked
@@ -47,7 +47,7 @@ async def test_lock_branch_sets_locked_true(db_session):
 
     # Verify in database using service method which filters for current versions
     db_branch = await service.get_by_name_and_project(
-        name="co-CO-2026-001", project_id=project.project_id
+        name="BR-CO-2026-001", project_id=project.project_id
     )
     assert db_branch.locked is True
 
@@ -68,7 +68,7 @@ async def test_unlock_branch_sets_locked_false(db_session):
     await db_session.flush()
 
     branch = Branch(
-        name="co-CO-2026-002",
+        name="BR-CO-2026-002",
         project_id=project.project_id,
         type="change_order",
         locked=True,
@@ -80,7 +80,7 @@ async def test_unlock_branch_sets_locked_false(db_session):
     # Act: Unlock the branch
     service = BranchService(db_session)
     unlocked_branch = await service.unlock(
-        name="co-CO-2026-002", project_id=project.project_id, actor_id=user_id
+        name="BR-CO-2026-002", project_id=project.project_id, actor_id=user_id
     )
 
     # Assert: Branch is unlocked
@@ -142,7 +142,7 @@ async def test_get_branch_excludes_soft_deleted(db_session):
 
     # Active branch
     active_branch = Branch(
-        name="co-CO-2026-004a",
+        name="BR-CO-2026-004a",
         project_id=project.project_id,
         type="change_order",
         locked=False,
@@ -152,7 +152,7 @@ async def test_get_branch_excludes_soft_deleted(db_session):
 
     # Soft-deleted branch
     deleted_branch = Branch(
-        name="co-CO-2026-004b",
+        name="BR-CO-2026-004b",
         project_id=project.project_id,
         type="change_order",
         locked=False,
@@ -168,11 +168,11 @@ async def test_get_branch_excludes_soft_deleted(db_session):
     # Assert: Should raise NoResultFound for soft-deleted branch
     with pytest.raises(NoResultFound):
         await service.get_by_name_and_project(
-            name="co-CO-2026-004b", project_id=project.project_id
+            name="BR-CO-2026-004b", project_id=project.project_id
         )
 
     # But active branch should be found
     retrieved = await service.get_by_name_and_project(
-        name="co-CO-2026-004a", project_id=project.project_id
+        name="BR-CO-2026-004a", project_id=project.project_id
     )
-    assert retrieved.name == "co-CO-2026-004a"
+    assert retrieved.name == "BR-CO-2026-004a"

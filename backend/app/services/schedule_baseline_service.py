@@ -11,10 +11,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.service import BranchableService
-from app.core.versioning.commands import CreateVersionCommand
+from app.core.versioning.commands import CreateVersionCommand, LinkCostElementCommand
 from app.models.domain.cost_element import CostElement
 from app.models.domain.schedule_baseline import ScheduleBaseline
-from app.models.schemas.schedule_baseline import ScheduleBaselineCreate, ScheduleBaselineUpdate
+from app.models.schemas.schedule_baseline import (
+    ScheduleBaselineCreate,
+    ScheduleBaselineUpdate,
+)
 
 
 class BaselineAlreadyExistsError(Exception):
@@ -122,11 +125,12 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         )
         return await cmd.execute(self.session)
 
-    async def create(
+    async def create_schedule_baseline(
         self,
         create_schema: ScheduleBaselineCreate,
         actor_id: UUID,
         branch: str = "main",
+        control_date: datetime | None = None,
     ) -> ScheduleBaseline:
         """Create a new ScheduleBaseline from a schema.
 
@@ -174,11 +178,13 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def update(  # type: ignore[override]
+    async def update_schedule_baseline(  # type: ignore[override]
         self,
         root_id: UUID,
         baseline_in: ScheduleBaselineUpdate,
         actor_id: UUID,
+        branch: str = "main",
+        control_date: datetime | None = None,
     ) -> ScheduleBaseline:
         """Update schedule baseline using UpdateVersionCommand.
 
@@ -186,9 +192,12 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             root_id: The schedule baseline to update
             baseline_in: The update data
             actor_id: The user making the update
+            branch: The branch to update (default: "main")
+            control_date: Optional control date for valid_time
         """
-        # Extract control_date and branch from schema
-        control_date = baseline_in.control_date
+        # Use control_date from method argument if provided, otherwise from schema
+        if control_date is None:
+            control_date = baseline_in.control_date
         branch = baseline_in.branch or "main"
 
         # Dump update data and exclude metadata (not entity fields)
@@ -339,24 +348,13 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             progression_type="LINEAR",
         )
 
-        # Update cost element to reference the new baseline
-        ce_stmt = (
-            select(CostElement)
-            .where(
-                CostElement.cost_element_id == cost_element_id,
-                CostElement.branch == branch,
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, CostElement).valid_time.desc())
-            .limit(1)
+        # Use Command to link cost element to baseline (RSC compliance)
+        link_cmd = LinkCostElementCommand(
+            cost_element_id=cost_element_id,
+            parent_type="schedule_baseline",
+            parent_id=baseline_id,
         )
-        ce_result = await self.session.execute(ce_stmt)
-        cost_element = ce_result.scalar_one_or_none()
-
-        if cost_element:
-            cost_element.schedule_baseline_id = baseline_id
-            await self.session.flush()
+        await link_cmd.execute(self.session)
 
         return baseline
 
@@ -418,24 +416,13 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             description=description,
         )
 
-        # Update cost element to reference the new baseline
-        ce_stmt = (
-            select(CostElement)
-            .where(
-                CostElement.cost_element_id == cost_element_id,
-                CostElement.branch == branch,
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, CostElement).valid_time.desc())
-            .limit(1)
+        # Use Command to link cost element to baseline (RSC compliance)
+        link_cmd = LinkCostElementCommand(
+            cost_element_id=cost_element_id,
+            parent_type="schedule_baseline",
+            parent_id=baseline_id,
         )
-        ce_result = await self.session.execute(ce_stmt)
-        cost_element = ce_result.scalar_one_or_none()
-
-        if cost_element:
-            cost_element.schedule_baseline_id = baseline_id
-            await self.session.flush()
+        await link_cmd.execute(self.session)
 
         return baseline
 
@@ -460,3 +447,53 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         return select(ScheduleBaseline, ce_subq.c.cost_element_name).join(
             ce_subq, ScheduleBaseline.cost_element_id == ce_subq.c.cost_element_id
         )
+
+    async def get_baselines_for_cost_elements(
+        self,
+        cost_element_ids: list[UUID],
+        branch: str = "main",
+    ) -> dict[UUID, ScheduleBaseline]:
+        """Get schedule baselines for multiple cost elements efficiently.
+
+        Args:
+            cost_element_ids: List of cost element UUIDs
+            branch: Branch name (default: "main")
+
+        Returns:
+            Dictionary mapping cost_element_id to ScheduleBaseline
+        """
+        if not cost_element_ids:
+            return {}
+
+        # Query via CostElement.schedule_baseline_id to ensure we get the linked baseline
+        # We need to join CostElement to filter by cost_element_id and get the baseline_id
+        stmt = (
+            select(
+                CostElement.cost_element_id,
+                ScheduleBaseline
+            )
+            .join(
+                ScheduleBaseline,
+                CostElement.schedule_baseline_id == ScheduleBaseline.schedule_baseline_id
+            )
+            .where(
+                CostElement.cost_element_id.in_(cost_element_ids),
+                CostElement.branch == branch,
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+                ScheduleBaseline.branch == branch,
+                func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None),
+                cast(Any, ScheduleBaseline).deleted_at.is_(None),
+            )
+        )
+
+        result = await self.session.execute(stmt)
+        
+        # Map cost_element_id -> ScheduleBaseline
+        baselines = {}
+        for row in result.all():
+            ce_id, baseline = row
+            baselines[ce_id] = baseline
+            
+        return baselines
+

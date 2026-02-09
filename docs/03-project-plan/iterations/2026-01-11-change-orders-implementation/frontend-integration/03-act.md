@@ -21,11 +21,13 @@
 **Impact:** High - Users could not see entities they created in change order branches.
 
 **Resolution:**
+
 - Modified `useWBEs` to use `branch` from `useTimeMachineParams()`
 - Modified `useCostElements` to use `branch: tmBranch` from `useTimeMachineParams()`
 - Both still allow override via function parameter for special cases
 
 **Files Modified:**
+
 - [frontend/src/features/wbes/api/useWBEs.ts](../../../../../../../frontend/src/features/wbes/api/useWBEs.ts:45)
 - [frontend/src/features/cost-elements/api/useCostElements.ts](../../../../../../../frontend/src/features/cost-elements/api/useCostElements.ts:39)
 
@@ -235,8 +237,9 @@ The pattern is already established in Projects and WBEs. The bug fix extended it
 Before marking this iteration complete, verify:
 
 **Branch Switching:**
+
 - [ ] Navigate to a project page
-- [ ] Create a change order (creates `co-{code}` branch)
+- [ ] Create a change order (creates `BR-{code}` branch)
 - [ ] Use BranchSelector to switch to the new branch
 - [ ] Create a root WBE in the branch
 - [ ] **Verify:** WBE appears in the project detail page
@@ -244,6 +247,7 @@ Before marking this iteration complete, verify:
 - [ ] **Verify:** WBE disappears (only shows main branch WBEs)
 
 **View Mode Toggle:**
+
 - [ ] Select a change order branch
 - [ ] Toggle view mode to "Isolated"
 - [ ] **Verify:** Only branch entities shown
@@ -251,6 +255,7 @@ Before marking this iteration complete, verify:
 - [ ] **Verify:** Main + branch entities combined
 
 **CostElements Branch Context:**
+
 - [ ] Select a change order branch
 - [ ] Navigate to a WBE detail page
 - [ ] Create a CostElement in the branch
@@ -294,6 +299,7 @@ Based on industry research:
 **Frontend Integration: ✅ COMPLETE**
 
 **Summary:**
+
 - Critical bug fixed (branch context not used in list queries)
 - Pattern standardized across all branch-enabled entities
 - TimeMachine context now the single source of truth for branch filtering
@@ -304,6 +310,7 @@ Based on industry research:
 **Go/No-Go Decision:** ✅ **GO** - Feature complete and production-ready
 
 **Next Steps:**
+
 1. Manual testing of branch switching workflows
 2. Locked branch enforcement (E06-U06 extension)
 3. Change Orders CRUD UI implementation
