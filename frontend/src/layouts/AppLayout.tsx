@@ -16,7 +16,10 @@ import {
   TimeMachineExpanded,
 } from "@/components/time-machine";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
-import { useProject, useProjectBranches } from "@/features/projects/api/useProjects";
+import {
+  useProject,
+  useProjectBranches,
+} from "@/features/projects/api/useProjects";
 import { parseRangeLowerBound } from "@/utils/temporal";
 
 import { usePermission } from "@/hooks/usePermission";
@@ -55,7 +58,9 @@ const AppLayout: React.FC = () => {
   const isTimeMachineExpanded = useTimeMachineStore((s) => s.isExpanded);
 
   // Get selected branch to detect change order branches
-  const selectedBranch = useTimeMachineStore((s) => s.getSelectedBranch?.() ?? "main");
+  const selectedBranch = useTimeMachineStore(
+    (s) => s.getSelectedBranch?.() ?? "main",
+  );
   const isChangeOrderMode = isChangeOrderBranch(selectedBranch);
 
   const [collapsed, setCollapsed] = React.useState(false);
@@ -192,10 +197,11 @@ const AppLayout: React.FC = () => {
             projectId={projectId}
             projectName={project?.name}
             timelineData={{
-              startDate: parseRangeLowerBound(project?.valid_time ?? null)
-                ?? (project?.start_date ? new Date(project.start_date) : null),
+              startDate:
+                parseRangeLowerBound(project?.valid_time ?? null) ??
+                (project?.start_date ? new Date(project.start_date) : null),
               endDate: project?.end_date ? new Date(project.end_date) : null,
-              branches: branches.map(b => b.name),
+              branches: branches.map((b) => b.name),
               events: [], // TODO: Fetch branch events from API
             }}
           />

@@ -33,7 +33,7 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
 
     async def get_user(self, user_id: UUID) -> User | None:
         """Get user by ID (current version)."""
-        return await self.get_by_id(user_id)
+        return await self.get_current_version(user_id)
 
     async def get_users(self, skip: int = 0, limit: int = 100000) -> list[User]:
         """Get all users with pagination."""

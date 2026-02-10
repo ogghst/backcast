@@ -21,12 +21,16 @@ interface WaterfallChartProps {
  */
 export const WaterfallChart = ({ data, loading }: WaterfallChartProps) => {
   // Transform data for the chart
-  const chartData = data?.map((segment) => ({
-    name: segment.name,
-    value: Number(segment.value),
-    isDelta: segment.is_delta ?? false,
-    type: segment.is_delta ? "Change" : "Baseline",
-  }));
+  // Transform data for the chart
+  const chartData = data?.map((segment) => {
+    const parsedValue = Number(segment.value);
+    return {
+      name: segment.name,
+      value: Number.isFinite(parsedValue) ? parsedValue : 0,
+      isDelta: segment.is_delta ?? false,
+      type: segment.is_delta ? "Change" : "Baseline",
+    };
+  });
 
   if (!chartData || chartData.length === 0) {
     return (
@@ -43,28 +47,36 @@ export const WaterfallChart = ({ data, loading }: WaterfallChartProps) => {
     yField: "value",
     seriesField: "type",
     isStack: true,
-    color: ({ type }: { type: string }) => (type === "Change" ? "#cf1322" : "#5b8ff9"),
+    color: ({ type }: { type: string }) =>
+      type === "Change" ? "#cf1322" : "#5b8ff9",
     columnStyle: {
       radius: [4, 4, 0, 0],
     },
     label: {
       position: "top" as const,
-      formatter: (datum: { value: number }) =>
-        new Intl.NumberFormat("en-US", {
+      formatter: (datum: { value: number } | number) => {
+        const val = typeof datum === "number" ? datum : datum?.value;
+        if (!Number.isFinite(val)) return "";
+        return new Intl.NumberFormat("en-US", {
           style: "currency",
           currency: "EUR",
           minimumFractionDigits: 0,
           maximumFractionDigits: 0,
-        }).format(datum.value),
+        }).format(val);
+      },
     },
     tooltip: {
-      formatter: (datum: { name: string; value: number; type: string }) => ({
-        name: datum.name,
-        value: new Intl.NumberFormat("en-US", {
-          style: "currency",
-          currency: "EUR",
-        }).format(datum.value),
-      }),
+      formatter: (datum: { name: string; value: number; type: string }) => {
+        const val = typeof datum === "number" ? datum : datum?.value;
+        const safeVal = Number.isFinite(val) ? val : 0;
+        return {
+          name: datum?.name || "Value",
+          value: new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "EUR",
+          }).format(safeVal),
+        };
+      },
     },
     legend: {
       position: "top" as const,

@@ -9,6 +9,9 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+import asyncio
+
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.seed_context import seed_operation
@@ -476,9 +479,19 @@ class DataSeeder:
 
         co_service = ChangeOrderService(session)
 
-        from uuid import uuid4
+        from app.services.user import UserService
 
-        actor_id = uuid4()
+        # Use admin user for actor_id if available to ensure authority for approvals
+        user_service = UserService(session)
+        admin = await user_service.get_by_email("admin@backcast.org")
+        
+        if admin:
+            actor_id = admin.user_id
+            logger.info(f"Using admin user {actor_id} for Change Order seeding")
+        else:
+            from uuid import uuid4
+            actor_id = uuid4()
+            logger.warning("Admin user not found, using random UUID for actor_id (approvals may fail)")
 
         created_count = 0
         skipped_count = 0
@@ -514,13 +527,18 @@ class DataSeeder:
                     created_count += 1
                     logger.info(f"Created Change Order: {co_in.code} - {co_in.title}")
 
+                    # Prevent timestamp overlap for subsequent updates
+                    await asyncio.sleep(1)
+                    
+                    co_id = created_co.change_order_id
+
                     # If target status is not Draft, attempt to transition through workflow
                     if target_status and target_status != "Draft":
                         try:
                             # For Submitted for Approval status
                             if "Submitted for Approval" in target_status:
                                 await co_service.submit_for_approval(
-                                    change_order_id=created_co.change_order_id,
+                                    change_order_id=co_id,
                                     actor_id=actor_id,
                                     branch="main",  # ChangeOrder entity lives on main
                                     comment=f"Seeded status: {target_status}",
@@ -531,7 +549,7 @@ class DataSeeder:
                             elif "Under Review" in target_status:
                                 # First submit
                                 await co_service.submit_for_approval(
-                                    change_order_id=created_co.change_order_id,
+                                    change_order_id=co_id,
                                     actor_id=actor_id,
                                     branch="main",  # ChangeOrder entity lives on main
                                     comment="Auto-submit for seeding",
@@ -541,7 +559,7 @@ class DataSeeder:
                                 # Note: This is a direct status update for seeding purposes
                                 under_review_update = ChangeOrderUpdate(status="Under Review")
                                 await co_service.update_change_order(
-                                    change_order_id=created_co.change_order_id,
+                                    change_order_id=co_id,
                                     change_order_in=under_review_update,
                                     actor_id=actor_id,
                                     branch="main",
@@ -552,7 +570,7 @@ class DataSeeder:
                             elif "Approved" in target_status:
                                 # First submit
                                 await co_service.submit_for_approval(
-                                    change_order_id=created_co.change_order_id,
+                                    change_order_id=co_id,
                                     actor_id=actor_id,
                                     branch="main",  # ChangeOrder entity lives on main
                                     comment="Auto-submit for seeding",
@@ -561,7 +579,7 @@ class DataSeeder:
                                 # Then transition to Under Review
                                 under_review_update = ChangeOrderUpdate(status="Under Review")
                                 await co_service.update_change_order(
-                                    change_order_id=created_co.change_order_id,
+                                    change_order_id=co_id,
                                     change_order_in=under_review_update,
                                     actor_id=actor_id,
                                     branch="main",
@@ -569,7 +587,7 @@ class DataSeeder:
 
                                 # Then approve
                                 await co_service.approve_change_order(
-                                    change_order_id=created_co.change_order_id,
+                                    change_order_id=co_id,
                                     approver_id=actor_id,
                                     actor_id=actor_id,
                                     branch="main",  # ChangeOrder entity lives on main
@@ -581,7 +599,7 @@ class DataSeeder:
                             elif "Rejected" in target_status:
                                 # First submit
                                 await co_service.submit_for_approval(
-                                    change_order_id=created_co.change_order_id,
+                                    change_order_id=co_id,
                                     actor_id=actor_id,
                                     branch="main",  # ChangeOrder entity lives on main
                                     comment="Auto-submit for seeding",
@@ -590,7 +608,7 @@ class DataSeeder:
                                 # Then transition to Under Review
                                 under_review_update = ChangeOrderUpdate(status="Under Review")
                                 await co_service.update_change_order(
-                                    change_order_id=created_co.change_order_id,
+                                    change_order_id=co_id,
                                     change_order_in=under_review_update,
                                     actor_id=actor_id,
                                     branch="main",
@@ -598,7 +616,7 @@ class DataSeeder:
 
                                 # Then reject
                                 await co_service.reject_change_order(
-                                    change_order_id=created_co.change_order_id,
+                                    change_order_id=co_id,
                                     rejecter_id=actor_id,
                                     actor_id=actor_id,
                                     branch="main",  # ChangeOrder entity lives on main
@@ -606,13 +624,15 @@ class DataSeeder:
                                 )
                                 logger.info(f"  → Rejected: {co_in.code}")
 
-                        except Exception as workflow_error:
+                        except Exception as e:
                             logger.warning(
-                                f"  Failed to transition {co_in.code} to {target_status}: {workflow_error}"
+                                f"  Failed to transition {co_in.code} to {target_status}: {e}"
                             )
+                            await session.rollback()
 
                 except Exception as e:
                     logger.error(f"Failed to seed Change Order {item.get('code')}: {e}")
+                    await session.rollback()
                     skipped_count += 1
 
         logger.info(

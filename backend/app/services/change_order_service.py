@@ -953,7 +953,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         # Get approver user object
         user_service = UserService(self.session)
-        approver = await user_service.get_by_id(approver_id)
+        approver = await user_service.get_user(approver_id)
         if not approver:
             raise ValueError(f"Approver with ID {approver_id} not found")
 
@@ -1036,7 +1036,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         # Get rejecter user object
         user_service = UserService(self.session)
-        rejecter = await user_service.get_by_id(rejecter_id)
+        rejecter = await user_service.get_user(rejecter_id)
         if not rejecter:
             raise ValueError(f"Rejecter with ID {rejecter_id} not found")
 

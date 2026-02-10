@@ -12,7 +12,7 @@ class CostElementBase(BaseModel):
 
     code: str = Field(..., min_length=1, max_length=50)
     name: str = Field(..., min_length=1, max_length=255)
-    budget_amount: Decimal = Field(ge=0, decimal_places=2)
+    budget_amount: Decimal = Field(decimal_places=2)
     description: str | None = None
 
 

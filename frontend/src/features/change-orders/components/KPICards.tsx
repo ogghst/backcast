@@ -35,7 +35,10 @@ const formatPercent = (value: number | null | undefined): string => {
 /**
  * Formats a number with specified decimal places.
  */
-const formatNumber = (value: string | null | undefined, decimals: number = 2): string => {
+const formatNumber = (
+  value: string | null | undefined,
+  decimals: number = 2,
+): string => {
   if (!value) return "0";
   return Number(value).toFixed(decimals);
 };
@@ -108,7 +111,9 @@ const KPIMetricCard = ({
   const { color, icon } = getDeltaDisplay(metric.delta);
   const mainValue = formatCurrency(metric.main_value);
   const changeValue = formatCurrency(metric.change_value);
-  const mergedValue = metric.merged_value ? formatCurrency(metric.merged_value) : null;
+  const mergedValue = metric.merged_value
+    ? formatCurrency(metric.merged_value)
+    : null;
 
   // Use delta for Statistic component to show the difference
   const rawDisplayValue = metric.delta;
@@ -138,17 +143,19 @@ const KPIMetricCard = ({
         </div>
         {metric.delta && (
           <div>
-            Delta: <strong style={{ color }}>{formatCurrency(metric.delta)}</strong>
+            Delta:{" "}
+            <strong style={{ color }}>{formatCurrency(metric.delta)}</strong>
           </div>
         )}
-        {metric.delta_percent !== null && metric.delta_percent !== undefined && (
-          <div>
-            Change:{" "}
-            <strong style={{ color }}>
-              {formatPercent(metric.delta_percent)}
-            </strong>
-          </div>
-        )}
+        {metric.delta_percent !== null &&
+          metric.delta_percent !== undefined && (
+            <div>
+              Change:{" "}
+              <strong style={{ color }}>
+                {formatPercent(metric.delta_percent)}
+              </strong>
+            </div>
+          )}
       </div>
     </Card>
   );
@@ -198,7 +205,8 @@ const PerformanceIndexCard = ({
         </div>
         {metric.delta && (
           <div>
-            Delta: <strong style={{ color }}>{formatNumber(metric.delta, 3)}</strong>
+            Delta:{" "}
+            <strong style={{ color }}>{formatNumber(metric.delta, 3)}</strong>
           </div>
         )}
       </div>
@@ -221,7 +229,9 @@ const ScheduleDurationCard = ({
   const { icon, prefix } = getDeltaDisplay(metric.delta);
   const mainValue = formatDays(metric.main_value);
   const changeValue = formatDays(metric.change_value);
-  const mergedValue = metric.merged_value ? formatDays(metric.merged_value) : null;
+  const mergedValue = metric.merged_value
+    ? formatDays(metric.merged_value)
+    : null;
 
   // Use raw values for Statistic component
   const rawDisplayValue = metric.merged_value ?? metric.change_value;
@@ -251,7 +261,11 @@ const ScheduleDurationCard = ({
         </div>
         {metric.delta && (
           <div>
-            Delta: <strong style={{ color }}>{prefix}{formatDays(metric.delta)}</strong>
+            Delta:{" "}
+            <strong style={{ color }}>
+              {prefix}
+              {formatDays(metric.delta)}
+            </strong>
           </div>
         )}
       </div>
@@ -300,7 +314,10 @@ export const KPICards = ({ kpiScorecard, loading }: KPICardsProps) => {
         <Title level={4}>Financial Metrics</Title>
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={12} lg={6}>
-            <KPIMetricCard title="Budget at Completion" metric={kpiScorecard.bac} />
+            <KPIMetricCard
+              title="Budget at Completion"
+              metric={kpiScorecard.bac}
+            />
           </Col>
           <Col xs={24} sm={12} lg={6}>
             <KPIMetricCard
@@ -315,10 +332,16 @@ export const KPICards = ({ kpiScorecard, loading }: KPICardsProps) => {
             />
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <KPIMetricCard title="Gross Margin" metric={kpiScorecard.gross_margin} />
+            <KPIMetricCard
+              title="Gross Margin"
+              metric={kpiScorecard.gross_margin}
+            />
           </Col>
           <Col xs={24} sm={12} lg={6}>
-            <KPIMetricCard title="Actual Costs" metric={kpiScorecard.actual_costs} />
+            <KPIMetricCard
+              title="Actual Costs"
+              metric={kpiScorecard.actual_costs}
+            />
           </Col>
           {kpiScorecard.eac && (
             <Col xs={24} sm={12} lg={6}>
