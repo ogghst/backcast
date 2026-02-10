@@ -1,13 +1,13 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { Breadcrumb, message, Card } from "antd";
+import { Breadcrumb, message, Card, Tabs } from "antd";
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { ChangeOrderWorkflowSection } from "@/features/change-orders/components/ChangeOrderWorkflowSection";
-import { ChangeOrderImpactSection } from "@/features/change-orders/components/ChangeOrderImpactSection";
-import { ChangeOrderPageNav } from "@/features/change-orders/components/ChangeOrderPageNav";
 import { ApprovalInfo } from "@/features/change-orders/components/ApprovalInfo";
 import { ChangeOrderSummaryCard } from "@/features/change-orders/components/ChangeOrderSummaryCard";
 import { ChangeOrderModal } from "@/features/change-orders/components/ChangeOrderModal";
+import { ImpactAnalysisDashboard } from "@/features/change-orders/components/ImpactAnalysisDashboard";
+import { CollapsibleCard } from "@/components/common/CollapsibleCard";
 import {
   useChangeOrder,
   useCreateChangeOrder,
@@ -25,8 +25,7 @@ import { queryKeys } from "@/api/queryKeys";
  *
  * Displays all relevant change order information in one scrollable page:
  * - Form section (metadata editing)
- * - Workflow section (status transitions, actions)
- * - Impact section (visual comparison charts)
+ * - Tabbed interface for Approval, Workflow, and Impact Analysis
  *
  * Routes:
  * - /projects/:projectId/change-orders/new - Create new change order
@@ -161,10 +160,6 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
           ` • Change Order: ${changeOrder?.code || changeOrderId}`}
       </p>
 
-      {/* Sticky Navigation */}
-      <ChangeOrderPageNav createMode={createMode} />
-
-      {/* Form Section */}
       {/* Form Section - Only show summary card if not in create mode (modal handles creation) */}
       {!createMode && (
         <div style={{ marginBottom: 16 }}>
@@ -194,31 +189,54 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
         existingCodes={existingCodes}
       />
 
-      {/* Approval Information (hidden in create mode, shown when impact_level exists) */}
-      {!createMode && (
-        <div style={{ marginBottom: 16 }}>
-          <ApprovalInfo
-            approvalInfo={approvalInfo || null}
-            isLoading={isLoadingApprovalInfo}
-          />
-        </div>
+      {/* Tabbed Interface for Approval, Workflow, and Impact Analysis (hidden in create mode) */}
+      {!createMode && changeOrder && (
+        <Tabs
+          defaultActiveKey="approval"
+          items={[
+            {
+              key: "approval",
+              label: "Approval",
+              children: (
+                <CollapsibleCard
+                  id="approval-info"
+                  title={<span>Approval Information</span>}
+                  collapsed={false}
+                >
+                  <ApprovalInfo
+                    approvalInfo={approvalInfo || null}
+                    isLoading={isLoadingApprovalInfo}
+                  />
+                </CollapsibleCard>
+              ),
+            },
+            {
+              key: "workflow",
+              label: "Workflow",
+              children: (
+                <ChangeOrderWorkflowSection
+                  changeOrder={changeOrder || null}
+                  onActionSuccess={() => {
+                    queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
+                  }}
+                  useCollapsibleCard
+                />
+              ),
+            },
+            {
+              key: "impact",
+              label: "Impact Analysis",
+              children: (
+                <ImpactAnalysisDashboard
+                  changeOrderId={changeOrder.change_order_id}
+                  branchName={changeOrder ? `BR-${changeOrder.code}` : undefined}
+                  showHeader={false}
+                />
+              ),
+            },
+          ]}
+        />
       )}
-
-      {/* Workflow Section (hidden in create mode) */}
-      <ChangeOrderWorkflowSection
-        changeOrder={changeOrder || null}
-        onActionSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
-        }}
-        useCollapsibleCard
-      />
-
-      {/* Impact Section (hidden in create mode) */}
-      <ChangeOrderImpactSection
-        changeOrderId={changeOrderId || null}
-        branch={changeOrder ? `BR-${changeOrder.code}` : null}
-        useCollapsibleCard
-      />
     </div>
   );
 }

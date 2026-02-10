@@ -9,7 +9,12 @@ import { EntityImpactGrid } from "./EntityImpactGrid";
 import { ForecastImpactList } from "./ForecastImpactList";
 
 interface ImpactAnalysisDashboardProps {
+  /** Change order ID - can be passed as prop or read from URL params */
+  changeOrderId?: string;
+  /** Branch name - if not provided, will be derived from change order */
   branchName?: string;
+  /** Whether to show breadcrumbs and page header (for standalone page) */
+  showHeader?: boolean;
 }
 
 /**
@@ -22,12 +27,18 @@ interface ImpactAnalysisDashboardProps {
  * - S-curve comparison
  * - Entity changes grid
  *
- * Route: /projects/:projectId/change-orders/:changeOrderId/impact
+ * Can be used as:
+ * 1. Standalone page at /projects/:projectId/change-orders/:changeOrderId/impact
+ * 2. Embedded tab in change order detail page
  */
 export const ImpactAnalysisDashboard = ({
+  changeOrderId: changeOrderIdProp,
   branchName,
+  showHeader = true,
 }: ImpactAnalysisDashboardProps) => {
-  const { changeOrderId } = useParams<{ changeOrderId: string }>();
+  // Get changeOrderId from URL params if not provided as prop
+  const urlParams = useParams<{ changeOrderId: string }>();
+  const changeOrderId = changeOrderIdProp || urlParams.changeOrderId;
 
   // Fetch change order details first to get the branch name
   const {
@@ -119,48 +130,52 @@ export const ImpactAnalysisDashboard = ({
   ];
 
   return (
-    <div style={{ padding: 24 }}>
-      {/* Breadcrumbs */}
-      <Breadcrumb
-        style={{ marginBottom: 16 }}
-        items={[
-          { title: <Link to="/">Home</Link> },
-          {
-            title: (
-              <Link to={`/projects/${changeOrder?.project_id || ""}`}>
-                Project
-              </Link>
-            ),
-          },
-          {
-            title: (
-              <Link to={`/projects/${changeOrder?.project_id || ""}`}>
-                Change Orders
-              </Link>
-            ),
-          },
-          {
-            title: changeOrder?.code || "Change Order",
-          },
-          { title: "Impact Analysis" },
-        ]}
-      />
+    <div style={showHeader ? { padding: 24 } : undefined}>
+      {showHeader && (
+        <>
+          {/* Breadcrumbs */}
+          <Breadcrumb
+            style={{ marginBottom: 16 }}
+            items={[
+              { title: <Link to="/">Home</Link> },
+              {
+                title: (
+                  <Link to={`/projects/${changeOrder?.project_id || ""}`}>
+                    Project
+                  </Link>
+                ),
+              },
+              {
+                title: (
+                  <Link to={`/projects/${changeOrder?.project_id || ""}`}>
+                    Change Orders
+                  </Link>
+                ),
+              },
+              {
+                title: changeOrder?.code || "Change Order",
+              },
+              { title: "Impact Analysis" },
+            ]}
+          />
 
-      {/* Page Title */}
-      <div style={{ marginBottom: 24 }}>
-        <h1>
-          Impact Analysis: {changeOrder?.code || "N/A"}
-          {impactData.branch_name !== "main" && (
-            <span style={{ marginLeft: 12, fontSize: 14, fontWeight: "normal", color: "#8c8c8c" }}>
-              Branch: {impactData.branch_name}
-            </span>
-          )}
-        </h1>
-        <p style={{ color: "#8c8c8c", marginTop: 8 }}>
-          Comparing <strong>main</strong> branch with{" "}
-          <strong>{impactData.branch_name}</strong> branch
-        </p>
-      </div>
+          {/* Page Title */}
+          <div style={{ marginBottom: 24 }}>
+            <h1>
+              Impact Analysis: {changeOrder?.code || "N/A"}
+              {impactData.branch_name !== "main" && (
+                <span style={{ marginLeft: 12, fontSize: 14, fontWeight: "normal", color: "#8c8c8c" }}>
+                  Branch: {impactData.branch_name}
+                </span>
+              )}
+            </h1>
+            <p style={{ color: "#8c8c8c", marginTop: 8 }}>
+              Comparing <strong>main</strong> branch with{" "}
+              <strong>{impactData.branch_name}</strong> branch
+            </p>
+          </div>
+        </>
+      )}
 
       {/* Tabbed Content */}
       <Tabs defaultActiveKey="overview" items={tabItems} />
