@@ -535,6 +535,10 @@ async def get_change_order_impact(
         pattern="^(merged|isolated)$",
         description="Comparison mode: merged (main+change) or isolated (change only)",
     ),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get impact analysis as of this timestamp (ISO 8601)",
+    ),
     service: ImpactAnalysisService = Depends(get_impact_analysis_service),
 ) -> ImpactAnalysisResponse:
     """Get impact analysis for a change order by comparing branches.
@@ -561,7 +565,7 @@ async def get_change_order_impact(
 
     try:
         impact_analysis = await service.analyze_impact(
-            change_order_id, branch_name, branch_mode=branch_mode
+            change_order_id, branch_name, branch_mode=branch_mode, as_of=as_of
         )
         return impact_analysis
     except ValueError as e:

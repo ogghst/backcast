@@ -8,8 +8,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Tech Stack:** Python 3.12+ / FastAPI (backend) + React 18 / TypeScript / Vite (frontend) + PostgreSQL 15+
 
-**Architecture Docs:** See @docs/02-architecture for detailed architecture and @docs/02-architecture/backend/coding-standards.md and @docs/02-architecture/frontend/coding-standards.md for coding standards.
-
 ## Common Commands
 
 ### Backend (Python/FastAPI)
@@ -57,11 +55,11 @@ npm run lint                   # ESLint - must pass
 
 ## Architecture Overview
 
-**Backend:** Layered architecture (API → Services → Repositories → Models). See @docs/02-architecture/00-system-map.md
+**Backend:** Layered architecture (API → Services → Repositories → Models).
 
-**Frontend:** Feature-based organization with TanStack Query for server state, Zustand for client state. See @docs/02-architecture/frontend/contexts/01-core-architecture.md
+**Frontend:** Feature-based organization with TanStack Query for server state, Zustand for client state.
 
-**EVCS (Entity Versioning Control System):** Bitemporal versioning with PostgreSQL TSTZRANGE. All versioned entities support branch isolation for change orders. See @backend/app/core/versioning/
+**EVCS (Entity Versioning Control System):** Bitemporal versioning with PostgreSQL TSTZRANGE. All versioned entities support branch isolation for change orders.
 
 ## Database Strategy
 
@@ -92,15 +90,8 @@ npm run lint                   # ESLint - must pass
 - **Non-versioned entities:** Use `SimpleBase`, `SimpleService` (standard CRUD, standard delete)
 - **Key files:** `backend/app/core/versioning/temporal.py`, `backend/app/core/versioning/simple.py`
 
-**Bounded Contexts:** Auth, User Mgmt, Dept Mgmt, Project/WBE, Cost Elements, Change Orders, EVM. See @docs/02-architecture/01-bounded-contexts.md
-
-<<<<<<< HEAD
 ## Documentation
 
-- [Documentation Guide](docs/00-meta/README.md)
+- see [Documentation Guide](docs/00-meta/README.md)
 - [System Architecture and Coding Standards](docs/02-architecture/README.md)
-=======
-**Documentation:**
-- Architecture: @docs/02-architecture
-- Product Scope: @docs/01-product-scope
->>>>>>> a11c273 (docs: Update CLAUDE.md and coding standards)
+
