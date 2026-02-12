@@ -17,18 +17,21 @@ Per Phase 5 Plan:
 
 import asyncio
 import logging
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
+from sqlalchemy import cast as sql_cast
+from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.enums import BranchMode
 from app.models.domain.change_order import ChangeOrder
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_registration import CostRegistration
+from app.models.domain.project import Project
 from app.models.domain.schedule_baseline import ScheduleBaseline
 from app.models.domain.wbe import WBE
 from app.models.schemas.evm import EntityType
@@ -77,6 +80,7 @@ class ImpactAnalysisService:
         branch_mode: BranchMode = BranchMode.MERGE,
         timeout_seconds: int = 300,
         include_evm_metrics: bool = True,
+        as_of: datetime | None = None,
     ) -> ImpactAnalysisResponse:
         """Analyze impact of a change order by comparing branches.
 
@@ -86,6 +90,12 @@ class ImpactAnalysisService:
         Branch Mode:
         - MERGE mode: Shows merged result (main + change delta) - most intuitive for users
         - STRICT mode: Shows isolated comparison (delta only) - for detailed analysis
+
+        Time Machine (as_of):
+        - When as_of is provided, filters all temporal data to include only entities
+          with valid_time starting before or at the as_of timestamp
+        - When as_of is None, returns current state (no temporal filtering)
+        - Edge case: as_of after current date behaves same as as_of=None (all current data)
 
         CostRegistration Note: CostRegistrations are NOT branchable (global facts).
         When joining CostRegistration → CostElement, we must filter by branch to
@@ -99,6 +109,7 @@ class ImpactAnalysisService:
             branch_mode: MERGE (default) shows merged result, STRICT shows isolated comparison
             timeout_seconds: Timeout in seconds (default: 300 = 5 minutes)
             include_evm_metrics: Whether to include expensive EVM metrics (CPI, SPI, etc.)
+            as_of: Time travel timestamp (None = current, past = historical point)
 
         Returns:
             ImpactAnalysisResponse with complete comparison data
@@ -133,7 +144,7 @@ class ImpactAnalysisService:
             # Create analysis task with timeout
             analysis_task = asyncio.create_task(
                 self._perform_analysis(
-                    change_order_id, branch_name, branch_mode, include_evm_metrics
+                    change_order_id, branch_name, branch_mode, include_evm_metrics, as_of
                 )
             )
 
@@ -174,6 +185,7 @@ class ImpactAnalysisService:
         branch_name: str,
         branch_mode: BranchMode,
         include_evm_metrics: bool = True,
+        as_of: datetime | None = None,
     ) -> ImpactAnalysisResponse:
         """Perform the actual impact analysis.
 
@@ -185,6 +197,7 @@ class ImpactAnalysisService:
             branch_name: Name of the change branch (e.g., "BR-CO-2026-001")
             branch_mode: MERGE mode calculates merged values, STRICT mode calculates isolated values
             include_evm_metrics: Whether to include expensive EVM metrics
+            as_of: Time travel timestamp (None = current, past = historical point)
 
         Returns:
             ImpactAnalysisResponse with complete comparison data
@@ -362,16 +375,8 @@ class ImpactAnalysisService:
         margin_delta = change_gross_margin - main_gross_margin
         waterfall = self._build_waterfall(main_gross_margin, margin_delta)
 
-        # Generate time-series data
-        time_series_points = await self._generate_time_series(project_id, branch_name)
-
-        # Format time-series data
-        time_series = [
-            TimeSeriesData(
-                metric_name="budget",
-                data_points=time_series_points,
-            )
-        ]
+        # Generate time-series data (returns 4 metrics: budget, pv, ev, ac)
+        time_series = await self._generate_time_series(project_id, branch_name, as_of)
 
         return ImpactAnalysisResponse(
             change_order_id=change_order_id,
@@ -642,7 +647,7 @@ class ImpactAnalysisService:
         wbe_cost_deltas: dict[UUID, Decimal] = {}
         ce_cost_deltas: dict[UUID, Decimal] = {}
 
-        for cr_change in cr_changes:
+        for _cr_change in cr_changes:
             # We need to find the registration to get its WBE/CE links
             # Searching for the change in our maps
             # (In a real system, we'd do this more efficiently during collation)
@@ -660,7 +665,7 @@ class ImpactAnalysisService:
         for cr_id in all_cr_ids:
             main_cr = main_cr_map.get(cr_id)
             merged_cr = merged_cr_map.get(cr_id)
-            
+
             delta = Decimal("0")
             ref_cr = None
 
@@ -680,7 +685,7 @@ class ImpactAnalysisService:
                 # Link to CostElement
                 ce_id = ref_cr.cost_element_id
                 ce_cost_deltas[ce_id] = ce_cost_deltas.get(ce_id, Decimal("0")) + delta
-                
+
                 # We need to find the WBE for this CE to aggregate up
                 # Optimization: we have merged_cost_elements list
                 pass
@@ -743,7 +748,7 @@ class ImpactAnalysisService:
                 assert (
                     change_wbe is not None
                 )  # Logically: root_id in union but not in main
-                
+
                 # For added entities, we show the full value as the delta
                 changes.append(
                     EntityChange(
@@ -823,7 +828,7 @@ class ImpactAnalysisService:
                 assert (
                     change_ce is not None
                 )  # Logically: root_id in union but not in main
-                
+
                 # For added entities, show full value as delta
                 changes.append(
                     EntityChange(
@@ -972,49 +977,574 @@ class ImpactAnalysisService:
         ]
 
     async def _generate_time_series(
-        self, project_id: UUID, branch_name: str
-    ) -> list[TimeSeriesPoint]:
-        """Generate weekly time-series data.
+        self, project_id: UUID, branch_name: str, as_of: datetime | None = None
+    ) -> list[TimeSeriesData]:
+        """Generate 4 time-series datasets for EVM S-curve visualization.
+
+        Context: Generates weekly cumulative values for Budget, Planned Value (PV),
+        Earned Value (EV), and Actual Cost (AC) across the project duration.
+        Used by the S-Curve Comparison tab in impact analysis to show full EVM
+        visibility with MERGE mode comparison between main and change branch.
+
+        Time Machine (as_of):
+        - When as_of is provided, filters all temporal data (ProgressEntry, CostRegistration,
+          CostElement, ScheduleBaseline, WBE) to include only entities with valid_time
+          starting before or at the as_of timestamp
+        - When as_of is None, returns current state (no temporal filtering)
+        - Edge case: as_of after current date behaves same as as_of=None (all current data)
+
+        Metrics:
+        - budget: Cumulative budget allocation (same as PV)
+        - pv: Planned Value from schedule baselines (BAC × scheduled %)
+        - ev: Earned Value from progress entries (BAC × actual %)
+        - ac: Actual Cost from cost registrations (cumulative spend)
+
+        Args:
+            project_id: UUID of the project
+            branch_name: Name of the change branch (e.g., "BR-CO-2026-001")
+            as_of: Time travel timestamp (None = current, past = historical point)
+
+        Returns:
+            List of 4 TimeSeriesData objects with metric_names:
+            - "budget": Cumulative budget allocation
+            - "pv": Planned Value (scheduled work)
+            - "ev": Earned Value (completed work)
+            - "ac": Actual Cost (incurred costs)
+
+            Returns empty list if no schedule baselines found.
+        """
+        from app.models.domain.progress_entry import ProgressEntry
+        from app.services.progression import get_progression_strategy
+
+        # ========================================================================
+        # STEP 1: Get project date range from schedule baselines
+        # ========================================================================
+        # Query all schedule baselines for cost elements in this project (both branches)
+        # CRITICAL: We must join WBE with branch matching CostElement.branch to ensure
+        # we get the correct budget_allocation for each branch's WBE version
+
+        # Apply temporal filtering if as_of is specified
+        if as_of is not None:
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            schedule_stmt = (
+                select(ScheduleBaseline, CostElement, WBE)
+                .join(
+                    CostElement,
+                    ScheduleBaseline.schedule_baseline_id == CostElement.schedule_baseline_id,
+                )
+                .join(
+                    WBE,
+                    and_(
+                        CostElement.wbe_id == WBE.wbe_id,
+                        WBE.branch == CostElement.branch,
+                    ),
+                )
+                .where(
+                    WBE.project_id == project_id,
+                    cast(Any, ScheduleBaseline).deleted_at.is_(None),
+                    # Time machine: Only include schedules/WBEs/CostElements valid at as_of
+                    ScheduleBaseline.valid_time.op("@>")(as_of_tstz),
+                    func.lower(ScheduleBaseline.valid_time) <= as_of_tstz,
+                    WBE.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    CostElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                )
+            )
+        else:
+            # No time filtering - get current schedules
+            schedule_stmt = (
+                select(ScheduleBaseline, CostElement, WBE)
+                .join(
+                    CostElement,
+                    ScheduleBaseline.schedule_baseline_id == CostElement.schedule_baseline_id,
+                )
+                .join(
+                    WBE,
+                    and_(
+                        CostElement.wbe_id == WBE.wbe_id,
+                        WBE.branch == CostElement.branch,
+                    ),
+                )
+                .where(
+                    WBE.project_id == project_id,
+                    ScheduleBaseline.deleted_at.is_(None),
+                    func.upper(ScheduleBaseline.valid_time).is_(None),
+                    WBE.deleted_at.is_(None),
+                    func.upper(WBE.valid_time).is_(None),
+                    CostElement.deleted_at.is_(None),
+                    func.upper(CostElement.valid_time).is_(None),
+                )
+            )
+
+        schedule_result = await self._db.execute(schedule_stmt)
+        schedules = schedule_result.all()
+
+        if not schedules:
+            # Fallback: If no schedules exist, use simple WBE-based budget calculation
+            # This handles projects that haven't set up schedule baselines yet
+            return await self._generate_simple_budget_series(project_id, branch_name, as_of)
+
+        # Separate by CostElement branch (not ScheduleBaseline.branch)
+        # ScheduleBaselines are shared across branches (they're in main), but CostElements
+        # determine which branch the schedule belongs to for comparison purposes
+        main_schedules = [s for s in schedules if s[1].branch == "main"]
+        change_schedules = [s for s in schedules if s[1].branch == branch_name]
+
+        if not main_schedules:
+            # Fallback: If no main schedules exist, use simple WBE-based budget calculation
+            return await self._generate_simple_budget_series(project_id, branch_name, as_of)
+
+        # ========================================================================
+        # STEP 1b: Determine date range for S-curve
+        # ========================================================================
+        # Prefer project-level dates over schedule baseline dates
+
+        # First, filter valid schedules (needed later in the code)
+        valid_main_schedules = [
+            s for s in main_schedules if s[0].start_date is not None and s[0].end_date is not None
+        ]
+
+        # Fetch the project's start_date and end_date from the main branch
+        project_result = await self._db.execute(
+            select(Project)
+            .where(
+                Project.project_id == project_id,
+                Project.branch == "main",
+                Project.deleted_at.is_(None),
+            )
+        )
+        project = project_result.scalar_one_or_none()
+
+        # Use project dates if available, otherwise fall back to schedule baseline dates
+        if project and project.start_date and project.end_date:
+            min_start = project.start_date
+            max_end = project.end_date
+        else:
+            # Fallback to schedule baseline dates
+            if not valid_main_schedules:
+                return []
+
+            min_start = min(s[0].start_date for s in valid_main_schedules)
+            max_end = max(s[0].end_date for s in valid_main_schedules)
+
+        # ========================================================================
+        # STEP 2: Batch fetch all required data for EVM calculations
+        # ========================================================================
+        # Get all cost element IDs for this project (both branches)
+        if as_of is not None:
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            all_cost_elements_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch.in_(["main", branch_name]),
+                    CostElement.deleted_at.is_(None),
+                    # Time machine: Only include cost elements valid at as_of
+                    CostElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                )
+            )
+        else:
+            # No time filtering - get current cost elements
+            all_cost_elements_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch.in_(["main", branch_name]),
+                    func.upper(CostElement.valid_time).is_(None),
+                    CostElement.deleted_at.is_(None),
+                )
+            )
+        ce_result = await self._db.execute(all_cost_elements_stmt)
+        all_cost_elements = ce_result.scalars().all()
+
+        # Build cost element lookup by (cost_element_id, branch)
+        ce_lookup: dict[tuple[UUID, str], CostElement] = {}
+        for ce in all_cost_elements:
+            ce_lookup[(ce.cost_element_id, ce.branch)] = ce
+
+        # ========================================================================
+        # STEP 3: Batch fetch ProgressEntry data for EV calculation
+        # ========================================================================
+        # ProgressEntry is NOT branchable - need to filter by CostElement.branch
+        # We need to join with CostElement to know which branch the progress applies to
+        if as_of is not None:
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            progress_stmt = (
+                select(ProgressEntry, CostElement)
+                .join(CostElement, ProgressEntry.cost_element_id == CostElement.cost_element_id)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch.in_(["main", branch_name]),
+                    ProgressEntry.deleted_at.is_(None),
+                    # Time machine: Only include progress entries valid at as_of
+                    ProgressEntry.valid_time.op("@>")(as_of_tstz),
+                    func.lower(ProgressEntry.valid_time) <= as_of_tstz,
+                )
+            ).order_by(
+                CostElement.branch,
+                CostElement.cost_element_id,
+                func.lower(ProgressEntry.valid_time).desc()
+            )
+        else:
+            # No time filtering - get current progress entries
+            progress_stmt = (
+                select(ProgressEntry, CostElement)
+                .join(CostElement, ProgressEntry.cost_element_id == CostElement.cost_element_id)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch.in_(["main", branch_name]),
+                    ProgressEntry.deleted_at.is_(None),
+                    func.upper(ProgressEntry.valid_time).is_(None),
+                )
+            ).order_by(
+                CostElement.branch,
+                CostElement.cost_element_id,
+                func.lower(ProgressEntry.valid_time).desc()
+            )
+
+        progress_result = await self._db.execute(progress_stmt)
+        progress_rows = progress_result.all()
+
+        # Build progress lookup: (cost_element_id, branch) -> latest ProgressEntry
+        progress_lookup: dict[tuple[UUID, str], ProgressEntry] = {}
+        for pe, ce in progress_rows:
+            key = (ce.cost_element_id, ce.branch)
+            # Only keep the first (latest) entry for each key
+            if key not in progress_lookup:
+                progress_lookup[key] = pe
+
+        # ========================================================================
+        # STEP 4: Batch fetch CostRegistration data for AC calculation
+        # ========================================================================
+        # CostRegistration is NOT branchable - need to filter by CostElement.branch
+        # We fetch all registrations and will filter by CostElement.branch when aggregating
+        if as_of is not None:
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            cost_reg_stmt = (
+                select(CostRegistration, CostElement)
+                .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch.in_(["main", branch_name]),
+                    CostRegistration.deleted_at.is_(None),
+                    # Time machine: Only include cost registrations valid at as_of
+                    CostRegistration.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostRegistration.valid_time) <= as_of_tstz,
+                )
+            ).order_by(CostRegistration.registration_date)
+        else:
+            # No time filtering - get current cost registrations
+            cost_reg_stmt = (
+                select(CostRegistration, CostElement)
+                .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch.in_(["main", branch_name]),
+                    CostRegistration.deleted_at.is_(None),
+                    func.upper(CostRegistration.valid_time).is_(None),
+                )
+            ).order_by(CostRegistration.registration_date)
+
+        cost_reg_result = await self._db.execute(cost_reg_stmt)
+        cost_reg_rows = cost_reg_result.all()
+
+        # Build cost registration lookup: (cost_element_id, branch) -> list of registrations
+        from collections import defaultdict
+        cost_reg_lookup: dict[tuple[UUID, str], list[CostRegistration]] = defaultdict(list)
+        for cr, ce in cost_reg_rows:
+            cost_reg_lookup[(ce.cost_element_id, ce.branch)].append(cr)
+
+        # ========================================================================
+        # STEP 5: Generate weekly intervals
+        # ========================================================================
+        weekly_periods = []
+        current_week_start = min_start.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # Safety: Limit to 520 weeks (10 years) to prevent performance issues
+        max_weeks = 520
+        week_count = 0
+
+        while current_week_start <= max_end and week_count < max_weeks:
+            week_end = current_week_start + timedelta(days=6)
+            weekly_periods.append(
+                {"week_start": current_week_start, "week_end": min(week_end, max_end)}
+            )
+            current_week_start = week_end + timedelta(days=1)
+            week_count += 1
+
+        # ========================================================================
+        # STEP 6: Calculate metrics for each week
+        # ========================================================================
+        # We'll calculate all 4 metrics in a single pass through the schedules
+
+        # Initialize time series data for each metric
+        budget_series: list[TimeSeriesPoint] = []
+        pv_series: list[TimeSeriesPoint] = []
+        ev_series: list[TimeSeriesPoint] = []
+        ac_series: list[TimeSeriesPoint] = []
+
+        # Pre-group schedules by branch for efficient iteration
+        valid_change_schedules = [
+            s for s in change_schedules
+            if s[0].start_date is not None and s[0].end_date is not None
+        ]
+
+        # Build WBE ID sets for MERGE mode logic
+        main_wbe_ids = {s[2].wbe_id for s in valid_main_schedules}
+        change_wbe_ids = {s[2].wbe_id for s in valid_change_schedules}
+        only_in_main = main_wbe_ids - change_wbe_ids
+
+        for period in weekly_periods:
+            week_start = period["week_start"]
+            week_mid = period["week_start"] + timedelta(days=3)
+            week_start_date = week_start.date()
+
+            # Initialize accumulators for this week
+            main_budget = Decimal("0")
+            main_pv = Decimal("0")
+            main_ev = Decimal("0")
+            main_ac = Decimal("0")
+
+            change_budget = Decimal("0")
+            change_pv = Decimal("0")
+            change_ev = Decimal("0")
+            change_ac = Decimal("0")
+
+            # ------------------------------------------------------------
+            # Calculate main branch metrics
+            # ------------------------------------------------------------
+            for schedule, ce, wbe in valid_main_schedules:
+                budget = wbe.budget_allocation or Decimal("0")
+                if not (schedule.start_date and schedule.end_date):
+                    continue
+
+                try:
+                    # Budget/PV: Use progression strategy
+                    strategy = get_progression_strategy(schedule.progression_type)
+                    progress = strategy.calculate_progress(
+                        week_mid, schedule.start_date, schedule.end_date
+                    )
+                    budget_pv = Decimal(str(progress)) * budget
+
+                    main_budget += budget_pv
+                    main_pv += budget_pv
+
+                    # EV: Use progress entries
+                    pe = progress_lookup.get((ce.cost_element_id, "main"))
+                    if pe:
+                        ev = budget * pe.progress_percentage / Decimal("100")
+                        main_ev += ev
+                    # If no progress entry, EV = 0
+
+                    # AC: Use cost registrations (cumulative up to week_mid)
+                    registrations = cost_reg_lookup.get((ce.cost_element_id, "main"), [])
+                    for cr in registrations:
+                        if cr.registration_date and cr.registration_date <= week_mid:
+                            main_ac += cr.amount
+
+                except ValueError:
+                    # Skip invalid date ranges
+                    pass
+
+            # ------------------------------------------------------------
+            # Calculate change branch metrics
+            # ------------------------------------------------------------
+            for schedule, ce, wbe in valid_change_schedules:
+                budget = wbe.budget_allocation or Decimal("0")
+                if not (schedule.start_date and schedule.end_date):
+                    continue
+
+                try:
+                    # Budget/PV: Use progression strategy
+                    strategy = get_progression_strategy(schedule.progression_type)
+                    progress = strategy.calculate_progress(
+                        week_mid, schedule.start_date, schedule.end_date
+                    )
+                    budget_pv = Decimal(str(progress)) * budget
+
+                    change_budget += budget_pv
+                    change_pv += budget_pv
+
+                    # EV: Use progress entries
+                    pe = progress_lookup.get((ce.cost_element_id, branch_name))
+                    if pe:
+                        ev = budget * pe.progress_percentage / Decimal("100")
+                        change_ev += ev
+
+                    # AC: Use cost registrations
+                    registrations = cost_reg_lookup.get((ce.cost_element_id, branch_name), [])
+                    for cr in registrations:
+                        if cr.registration_date and cr.registration_date <= week_mid:
+                            change_ac += cr.amount
+
+                except ValueError:
+                    pass
+
+            # ------------------------------------------------------------
+            # MERGE mode: Add unchanged WBEs from main to change
+            # ------------------------------------------------------------
+            for schedule, ce, wbe in valid_main_schedules:
+                if wbe.wbe_id in only_in_main:
+                    budget = wbe.budget_allocation or Decimal("0")
+                    if not (schedule.start_date and schedule.end_date):
+                        continue
+
+                    try:
+                        strategy = get_progression_strategy(schedule.progression_type)
+                        progress = strategy.calculate_progress(
+                            week_mid, schedule.start_date, schedule.end_date
+                        )
+                        budget_pv = Decimal(str(progress)) * budget
+
+                        change_budget += budget_pv
+                        change_pv += budget_pv
+
+                        # EV: Use progress entries from main
+                        pe = progress_lookup.get((ce.cost_element_id, "main"))
+                        if pe:
+                            ev = budget * pe.progress_percentage / Decimal("100")
+                            change_ev += ev
+
+                        # AC: Use cost registrations from main
+                        registrations = cost_reg_lookup.get((ce.cost_element_id, "main"), [])
+                        for cr in registrations:
+                            if cr.registration_date and cr.registration_date <= week_mid:
+                                change_ac += cr.amount
+
+                    except ValueError:
+                        pass
+
+            # ------------------------------------------------------------
+            # Create time series points for this week
+            # ------------------------------------------------------------
+            budget_series.append(
+                TimeSeriesPoint(
+                    week_start=week_start_date,
+                    main_value=main_budget,
+                    change_value=change_budget,
+                )
+            )
+            pv_series.append(
+                TimeSeriesPoint(
+                    week_start=week_start_date,
+                    main_value=main_pv,
+                    change_value=change_pv,
+                )
+            )
+            ev_series.append(
+                TimeSeriesPoint(
+                    week_start=week_start_date,
+                    main_value=main_ev,
+                    change_value=change_ev,
+                )
+            )
+            ac_series.append(
+                TimeSeriesPoint(
+                    week_start=week_start_date,
+                    main_value=main_ac,
+                    change_value=change_ac,
+                )
+            )
+
+        # ========================================================================
+        # STEP 7: Build and return the 4 time series
+        # ========================================================================
+        return [
+            TimeSeriesData(metric_name="budget", data_points=budget_series),
+            TimeSeriesData(metric_name="pv", data_points=pv_series),
+            TimeSeriesData(metric_name="ev", data_points=ev_series),
+            TimeSeriesData(metric_name="ac", data_points=ac_series),
+        ]
+
+    async def _generate_simple_budget_series(
+        self, project_id: UUID, branch_name: str, as_of: datetime | None = None
+    ) -> list[TimeSeriesData]:
+        """Generate simple budget-based time series when no schedules exist.
+
+        Fallback method for projects without schedule baselines.
+        Calculates budget totals from WBEs only.
 
         Args:
             project_id: UUID of the project
             branch_name: Name of the change branch
+            as_of: Time travel timestamp (None = current, past = historical point)
 
         Returns:
-            List of weekly TimeSeriesPoint objects
+            List with single TimeSeriesData for budget metric
         """
         # Get total budget from main branch
-        main_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
-            WBE.project_id == project_id,
-            WBE.branch == "main",
-            func.upper(cast(Any, WBE).valid_time).is_(None),
-            cast(Any, WBE).deleted_at.is_(None),
-        )
+        if as_of is not None:
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            main_budget_stmt = (
+                select(func.sum(WBE.budget_allocation))
+                .where(
+                    WBE.project_id == project_id,
+                    WBE.branch == "main",
+                    WBE.deleted_at.is_(None),
+                    WBE.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBE.valid_time) <= as_of_tstz,
+                )
+            )
+        else:
+            main_budget_stmt = (
+                select(func.sum(WBE.budget_allocation))
+                .where(
+                    WBE.project_id == project_id,
+                    WBE.branch == "main",
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None),
+                )
+            )
         main_budget_result = await self._db.execute(main_budget_stmt)
         main_total = main_budget_result.scalar() or Decimal("0")
 
         # Get total budget from change branch
-        change_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
-            WBE.project_id == project_id,
-            WBE.branch == branch_name,
-            func.upper(cast(Any, WBE).valid_time).is_(None),
-            cast(Any, WBE).deleted_at.is_(None),
-        )
+        if as_of is not None:
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            change_budget_stmt = (
+                select(func.sum(WBE.budget_allocation))
+                .where(
+                    WBE.project_id == project_id,
+                    WBE.branch == branch_name,
+                    WBE.deleted_at.is_(None),
+                    WBE.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBE.valid_time) <= as_of_tstz,
+                )
+            )
+        else:
+            change_budget_stmt = (
+                select(func.sum(WBE.budget_allocation))
+                .where(
+                    WBE.project_id == project_id,
+                    WBE.branch == branch_name,
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None),
+                )
+            )
         change_budget_result = await self._db.execute(change_budget_stmt)
         change_total = change_budget_result.scalar() or Decimal("0")
 
         # Return as a single time point (current week)
-        # Note: Full implementation would aggregate historical data by week
-        # For now, we return current budget totals as the latest time point
-        current_week_start = date.today().replace(
-            day=1
-        )  # First of current month as approximation
+        current_week_start = datetime.now(UTC).date()
+
+        budget_point = TimeSeriesPoint(
+            week_start=current_week_start,
+            main_value=main_total,
+            change_value=change_total,
+        )
 
         return [
-            TimeSeriesPoint(
-                week_start=current_week_start,
-                main_value=main_total,
-                change_value=change_total,
+            TimeSeriesData(
+                metric_name="budget",
+                data_points=[budget_point],
             )
         ]
 

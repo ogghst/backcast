@@ -4,6 +4,8 @@ export { ImpactAnalysisDashboard } from "./components/ImpactAnalysisDashboard";
 export { KPICards } from "./components/KPICards";
 export { WaterfallChart } from "./components/WaterfallChart";
 export { SCurveComparison } from "./components/SCurveComparison";
+export { MultiSCurveDisplay } from "./components/MultiSCurveDisplay";
+export { SCurveChart } from "./components/SCurveChart";
 export { EntityImpactGrid } from "./components/EntityImpactGrid";
 export { ApprovalInfo } from "./components/ApprovalInfo";
 export {

@@ -4,7 +4,7 @@ import { useImpactAnalysis } from "../api/useImpactAnalysis";
 import { useChangeOrder } from "../api/useChangeOrders";
 import { KPICards } from "./KPICards";
 import { WaterfallChart } from "./WaterfallChart";
-import { SCurveComparison } from "./SCurveComparison";
+import { MultiSCurveDisplay } from "./MultiSCurveDisplay";
 import { EntityImpactGrid } from "./EntityImpactGrid";
 import { ForecastImpactList } from "./ForecastImpactList";
 
@@ -57,6 +57,7 @@ export const ImpactAnalysisDashboard = ({
   } = useImpactAnalysis(
     changeOrderId,
     actualBranchName,
+    "merged",
     { enabled: !!actualBranchName }
   );
 
@@ -99,10 +100,14 @@ export const ImpactAnalysisDashboard = ({
     },
     {
       key: "scurve",
-      label: "S-Curve",
+      label: "S-Curve Comparison",
       children: (
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          <SCurveComparison timeSeries={impactData.time_series} />
+          <MultiSCurveDisplay
+            timeSeries={impactData.time_series}
+            loading={impactLoading}
+            showExport={true}
+          />
         </div>
       ),
     },
