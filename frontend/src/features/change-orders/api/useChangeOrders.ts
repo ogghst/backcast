@@ -70,7 +70,7 @@ export const useChangeOrders = (params: ChangeOrderListParams) => {
 
 /**
  * Custom create hook for change orders with Time Machine integration.
- * Automatically creates a co-{code} branch when the change order is created.
+ * Automatically creates a BR-{code} branch when the change order is created.
  *
  * Change orders can be created at any control date, including in the past.
  * Uses Time Machine's asOf as control_date for historical creation.
@@ -120,7 +120,7 @@ export const useCreateChangeOrder = (
         queryKey: queryKeys.projects.branches(data.project_id.toString()),
       });
       toast.success(
-        `Change Order ${data.code} created with branch co-${data.code}`,
+        `Change Order ${data.code} created with branch BR-${data.code}`,
       );
       mutationOptions?.onSuccess?.(data, ...args);
     },

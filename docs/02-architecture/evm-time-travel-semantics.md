@@ -23,11 +23,13 @@ The EVM system supports **Valid Time Travel** queries, allowing you to retrieve 
 ### Key Concepts
 
 **Versioned Entities:**
+
 - Cost Elements, WBEs, Projects, Schedule Baselines
 - Have `valid_time` (TSTZRANGE) and `transaction_time` (TSTZRANGE)
 - Support time-travel queries via `get_as_of(id, control_date)` methods
 
 **Non-Versioned Entities (Global Facts):**
+
 - Cost Registrations, Progress Entries, Forecasts
 - No `valid_time` (not versioned)
 - Always fetched as of current time (global facts)
@@ -119,7 +121,7 @@ GET /api/v1/evm/cost_element/{id}/metrics
 GET /api/v1/evm/cost_element/{id}/metrics?branch=main
 
 # Get EVM for change order branch
-GET /api/v1/evm/cost_element/{id}/metrics?branch=co-001-feature-addition
+GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001-feature-addition
 ```
 
 ### branch_mode
@@ -127,6 +129,7 @@ GET /api/v1/evm/cost_element/{id}/metrics?branch=co-001-feature-addition
 **Description:** Branch isolation mode
 
 **Values:**
+
 - `"merge"` (default): Fall back to parent branches if entity not in current branch
 - `"strict"` or `"isolated"`: Only query current branch, no fallback
 
@@ -141,10 +144,10 @@ GET /api/v1/evm/cost_element/{id}/metrics?branch=co-001-feature-addition
 
 ```bash
 # Merge mode: Fall back to parent if not in branch
-GET /api/v1/evm/cost_element/{id}/metrics?branch=co-001&branch_mode=merge
+GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001&branch_mode=merge
 
 # Strict mode: Only current branch
-GET /api/v1/evm/cost_element/{id}/metrics?branch=co-001&branch_mode=strict
+GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001&branch_mode=strict
 ```
 
 ---
@@ -163,6 +166,7 @@ GET /api/v1/evm/cost_element/{id}/metrics?control_date=2026-03-01T00:00:00Z
 ```
 
 **Use Cases:**
+
 - Audit historical project performance
 - Compare current vs. past performance
 - Generate trend reports
@@ -176,11 +180,12 @@ Compare EVM metrics across change order branches:
 # Baseline budget (main branch)
 GET /api/v1/evm/cost_element/{id}/metrics?branch=main
 
-# Change order budget (co-001 branch)
-GET /api/v1/evm/cost_element/{id}/metrics?branch=co-001-feature-addition
+# Change order budget (BR-001 branch)
+GET /api/v1/evm/cost_element/{id}/metrics?branch=BR-001-feature-addition
 ```
 
 **Use Cases:**
+
 - Compare baseline budget vs. change order budget
 - Analyze cost impact of proposed changes
 - Validate change order justifications
@@ -196,6 +201,7 @@ GET /api/v1/evm/cost_element/{id}/timeseries?granularity=week&control_date=2026-
 ```
 
 **Use Cases:**
+
 - Visualize EVM trends over time
 - Identify performance patterns
 - Forecast completion based on historical data
@@ -396,6 +402,7 @@ Cost registrations and progress entries are **not versioned**:
 - **Rationale**: These are "global facts" that cannot be time-traveled
 
 **Example**:
+
 ```
 - Jan 1, 2026: Cost element created (BAC = €100,000)
 - Feb 1, 2026: Cost registration of €10,000
@@ -414,9 +421,10 @@ Change order branches can modify versioned entities but not global facts:
 - **Global facts**: Cost registrations, progress entries (same across branches)
 
 **Example**:
+
 ```
 Main branch: BAC = €100,000
-co-001 branch: BAC = €120,000 (change order)
+BR-001 branch: BAC = €120,000 (change order)
 
 Cost registrations are SHARED across branches:
 - AC is the same in both branches
@@ -551,6 +559,7 @@ if (!data) return <Empty />;
 ## Changelog
 
 ### 2026-01-22
+
 - Documented Valid Time Travel semantics for EVM queries
 - Documented branch isolation modes (merge vs. strict)
 - Documented frontend integration with TimeMachineContext

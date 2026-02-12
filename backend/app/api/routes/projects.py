@@ -81,6 +81,11 @@ async def read_projects(
     # Calculate skip from page number
     skip = (page - 1) * per_page
 
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     try:
         # Get projects with filters
         projects, total = await service.get_projects(
@@ -142,7 +147,6 @@ async def create_project(
         project = await service.create_project(
             project_in=project_in,
             actor_id=current_user.user_id,
-            control_date=project_in.control_date,
         )
         return project
     except ValueError as e:
@@ -172,6 +176,11 @@ async def read_project(
     Supports time-travel queries via the as_of parameter to view
     the project's state at any historical point in time.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     if as_of:
         # Time travel query
         project = await service.get_project_as_of(project_id, as_of, branch=branch)
@@ -206,7 +215,6 @@ async def update_project(
             project_id=project_id,
             project_in=project_in,
             actor_id=current_user.user_id,
-            control_date=project_in.control_date,
         )
         return updated_project
     except ValueError as e:
@@ -274,9 +282,14 @@ async def read_project_branches(
 ) -> list[BranchPublic]:
     """Get all branches for a project.
 
-    Returns the main branch plus any change order branches (co-{code})
+    Returns the main branch plus any change order branches (BR-{code})
     that exist for this project.
 
     Requires read permission.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     return await service.get_project_branches(project_id, as_of=as_of)

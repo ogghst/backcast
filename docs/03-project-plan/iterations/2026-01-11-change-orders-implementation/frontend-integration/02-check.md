@@ -27,6 +27,7 @@
 | ESLint clean (iteration scope) | ⚠️ | ⚠️ Pre-existing errors | 19 errors exist, none from this iteration | Pre-existing `@typescript-eslint/no-explicit-any` errors |
 
 **Status Key:**
+
 - ✅ Fully met
 - ⚠️ Partially met (pre-existing issues)
 
@@ -39,9 +40,11 @@
 ### Changes Made
 
 **Single File Modified:**
+
 - [frontend/src/features/cost-elements/api/useCostElements.ts](../../../../../../../frontend/src/features/cost-elements/api/useCostElements.ts)
 
 **Changes:**
+
 1. Added `mode` to destructured `useTimeMachineParams()` (line 39)
 2. Added `mode` to query key array (line 42)
 3. Added `mode: mode` to query parameters (line 91)
@@ -91,18 +94,21 @@ The following components were already fully implemented from previous iterations
 ### Patterns Applied
 
 **1. React Query (TanStack Query)**
+
 - Application: ✅ Correct
 - Query key includes time machine params: `["cost_elements", params, { asOf, mode }]`
 - Automatic invalidation on view mode change
 - Cache keys properly scoped
 
 **2. Time Machine Context**
+
 - Application: ✅ Correct
 - `useTimeMachineParams()` hook provides consistent API
 - Centralized state management via Zustand
 - Per-project settings persisted to localStorage
 
 **3. Manual Request Pattern**
+
 - Application: ✅ Correct
 - Uses `__request()` to support custom query parameters
 - Consistent with WBE reference implementation
@@ -117,6 +123,7 @@ The following components were already fully implemented from previous iterations
 ### Architectural Conventions
 
 **Follows existing patterns:**
+
 - ✅ Time machine params in all queries
 - ✅ Manual `__request()` for custom query params
 - ✅ Toast notifications for mutations
@@ -128,18 +135,22 @@ The following components were already fully implemented from previous iterations
 ## 5. Integration Compatibility
 
 **API Contracts:** ✅ No breaking changes
+
 - Changes are additive (added `mode` parameter)
 - Existing consumers continue to work
 - Backend already supports mode parameter
 
 **Public Interfaces:** ✅ Stable
+
 - `useCostElements()` hook signature unchanged
 - Query params are optional
 
 **Dependency Updates:**
+
 - None (no new dependencies)
 
 **Backward Compatibility:** ✅ Maintained
+
 - Existing components work unchanged
 - New mode parameter is optional
 
@@ -222,6 +233,7 @@ The following components were already fully implemented from previous iterations
 **Frontend Integration: ✅ PASSED**
 
 **Summary:**
+
 - 9/9 acceptance criteria fully met (100%)
 - Zero TypeScript errors
 - Zero new ESLint errors
@@ -238,6 +250,7 @@ The following components were already fully implemented from previous iterations
 ### Files Modified
 
 **frontend/src/features/cost-elements/api/useCostElements.ts:**
+
 ```diff
 - const { asOf } = useTimeMachineParams();
 + const { asOf, mode } = useTimeMachineParams();
@@ -258,16 +271,19 @@ The following components were already fully implemented from previous iterations
 ### Files Verified (Already Implemented)
 
 **Header Integration:**
+
 - `frontend/src/layouts/AppLayout.tsx:161` - TimeMachineCompact in header
 - `frontend/src/components/time-machine/TimeMachineCompact.tsx:99` - BranchSelector
 - `frontend/src/components/time-machine/ProjectBranchSelector.tsx:57` - ViewModeSelector
 
 **Projects API:**
+
 - `frontend/src/features/projects/api/useProjects.ts:95` - List query with branch/mode/as_of
 - `frontend/src/features/projects/api/useProjects.ts:122` - Create mutation with branch
 - `frontend/src/features/projects/api/useProjects.ts:153` - Update mutation with branch
 
 **Time Machine Store:**
+
 - `frontend/src/stores/useTimeMachineStore.ts` - Branch/mode/as_of state with persistence
 
 ---
@@ -277,14 +293,16 @@ The following components were already fully implemented from previous iterations
 ### Manual Testing Checklist
 
 **Branch Switching:**
+
 - [ ] Navigate to a project page
-- [ ] Create a change order (should create co-{code} branch)
+- [ ] Create a change order (should create BR-{code} branch)
 - [ ] Use BranchSelector to switch to the new branch
 - [ ] Verify data updates to show branch-specific entities
 - [ ] Switch back to main branch
 - [ ] Verify main branch data is restored
 
 **View Mode Toggle:**
+
 - [ ] Select a change order branch
 - [ ] Toggle view mode to "Isolated"
 - [ ] Verify only branch entities are shown
@@ -293,12 +311,14 @@ The following components were already fully implemented from previous iterations
 - [ ] Branch entities should take precedence over main
 
 **Time Machine Integration:**
+
 - [ ] Use time machine to select a past date
 - [ ] Verify all queries include as_of parameter
 - [ ] Reset to "Now"
 - [ ] Verify current data is shown
 
 **Locked Branches (Future):**
+
 - [ ] Submit change order for approval (should lock branch)
 - [ ] Verify edit operations are prevented
 - [ ] Show appropriate error message
@@ -308,6 +328,7 @@ The following components were already fully implemented from previous iterations
 ### Automated Testing (Future)
 
 Consider adding integration tests for:
+
 - Branch switching triggers query invalidation
 - View mode change triggers query invalidation
 - Time machine date change triggers query invalidation

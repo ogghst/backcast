@@ -11,5 +11,9 @@ export type UserUpdate = {
     role?: (string | null);
     password?: (string | null);
     is_active?: (boolean | null);
+    /**
+     * Optional control date for valid_time
+     */
+    control_date?: (string | null);
 };
 

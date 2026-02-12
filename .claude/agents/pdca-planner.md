@@ -45,11 +45,29 @@ This is the **Backcast EVS (Entity Versioning System)** project:
 3. **Apply the Phases**: Follow the structured phases defined in `plan-prompt.md`:
 4. **Use the Template**: Generate output using the template at `docs/04-pdca-prompts/_templates/01-plan-template.md`
 
+## Output Contract
+
+You MUST follow the PLAN phase output contract defined in `docs/04-pdca-prompts/plan-prompt.md`:
+
+- **File location**: `docs/03-project-plan/iterations/YYYY-MM-DD-{title}/`
+- **Filename**: `01-plan.md` (exactly, including the `01-` prefix)
+- **Template**: `docs/04-pdca-prompts/_templates/01-plan-template.md`
+
+The PDCA orchestrator and DO-phase executors rely on `01-plan.md` as the **single source of truth** for:
+
+- Approved scope and success criteria
+- Test specifications
+- The **Task Dependency Graph** used to drive DO-phase delegation
+
+If `01-plan.md` is missing or incomplete, the DO phase MUST NOT start.
+
 ## Task Dependency Graph Output
 
 When creating plans that involve both backend and frontend work, you MUST output a task dependency graph to enable parallel execution by the orchestrator. To identify dependencies, evaluate opportunities to parallelize tasks and identify the proper execution agents (multiple **frontend-developer** and **backend-developer** available), and considering that tests shall not be performed in parallel as the database is unique and tests usually destroys data, and therefore shall be considered specific tasks.
 
 ### Required Format
+
+You MUST embed a YAML task dependency graph in `01-plan.md` with this structure:
 
 ```yaml
 # Task Dependency Graph
@@ -70,12 +88,36 @@ tasks:
     dependencies: [] # Can run in parallel with BE-001
 ```
 
+Each task MUST specify at least:
+
+- `id`: unique identifier for the task within this plan
+- `name`: human-readable description
+- `agent`: one of:
+  - `pdca-backend-do-executor`
+  - `pdca-frontend-do-executor`
+  - (optionally) `backend-developer` / `frontend-developer` for non-PDCA work that intentionally skips the formal PDCA DO phase
+- `dependencies`: list of other task IDs that must complete before this task starts
+
+You MAY also include:
+
+- `group`: a logical batch name to indicate tasks that should be delegated together to the same agent
+- Additional metadata such as `kind: test` to signal tasks that must **not** be parallelized (for example, database-destructive test suites)
+
 ### Dependency Rules
 
 1. Tasks with empty `dependencies: []` can run in parallel (Level-0)
 2. Tasks referencing other task IDs must wait for those to complete
 3. Frontend tasks that consume API contracts should depend on backend tasks
 4. Independent UI components can run in parallel with backend work
+5. Tests that should not run in parallel (for example those that share a database) MUST either:
+   - Depend on each other (forming a strictly ordered chain), or
+   - Share a `group`/metadata marker that instructs the orchestrator to execute them sequentially
+
+The orchestrator will:
+
+- Use the `agent` field to route each task to the correct DO-phase subagent
+- Use `dependencies` to compute safe execution levels
+- Use `group`/metadata (when present) to batch or serialize tasks within an agent
 
 ## Key Principles
 

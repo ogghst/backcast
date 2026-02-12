@@ -1,0 +1,177 @@
+[
+  {
+    "progress_entry_id": "f0a253ec-ef71-442a-8a9c-340b123404a6",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "progress_percentage": 20.0,
+    "notes": "Progress update 1 for LAB (well_closed)",
+    "control_date": "2026-01-15T10:00:00"
+  },
+  {
+    "progress_entry_id": "014489f7-e7aa-43f1-881d-563f30001361",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "progress_percentage": 40.0,
+    "notes": "Progress update 2 for LAB (well_closed)",
+    "control_date": "2026-02-14T10:00:00"
+  },
+  {
+    "progress_entry_id": "b6d767ea-8ad3-4b59-8e99-870836229069",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "progress_percentage": 60.0,
+    "notes": "Progress update 3 for LAB (well_closed)",
+    "control_date": "2026-03-16T10:00:00"
+  },
+  {
+    "progress_entry_id": "fbfce274-bbe7-46dd-a2cb-b1e69091b093",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "progress_percentage": 80.0,
+    "notes": "Progress update 4 for LAB (well_closed)",
+    "control_date": "2026-04-15T10:00:00"
+  },
+  {
+    "progress_entry_id": "3053344f-623c-4e91-a22e-0e753c29fb94",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "progress_percentage": 100.0,
+    "notes": "Progress update 5 for LAB (well_closed)",
+    "control_date": "2026-05-15T10:00:00"
+  },
+  {
+    "progress_entry_id": "cfebf2f5-7ea2-4aa6-9065-3022f24b7938",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "progress_percentage": 20.0,
+    "notes": "Progress update 1 for MAT (bad_performance)",
+    "control_date": "2026-01-15T10:00:00"
+  },
+  {
+    "progress_entry_id": "4447111c-3346-47d0-bbd3-1c28b8b74917",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "progress_percentage": 40.0,
+    "notes": "Progress update 2 for MAT (bad_performance)",
+    "control_date": "2026-02-14T10:00:00"
+  },
+  {
+    "progress_entry_id": "f3283c03-ae3f-411c-afd9-a5a1084c5ec6",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "progress_percentage": 60.0,
+    "notes": "Progress update 3 for MAT (bad_performance)",
+    "control_date": "2026-03-16T10:00:00"
+  },
+  {
+    "progress_entry_id": "ebb94d12-e70a-4058-93fb-8ffb86159cef",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "progress_percentage": 80.0,
+    "notes": "Progress update 4 for MAT (bad_performance)",
+    "control_date": "2026-04-15T10:00:00"
+  },
+  {
+    "progress_entry_id": "2fa361e8-54e9-4678-9ab9-43905e008b2a",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "progress_percentage": 100.0,
+    "notes": "Progress update 5 for MAT (bad_performance)",
+    "control_date": "2026-05-15T10:00:00"
+  },
+  {
+    "progress_entry_id": "f2b56eb5-c539-4f5f-ae6f-7f8bd165ef62",
+    "cost_element_id": "2450a921-a5a2-5442-b223-62f8884c534a",
+    "progress_percentage": 4.0,
+    "notes": "Progress update 1 for EQP (delayed)",
+    "control_date": "2026-01-15T10:00:00"
+  },
+  {
+    "progress_entry_id": "a18895ed-616f-43e5-a932-6c6f37dffc5e",
+    "cost_element_id": "2450a921-a5a2-5442-b223-62f8884c534a",
+    "progress_percentage": 8.0,
+    "notes": "Progress update 2 for EQP (delayed)",
+    "control_date": "2026-02-14T10:00:00"
+  },
+  {
+    "progress_entry_id": "2c18d568-0610-42bb-8e91-181018ffe3e5",
+    "cost_element_id": "2450a921-a5a2-5442-b223-62f8884c534a",
+    "progress_percentage": 12.0,
+    "notes": "Progress update 3 for EQP (delayed)",
+    "control_date": "2026-03-16T10:00:00"
+  },
+  {
+    "progress_entry_id": "4ee184a1-d25f-4941-acca-67f810604d1f",
+    "cost_element_id": "2450a921-a5a2-5442-b223-62f8884c534a",
+    "progress_percentage": 16.0,
+    "notes": "Progress update 4 for EQP (delayed)",
+    "control_date": "2026-04-15T10:00:00"
+  },
+  {
+    "progress_entry_id": "0877566b-1ded-4549-80d8-888e1f5dc9cb",
+    "cost_element_id": "2450a921-a5a2-5442-b223-62f8884c534a",
+    "progress_percentage": 20.0,
+    "notes": "Progress update 5 for EQP (delayed)",
+    "control_date": "2026-05-15T10:00:00"
+  },
+  {
+    "progress_entry_id": "95bfa180-eb87-4d7f-9234-ffbbb66dee5a",
+    "cost_element_id": "345901f0-2c89-5ab3-b4c1-1b76b33507a3",
+    "progress_percentage": 10.0,
+    "notes": "Progress update 1 for SUB (normal_incomplete)",
+    "control_date": "2026-01-15T10:00:00"
+  },
+  {
+    "progress_entry_id": "5210cd6a-5711-4596-81ea-3b8ae35880ed",
+    "cost_element_id": "345901f0-2c89-5ab3-b4c1-1b76b33507a3",
+    "progress_percentage": 20.0,
+    "notes": "Progress update 2 for SUB (normal_incomplete)",
+    "control_date": "2026-02-14T10:00:00"
+  },
+  {
+    "progress_entry_id": "59988bd3-d80e-4f74-a64e-1e098eed50c2",
+    "cost_element_id": "345901f0-2c89-5ab3-b4c1-1b76b33507a3",
+    "progress_percentage": 30.0,
+    "notes": "Progress update 3 for SUB (normal_incomplete)",
+    "control_date": "2026-03-16T10:00:00"
+  },
+  {
+    "progress_entry_id": "f11775d6-7f91-4a47-8ee1-34a0eb3fc59d",
+    "cost_element_id": "345901f0-2c89-5ab3-b4c1-1b76b33507a3",
+    "progress_percentage": 40.0,
+    "notes": "Progress update 4 for SUB (normal_incomplete)",
+    "control_date": "2026-04-15T10:00:00"
+  },
+  {
+    "progress_entry_id": "15c1124e-e5fe-4f37-b663-d548fa301b01",
+    "cost_element_id": "345901f0-2c89-5ab3-b4c1-1b76b33507a3",
+    "progress_percentage": 50.0,
+    "notes": "Progress update 5 for SUB (normal_incomplete)",
+    "control_date": "2026-05-15T10:00:00"
+  },
+  {
+    "progress_entry_id": "e5d804dc-52d5-4bd7-8e83-076face5b046",
+    "cost_element_id": "2218bd7e-04da-5f32-b31c-453cc3d3561b",
+    "progress_percentage": 2.0,
+    "notes": "Progress update 1 for TRV (early_stage)",
+    "control_date": "2026-01-15T10:00:00"
+  },
+  {
+    "progress_entry_id": "237a9333-63fa-406d-987b-063c1943fbcb",
+    "cost_element_id": "2218bd7e-04da-5f32-b31c-453cc3d3561b",
+    "progress_percentage": 4.0,
+    "notes": "Progress update 2 for TRV (early_stage)",
+    "control_date": "2026-02-14T10:00:00"
+  },
+  {
+    "progress_entry_id": "daf6efd5-4429-4132-99f2-c23452191500",
+    "cost_element_id": "2218bd7e-04da-5f32-b31c-453cc3d3561b",
+    "progress_percentage": 6.0,
+    "notes": "Progress update 3 for TRV (early_stage)",
+    "control_date": "2026-03-16T10:00:00"
+  },
+  {
+    "progress_entry_id": "2b7cbe74-b4bd-41ca-9d2e-a8c5ab04b82a",
+    "cost_element_id": "2218bd7e-04da-5f32-b31c-453cc3d3561b",
+    "progress_percentage": 8.0,
+    "notes": "Progress update 4 for TRV (early_stage)",
+    "control_date": "2026-04-15T10:00:00"
+  },
+  {
+    "progress_entry_id": "2e261263-2e39-48b5-a905-198921a3be21",
+    "cost_element_id": "2218bd7e-04da-5f32-b31c-453cc3d3561b",
+    "progress_percentage": 10.0,
+    "notes": "Progress update 5 for TRV (early_stage)",
+    "control_date": "2026-05-15T10:00:00"
+  }
+]

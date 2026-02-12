@@ -23,6 +23,17 @@ export type CreateWithBranch = CostElementCreate & { branch?: string };
 export type UpdateWithBranch = CostElementUpdate & { branch?: string };
 
 /**
+ * Map frontend branch mode to API branch mode for EVM endpoints.
+ * Frontend uses "merged"/"isolated", EVM API uses "merge"/"strict".
+ *
+ * @param mode - Frontend mode ("merged" | "isolated")
+ * @returns API branch mode ("merge" | "strict")
+ */
+function mapBranchModeForEvm(mode: "merged" | "isolated"): "merge" | "strict" {
+  return mode === "merged" ? "merge" : "strict";
+}
+
+/**
  * Cost Element API parameters for filtering, pagination, and sorting.
  */
 interface CostElementListParams {
@@ -345,18 +356,19 @@ export const useCostElementForecast = (
   costElementId: string,
   branch?: string,
 ) => {
-  const { branch: tmBranch, asOf } = useTimeMachineParams();
+  const { mode, branch: tmBranch, asOf } = useTimeMachineParams();
 
   return useQuery({
     queryKey: queryKeys.forecasts.byCostElement(
       costElementId,
       branch || tmBranch,
-      { asOf },
+      { mode, asOf },
     ),
     queryFn: async () => {
       return await CostElementsService.getCostElementForecast(
         costElementId,
         branch || tmBranch || "main",
+        mode,
         asOf || undefined,
       );
     },
@@ -475,11 +487,12 @@ export const useCostElementEvmMetrics = (
   costElementId: string,
   branch?: string,
 ) => {
-  const { branch: tmBranch, asOf } = useTimeMachineParams();
+  const { mode, branch: tmBranch, asOf } = useTimeMachineParams();
 
   return useQuery({
     queryKey: queryKeys.costElements.evmMetrics(costElementId, {
       branch: branch || tmBranch,
+      mode,
       asOf,
     }),
     queryFn: async () => {
@@ -487,7 +500,7 @@ export const useCostElementEvmMetrics = (
         costElementId,
         asOf || undefined,
         branch || tmBranch || "main",
-        "merge",
+        mapBranchModeForEvm(mode),
       );
     },
     enabled: !!costElementId,
@@ -508,11 +521,12 @@ export const useCostElementEvmHistory = (
   granularity: "day" | "week" | "month" = "week",
   branch?: string,
 ) => {
-  const { branch: tmBranch, asOf } = useTimeMachineParams();
+  const { mode, branch: tmBranch, asOf } = useTimeMachineParams();
 
   return useQuery({
     queryKey: queryKeys.evm.timeSeries("cost_element", costElementId, {
       branch: branch || tmBranch,
+      mode,
       asOf,
       granularity,
     }),
@@ -522,7 +536,7 @@ export const useCostElementEvmHistory = (
         granularity,
         asOf || undefined,
         branch || tmBranch || "main",
-        "merge",
+        mapBranchModeForEvm(mode),
       );
     },
     enabled: !!costElementId,

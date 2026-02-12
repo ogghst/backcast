@@ -24,8 +24,6 @@ from app.models.schemas.cost_registration import (
 )
 
 
-
-
 class BudgetStatus(BaseModel):
     """Budget status for a cost element."""
 
@@ -51,12 +49,12 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         """
         super().__init__(CostRegistration, db)
 
-    async def create(  # type: ignore[override]
+    async def create_cost_registration(  # type: ignore[override]
         self,
         registration_in: CostRegistrationCreate,
         actor_id: UUID,
-        control_date: datetime | None = None,
         branch: str = "main",
+        control_date: datetime | None = None,
     ) -> CostRegistration:
         """Create new cost registration using CreateVersionCommand.
 
@@ -68,8 +66,9 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             branch: Branch to check budget against (defaults to "main").
                     Cost registrations are global, but budget validation needs a context.
         """
-        # Extract control_date from request if provided, otherwise use parameter
-        request_control_date = registration_in.control_date or control_date
+        # Extract control_date from schema if not provided
+        if control_date is None:
+            control_date = getattr(registration_in, "control_date", None)
 
         # Dump registration data and exclude control_date (not a model field)
         registration_data = registration_in.model_dump(
@@ -91,7 +90,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         # CRITICAL: Use control_date for valid_time (defaults to now for production)
         # registration_date is a business field and should NOT affect valid_time
         # This ensures time-travel queries work correctly with as_of parameter
-        actual_control_date = request_control_date if request_control_date is not None else datetime.now(UTC)
+        actual_control_date = control_date
 
     # Budget validation removed - allowing over-budget registration with frontend warning
 
@@ -105,7 +104,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         )
         return await cmd.execute(self.session)
 
-    async def update(  # type: ignore[override]
+    async def update_cost_registration(  # type: ignore[override]
         self,
         cost_registration_id: UUID,
         registration_in: CostRegistrationUpdate,
@@ -120,8 +119,9 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             actor_id: The user making the update
             control_date: Optional control date for valid_time (defaults to now)
         """
-        # Extract control_date from request if provided, otherwise use parameter
-        request_control_date = registration_in.control_date or control_date
+        # Extract control_date from schema if not provided
+        if control_date is None:
+            control_date = getattr(registration_in, "control_date", None)
 
         # Dump update data and exclude control_date (not a model field)
         update_data = registration_in.model_dump(
@@ -138,7 +138,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             entity_class=CostRegistration,  # type: ignore[type-var,unused-ignore]
             root_id=cost_registration_id,
             actor_id=actor_id,
-            control_date=request_control_date,
+            control_date=control_date,
             **update_data,
         )
         return await cmd.execute(self.session)
@@ -481,4 +481,49 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
                 "cumulative_amount": float(cumulative_amount),
             })
 
+
         return cumulative_costs
+
+    async def get_totals_for_cost_elements(
+        self,
+        cost_element_ids: list[UUID],
+        as_of: datetime | None = None,
+    ) -> dict[UUID, Decimal]:
+        """Calculate total costs for multiple cost elements efficiently.
+
+        Args:
+            cost_element_ids: List of cost element UUIDs
+            as_of: Optional timestamp for historical query (time-travel)
+
+        Returns:
+            Dictionary mapping cost_element_id to total cost (Decimal)
+        """
+        if not cost_element_ids:
+            return {}
+
+        stmt = (
+            select(
+                CostRegistration.cost_element_id,
+                func.sum(CostRegistration.amount).label("total")
+            )
+            .where(
+                CostRegistration.cost_element_id.in_(cost_element_ids)
+            )
+            .group_by(CostRegistration.cost_element_id)
+        )
+
+        # Apply time-travel filter
+        if as_of is not None:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            stmt = stmt.where(func.upper(CostRegistration.valid_time).is_(None))
+            stmt = stmt.where(CostRegistration.deleted_at.is_(None))
+
+        result = await self.session.execute(stmt)
+        
+        totals = {id: Decimal("0.00") for id in cost_element_ids}
+        for row in result.all():
+            totals[row.cost_element_id] = row.total or Decimal("0.00")
+            
+        return totals
+

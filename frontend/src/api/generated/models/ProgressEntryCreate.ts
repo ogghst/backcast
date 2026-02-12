@@ -11,10 +11,6 @@ export type ProgressEntryCreate = {
      */
     progress_percentage: (number | string);
     /**
-     * When progress was measured (business date)
-     */
-    reported_date: string;
-    /**
      * Optional notes about progress (e.g., justification for decrease)
      */
     notes?: (string | null);
@@ -27,11 +23,7 @@ export type ProgressEntryCreate = {
      */
     cost_element_id: string;
     /**
-     * ID of the user reporting the progress
-     */
-    reported_by_user_id: string;
-    /**
-     * Optional control date for time travel (valid_time defaults to now if not provided)
+     * Control date for the progress entry (when the progress was measured). Defaults to current time if not provided.
      */
     control_date?: (string | null);
 };

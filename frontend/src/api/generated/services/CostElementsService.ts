@@ -439,6 +439,7 @@ export class CostElementsService {
      * cost_element.forecast_id instead of forecast.cost_element_id.
      * @param costElementId
      * @param branch Branch to query
+     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param asOf Time travel: get forecast state as of this timestamp (ISO 8601)
      * @returns any Successful Response
      * @throws ApiError
@@ -446,6 +447,7 @@ export class CostElementsService {
     public static getCostElementForecast(
         costElementId: string,
         branch: string = 'main',
+        mode: string = 'merged',
         asOf?: (string | null),
     ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
@@ -456,6 +458,7 @@ export class CostElementsService {
             },
             query: {
                 'branch': branch,
+                'mode': mode,
                 'as_of': asOf,
             },
             errors: {

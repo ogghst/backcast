@@ -94,12 +94,6 @@ export default function Login() {
             {isLoggingIn ? "Logging in..." : "Log In"}
           </Button>
         </Form.Item>
-
-        <div style={{ textAlign: "center", marginTop: "16px" }}>
-          <Text type="secondary">
-            Demo: Use credentials from backend test data
-          </Text>
-        </div>
       </Form>
     </AuthLayout>
   );

@@ -27,6 +27,16 @@ class TemporalService[TVersionable: VersionableProtocol]:
     - Update (creates new version)
     - Soft delete
 
+    Inheritance Note:
+        Subclasses (e.g., BranchService, WBEService) inherit all methods.
+        Key inherited methods:
+        - `soft_delete(entity_id, actor_id, control_date)` - Uses root_id (UUID)
+        - `get_current_version(root_id, branch)` - Returns active version
+        - `get_as_of(entity_id, as_of, branch)` - Time-travel query
+
+        When calling inherited methods, use the entity's root_id field
+        (e.g., branch_id, wbe_id), NOT composite keys like (name, project_id).
+
     Note: Temporal queries using TSTZRANGE operators need proper setup.
     Currently simplified for basic operations.
     """
@@ -94,20 +104,23 @@ class TemporalService[TVersionable: VersionableProtocol]:
         # Introspect root field name (e.g. project_id, wbe_id, cost_element_id)
         root_field = self._get_root_field_name()
 
-        stmt = (
-            select(self.entity_class)
-            .where(
-                getattr(self.entity_class, root_field) == root_id,
-                self.entity_class.branch == branch,  # type: ignore[attr-defined]
-                func.upper(cast(Any, self.entity_class).valid_time).is_(None),
-                func.not_(
-                    func.isempty(self.entity_class.valid_time)
-                ),  # Exclude empty ranges
-                cast(Any, self.entity_class).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, self.entity_class).valid_time.desc())
-            .limit(1)
+        # Prepare statement
+        stmt = select(self.entity_class).where(
+            getattr(self.entity_class, root_field) == root_id,
         )
+
+        # Only filter by branch if the entity has a branch attribute
+        if hasattr(self.entity_class, "branch"):
+            stmt = stmt.where(self.entity_class.branch == branch)  # type: ignore[attr-defined]
+
+        stmt = stmt.where(
+            func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+            func.not_(
+                func.isempty(self.entity_class.valid_time)
+            ),  # Exclude empty ranges
+            cast(Any, self.entity_class).deleted_at.is_(None),
+        )
+        stmt = stmt.order_by(cast(Any, self.entity_class).valid_time.desc()).limit(1)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 

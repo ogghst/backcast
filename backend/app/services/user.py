@@ -33,7 +33,7 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
 
     async def get_user(self, user_id: UUID) -> User | None:
         """Get user by ID (current version)."""
-        return await self.get_by_id(user_id)
+        return await self.get_current_version(user_id)
 
     async def get_users(self, skip: int = 0, limit: int = 100000) -> list[User]:
         """Get all users with pagination."""
@@ -59,9 +59,17 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def create_user(self, user_in: UserRegister, actor_id: UUID) -> User:
+    async def create_user(
+        self, user_in: UserRegister, actor_id: UUID
+    ) -> User:
         """Create new user using CreateVersionCommand with Pydantic validation."""
         user_data = user_in.model_dump(exclude_unset=True)
+
+        # Extract control_date from schema if present (for seeding)
+        control_date = getattr(user_in, "control_date", None)
+
+        # Remove control_date from data to avoid duplicate kwarg error
+        user_data.pop("control_date", None)
 
         # Handle password hashing
         password = user_data.pop("password", None)
@@ -76,9 +84,11 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
             entity_class=User,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
             actor_id=actor_id,
+            control_date=control_date,
             **user_data,
         )
         return await cmd.execute(self.session)
+
 
     async def update_user(
         self, user_id: UUID, user_in: UserUpdate, actor_id: UUID
@@ -97,10 +107,15 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
         # However, purely strictly speaking, if nothing to update, we pass it down
         # and let the command decide or just do it.
 
+        # Extract control_date from schema
+        control_date = getattr(user_in, "control_date", None)
+        update_data.pop("control_date", None)
+
         cmd = UpdateVersionCommand(
             entity_class=User,  # type: ignore[type-var,unused-ignore]
             root_id=user_id,
             actor_id=actor_id,
+            control_date=control_date,
             **update_data,
         )
         return await cmd.execute(self.session)

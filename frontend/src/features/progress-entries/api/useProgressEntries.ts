@@ -112,7 +112,7 @@ export const useLatestProgress = (costElementId: string, asOf?: string) => {
 
 /**
  * Hook to get progress history for a cost element.
- * Returns all progress entries ordered by reported_date descending.
+ * Returns all progress entries ordered by valid_time descending.
  */
 export const useProgressHistory = (
   costElementId: string,
@@ -145,7 +145,6 @@ export const useProgressHistory = (
 /**
  * Custom create hook for progress entries.
  * Progress entries are NOT branchable (global facts).
- * Uses the current user from auth context for reported_by_user_id.
  */
 export const useCreateProgressEntry = (
   mutationOptions?: Omit<
@@ -159,11 +158,10 @@ export const useCreateProgressEntry = (
 
   return useMutation<ProgressEntryRead, Error, ProgressEntryCreate>({
     mutationFn: (data: ProgressEntryCreate) => {
-      // Auto-inject reported_by_user_id from current user
+      // Add control_date from Time Machine if available
       const payload: ProgressEntryCreate = {
         ...data,
-        reported_by_user_id: user?.user_id || "",
-        control_date: asOf || null,
+        control_date: asOf || data.control_date || null,
       };
       return ProgressEntriesService.createProgressEntry(payload);
     },

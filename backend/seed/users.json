@@ -5,7 +5,8 @@
     "password": "adminadmin",
     "full_name": "System Administrator",
     "role": "admin",
-    "department": "ADMIN"
+    "department": "ADMIN",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "user_id": "85b44758-76ab-5a80-9d47-836a09d00e03",
@@ -13,7 +14,8 @@
     "password": "backcast",
     "full_name": "Viewer User",
     "role": "viewer",
-    "department": "ENG"
+    "department": "ENG",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "user_id": "533a7e61-6b73-5978-a751-7862efa734f7",
@@ -21,7 +23,8 @@
     "password": "backcast",
     "full_name": "Project Manager",
     "role": "manager",
-    "department": "PM"
+    "department": "PM",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "user_id": "dce2e861-bdb7-5887-beaf-6a22837d266d",
@@ -29,7 +32,8 @@
     "password": "backcast",
     "full_name": "Engineering Lead",
     "role": "contributor",
-    "department": "ENG"
+    "department": "ENG",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "user_id": "10bce202-8321-5208-8c9c-1fa8269e48fa",
@@ -37,6 +41,7 @@
     "password": "backcast",
     "full_name": "Construction Super",
     "role": "contributor",
-    "department": "CONST"
+    "department": "CONST",
+    "control_date": "2026-01-01T00:00:00"
   }
 ]

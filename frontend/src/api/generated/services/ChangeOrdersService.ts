@@ -2,8 +2,11 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ApprovalInfoPublic } from '../models/ApprovalInfoPublic';
+import type { ChangeOrderApproval } from '../models/ChangeOrderApproval';
 import type { ChangeOrderCreate } from '../models/ChangeOrderCreate';
 import type { ChangeOrderPublic } from '../models/ChangeOrderPublic';
+import type { ChangeOrderRecoveryRequest } from '../models/ChangeOrderRecoveryRequest';
 import type { ChangeOrderUpdate } from '../models/ChangeOrderUpdate';
 import type { ImpactAnalysisResponse } from '../models/ImpactAnalysisResponse';
 import type { MergeRequest } from '../models/MergeRequest';
@@ -16,13 +19,14 @@ export class ChangeOrdersService {
      * Retrieve change orders for a project with pagination.
      *
      * Change Orders are always scoped to a specific project.
-     * The auto-created branch for each CO is named `co-{code}`.
+     * The auto-created branch for each CO is named `BR-{code}`.
      *
      * Requires read permission.
      * @param projectId Filter by project ID
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param branch Branch name
+     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param search Search term (code, title)
      * @param filters Filters in format 'column:value;column:value1,value2'
      * @param sortField Field to sort by
@@ -36,6 +40,7 @@ export class ChangeOrdersService {
         page: number = 1,
         perPage: number = 20,
         branch: string = 'main',
+        mode: string = 'merged',
         search?: (string | null),
         filters?: (string | null),
         sortField?: (string | null),
@@ -50,6 +55,7 @@ export class ChangeOrdersService {
                 'page': page,
                 'per_page': perPage,
                 'branch': branch,
+                'mode': mode,
                 'search': search,
                 'filters': filters,
                 'sort_field': sortField,
@@ -67,7 +73,7 @@ export class ChangeOrdersService {
      *
      * This endpoint:
      * 1. Creates the Change Order on the main branch
-     * 2. Automatically creates a `co-{code}` branch for isolated work
+     * 2. Automatically creates a `BR-{code}` branch for isolated work
      * 3. Returns the created Change Order
      *
      * The auto-created branch allows changes to be developed in isolation
@@ -250,7 +256,7 @@ export class ChangeOrdersService {
      *
      * Requires read permission.
      * @param changeOrderId
-     * @param sourceBranch Source branch name (e.g., 'co-123')
+     * @param sourceBranch Source branch name (e.g., 'BR-123')
      * @param targetBranch Target branch name (default: 'main')
      * @returns any Successful Response
      * @throws ApiError
@@ -279,7 +285,7 @@ export class ChangeOrdersService {
      * Merge Change Order
      * Merge a Change Order's branch into the target branch.
      *
-     * Infers the source branch from the Change Order code (e.g., `co-{code}`).
+     * Infers the source branch from the Change Order code (e.g., `BR-{code}`).
      *
      * Checks for merge conflicts before proceeding. If conflicts exist,
      * returns 409 with conflict details.
@@ -342,6 +348,10 @@ export class ChangeOrdersService {
      * Analyzes the financial and schedule impact of a change order by comparing
      * data between the main branch and the specified change branch.
      *
+     * Modes:
+     * - merged: Shows merged result (main + change delta) - most intuitive for users
+     * - isolated: Shows isolated comparison (delta only) - for detailed analysis
+     *
      * Returns:
      * - KPI Scorecard: BAC, Budget Delta, Gross Margin comparison
      * - Entity Changes: Added/Modified/Removed WBEs and Cost Elements
@@ -350,13 +360,15 @@ export class ChangeOrdersService {
      *
      * Requires read permission.
      * @param changeOrderId
-     * @param branchName Branch name to compare (e.g., 'co-CO-2026-001')
+     * @param branchName Branch name to compare (e.g., 'BR-CO-2026-001')
+     * @param mode Comparison mode: merged (main+change) or isolated (change only)
      * @returns ImpactAnalysisResponse Successful Response
      * @throws ApiError
      */
     public static getChangeOrderImpact(
         changeOrderId: string,
         branchName: string,
+        mode: string = 'merged',
     ): CancelablePromise<ImpactAnalysisResponse> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -366,6 +378,226 @@ export class ChangeOrdersService {
             },
             query: {
                 'branch_name': branchName,
+                'mode': mode,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Submit Change Order For Approval
+     * Submit a change order for approval with impact calculation and approver assignment.
+     *
+     * This endpoint:
+     * 1. Calculates financial impact by comparing branches
+     * 2. Determines impact level (LOW/MEDIUM/HIGH/CRITICAL)
+     * 3. Assigns appropriate approver based on impact level
+     * 4. Sets SLA deadline based on impact level
+     * 5. Locks the branch to prevent further modifications
+     * 6. Transitions status to "Submitted for Approval"
+     *
+     * Requires update permission.
+     * @param changeOrderId
+     * @param branch Branch name
+     * @param comment Optional comment for audit log
+     * @returns ChangeOrderPublic Successful Response
+     * @throws ApiError
+     */
+    public static submitChangeOrderForApproval(
+        changeOrderId: string,
+        branch: string = 'main',
+        comment?: (string | null),
+    ): CancelablePromise<ChangeOrderPublic> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/change-orders/{change_order_id}/submit-for-approval',
+            path: {
+                'change_order_id': changeOrderId,
+            },
+            query: {
+                'branch': branch,
+                'comment': comment,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Approve Change Order
+     * Approve a change order and transition to Approved status.
+     *
+     * Validates that the current user has sufficient authority to approve
+     * this change order based on its impact level. Records approval with
+     * optional comments in the audit log.
+     *
+     * Requires approve permission.
+     * @param changeOrderId
+     * @param requestBody
+     * @param branch Branch name
+     * @returns ChangeOrderPublic Successful Response
+     * @throws ApiError
+     */
+    public static approveChangeOrder(
+        changeOrderId: string,
+        requestBody: ChangeOrderApproval,
+        branch: string = 'main',
+    ): CancelablePromise<ChangeOrderPublic> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/change-orders/{change_order_id}/approve',
+            path: {
+                'change_order_id': changeOrderId,
+            },
+            query: {
+                'branch': branch,
+            },
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Reject Change Order
+     * Reject a change order and transition to Rejected status.
+     *
+     * Validates that the current user has sufficient authority to reject
+     * this change order based on its impact level. Records rejection with
+     * optional comments in the audit log and unlocks the branch.
+     *
+     * Requires approve permission.
+     * @param changeOrderId
+     * @param requestBody
+     * @param branch Branch name
+     * @returns ChangeOrderPublic Successful Response
+     * @throws ApiError
+     */
+    public static rejectChangeOrder(
+        changeOrderId: string,
+        requestBody: ChangeOrderApproval,
+        branch: string = 'main',
+    ): CancelablePromise<ChangeOrderPublic> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/change-orders/{change_order_id}/reject',
+            path: {
+                'change_order_id': changeOrderId,
+            },
+            query: {
+                'branch': branch,
+            },
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Recover Change Order
+     * Recover a stuck change order workflow (admin only).
+     *
+     * Admin-only endpoint to recover stuck workflows when impact analysis
+     * fails or the change order gets stuck in an intermediate state.
+     * Allows manual override of impact level and approver assignment.
+     *
+     * Requires change-order-recover permission (admin only).
+     *
+     * Args:
+     * change_order_id: UUID of the stuck change order
+     * recovery_data: Recovery request with impact level, approver, and reason
+     *
+     * Returns:
+     * Updated ChangeOrder with recovered workflow state
+     *
+     * Raises:
+     * HTTPException: If change order not stuck, invalid data, or not authorized
+     * @param changeOrderId
+     * @param requestBody
+     * @param branch Branch name
+     * @returns ChangeOrderPublic Successful Response
+     * @throws ApiError
+     */
+    public static recoverChangeOrder(
+        changeOrderId: string,
+        requestBody: ChangeOrderRecoveryRequest,
+        branch: string = 'main',
+    ): CancelablePromise<ChangeOrderPublic> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/change-orders/{change_order_id}/recover',
+            path: {
+                'change_order_id': changeOrderId,
+            },
+            query: {
+                'branch': branch,
+            },
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Get Change Order Approval Info
+     * Get approval information for a change order.
+     *
+     * Returns comprehensive approval information including:
+     * - Impact level and financial impact details
+     * - Assigned approver details
+     * - SLA tracking (assigned date, due date, status, business days remaining)
+     * - Whether the current user can approve this change order
+     * - Current user's authority level
+     *
+     * Requires read permission.
+     * @param changeOrderId
+     * @returns ApprovalInfoPublic Successful Response
+     * @throws ApiError
+     */
+    public static getChangeOrderApprovalInfo(
+        changeOrderId: string,
+    ): CancelablePromise<ApprovalInfoPublic> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/change-orders/{change_order_id}/approval-info',
+            path: {
+                'change_order_id': changeOrderId,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Get Pending Approvals
+     * Get change orders pending approval for the current user.
+     *
+     * Filters change orders by:
+     * - assigned_approver_id = current_user.user_id
+     * - status in ("Submitted for Approval", "Under Review")
+     *
+     * Returns paginated list of change orders awaiting the user's approval.
+     *
+     * Requires read permission.
+     * @param page Page number (1-indexed)
+     * @param perPage Items per page
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static getPendingApprovals(
+        page: number = 1,
+        perPage: number = 20,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/change-orders/pending-approvals',
+            query: {
+                'page': page,
+                'per_page': perPage,
             },
             errors: {
                 422: `Validation Error`,

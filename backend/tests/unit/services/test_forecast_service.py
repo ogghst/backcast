@@ -200,7 +200,7 @@ class TestForecastServiceCreate:
         Arrange:
             - A valid Cost Element exists
         Act:
-            - Create forecast on "co-123" branch using create_for_cost_element
+            - Create forecast on "BR-123" branch using create_for_cost_element
         Assert:
             - Forecast is created on the correct branch
             - Forecast has correct eac_amount
@@ -211,7 +211,7 @@ class TestForecastServiceCreate:
         cost_element = cost_element_setup["cost_element"]
         service = ForecastService(db_session)
         actor_id = uuid4()
-        branch = "co-123"
+        branch = "BR-123"
 
         # Act - use new create_for_cost_element method
         created_forecast = await service.create_for_cost_element(
@@ -224,7 +224,7 @@ class TestForecastServiceCreate:
 
         # Assert
         assert created_forecast is not None
-        assert created_forecast.branch == "co-123"
+        assert created_forecast.branch == "BR-123"
         assert created_forecast.eac_amount == Decimal("110000.00")
 
 
@@ -267,7 +267,7 @@ class TestForecastServiceGet:
         forecast_id = main_forecast.forecast_id
 
         # Act - Try to get from non-existent branch (STRICT mode)
-        branch_forecast = await service.get_by_id(forecast_id, branch="co-999")
+        branch_forecast = await service.get_by_id(forecast_id, branch="BR-999")
 
         # Assert - STRICT mode: None if not on that branch
         assert branch_forecast is None

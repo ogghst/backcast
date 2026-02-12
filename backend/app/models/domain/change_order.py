@@ -5,16 +5,58 @@ Satisfies BranchableProtocol via structural subtyping.
 """
 
 from datetime import datetime
+from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import String, Text
-from sqlalchemy.dialects.postgresql import TIMESTAMP
+from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy.dialects.postgresql import JSONB, NUMERIC, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.base.base import EntityBase
 from app.models.mixins import BranchableMixin, VersionableMixin
+
+
+class ImpactLevel:
+    """Impact level classification for change order approval matrix.
+
+    Financial impact thresholds determine required approval authority:
+    - LOW: < €10,000 (Project Manager approval)
+    - MEDIUM: €10,000 - €50,000 (Department Head approval)
+    - HIGH: €50,000 - €100,000 (Director approval)
+    - CRITICAL: > €100,000 (Executive Committee approval)
+    """
+
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
+
+    @classmethod
+    def all(cls) -> list[str]:
+        """Return all valid impact levels."""
+        return [cls.LOW, cls.MEDIUM, cls.HIGH, cls.CRITICAL]
+
+
+class SLAStatus:
+    """SLA tracking status for change order approvals.
+
+    Status progression:
+    - pending: More than 50% of SLA time remaining
+    - approaching: Less than 50% of SLA time remaining
+    - overdue: Past SLA due date
+    """
+
+    PENDING = "pending"
+    APPROACHING = "approaching"
+    OVERDUE = "overdue"
+
+    @classmethod
+    def all(cls) -> list[str]:
+        """Return all valid SLA statuses."""
+        return [cls.PENDING, cls.APPROACHING, cls.OVERDUE]
 
 
 class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
@@ -32,6 +74,14 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
         justification: Business justification for the change
         effective_date: When the change should take effect (if approved)
         status: Workflow state (Draft, Submitted, Approved, Rejected, Implemented)
+        impact_level: Financial impact classification (LOW/MEDIUM/HIGH/CRITICAL)
+        assigned_approver_id: User ID responsible for approval
+        sla_assigned_at: When approval SLA started
+        sla_due_date: SLA deadline for approval
+        sla_status: Current SLA tracking status (pending/approaching/overdue)
+        impact_analysis_status: State of automatic impact analysis (pending/in_progress/completed/failed/skipped)
+        impact_analysis_results: Stored KPIScorecard results from impact analysis
+        impact_score: Calculated impact severity score (weighted algorithm)
 
     Note: Following EVCS pattern, change_order_id is the UUID root identifier
     used for versioning/branching, while code is the human-readable business ID.
@@ -65,6 +115,40 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
         String(80), nullable=True, index=True
     )
 
+    # Approval Matrix & SLA Tracking (E06-U09 to E06-U13)
+    impact_level: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, index=True
+    )
+    assigned_approver_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID, ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True
+    )
+    sla_assigned_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    sla_due_date: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True, index=True
+    )
+    sla_status: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, default=None
+    )
+
+    # Impact Analysis Tracking (Phase 6 Task #1)
+    impact_analysis_status: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="Impact analysis state: pending/in_progress/completed/failed/skipped",
+    )
+    impact_analysis_results: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Stored KPIScorecard results from impact analysis",
+    )
+    impact_score: Mapped[Decimal | None] = mapped_column(
+        NUMERIC(10, 2),
+        nullable=True,
+        comment="Impact severity score (weighted calculation)",
+    )
+
     # Temporal and branching fields inherited from mixins:
     # - valid_time: TSTZRANGE (from VersionableMixin)
     # - transaction_time: TSTZRANGE (from VersionableMixin)
@@ -89,5 +173,7 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
         return (
             f"<ChangeOrder(id={self.id}, change_order_id={self.change_order_id}, "
             f"code={self.code}, project_id={self.project_id}, branch={self.branch}, "
-            f"status={self.status})>"
+            f"status={self.status}, impact_level={self.impact_level}, "
+            f"impact_analysis_status={self.impact_analysis_status}, "
+            f"sla_status={self.sla_status})>"
         )

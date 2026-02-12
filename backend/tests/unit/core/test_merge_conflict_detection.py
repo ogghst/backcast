@@ -46,7 +46,7 @@ class TestMergeConflictDetection:
             entity_class=Project,
             root_id=root_id,
             actor_id=actor_id,
-            new_branch="co-123",
+            new_branch="BR-123",
             from_branch="main",
         )
         await branch_cmd.execute(db_session)
@@ -67,7 +67,7 @@ class TestMergeConflictDetection:
             root_id=root_id,
             actor_id=actor_id,
             updates={"name": "Feature Modified"},
-            branch="co-123",
+            branch="BR-123",
         )
         await update_feature_cmd.execute(db_session)
 
@@ -75,7 +75,7 @@ class TestMergeConflictDetection:
         service = BranchableService(Project, db_session)
         conflicts = await service._detect_merge_conflicts(
             root_id=root_id,
-            source_branch="co-123",
+            source_branch="BR-123",
             target_branch="main",
         )
 
@@ -84,7 +84,7 @@ class TestMergeConflictDetection:
         assert conflicts[0]["entity_type"] == "Project"
         assert conflicts[0]["entity_id"] == str(root_id)
         assert conflicts[0]["field"] == "name"
-        assert conflicts[0]["source_branch"] == "co-123"
+        assert conflicts[0]["source_branch"] == "BR-123"
         assert conflicts[0]["target_branch"] == "main"
         assert conflicts[0]["source_value"] == "Feature Modified"
         assert conflicts[0]["target_value"] == "Main Modified"
@@ -114,7 +114,7 @@ class TestMergeConflictDetection:
             entity_class=Project,
             root_id=root_id,
             actor_id=actor_id,
-            new_branch="co-456",
+            new_branch="BR-456",
             from_branch="main",
         )
         await branch_cmd.execute(db_session)
@@ -125,7 +125,7 @@ class TestMergeConflictDetection:
             root_id=root_id,
             actor_id=actor_id,
             updates={"name": "Feature Update"},
-            branch="co-456",
+            branch="BR-456",
         )
         await update_cmd.execute(db_session)
 
@@ -133,7 +133,7 @@ class TestMergeConflictDetection:
         service = BranchableService(Project, db_session)
         conflicts = await service._detect_merge_conflicts(
             root_id=root_id,
-            source_branch="co-456",
+            source_branch="BR-456",
             target_branch="main",
         )
 
@@ -166,7 +166,7 @@ class TestMergeConflictDetection:
             entity_class=Project,
             root_id=root_id,
             actor_id=actor_id,
-            new_branch="co-789",
+            new_branch="BR-789",
             from_branch="main",
         )
         await branch_cmd.execute(db_session)
@@ -187,7 +187,7 @@ class TestMergeConflictDetection:
             root_id=root_id,
             actor_id=actor_id,
             updates={"description": "Feature Description Change"},
-            branch="co-789",
+            branch="BR-789",
         )
         await update_feature.execute(db_session)
 
@@ -195,7 +195,7 @@ class TestMergeConflictDetection:
         service = BranchableService(Project, db_session)
         conflicts = await service._detect_merge_conflicts(
             root_id=root_id,
-            source_branch="co-789",
+            source_branch="BR-789",
             target_branch="main",
         )
 
@@ -226,7 +226,7 @@ class TestMergeConflictDetection:
             entity_class=Project,
             root_id=root_id,
             actor_id=actor_id,
-            new_branch="co-new",
+            new_branch="BR-new",
             from_branch="main",
         )
         await branch_cmd.execute(db_session)
@@ -235,7 +235,7 @@ class TestMergeConflictDetection:
         service = BranchableService(Project, db_session)
         conflicts = await service._detect_merge_conflicts(
             root_id=root_id,
-            source_branch="co-new",
+            source_branch="BR-new",
             target_branch="main",
         )
 

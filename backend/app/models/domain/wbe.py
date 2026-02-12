@@ -63,6 +63,9 @@ class WBE(EntityBase, VersionableMixin, BranchableMixin):
 
     # Financial
     budget_allocation: Mapped[Decimal] = mapped_column(DECIMAL(15, 2), default=0)
+    revenue_allocation: Mapped[Decimal | None] = mapped_column(
+        DECIMAL(15, 2), nullable=True, default=None
+    )
 
     # Metadata
     level: Mapped[int] = mapped_column(default=1, nullable=False)

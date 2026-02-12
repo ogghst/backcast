@@ -14,5 +14,9 @@ export type CostElementTypeCreate = {
      */
     cost_element_type_id?: (string | null);
     department_id: string;
+    /**
+     * Optional control date for creation (valid_time start)
+     */
+    control_date?: (string | null);
 };
 

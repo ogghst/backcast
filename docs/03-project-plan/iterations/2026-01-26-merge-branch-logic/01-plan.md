@@ -11,7 +11,7 @@
 ### Approved Approach Summary
 
 - **Selected Option**: Option 1 - Iterative Merge Service
-- **Architecture**: The `ChangeOrderService.merge_change_order` method currently only merges the Change Order entity itself. It must be enhanced to orchestrate the merge of ALL branch content (WBEs, CostElements, and potentially Projects) from the source branch (`co-{code}`) to the target branch (typically `main`).
+- **Architecture**: The `ChangeOrderService.merge_change_order` method currently only merges the Change Order entity itself. It must be enhanced to orchestrate the merge of ALL branch content (WBEs, CostElements, and potentially Projects) from the source branch (`BR-{code}`) to the target branch (typically `main`).
 - **Key Decisions**:
   1. Leverage existing `BranchableService.merge_branch` and `MergeBranchCommand` for individual entity merges
   2. Implement discovery logic to identify all modified entities in the source branch
@@ -160,7 +160,7 @@
 - **Fixtures needed**:
   - `db_session` (from conftest.py) - AsyncSession for database operations
   - `test_project_with_wbes_and_cost_elements` - New fixture creating a project with nested WBEs and CostElements
-  - `test_change_order_with_branch` - New fixture creating a CO with associated `co-{code}` branch
+  - `test_change_order_with_branch` - New fixture creating a CO with associated `BR-{code}` branch
 
 - **Mocks/stubs**:
   - Mock `BranchableService.merge_branch` for unit tests
@@ -168,7 +168,7 @@
 
 - **Database state**:
   - Seed data: Projects, WBEs, CostElements on main branch
-  - Branch data: Modified WBEs/CostElements on `co-{code}` branch
+  - Branch data: Modified WBEs/CostElements on `BR-{code}` branch
   - Test isolation: Each test uses unique root IDs to avoid interference
 
 ---
@@ -232,6 +232,7 @@ tasks:
 ```
 
 **Parallelization Notes:**
+
 - BE-001 can start immediately
 - BE-002 depends on BE-001 (unit tests for discovery)
 - BE-003 depends on both BE-001 and BE-002 (service must exist and be tested)

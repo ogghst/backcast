@@ -29,7 +29,7 @@ const STATUS_DOT_COLOR: Record<string, string> = {
 /**
  * Branch selector dropdown for switching between branches.
  *
- * Displays status badges for change order branches (co-{code} pattern).
+ * Displays status badges for change order branches (BR-{code} pattern).
  *
  * @example
  * ```tsx
@@ -37,7 +37,7 @@ const STATUS_DOT_COLOR: Record<string, string> = {
  *   value="main"
  *   branches={[
  *     { value: 'main', label: 'main', isDefault: true },
- *     { value: 'co-CO-2026-001', label: 'co-CO-2026-001', isChangeOrderBranch: true, changeOrderStatus: 'Draft' },
+ *     { value: 'BR-CO-2026-001', label: 'BR-CO-2026-001', isChangeOrderBranch: true, changeOrderStatus: 'Draft' },
  *   ]}
  *   onChange={handleBranchChange}
  * />

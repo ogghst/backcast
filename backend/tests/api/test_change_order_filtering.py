@@ -180,7 +180,7 @@ async def test_merge_change_order(
 
     project_id = test_project["project_id"]
 
-    # 1. Create CO on main (creates branch co-TEST-MERGE)
+    # 1. Create CO on main (creates branch BR-TEST-MERGE)
     co_data = {
         "project_id": project_id,
         "code": "TEST-MERGE",
@@ -191,7 +191,7 @@ async def test_merge_change_order(
     assert resp.status_code == 201
     co_id = UUID(resp.json()["change_order_id"])  # Convert to UUID
     main_v1_id = UUID(resp.json()["id"])  # Convert to UUID
-    branch_name = "co-TEST-MERGE"
+    branch_name = "BR-TEST-MERGE"
 
     # Verify DB state: V1 exists on main
     from sqlalchemy import func
@@ -239,7 +239,7 @@ async def test_merge_change_order(
             f"      transaction_time=[{v.transaction_time.lower}, {v.transaction_time.upper})"
         )
 
-    # 2. Update CO on its branch (this should auto-fork and create V2 on co-TEST-MERGE)
+    # 2. Update CO on its branch (this should auto-fork and create V2 on BR-TEST-MERGE)
     # First, check what's on the branch BEFORE update
     stmt_branch_before = (
         sql_select(ChangeOrder)
@@ -268,7 +268,7 @@ async def test_merge_change_order(
     branch_v2_id = UUID(update_resp.json()["id"])  # Convert to UUID
     assert branch_v2_id != main_v1_id, "Update should create a new version"
 
-    # Verify DB state: V2 exists on co-TEST-MERGE branch (current version only)
+    # Verify DB state: V2 exists on BR-TEST-MERGE branch (current version only)
     stmt_branch = (
         sql_select(ChangeOrder)
         .where(
@@ -316,7 +316,7 @@ async def test_merge_change_order(
         f"Expected to find version with 'Modified on Branch' title, got {[v.title for v in branch_versions]}"
     )
 
-    # 3. Merge co-TEST-MERGE -> main (creates V3 on main with branch content)
+    # 3. Merge BR-TEST-MERGE -> main (creates V3 on main with branch content)
     merge_resp = await client.post(
         f"/api/v1/change-orders/{co_id}/merge",
         json={"target_branch": "main"},
@@ -331,7 +331,7 @@ async def test_merge_change_order(
     # 4. Verify DB state after merge:
     # - V3 on main has the merged content ("Modified on Branch")
     # - V1 on main is closed (transaction_time upper bound set)
-    # - V2 on co-TEST-MERGE remains unchanged
+    # - V2 on BR-TEST-MERGE remains unchanged
 
     # First, get all versions (including closed ones)
     stmt_main_all = (

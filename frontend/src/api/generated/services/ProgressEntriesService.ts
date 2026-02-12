@@ -15,8 +15,12 @@ export class ProgressEntriesService {
      *
      * Progress entries track work completion percentage for cost elements.
      * They are versionable but NOT branchable (progress is global facts).
+     * Branch and mode parameters are provided for API consistency and context,
+     * though progress entries themselves are not branch-specific.
      * @param page Page number (1-indexed)
      * @param perPage Items per page
+     * @param branch Branch to query (for context)
+     * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param costElementId Filter by Cost Element ID
      * @param asOf Time travel: get Progress Entries as of this timestamp (ISO 8601)
      * @returns any Successful Response
@@ -25,6 +29,8 @@ export class ProgressEntriesService {
     public static getProgressEntries(
         page: number = 1,
         perPage: number = 20,
+        branch: string = 'main',
+        mode: string = 'merged',
         costElementId?: (string | null),
         asOf?: (string | null),
     ): CancelablePromise<any> {
@@ -34,6 +40,8 @@ export class ProgressEntriesService {
             query: {
                 'page': page,
                 'per_page': perPage,
+                'branch': branch,
+                'mode': mode,
                 'cost_element_id': costElementId,
                 'as_of': asOf,
             },
@@ -52,7 +60,7 @@ export class ProgressEntriesService {
      * Validation:
      * - progress_percentage must be between 0 and 100
      * - cost_element_id must reference an existing cost element
-     * - reported_by_user_id must reference an existing user
+     * - control_date determines when the progress was measured (defaults to now)
      * @param requestBody
      * @returns ProgressEntryRead Successful Response
      * @throws ApiError
@@ -156,7 +164,7 @@ export class ProgressEntriesService {
      * Read Latest Progress
      * Retrieve the latest progress entry for a cost element.
      *
-     * Returns the most recent progress entry based on reported_date.
+     * Returns the most recent progress entry based on valid_time.
      * Supports time-travel queries via the as_of parameter.
      *
      * Returns None if no progress has been reported for the cost element.
@@ -188,7 +196,7 @@ export class ProgressEntriesService {
      * Retrieve progress history for a cost element.
      *
      * Returns all progress entries for the specified cost element,
-     * ordered by reported_date descending (most recent first).
+     * ordered by valid_time descending (most recent first).
      *
      * Useful for generating progress charts and historical analysis.
      * @param costElementId

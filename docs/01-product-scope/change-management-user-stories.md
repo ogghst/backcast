@@ -14,12 +14,12 @@ This document outlines the user experience and functional workflows for **Change
 
 The lifecycle of a Change Order follows a strict workflow to ensure data integrity and proper authorization:
 
-1.  **Creation (Drafting):** A Project Manager creates a CO. The system spawns a dedicated **Change Order Branch**.
-2.  **Scoping (Work in Branch):** Users switch to the CO Branch to modify Project structures (WBEs), Cost Elements, Budgets, and Schedules. These changes are isolated from the Production (Main) environment.
-3.  **Impact Analysis:** Before submission, the CO Branch is compared against the Main Branch to visualize financial and schedule impacts.
-4.  **Submission:** The CO is submitted for review. The branch is **Locked** to prevent further changes.
-5.  **Review & Decision:** Approvers review the impact. Additional details may be requested (unlocking the branch), or the CO is Approved/Rejected.
-6.  **Implementation (Merge):** Upon approval, the CO Branch is **Merged** into the Main Branch, updating the live project baseline. Use of the CO Branch is concluded.
+1. **Creation (Drafting):** A Project Manager creates a CO. The system spawns a dedicated **Change Order Branch**.
+2. **Scoping (Work in Branch):** Users switch to the CO Branch to modify Project structures (WBEs), Cost Elements, Budgets, and Schedules. These changes are isolated from the Production (Main) environment.
+3. **Impact Analysis:** Before submission, the CO Branch is compared against the Main Branch to visualize financial and schedule impacts.
+4. **Submission:** The CO is submitted for review. The branch is **Locked** to prevent further changes.
+5. **Review & Decision:** Approvers review the impact. Additional details may be requested (unlocking the branch), or the CO is Approved/Rejected.
+6. **Implementation (Merge):** Upon approval, the CO Branch is **Merged** into the Main Branch, updating the live project baseline. Use of the CO Branch is concluded.
 
 ---
 
@@ -40,10 +40,10 @@ The lifecycle of a Change Order follows a strict workflow to ensure data integri
 - **Input:** User provides a Change Order ID (e.g., `CO-2026-001`), Title, Description, Justification, and Effective Date.
 - **System Action:**
   - Creates a new **Change Order Record** in the database.
-  - Automatically triggers the **Branch Creation** process, generating a new branch `co-{change_order_id}` (e.g., `co-CO-2026-001`).
+  - Automatically triggers the **Branch Creation** process, generating a new branch `BR-{change_order_id}` (e.g., `BR-CO-2026-001`).
   - **Source Selection:** The branch is a logical fork of the selected **Source Branch** (default: `main`). This allows chaining changes (e.g., Change B depends on Change A).
 - **UX Experience:**
-  - Upon success, the UI prompts the user: _"Change Order Created. Switch to branch 'co-CO-2026-001' to begin editing?"_
+  - Upon success, the UI prompts the user: _"Change Order Created. Switch to branch 'BR-CO-2026-001' to begin editing?"_
   - Visual indicators (e.g., a "Draft" status badge) appear next to the CO in the list.
 
 ### 3.2 Performing Work on a Change
@@ -64,7 +64,7 @@ The lifecycle of a Change Order follows a strict workflow to ensure data integri
   - **Modify:** Update existing budget allocations, change delivery dates, or adjust revenue distributions.
   - **Create:** Add new WBEs or Cost Elements required for the change.
   - **Delete/Deactivate:** Mark scope that is being removed.
-- **Isolation:** All actions affect **only** the data version tagged with the current branch (`co-{change_order_id}`). The `main` branch remains untouched and viewable by others.
+- **Isolation:** All actions affect **only** the data version tagged with the current branch (`BR-{change_order_id}`). The `main` branch remains untouched and viewable by others.
 
 ### 3.3 Updating the Change Metadata
 
@@ -135,7 +135,7 @@ graph TD
 **Functionality:**
 
 - **State Transition:** User changes status from "Draft" to "Submitted" (or "Pending Approval").
-- **Branch Locking:** The system **Locks** the branch `co-{change_order_id}`.
+- **Branch Locking:** The system **Locks** the branch `BR-{change_order_id}`.
   - **Read-Only:** No further edits to WBEs or Costs are allowed in this branch while in "Submitted" state.
   - **Unlock:** If rework is needed, the status must be moved back to "Draft" (potentially requiring special permissions).
 
@@ -152,7 +152,7 @@ graph TD
 **Functionality:**
 
 - **Approval Action:** User clicks "Approve Change".
-- **Merge Operation:** The system checks out the **Target Branch** (e.g., `main` or another active change branch) and **Merges** the `co-{change_order_id}` branch into it.
+- **Merge Operation:** The system checks out the **Target Branch** (e.g., `main` or another active change branch) and **Merges** the `BR-{change_order_id}` branch into it.
   - **Resolution:** The logic typically follows a "Change Wins" strategy (overwriting Target with Source values), assuming the Target hasn't diverged significantly in a conflicting way (concurrency checks apply).
   - **History:** The versions in the Target branch are effectively superseded by the versions from the CO branch.
 - **Closure:**
@@ -249,9 +249,9 @@ The UI should feel premium and distinct for each state:
 
 ### 5.4 General Requirements
 
-1.  **Header Branch Indicator:** Always visible. Distinct styling for Change Branches.
-2.  **Date Selector (Time Machine):** Independent of branch selection.
-3.  **Notifications:** Toaster confirmations for major state changes (Lock, Merge).
+1. **Header Branch Indicator:** Always visible. Distinct styling for Change Branches.
+2. **Date Selector (Time Machine):** Independent of branch selection.
+3. **Notifications:** Toaster confirmations for major state changes (Lock, Merge).
 
 ---
 

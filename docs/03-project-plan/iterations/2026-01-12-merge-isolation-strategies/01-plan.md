@@ -44,6 +44,7 @@
 **Backend Existing Patterns:**
 
 1. **MERGE Mode for Single Entities** (`BranchableService.get_as_of()`):
+
    ```python
    # Uses CASE to prioritize requested branch over main
    .order_by(
@@ -53,6 +54,7 @@
    ```
 
 2. **STRICT Mode for Lists** (`WBEService.get_wbes()`):
+
    ```python
    stmt = self._get_base_stmt(as_of=as_of).where(WBE.branch == branch)
    ```
@@ -221,21 +223,21 @@ The system currently supports MERGE mode for single-entity queries (`get_as_of()
 
 1. **test_isolated_mode_returns_only_branch_entities:**
    - Create 5 WBEs on main
-   - Create 2 WBEs on co-123 branch
-   - Query with `branch="co-123", mode="isolated"`
-   - Assert: 2 results, all from co-123
+   - Create 2 WBEs on BR-123 branch
+   - Query with `branch="BR-123", mode="isolated"`
+   - Assert: 2 results, all from BR-123
 
 2. **test_distinct_on_prioritizes_branch_over_main:**
    - Create WBE with code="W001" on main
-   - Create WBE with same code="W001" (same root_id) on co-123 branch
-   - Query with `branch="co-123", mode="merged"`
-   - Assert: 1 result, branch="co-123"
+   - Create WBE with same code="W001" (same root_id) on BR-123 branch
+   - Query with `branch="BR-123", mode="merged"`
+   - Assert: 1 result, branch="BR-123"
 
 3. **test_merged_mode_includes_unmodified_main_entities:**
    - Create 5 WBEs on main
-   - Create 2 WBEs on co-123 (different root_ids)
-   - Query with `branch="co-123", mode="merged"`
-   - Assert: 5 results (2 from co-123 + 3 from main)
+   - Create 2 WBEs on BR-123 (different root_ids)
+   - Query with `branch="BR-123", mode="merged"`
+   - Assert: 5 results (2 from BR-123 + 3 from main)
 
 ### Implementation Strategy
 
@@ -269,9 +271,9 @@ The system currently supports MERGE mode for single-entity queries (`get_as_of()
 ```sql
 SELECT DISTINCT ON (wbe_id) *
 FROM wbe
-WHERE branch IN ('co-123', 'main')
+WHERE branch IN ('BR-123', 'main')
   -- bitemporal filters
-ORDER BY wbe_id, (branch = 'co-123') DESC, valid_time DESC
+ORDER BY wbe_id, (branch = 'BR-123') DESC, valid_time DESC
 ```
 
 **Frontend Component Hierarchy:**

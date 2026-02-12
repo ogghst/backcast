@@ -80,6 +80,7 @@ docker compose version
 ```
 
 Expected output:
+
 ```
 Docker version 27.x.x, build xxxxx
 Docker Compose version v2.x.x
@@ -98,6 +99,7 @@ docker network ls | grep traefik-public
 ```
 
 Expected output:
+
 ```
 08c9efc8766c   traefik-public   bridge    local
 ```
@@ -136,11 +138,13 @@ docker run --rm httpd:2.4-alpine htpasswd -nb admin <your-password>
 ```
 
 **Current credentials (configured 2026-01-26):**
+
 - Username: `admin`
 - Password: `backcast`
 - Hash: `$apr1$Zxm7mIoj$dmDpeU2Nva6NAmgspTODw1`
 
 **Note:** To update the password, regenerate the hash and update `/home/nicola/dev/backcast_evs/deploy/traefik/dynamic/middlewares.yml` line 41, then restart Traefik:
+
 ```bash
 docker compose --env-file .env.production restart traefik
 ```
@@ -296,12 +300,13 @@ http:
 **Key Changes:**
 
 1. **Traefik ports** (line ~16):
+
 ```yaml
 ports:
   - "${TRAEFIK_HTTP_PORT:-8080}:80"
 ```
 
-2. **All service labels** - Change from `websecure` to `web`:
+1. **All service labels** - Change from `websecure` to `web`:
 
 ```yaml
 # Dashboard (line ~31)
@@ -317,7 +322,8 @@ ports:
 - "traefik.http.routers.adminer.entrypoints=web"
 ```
 
-3. **Backend environment variables** - Add missing variables:
+1. **Backend environment variables** - Add missing variables:
+
 ```yaml
 environment:
   DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
@@ -334,7 +340,8 @@ environment:
   RUN_MIGRATIONS: "${RUN_MIGRATIONS:-false}"
 ```
 
-4. **Backend resources** (line ~125):
+1. **Backend resources** (line ~125):
+
 ```yaml
 deploy:
   resources:
@@ -530,6 +537,7 @@ docker compose --env-file .env.production build
 **Expected build time:** ~5-10 minutes
 
 **Troubleshooting:**
+
 - If frontend build fails due to TypeScript errors, the Dockerfile now uses `npx vite build` directly which skips type checking
 - If backend build fails due to missing files, ensure the build context is correct
 
@@ -544,6 +552,7 @@ docker compose --env-file .env.production ps
 ```
 
 Expected output:
+
 ```
 NAME                    STATUS
 backcast_evs_postgres   Up and healthy
@@ -561,6 +570,7 @@ docker compose --env-file .env.production run --rm alembic
 ```
 
 Expected output:
+
 ```
 INFO  [alembic.runtime.migration] Running upgrade -> 94ccc0cb6464, Initial schema
 INFO  [alembic.runtime.migration] Running upgrade 94ccc0cb6464 -> 9f027887a725, Add User and UserVersion models
@@ -653,6 +663,7 @@ SELECT 'cost_elements', COUNT(*) FROM cost_elements;
 ```
 
 Expected output:
+
 ```
     entity     | count
 ---------------+-------
@@ -668,17 +679,18 @@ cost_elements  |   100
 
 | Email | Password | Role | Department |
 |-------|----------|------|------------|
-| admin@backcast.org | adminadmin | admin | ADMIN |
-| viewer@backcast.org | backcast | viewer | ENG |
-| pm@backcast.org | backcast | manager | PM |
-| eng.lead@backcast.org | backcast | contributor | ENG |
-| const.super@backcast.org | backcast | contributor | CONST |
+| <admin@backcast.org> | adminadmin | admin | ADMIN |
+| <viewer@backcast.org> | backcast | viewer | ENG |
+| <pm@backcast.org> | backcast | manager | PM |
+| <eng.lead@backcast.org> | backcast | contributor | ENG |
+| <const.super@backcast.org> | backcast | contributor | CONST |
 
 **Important:** Change default passwords after first login!
 
 #### Seeded Data Summary
 
 The seed operation creates:
+
 - **4 departments**: ADMIN, ENG, PM, CONST
 - **5 users**: 1 admin, 1 manager, 2 contributors, 1 viewer
 - **5 cost element types**: Labor, Equipment, Material, Subcontract, Overhead
@@ -689,6 +701,7 @@ The seed operation creates:
 #### Troubleshooting Reseed
 
 **Seed files not found error:**
+
 ```bash
 # Verify seed files are copied correctly
 docker exec backcast_evs_backend ls -la /app/seed/
@@ -698,14 +711,17 @@ docker cp /home/nicola/dev/backcast_evs/backend/seed backcast_evs_backend:/app/
 ```
 
 **Duplicate key errors:**
+
 - This is normal with Option A (Simple Reseed) - the seeder skips existing records
 - Check logs for "already exists, skipping" messages
 
 **Foreign key constraint errors:**
+
 - Ensure you ran migrations first (Section 8.3)
 - Check that dependent data exists (e.g., departments before users)
 
 **Permission denied errors:**
+
 ```bash
 # Ensure backend container has write permissions
 docker exec backcast_evs_backend ls -la /app/
@@ -886,10 +902,10 @@ curl -I http://192.168.1.23:8080
 
 From your browser or external network:
 
-- **Frontend:** https://app.backcast.duckdns.org
-- **Backend API:** https://api.backcast.duckdns.org
-- **API Docs:** https://api.backcast.duckdns.org/docs
-- **Traefik Dashboard:** https://traefik.backcast.duckdns.org (if configured)
+- **Frontend:** <https://app.backcast.duckdns.org>
+- **Backend API:** <https://api.backcast.duckdns.org>
+- **API Docs:** <https://api.backcast.duckdns.org/docs>
+- **Traefik Dashboard:** <https://traefik.backcast.duckdns.org> (if configured)
 
 ---
 
@@ -900,6 +916,7 @@ From your browser or external network:
 To access services from your local network (192.168.1.x), you need to add DNS entries to each machine that will access the services.
 
 **On Linux/Mac (`/etc/hosts`):**
+
 ```bash
 sudo nano /etc/hosts
 ```
@@ -908,6 +925,7 @@ sudo nano /etc/hosts
 Run Notepad as Administrator and open the file.
 
 **Add these lines:**
+
 ```hosts
 192.168.1.23  api.backcast.duckdns.org
 192.168.1.23  app.backcast.duckdns.org
@@ -921,12 +939,13 @@ Once DNS entries are configured, you can access:
 
 | Service | LAN URL | Authentication |
 |---------|---------|----------------|
-| Frontend | http://app.backcast.duckdns.org:8080 | None |
-| Backend API | http://api.backcast.duckdns.org:8080 | API tokens |
-| Adminer (DB) | http://db.backcast.duckdns.org:8080 | IP whitelist (192.168.0.0/16) |
-| Traefik Dashboard | http://traefik.backcast.duckdns.org:8080/dashboard/ | Basic auth |
+| Frontend | <http://app.backcast.duckdns.org:8080> | None |
+| Backend API | <http://api.backcast.duckdns.org:8080> | API tokens |
+| Adminer (DB) | <http://db.backcast.duckdns.org:8080> | IP whitelist (192.168.0.0/16) |
+| Traefik Dashboard | <http://traefik.backcast.duckdns.org:8080/dashboard/> | Basic auth |
 
 **Traefik Dashboard Credentials:**
+
 - Username: `admin`
 - Password: `backcast`
 
@@ -1044,16 +1063,16 @@ docker compose --env-file .env.production run --rm alembic
 
 ```bash
 # Access PostgreSQL directly
-docker exec -it backcast_evs_postgres psql -U backcast_prod -d backcast_evs
+docker compose exec postgres psql -U backcast_prod -d backcast_evs
 
 # Backup database (with timestamp)
-docker exec backcast_evs_postgres pg_dump -U backcast_prod backcast_evs | gzip > backup_$(date +%Y%m%d_%H%M%S).sql.gz
+docker compose exec postgres pg_dump -U backcast_prod backcast_evs | gzip > backup_$(date +%Y%m%d_%H%M%S).sql.gz
 
 # Restore database from backup
-gunzip -c backup_YYYYMMDD_HHMMSS.sql.gz | docker exec -i backcast_evs_postgres psql -U backcast_prod backcast_evs
+gunzip -c backup_YYYYMMDD_HHMMSS.sql.gz | docker compose exec -T postgres psql -U backcast_prod backcast_evs
 
 # Check database size
-docker exec backcast_evs_postgres psql -U backcast_prod backcast_evs -c "SELECT pg_size_pretty(pg_database_size('backcast_evs'));"
+docker compose exec postgres psql -U backcast_prod -d backcast_evs -c "SELECT pg_size_pretty(pg_database_size('backcast_evs'));"
 
 # Re-seed database with initial data (see Section 8.4)
 # This adds default departments, users, cost element types, projects, WBEs, and cost elements
@@ -1097,7 +1116,7 @@ docker compose --env-file .env.production ps postgres
 docker compose --env-file .env.production logs postgres
 
 # Test database connection
-docker exec backcast_evs_backend pg_isready -h postgres -U backcast_prod
+docker compose exec backend pg_isready -h postgres -U backcast_prod
 ```
 
 ### Backend Not Starting
@@ -1107,7 +1126,7 @@ docker exec backcast_evs_backend pg_isready -h postgres -U backcast_prod
 docker compose --env-file .env.production logs backend
 
 # Check environment variables
-docker exec backcast_evs_backend env | grep -E "DATABASE_URL|POSTGRES_"
+docker compose exec backend env | grep -E "DATABASE_URL|POSTGRES_"
 
 # Restart backend
 docker compose --env-file .env.production restart backend
@@ -1120,10 +1139,10 @@ docker compose --env-file .env.production restart backend
 docker compose --env-file .env.production logs frontend
 
 # Check nginx is running
-docker exec backcast_evs_frontend ps aux
+docker compose exec frontend ps aux
 
 # Check nginx error log
-docker exec backcast_evs_frontend cat /var/log/nginx/error.log
+docker compose exec frontend cat /var/log/nginx/error.log
 ```
 
 ### Traefik Issues
@@ -1133,7 +1152,7 @@ docker exec backcast_evs_frontend cat /var/log/nginx/error.log
 docker compose --env-file .env.production logs traefik
 
 # Check Traefik configuration
-docker exec backcast_evs_traefik cat /etc/traefik/traefik.yml
+docker compose exec traefik cat /etc/traefik/traefik.yml
 
 # Test Traefik endpoint
 curl -I http://localhost:8080
@@ -1159,6 +1178,7 @@ apache2ctl -M | grep -E "proxy|ssl|rewrite|headers"
 ### Health Checks Failing
 
 Health checks may show as "unhealthy" but services work correctly. This is often due to:
+
 - Backend health endpoint not implemented (returns 404)
 - Frontend health check timing out
 - Traefik dashboard requiring authentication
@@ -1184,6 +1204,7 @@ Health checks may show as "unhealthy" but services work correctly. This is often
 ### Firewall Rules
 
 **On Apache server (192.168.1.21):**
+
 ```bash
 # Allow HTTP and HTTPS from anywhere
 sudo ufw allow 80/tcp
@@ -1197,6 +1218,7 @@ sudo ufw enable
 ```
 
 **On Docker server (192.168.1.23):**
+
 ```bash
 # Allow internal network only
 # Block external access to Traefik port 8080
@@ -1216,7 +1238,7 @@ sudo ufw enable
 
 ```bash
 # Backup database
-docker exec backcast_evs_postgres pg_dump -U backcast_prod backcast_evs | gzip > backup_$(date +%Y%m%d).sql.gz
+docker compose exec postgres pg_dump -U backcast_prod backcast_evs | gzip > backup_$(date +%Y%m%d).sql.gz
 
 # Backup Docker volumes
 docker run --rm -v deploy_postgres_data:/data -v $(pwd):/backup alpine tar czf /backup/postgres_volume_$(date +%Y%m%d).tar.gz -C /data .
@@ -1292,11 +1314,13 @@ docker compose --env-file .env.production logs -f
 ### Log Locations
 
 **Docker Server (192.168.1.23):**
+
 - Application logs: `backend-logs` Docker volume
 - Traefik logs: `traefik-logs` Docker volume
 - Container logs: `docker compose logs`
 
 **Apache Server (192.168.1.21):**
+
 - Apache logs: `/var/log/apache2/`
 - Virtual host logs: `/var/log/apache2/app.*_log`, `/var/log/apache2/api.*_log`
 
@@ -1339,7 +1363,7 @@ docker compose --env-file .env.production up -d
 
 ```bash
 # Restore from backup
-docker exec -i backcast_evs_postgres psql -U backcast_prod backcast_evs < backup.sql
+cat backup.sql | docker compose exec -T postgres psql -U backcast_prod backcast_evs
 ```
 
 ### Reset Deployment
@@ -1356,4 +1380,4 @@ docker network rm traefik-public
 
 **Last Updated:** 2026-01-26
 **Version:** 1.0
-**Maintained By:** nicola@backcast.duckdns.org
+**Maintained By:** <nicola@backcast.duckdns.org>

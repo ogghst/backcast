@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import {
   FileTextOutlined,
   SyncOutlined,
-  BarChartOutlined,
 } from "@ant-design/icons";
 
 interface ChangeOrderPageNavProps {
@@ -16,7 +15,6 @@ interface ChangeOrderPageNavProps {
  * Shows:
  * - "Details" - Links to form section
  * - "Workflow" - Links to workflow section (hidden in create mode)
- * - "Impact" - Links to impact section (hidden in create mode)
  *
  * Stays fixed at the top while scrolling.
  */
@@ -36,11 +34,6 @@ export function ChangeOrderPageNav({
             key: "workflow",
             icon: <SyncOutlined />,
             label: <Link to="#workflow">Workflow</Link>,
-          },
-          {
-            key: "impact",
-            icon: <BarChartOutlined />,
-            label: <Link to="#impact">Impact</Link>,
           },
         ]),
   ];

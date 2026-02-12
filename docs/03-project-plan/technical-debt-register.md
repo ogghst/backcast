@@ -1,13 +1,56 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-01-27
-**Total Debt Items:** 9 (24 completed)
-**Total Estimated Effort:** 31 hours
+**Last Updated:** 2026-02-07
+**Total Debt Items:** 10 (24 completed)
+**Total Estimated Effort:** 55 hours
 **Completed Effort:** 30.25 hours
 
 ---
 
 ## Debt Items
+
+### High Severity
+
+#### [TD-067] FK Constraint: Business Key vs Primary Key in Temporal Entities
+
+- **Source:** Change Order Workflow Recovery (2026-02-06)
+- **Description:** `ChangeOrder.assigned_approver_id` foreign key references `users(id)` (auto-generated primary key) instead of `users(user_id)` (business key). This causes issues in bitemporal queries because PK changes across versions while business key remains stable.
+- **Impact:** Data integrity issues in bitemporal queries; using PK may return wrong or expired versions
+- **Estimated Effort:** 2-3 days (16-24 hours)
+- **Target Date:** 2026-02-15
+- **Status:** 🔴 Open
+- **Owner:** Backend Developer
+- **Priority:** High
+- **Risk:** Data integrity issues in bitemporal queries
+- **Solution Options:**
+  1. **Option 1 (Preferred)**: Update FK to Reference Business Keys - Correct bitemporal semantics, stable references, aligns with ADR-005. Requires data migration (16-24 hours)
+  2. **Option 2**: Add Generated Column with Business Key Reference - No data migration, backward compatible, but more complex query logic and doesn't fix root issue (8-16 hours)
+  3. **Option 3 (Current)**: Application Layer Workaround - No database changes, but risk of inconsistent queries, not long-term solution (0 hours - already implemented)
+- **Affected Entities:**
+  1. **Change Orders** (`backend/app/models/domain/change_order.py:122`) - `assigned_approver_id` → should reference `users.user_id` (Status: ⚠️ Known issue)
+  2. **Projects** (`backend/app/models/domain/project.py`) - May have FK references to users (Status: 🔍 Needs audit)
+  3. **WBEs** (`backend/app/models/domain/wbe.py`) - `project_id` reference needs verification (Status: 🔍 Needs audit)
+  4. **Cost Elements** (`backend/app/models/domain/cost_element.py`) - `wbe_id` reference needs verification (Status: 🔍 Needs audit)
+  5. **All temporal entities** with FK references (Status: 🔍 Comprehensive audit needed)
+- **Migration Plan (Option 1 - Preferred):**
+  1. **Audit Phase** (1 day): Scan all temporal entities for FK references, document all PK vs business key mismatches, assess data impact
+  2. **Design Phase** (0.5 days): Design migration strategy, plan for zero-downtime deployment, rollback procedures
+  3. **Implementation Phase** (1-1.5 days): Create Alembic migration to update FK constraints, update model definitions to use business keys, update service layer, update tests
+  4. **Testing Phase** (0.5 days): Unit tests for FK references, integration tests for bitemporal queries, performance tests
+  5. **Documentation Phase** (0.5 days): Update coding standards, document FK reference pattern for temporal entities, add ADR supplement if needed
+- **Action Items:**
+  - [ ] Audit all FK references in temporal entities
+  - [ ] Create migration plan for Option 1
+  - [ ] Update coding standards to specify business key FKs for temporal entities
+  - [ ] Add validation to prevent PK-based FKs in new temporal entities
+  - [ ] Schedule implementation iteration
+- **References:**
+  - **Issue**: CO-2026-003 recovery
+  - **ADR**: ADR-005 Bitemporal Versioning
+  - **Files**: `backend/app/models/domain/change_order.py:122`, `backend/scripts/repair_change_order_co_2026_003.py`, `backend/app/services/change_order_service.py:recover_change_order()`
+  - **Iteration**: 2026-02-06-change-order-workflow-recovery
+
+---
 
 ### Medium Severity
 
@@ -107,6 +150,20 @@
 - **Prevention:** Pre-commit hooks for ESLint, CI/CD gate for modified files, code review checklist item
 - **Documentation:** [EVM Analyzer CHECK phase](./iterations/2026-01-22-evm-analyzer-master-detail-ui/03-check.md), [Frontend Coding Standards](../../02-architecture/frontend/coding-standards.md)
 
+#### [TD-068] Impact Analysis Timeout Configuration ✅
+
+- **Source:** Change Order Workflow Recovery (2026-02-06)
+- **Description:** Impact analysis now has a 5-minute timeout, but this is hardcoded. Should be configurable via environment variables or settings.
+- **Impact:** Low - unable to adjust timeout for different environments without code changes
+- **Estimated Effort:** 1 hour
+- **Actual Effort:** N/A
+- **Target Date:** 2026-02-06
+- **Completed Date:** 2026-02-06
+- **Status:** ✅ Completed
+- **Owner:** Backend Developer
+- **Resolution:** Timeout configuration implemented in 2026-02-06-change-order-workflow-recovery iteration
+- **Documentation:** [Change Order Workflow Recovery Iteration](./iterations/2026-02-06-change-order-workflow-recovery/)
+
 ---
 
 ### Low Severity
@@ -173,3 +230,34 @@
 - Add to register within 24 hours of iteration completion
 - Review and prioritize during sprint planning
 - Track trends and prevent accumulation
+
+---
+
+## Technical Debt Policy
+
+### Adding New Items
+
+When adding new technical debt items:
+
+1. Document the problem clearly
+2. Assess priority (High/Medium/Low)
+3. Identify affected components
+4. Propose solution options
+5. Estimate effort
+6. Create action items
+
+### Resolving Items
+
+When resolving technical debt:
+
+1. Reference the debt item in commit messages
+2. Update the Status field
+3. Document the solution
+4. Close related issues/tickets
+
+### Review Cadence
+
+- Review high-priority items monthly
+- Review medium/low-priority items quarterly
+- Update estimates as needed
+- Archive resolved items annually

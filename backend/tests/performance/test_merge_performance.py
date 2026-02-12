@@ -90,7 +90,7 @@ class TestMergePerformance:
             )
 
         # Create CO version on source branch
-        source_branch = f"co-{co_code}"
+        source_branch = f"BR-{co_code}"
         await co_service.create_root(
             root_id=co_id,
             actor_id=actor_id,
@@ -200,7 +200,7 @@ class TestMergePerformance:
             )
 
         # Create CO version on source branch
-        source_branch = f"co-{co_code}"
+        source_branch = f"BR-{co_code}"
         await co_service.create_root(
             root_id=co_id,
             actor_id=actor_id,

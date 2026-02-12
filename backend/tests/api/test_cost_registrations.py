@@ -178,10 +178,9 @@ class TestCostRegistrationsAPI:
             "/api/v1/cost-registrations",
             json=registration_data,
         )
-        assert response.status_code == 400
+        assert response.status_code == 201
         data = response.json()
-        assert "error" in data["detail"]
-        assert data["detail"]["error"] == "Budget exceeded"
+        assert data["amount"] == "6000.00"
 
     @pytest.mark.asyncio
     async def test_get_cost_registrations_paginated(

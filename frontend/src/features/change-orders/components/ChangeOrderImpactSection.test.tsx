@@ -85,7 +85,7 @@ describe("ChangeOrderImpactSection", () => {
 
     // Act
     render(
-      <ChangeOrderImpactSection changeOrderId="co-123" />,
+      <ChangeOrderImpactSection changeOrderId="BR-123" />,
       { wrapper }
     );
 
@@ -108,7 +108,7 @@ describe("ChangeOrderImpactSection", () => {
 
     // Act
     render(
-      <ChangeOrderImpactSection changeOrderId="co-123" />,
+      <ChangeOrderImpactSection changeOrderId="BR-123" />,
       { wrapper }
     );
 
@@ -145,7 +145,7 @@ describe("ChangeOrderImpactSection", () => {
 
     // Act
     render(
-      <ChangeOrderImpactSection changeOrderId="co-123" />,
+      <ChangeOrderImpactSection changeOrderId="BR-123" />,
       { wrapper }
     );
 

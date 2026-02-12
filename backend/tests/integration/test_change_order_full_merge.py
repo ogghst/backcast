@@ -28,7 +28,7 @@ class TestChangeOrderFullMerge:
     ) -> None:
         """Test successful merge of CO with WBEs and CostElements.
 
-        Expected: All entities merged from co-{code} branch to main branch.
+        Expected: All entities merged from BR-{code} branch to main branch.
         """
         # Arrange
         actor_id = uuid4()
@@ -76,7 +76,7 @@ class TestChangeOrderFullMerge:
         )
 
         # Create CO version on source branch
-        source_branch = f"co-{co_code}"
+        source_branch = f"BR-{co_code}"
         await co_service.create_root(
             root_id=co_id,
             actor_id=actor_id,
@@ -193,7 +193,7 @@ class TestChangeOrderFullMerge:
         assert wbe_before.name == "Original WBE"
 
         # Create CO version on source branch
-        source_branch = f"co-{co_code}"
+        source_branch = f"BR-{co_code}"
         await co_service.create_root(
             root_id=co_id,
             actor_id=actor_id,
@@ -257,7 +257,7 @@ class TestChangeOrderFullMerge:
         )
 
         # Create CO version on empty source branch
-        source_branch = f"co-{co_code}"
+        source_branch = f"BR-{co_code}"
         await co_service.create_root(
             root_id=co_id,
             actor_id=actor_id,
@@ -326,7 +326,7 @@ class TestChangeOrderFullMerge:
         assert wbe_before.deleted_at is None
 
         # Create CO version on source branch
-        source_branch = f"co-{co_code}"
+        source_branch = f"BR-{co_code}"
         await co_service.create_root(
             root_id=co_id,
             actor_id=actor_id,

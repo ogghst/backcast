@@ -45,7 +45,8 @@ export type Permission =
   | "change-order-read"
   | "change-order-create"
   | "change-order-update"
-  | "change-order-delete";
+  | "change-order-delete"
+  | "change-order-recover";
 
 // Type alias for role strings
 export type Role = "admin" | "manager" | "viewer";

@@ -159,18 +159,22 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 resolved.append(item)
         return resolved
 
-    async def create(
+    async def create_cost_element(
         self,
         element_in: CostElementCreate,
         actor_id: UUID,
         branch: str | None = None,
-        control_date: datetime | None = None,
     ) -> CostElement:
         """Create new cost element using CreateVersionCommand.
 
         Auto-creates a default schedule baseline for the cost element.
         """
         element_data = element_in.model_dump(exclude_unset=True)
+
+        # Extract control_date from schema if present (for seeding/time-travel)
+        control_date = getattr(element_in, 'control_date', None)
+
+        # Remove control_date from data to avoid duplicate kwarg error
         element_data.pop("control_date", None)
 
         # Use provided cost_element_id (for seeding) or generate new one
@@ -215,6 +219,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             actor_id=actor_id,
             branch=target_branch,
             budget_amount=cost_element.budget_amount,
+            control_date=control_date,
         )
 
         # Update cost element with forecast reference
@@ -223,15 +228,18 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
 
         return cost_element
 
+
     async def update(  # type: ignore[override]
         self,
         cost_element_id: UUID,
         element_in: CostElementUpdate,
         actor_id: UUID,
         branch: str | None = None,
-        control_date: datetime | None = None,
     ) -> CostElement:
-        """Update cost element using UpdateVersionCommand or Fork if new branch."""
+        # Extract control_date and branch from schema
+        control_date = element_in.control_date
+
+        # Filter None values from update data
         update_data = element_in.model_dump(exclude_unset=True)
         update_data.pop("control_date", None)
 
@@ -370,6 +378,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 actor_id=actor_id,
                 branch=target_branch,
                 budget_amount=new_element.budget_amount,
+                control_date=control_date,
             )
 
             # Update cost element with forecast reference
@@ -755,6 +764,8 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         )
 
         # Build query with joins
+        # In MERGE mode, try current branch first, then fall back to main
+        # In STRICT mode, only try current branch
         stmt = (
             select(
                 CostElement,
@@ -774,12 +785,45 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         )
 
         # Apply time-travel filter
-        stmt = self._apply_bitemporal_filter_for_time_travel(stmt, as_of)
+        stmt = self._apply_bitemporal_filter(stmt, as_of)
 
         stmt = stmt.limit(1)
         result = await self.session.execute(stmt)
         resolved = await self._resolve_relations(result.all())
-        return resolved[0] if resolved else None
+
+        # If found, return it
+        if resolved:
+            return resolved[0]
+
+        # If not found and in MERGE mode, try main branch as fallback
+        if branch_mode == BranchMode.MERGE and branch != "main":
+            stmt = (
+                select(
+                    CostElement,
+                    wbe_subq.c.wbe_name,
+                    type_subq.c.type_name,
+                    type_subq.c.type_code,
+                )
+                .outerjoin(wbe_subq, CostElement.wbe_id == wbe_subq.c.wbe_id)
+                .outerjoin(
+                    type_subq,
+                    CostElement.cost_element_type_id == type_subq.c.cost_element_type_id,
+                )
+                .where(
+                    CostElement.cost_element_id == cost_element_id,
+                    CostElement.branch == "main",
+                )
+            )
+
+            # Apply time-travel filter
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+
+            stmt = stmt.limit(1)
+            result = await self.session.execute(stmt)
+            resolved = await self._resolve_relations(result.all())
+            return resolved[0] if resolved else None
+
+        return None
 
     async def get_breadcrumb(self, cost_element_id: UUID) -> dict[str, Any]:
         """Get breadcrumb trail for a Cost Element including project and WBE.

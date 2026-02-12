@@ -230,7 +230,7 @@ export const useProject = (
 
 /**
  * Custom hook to fetch branches for a project.
- * Returns main branch plus any change order branches (co-{code}).
+ * Returns main branch plus any change order branches (BR-{code}).
  */
 /**
  * Custom hook to fetch branches for a project.

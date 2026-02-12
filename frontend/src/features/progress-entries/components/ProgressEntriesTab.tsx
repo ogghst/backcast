@@ -1,4 +1,13 @@
-import { App, Button, Space, Input, Card, Progress, Alert, Tooltip } from "antd";
+import {
+  App,
+  Button,
+  Space,
+  Input,
+  Card,
+  Progress,
+  Alert,
+  Tooltip,
+} from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -10,10 +19,7 @@ import { useState } from "react";
 import type { ColumnType } from "antd/es/table";
 import type { FilterValue } from "antd/es/table/interface";
 import type { CostElementRead } from "@/api/generated";
-import type {
-  ProgressEntryRead,
-  ProgressEntryCreate,
-} from "@/api/generated";
+import type { ProgressEntryRead, ProgressEntryCreate } from "@/api/generated";
 import {
   useProgressEntries,
   useCreateProgressEntry,
@@ -72,22 +78,28 @@ export const ProgressEntriesTab = ({
   const total = data?.total || 0;
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedEntry, setSelectedEntry] = useState<ProgressEntryRead | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<ProgressEntryRead | null>(
+    null,
+  );
   const [historyOpen, setHistoryOpen] = useState(false);
 
   // History hook
-  const { data: historyVersions, isLoading: historyLoading } = useEntityHistory({
-    resource: "progress_entries",
-    entityId: selectedEntry?.progress_entry_id,
-    fetchFn: (id) => ProgressEntriesService.getProgressEntryHistory(id),
-    enabled: historyOpen,
-  });
+  const { data: historyVersions, isLoading: historyLoading } = useEntityHistory(
+    {
+      resource: "progress_entries",
+      entityId: selectedEntry?.progress_entry_id,
+      fetchFn: (id) => ProgressEntriesService.getProgressEntryHistory(id),
+      enabled: historyOpen,
+    },
+  );
 
   const { mutateAsync: createProgressEntry } = useCreateProgressEntry({
     onSuccess: () => {
       refetch();
       queryClient.invalidateQueries({
-        queryKey: queryKeys.costElements.evmMetrics(costElement.cost_element_id),
+        queryKey: queryKeys.costElements.evmMetrics(
+          costElement.cost_element_id,
+        ),
       });
       setModalOpen(false);
     },
@@ -97,7 +109,9 @@ export const ProgressEntriesTab = ({
     onSuccess: () => {
       refetch();
       queryClient.invalidateQueries({
-        queryKey: queryKeys.costElements.evmMetrics(costElement.cost_element_id),
+        queryKey: queryKeys.costElements.evmMetrics(
+          costElement.cost_element_id,
+        ),
       });
       setModalOpen(false);
     },
@@ -107,7 +121,9 @@ export const ProgressEntriesTab = ({
     onSuccess: () => {
       refetch();
       queryClient.invalidateQueries({
-        queryKey: queryKeys.costElements.evmMetrics(costElement.cost_element_id),
+        queryKey: queryKeys.costElements.evmMetrics(
+          costElement.cost_element_id,
+        ),
       });
     },
   });
@@ -180,11 +196,19 @@ export const ProgressEntriesTab = ({
 
   const columns: ColumnType<ProgressEntryRead>[] = [
     {
-      title: "Reported Date",
-      dataIndex: "reported_date",
-      key: "reported_date",
+      title: "Progress Date",
+      dataIndex: "valid_time",
+      key: "valid_time",
       sorter: true,
-      render: (date) => (date ? dayjs(date).format("YYYY-MM-DD HH:mm") : "-"),
+      render: (validTime: string) => {
+        if (!validTime) return "-";
+        // Extract lower bound from TSTZRANGE format: '["2026-01-31T00:00:00Z",)'
+        const lowerBound = validTime
+          .split(",")[0]
+          .substring(1)
+          .replace(/"/g, "");
+        return dayjs(lowerBound).format("YYYY-MM-DD HH:mm");
+      },
     },
     {
       title: "Progress",
@@ -213,7 +237,8 @@ export const ProgressEntriesTab = ({
       ...getColumnSearchProps("notes"),
       render: (notes) => {
         if (!notes) return "-";
-        const truncated = notes.length > 50 ? notes.slice(0, 50) + "..." : notes;
+        const truncated =
+          notes.length > 50 ? notes.slice(0, 50) + "..." : notes;
         return notes.length > 50 ? (
           <Tooltip title={notes}>
             <span>{truncated}</span>
@@ -280,13 +305,22 @@ export const ProgressEntriesTab = ({
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontWeight: "bold" }}>Latest Progress:</span>
                 <span>
-                  {dayjs(latestProgress.reported_date).format("MMM D, YYYY HH:mm")}
+                  {dayjs(
+                    latestProgress.valid_time
+                      .split(",")[0]
+                      .substring(1)
+                      .replace(/"/g, ""),
+                  ).format("MMM D, YYYY HH:mm")}
                 </span>
               </div>
               <div>
                 <Progress
                   percent={parseFloat(latestProgress.progress_percentage)}
-                  status={parseFloat(latestProgress.progress_percentage) === 100 ? "success" : "active"}
+                  status={
+                    parseFloat(latestProgress.progress_percentage) === 100
+                      ? "success"
+                      : "active"
+                  }
                 />
               </div>
               {latestProgress.notes && (
@@ -402,7 +436,8 @@ export const ProgressEntriesTab = ({
                 ? v.transaction_time
                 : new Date().toISOString()),
             changed_by: v.created_by_name || "System",
-            changes: idx === 0 ? { created: "initial" } : { updated: "changed" },
+            changes:
+              idx === 0 ? { created: "initial" } : { updated: "changed" },
           };
         })}
         entityName={`Progress Entry: ${

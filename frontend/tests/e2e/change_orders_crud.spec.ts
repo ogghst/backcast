@@ -79,8 +79,8 @@ test.describe("Change Order CRUD", () => {
     // Verify the change order appears in the list with its branch tag
     await expect(page.locator(`text=${coCode}`)).toBeVisible({ timeout: 10000 });
 
-    // Verify the auto-branch indicator is visible (co-{code} tag)
-    await expect(page.locator(`text=co-${coCode}`)).toBeVisible();
+    // Verify the auto-branch indicator is visible (BR-{code} tag)
+    await expect(page.locator(`text=BR-${coCode}`)).toBeVisible();
 
     // Verify status badge shows "Draft"
     const coRow = page.locator(`tr:has-text("${coCode}")`);

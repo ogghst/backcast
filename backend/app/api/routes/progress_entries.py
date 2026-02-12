@@ -38,6 +38,12 @@ def get_progress_entry_service(
 async def read_progress_entries(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
+    branch: str = Query("main", description="Branch to query (for context)"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
     cost_element_id: UUID | None = Query(None, description="Filter by Cost Element ID"),
     as_of: datetime | None = Query(
         None,
@@ -49,6 +55,8 @@ async def read_progress_entries(
 
     Progress entries track work completion percentage for cost elements.
     They are versionable but NOT branchable (progress is global facts).
+    Branch and mode parameters are provided for API consistency and context,
+    though progress entries themselves are not branch-specific.
     """
     # Build filters dict
     query_filters: dict[str, Any] = {}
@@ -57,10 +65,16 @@ async def read_progress_entries(
 
     skip = (page - 1) * per_page
 
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     items, total = await service.get_progress_history(
         cost_element_id=cost_element_id if cost_element_id else UUID("00000000-0000-0000-0000-000000000000"),  # Dummy ID for list all
         skip=skip,
         limit=per_page,
+        as_of=as_of,
     )
 
     # Convert to Pydantic models
@@ -97,13 +111,12 @@ async def create_progress_entry(
     Validation:
     - progress_percentage must be between 0 and 100
     - cost_element_id must reference an existing cost element
-    - reported_by_user_id must reference an existing user
+    - control_date determines when the progress was measured (defaults to now)
     """
     try:
-        progress = await service.create(
+        progress = await service.create_progress_entry(
             progress_in=progress_in,
             actor_id=current_user.user_id,
-            control_date=progress_in.control_date,
         )
         return progress
     except ValueError as e:
@@ -131,15 +144,17 @@ async def read_progress_entry(
 
     Supports time-travel queries via the as_of parameter.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     if as_of:
         # Time-travel query
         progress = await service.get_progress_entry_as_of(
             progress_entry_id=progress_entry_id,
             as_of=as_of,
         )
-    else:
-        # Current version query
-        progress = await service.get_by_id(progress_entry_id)
 
     if progress is None:
         raise HTTPException(
@@ -170,11 +185,10 @@ async def update_progress_entry(
     The system will maintain full version history for audit trails.
     """
     try:
-        progress = await service.update(
+        progress = await service.update_progress_entry(
             progress_entry_id=progress_entry_id,
             progress_in=progress_in,
             actor_id=current_user.user_id,
-            control_date=progress_in.control_date,
         )
         return progress
     except ValueError as e:
@@ -224,11 +238,16 @@ async def read_latest_progress(
 ) -> ProgressEntry | None:
     """Retrieve the latest progress entry for a cost element.
 
-    Returns the most recent progress entry based on reported_date.
+    Returns the most recent progress entry based on valid_time.
     Supports time-travel queries via the as_of parameter.
 
     Returns None if no progress has been reported for the cost element.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     progress = await service.get_latest_progress(
         cost_element_id=cost_element_id,
         as_of=as_of,
@@ -252,7 +271,7 @@ async def read_progress_history(
     """Retrieve progress history for a cost element.
 
     Returns all progress entries for the specified cost element,
-    ordered by reported_date descending (most recent first).
+    ordered by valid_time descending (most recent first).
 
     Useful for generating progress charts and historical analysis.
     """

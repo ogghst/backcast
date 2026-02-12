@@ -178,8 +178,19 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         update_timestamp = datetime.now(UTC)
 
         # 1. Get current on branch
+        # If not on a change order branch and entity doesn't exist there,
+        # automatically fall back to main branch (for first edit in a CO branch)
         current = await self._get_current_on_branch(session, self.branch)
-        if not current:
+        if not current and self.branch != "main":
+            # WBE doesn't exist on change order branch yet
+            # Fall back to main branch to get the current version
+            current = await self._get_current_on_branch(session, "main")
+            if not current:
+                raise ValueError(
+                    f"No active version on main branch for {self.root_id}"
+                )
+            # The updates will create a new version on the change order branch
+        elif not current:
             raise ValueError(
                 f"No active version on branch {self.branch} for {self.root_id}"
             )
@@ -232,8 +243,11 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         # If current was converted to remainder above, we need to refresh it first
         if current is None:
             current = await session.get(self.entity_class, current_id)
+        # CRITICAL: Always set branch to self.branch to ensure new version is on correct branch
+        # This is essential when current is from main but we're updating on a change order branch
         new_version = cast(
-            TBranchable, current.clone(**self.updates, parent_id=current_id)
+            TBranchable,
+            current.clone(branch=self.branch, **self.updates, parent_id=current_id)
         )
 
         # 3. Close current (only if not already closed as remainder)

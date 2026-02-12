@@ -1,0 +1,252 @@
+[
+  {
+    "cost_registration_id": "1787a7da-cbd9-43d2-842f-e5747dc91a8e",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "amount": 200.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-01-15T10:00:00",
+    "description": "Cost registration 1 for LAB (well_closed)",
+    "control_date": "2026-01-15T10:00:00"
+  },
+  {
+    "cost_registration_id": "cbaa24bf-3375-4759-850c-6885f8d6dc27",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "amount": 200.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-02-14T10:00:00",
+    "description": "Cost registration 2 for LAB (well_closed)",
+    "control_date": "2026-02-14T10:00:00"
+  },
+  {
+    "cost_registration_id": "4c1748a5-98ea-4e0d-bf38-551c5af14533",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "amount": 200.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-03-16T10:00:00",
+    "description": "Cost registration 3 for LAB (well_closed)",
+    "control_date": "2026-03-16T10:00:00"
+  },
+  {
+    "cost_registration_id": "1e7f3607-201a-46ec-93bb-f309c9671e32",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "amount": 200.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-04-15T10:00:00",
+    "description": "Cost registration 4 for LAB (well_closed)",
+    "control_date": "2026-04-15T10:00:00"
+  },
+  {
+    "cost_registration_id": "77139046-abea-4e12-b930-6c4e4657327d",
+    "cost_element_id": "33f11e25-c5d8-5615-99c5-d1c0621e22ed",
+    "amount": 200.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-05-15T10:00:00",
+    "description": "Cost registration 5 for LAB (well_closed)",
+    "control_date": "2026-05-15T10:00:00"
+  },
+  {
+    "cost_registration_id": "7b20f74f-6a65-4bb2-8e7b-d4e76cf215f7",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "amount": 300.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-01-15T10:00:00",
+    "description": "Cost registration 1 for MAT (bad_performance)",
+    "control_date": "2026-01-15T10:00:00"
+  },
+  {
+    "cost_registration_id": "898baa20-28ca-4a5d-a238-a18c77889a1e",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "amount": 300.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-02-14T10:00:00",
+    "description": "Cost registration 2 for MAT (bad_performance)",
+    "control_date": "2026-02-14T10:00:00"
+  },
+  {
+    "cost_registration_id": "11cd6186-3d83-49f0-8840-7aef39a3d2f0",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "amount": 300.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-03-16T10:00:00",
+    "description": "Cost registration 3 for MAT (bad_performance)",
+    "control_date": "2026-03-16T10:00:00"
+  },
+  {
+    "cost_registration_id": "2692aac5-6807-4621-bec8-23c4ef62d901",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "amount": 300.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-04-15T10:00:00",
+    "description": "Cost registration 4 for MAT (bad_performance)",
+    "control_date": "2026-04-15T10:00:00"
+  },
+  {
+    "cost_registration_id": "cf336081-3bdd-4af7-bd8d-3ceb179049d4",
+    "cost_element_id": "3138f1f6-a4c0-5a23-a990-ec5e56617610",
+    "amount": 300.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-05-15T10:00:00",
+    "description": "Cost registration 5 for MAT (bad_performance)",
+    "control_date": "2026-05-15T10:00:00"
+  },
+  {
+    "cost_registration_id": "bb69c759-a55f-4d59-80c2-9e0ff4b94270",
+    "cost_element_id": "2450a921-a5a2-5442-b223-62f8884c534a",
+    "amount": 100.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-01-15T10:00:00",
+    "description": "Cost registration 1 for EQP (delayed)",
+    "control_date": "2026-01-15T10:00:00"
+  },
+  {
+    "cost_registration_id": "7116ce2b-c332-467a-9fd9-608bfb7b3ae8",
+    "cost_element_id": "2450a921-a5a2-5442-b223-62f8884c534a",
+    "amount": 100.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-02-14T10:00:00",
+    "description": "Cost registration 2 for EQP (delayed)",
+    "control_date": "2026-02-14T10:00:00"
+  },
+  {
+    "cost_registration_id": "2d171867-8f1f-4ccc-9144-7e3e20af6d0e",
+    "cost_element_id": "2450a921-a5a2-5442-b223-62f8884c534a",
+    "amount": 100.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-03-16T10:00:00",
+    "description": "Cost registration 3 for EQP (delayed)",
+    "control_date": "2026-03-16T10:00:00"
+  },
+  {
+    "cost_registration_id": "5c0d0ecf-509d-48a9-b0df-2464caeb0795",
+    "cost_element_id": "2450a921-a5a2-5442-b223-62f8884c534a",
+    "amount": 100.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-04-15T10:00:00",
+    "description": "Cost registration 4 for EQP (delayed)",
+    "control_date": "2026-04-15T10:00:00"
+  },
+  {
+    "cost_registration_id": "9a22c40c-ae3a-4146-beea-119090a1f72c",
+    "cost_element_id": "2450a921-a5a2-5442-b223-62f8884c534a",
+    "amount": 100.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-05-15T10:00:00",
+    "description": "Cost registration 5 for EQP (delayed)",
+    "control_date": "2026-05-15T10:00:00"
+  },
+  {
+    "cost_registration_id": "7d30377d-c77f-4fa7-8005-3a8dddd9bbf0",
+    "cost_element_id": "345901f0-2c89-5ab3-b4c1-1b76b33507a3",
+    "amount": 100.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-01-15T10:00:00",
+    "description": "Cost registration 1 for SUB (normal_incomplete)",
+    "control_date": "2026-01-15T10:00:00"
+  },
+  {
+    "cost_registration_id": "14e750c8-8432-4c9e-96a8-638991be67e4",
+    "cost_element_id": "345901f0-2c89-5ab3-b4c1-1b76b33507a3",
+    "amount": 100.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-02-14T10:00:00",
+    "description": "Cost registration 2 for SUB (normal_incomplete)",
+    "control_date": "2026-02-14T10:00:00"
+  },
+  {
+    "cost_registration_id": "4ece2544-36f3-4822-9b52-13d7694a8b79",
+    "cost_element_id": "345901f0-2c89-5ab3-b4c1-1b76b33507a3",
+    "amount": 100.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-03-16T10:00:00",
+    "description": "Cost registration 3 for SUB (normal_incomplete)",
+    "control_date": "2026-03-16T10:00:00"
+  },
+  {
+    "cost_registration_id": "befe3b1b-c4b8-4077-b829-554007a3b7c1",
+    "cost_element_id": "345901f0-2c89-5ab3-b4c1-1b76b33507a3",
+    "amount": 100.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-04-15T10:00:00",
+    "description": "Cost registration 4 for SUB (normal_incomplete)",
+    "control_date": "2026-04-15T10:00:00"
+  },
+  {
+    "cost_registration_id": "2e30dfd3-74af-499c-8baa-51e7f69b55d8",
+    "cost_element_id": "345901f0-2c89-5ab3-b4c1-1b76b33507a3",
+    "amount": 100.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-05-15T10:00:00",
+    "description": "Cost registration 5 for SUB (normal_incomplete)",
+    "control_date": "2026-05-15T10:00:00"
+  },
+  {
+    "cost_registration_id": "cc5a044b-2755-4762-8b05-5d45f07231d9",
+    "cost_element_id": "2218bd7e-04da-5f32-b31c-453cc3d3561b",
+    "amount": 20.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-01-15T10:00:00",
+    "description": "Cost registration 1 for TRV (early_stage)",
+    "control_date": "2026-01-15T10:00:00"
+  },
+  {
+    "cost_registration_id": "7d12600a-3ea4-4571-b111-bb5dfef73d2e",
+    "cost_element_id": "2218bd7e-04da-5f32-b31c-453cc3d3561b",
+    "amount": 20.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-02-14T10:00:00",
+    "description": "Cost registration 2 for TRV (early_stage)",
+    "control_date": "2026-02-14T10:00:00"
+  },
+  {
+    "cost_registration_id": "e68d4f04-01bd-48aa-ab6c-ff4cc50ea0b3",
+    "cost_element_id": "2218bd7e-04da-5f32-b31c-453cc3d3561b",
+    "amount": 20.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-03-16T10:00:00",
+    "description": "Cost registration 3 for TRV (early_stage)",
+    "control_date": "2026-03-16T10:00:00"
+  },
+  {
+    "cost_registration_id": "c5274bfb-5056-49ab-990d-10adcd76f793",
+    "cost_element_id": "2218bd7e-04da-5f32-b31c-453cc3d3561b",
+    "amount": 20.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-04-15T10:00:00",
+    "description": "Cost registration 4 for TRV (early_stage)",
+    "control_date": "2026-04-15T10:00:00"
+  },
+  {
+    "cost_registration_id": "93990fa4-bc00-49b9-9390-72d161923b1d",
+    "cost_element_id": "2218bd7e-04da-5f32-b31c-453cc3d3561b",
+    "amount": 20.0,
+    "quantity": 1.0,
+    "unit_of_measure": "LS",
+    "registration_date": "2026-05-15T10:00:00",
+    "description": "Cost registration 5 for TRV (early_stage)",
+    "control_date": "2026-05-15T10:00:00"
+  }
+]

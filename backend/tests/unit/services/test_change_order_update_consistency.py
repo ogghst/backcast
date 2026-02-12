@@ -55,7 +55,7 @@ async def test_change_order_update_consistency_fix(
     )
 
     co = await service.create_change_order(
-        co_create, actor_id=actor_id, control_date=co_create.control_date
+        co_create, actor_id=actor_id
     )
     assert co is not None
     assert co.title == "Original Title"
@@ -75,7 +75,6 @@ async def test_change_order_update_consistency_fix(
         change_order_id=co_id,
         change_order_in=co_update,
         actor_id=actor_id,
-        control_date=update_control_date,
     )
 
     assert updated_co.title == "Updated Title Consistency"
@@ -182,7 +181,7 @@ async def test_change_order_crud_lifecycle(db_session: AsyncSession, admin_user:
 
     assert co.title == "CRUD Title"
     assert co.status == "Draft"
-    assert co.branch_name == "co-CO-CRUD-001"
+    assert co.branch_name == "BR-CO-CRUD-001"
 
     co_id = co.change_order_id
 

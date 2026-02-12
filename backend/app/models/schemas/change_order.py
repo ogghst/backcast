@@ -5,6 +5,7 @@ Frontend TypeScript types must match these schemas.
 """
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -119,6 +120,120 @@ class ChangeOrderPublic(ChangeOrderBase):
         description="Whether the associated branch is locked",
     )
 
+    # Approval Matrix & SLA Tracking (E06-U09 to E06-U13)
+    impact_level: str | None = Field(
+        None,
+        description="Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)",
+    )
+    assigned_approver_id: UUID | None = Field(
+        None,
+        description="User ID assigned to approve this change order",
+    )
+    sla_assigned_at: datetime | None = Field(
+        None,
+        description="When the approval SLA started",
+    )
+    sla_due_date: datetime | None = Field(
+        None,
+        description="SLA deadline for approval",
+    )
+    sla_status: str | None = Field(
+        None,
+        description="Current SLA tracking status (pending/approaching/overdue)",
+    )
+    assigned_approver: dict[str, Any] | None = Field(
+        None,
+        description="Assigned approver details (user_id, full_name, email, role)",
+    )
+
+
+class ApprovalInfoPublic(BaseModel):
+    """Schema for approval information response."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    impact_level: str | None = Field(
+        None,
+        description="Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)",
+    )
+    financial_impact: dict[str, Any] | None = Field(
+        None,
+        description="Financial impact details (budget_delta, revenue_delta)",
+    )
+    assigned_approver: dict[str, Any] | None = Field(
+        None,
+        description="Assigned approver details",
+    )
+    sla_assigned_at: datetime | None = Field(
+        None,
+        description="When the approval SLA started",
+    )
+    sla_due_date: datetime | None = Field(
+        None,
+        description="SLA deadline for approval",
+    )
+    sla_status: str | None = Field(
+        None,
+        description="Current SLA tracking status (pending/approaching/overdue)",
+    )
+    sla_business_days_remaining: int | None = Field(
+        None,
+        description="Number of business days remaining until SLA deadline",
+    )
+    user_can_approve: bool = Field(
+        False,
+        description="Whether the current user has authority to approve this change order",
+    )
+    user_authority_level: str | None = Field(
+        None,
+        description="Current user's authority level (LOW/MEDIUM/HIGH/CRITICAL)",
+    )
+
+
+class ChangeOrderApproval(BaseModel):
+    """Schema for approving or rejecting a change order."""
+
+    comments: str | None = Field(
+        None,
+        description="Optional comments explaining the approval/rejection decision",
+    )
+
 
 # Response schemas for list endpoints
 ChangeOrderListResponse = PaginatedResponse[ChangeOrderPublic]
+
+
+class ChangeOrderRecoveryRequest(BaseModel):
+    """Request to recover a stuck change order workflow.
+
+    Context: Admin-only endpoint to recover stuck change orders when
+    impact analysis fails or workflow gets stuck in intermediate states.
+
+    Args:
+        impact_level: Manual impact level assignment (LOW/MEDIUM/HIGH/CRITICAL)
+        assigned_approver_id: User to assign as approver
+        skip_impact_analysis: Skip impact analysis and use manual values
+        recovery_reason: Explanation for recovery (10-500 chars)
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    impact_level: str = Field(
+        ...,
+        description="Manual impact level assignment",
+        pattern="^(LOW|MEDIUM|HIGH|CRITICAL)$",
+    )
+    assigned_approver_id: UUID = Field(
+        ...,
+        description="User to assign as approver (use User.id, not User.user_id)",
+    )
+    skip_impact_analysis: bool = Field(
+        default=True,
+        description="Skip impact analysis and use manual values",
+    )
+    recovery_reason: str = Field(
+        ...,
+        min_length=10,
+        max_length=500,
+        description="Explanation for recovery (required for audit)",
+    )

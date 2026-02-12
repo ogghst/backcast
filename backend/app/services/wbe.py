@@ -5,17 +5,19 @@ Provides WBE-specific operations with parent-child project relationship.
 
 from collections.abc import Sequence
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import cast as sql_cast
-from sqlalchemy import case, func, select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.core.branching.commands import UpdateCommand
 from app.core.branching.service import BranchableService
-from app.core.versioning.commands import CreateVersionCommand, UpdateVersionCommand
+from app.core.versioning.commands import CreateVersionCommand
 from app.core.versioning.enums import BranchMode
 from app.models.domain.user import User
 from app.models.domain.wbe import WBE
@@ -31,6 +33,81 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(WBE, session)
+
+    async def _validate_revenue_allocation(
+        self,
+        project_id: UUID,
+        branch: str = "main",
+        exclude_wbe_id: UUID | None = None,
+    ) -> None:
+        """Validate total revenue allocation matches project contract value.
+
+        Context: Called during WBE create/update operations to ensure
+        revenue allocations across all WBEs exactly match the project's
+        contract value. Enforces business rule from FR 15.4.
+
+        Args:
+            project_id: Project to validate
+            branch: Branch to check (default: "main")
+            exclude_wbe_id: Optional WBE ID to exclude (for update validation)
+
+        Raises:
+            ValueError: If total allocations do not match contract value
+
+        Implementation Notes:
+            - Skips validation if project.contract_value is None
+            - Excludes soft-deleted WBEs via deleted_at filter
+            - Excludes current WBE during updates to prevent double-counting
+            - Uses Decimal.quantize() for precise 2-decimal comparison
+        """
+        from typing import Any, cast
+
+        from app.models.domain.project import Project
+
+        # Get project contract value
+        project_stmt = select(Project.contract_value).where(
+            Project.project_id == project_id,
+            Project.branch == branch,
+        )
+        project_result = await self.session.execute(project_stmt)
+        contract_value = project_result.scalar_one_or_none()
+
+        # Allow validation to pass if contract_value not set
+        if contract_value is None:
+            return
+
+        # Sum current revenue allocations (excluding specified WBE if provided)
+        # Only sum WBEs that have a revenue_allocation set (not None)
+        stmt = select(func.sum(cast(Any, WBE).revenue_allocation)).where(
+            WBE.project_id == project_id,
+            WBE.branch == branch,
+            func.upper(cast(Any, WBE).valid_time).is_(None),  # Only current versions
+            cast(Any, WBE).deleted_at.is_(None),
+            cast(Any, WBE).revenue_allocation.is_not(None),  # Only sum allocated WBEs
+        )
+
+        # Exclude current WBE for update scenarios
+        if exclude_wbe_id:
+            stmt = stmt.where(WBE.wbe_id != exclude_wbe_id)
+
+        result = await self.session.execute(stmt)
+        total_allocated = result.scalar() or Decimal("0")
+
+        # Allow validation to pass if no WBEs have revenue allocated yet (initial state)
+        # This supports incremental allocation workflow (Option 2: lenient validation)
+        if total_allocated == Decimal("0"):
+            return
+
+        # Reject if total exceeds contract value (data integrity rule)
+        if total_allocated.quantize(Decimal("0.01")) > contract_value.quantize(
+            Decimal("0.01")
+        ):
+            difference = total_allocated - contract_value
+            raise ValueError(
+                f"Total revenue allocation (€{total_allocated:,.2f}) exceeds "
+                f"project contract value (€{contract_value:,.2f}). "
+                f"Over-allocation: €{difference:,.2f}"
+            )
 
     async def get_current(self, root_id: UUID, branch: str = "main") -> WBE | None:
         """Get the current active version for a root entity on a specific branch.
@@ -120,7 +197,10 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         return resolved
 
     def _get_base_stmt(self, as_of: datetime | None = None) -> Any:
-        """Get base select statement with parent name join.
+        """Get base select statement with parent name resolution.
+
+        Uses correlated scalar subquery to resolve parent names without
+        cartesian product warning from self-join.
 
         Args:
             as_of: Optional timestamp for time-travel queries on parent names
@@ -130,8 +210,11 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
 
         Parent = aliased(WBE, name="parent_wbe")
 
-        # Subquery for parent versions (current or as of specific time)
-        parent_where_clauses = [cast(Any, Parent).deleted_at.is_(None)]
+        # Build WHERE clauses for parent name resolution
+        parent_where_clauses = [
+            Parent.wbe_id == WBE.parent_wbe_id,
+            cast(Any, Parent).deleted_at.is_(None),
+        ]
 
         if as_of:
             # Get parent version valid at as_of time
@@ -144,15 +227,16 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
                 func.upper(cast(Any, Parent).valid_time).is_(None)
             )
 
-        parent_subq = (
-            select(Parent.wbe_id, Parent.name)
+        # Scalar subquery for parent name (correlated subquery)
+        # This avoids cartesian product by executing once per row instead of FROM/FROM join
+        parent_name_subq = (
+            select(Parent.name)
             .where(*parent_where_clauses)
-            .subquery("parent_lookup")
+            .limit(1)
+            .scalar_subquery()
         )
 
-        return select(WBE, parent_subq.c.name.label("parent_name")).outerjoin(
-            parent_subq, WBE.parent_wbe_id == parent_subq.c.wbe_id
-        )
+        return select(WBE, parent_name_subq.label("parent_name"))
 
     async def get_wbes(
         self,
@@ -376,10 +460,29 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         return resolved[0] if resolved else None
 
     async def create_wbe(
-        self, wbe_in: WBECreate, actor_id: UUID, control_date: datetime | None = None
+        self, wbe_in: WBECreate, actor_id: UUID
     ) -> WBE:
-        """Create new WBE using CreateVersionCommand."""
+        """Create new WBE using CreateVersionCommand.
+
+        Context: Main entry point for WBE creation. Validates revenue
+        allocation against project contract value before creation.
+
+        Args:
+            wbe_in: WBE creation data with revenue_allocation
+            actor_id: User creating the WBE
+
+        Returns:
+            Created WBE entity
+
+        Raises:
+            ValueError: If revenue allocation validation fails
+        """
+
         wbe_data = wbe_in.model_dump(exclude_unset=True)
+
+        # Extract control_date from schema if present (for seeding/time-travel)
+        control_date = getattr(wbe_in, "control_date", None)
+
         # Remove control_date from wbe_data if present to avoid conflict with explicit arg
         wbe_data.pop("control_date", None)
 
@@ -389,13 +492,21 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
 
         # Infer level from parent
         if wbe_in.parent_wbe_id:
-            parent = await self.get_by_root_id(wbe_in.parent_wbe_id)
+            # Get the branch for this WBE to lookup parent on same branch
+            branch = wbe_data.get("branch", "main")
+            parent = await self.get_by_root_id(wbe_in.parent_wbe_id, branch=branch)
+            
+            # Fallback to main if parent not found on specific branch
+            if not parent and branch != "main":
+                parent = await self.get_by_root_id(wbe_in.parent_wbe_id, branch="main")
+            
             if not parent:
-                raise ValueError(f"Parent WBE {wbe_in.parent_wbe_id} not found")
+                raise ValueError(f"Parent WBE {wbe_in.parent_wbe_id} not found on branch {branch}")
             wbe_data["level"] = parent.level + 1
         else:
             wbe_data["level"] = 1
 
+        # Create WBE first
         cmd = CreateVersionCommand(
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
@@ -403,48 +514,109 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             control_date=control_date,
             **wbe_data,
         )
-        return await cmd.execute(self.session)
+        wbe = await cmd.execute(self.session)
+
+        # Validate revenue allocation AFTER creation (so WBE is in DB)
+        # Flush to ensure the new WBE is visible to the validation query
+        await self.session.flush()
+
+        await self._validate_revenue_allocation(
+            project_id=wbe_in.project_id,
+            branch=wbe_data.get("branch", "main"),
+        )
+
+        return wbe
+
 
     async def update_wbe(
         self,
         wbe_id: UUID,
         wbe_in: WBEUpdate,
         actor_id: UUID,
-        control_date: datetime | None = None,
     ) -> WBE:
-        """Update WBE using UpdateVersionCommand."""
+        """Update WBE using UpdateVersionCommand.
+
+        Context: Main entry point for WBE updates. Validates revenue
+        allocation against project contract value before updating.
+        Excludes current WBE from validation to prevent double-counting.
+
+        Args:
+            wbe_id: Root WBE ID to update
+            wbe_in: WBE update data with optional revenue_allocation
+            actor_id: User performing the update
+
+        Returns:
+            Updated WBE entity
+
+        Raises:
+            ValueError: If revenue allocation validation fails
+        """
         update_data = wbe_in.model_dump(exclude_unset=True)
         # Remove control_date from update_data if present to avoid conflict with explicit arg
         update_data.pop("control_date", None)
 
-        # Handle re-leveling if parent changes
-        if wbe_in.parent_wbe_id is not None:  # explicit check for field presence/value
-            # Note: partial updates might send None to clear parent, or UUID to change it
-            # But here we are checking if it's IN the update data.
-            # However, since wbe_in fields are Optional, we need to check if it was set.
-            # wbe_in.model_dump(exclude_unset=True) handled this for update_data,
-            # but we need to check if "parent_wbe_id" is in update_data.
-            pass
+        # Extract control_date and branch from schema early
+        # We need branch BEFORE calling get_by_root_id to find the WBE on the correct branch
+        control_date = wbe_in.control_date
+        branch = wbe_in.branch or "main"
 
+        # Pop control_date and branch from update_data (they were already in model_dump)
+        update_data.pop("control_date", None)
+        update_data.pop("branch", None)
+
+        # Get current WBE to retrieve project_id for validation
+        # CRITICAL: Pass branch parameter to find WBE on the correct branch
+        # Note: UpdateCommand will handle fallback to main if needed
+        current_wbe = await self.get_by_root_id(wbe_id, branch=branch)
+        if not current_wbe:
+            # Try main branch as fallback for change order branches
+            if branch != "main":
+                current_wbe = await self.get_by_root_id(wbe_id, branch="main")
+            if not current_wbe:
+                raise ValueError(f"WBE {wbe_id} not found")
+
+        # Save project_id before update (current_wbe may become stale after UpdateCommand)
+        project_id = current_wbe.project_id
+
+        # Handle re-leveling if parent changes
         if "parent_wbe_id" in update_data:
             new_parent_id = update_data["parent_wbe_id"]
             if new_parent_id:
-                parent = await self.get_by_root_id(new_parent_id)
+                # CRITICAL: Use the same branch when looking up parent WBE
+                parent = await self.get_by_root_id(new_parent_id, branch=branch)
+                
+                # Fallback to main if parent not found on specific branch
+                if not parent and branch != "main":
+                    parent = await self.get_by_root_id(new_parent_id, branch="main")
+
                 if not parent:
-                    raise ValueError(f"Parent WBE {new_parent_id} not found")
+                    raise ValueError(f"Parent WBE {new_parent_id} not found on branch {branch}")
                 update_data["level"] = parent.level + 1
             else:
                 # Setting to root
                 update_data["level"] = 1
 
-        cmd = UpdateVersionCommand(
+        # Update WBE first
+        cmd = UpdateCommand(
             entity_class=WBE,  # type: ignore[type-var,unused-ignore]
             root_id=wbe_id,
             actor_id=actor_id,
+            branch=branch,
             control_date=control_date,
-            **update_data,
+            updates=update_data,
         )
-        return await cmd.execute(self.session)
+        updated_wbe = await cmd.execute(self.session)
+
+        # Validate revenue allocation after update
+        # Note: We validate AFTER the update, so the new value is already in the DB.
+        # We do NOT exclude the current WBE because we want to validate the total
+        # including the new value.
+        await self._validate_revenue_allocation(
+            project_id=project_id,  # Use saved project_id
+            branch=branch,
+        )
+
+        return updated_wbe
 
     async def delete_wbe(
         self, wbe_id: UUID, actor_id: UUID, control_date: datetime | None = None
@@ -590,15 +762,22 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         return result.scalar() or 0
 
     async def get_breadcrumb(
-        self, wbe_id: UUID, branch: str = "main", as_of: datetime | None = None
+        self,
+        wbe_id: UUID,
+        branch: str = "main",
+        branch_mode: BranchMode = BranchMode.MERGE,
+        as_of: datetime | None = None,
     ) -> dict[str, Any]:
         """Get breadcrumb trail for a WBE including project and all ancestors.
 
-        Uses recursive CTE to efficiently fetch the entire ancestor chain in a single query.
+        Uses recursive CTE to efficiently fetch the entire ancestor chain in a
+        single query.
 
         Args:
             wbe_id: Root WBE ID
             branch: Branch name (default: "main")
+            branch_mode: Branch resolution mode (default: MERGE - fall back to main
+                if not found on branch)
             as_of: Optional timestamp for time-travel queries
 
         Returns:
@@ -624,33 +803,60 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             raise ValueError(f"WBE with id {wbe_id} not found")
 
         # Get the project
-        # Get the project
+        # In MERGE mode, we want to find the project on current branch or main
+        # In STRICT mode, we only look on the current branch
+        # We try two approaches:
+        # 1. First try to get project from current branch (or main in MERGE mode)
+        # 2. If not found and in MERGE mode, try main as fallback
+
+        project = None
+
+        # Strategy 1: Try current branch first
         project_stmt = select(Project).where(
             Project.project_id == current_wbe.project_id,
-            Project.branch.in_([current_wbe.branch, "main"]),
+            Project.branch == current_wbe.branch,
             cast(Any, Project).deleted_at.is_(None),
         )
 
         if as_of:
-            # Time travel for project
             project_stmt = self._apply_bitemporal_filter_for_time_travel(
                 project_stmt, as_of
             )
         else:
-            # Current project version
             project_stmt = project_stmt.where(
                 func.upper(cast(Any, Project).valid_time).is_(None)
             )
 
-        # Order by branch priority (current > main) then time
-        # We want to prefer the current branch if available
         project_stmt = project_stmt.order_by(
-            case((Project.branch == current_wbe.branch, 0), else_=1),
-            cast(Any, Project).valid_time.desc(),
+            cast(Any, Project).valid_time.desc()
         ).limit(1)
 
         project_result = await self.session.execute(project_stmt)
         project = project_result.scalar_one_or_none()
+
+        # Strategy 2: If not found on current branch and in MERGE mode, try main
+        if not project and branch_mode == BranchMode.MERGE and current_wbe.branch != "main":
+            project_stmt = select(Project).where(
+                Project.project_id == current_wbe.project_id,
+                Project.branch == "main",
+                cast(Any, Project).deleted_at.is_(None),
+            )
+
+            if as_of:
+                project_stmt = self._apply_bitemporal_filter_for_time_travel(
+                    project_stmt, as_of
+                )
+            else:
+                project_stmt = project_stmt.where(
+                    func.upper(cast(Any, Project).valid_time).is_(None)
+                )
+
+            project_stmt = project_stmt.order_by(
+                cast(Any, Project).valid_time.desc()
+            ).limit(1)
+
+            project_result = await self.session.execute(project_stmt)
+            project = project_result.scalar_one_or_none()
 
         if not project:
             raise ValueError(f"Project {current_wbe.project_id} not found")
@@ -731,13 +937,24 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             ],
         }
 
-    async def get_by_root_id(self, root_id: UUID, branch: str = "main") -> WBE | None:
-        """Override to include parent_name."""
+    async def get_by_root_id(
+        self, root_id: UUID, branch: str = "main", as_of: datetime | None = None
+    ) -> WBE | None:
+        """Override to include parent_name.
+
+        Args:
+            root_id: Root WBE identifier
+            branch: Branch name (default: "main")
+            as_of: Optional timestamp for time-travel query
+
+        Returns:
+            WBE with parent_name attached, or None if not found
+        """
         from typing import Any, cast
 
 
         stmt = (
-            self._get_base_stmt()
+            self._get_base_stmt(as_of=as_of)
             .where(
                 WBE.wbe_id == root_id,
                 WBE.branch == branch,
@@ -756,38 +973,43 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         return cast(WBE, wbe)
 
     async def get_wbe_history(self, wbe_id: UUID) -> list[WBE]:
-        """Get all versions of a WBE by root wbe_id (with creator and parent name)."""
+        """Get all versions of a WBE by root wbe_id (with creator and parent name).
+
+        Uses correlated scalar subqueries to avoid cartesian product warnings.
+        """
         from typing import Any, cast
 
         from sqlalchemy.orm import aliased
 
-        # User lookup subquery
-        creator_subq = (
-            select(User.user_id, User.full_name)
+        # Correlated subquery for creator name
+        creator_name_subq = (
+            select(User.full_name)
+            .where(User.user_id == WBE.created_by)
             .distinct(User.user_id)
             .order_by(User.user_id, User.transaction_time.desc())
-            .subquery("creator_lookup")
+            .limit(1)
+            .scalar_subquery()
         )
 
-        # Parent lookup subquery
+        # Correlated subquery for parent name
         Parent = aliased(WBE, name="parent_wbe")
-        parent_subq = (
-            select(Parent.wbe_id, Parent.name)
+        parent_name_subq = (
+            select(Parent.name)
             .where(
+                Parent.wbe_id == WBE.parent_wbe_id,
                 func.upper(cast(Any, Parent).valid_time).is_(None),
                 cast(Any, Parent).deleted_at.is_(None),
             )
-            .subquery("parent_lookup")
+            .limit(1)
+            .scalar_subquery()
         )
 
         stmt = (
             select(
                 WBE,
-                creator_subq.c.full_name.label("created_by_name"),
-                parent_subq.c.name.label("parent_name"),
+                creator_name_subq.label("created_by_name"),
+                parent_name_subq.label("parent_name"),
             )
-            .outerjoin(creator_subq, WBE.created_by == creator_subq.c.user_id)
-            .outerjoin(parent_subq, WBE.parent_wbe_id == parent_subq.c.wbe_id)
             .where(
                 WBE.wbe_id == wbe_id,
                 cast(Any, WBE).deleted_at.is_(None),

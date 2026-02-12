@@ -57,9 +57,9 @@ class TestTimeTravelQueries:
                 cost_element_id=cost_element_id,
                 amount=Decimal("100.00"),
                 registration_date=datetime(2026, 1, 1, tzinfo=UTC),
+                control_date=datetime(2026, 1, 1, tzinfo=UTC),  # Sets valid_time start
             ),
             actor_id=actor_id,
-            control_date=datetime(2026, 1, 1, tzinfo=UTC),  # Sets valid_time start
         )
 
         # Create cost with valid_time starting Jan 15 (should be excluded)
@@ -68,9 +68,9 @@ class TestTimeTravelQueries:
                 cost_element_id=cost_element_id,
                 amount=Decimal("200.00"),
                 registration_date=datetime(2026, 1, 15, tzinfo=UTC),
+                control_date=datetime(2026, 1, 15, tzinfo=UTC),  # Sets valid_time start
             ),
             actor_id=actor_id,
-            control_date=datetime(2026, 1, 15, tzinfo=UTC),  # Sets valid_time start
         )
 
         # Act - Query as of Jan 10 (between Jan 1 and Jan 15)
@@ -165,9 +165,9 @@ class TestTimeTravelQueries:
                 cost_element_id=cost_element_id,
                 amount=Decimal("100.00"),
                 registration_date=datetime(2026, 1, 1, tzinfo=UTC),
+                control_date=datetime(2026, 1, 1, tzinfo=UTC),  # Sets valid_time start
             ),
             actor_id=actor_id,
-            control_date=datetime(2026, 1, 1, tzinfo=UTC),  # Sets valid_time start
         )
         # Capture registration ID before entity might be expired
         registration_id = registration.cost_registration_id
@@ -260,9 +260,9 @@ class TestTimeTravelQueries:
                 cost_element_id=cost_element_id,
                 amount=Decimal("100.00"),
                 registration_date=datetime(2026, 1, 1, tzinfo=UTC),
+                control_date=datetime(2026, 1, 1, tzinfo=UTC),  # Sets valid_time start
             ),
             actor_id=actor_id,
-            control_date=datetime(2026, 1, 1, tzinfo=UTC),  # Sets valid_time start
         )
         # Capture v1 ID before entity might be expired
         v1_id = v1.cost_registration_id
@@ -272,9 +272,11 @@ class TestTimeTravelQueries:
 
         _ = await service.update(
             v1_id,
-            CostRegistrationUpdate(amount=Decimal("150.00")),
+            CostRegistrationUpdate(
+                amount=Decimal("150.00"),
+                control_date=datetime(2026, 1, 15, tzinfo=UTC),
+            ),
             actor_id=uuid4(),
-            control_date=datetime(2026, 1, 15, tzinfo=UTC),
         )
 
         # Act - Query as of Jan 10 (before v2's valid_time starts)
@@ -319,9 +321,9 @@ class TestTimeTravelQueries:
                 cost_element_id=cost_element_id,
                 amount=Decimal("100.00"),
                 registration_date=datetime(2026, 1, 1, tzinfo=UTC),
+                control_date=datetime(2026, 1, 1, tzinfo=UTC),
             ),
             actor_id=actor_id,
-            control_date=datetime(2026, 1, 1, tzinfo=UTC),
         )
         registration_id = registration.cost_registration_id
 
@@ -373,9 +375,9 @@ class TestTimeTravelQueries:
                 cost_element_id=cost_element_id,
                 amount=Decimal("100.00"),
                 registration_date=datetime(2026, 1, 1, tzinfo=UTC),
+                control_date=datetime(2026, 1, 1, tzinfo=UTC),
             ),
             actor_id=actor_id,
-            control_date=datetime(2026, 1, 1, tzinfo=UTC),
         )
 
         # Create cost with valid_time starting Jan 20 (future from query perspective)
@@ -384,9 +386,9 @@ class TestTimeTravelQueries:
                 cost_element_id=cost_element_id,
                 amount=Decimal("200.00"),
                 registration_date=datetime(2026, 1, 20, tzinfo=UTC),
+                control_date=datetime(2026, 1, 20, tzinfo=UTC),
             ),
             actor_id=actor_id,
-            control_date=datetime(2026, 1, 20, tzinfo=UTC),
         )
 
         # Act - Query as of Jan 10 (before second cost's valid_time starts)
@@ -425,9 +427,9 @@ class TestTimeTravelQueries:
                 cost_element_id=cost_element_id,
                 amount=Decimal("100.00"),
                 registration_date=datetime(2026, 1, 1, tzinfo=UTC),
+                control_date=datetime(2026, 1, 1, tzinfo=UTC),
             ),
             actor_id=actor_id,
-            control_date=datetime(2026, 1, 1, tzinfo=UTC),
         )
 
         # Act - Query with timezone-aware as_of

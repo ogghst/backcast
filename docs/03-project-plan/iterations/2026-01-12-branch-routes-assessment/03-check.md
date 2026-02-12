@@ -4,7 +4,7 @@
 
 | Acceptance Criterion            | Test Coverage                                            | Status | Evidence                                         | Notes                                                       |
 | ------------------------------- | -------------------------------------------------------- | ------ | ------------------------------------------------ | ----------------------------------------------------------- |
-| **Merge Capability**            | `test_merge_change_order`                                | ✅     | POST /{id}/merge returns 200 and merged version  | Logic infers source branch (`co-{code}`) and merges to main |
+| **Merge Capability**            | `test_merge_change_order`                                | ✅     | POST /{id}/merge returns 200 and merged version  | Logic infers source branch (`BR-{code}`) and merges to main |
 | **Revert Capability**           | `test_revert_change_order`                               | ✅     | POST /{id}/revert returns 200 and status reverts | Verified status rollback from Submitted to Draft            |
 | **List Parity (Search/Filter)** | `test_search_change_orders`, `test_filter_change_orders` | ✅     | List filters work correctly                      | `status:Draft` and `search="Search"` confirmed              |
 | **Security**                    | `test_role_checker` (existing)                           | ✅     | Dependencies on routes enforce permissions       | `required_permission="change-order-update"` used            |

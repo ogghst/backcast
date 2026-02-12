@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { Card, Badge, Button, Space, Alert, Tag } from "antd";
 import {
   CheckCircleOutlined,
@@ -5,6 +6,7 @@ import {
   CloseCircleOutlined,
   SyncOutlined,
   MergeCellsOutlined,
+  ToolOutlined,
 } from "@ant-design/icons";
 import type { ChangeOrderPublic } from "@/api/generated";
 import {
@@ -12,6 +14,7 @@ import {
   isActionAvailable,
 } from "../hooks/useWorkflowActions";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
+import { ChangeOrderRecoveryDialog } from "./ChangeOrderRecoveryDialog";
 
 interface ChangeOrderWorkflowSectionProps {
   changeOrder: ChangeOrderPublic | null;
@@ -49,6 +52,7 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
  * - Available transitions
  * - Action buttons (Submit, Approve, Reject, Merge)
  * - Lock state warning
+ * - Recovery button for stuck workflows (admin only)
  *
  * Hidden in create mode (when changeOrder is null).
  */
@@ -57,27 +61,52 @@ export function ChangeOrderWorkflowSection({
   onActionSuccess,
   useCollapsibleCard = false,
 }: ChangeOrderWorkflowSectionProps): JSX.Element | null {
+  // Recovery dialog state
+  const [recoveryDialogVisible, setRecoveryDialogVisible] = useState(false);
+
   // Workflow actions - Hook must be top level
-  const { submit, approve, reject, merge, isLoading } = useWorkflowActions(
+  const { submit, review, approve, reject, merge, isLoading } = useWorkflowActions(
     changeOrder?.change_order_id || "",
     { onSuccess: onActionSuccess },
   );
+
+  // Extract properties for hooks (before early return)
+  const status = changeOrder?.status;
+  const branch_locked = changeOrder?.branch_locked;
+  const available_transitions = changeOrder?.available_transitions;
+  const impact_analysis_status = changeOrder?.impact_analysis_status;
+  const impact_level = changeOrder?.impact_level;
+  const assigned_approver_id = changeOrder?.assigned_approver_id;
+
+  // Check if change order is stuck and needs recovery (must be before early return)
+  const isStuck = useMemo(() => {
+    const stuckStatuses = ["Submitted for Approval", "Under Review"];
+    return (
+      changeOrder &&
+      stuckStatuses.includes(status || "") &&
+      (!available_transitions ||
+        available_transitions.length === 0 ||
+        !impact_level ||
+        !assigned_approver_id ||
+        impact_analysis_status === "in_progress")
+    );
+  }, [changeOrder, status, available_transitions, impact_level, assigned_approver_id, impact_analysis_status]);
 
   // Hide in create mode
   if (!changeOrder) {
     return null;
   }
 
-  const { status, branch_locked, available_transitions } = changeOrder;
-
   // Check which actions are available
   const canSubmit = isActionAvailable("SUBMIT", available_transitions);
+  const canReview = isActionAvailable("REVIEW", available_transitions);
   const canApprove = isActionAvailable("APPROVE", available_transitions);
   const canReject = isActionAvailable("REJECT", available_transitions);
   const canMerge = isActionAvailable("MERGE", available_transitions);
 
-  // All actions disabled when locked
-  const actionsDisabled = branch_locked || isLoading;
+  // Actions are only disabled while loading
+  // Note: branch_locked prevents content editing, but should NOT prevent workflow actions
+  const actionsDisabled = isLoading;
 
   // Content component
   const content = (
@@ -143,6 +172,17 @@ export function ChangeOrderWorkflowSection({
                 Submit
               </Button>
             )}
+            {canReview && (
+              <Button
+                type="default"
+                icon={<SyncOutlined />}
+                onClick={() => review()}
+                disabled={actionsDisabled}
+                style={{ borderColor: "#1890ff", color: "#1890ff" }}
+              >
+                Put Under Review
+              </Button>
+            )}
             {canApprove && (
               <Button
                 type="primary"
@@ -175,6 +215,18 @@ export function ChangeOrderWorkflowSection({
                 Merge to Main
               </Button>
             )}
+            {/* Recovery button for stuck workflows (admin only) */}
+            {isStuck && (
+              <Button
+                danger
+                icon={<ToolOutlined />}
+                onClick={() => setRecoveryDialogVisible(true)}
+                disabled={actionsDisabled}
+                style={{ backgroundColor: "#faad14", borderColor: "#faad14", color: "#000" }}
+              >
+                Recover Workflow
+              </Button>
+            )}
           </Space>
         </div>
       </Space>
@@ -184,23 +236,45 @@ export function ChangeOrderWorkflowSection({
   // Use CollapsibleCard if requested, otherwise use regular Card
   if (useCollapsibleCard) {
     return (
-      <CollapsibleCard
+      <>
+        <CollapsibleCard
+          id="workflow"
+          title={<Space>Workflow Status</Space>}
+          style={{ marginBottom: 16 }}
+        >
+          {content}
+        </CollapsibleCard>
+        {/* Recovery dialog */}
+        {isStuck && (
+          <ChangeOrderRecoveryDialog
+            changeOrder={changeOrder}
+            visible={recoveryDialogVisible}
+            onClose={() => setRecoveryDialogVisible(false)}
+            onSuccess={onActionSuccess}
+          />
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Card
         id="workflow"
         title={<Space>Workflow Status</Space>}
         style={{ marginBottom: 16 }}
       >
         {content}
-      </CollapsibleCard>
-    );
-  }
-
-  return (
-    <Card
-      id="workflow"
-      title={<Space>Workflow Status</Space>}
-      style={{ marginBottom: 16 }}
-    >
-      {content}
-    </Card>
+      </Card>
+      {/* Recovery dialog */}
+      {isStuck && (
+        <ChangeOrderRecoveryDialog
+          changeOrder={changeOrder}
+          visible={recoveryDialogVisible}
+          onClose={() => setRecoveryDialogVisible(false)}
+          onSuccess={onActionSuccess}
+        />
+      )}
+    </>
   );
 }

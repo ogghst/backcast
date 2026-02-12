@@ -4,7 +4,10 @@ export { ImpactAnalysisDashboard } from "./components/ImpactAnalysisDashboard";
 export { KPICards } from "./components/KPICards";
 export { WaterfallChart } from "./components/WaterfallChart";
 export { SCurveComparison } from "./components/SCurveComparison";
+export { MultiSCurveDisplay } from "./components/MultiSCurveDisplay";
+export { SCurveChart } from "./components/SCurveChart";
 export { EntityImpactGrid } from "./components/EntityImpactGrid";
+export { ApprovalInfo } from "./components/ApprovalInfo";
 export {
   useChangeOrders,
   useCreateChangeOrder,
@@ -15,3 +18,4 @@ export {
   type ChangeOrderListParams,
 } from "./api/useChangeOrders";
 export { useImpactAnalysis } from "./api/useImpactAnalysis";
+export { useApprovalInfo, type ApprovalInfo as ApprovalInfoType } from "./api/useApprovalInfo";

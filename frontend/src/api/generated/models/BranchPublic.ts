@@ -7,7 +7,11 @@
  */
 export type BranchPublic = {
     /**
-     * Branch name (e.g. 'main' or 'co-CO-123')
+     * Unique branch ID
+     */
+    branch_id?: (string | null);
+    /**
+     * Branch name (e.g. 'main' or 'BR-CO-123')
      */
     name: string;
     /**
@@ -18,6 +22,10 @@ export type BranchPublic = {
      * Whether this is the default branch
      */
     is_default?: boolean;
+    /**
+     * When branch was created
+     */
+    created_at?: (string | null);
     /**
      * Root ID of the associated change order
      */

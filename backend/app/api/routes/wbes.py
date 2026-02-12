@@ -92,6 +92,11 @@ async def read_wbes(
     # Parse mode string to BranchMode enum
     branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     # Parse parent_wbe_id
     parsed_parent_id: UUID | None = None
     is_root_query = False
@@ -197,7 +202,7 @@ async def create_wbe(
             )
 
         wbe = await service.create_wbe(
-            wbe_in=wbe_in, actor_id=current_user.user_id, control_date=control_date
+            wbe_in=wbe_in, actor_id=current_user.user_id
         )
         return wbe
     except ValueError as e:
@@ -227,12 +232,14 @@ async def read_wbe(
     Supports time-travel queries via the as_of parameter to view
     the WBE's state at any historical point in time.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     if as_of:
         # Time travel query
         wbe = await service.get_wbe_as_of(wbe_id, as_of, branch=branch)
-    else:
-        # Current version
-        wbe = await service.get_current(wbe_id, branch=branch)
 
     if not wbe:
         raise HTTPException(
@@ -256,12 +263,10 @@ async def update_wbe(
 ) -> WBE:
     """Update a WBE. Requires update permission."""
     try:
-        control_date = wbe_in.control_date
         updated_wbe = await service.update_wbe(
             wbe_id=wbe_id,
             wbe_in=wbe_in,
             actor_id=current_user.user_id,
-            control_date=control_date,
         )
         return updated_wbe
     except ValueError as e:
@@ -300,6 +305,11 @@ async def delete_wbe(
 async def read_wbe_breadcrumb(
     wbe_id: UUID,
     branch: str = Query("main", description="Branch name"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
     as_of: datetime | None = Query(
         None,
         description="Time travel: get breadcrumb as of this timestamp (ISO 8601)",
@@ -307,8 +317,18 @@ async def read_wbe_breadcrumb(
     service: WBEService = Depends(get_wbe_service),
 ) -> dict[str, Any]:
     """Get breadcrumb trail for a WBE (project + ancestor path). Requires read permission."""
+    from app.core.versioning.enums import BranchMode
+
+    # Parse mode string to BranchMode enum
+    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
+
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     try:
-        return await service.get_breadcrumb(wbe_id, branch=branch, as_of=as_of)
+        return await service.get_breadcrumb(wbe_id, branch=branch, branch_mode=branch_mode, as_of=as_of)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

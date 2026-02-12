@@ -110,10 +110,10 @@ WHERE deleted_at IS NULL OR deleted_at > as_of  # ✅ Correct
 
 ```python
 # STRICT mode (default): Only specified branch
-get_as_of(wbe_id, as_of, branch="co-456", branch_mode=BranchMode.STRICT)
+get_as_of(wbe_id, as_of, branch="BR-456", branch_mode=BranchMode.STRICT)
 
 # MERGE mode: Branch overlays main (Git-like)
-get_as_of(wbe_id, as_of, branch="co-456", branch_mode=BranchMode.MERGE)
+get_as_of(wbe_id, as_of, branch="BR-456", branch_mode=BranchMode.MERGE)
 ```
 
 **Use Case:** View project state with change order applied:

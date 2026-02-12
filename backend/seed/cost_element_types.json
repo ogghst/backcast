@@ -4,34 +4,39 @@
     "code": "LAB",
     "name": "Labor",
     "description": "Internal staff labor costs",
-    "department_id": "e498f139-05b6-5da8-9008-31a8d760bcdc"
+    "department_id": "e498f139-05b6-5da8-9008-31a8d760bcdc",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
     "code": "MAT",
     "name": "Material",
     "description": "Raw materials and consumables",
-    "department_id": "c985679f-d9c0-5a03-b51f-0f8aab0d0732"
+    "department_id": "c985679f-d9c0-5a03-b51f-0f8aab0d0732",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "cost_element_type_id": "19cbc2cb-5c9e-54c0-a139-54eb0069a18d",
     "code": "EQP",
     "name": "Equipment",
     "description": "Machinery and equipment usage",
-    "department_id": "c985679f-d9c0-5a03-b51f-0f8aab0d0732"
+    "department_id": "c985679f-d9c0-5a03-b51f-0f8aab0d0732",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "cost_element_type_id": "6ee61a00-380b-5d3b-8656-20fc9fdac61e",
     "code": "SUB",
     "name": "Subcontract",
     "description": "External subcontractor services",
-    "department_id": "23b5b365-b8ab-5cf8-8ed8-76362d5e2b0b"
+    "department_id": "23b5b365-b8ab-5cf8-8ed8-76362d5e2b0b",
+    "control_date": "2026-01-01T00:00:00"
   },
   {
     "cost_element_type_id": "48f4591c-bb0b-595c-8d48-56136a4c5c78",
     "code": "TRV",
     "name": "Travel",
     "description": "Business travel and accommodation",
-    "department_id": "1c47969b-d568-5f34-bb9d-4e11cae84745"
+    "department_id": "1c47969b-d568-5f34-bb9d-4e11cae84745",
+    "control_date": "2026-01-01T00:00:00"
   }
 ]

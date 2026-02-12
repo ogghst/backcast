@@ -72,6 +72,7 @@ For a cost element with Budget at Completion (BAC), start date (S), end date (E)
 
 **Linear Progression:**
 Planned completion percentage increases uniformly over time.
+
 ```
 % Planned(t) = (t - S) / (E - S)
 PV(t) = BAC × % Planned(t)
@@ -79,6 +80,7 @@ PV(t) = BAC × % Planned(t)
 
 **Gaussian Progression:**
 Planned completion follows a normal distribution curve with peak at midpoint.
+
 ```
 μ = (S + E) / 2                    # Midpoint (mean)
 σ = (E - S) / 6                    # Standard deviation (99.7% within ±3σ)
@@ -86,19 +88,23 @@ z = (t - μ) / σ                    # Z-score
 % Planned(t) = CDF(z)              # Cumulative distribution function
 PV(t) = BAC × % Planned(t)
 ```
+
 Where CDF is the standard normal cumulative distribution function. At the midpoint (t = μ), % Planned = 50%.
 
 **Logarithmic Progression:**
 Planned completion starts slow and accelerates toward end.
+
 ```
 duration = E - S
 elapsed = t - S
 % Planned(t) = log(1 + elapsed) / log(1 + duration)
 PV(t) = BAC × % Planned(t)
 ```
+
 At 50% duration, logarithmic progression achieves ~30% planned completion (slower start).
 
 **Interpolation Rules:**
+
 - For control dates between schedule registrations: Use weighted average of adjacent registrations
 - For control dates before first registration: Extrapolate using earliest registration
 - For control dates after last registration: Use last registration's values
@@ -146,12 +152,14 @@ The system must allow forecasts to be updated periodically for each WBE and cost
 | Critical | >15% | >15% | Critical | Require director approval |
 
 **Alert Behavior:**
+
 - Minor variances: Logged in forecast history, visible in trends
 - Moderate variances: In-app notification to project manager
 - Significant variances: Email notification + require variance explanation
 - Critical variances: Escalation to director + block EAC update without approval
 
 **Trend Analysis:**
+
 - Track forecast direction (increasing vs decreasing over time)
 - Detect forecast volatility (frequent large changes)
 - Compare forecast accuracy (actual EAC vs forecasted EAC at completion)
@@ -159,6 +167,7 @@ The system must allow forecasts to be updated periodically for each WBE and cost
 
 **Variance Explanation:**
 When forecast variance exceeds ±10%, user must provide:
+
 - Reason for significant change
 - Specific factors affecting the estimate
 - Mitigation actions being taken
@@ -166,6 +175,7 @@ When forecast variance exceeds ±10%, user must provide:
 
 **Forecast Stability Metric:**
 Calculate forecast stability as the standard deviation of EAC changes over time.
+
 - Stable: <5% standard deviation
 - Moderate: 5-10% standard deviation
 - Volatile: >10% standard deviation (requires review)
@@ -174,7 +184,7 @@ Calculate forecast stability as the standard deviation of EAC changes over time.
 
 ### 8.1 Change Order Processing
 
-The system shall provide comprehensive change order management capabilities to handle scope changes, contract modifications, and customer-requested additions. Each change order must be created with a unique identifier, description of the change, requesting party, justification, and proposed effective date. When a change order is created, the system shall automatically spawn a dedicated change order branch from the selected source branch (default: main). The branch name shall follow the pattern `co-{change_order_id}`.
+The system shall provide comprehensive change order management capabilities to handle scope changes, contract modifications, and customer-requested additions. Each change order must be created with a unique identifier, description of the change, requesting party, justification, and proposed effective date. When a change order is created, the system shall automatically spawn a dedicated change order branch from the selected source branch (default: main). The branch name shall follow the pattern `BR-{change_order_id}`.
 
 Change orders must support modifications to both costs and revenues. When a change order is approved and implemented, the system shall update the affected WBE budgets, cost element allocations, and revenue assignments accordingly. The system must maintain the original baseline data while clearly tracking the impact of approved changes on current budgets and forecasts.
 
@@ -299,6 +309,7 @@ The system shall provide a merged view service that displays entities from both 
 **Merged View Computation:**
 
 The merged view is computed as follows:
+
 1. Start with all entities from the source branch (typically main)
 2. Overlay entities from the change order branch
 3. For entities existing in both branches, the branch version takes precedence
@@ -309,28 +320,33 @@ The merged view is computed as follows:
 **Entity Change Status:**
 
 The merged view shall indicate the change status of each entity:
+
 - **Unchanged**: Entity exists in both branches with identical data
 - **Created**: Entity exists only in the branch (new entity)
 - **Updated**: Entity modified in the branch (shows branch version)
 - **Deleted**: Entity exists in main but is deleted in the branch
 
 **Performance Requirements:**
+
 - Standard merged view query: <500ms for projects with <20 WBEs
 - Large merged view query: <2 seconds for projects with ≥20 WBEs
 - Caching strategy: 5-minute TTL for merged view results
 - Incremental updates: Refresh only changed entities on re-query
 
 **Conflict Resolution:**
+
 - Same entity modified in both branches (rare): Branch version wins
 - Child deleted in branch but parent modified: Preserve parent, mark child deleted
 - Circular dependencies: Prevent merge, require user intervention
 
 **Supported Entities:**
+
 - Project (top-level merged view)
 - WBE (hierarchical merged view)
 - CostElement (leaf-level merged view)
 
 **UI Display:**
+
 - Color coding: Green (Created), Yellow (Modified), Red (Deleted), Gray (Unchanged)
 - Side-by-side comparison for modified entities
 - Diff view showing specific field changes
@@ -375,6 +391,7 @@ The system shall support the creation of cost and schedule baselines at signific
 | Project Closeout | Final acceptance signed | Closeout | No |
 
 **Automatic Baseline Creation:**
+
 - System detects milestone completion (based on project status or date)
 - Creates baseline automatically with milestone name and date
 - Captures snapshot of all current data
@@ -382,6 +399,7 @@ The system shall support the creation of cost and schedule baselines at signific
 - Can be suppressed if milestone not applicable
 
 **Manual Baseline Creation:**
+
 - User can create baseline at any time
 - Requires baseline name, date, and justification
 - Useful for ad-hoc checkpoints, pre-change-order snapshots, etc.
@@ -399,6 +417,7 @@ The system shall support the creation of cost and schedule baselines at signific
 
 **Baseline Data Capture:**
 Each baseline creation event must capture:
+
 - Baseline metadata (date, event description, milestone type, responsible department)
 - Budget snapshots for all WBEs and cost elements
 - Cost snapshots (actual costs incurred to date)
@@ -408,6 +427,7 @@ Each baseline creation event must capture:
 - Schedule registration snapshots (latest schedule per cost element)
 
 **Baseline Creation Workflow:**
+
 1. User or system initiates baseline creation
 2. System validates baseline date (must be in past or today)
 3. For manual baselines, capture justification
@@ -419,6 +439,7 @@ Each baseline creation event must capture:
 9. Baseline becomes available for reporting and comparison
 
 **Historical Baseline Access:**
+
 - All baselines retained permanently (no deletion)
 - Read-only access for reporting and comparison
 - Can view baseline state at any past point in time
@@ -570,19 +591,24 @@ To Complete Performance Index (TCPI) shall be calculated to project the cost per
 
 **TCPI based on BAC:**
 The TCPI based on Budget at Completion represents the efficiency needed to complete the project within the original budget.
+
 ```
 TCPI(BAC) = (BAC - EV) / (BAC - AC)
 ```
+
 Use this when the project must complete within the original BAC. A TCPI > 1.0 indicates improved performance is needed. TCPI > 1.5 is typically difficult to achieve.
 
 **TCPI based on EAC:**
 The TCPI based on Estimate at Completion represents the efficiency needed to complete the project based on current forecast.
+
 ```
 TCPI(EAC) = (BAC - EV) / (EAC - AC)
 ```
+
 Use this when the EAC is accepted as the new target. TCPI(EAC) should be close to the current CPI if the forecast is realistic.
 
 **Interpretation:**
+
 - TCPI < 1.0: Current performance is sufficient to meet target
 - TCPI = 1.0: Maintain current performance to meet target
 - TCPI > 1.0: Improved performance needed to meet target
@@ -643,27 +669,34 @@ The system shall support multiple methods for calculating and displaying percent
 
 **Percent of Budget Spent (PBS):**
 Indicates what portion of the budget has been consumed.
+
 ```
 PBS = AC / BAC
 ```
+
 Use for: Cash flow analysis, budget utilization tracking. Values >100% indicate cost overrun.
 
 **Percent of Work Earned (PWE):**
 Indicates what portion of the work has been physically completed.
+
 ```
 PWE = EV / BAC
 ```
+
 Use for: Performance assessment, progress measurement. This is the primary "percent complete" metric for EVM.
 
 **Percent of Schedule Complete (PSC):**
 Indicates what portion of the planned time has elapsed.
+
 ```
 PSC = (Current Date - Start Date) / Planned Duration
 ```
+
 Use for: Schedule assessment, time-based progress tracking. Values >100% indicate schedule overrun.
 
 **Comparison and Analysis:**
 The system shall enable comparison of these three methods:
+
 - PWE > PBS: Performing well (earning more than spending)
 - PWE < PBS: Performing poorly (spending more than earning)
 - PWE > PSC: Ahead of schedule
@@ -678,32 +711,40 @@ The system shall support multiple methods for calculating Estimate to Complete (
 
 **Bottom-Up ETC:**
 Sum of detailed estimates for remaining work packages.
+
 ```
 ETC = Σ(Estimated cost of each uncompleted work package)
 ```
+
 Use for: Most accurate method when detailed estimates exist. Requires user input through forecast creation.
 
 **Performance-Based ETC:**
 Extrapolates based on current cost performance efficiency.
+
 ```
 ETC = (BAC - EV) / CPI
 ```
+
 Use for: Quick projection when performance is stable. Assumes future performance matches past CPI.
 
 **Management Judgment ETC:**
 Expert opinion-based estimate incorporating known factors.
+
 ```
 ETC = Manager's estimated cost to complete
 ```
+
 Use for: When significant changes are expected that historical performance doesn't reflect.
 
 **EAC Relationship:**
 All ETC methods feed into EAC calculation:
+
 ```
 EAC = AC + ETC
 ```
 
 **System Behavior:**
+
 - Default ETC calculation: Performance-based (uses current CPI)
 - User can override with bottom-up forecast (Section 7.1)
 - System tracks which method was used for audit trail
@@ -715,6 +756,7 @@ The system shall be able to collect all project metrics at a control date or fro
 
 **Assessment Content:**
 The AI-generated assessment shall include:
+
 - Executive summary of project status
 - Key risk factors and concerns
 - Performance trend analysis
@@ -722,12 +764,14 @@ The AI-generated assessment shall include:
 - Comparison to similar projects (anonymized)
 
 **Usage:**
+
 - Triggered on-demand by authorized users
 - Requires explicit user confirmation before generation
 - Results stored for historical reference
 - No write access to project data (read-only analysis)
 
 **Privacy and Security:**
+
 - Project data anonymized before sending to external AI services
 - No PII sent to external services
 - AI usage audit logged
@@ -798,18 +842,21 @@ Visual indicators such as color coding for performance thresholds (green for on-
 The system shall enforce data integrity through comprehensive validation rules:
 
 **Budget Allocation Validation:**
+
 - Total WBE budgets ≤ Project budget (warning at 90%, error at 100%)
 - Total cost element budgets ≤ WBE budget (warning at 90%, error at 100%)
 - Revenue allocations = Total project contract value (exact match required)
 - Budget values > 0 (positive values only)
 
 **Cost Registration Validation:**
+
 - Cost date must be within cost element start/end date range
 - Cost amount must be > 0 (positive values only)
 - Invoice/reference number required for costs > €1,000
 - Cost category required (labor, materials, subcontracts, other)
 
 **Date Validation:**
+
 - Start date < End date for all time ranges
 - Project start date ≤ WBE start date
 - WBE start date ≤ Cost element start date
@@ -817,12 +864,14 @@ The system shall enforce data integrity through comprehensive validation rules:
 - Forecast date must be in the past (warning if future)
 
 **Hierarchical Consistency:**
+
 - Child WBE budgets ≤ Parent WBE budget
 - Cannot delete parent WBE without deleting or reassigning child WBEs
 - WBE must belong to exactly one project
 - Cost element must belong to exactly one WBE
 
 **Financial Validation:**
+
 - Currency values rounded to 2 decimal places using banker's rounding
 - All monetary values in project's base currency (no multi-currency mixing)
 - EAC must be ≥ AC
@@ -831,6 +880,7 @@ The system shall enforce data integrity through comprehensive validation rules:
 - BAC must be ≥ 0
 
 **Cross-Currency Validation (Future):**
+
 - When multi-currency support is added:
   - All currencies must have valid ISO 4217 codes
   - Exchange rates must be > 0
@@ -838,6 +888,7 @@ The system shall enforce data integrity through comprehensive validation rules:
   - Store both original and converted values
 
 **Time Zone Validation:**
+
 - All datetime fields include timezone (UTC storage)
 - Display in user's local timezone
 - Date comparisons use UTC to avoid DST issues
@@ -847,6 +898,7 @@ The system shall enforce data integrity through comprehensive validation rules:
 (See Section 12.4A for detailed EVM validation rules)
 
 **Validation Feedback:**
+
 - Immediate inline validation for form fields
 - Warning messages for soft constraints (allow override with explanation)
 - Error messages for hard constraints (prevent save)
@@ -879,6 +931,7 @@ Report generation and dashboard rendering must complete within acceptable timefr
 The system shall support the following capacity constraints:
 
 **Concurrent Usage:**
+
 - Maximum 100 concurrent users
 - Maximum 50 concurrent active projects
 - Maximum 20 WBEs per project
@@ -886,12 +939,14 @@ The system shall support the following capacity constraints:
 - Maximum 3 active branches per project
 
 **Data Volume:**
+
 - Maximum 10,000 cost registrations per project
 - Maximum 1,000 forecasts per project
 - Maximum 100 change orders per project
 - Maximum 50 baselines per project
 
 **Data Retention:**
+
 - Active project data: Permanent retention
 - Completed project data: 5 years post-completion
 - Audit trail data: 7 years minimum
@@ -901,24 +956,28 @@ The system shall support the following capacity constraints:
 ### 17.2 Technical Constraints
 
 **Database:**
+
 - PostgreSQL 15+ with TSTZRANGE support for bitemporal queries
 - Maximum database size: 500 GB per project
 - Connection pool: 200 concurrent connections
 - Query timeout: 30 seconds for complex queries
 
 **Application:**
+
 - Memory per API instance: 512 MB minimum, 2 GB recommended
 - CPU: 2 cores minimum, 8 cores recommended for production
 - Storage: SSD with >1000 IOPS for database
 - Network: 1 Gbps for inter-service communication
 
 **Time Zone Handling:**
+
 - All datetime fields include timezone information (UTC storage)
 - Display in user's local timezone
 - Support for international projects with multiple timezones
 - Daylight saving time automatically handled
 
 **Concurrency Model:**
+
 - All database operations use async/await patterns
 - API endpoints support concurrent request handling
 - Optimistic concurrency control for entity updates
@@ -935,6 +994,7 @@ Data persistence must ensure that all entered information is preserved reliably.
 The system shall be built using the following technology stack:
 
 **Backend:**
+
 - Language: Python 3.12+
 - Framework: FastAPI
 - Database: PostgreSQL 15+ with TSTZRANGE support
@@ -943,6 +1003,7 @@ The system shall be built using the following technology stack:
 - Authentication: JWT with Pydantic validation
 
 **Frontend:**
+
 - Language: TypeScript 5+ (strict mode)
 - Framework: React 18
 - Build Tool: Vite
@@ -951,6 +1012,7 @@ The system shall be built using the following technology stack:
 - Component Library: Custom components with Material Design guidelines
 
 **Infrastructure:**
+
 - Containerization: Docker
 - Reverse Proxy: Nginx
 - Process Manager: Gunicorn (production), Uvicorn (development)
@@ -960,12 +1022,14 @@ The system shall be built using the following technology stack:
 ### 18.2 Integration Points
 
 **External Integrations (Future):**
+
 - ERP systems for cost data import (REST API)
 - Project scheduling tools for schedule integration (CSV/API)
 - Document management systems (WebDAV)
 - Email services for notifications (SMTP)
 
 **Internal Integrations:**
+
 - OpenAPI specification auto-generated at `/docs` and `/openapi.json`
 - WebSocket support for real-time updates (future)
 - Webhook support for event notifications (future)
@@ -977,6 +1041,7 @@ While not required for the initial implementation, the system architecture shoul
 ### Enhanced Forecast Wizard Interface
 
 As a future enhancement, the system may provide a multi-step forecast wizard to guide users through complex forecast creation. The wizard would include:
+
 - Step 1: Forecast type selection with recommendations
 - Step 2: EAC entry with contextual information (BAC, AC, EV, current CPI/SPI)
 - Step 3: Assumptions documentation with template prompts
@@ -991,16 +1056,19 @@ The application will be considered successful when it meets the following measur
 ### 20.1 Functional Success Metrics
 
 **EVM Calculation Accuracy:**
+
 - EVM calculations match manual calculations within ±0.1%
 - All EVM metrics validated against test cases
 - Zero calculation errors in production for 30 days
 
 **Simulation Capabilities:**
+
 - Successfully simulate 50 concurrent projects
 - Handle project structures with 20 WBEs × 15 cost elements
 - Process 1,000 cost registrations per minute without degradation
 
 **Reporting Performance:**
+
 - Standard reports generated in <5 seconds (95th percentile)
 - Complex reports generated in <15 seconds (95th percentile)
 - Zero report generation failures
@@ -1008,12 +1076,14 @@ The application will be considered successful when it meets the following measur
 ### 20.2 User Adoption Metrics
 
 **Adoption Targets:**
+
 - 80% of project managers using system within 3 months of launch
 - 60% of department leads using system within 6 months
 - Average 10 sessions per active user per week
 - <5% user-reported critical bugs per month
 
 **User Satisfaction:**
+
 - Net Promoter Score (NPS) ≥ 40 after 6 months
 - User satisfaction survey score ≥ 4.0/5.0
 - Average task completion time <2 minutes
@@ -1022,12 +1092,14 @@ The application will be considered successful when it meets the following measur
 ### 20.3 Business Impact Metrics
 
 **Process Improvements:**
+
 - 50% reduction in time spent on manual EVM calculations
 - 75% reduction in spreadsheet-based tracking
 - 90% of projects using baselines for performance tracking
 - 100% of change orders tracked in system
 
 **Decision Support:**
+
 - 80% of project reviews using system-generated reports
 - 60% improvement in early issue identification
 - 30% reduction in project cost overruns (measured after 12 months)
@@ -1036,12 +1108,14 @@ The application will be considered successful when it meets the following measur
 ### 20.4 Technical Success Metrics
 
 **System Reliability:**
+
 - 99.5% uptime during business hours
 - <1% data error rate
 - <5 second average response time for API calls
 - Zero data loss incidents
 
 **Code Quality:**
+
 - 80%+ test coverage maintained
 - Zero critical security vulnerabilities
 - All linting and type checking passing (zero errors)
@@ -1050,12 +1124,14 @@ The application will be considered successful when it meets the following measur
 ### 20.5 Training Success Metrics
 
 **Training Effectiveness:**
+
 - 90% of users complete onboarding training
 - Average training time <4 hours per user
 - <10% of users require follow-up training
 - Training satisfaction score ≥ 4.0/5.0
 
 **Knowledge Transfer:**
+
 - 100% of project managers pass EVM principles assessment
 - 75% of users can navigate system without assistance after training
 - <20% support ticket rate per user in first 90 days
@@ -1065,18 +1141,21 @@ The application will be considered successful when it meets the following measur
 ### 21.1 Financial Constraints
 
 **Currency Handling:**
+
 - Base currency: Euro (EUR) for all projects
 - Currency display: Use € symbol with 2 decimal places (€1,234.56)
 - Rounding: Banker's rounding (round half to even) for all calculations
 - Negative values: Display in parentheses (€(1,234.56))
 
 **Approval Authority:**
+
 - Project managers: Approve changes up to €10K
 - Department heads: Approve changes €10K-€50K
 - Directors: Approve changes €50K-€100K
 - Executive committee: Approve changes >€100K
 
 **Budget Constraints:**
+
 - Hard budget cap: Cannot exceed allocated budget without formal change order
 - Contingency: 10% contingency budget recommended
 - Reserve: 5% management reserve for executive authorization
@@ -1087,12 +1166,14 @@ The application will be considered successful when it meets the following measur
 (See Section 16 for detailed role definitions)
 
 **Working Hours and SLAs:**
+
 - Business days: Monday-Friday excluding holidays
 - Business hours: 08:00-18:00 CET
 - Approval SLAs: As defined in Section 8.3 approval matrix
 - Support response: <4 hours for critical issues, <24 hours for non-critical
 
 **Geographic Constraints:**
+
 - Primary timezone: Central European Time (CET/CEST)
 - Supported languages: English (primary), Italian (secondary)
 - Multi-site support: System must support projects across multiple timezones
@@ -1100,12 +1181,14 @@ The application will be considered successful when it meets the following measur
 ### 21.3 Compliance Constraints
 
 **Data Retention:**
+
 - Financial records: 7 years minimum (legal requirement)
 - Audit trails: 7 years minimum
 - Project data: 5 years post-completion
 - User data: GDPR compliant (30 days after account deletion)
 
 **Accessibility:**
+
 - WCAG 2.1 AA compliance required
 - Screen reader compatible
 - Keyboard navigation support
@@ -1114,12 +1197,14 @@ The application will be considered successful when it meets the following measur
 ### 21.4 Contractual Constraints
 
 **Customer Deliverables:**
+
 - Monthly progress reports (EVM metrics)
 - Quarterly executive summaries
 - Final project report with variance analysis
 - Baseline comparison reports on request
 
 **Intellectual Property:**
+
 - All project data owned by customer
 - No customer data used for AI training without explicit consent
 - Benchmarking data anonymized before cross-project comparison

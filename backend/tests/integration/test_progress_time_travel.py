@@ -157,12 +157,10 @@ class TestProgressTimeTravel:
             progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("25.00"),
-                reported_date=day_1,
-                reported_by_user_id=user_id,
                 notes="Day 1 progress",
+                control_date=day_1,
             ),
             actor_id=user_id,
-            control_date=day_1,
         )
 
         # Create progress entry on Day 5
@@ -170,12 +168,10 @@ class TestProgressTimeTravel:
             progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("50.00"),
-                reported_date=day_5,
-                reported_by_user_id=user_id,
                 notes="Day 5 progress",
+                control_date=day_5,
             ),
             actor_id=user_id,
-            control_date=day_5,
         )
 
         # Act - query as of Day 3 (should get Day 1's entry)
@@ -222,11 +218,9 @@ class TestProgressTimeTravel:
             progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("25.00"),
-                reported_date=day_1,
-                reported_by_user_id=user_id,
+                control_date=day_1,
             ),
             actor_id=user_id,
-            control_date=day_1,
         )
         progress_entry_id = progress.progress_entry_id
 
@@ -281,8 +275,6 @@ class TestProgressTimeTravel:
             progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("25.00"),
-                reported_date=datetime(2026, 1, 10, tzinfo=UTC),
-                reported_by_user_id=user_id,
             ),
             actor_id=user_id,
         )
@@ -341,11 +333,9 @@ class TestProgressTimeTravel:
             progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("25.00"),
-                reported_date=day_1,
-                reported_by_user_id=user_id,
+                control_date=day_1,
             ),
             actor_id=user_id,
-            control_date=day_1,
         )
 
         # Update on Day 5
@@ -392,8 +382,6 @@ class TestProgressTimeTravel:
             progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("75.00"),
-                reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-                reported_by_user_id=user_id,
                 notes="Excellent progress",
             ),
             actor_id=user_id,

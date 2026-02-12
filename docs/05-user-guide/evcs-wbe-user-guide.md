@@ -83,6 +83,7 @@ graph TB
 ```
 
 **Key Points:**
+
 - Each version has a unique `id` (UUID)
 - The `wbe_id` (root ID) stays constant across all versions
 - `parent_id` links each version to its predecessor
@@ -119,6 +120,7 @@ graph LR
 | **Transaction Time** | When the data was recorded in the system | "This record was entered on Jan 15" |
 
 **Why Two Dimensions?**
+
 - **Corrections**: You can record today that a budget change should have been effective last week
 - **Audit Trails**: See both what was known when, and when corrections were made
 - **Point-in-Time Queries**: Ask "What did we believe on March 1?" vs "What was true on March 1?"
@@ -148,6 +150,7 @@ graph TB
 ```
 
 **Branch Use Cases:**
+
 - **Change Orders**: Work on budget changes while main stays stable
 - **What-If Scenarios**: Model changes without affecting production
 - **Parallel Development**: Multiple changes on same entity
@@ -174,6 +177,7 @@ wbe_id = "wbe-root-789"  # Same for all versions of this WBE
 | **Version ID** | Identifies a specific version | Changes each update | Referencing specific historical state, parent linking |
 
 **Practical Example:**
+
 ```bash
 # Get current state (uses root ID)
 GET /api/v1/wbes/{wbe_id}
@@ -201,12 +205,14 @@ graph LR
 ```
 
 **Branch Naming Conventions:**
+
 - `main` - Production state, always current
 - `feature/{name}` - Feature development
 - `change-order-{number}` - Formal change order workflow
 - `sandbox/{user}` - Personal experimentation space
 
 **Branch Isolation Rules:**
+
 - Updates on `main` don't affect feature branches
 - Updates on feature branches don't affect `main` until merged
 - Multiple branches can exist simultaneously
@@ -241,6 +247,7 @@ gantt
 ```
 
 **Querying by Temporal State:**
+
 ```bash
 # Get current version (default)
 GET /api/v1/wbes/{wbe_id}
@@ -263,6 +270,7 @@ graph TB
 ```
 
 **DAG Properties:**
+
 - Each version has exactly one `parent_id`
 - A version can have multiple children (branching)
 - No cycles (can't merge into an ancestor)
@@ -297,6 +305,7 @@ Content-Type: application/json
 ```
 
 **Response (201 Created):**
+
 ```json
 {
   "id": "wbe-v1-abc-123",
@@ -316,6 +325,7 @@ Content-Type: application/json
 ```
 
 **Key Points:**
+
 - `id` is the version-specific UUID (changes on updates)
 - `wbe_id` is the root UUID (stable across all versions)
 - `valid_time` and `transaction_time` are open-ended (current version)
@@ -340,6 +350,7 @@ Content-Type: application/json
 ```
 
 **Response (201 Created):**
+
 ```json
 {
   "id": "wbe-child1-v1-def-456",
@@ -385,6 +396,7 @@ Content-Type: application/json
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "id": "wbe-v2-ghi-789",
@@ -399,6 +411,7 @@ Content-Type: application/json
 ```
 
 **Important Notes:**
+
 - A NEW version was created (`id` changed)
 - `parent_id` now points to the previous version
 - The original version (v1) is still in the database for historical tracking
@@ -413,6 +426,7 @@ GET /api/v1/wbes?project_id=550e8400-e29b-41d4-a716-446655440000
 ```
 
 **Response (200 OK):**
+
 ```json
 [
   {
@@ -443,6 +457,7 @@ GET /api/v1/wbes?project_id=550e8400-e29b-41d4-a716-446655440000
 ```
 
 **Additional Query Options:**
+
 ```bash
 # Filter by parent
 GET /api/v1/wbes?parent_wbe_id=wbe-root-789
@@ -492,6 +507,7 @@ sequenceDiagram
 ### Code Reference
 
 This use case is based on test cases from:
+
 - [`backend/tests/api/test_wbes.py`](../../backend/tests/api/test_wbes.py):
   - `test_create_wbe` - Lines 86-112
   - `test_update_wbe` - Lines 197-226
@@ -505,6 +521,7 @@ This use case is based on test cases from:
 ### Scenario
 
 You need to track budget changes over time for audit reporting and variance analysis. Stakeholders want to know:
+
 - What was the budget at the beginning of the project?
 - How has it changed over time?
 - What was the budget on a specific date?
@@ -527,6 +544,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "id": "wbe-v1-jkl-012",
@@ -550,6 +568,7 @@ Content-Type: application/json
 ```
 
 **Result:** Version 2 is created
+
 ```json
 {
   "id": "wbe-v2-mno-345",
@@ -561,6 +580,7 @@ Content-Type: application/json
 ```
 
 **Behind the scenes:**
+
 - Version 1's `valid_time` is closed: `[2026-01-01, 2026-01-15)`
 - Version 2's `valid_time` starts: `[2026-01-15, )`
 
@@ -576,6 +596,7 @@ Content-Type: application/json
 ```
 
 **Result:** Version 3 is created
+
 ```json
 {
   "id": "wbe-v3-pqr-678",
@@ -595,6 +616,7 @@ GET /api/v1/wbes/wbe-root-012/history
 ```
 
 **Response:**
+
 ```json
 [
   {
@@ -633,6 +655,7 @@ GET /api/v1/wbes/wbe-root-012?as_of=2026-01-20T10:00:00+00
 ```
 
 **Response:**
+
 ```json
 {
   "id": "wbe-v2-mno-345",
@@ -688,6 +711,7 @@ gantt
 ### Code Reference
 
 This use case is based on test cases from:
+
 - [`backend/tests/api/test_wbes.py`](../../backend/tests/api/test_wbes.py):
   - `test_get_wbe_history` - Lines 260-291
 - [`backend/tests/api/test_time_machine.py`](../../backend/tests/api/test_time_machine.py):
@@ -729,6 +753,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "id": "wbe-v1-stu-901",
@@ -741,6 +766,7 @@ Content-Type: application/json
 ```
 
 **Key Observations:**
+
 - `valid_time` starts at the `control_date` (March 1)
 - `transaction_time` starts at the actual time of creation (January 11)
 - The WBE won't appear in queries until March 1 unless you use time travel
@@ -760,6 +786,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "id": "wbe-v2-vwx-234",
@@ -772,6 +799,7 @@ Content-Type: application/json
 ```
 
 **What Happened:**
+
 1. Version 1's `valid_time` is closed at January 15th (not February 1st!)
 2. Version 2's `valid_time` starts at January 15th
 3. Version 2's `transaction_time` starts at February 1st (when actually recorded)
@@ -789,6 +817,7 @@ DELETE /api/v1/wbes/wbe-root-901?control_date=2026-02-15T10:00:00+00
 **Response:** 204 No Content
 
 **Verification:**
+
 ```bash
 # Query BEFORE control date - WBE still exists
 GET /api/v1/wbes/wbe-root-901?as_of=2026-02-14T10:00:00+00
@@ -830,6 +859,7 @@ timeline
 ### Code Reference
 
 This use case is based on test cases from:
+
 - [`backend/tests/api/test_wbes.py`](../../backend/tests/api/test_wbes.py):
   - `test_create_wbe_with_control_date` - Lines 329-354
   - `test_update_wbe_with_control_date` - Lines 357-387
@@ -846,6 +876,7 @@ A change order is requested to increase the budget for a WBE. Before approval, t
 ### Business Context
 
 **Change Order Workflow:**
+
 1. Request: Stakeholder requests budget increase
 2. Branch: Create isolated branch for the change
 3. Modify: Make changes on the branch
@@ -864,6 +895,7 @@ GET /api/v1/wbes/wbe-root-co1
 ```
 
 **Response (Main Branch):**
+
 ```json
 {
   "id": "wbe-main-v1-abc",
@@ -891,9 +923,10 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
-  "id": "wbe-co-v1-def",
+  "id": "wbe-BR-v1-def",
   "wbe_id": "wbe-root-co1",
   "code": "4.0",
   "name": "Phase 4 - MEP Systems",
@@ -906,6 +939,7 @@ Content-Type: application/json
 ```
 
 **What Happened:**
+
 - A new version was created on the `change-order-001` branch
 - It's a clone of the main branch version
 - `parent_id` links to the main version
@@ -926,27 +960,32 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
-  "id": "wbe-co-v2-ghi",
+  "id": "wbe-BR-v2-ghi",
   "wbe_id": "wbe-root-co1",
   "budget_allocation": "120000.00",
   "branch": "change-order-001",
-  "parent_id": "wbe-co-v1-def",
+  "parent_id": "wbe-BR-v1-def",
   "valid_time": "[2026-01-11T11:00:00+00,)"
 }
 ```
 
 **Verification - Main is Unaffected:**
+
 ```bash
 GET /api/v1/wbes/wbe-root-co1?branch=main
 ```
+
 **Still shows:** `budget_allocation: "80000.00"`
 
 **Verification - Change Order Shows New Value:**
+
 ```bash
 GET /api/v1/wbes/wbe-root-co1?branch=change-order-001
 ```
+
 **Now shows:** `budget_allocation: "120000.00"`
 
 #### Step 4: Review Changes (Before Merge)
@@ -958,6 +997,7 @@ GET /api/v1/wbes/wbe-root-co1/compare?from_branch=main&to_branch=change-order-00
 ```
 
 **Response:**
+
 ```json
 {
   "main": {
@@ -966,7 +1006,7 @@ GET /api/v1/wbes/wbe-root-co1/compare?from_branch=main&to_branch=change-order-00
   },
   "change-order-001": {
     "budget_allocation": "120000.00",
-    "version_id": "wbe-co-v2-ghi"
+    "version_id": "wbe-BR-v2-ghi"
   },
   "differences": [
     {
@@ -994,6 +1034,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "id": "wbe-main-v2-jkl",
@@ -1007,6 +1048,7 @@ Content-Type: application/json
 ```
 
 **What Happened:**
+
 - A new version was created on main
 - It has the budget from the change order branch ($120,000)
 - `merge_from_branch` tracks the source of the merge
@@ -1022,6 +1064,7 @@ DELETE /api/v1/wbes/wbe-root-co1/branches/change-order-001
 ```
 
 **Result:**
+
 - Change order branch is deleted
 - Main branch remains unchanged
 - No audit trail of the rejected change (unless explicitly tracked)
@@ -1075,6 +1118,7 @@ graph TB
 ### Code Reference
 
 This use case is based on test cases from:
+
 - [`backend/tests/unit/core/versioning/test_branch_commands.py`](../../backend/tests/unit/core/versioning/test_branch_commands.py):
   - `test_create_branch_command` - Lines 21-63
   - `test_update_command_on_branch` - Lines 65-102
@@ -1089,6 +1133,7 @@ This use case is based on test cases from:
 ### Scenario
 
 You need to manage a multi-level Work Breakdown Structure (WBS) with parent-child relationships. This includes:
+
 - Creating three-level hierarchies
 - Navigating the hierarchy with breadcrumbs
 - Querying by level or parent
@@ -1097,6 +1142,7 @@ You need to manage a multi-level Work Breakdown Structure (WBS) with parent-chil
 ### Business Context
 
 **Typical WBS Hierarchy:**
+
 ```
 1.0 Construction (Level 1)
 ├── 1.1 Site Preparation (Level 2)
@@ -1126,6 +1172,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "id": "wbe-l1-v1",
@@ -1221,6 +1268,7 @@ GET /api/v1/wbes/wbe-root-l1-1-1/breadcrumb
 ```
 
 **Response for 1.1.1 Grading:**
+
 ```json
 [
   {
@@ -1253,6 +1301,7 @@ GET /api/v1/wbes?parent_wbe_id=wbe-root-l1
 ```
 
 **Response:**
+
 ```json
 [
   {
@@ -1281,10 +1330,12 @@ DELETE /api/v1/wbes/wbe-root-l1-1
 ```
 
 **Result:** WBE 1.1 (Site Preparation) is deleted, AND:
+
 - 1.1.1 (Grading) is also deleted
 - 1.1.2 (Utilities) is also deleted
 
 **Verification:**
+
 ```bash
 GET /api/v1/wbes?parent_wbe_id=wbe-root-l1-1
 # Response: [] (empty, all children deleted)
@@ -1340,6 +1391,7 @@ graph TB
 ### Code Reference
 
 This use case is based on test cases from:
+
 - [`backend/tests/api/test_wbes.py`](../../backend/tests/api/test_wbes.py):
   - `test_wbe_hierarchical_structure` - Lines 294-327
 
@@ -1354,6 +1406,7 @@ An incorrect update was made to a WBE (e.g., budget entered as $200,000 instead 
 ### Business Context
 
 **Revert Use Cases:**
+
 - Data entry errors (typo in budget)
 - Incorrect change order merged to main
 - Need to undo multiple changes at once
@@ -1377,6 +1430,7 @@ Content-Type: application/json
 ```
 
 **Response (v1):**
+
 ```json
 {
   "id": "wbe-v1-xyz",
@@ -1398,6 +1452,7 @@ Content-Type: application/json
 ```
 
 **Response (v2 - ERROR!):**
+
 ```json
 {
   "id": "wbe-v2-xyz",
@@ -1419,6 +1474,7 @@ Content-Type: application/json
 ```
 
 **Response (v3):**
+
 ```json
 {
   "id": "wbe-v3-xyz",
@@ -1442,6 +1498,7 @@ Content-Type: application/json
 ```
 
 **Response (v4 - Reverted to v1 state):**
+
 ```json
 {
   "id": "wbe-v4-xyz",
@@ -1453,6 +1510,7 @@ Content-Type: application/json
 ```
 
 **What Happened:**
+
 - A NEW version (v4) was created
 - v4 has the same data as v1 (budget: $50,000)
 - `parent_id` points to v3 (maintains linear history)
@@ -1481,6 +1539,7 @@ GET /api/v1/wbes/wbe-root-revert/history
 ```
 
 **Response:**
+
 ```json
 [
   {
@@ -1562,6 +1621,7 @@ Each branch maintains its own version chain and can be reverted independently.
 ### Code Reference
 
 This use case is based on test cases from:
+
 - [`backend/tests/unit/core/versioning/test_branch_commands.py`](../../backend/tests/unit/core/versioning/test_branch_commands.py):
   - `test_revert_command` - Lines 163-200
   - `test_revert_to_specific_version` - Lines 202-252
@@ -1607,6 +1667,7 @@ GET /api/v1/wbes?
 #### Create WBE
 
 **Request:**
+
 ```http
 POST /api/v1/wbes HTTP/1.1
 Content-Type: application/json
@@ -1624,6 +1685,7 @@ Content-Type: application/json
 ```
 
 **Response (201 Created):**
+
 ```json
 {
   "id": "wbe-version-id",
@@ -1647,6 +1709,7 @@ Content-Type: application/json
 #### Update WBE
 
 **Request:**
+
 ```http
 PUT /api/v1/wbes/wbe-root-id HTTP/1.1
 Content-Type: application/json
@@ -1660,6 +1723,7 @@ Content-Type: application/json
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "id": "wbe-new-version-id",
@@ -1676,11 +1740,13 @@ Content-Type: application/json
 #### Time Travel Query
 
 **Request:**
+
 ```http
 GET /api/v1/wbes/wbe-root-id?as_of=2026-01-15T10:00:00+00 HTTP/1.1
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "id": "wbe-version-id",
@@ -1706,6 +1772,7 @@ GET /api/v1/wbes/wbe-root-id?as_of=2026-01-15T10:00:00+00 HTTP/1.1
 | **Collaborative editing** | Create branch per user | Avoid conflicts |
 
 **Decision Tree:**
+
 ```
 Does the change need approval?
 ├── Yes → Use branch
@@ -1728,6 +1795,7 @@ Does the change need approval?
 | **Never use** | Invalid timezone | Always include timezone offset |
 
 **Control Date Rules:**
+
 1. Always include timezone: `2026-01-01T10:00:00+00`
 2. Use UTC for consistency: `+00` offset
 3. Be precise with time: Don't omit time component
@@ -1744,6 +1812,7 @@ Does the change need approval?
 | **Use When** | Mistakes, temporary removal | Compliance (GDPR, etc.) |
 
 **Soft Delete Best Practices:**
+
 - Always prefer soft delete for business entities
 - Use `include_deleted=true` for audit queries
 - Implement undelete workflow for recovery
@@ -1764,6 +1833,7 @@ CREATE INDEX ix_wbes_tx_gist ON wbes USING GIST (transaction_time);
 #### Query Patterns
 
 **Good:**
+
 ```sql
 -- Uses GIST index efficiently
 WHERE valid_time @> NOW()
@@ -1771,6 +1841,7 @@ WHERE transaction_time @> '2026-01-01'::timestamptz
 ```
 
 **Avoid:**
+
 ```sql
 -- Doesn't use GIST index
 WHERE LOWER(valid_time) > '2026-01-01'
@@ -1850,6 +1921,7 @@ done
 ```
 
 **Key Points:**
+
 - All updates get same `valid_time` start
 - Each update creates new version
 - `transaction_time` reflects actual update time
@@ -1883,6 +1955,7 @@ async def get_audit_trail(wbe_id: str, session: AsyncSession) -> list[dict]:
 ```
 
 **Output Format:**
+
 ```json
 [
   {
@@ -1944,6 +2017,7 @@ def diff_versions(v1: WBE, v2: WBE) -> dict:
 ```
 
 **Usage:**
+
 ```python
 v1 = await get_version_at(wbe_id, as_of=date1)
 v2 = await get_version_at(wbe_id, as_of=date2)
@@ -1996,6 +2070,7 @@ async def create_change_order(
 ```
 
 **Workflow:**
+
 1. Create change order branch
 2. Make changes on branch
 3. Generate comparison report

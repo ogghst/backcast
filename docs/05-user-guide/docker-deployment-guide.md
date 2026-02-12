@@ -141,10 +141,12 @@ htpasswd -nb admin <password>
 ### Step 3: Update Traefik Configuration
 
 Edit [deploy/traefik/traefik.yml](deploy/traefik/traefik.yml):
+
 - Replace `yourdomain.com` with your actual domain
 - Update `admin@yourdomain.com` with your email
 
 Edit [deploy/traefik/dynamic/middlewares.yml](deploy/traefik/dynamic/middlewares.yml):
+
 - Update `adminer-whitelist` IP ranges with your allowed IPs
 - Update `traefik-auth` with the htpasswd hash generated above
 
@@ -161,17 +163,17 @@ docker-compose --env-file .env.production build
 docker-compose --env-file .env.production up -d
 
 # Run database migrations (manual or automatic)
-docker-compose --env-file .env.production run --rm alembic upgrade head
+docker compose --env-file .env.production run --rm alembic upgrade head
 ```
 
 ### Step 5: Verify Deployment
 
 ```bash
 # Check service status
-docker-compose --env-file .env.production ps
+docker compose --env-file .env.production ps
 
 # Check logs
-docker-compose --env-file .env.production logs -f
+docker compose --env-file .env.production logs -f
 
 # Health checks
 curl https://api.yourdomain.com/api/v1/health
@@ -180,10 +182,10 @@ curl -I https://app.yourdomain.com
 
 ### Step 6: Access Applications
 
-- **Frontend**: https://app.yourdomain.com
-- **Backend API**: https://api.yourdomain.com
-- **Adminer**: https://db.yourdomain.com (IP restricted)
-- **Traefik Dashboard**: https://traefik.yourdomain.com
+- **Frontend**: <https://app.yourdomain.com>
+- **Backend API**: <https://api.yourdomain.com>
+- **Adminer**: <https://db.yourdomain.com> (IP restricted)
+- **Traefik Dashboard**: <https://traefik.yourdomain.com>
 
 ## Configuration Reference
 
@@ -222,11 +224,13 @@ Default resource limits configured in [deploy/docker-compose.yml](deploy/docker-
 ### Troubleshooting SSL
 
 **Certificate not issued:**
+
 - Verify DNS A records point to correct IP
 - Ensure port 80 is accessible from internet
-- Check Traefik logs: `docker logs backcast_evs_traefik`
+- Check Traefik logs: `docker compose logs traefik`
 
 **Certificate expired:**
+
 - Traefik auto-renews 30 days before expiry
 - Check ACME storage volume exists
 - Verify `TRAEFIK_ACME_EMAIL` is correct
@@ -446,6 +450,7 @@ accessLog:
 ```
 
 Key changes from the default configuration:
+
 - **Removed** `websecure` entryPoint (port 443) - not needed internally
 - **Removed** automatic HTTP-to-HTTPS redirect
 - **Removed** `certificatesResolvers.letsencrypt` section - Apache manages SSL
@@ -469,7 +474,7 @@ Apply these changes to all service labels (backend, frontend, adminer).
 cd deploy
 
 # Recreate Traefik container with new configuration
-docker-compose --env-file .env.production up -d --force-recreate traefik
+docker compose --env-file .env.production up -d --force-recreate traefik
 ```
 
 ### Step 8: Verify the Setup
@@ -482,21 +487,24 @@ curl -I http://127.0.0.1:8080
 curl -I https://app.yourdomain.com
 
 # Check Traefik logs
-docker-compose --env-file .env.production logs -f traefik
+docker compose --env-file .env.production logs -f traefik
 ```
 
 ### Common Issues
 
 **502 Bad Gateway from Apache:**
+
 - Verify Traefik is running: `curl http://127.0.0.1:8080`
 - Check Traefik is listening on configured ports
 - Review Apache error logs: `tail -f /var/log/apache2/app.yourdomain.com_error.log`
 
 **WebSocket Connection Failures:**
+
 - Ensure `proxy_pass` with `ws://` protocol is configured
 - Check Apache timeout settings are sufficient
 
 **CORS Errors:**
+
 - Backend CORS origins should include the Apache-routed domain
 - Verify `BACKEND_CORS_ORIGINS` in `.env.production`
 
@@ -506,7 +514,7 @@ docker-compose --env-file .env.production logs -f traefik
 
 ```bash
 cd deploy
-docker-compose --env-file .env.production logs -f <service>
+docker compose --env-file .env.production logs -f <service>
 ```
 
 ### Update Application
@@ -514,25 +522,25 @@ docker-compose --env-file .env.production logs -f <service>
 ```bash
 cd deploy
 git pull  # Update code
-docker-compose --env-file .env.production build
-docker-compose --env-file .env.production up -d
+docker compose --env-file .env.production build
+docker compose --env-file .env.production up -d
 ```
 
 ### Database Backup
 
 ```bash
 # Manual backup
-docker exec backcast_evs_postgres pg_dump -U backcast_prod backcast_evs > backup.sql
+docker compose exec postgres pg_dump -U backcast_prod backcast_evs > backup.sql
 
 # Restore
-docker exec -i backcast_evs_postgres psql -U backcast_prod backcast_evs < backup.sql
+cat backup.sql | docker compose exec -T postgres psql -U backcast_prod backcast_evs
 ```
 
 ### Restart Services
 
 ```bash
 cd deploy
-docker-compose --env-file .env.production restart <service>
+docker compose --env-file .env.production restart <service>
 ```
 
 ## Troubleshooting
@@ -553,10 +561,10 @@ docker network create traefik-public
 
 ```bash
 # Check database health
-docker exec backcast_evs_postgres pg_isready -U backcast_prod
+docker compose exec postgres pg_isready -U backcast_prod
 
 # View database logs
-docker logs backcast_evs_postgres
+docker compose logs postgres
 ```
 
 **Frontend shows 502 Bad Gateway:**
@@ -566,10 +574,11 @@ docker logs backcast_evs_postgres
 docker ps | grep backend
 
 # Check backend health
-docker exec backcast_evs_backend curl http://localhost:8080/api/v1/health
+docker compose exec backend curl http://localhost:8080/api/v1/health
 ```
 
 **SSL certificate warnings:**
+
 - Wait 5-10 minutes for Let's Encrypt propagation
 - Verify domain DNS is correct
 - Check port 80 is not blocked by firewall
@@ -578,7 +587,7 @@ docker exec backcast_evs_backend curl http://localhost:8080/api/v1/health
 
 ```bash
 # Enter container shell
-docker exec -it backcast_evs_backend bash
+docker compose exec -it backend bash
 
 # View container resource usage
 docker stats

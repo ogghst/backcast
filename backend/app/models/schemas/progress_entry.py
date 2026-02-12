@@ -17,10 +17,6 @@ class ProgressEntryBase(BaseModel):
         decimal_places=2,
         description="Work completion percentage (0.00 to 100.00)",
     )
-    reported_date: datetime = Field(
-        ...,
-        description="When progress was measured (business date)",
-    )
     notes: str | None = Field(
         None,
         description="Optional notes about progress (e.g., justification for decrease)",
@@ -46,12 +42,9 @@ class ProgressEntryCreate(ProgressEntryBase):
     cost_element_id: UUID = Field(
         ..., description="ID of the cost element to track progress for"
     )
-    reported_by_user_id: UUID = Field(
-        ..., description="ID of the user reporting the progress"
-    )
     control_date: datetime | None = Field(
         None,
-        description="Optional control date for time travel (valid_time defaults to now if not provided)",
+        description="Control date for the progress entry (when the progress was measured). Defaults to current time if not provided.",
     )
 
 
@@ -64,11 +57,10 @@ class ProgressEntryUpdate(BaseModel):
         le=Decimal("100.00"),
         decimal_places=2,
     )
-    reported_date: datetime | None = None
     notes: str | None = None
     control_date: datetime | None = Field(
         None,
-        description="Optional control date for time travel (valid_time defaults to now if not provided)",
+        description="Control date for when the update should take effect. Defaults to current time if not provided.",
     )
 
 
@@ -80,5 +72,14 @@ class ProgressEntryRead(ProgressEntryBase):
     id: UUID
     progress_entry_id: UUID
     cost_element_id: UUID
-    reported_by_user_id: UUID
     created_by: UUID
+    valid_time: str  # TSTZRANGE serialized as string
+    transaction_time: str  # TSTZRANGE serialized as string
+    deleted_at: datetime | None = None
+
+    @field_validator("valid_time", "transaction_time", mode="before")
+    @classmethod
+    def convert_range_to_str(cls, v: object) -> str | None:
+        if v and not isinstance(v, str):
+            return str(v)
+        return v  # type: ignore

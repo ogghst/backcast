@@ -1,6 +1,5 @@
 """Unit tests for ProgressEntry model."""
 
-from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -26,7 +25,7 @@ class TestProgressEntryModel:
         # Arrange
         progress_entry_id = uuid4()
         cost_element_id = uuid4()
-        reported_by_user_id = uuid4()
+        created_by_user_id = uuid4()
 
         # Act
         progress_entry = ProgressEntry(
@@ -34,10 +33,8 @@ class TestProgressEntryModel:
             progress_entry_id=progress_entry_id,
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("50.00"),
-            reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-            reported_by_user_id=reported_by_user_id,
             notes="Foundation complete",
-            created_by=reported_by_user_id,
+            created_by=created_by_user_id,
             deleted_at=None,
             deleted_by=None,
         )
@@ -46,8 +43,6 @@ class TestProgressEntryModel:
         assert progress_entry.progress_entry_id == progress_entry_id
         assert progress_entry.cost_element_id == cost_element_id
         assert progress_entry.progress_percentage == Decimal("50.00")
-        assert progress_entry.reported_date == datetime(2026, 1, 15, tzinfo=UTC)
-        assert progress_entry.reported_by_user_id == reported_by_user_id
         assert progress_entry.notes == "Foundation complete"
 
     @pytest.mark.asyncio
@@ -62,8 +57,6 @@ class TestProgressEntryModel:
             progress_entry_id=uuid4(),
             cost_element_id=uuid4(),
             progress_percentage=Decimal("0.00"),
-            reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-            reported_by_user_id=uuid4(),
             created_by=uuid4(),
         )
 
@@ -82,8 +75,6 @@ class TestProgressEntryModel:
             progress_entry_id=uuid4(),
             cost_element_id=uuid4(),
             progress_percentage=Decimal("100.00"),
-            reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-            reported_by_user_id=uuid4(),
             created_by=uuid4(),
         )
 
@@ -104,8 +95,6 @@ class TestProgressEntryModel:
             progress_entry_id=progress_entry_id,
             cost_element_id=uuid4(),
             progress_percentage=Decimal("75.50"),
-            reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-            reported_by_user_id=uuid4(),
             created_by=uuid4(),
         )
 
@@ -130,8 +119,6 @@ class TestProgressEntryModel:
             progress_entry_id=uuid4(),
             cost_element_id=uuid4(),
             progress_percentage=Decimal("25.00"),
-            reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-            reported_by_user_id=uuid4(),
             notes=None,
             created_by=uuid4(),
         )
@@ -152,8 +139,6 @@ class TestProgressEntryModel:
             progress_entry_id=uuid4(),
             cost_element_id=uuid4(),
             progress_percentage=Decimal("99.99"),
-            reported_date=datetime(2026, 1, 15, tzinfo=UTC),
-            reported_by_user_id=uuid4(),
             created_by=uuid4(),
         )
 

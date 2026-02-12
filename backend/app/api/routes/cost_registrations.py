@@ -41,6 +41,12 @@ def get_cost_registration_service(
 async def read_cost_registrations(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
+    branch: str = Query("main", description="Branch to query (for context)"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
     cost_element_id: UUID | None = Query(None, description="Filter by Cost Element ID"),
     search: str | None = Query(
         None, description="Search term (description, invoice, vendor)"
@@ -65,6 +71,8 @@ async def read_cost_registrations(
 
     Cost registrations track actual expenditures against cost elements.
     They are versionable but NOT branchable (costs are global facts).
+    Branch and mode parameters are provided for API consistency and context,
+    though cost registrations themselves are not branch-specific.
     """
     # Build filters dict
     query_filters: dict[str, Any] = {}
@@ -72,6 +80,11 @@ async def read_cost_registrations(
         query_filters["cost_element_id"] = cost_element_id
 
     skip = (page - 1) * per_page
+
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
 
     items, total = await service.get_cost_registrations(
         filters=query_filters,
@@ -115,10 +128,9 @@ async def create_cost_registration(
     useful for backdated cost registrations or testing time-travel scenarios.
     """
     try:
-        return await service.create(
+        return await service.create_cost_registration(
             registration_in=registration_in,
             actor_id=current_user.user_id,
-            control_date=registration_in.control_date,
         )
 
     except Exception as e:
@@ -153,6 +165,11 @@ async def get_budget_status(
     The as_of parameter allows viewing the budget status at any historical point in time,
     showing only cost registrations that were valid as of that timestamp.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     try:
         budget_status = await service.get_budget_status(cost_element_id, as_of=as_of)
         return {
@@ -201,6 +218,11 @@ async def get_aggregated_costs(
 
     All costs respect time-travel queries via the as_of parameter.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     try:
         costs = await service.get_costs_by_period(
             cost_element_id=cost_element_id,
@@ -244,6 +266,11 @@ async def get_cumulative_costs(
 
     All costs respect time-travel queries via the as_of parameter.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     try:
         costs = await service.get_cumulative_costs(
             cost_element_id=cost_element_id,
@@ -281,15 +308,17 @@ async def read_cost_registration(
     Supports time-travel queries via the as_of parameter to view
     the cost registration's state at any historical point in time.
     """
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        from datetime import UTC
+        as_of = datetime.now(tz=UTC)
+
     if as_of:
         # Time travel query
         item = await service.get_cost_registration_as_of(
             cost_registration_id=cost_registration_id,
             as_of=as_of,
         )
-    else:
-        # Current version
-        item = await service.get_by_id(cost_registration_id)
 
     if not item:
         raise HTTPException(
@@ -320,11 +349,10 @@ async def update_cost_registration(
     the new version, useful for backdating updates or testing time-travel.
     """
     try:
-        return await service.update(
+        return await service.update_cost_registration(
             cost_registration_id=cost_registration_id,
             registration_in=registration_in,
             actor_id=current_user.user_id,
-            control_date=registration_in.control_date,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

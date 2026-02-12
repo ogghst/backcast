@@ -1,8 +1,9 @@
 
+from typing import Any
+from uuid import uuid4
+
 import pytest
 from httpx import AsyncClient
-from uuid import uuid4
-from typing import Any
 
 from app.api.dependencies.auth import (
     get_current_active_user,
@@ -77,7 +78,7 @@ async def test_create_project_on_branch(client: AsyncClient) -> None:
     # TemporalService.get_projects filters by branch.
     # If mode is STRICT, we expect 404 on main?
     # Or get_projects returns list.
-    
+
     # Let's check get by ID on main
     get_main = await client.get(f"/api/v1/projects/{data['id']}?branch=main")
     # It might return 404 if not found on main.
@@ -103,11 +104,11 @@ async def test_create_wbe_on_branch(client: AsyncClient) -> None:
     assert wbe_res.status_code == 201
     data = wbe_res.json()
     assert data["branch"] == "feature-1"
-    
+
     # 3. Verify fetch on feature-1
     get_feature = await client.get(f"/api/v1/wbes/{data['id']}?branch=feature-1")
     assert get_feature.status_code == 200
-    
+
     # 4. Verify fetch on main (should be 404)
     get_main = await client.get(f"/api/v1/wbes/{data['id']}?branch=main")
     assert get_main.status_code == 404

@@ -302,7 +302,7 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
             # We must use the attribute name to get the value from the object
             prop = mapper.get_property_by_column(col)
             attr_name = prop.key
-            
+
             value = getattr(new_version, attr_name, None)
 
             # CRITICAL: Generate UUID for id column since we're using raw SQL
@@ -416,3 +416,187 @@ class SoftDeleteCommand(VersionedCommandABC[TVersionable]):
         )
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
+
+
+# ==============================================================================
+# Domain-Specific Commands (Non-Versioned Entities)
+# ==============================================================================
+
+
+class CreateChangeOrderAuditLogCommand:
+    """Command to create a Change Order audit log entry.
+
+    Encapsulates the creation of audit log entries for Change Order status transitions.
+    This enforces the RSC pattern by moving state-changing operations out of Services.
+
+    Attributes:
+        change_order_id: Root UUID of the Change Order
+        old_status: Previous status value
+        new_status: New status value
+        actor_id: User who made the change
+        comment: Optional comment explaining the transition
+    """
+
+    def __init__(
+        self,
+        change_order_id: UUID,
+        old_status: str,
+        new_status: str,
+        actor_id: UUID,
+        comment: str | None = None,
+    ) -> None:
+        self.change_order_id = change_order_id
+        self.old_status = old_status
+        self.new_status = new_status
+        self.actor_id = actor_id
+        self.comment = comment
+
+    async def execute(self, session: AsyncSession) -> None:
+        """Create and persist the audit log entry.
+
+        Validates that the status has actually changed before creating the entry.
+        """
+        # Import here to avoid circular dependency
+        from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
+
+        # Validation: Don't create audit log if status unchanged
+        if self.old_status == self.new_status:
+            raise ValueError(
+                f"Cannot create audit log: status unchanged ({self.old_status})"
+            )
+
+        # Create audit log entry
+        audit_entry = ChangeOrderAuditLog(
+            change_order_id=self.change_order_id,
+            old_status=self.old_status,
+            new_status=self.new_status,
+            comment=self.comment,
+            changed_by=self.actor_id,
+        )
+        session.add(audit_entry)
+        await session.flush()
+
+
+class LinkCostElementCommand:
+    """Command to link a CostElement to its parent (ScheduleBaseline or Forecast).
+
+    Encapsulates the FK update logic for parent-child relationships.
+    This enforces the RSC pattern by isolating side-effects from Service methods.
+
+    Attributes:
+        cost_element_id: UUID of the CostElement to update
+        parent_type: Type of parent ("schedule_baseline" or "forecast")
+        parent_id: UUID of the parent entity
+    """
+
+    def __init__(
+        self,
+        cost_element_id: UUID,
+        parent_type: str,
+        parent_id: UUID,
+    ) -> None:
+        self.cost_element_id = cost_element_id
+        self.parent_type = parent_type
+        self.parent_id = parent_id
+
+        # Validation
+        if parent_type not in ("schedule_baseline", "forecast"):
+            raise ValueError(
+                f"Invalid parent_type: {parent_type}. "
+                f"Must be 'schedule_baseline' or 'forecast'"
+            )
+
+    async def execute(self, session: AsyncSession) -> None:
+        """Update the CostElement's parent FK.
+
+        Uses raw SQL UPDATE to set the appropriate FK field.
+        """
+        from sqlalchemy import text
+
+        # Determine which FK field to update
+        fk_field = (
+            "schedule_baseline_id"
+            if self.parent_type == "schedule_baseline"
+            else "forecast_id"
+        )
+
+        # Use raw SQL to update the FK
+        stmt = text(
+            f"""
+            UPDATE cost_elements
+            SET {fk_field} = :parent_id
+            WHERE cost_element_id = :cost_element_id
+            AND upper(valid_time) IS NULL
+            AND deleted_at IS NULL
+            """
+        )
+        await session.execute(
+            stmt,
+            {
+                "parent_id": self.parent_id,
+                "cost_element_id": self.cost_element_id,
+            },
+        )
+        await session.flush()
+
+
+class UpdateChangeOrderStatusCommand:
+    """Command to update a Change Order's status.
+
+    Encapsulates status transitions for Change Orders.
+    This enforces the RSC pattern by isolating status update logic.
+
+    Note: This command does NOT create audit logs - that's the responsibility
+    of CreateChangeOrderAuditLogCommand. Services should orchestrate both commands.
+
+    Attributes:
+        change_order_id: Root UUID of the Change Order
+        new_status: New status value
+        branch: Branch to update on
+    """
+
+    def __init__(
+        self,
+        change_order_id: UUID,
+        new_status: str,
+        branch: str = "main",
+    ) -> None:
+        self.change_order_id = change_order_id
+        self.new_status = new_status
+        self.branch = branch
+
+    async def execute(self, session: AsyncSession) -> None:
+        """Update the Change Order's status field.
+
+        Uses raw SQL UPDATE to modify the status of the current version.
+        """
+        from sqlalchemy import text
+
+        # Use raw SQL to update the status
+        stmt = text(
+            """
+            UPDATE change_orders
+            SET status = :new_status
+            WHERE change_order_id = :change_order_id
+            AND branch = :branch
+            AND upper(valid_time) IS NULL
+            AND deleted_at IS NULL
+            """
+        )
+        result = await session.execute(
+            stmt,
+            {
+                "new_status": self.new_status,
+                "change_order_id": self.change_order_id,
+                "branch": self.branch,
+            },
+        )
+        await session.flush()
+
+        # Verify the update affected a row
+        if result.rowcount == 0:  # type: ignore[attr-defined]
+            raise ValueError(
+                f"No active Change Order found with ID {self.change_order_id} "
+                f"on branch {self.branch}"
+            )
+

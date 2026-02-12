@@ -347,14 +347,14 @@ class TestCostElementForecastAPI:
         # Create a change order branch
         branch_res = await client.post(
             f"/api/v1/cost-elements/{cost_element_id}/branches",
-            json={"branch_name": "co-test-branch"},
+            json={"branch_name": "BR-test-branch"},
         )
         assert branch_res.status_code == 200
 
         # Update forecast in change order branch
         update_res = await client.put(
             f"/api/v1/cost-elements/{cost_element_id}/forecast",
-            params={"branch": "co-testbranch"},
+            params={"branch": "BR-testbranch"},
             json={"eac_amount": "150000.00", "basis_of_estimate": "CO scenario"},
         )
         assert update_res.status_code == 200
@@ -362,7 +362,7 @@ class TestCostElementForecastAPI:
         # Verify forecast in CO branch has new value
         co_response = await client.get(
             f"/api/v1/cost-elements/{cost_element_id}/forecast",
-            params={"branch": "co-testbranch"},
+            params={"branch": "BR-testbranch"},
         )
         assert co_response.status_code == 200
         assert co_response.json()["eac_amount"] == "150000.00"

@@ -29,12 +29,12 @@ class TestProjectServiceTemporalList:
             code="TEMP01",
             budget=Decimal("10000.00"),
             status="Active",
+            control_date=t1,
         )
 
         # We manually control the creation time using control_date
-        # (assuming control_date logic works as verified in previous iteration)
         project_v1 = await service.create_project(
-            project_in, actor_id=actor_id, control_date=t1
+            project_in, actor_id=actor_id
         )
         project_id = project_v1.project_id
 

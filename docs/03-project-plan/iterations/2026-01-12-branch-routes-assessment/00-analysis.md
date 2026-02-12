@@ -8,10 +8,10 @@ The user requests an assessment of the "Branch" (implemented as Change Order) ro
 
 **Goals:**
 
-1.  Compare the implementation of `ChangeOrderService` (Branching) vs `WBEService` (Temporal).
-2.  Compare the API Routes (`/change-orders` vs `/wbes`).
-3.  Identify gaps, inconsistencies, or missing features in the Branch/ChangeOrder implementation relative to the WBE baseline.
-4.  Propose solutions to harmonize and complete the implementation.
+1. Compare the implementation of `ChangeOrderService` (Branching) vs `WBEService` (Temporal).
+2. Compare the API Routes (`/change-orders` vs `/wbes`).
+3. Identify gaps, inconsistencies, or missing features in the Branch/ChangeOrder implementation relative to the WBE baseline.
+4. Propose solutions to harmonize and complete the implementation.
 
 ### Context Discovery Findings
 
@@ -32,18 +32,18 @@ The user requests an assessment of the "Branch" (implemented as Change Order) ro
 | Feature              | WBE Implementation (`wbe.py`, `wbes.py`)                                     | Change Order Implementation (`change_order_service.py`, `change_orders.py`)                     |
 | :------------------- | :--------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------- |
 | **Service Base**     | `TemporalService`                                                            | `BranchableService`                                                                             |
-| **Branching Role**   | **Consumer**: Lives on a branch.                                             | **Producer**: Defines/Manages a branch (`co-{code}`).                                           |
+| **Branching Role**   | **Consumer**: Lives on a branch.                                             | **Producer**: Defines/Manages a branch (`BR-{code}`).                                           |
 | **Filtering (List)** | **Rich**: Parsing `filters` string, `project_id`, `parent_wbe_id`, `search`. | **Basic**: Only `project_id` and `branch`. Missing generic search/filter.                       |
 | **Sorting**          | **Dynamic**: `sort_field`, `sort_order`.                                     | **Fixed**: Implicitly by time (desc) in service queries? (Query hardcodes `valid_time.desc()`). |
 | **Branch Ops**       | Read/Write on active branch.                                                 | `create_branch` (auto), `merge_branch`, `revert`.                                               |
 | **Route Exposure**   | CRUD + Breadcrumb + History.                                                 | CRUD + `by-code` + History. **MISSING**: Merge/Revert endpoints.                                |
 | **Response Type**    | `PaginatedResponse` (for list) & List (for hierarchy).                       | `PaginatedResponse` (for list).                                                                 |
 
-### Key Gaps Identified:
+### Key Gaps Identified
 
-1.  **Missing Endpoint Exposure**: `ChangeOrderService` supports `merge_branch` and `revert`, but the `change_orders.py` router **does not expose** these capabilities. Users cannot currently merge a Change Order via API.
-2.  **Limited List Capabilities**: Change Order list endpoint lacks the standard filtering, searching, and sorting capabilities present in WBEs (`FilterParser` integration is missing).
-3.  **Code Duplication**: `BranchableService` re-implements `get_current` and `get_by_id` which likely exist in `TemporalService`.
+1. **Missing Endpoint Exposure**: `ChangeOrderService` supports `merge_branch` and `revert`, but the `change_orders.py` router **does not expose** these capabilities. Users cannot currently merge a Change Order via API.
+2. **Limited List Capabilities**: Change Order list endpoint lacks the standard filtering, searching, and sorting capabilities present in WBEs (`FilterParser` integration is missing).
+3. **Code Duplication**: `BranchableService` re-implements `get_current` and `get_by_id` which likely exist in `TemporalService`.
 
 ---
 
@@ -119,16 +119,16 @@ Refactor `BranchableService` to inherit from `TemporalService` to remove duplica
 
 **Rationale:**
 
-1.  The primary purpose of Change Orders is to manage the branching lifecycle. Without `merge` endpoints, the feature is incomplete.
-2.  WBEs set the standard for List operations (Filtering/Sorting). Change Orders should match this standard to ensure a consistent Frontend capability (Search/Sort).
-3.  Refactoring (Option 3) is desirable but can be done as a separate technical debt task; it shouldn't block the feature completion.
+1. The primary purpose of Change Orders is to manage the branching lifecycle. Without `merge` endpoints, the feature is incomplete.
+2. WBEs set the standard for List operations (Filtering/Sorting). Change Orders should match this standard to ensure a consistent Frontend capability (Search/Sort).
+3. Refactoring (Option 3) is desirable but can be done as a separate technical debt task; it shouldn't block the feature completion.
 
 **Action Plan:**
 
-1.  Update `ChangeOrderService` to accept `search`, `filters`, `sort` arguments.
-2.  Update `change_orders.py` router to accept these parameters and pass them.
-3.  Add `POST /{change_order_id}/merge` endpoint to `change_orders.py`.
-4.  Add `POST /{change_order_id}/revert` endpoint to `change_orders.py` (if needed by UI).
+1. Update `ChangeOrderService` to accept `search`, `filters`, `sort` arguments.
+2. Update `change_orders.py` router to accept these parameters and pass them.
+3. Add `POST /{change_order_id}/merge` endpoint to `change_orders.py`.
+4. Add `POST /{change_order_id}/revert` endpoint to `change_orders.py` (if needed by UI).
 
 ## Output file
 

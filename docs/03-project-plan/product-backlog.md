@@ -1,9 +1,9 @@
 # Backlog
 
-**Last Updated:** 2026-01-19
-**Total Items:** 34
-**Total Estimated Points:** 206
-**Completed:** 14 items (76 points)
+**Last Updated:** 2026-02-03
+**Total Items:** 35
+**Total Estimated Points:** 213
+**Completed:** 22 items (132 points)
 
 ---
 
@@ -30,7 +30,7 @@
 - **Dependencies:** E04-U02 (WBE creation)
 - **Acceptance Criteria:**
   - UI for creating change orders with title, description, reason
-  - Automatic branch creation (`co-{id}`) on save
+  - Automatic branch creation (`BR-{id}`) on save
   - Change order appears in list with status (Draft/Submitted/Approved/Merged)
   - RBAC: Only Project Managers can create change orders
 - **Estimated Complexity:** Simple
@@ -44,7 +44,7 @@
 - **Business Value:** CRITICAL - Automates branch workflow
 - **Dependencies:** E06-U01 ✅
 - **Acceptance Criteria:**
-  - Branch `co-{id}` created automatically when change order is saved
+  - Branch `BR-{id}` created automatically when change order is saved
   - Branch initialized as copy of current main state
   - Branch metadata includes change order ID and creator
 - **Estimated Complexity:** Simple
@@ -206,7 +206,7 @@
   - Followed schedule baseline 1:1 implementation pattern
 - **Ready for Iteration:** No (already complete)
 
-#### [E05-U03] Record Earned Value (% Complete)
+#### [E05-U03] Record Earned Value (% Complete) ✅
 
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 5
@@ -217,7 +217,13 @@
   - Automatic EV calculation (BAC × % complete)
   - Versioning support
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** Yes (E04-U03 complete)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-01-22
+- **Implementation Notes:**
+  - Progress Entry model with versionable (non-branchable) design
+  - Progress Entry API endpoints (CRUD with temporal support)
+  - Frontend Progress Entries Tab with modal for creating/editing
+- **Ready for Iteration:** No (already complete)
 
 #### [E05-U05] Validate Cost Registrations against Budgets
 
@@ -245,7 +251,7 @@
 - **Estimated Complexity:** Simple
 - **Ready for Iteration:** No (blocked by E05-U01)
 
-#### [E08-U01] Calculate PV using Schedule Baselines
+#### [E08-U01] Calculate PV using Schedule Baselines ✅
 
 - **Epic:** E008 (EVM Calculations & Reporting)
 - **Story Points:** 8
@@ -256,9 +262,15 @@
   - Time-phased budget distribution
   - PV at any point in time
 - **Estimated Complexity:** Medium
-- **Ready for Iteration:** Yes (E05-U04 ready)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-01-22
+- **Implementation Notes:**
+  - PV calculation from schedule baselines with progression types
+  - Time-phased budget distribution
+  - EVM Service with PV endpoint
+- **Ready for Iteration:** No (already complete)
 
-#### [E08-U02] Calculate EV from % Complete
+#### [E08-U02] Calculate EV from % Complete ✅
 
 - **Epic:** E008 (EVM Calculations & Reporting)
 - **Story Points:** 5
@@ -268,33 +280,54 @@
   - Earned Value (EV) = BAC × % complete
   - Rollup calculation from cost elements
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** Yes (E05-U03 ready)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-01-22
+- **Implementation Notes:**
+  - EV calculation: `EVMService._get_ev_as_of()` with formula BAC × progress_percentage / 100
+  - Rollup at cost element, WBE, and project levels via `calculate_evm_metrics_batch()`
+  - API endpoints: `/api/v1/evm/{entity_type}/{entity_id}/metrics`
+  - Frontend: `useEVMMetrics()` hook and `EVMSummaryView` component
+  - Time-travel and branch isolation support
+- **Ready for Iteration:** No (already complete)
 
-#### [E08-U03] Calculate AC from Cost Registrations
+#### [E08-U03] Calculate AC from Cost Registrations ✅
 
 - **Epic:** E008 (EVM Calculations & Reporting)
 - **Story Points:** 5
 - **Business Value:** HIGH - Core EVM calculation
-- **Dependencies:** E05-U01
+- **Dependencies:** E05-U01 ✅
 - **Acceptance Criteria:**
   - Actual Cost (AC) sum of cost registrations
   - Time-phased AC calculation
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E05-U01)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-01-17
+- **Implementation Notes:**
+  - Cost Registration model and API
+  - AC calculation from cost registrations
+  - Time-phased AC calculation
+- **Ready for Iteration:** No (already complete)
 
-#### [E08-U04] View Performance Indices (CPI/SPI/TCPI)
+#### [E08-U04] View Performance Indices (CPI/SPI/TCPI) ✅
 
 - **Epic:** E008 (EVM Calculations & Reporting)
 - **Story Points:** 8
 - **Business Value:** HIGH - Performance metrics
-- **Dependencies:** E08-U01, E08-U02, E08-U03
+- **Dependencies:** E08-U01 ✅, E08-U02 ✅, E08-U03 ✅
 - **Acceptance Criteria:**
   - CPI = EV/AC (Cost Performance Index)
   - SPI = EV/PV (Schedule Performance Index)
   - TCPI (To-Complete Performance Index)
   - Threshold-based color coding
 - **Estimated Complexity:** Medium
-- **Ready for Iteration:** No (blocked by E08-U01, E08-U02, E08-U03)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-01-22
+- **Implementation Notes:**
+  - Backend: `_calculate_indices()` in EVM Service calculates CPI = EV/AC, SPI = EV/PV
+  - Frontend: EVMGauge component for CPI/SPI with color-coded zones (good/warning/bad)
+  - Thresholds: CPI/SPI < 0.9 (bad), 0.9-1.0 (warning), > 1.0 (good)
+  - Display in EVMSummaryView and EVMAnalyzerModal
+- **Ready for Iteration:** No (already complete)
 
 ---
 
@@ -339,7 +372,7 @@
 - **Estimated Complexity:** Simple
 - **Ready for Iteration:** Yes (E04-U03 complete)
 
-#### [E05-U04] Define Schedule Baselines with Progression Types
+#### [E05-U04] Define Schedule Baselines with Progression Types ✅
 
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 8
@@ -350,7 +383,13 @@
   - Progression types: linear/gaussian/logarithmic
   - Link to cost elements for PV calculation
 - **Estimated Complexity:** Medium
-- **Ready for Iteration:** Yes (E04-U03 complete)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-01-17
+- **Implementation Notes:**
+  - Schedule Baseline model with progression types
+  - 1:1 relationship with Cost Element (inverted FK)
+  - Nested endpoints: `/cost-elements/{id}/schedule-baseline`
+- **Ready for Iteration:** No (already complete)
 
 #### [E05-U07] Manage Quality Events (Track Rework Costs)
 
@@ -449,19 +488,25 @@
 - **Estimated Complexity:** Simple
 - **Ready for Iteration:** No (blocked by E07-U01)
 
-#### [E08-U05] View Variances (CV/SV/VAC)
+#### [E08-U05] View Variances (CV/SV/VAC) ✅
 
 - **Epic:** E008 (EVM Calculations & Reporting)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Variance analysis
-- **Dependencies:** E08-U01, E08-U02, E08-U03
+- **Dependencies:** E08-U01 ✅, E08-U02 ✅, E08-U03 ✅
 - **Acceptance Criteria:**
   - CV = EV - AC (Cost Variance)
   - SV = EV - PV (Schedule Variance)
   - VAC = BAC - EAC (Variance at Complete)
   - Threshold-based color coding
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E08-U01, E08-U02, E08-U03)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-01-22
+- **Implementation Notes:**
+  - Backend: `_calculate_variances()` computes CV = EV - AC, SV = EV - PV, VAC = BAC - EAC
+  - Frontend: Variance metrics in EVMMetrics types (cv, sv, vac)
+  - Display in EVM components with status indicators
+- **Ready for Iteration:** No (already complete)
 
 ---
 
@@ -518,17 +563,23 @@
 
 ---
 
-#### [E08-U08] Time Machine Control for Historical Metrics
+#### [E08-U08] Time Machine Control for Historical Metrics ✅
 
 - **Epic:** E008 (EVM Calculations & Reporting)
 - **Story Points:** 5
 - **Business Value:** LOW - Historical reporting
-- **Dependencies:** E03-U05, E08-U01, E08-U02, E08-U03
+- **Dependencies:** E03-U05 ✅, E08-U01 ✅, E08-U02 ✅, E08-U03 ✅
 - **Acceptance Criteria:**
   - Query EVM metrics as of any historical date
   - Historical trend charts
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E03-U05, E08-U01, E08-U02, E08-U03)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-01-23
+- **Implementation Notes:**
+  - Backend: EVM Service supports `control_date` parameter for all metrics
+  - Frontend: `EVMTimeSeriesChart` component for historical trends
+  - Integration with TimeMachineContext for time-travel queries
+- **Ready for Iteration:** No (already complete)
 
 ---
 
@@ -546,6 +597,16 @@
 
 | Date       | Item                                              | Points | Iteration                | Notes                              |
 | ---------- | ------------------------------------------------- | ------ | ------------------------ | ---------------------------------- |
+| 2026-02-03 | E08-U05/E08-U08: Variances & Historical Metrics   | 10     | EVM Foundation           | CV/SV/VAC, time series trends      |
+| 2026-02-03 | E08-U02/E08-U04: EV Calculation & Performance Indices | 13 | EVM Foundation           | EV rollup, CPI/SPI with gauges     |
+| 2026-01-29 | Branch Entity Versionable                         | 3      | Infrastructure           | Temporal queries for Branch entity |
+| 2026-01-26 | E06-U05: Merge Approved Change Orders             | 13     | E06 Phase 4              | Merge logic with conflict detection |
+| 2026-01-22 | E08-U01: Calculate PV using Schedule Baselines    | 8      | EVM Foundation           | PV calculation from schedules      |
+| 2026-01-22 | E05-U03: Record Earned Value (% Complete)         | 5      | EVM Foundation           | Progress entries with versioning   |
+| 2026-01-22 | EVM Analyzer UI                                   | -      | EVM Foundation           | CPI vs SPI charts                  |
+| 2026-01-17 | E05-U04: Define Schedule Baselines                | 8      | Financial Data           | 1:1 with Cost Element              |
+| 2026-01-17 | E05-U02: Create/Update Forecasts (EAC)            | 5      | Financial Data           | 1:1 with Cost Element              |
+| 2026-01-17 | E08-U03: Calculate AC from Cost Registrations     | 5      | Financial Data           | Cost registration tracking         |
 | 2026-01-19 | E05-U01: Register Actual Costs                    | 5      | N/A                      | Core functionality delivered       |
 | 2026-01-15 | E06-U04: Compare Branch to Main (Impact Analysis) | 8      | Change Orders v2 Phase 3 | Backend & Frontend Complete        |
 | 2026-01-15 | E06-U03: Modify Entities in Branch                | 8      | Change Orders v2         | Core EVCS functionality            |

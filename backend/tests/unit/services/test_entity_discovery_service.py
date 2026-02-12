@@ -32,7 +32,7 @@ class TestEntityDiscoveryService:
         # Arrange
         discovery_service = EntityDiscoveryService(db_session)
         wbe_service = WBEService(db_session)
-        branch_name = "co-test-123"
+        branch_name = "BR-test-123"
         actor_id = uuid4()
         project_id = uuid4()
         wbe_id = uuid4()
@@ -66,7 +66,7 @@ class TestEntityDiscoveryService:
         # Arrange
         discovery_service = EntityDiscoveryService(db_session)
         ce_service = CostElementService(db_session)
-        branch_name = "co-test-456"
+        branch_name = "BR-test-456"
         actor_id = uuid4()
         wbe_id = uuid4()
         ce_id = uuid4()
@@ -101,7 +101,7 @@ class TestEntityDiscoveryService:
         # Arrange
         discovery_service = EntityDiscoveryService(db_session)
         project_service = ProjectService(db_session)
-        branch_name = "co-test-789"
+        branch_name = "BR-test-789"
         actor_id = uuid4()
 
         # Create a Project on the branch using ProjectCreate schema
@@ -109,11 +109,11 @@ class TestEntityDiscoveryService:
             name="Test Project",
             code="PROJ-001",
             budget=Decimal("100000.00"),
+            control_date=datetime.now(UTC),
         )
         created_project = await project_service.create_project(
             project_in=project_in,
             actor_id=actor_id,
-            control_date=datetime.now(UTC),
         )
         # Manually set the branch for testing (since create_project doesn't support branch parameter)
         created_project.branch = branch_name
@@ -138,7 +138,7 @@ class TestEntityDiscoveryService:
         """
         # Arrange
         service = EntityDiscoveryService(db_session)
-        nonexistent_branch = "co-nonexistent-999"
+        nonexistent_branch = "BR-nonexistent-999"
 
         # Act
         wbes = await service.discover_wbes(nonexistent_branch)
@@ -159,7 +159,7 @@ class TestEntityDiscoveryService:
         # Arrange
         discovery_service = EntityDiscoveryService(db_session)
         wbe_service = WBEService(db_session)
-        branch_name = "co-test-filter"
+        branch_name = "BR-test-filter"
         actor_id = uuid4()
         project_id = uuid4()
         active_wbe_id = uuid4()
@@ -211,8 +211,8 @@ class TestEntityDiscoveryService:
         # Arrange
         discovery_service = EntityDiscoveryService(db_session)
         wbe_service = WBEService(db_session)
-        target_branch = "co-target-123"
-        other_branch = "co-other-456"
+        target_branch = "BR-target-123"
+        other_branch = "BR-other-456"
         actor_id = uuid4()
         project_id = uuid4()
         target_wbe_id = uuid4()

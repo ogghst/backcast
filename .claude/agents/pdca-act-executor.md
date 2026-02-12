@@ -40,7 +40,19 @@ Before closing the iteration, ensure:
 
 ## Output
 
-Create `docs/03-project-plan/iterations/YYYY-MM-DD-{title}/04-act.md` using the template at [`docs/04-pdca-prompts/_templates/04-act-template.md`](file:///home/nicola/dev/backcast_evs/docs/04-pdca-prompts/_templates/04-act-template.md).
+You MUST follow the ACT phase output contract defined in `docs/04-pdca-prompts/act-prompt.md`:
+
+- **File location**: `docs/03-project-plan/iterations/YYYY-MM-DD-{title}/`
+- **Filename**: `04-act.md` (exactly, including the `04-` prefix)
+- **Template**: [`docs/04-pdca-prompts/_templates/04-act-template.md`](file:///home/nicola/dev/backcast_evs/docs/04-pdca-prompts/_templates/04-act-template.md).
+
+Create or update `04-act.md` to:
+
+- Record which improvement options from `03-check.md` were implemented, deferred, or rejected
+- Document standardized patterns, documentation updates, debt ledger changes, and process improvements
+- Capture iteration closure status and lessons learned
+
+The PDCA orchestrator treats the presence of a complete `04-act.md` as the **completion signal** for the ACT phase and for closing the PDCA iteration.
 
 ## Key Principles
 

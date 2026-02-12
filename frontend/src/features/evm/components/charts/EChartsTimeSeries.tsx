@@ -24,7 +24,7 @@ import {
 import { useEChartsTheme } from "../../utils/echartsTheme";
 import {
   transformEVMProgressionData,
-  transformCostComparisonData,
+  transformPerformanceIndicesData,
   TransformedSeries,
 } from "../../utils/dataTransformers";
 import type {
@@ -67,6 +67,9 @@ export interface EChartsTimeSeriesProps extends Omit<
 
   /** Custom series data (overrides timeSeries transformation) */
   customSeries?: TransformedSeries[];
+
+  /** Whether to fill the container height (for both charts mode) */
+  fillContainer?: boolean;
 }
 
 /**
@@ -91,6 +94,7 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
   emptyDescription,
   delayRender = false,
   height,
+  fillContainer = false,
 }) => {
   const chartRef = useRef<ReactECharts | null>(null);
   const chart2Ref = useRef<ReactECharts | null>(null);
@@ -116,8 +120,8 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
     return [];
   }, [customSeries, timeSeries]);
 
-  const comparisonSeries = useMemo(() => {
-    if (timeSeries) return transformCostComparisonData(timeSeries);
+  const performanceIndicesSeries = useMemo(() => {
+    if (timeSeries) return transformPerformanceIndicesData(timeSeries);
     return [];
   }, [timeSeries]);
 
@@ -145,25 +149,24 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
     echartsTheme,
   ]);
 
-  const comparisonOptions = useMemo(() => {
-    if (comparisonSeries.length === 0) return null;
+  const performanceIndicesOptions = useMemo(() => {
+    if (performanceIndicesSeries.length === 0) return null;
 
     return buildTimeSeriesOptions(
       {
-        chartType: "cost-comparison",
-        series: comparisonSeries,
+        chartType: "performance-indices",
+        series: performanceIndicesSeries,
         showZoom,
         dualYAxis,
-        yFormatter: currencyFormatter,
+        yFormatter: (v) => v.toFixed(2),
         xFormatter: dateFormatter,
       } as TimeSeriesConfigOptions,
       echartsTheme,
     );
   }, [
-    comparisonSeries,
+    performanceIndicesSeries,
     showZoom,
     dualYAxis,
-    currencyFormatter,
     dateFormatter,
     echartsTheme,
   ]);
@@ -210,7 +213,7 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: 16,
+          marginBottom: fillContainer ? 12 : 16,
         }}
       >
         <div />
@@ -246,14 +249,14 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
   const hasData =
     (chartType === "evm-progression" || showBothCharts) &&
     progressionSeries.length > 0;
-  const hasComparisonData =
-    (chartType === "cost-comparison" || showBothCharts) &&
-    comparisonSeries.length > 0;
+  const hasPerformanceIndicesData =
+    (chartType === "performance-indices" || showBothCharts) &&
+    performanceIndicesSeries.length > 0;
 
   // Single chart mode
   if (!showBothCharts) {
     const options =
-      chartType === "evm-progression" ? progressionOptions : comparisonOptions;
+      chartType === "evm-progression" ? progressionOptions : performanceIndicesOptions;
 
     if (!options) {
       return (
@@ -287,77 +290,168 @@ export const EChartsTimeSeries: React.FC<EChartsTimeSeriesProps> = ({
   }
 
   // Both charts mode
+  const containerStyle = fillContainer
+    ? { display: "flex", flexDirection: "column" as const, height: "100%", overflow: "hidden" as const }
+    : {};
+
+  const chartWrapperStyle = fillContainer
+    ? { flex: 1, display: "flex", flexDirection: "column" as const, minHeight: 0, overflow: "hidden" as const }
+    : {};
+
+  const chartContainerStyle = fillContainer
+    ? { flex: 1, minHeight: 0, display: "flex", flexDirection: "column" as const }
+    : {};
+
+  const chartHeight = fillContainer ? "100%" : (height ?? 300);
+
   return (
-    <div className={className} style={style}>
+    <div className={className} style={{ ...style, ...containerStyle }}>
       {renderHeader()}
-      <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
-        {hasData && progressionOptions && (
-          <div>
-            <div
-              style={{
-                marginBottom: 8,
-                fontSize: 14,
-                fontWeight: 500,
-                color: "rgba(0,0,0,0.88)",
-              }}
-            >
-              EVM Progression
-              <span
+      {fillContainer ? (
+        <>
+          {hasData && progressionOptions && (
+            <div style={{ ...chartWrapperStyle, marginBottom: hasPerformanceIndicesData ? 12 : 0 }}>
+              <div
                 style={{
-                  marginLeft: 8,
-                  fontSize: 12,
-                  color: "rgba(0,0,0,0.45)",
-                  fontWeight: 400,
+                  marginBottom: 8,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: "rgba(0,0,0,0.88)",
+                  flexShrink: 0,
                 }}
               >
-                PV (Planned Value), EV (Earned Value), AC (Actual Cost)
-              </span>
+                EVM Progression
+                <span
+                  style={{
+                    marginLeft: 8,
+                    fontSize: 12,
+                    color: "rgba(0,0,0,0.45)",
+                    fontWeight: 400,
+                  }}
+                >
+                  PV (Planned Value), EV (Earned Value), AC (Actual Cost)
+                </span>
+              </div>
+              <div style={chartContainerStyle}>
+                <EChartsBaseChart
+                  ref={chartRef}
+                  option={progressionOptions}
+                  loading={loading}
+                  error={error}
+                  height={chartHeight}
+                  onChartReady={handleChartReady}
+                  delayRender={delayRender}
+                />
+              </div>
             </div>
-            <EChartsBaseChart
-              ref={chartRef}
-              option={progressionOptions}
-              loading={loading}
-              error={error}
-              height={height ?? 300}
-              onChartReady={handleChartReady}
-              delayRender={delayRender}
-            />
-          </div>
-        )}
-        {hasComparisonData && comparisonOptions && (
-          <div>
-            <div
-              style={{
-                marginBottom: 8,
-                fontSize: 14,
-                fontWeight: 500,
-                color: "rgba(0,0,0,0.88)",
-              }}
-            >
-              Cost Comparison
-              <span
+          )}
+          {hasPerformanceIndicesData && performanceIndicesOptions && (
+            <div style={chartWrapperStyle}>
+              <div
                 style={{
-                  marginLeft: 8,
-                  fontSize: 12,
-                  color: "rgba(0,0,0,0.45)",
-                  fontWeight: 400,
+                  marginBottom: 8,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: "rgba(0,0,0,0.88)",
+                  flexShrink: 0,
                 }}
               >
-                Forecast vs Actual Costs
-              </span>
+                Performance Indices (CPI vs SPI)
+                <span
+                  style={{
+                    marginLeft: 8,
+                    fontSize: 12,
+                    color: "rgba(0,0,0,0.45)",
+                    fontWeight: 400,
+                  }}
+                >
+                  Cost Performance Index (CPI), Schedule Performance Index (SPI)
+                </span>
+              </div>
+              <div style={chartContainerStyle}>
+                <EChartsBaseChart
+                  ref={chart2Ref}
+                  option={performanceIndicesOptions}
+                  loading={loading}
+                  error={error}
+                  height={chartHeight}
+                  onChartReady={handleChartReady}
+                  delayRender={delayRender}
+                />
+              </div>
             </div>
-            <EChartsBaseChart
-              ref={chart2Ref}
-              option={comparisonOptions}
-              loading={loading}
-              error={error}
-              height={height ?? 300}
-              onChartReady={handleChartReady}
-              delayRender={delayRender}
-            />
-          </div>
-        )}
-      </Space>
+          )}
+        </>
+      ) : (
+        <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+          {hasData && progressionOptions && (
+            <div>
+              <div
+                style={{
+                  marginBottom: 8,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: "rgba(0,0,0,0.88)",
+                }}
+              >
+                EVM Progression
+                <span
+                  style={{
+                    marginLeft: 8,
+                    fontSize: 12,
+                    color: "rgba(0,0,0,0.45)",
+                    fontWeight: 400,
+                  }}
+                >
+                  PV (Planned Value), EV (Earned Value), AC (Actual Cost)
+                </span>
+              </div>
+              <EChartsBaseChart
+                ref={chartRef}
+                option={progressionOptions}
+                loading={loading}
+                error={error}
+                height={height ?? 300}
+                onChartReady={handleChartReady}
+                delayRender={delayRender}
+              />
+            </div>
+          )}
+          {hasPerformanceIndicesData && performanceIndicesOptions && (
+            <div>
+              <div
+                style={{
+                  marginBottom: 8,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: "rgba(0,0,0,0.88)",
+                }}
+              >
+                Performance Indices (CPI vs SPI)
+                <span
+                  style={{
+                    marginLeft: 8,
+                    fontSize: 12,
+                    color: "rgba(0,0,0,0.45)",
+                    fontWeight: 400,
+                  }}
+                >
+                  Cost Performance Index (CPI), Schedule Performance Index (SPI)
+                </span>
+              </div>
+              <EChartsBaseChart
+                ref={chart2Ref}
+                option={performanceIndicesOptions}
+                loading={loading}
+                error={error}
+                height={height ?? 300}
+                onChartReady={handleChartReady}
+                delayRender={delayRender}
+              />
+            </div>
+          )}
+        </Space>
+      )}
     </div>
   );
 };

@@ -529,11 +529,11 @@ class TestEVMServiceAggregation:
         # Act
         result = service.aggregate_evm_metrics([metrics1, metrics2])
 
-        # Assert - Verify weighted average calculations
-        # expected_cpi = (100*0.75 + 200*1.056) / 300 ≈ 0.954
-        # expected_spi = (100*0.9 + 200*0.95) / 300 ≈ 0.933
+        # Assert - Verify cumulative performance indices
+        # standard_cpi = (Sum EV) / (Sum AC) = (45 + 95) / (60 + 90) = 140 / 150 ≈ 0.933
+        # standard_spi = (Sum EV) / (Sum PV) = (45 + 95) / (50 + 100) = 140 / 150 ≈ 0.933
         assert result.cpi is not None
-        assert abs(Decimal(str(result.cpi)) - Decimal("0.954")) < Decimal("0.001")
+        assert abs(Decimal(str(result.cpi)) - Decimal("0.933")) < Decimal("0.001")
         assert result.spi is not None
         assert abs(Decimal(str(result.spi)) - Decimal("0.933")) < Decimal("0.001")
 

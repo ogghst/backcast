@@ -6,10 +6,10 @@ The goal is to ensure that API endpoints for retrieving entities (Projects, WBEs
 
 **Core Requirements:**
 
-1.  **Isolation Strategy**: When a user selects a specific branch (e.g., `co-123`), they should be able to view _only_ the changes made in that branch ("Isolated View").
-2.  **Merge Strategy**: Users working in a branch often need to see the "Composite State" of the project: the baseline (`main` branch) overlayed with their branch changes ("Merged View").
-3.  **List & Single Item Support**: This logic must apply to both single entity retrieval (`get_by_id`) and list/search operations (`get_all`).
-4.  **API Exposure**: The API must allow clients to specify which strategy to use (defaulting to Merged View usually, or Isolated View for diffing).
+1. **Isolation Strategy**: When a user selects a specific branch (e.g., `BR-123`), they should be able to view _only_ the changes made in that branch ("Isolated View").
+2. **Merge Strategy**: Users working in a branch often need to see the "Composite State" of the project: the baseline (`main` branch) overlayed with their branch changes ("Merged View").
+3. **List & Single Item Support**: This logic must apply to both single entity retrieval (`get_by_id`) and list/search operations (`get_all`).
+4. **API Exposure**: The API must allow clients to specify which strategy to use (defaulting to Merged View usually, or Isolated View for diffing).
 
 ## Context Discovery Findings
 
@@ -34,16 +34,16 @@ The goal is to ensure that API endpoints for retrieving entities (Projects, WBEs
 
 **Backend (Current State):**
 
-1.  **`TemporalService.get_as_of`** (service.py:135-191):
+1. **`TemporalService.get_as_of`** (service.py:135-191):
     - Fully supports `branch_mode` (`Strict` vs `Merge`).
     - Defaults to `BranchMode.STRICT` if not specified.
     - MERGE implementation: First tries requested branch, falls back to `main` if not found.
     - Correctly handles branch deletions via `_is_deleted_on_branch()`.
     - _Gap_: This capability is only exposed via `get_as_of()` for single entities, not for list operations.
-2.  **`ProjectService` / `WBEService` (List Methods)**:
+2. **`ProjectService` / `WBEService` (List Methods)**:
     - **Strict Isolation Only**: `get_projects` and `get_wbes` query `WHERE branch = :branch`.
-    - **Missing Logic**: No implementation for "Merged View" in list/search queries. If users query `branch=co-1`, they receive _only_ items explicitly in `co-1`, missing all unchanged background items from `main`.
-3.  **API Routes**:
+    - **Missing Logic**: No implementation for "Merged View" in list/search queries. If users query `branch=BR-1`, they receive _only_ items explicitly in `BR-1`, missing all unchanged background items from `main`.
+3. **API Routes**:
     - Endpoints (e.g., `/wbes`) accept `branch` query param.
     - **No Mode Selection**: No parameter to toggle between "Isolated" and "Merged" views.
     - **Default Behavior**: Implicitly "Isolated" (Strict) due to underlying service implementation.
@@ -70,6 +70,7 @@ Use PostgreSQL's `DISTINCT ON` feature to efficiently fetch the latest version o
 - Add `mode: "merged" | "isolated" = "merged"` query parameter to list/get endpoints.
 
 **Trade-offs:**
+
 | Aspect | Assessment |
 |--------|------------|
 | **Pros** | **Performance**: Single query, efficient pagination. <br> **Correctness**: Handles sorting and filtering correctly across the composite set. |
@@ -89,6 +90,7 @@ Fetch data from both branches separately and merge in Python.
 - Step 3: Combine and Sort in memory.
 
 **Trade-offs:**
+
 | Aspect | Assessment |
 |--------|------------|
 | **Pros** | **Simplicity**: Easier to write initial SQL queries. |
@@ -106,6 +108,7 @@ Only implement fallback for `get_by_id`. Leave Lists as "Isolated Only".
 - Clients must manually fetch `main` list and `branch` list and merge them UI-side.
 
 **Trade-offs:**
+
 | Aspect | Assessment |
 |--------|------------|
 | **Pros** | Minimal backend changes. |
@@ -128,16 +131,16 @@ Only implement fallback for `get_by_id`. Leave Lists as "Isolated Only".
 
 **I recommend Option 1 (Database-Level Composition) because:**
 
-1.  **Requirement Compliance**: It directly satisfies the "Merged View" requirement for massive datasets without breaking pagination.
-2.  **Performance**: It delegates the heavy lifting to the database engine.
-3.  **Architecture**: It unifies the logic in `TemporalService`, making specific service implementations (WBE, CostElement) cleaner.
+1. **Requirement Compliance**: It directly satisfies the "Merged View" requirement for massive datasets without breaking pagination.
+2. **Performance**: It delegates the heavy lifting to the database engine.
+3. **Architecture**: It unifies the logic in `TemporalService`, making specific service implementations (WBE, CostElement) cleaner.
 
 **Plan:**
 
-1.  Update `BranchableService` to implement `_apply_branch_mode_filter` using `DISTINCT ON` or equivalent window functions.
-2.  Update `WBEService`, `ProjectService`, etc., to pass `branch_mode` down to the query builder.
-3.  Update API Routes to accept `mode` (Merged/Isolated) query parameter.
-4.  Add frontend View Mode selector to Time Machine component.
+1. Update `BranchableService` to implement `_apply_branch_mode_filter` using `DISTINCT ON` or equivalent window functions.
+2. Update `WBEService`, `ProjectService`, etc., to pass `branch_mode` down to the query builder.
+3. Update API Routes to accept `mode` (Merged/Isolated) query parameter.
+4. Add frontend View Mode selector to Time Machine component.
 
 ---
 
@@ -323,7 +326,7 @@ ProjectBranchSelector
 
 ## Questions for Decision
 
-1.  Should the default API behavior changed to `Merged` (as implied by user stories) or stay `Isolated` (current behavior) to avoid breaking existing clients (if any)?
+1. Should the default API behavior changed to `Merged` (as implied by user stories) or stay `Isolated` (current behavior) to avoid breaking existing clients (if any)?
     _Assumption: Since we are in development, we can change the default to `Merged` if it improves UX._
 
 ---
