@@ -49,7 +49,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         """
         super().__init__(CostRegistration, db)
 
-    async def create_cost_registration(  # type: ignore[override]
+    async def create_cost_registration(
         self,
         registration_in: CostRegistrationCreate,
         actor_id: UUID,
@@ -104,7 +104,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         )
         return await cmd.execute(self.session)
 
-    async def update_cost_registration(  # type: ignore[override]
+    async def update_cost_registration(
         self,
         cost_registration_id: UUID,
         registration_in: CostRegistrationUpdate,
@@ -520,10 +520,10 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             stmt = stmt.where(CostRegistration.deleted_at.is_(None))
 
         result = await self.session.execute(stmt)
-        
+
         totals = {id: Decimal("0.00") for id in cost_element_ids}
         for row in result.all():
             totals[row.cost_element_id] = row.total or Decimal("0.00")
-            
+
         return totals
 

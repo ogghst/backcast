@@ -17,6 +17,7 @@ from app.core.versioning.enums import BranchMode
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_element_type import CostElementType
 from app.models.domain.wbe import WBE
+from app.models.protocols import VersionableProtocol
 from app.models.schemas.cost_element import CostElementCreate, CostElementUpdate
 
 
@@ -79,14 +80,14 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         data["cost_element_id"] = root_id
 
         cmd = CreateVersionCommand(
-            entity_class=CostElement,
+            entity_class=cast(type[VersionableProtocol], CostElement),
             root_id=root_id,
             actor_id=actor_id,
             control_date=control_date,
             branch=branch,
             **data,
         )
-        return await cmd.execute(self.session)
+        return cast(CostElement, await cmd.execute(self.session))
 
     def _get_base_stmt(self) -> Any:
         """Get base select statement with WBE name and CostElementType joins."""

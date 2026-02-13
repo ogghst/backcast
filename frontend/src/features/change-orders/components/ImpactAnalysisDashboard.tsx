@@ -126,7 +126,7 @@ export const ImpactAnalysisDashboard = ({
       children: (
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           <ForecastImpactList
-            forecasts={impactData.forecast_changes || []}
+            forecasts={impactData.forecast_changes?.forecasts || []}
             branchName={actualBranchName}
           />
         </div>

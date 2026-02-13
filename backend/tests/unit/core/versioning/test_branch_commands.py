@@ -396,7 +396,7 @@ class TestBranchCommands:
             branch="main",
             control_date=t0,  # Same as original lower bound
         )
-        v2 = await update_cmd.execute(db_session)
+        await update_cmd.execute(db_session)
         await db_session.commit()
 
         # 3. Verify exactly 2 versions exist
@@ -422,7 +422,7 @@ class TestBranchCommands:
         )
         # Empty range - both bounds are None in PostgreSQL
         # The Range object has an `empty` attribute
-        assert closed_version.valid_time.empty == True, (
+        assert closed_version.valid_time.empty, (
             "Closed version should have empty valid_time range"
         )
 
@@ -466,7 +466,7 @@ class TestBranchCommands:
             updates={"name": "Updated Normally"},
             branch="main",
         )
-        v2 = await update_cmd.execute(db_session)
+        await update_cmd.execute(db_session)
         await db_session.commit()
 
         # 3. Verify exactly 2 versions exist

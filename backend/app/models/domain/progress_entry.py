@@ -34,7 +34,7 @@ class ProgressEntry(EntityBase, VersionableMixin):
         cost_element_id: Reference to the cost element being tracked.
         progress_percentage: Progress value (0.00 to 100.00).
         notes: Optional notes about progress (e.g., justification for decrease).
-        
+
     Temporal fields (from VersionableMixin):
         valid_time: When progress was measured (business time).
         created_by: User who reported the progress.

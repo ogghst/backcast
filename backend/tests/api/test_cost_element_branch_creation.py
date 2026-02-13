@@ -22,10 +22,10 @@ async def test_create_cost_element_in_non_main_branch_no_default(
     db_session: AsyncSession,
 ) -> None:
     """Test that cost element is created in specified branch, not defaulting to main.
-    
+
     Regression test for bug where cost elements created while viewing a CO branch
     were incorrectly saved to 'main' due to schema default value.
-    
+
     The test verifies:
     1. Element is created in the specified branch ('BR-CO-2026-001')
     2. Element does NOT exist in 'main' branch

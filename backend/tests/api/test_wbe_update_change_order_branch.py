@@ -7,6 +7,7 @@ branch and creates a new version on the change order branch.
 
 from collections.abc import Generator
 from typing import Any, cast
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -17,8 +18,6 @@ from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.main import app
 from app.models.domain.user import User
-from uuid import uuid4
-
 
 # Mock admin user for auth
 mock_admin_user = User(

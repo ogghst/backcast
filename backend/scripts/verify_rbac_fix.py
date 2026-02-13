@@ -1,21 +1,18 @@
 import asyncio
 import logging
-import sys
-from uuid import UUID
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 # Add backend directory to path
 import os
 import sys
+
+from sqlalchemy import select
+
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from app.db.session import async_session_maker
-from app.models.domain.change_order import ChangeOrder
 from app.models.domain.user import User
-from app.services.change_order_workflow_service import ChangeOrderWorkflowService
 from app.services.change_order_service import ChangeOrderService
+from app.services.change_order_workflow_service import ChangeOrderWorkflowService
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -29,14 +26,14 @@ async def verify_fix():
         # 1. Fetch the Change Order
         co_service = ChangeOrderService(session)
         co = await co_service.get_current_by_code("CO-2026-003", branch="main")
-        
+
         if not co:
             print("❌ ERROR: Change Order CO-2026-003 not found!")
             return
 
         print(f"✅ Found Change Order: {co.code}")
         print(f"   Status: {co.status}")
-        
+
         # 2. Find an Admin User
         stmt = select(User).where(User.role == "admin").limit(1)
         result = await session.execute(stmt)
@@ -51,7 +48,7 @@ async def verify_fix():
         # 3. Attempt Approval
         workflow_service = ChangeOrderWorkflowService()
         print("\n🚀 Attempting to approve Change Order...")
-        
+
         try:
             # We use the session directly implicitly via the services
             # workflow_service methods take db_session as argument
@@ -61,14 +58,14 @@ async def verify_fix():
                 comments="Verification test - approval from Under Review",
                 db_session=session
             )
-            
+
             print(f"✅ SUCCESS! Change Order approved. New Status: {updated_co.status}")
-            
+
             # 4. Rollback to keep data clean
             print("🔄 Rolling back transaction to preserve state...")
             await session.rollback()
             print("✅ Rollback complete.")
-            
+
         except Exception as e:
             print(f"❌ FAILED to approve: {e}")
             import traceback

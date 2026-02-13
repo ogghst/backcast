@@ -73,13 +73,13 @@ async def test_forecast_time_travel_with_future_control_date(
     client: AsyncClient,
 ) -> None:
     """Test that forecasts can be queried with as_of dates before their control_date.
-    
+
     Scenario:
     1. Create cost element at 2026-01-20 (today)
     2. Create initial forecast at  2026-01-20
     3. Update forecast with control_date=2026-02-11 (future)
     4. Query forecast at as_of=2026-02-10 (before control_date, but after initial creation)
-    
+
     Expected: Should return the old forecast version because its valid_time covers the query date.
     Actual Bug: Returns 404 because get_as_of() uses System Time Travel semantics which requires
     transaction_time to contain as_of.

@@ -12,9 +12,9 @@ impact analysis testing, including:
 """
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from uuid import uuid4, UUID
+from uuid import UUID, uuid4
 
 # Constants
 SEED_DIR = Path(__file__).parent
@@ -68,7 +68,7 @@ def generate_schedule_baselines() -> list[dict]:
     baseline_counter = 1
 
     # Generate baselines for each cost element
-    for idx, ce in enumerate(cost_elements, 1):
+    for _idx, ce in enumerate(cost_elements, 1):
         ce_id = UUID(ce["cost_element_id"])
 
         # Determine date range based on WBE level
@@ -102,7 +102,7 @@ def generate_schedule_baselines() -> list[dict]:
         # Main branch baseline
         # Use existing baseline ID if available (to preserve links from cost_elements.json)
         baseline_id = ce.get("schedule_baseline_id") or str(uuid4())
-        
+
         baseline = {
             "id": str(uuid4()),
             "schedule_baseline_id": baseline_id,

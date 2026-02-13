@@ -1,18 +1,15 @@
 import asyncio
 import logging
-import sys
-from uuid import UUID
-
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 # Add backend directory to path
 import os
 import sys
+
+from sqlalchemy import select
+
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from app.db.session import async_session_maker
-from app.models.domain.change_order import ChangeOrder
 from app.models.domain.user import User
 from app.services.approval_matrix_service import ApprovalMatrixService
 from app.services.change_order_service import ChangeOrderService
@@ -28,7 +25,7 @@ async def debug_rbac():
         # 1. Fetch the Change Order
         co_service = ChangeOrderService(session)
         co = await co_service.get_current_by_code("CO-2026-003", branch="main")
-        
+
         if not co:
             print("❌ ERROR: Change Order CO-2026-003 not found!")
             return
@@ -37,7 +34,7 @@ async def debug_rbac():
         print(f"   Status: {co.status}")
         print(f"   Impact Level: {co.impact_level}")
         print(f"   Assigned Approver ID: {co.assigned_approver_id}")
-        
+
         # 2. Find an Admin User
         stmt = select(User).where(User.role == "admin").limit(1)
         result = await session.execute(stmt)
@@ -53,11 +50,11 @@ async def debug_rbac():
 
         # 3. Check Permissions via ApprovalMatrixService
         approval_service = ApprovalMatrixService(session)
-        
+
         # Check authority levels
         user_authority = approval_service.get_user_authority_level(admin_user)
         print(f"\n   User Authority Level: {user_authority}")
-        
+
         if co.impact_level:
             required_authority = approval_service.get_authority_for_impact(co.impact_level)
             print(f"   Required Authority for {co.impact_level}: {required_authority}")

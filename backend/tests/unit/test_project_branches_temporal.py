@@ -33,7 +33,7 @@ async def test_get_project_branches_temporal(db_session):
     await db_session.flush()
     await db_session.refresh(branch_main)
     # T1
-    t1 = datetime.now(UTC)
+    datetime.now(UTC)
 
     # Wait
 
@@ -49,7 +49,7 @@ async def test_get_project_branches_temporal(db_session):
     await db_session.flush()
     await db_session.refresh(branch_co)
     # T2
-    t2 = datetime.now(UTC)
+    datetime.now(UTC)
 
     service = ProjectService(db_session)
 

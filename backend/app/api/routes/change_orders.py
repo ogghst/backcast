@@ -74,7 +74,7 @@ async def read_change_orders(
     filters: str | None = Query(
         None,
         description="Filters in format 'column:value;column:value1,value2'",
-        examples={"status_filter": {"value": "status:Draft"}},
+        examples=["status:Draft"],
     ),
     sort_field: str | None = Query(None, description="Field to sort by"),
     sort_order: str = Query(

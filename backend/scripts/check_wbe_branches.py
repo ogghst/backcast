@@ -2,9 +2,11 @@
 """Debug script to check WBEs on different branches."""
 
 import asyncio
-from sqlalchemy import select, func, cast, Any
-from app.models.domain.wbe import WBE
+
+from sqlalchemy import Any, cast, func, select
+
 from app.db.session import async_session_maker
+from app.models.domain.wbe import WBE
 
 
 async def check_wbe_branches():

@@ -67,7 +67,7 @@ class TestEVMCostComparisonLogic:
         self, client: AsyncClient
     ) -> None:
         """Test that the 'actual' field in time series maps to Actual Cost (AC), not Earned Value (EV).
-        
+
         And verifies valid_time (as_of) filtering.
         """
         # 1. Setup Data
@@ -134,7 +134,7 @@ class TestEVMCostComparisonLogic:
         # Query at T1 AGAIN. Should only see Reg1. (Time Travel)
 
         # T1 Timestamp
-        t1 = datetime.now(UTC)
+        datetime.now(UTC)
 
         # Reg 1
         await client.post(

@@ -35,7 +35,7 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         """
         super().__init__(ProgressEntry, db)
 
-    async def create_progress_entry(  # type: ignore[override]
+    async def create_progress_entry(
         self,
         progress_in: ProgressEntryCreate,
         actor_id: UUID,
@@ -81,7 +81,7 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         return await cmd.execute(self.session)
 
 
-    async def update_progress_entry(  # type: ignore[override]
+    async def update_progress_entry(
         self,
         progress_entry_id: UUID,
         progress_in: ProgressEntryUpdate,
@@ -314,10 +314,10 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
             )
 
         result = await self.session.execute(stmt)
-        
+
         progress_entries = {}
         for entry in result.scalars().all():
             progress_entries[entry.cost_element_id] = entry
-            
+
         return progress_entries
 

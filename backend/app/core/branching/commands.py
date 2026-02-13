@@ -243,6 +243,8 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         # If current was converted to remainder above, we need to refresh it first
         if current is None:
             current = await session.get(self.entity_class, current_id)
+        if current is None:
+            raise ValueError(f"Entity {current_id} not found for update")
         # CRITICAL: Always set branch to self.branch to ensure new version is on correct branch
         # This is essential when current is from main but we're updating on a change order branch
         new_version = cast(

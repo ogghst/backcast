@@ -32,7 +32,7 @@ class TestProgressEntryServiceCreate:
         # Arrange
         service = ProgressEntryService(db_session)
         cost_element_id = uuid4()
-        reported_by_user_id = uuid4()
+        uuid4()
         progress_in = ProgressEntryCreate(
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("50.00"),
@@ -106,9 +106,9 @@ class TestProgressEntryServiceCreate:
         Test ID: T-003
         """
         # Arrange
-        service = ProgressEntryService(db_session)
+        ProgressEntryService(db_session)
         cost_element_id = uuid4()
-        actor_id = uuid4()
+        uuid4()
 
         # Act & Assert - Pydantic validates before service is called
         from pydantic import ValidationError as PydanticValidationError
@@ -127,7 +127,7 @@ class TestProgressEntryServiceCreate:
         Test ID: T-004
         """
         # Arrange
-        service = ProgressEntryService(db_session)
+        ProgressEntryService(db_session)
         cost_element_id = uuid4()
 
         # Act & Assert - Pydantic validates before service is called
@@ -217,7 +217,7 @@ class TestProgressEntryServiceGetLatest:
         # Arrange
         service = ProgressEntryService(db_session)
         cost_element_id = uuid4()
-        user_id = uuid4()
+        uuid4()
         actor_id = uuid4()
 
         # Create multiple progress entries
@@ -259,7 +259,7 @@ class TestProgressEntryServiceGetLatest:
         # Arrange
         service = ProgressEntryService(db_session)
         cost_element_id = uuid4()
-        user_id = uuid4()
+        uuid4()
         actor_id = uuid4()
 
         # Create progress entries on different dates
@@ -323,7 +323,7 @@ class TestProgressEntryServiceGetHistory:
         # Arrange
         service = ProgressEntryService(db_session)
         cost_element_id = uuid4()
-        user_id = uuid4()
+        uuid4()
         actor_id = uuid4()
 
         # Create progress entries
@@ -373,7 +373,7 @@ class TestProgressEntryServiceGetHistory:
         # Arrange
         service = ProgressEntryService(db_session)
         cost_element_id = uuid4()
-        user_id = uuid4()
+        uuid4()
         actor_id = uuid4()
 
         # Create 5 progress entries
@@ -406,7 +406,7 @@ class TestProgressEntryServiceGetHistory:
         # Arrange
         service = ProgressEntryService(db_session)
         cost_element_id = uuid4()
-        user_id = uuid4()
+        uuid4()
         actor_id = uuid4()
 
         # Act - create multiple entries on the same day

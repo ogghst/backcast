@@ -588,7 +588,7 @@ class EVMService:
 
         cost_elements: list[CostElement] = []
         valid_ids: list[UUID] = []
-        
+
         # TODO: Optimize this loop with a batch get_as_of in BranchableService later
         for ce_id in cost_element_ids:
             ce = await self.ce_service.get_as_of(
@@ -605,15 +605,15 @@ class EVMService:
         baselines_map = await self.sb_service.get_baselines_for_cost_elements(
             valid_ids, branch
         )
-        
+
         ac_map = await self.cr_service.get_totals_for_cost_elements(
             valid_ids, as_of=control_date
         )
-        
+
         progress_map = await self.pe_service.get_latest_progress_for_cost_elements(
             valid_ids, as_of=control_date
         )
-        
+
         forecasts_map = await self.f_service.get_forecasts_for_cost_elements(
             valid_ids, branch
         )
@@ -622,51 +622,51 @@ class EVMService:
         results = []
         for ce in cost_elements:
             # For each CE, get its specific related objects
-            
-            # Baseline: key is ce_id. 
+
+            # Baseline: key is ce_id.
             # Note: get_baselines_for_cost_elements returns map of CE_ID -> Baseline
             # BUT we need to ensure time-travel validity.
-            # The bulk method I added does check valid_time IS NULL (current). 
+            # The bulk method I added does check valid_time IS NULL (current).
             # It does NOT support time-travel for baselines yet (except "current").
             # Wait, `get_baselines_for_cost_elements` uses `func.upper(valid_time).is_(None)`.
             # This fetches CURRENT baselines.
             # If control_date is in the past, this might be wrong!
             # The original code used `sb_service.get_as_of`.
-            
+
             # CRITICAL CHECK: Does `get_baselines_for_cost_elements` support time travel?
-            # I implemented it without `as_of`. 
+            # I implemented it without `as_of`.
             # Use case: Impact Analysis uses `control_date = datetime.now()`.
             # So "current" is fine for the immediate requirement.
             # But `EVMService` supports time travel generally.
-            
+
             # If `control_date` is significantly in the past, `get_baselines_for_cost_elements`
             # returning current baselines is INCORRECT.
-            
+
             # However, for the specific performance issue (Change Order Impact Analysis),
             # `control_date` is `datetime.now()`.
-            
+
             # I should add `as_of` support to `get_baselines_for_cost_elements` or documentation.
             # I checked `CostRegistrationService` - I added `as_of`.
             # I checked `ProgressEntryService` - I added `as_of`.
             # `ScheduleBaselineService` - I did NOT add `as_of`.
             # `ForecastService` - I did NOT add `as_of`.
-            
+
             # This is a limitation. I should probably add `as_of` to them too for correctness.
             # Or, for now, if `as_of` is close to now, use batch. If not, fallback?
             # No, that's messy.
-            
-            # Let's verify `ScheduleBaselineService`. 
+
+            # Let's verify `ScheduleBaselineService`.
             # I should assume for this task (Impact Analysis) `control_date` is NOW.
-            
+
             # But to be robust, I should probably have added `as_of`.
             # Given the constraints, I will proceed with the assumption that for Impact Analysis
-            # (the pressing issue), current data is what's needed. 
+            # (the pressing issue), current data is what's needed.
             # But `calculate_evm_metrics` signature allows time travel.
-            
+
             # I will use the batch data if found.
             # Note that `ScheduleBaseline` is branchable/versioned.
             # If I fetch current (valid_time=NULL), that's the latest.
-            
+
             metric = self._calculate_evm_metrics_from_data(
                 cost_element=ce,
                 schedule_baseline=baselines_map.get(ce.cost_element_id),
@@ -678,7 +678,7 @@ class EVMService:
                 branch_mode=branch_mode,
             )
             results.append(metric)
-            
+
         return results
 
 
@@ -1038,10 +1038,10 @@ class EVMService:
         branch_mode = first.branch_mode
 
         # Sum amount fields
-        bac: Decimal = sum(Decimal(str(m.bac)) for m in metrics_list)
-        pv: Decimal = sum(Decimal(str(m.pv)) for m in metrics_list)
-        ac: Decimal = sum(Decimal(str(m.ac)) for m in metrics_list)
-        ev: Decimal = sum(Decimal(str(m.ev)) for m in metrics_list)
+        bac: Decimal = sum((Decimal(str(m.bac)) for m in metrics_list), Decimal("0"))
+        pv: Decimal = sum((Decimal(str(m.pv)) for m in metrics_list), Decimal("0"))
+        ac: Decimal = sum((Decimal(str(m.ac)) for m in metrics_list), Decimal("0"))
+        ev: Decimal = sum((Decimal(str(m.ev)) for m in metrics_list), Decimal("0"))
 
         # Calculate variances from summed values
         cv = ev - ac
@@ -1308,7 +1308,7 @@ class EVMService:
 
         # Extract lower bound of valid_time for each progress entry
         # Note: valid_time is a Python Range object at this point (already loaded from DB)
-        progress_with_dates = [
+        progress_with_dates: list[tuple[ProgressEntry, datetime | None]] = [
             (pe, pe.valid_time.lower if pe.valid_time else None) for pe in progress_entries
         ]
         sorted_entries = sorted(
@@ -1316,14 +1316,16 @@ class EVMService:
         )
         ev_map: dict[datetime, tuple[Decimal, Decimal]] = {}
 
-        for entry, valid_lower in sorted_entries:
+        pe: ProgressEntry
+        valid_lower: datetime | None
+        for pe, valid_lower in sorted_entries:
             if valid_lower is not None:
                 # Use the start of valid_time as the progress report date
                 report_date = valid_lower.replace(
                     hour=0, minute=0, second=0, microsecond=0
                 )
-                ev = bac * entry.progress_percentage / Decimal("100")
-                ev_map[report_date] = (entry.progress_percentage, ev)
+                ev = bac * pe.progress_percentage / Decimal("100")
+                ev_map[report_date] = (pe.progress_percentage, ev)
 
         # Get schedule baseline for PV calculation (PV is deterministic)
         cost_element = await self.ce_service.get_as_of(
@@ -1358,7 +1360,7 @@ class EVMService:
         # Generate points using pre-fetched data (no more queries!)
         points: list[EVMTimeSeriesPoint] = []
         latest_ev = Decimal("0")
-        last_calculated_pv = Decimal("0")  # Track last PV for projection beyond baseline
+        Decimal("0")  # Track last PV for projection beyond baseline
 
         # Calculate AC at control_date (to carry forward for future dates)
         # Calculate AC and EV at control_date (to carry forward for future dates)
@@ -1390,7 +1392,6 @@ class EVMService:
                         end_date=schedule_baseline.end_date,
                     )
                     pv = bac * Decimal(str(progress))
-                    last_calculated_pv = pv  # Remember for projection
                 ev = final_ev  # Use EV at control_date for future dates (flat line)
                 ac = final_ac  # Use AC at control_date for future dates (flat line)
             else:
@@ -1405,7 +1406,6 @@ class EVMService:
                         end_date=schedule_baseline.end_date,
                     )
                     pv = bac * Decimal(str(progress))
-                    last_calculated_pv = pv
 
                 # Get EV from progress entries (find latest progress as of date)
                 for report_date, (_progress_pct, ev_val) in sorted(

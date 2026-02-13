@@ -477,8 +477,7 @@ class TestWBEParentBranchLookup:
         self, db_session: AsyncSession, tmp_path: Path
     ) -> None:
         """Test that creating a child WBE finds parent on the same branch."""
-        from uuid import uuid4, UUID
-        from datetime import datetime
+        from uuid import UUID, uuid4
 
         # Create seed file with parent and child on same branch
         seed_file = tmp_path / "wbes.json"
@@ -541,11 +540,9 @@ class TestWBEParentBranchLookup:
 
             # Verify get_by_root_id was called with the correct branch for child
             # The second call should look up parent with branch parameter
-            parent_lookup_calls = [
-                call for call in mock_service.get_by_root_id.call_args_list
-            ]
+            parent_lookup_calls = list(mock_service.get_by_root_id.call_args_list)
             assert len(parent_lookup_calls) >= 1
-            
+
             # Check that at least one call used the correct branch
             correct_branch_used = any(
                 call.kwargs.get("branch") == branch or call[1].get("branch") == branch
@@ -557,8 +554,7 @@ class TestWBEParentBranchLookup:
         self, db_session: AsyncSession, tmp_path: Path
     ) -> None:
         """Test that creating child fails when parent doesn't exist on child's branch."""
-        from uuid import uuid4, UUID
-        from datetime import datetime
+        from uuid import UUID, uuid4
 
         # Create seed file with parent on one branch, child on another
         seed_file = tmp_path / "wbes.json"

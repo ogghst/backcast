@@ -145,7 +145,7 @@ class TestEVMHistoryAPI:
         self, client: AsyncClient, setup_evm_data: dict[str, Any]
     ) -> None:
         """Test GET /cost-elements/{id}/evm-history returns 200 OK.
-        
+
         Test ID: T-003 (from Plan)
         """
         # Arrange

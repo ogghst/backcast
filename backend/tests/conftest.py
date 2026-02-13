@@ -187,7 +187,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
                 raise RuntimeError(
                     f"Database tables do not exist. Migration may have failed. "
                     f"Error: {e}"
-                )
+                ) from e
 
             yield session
 

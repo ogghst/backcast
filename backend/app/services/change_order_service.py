@@ -23,6 +23,7 @@ from app.core.versioning.commands import (
 )
 from app.models.domain.branch import Branch
 from app.models.domain.change_order import ChangeOrder
+from app.models.protocols import VersionableProtocol
 from app.models.schemas.change_order import ChangeOrderCreate, ChangeOrderUpdate
 from app.services.branch_service import BranchService
 from app.services.change_order_workflow_service import ChangeOrderWorkflowService
@@ -183,7 +184,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         branch_root_id = uuid4()
 
         branch_cmd = CreateVersionCommand(
-            entity_class=Branch,
+            entity_class=cast(type[VersionableProtocol], Branch),
             root_id=branch_root_id,
             actor_id=actor_id,
             control_date=control_date,
@@ -197,7 +198,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             locked=should_lock,
         )
         # Note: CreateVersionCommand handles session.add
-        branch = await branch_cmd.execute(self.session)
+        branch = cast(Branch, await branch_cmd.execute(self.session))
 
         # Commit both CO and branch creation in single transaction
         await self.session.commit()

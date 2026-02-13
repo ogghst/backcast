@@ -13,10 +13,10 @@ This migration adds fields for the approval matrix and SLA tracking system:
 
 Part of E06-U09 to E06-U13 implementation.
 """
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = '0206_appr_matrix'

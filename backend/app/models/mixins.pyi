@@ -8,7 +8,6 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy.dialects.postgresql import TSTZRANGE as PG_TSTZRANGE
 from sqlalchemy.orm import Mapped
 
 class VersionableMixin:

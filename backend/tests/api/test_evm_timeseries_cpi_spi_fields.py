@@ -4,13 +4,12 @@ This test verifies that the time-series response schema includes the new
 CPI (Cost Performance Index) and SPI (Schedule Performance Index) fields.
 """
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
+from uuid import uuid4
 
 import pytest
-import pytest_asyncio
-from httpx import AsyncClient
 
 from app.api.dependencies.auth import (
     get_current_active_user,
@@ -19,9 +18,7 @@ from app.api.dependencies.auth import (
 from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.main import app
 from app.models.domain.user import User
-from app.models.schemas.evm import EVMTimeSeriesGranularity, EVMTimeSeriesPoint
-from uuid import uuid4
-
+from app.models.schemas.evm import EVMTimeSeriesPoint
 
 mock_admin_user = User(
     user_id=uuid4(),

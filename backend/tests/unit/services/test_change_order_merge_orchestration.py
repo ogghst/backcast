@@ -232,7 +232,7 @@ class TestChangeOrderMergeOrchestration:
                 branch=target_branch,
             )
             mock_status_cmd.execute.assert_called_once_with(db_session)
-            
+
             # Verify refresh was called
             db_session.refresh.assert_called_with(mock_co)
 

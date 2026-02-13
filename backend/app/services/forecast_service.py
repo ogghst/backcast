@@ -1,5 +1,8 @@
 """Forecast Service - branchable entity management."""
 
+from __future__ import annotations
+
+import builtins
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, cast
@@ -294,7 +297,7 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
 
         return forecast
 
-    async def update_forecast(  # type: ignore[override]
+    async def update_forecast(
         self,
         forecast_id: UUID,
         forecast_in: ForecastUpdate,
@@ -363,9 +366,9 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
 
     async def get_forecasts_for_cost_elements(
         self,
-        cost_element_ids: "list[UUID]",
+        cost_element_ids: builtins.list[UUID],
         branch: str = "main",
-    ) -> "dict[UUID, Forecast]":
+    ) -> dict[UUID, Forecast]:
         """Get forecasts for multiple cost elements efficiently.
 
         Args:
@@ -400,11 +403,11 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         )
 
         result = await self.session.execute(stmt)
-        
+
         forecasts = {}
         for row in result.all():
             ce_id, forecast = row
             forecasts[ce_id] = forecast
-            
+
         return forecasts
 

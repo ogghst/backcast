@@ -14,6 +14,7 @@ from app.core.branching.service import BranchableService
 from app.core.versioning.commands import CreateVersionCommand, LinkCostElementCommand
 from app.models.domain.cost_element import CostElement
 from app.models.domain.schedule_baseline import ScheduleBaseline
+from app.models.protocols import VersionableProtocol
 from app.models.schemas.schedule_baseline import (
     ScheduleBaselineCreate,
     ScheduleBaselineUpdate,
@@ -116,14 +117,14 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         data["schedule_baseline_id"] = root_id
 
         cmd = CreateVersionCommand(
-            entity_class=ScheduleBaseline,
+            entity_class=cast(type[VersionableProtocol], ScheduleBaseline),
             root_id=root_id,
             actor_id=actor_id,
             control_date=control_date,
             branch=branch,
             **data,
         )
-        return await cmd.execute(self.session)
+        return cast(ScheduleBaseline, await cmd.execute(self.session))
 
     async def create_schedule_baseline(
         self,
@@ -178,7 +179,7 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def update_schedule_baseline(  # type: ignore[override]
+    async def update_schedule_baseline(
         self,
         root_id: UUID,
         baseline_in: ScheduleBaselineUpdate,
@@ -488,12 +489,12 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         )
 
         result = await self.session.execute(stmt)
-        
+
         # Map cost_element_id -> ScheduleBaseline
         baselines = {}
         for row in result.all():
             ce_id, baseline = row
             baselines[ce_id] = baseline
-            
+
         return baselines
 

@@ -143,7 +143,7 @@ def main():
     print(f"  Duplicate references (branch versions): {duplicate_count}")
 
     # Verify all schedule baselines exist
-    sb_ids = set([sb["schedule_baseline_id"] for sb in schedule_baselines])
+    sb_ids = {sb["schedule_baseline_id"] for sb in schedule_baselines}
     ce_baseline_ids = set(baseline_ids)
     missing_baselines = ce_baseline_ids - sb_ids
 

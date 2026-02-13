@@ -203,7 +203,7 @@ class TestWBERevenueAllocationValidation:
         )
 
         # Create second WBE with 40,000 (total = 80,000, under contract)
-        wbe2 = await service.create_wbe(
+        await service.create_wbe(
             WBECreate(
                 project_id=project.project_id,
                 code="1.2",
@@ -373,7 +373,7 @@ class TestWBERevenueAllocationValidation:
         )
 
         # Create WBE 2 with 50,000 (total = 100,000)
-        wbe2 = await service.create_wbe(
+        await service.create_wbe(
             WBECreate(
                 project_id=project.project_id,
                 code="1.2",

@@ -15,15 +15,15 @@ from pathlib import Path
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.db.session import get_db
-from app.services.change_order_service import ChangeOrderService
+from typing import Any, cast
+
 from sqlalchemy import func, select
-from sqlalchemy.dialects.postgresql import TSTZRANGE
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.session import get_db
 from app.models.domain.change_order import ChangeOrder
 from app.models.domain.user import User
-from uuid import UUID
-from typing import Any, cast
+from app.services.change_order_service import ChangeOrderService
 
 
 async def get_current_co_by_code(session: AsyncSession, code: str) -> ChangeOrder | None:

@@ -607,7 +607,7 @@ class TestEVMMetricsAPI:
         self, client: AsyncClient, setup_wbe_level_data: dict[str, Any]
     ) -> None:
         """Test GET /evm/wbe/{id}/metrics returns aggregated metrics.
-        
+
         Expected: WBE metrics should be sum of child cost elements.
         """
         wbe_id = setup_wbe_level_data["wbe_id"]
@@ -636,7 +636,7 @@ class TestEVMMetricsAPI:
         self, client: AsyncClient, setup_wbe_level_data: dict[str, Any]
     ) -> None:
         """Test GET /evm/project/{id}/metrics returns aggregated metrics.
-        
+
         Expected: Project metrics should be sum of child WBEs (which sum cost elements).
         """
         project_id = setup_wbe_level_data["project_id"]
@@ -792,7 +792,7 @@ class TestEVMMetricsAPI:
             },
         )
         assert response.status_code == 200
-        data = response.json()
+        response.json()
 
 
     @pytest.mark.asyncio

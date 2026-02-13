@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "postgres": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://backcast_prod:backcast@localhost:5432/backcast_evs_dev"
+      ],
+      "env": {}
+    }
+  }
+}

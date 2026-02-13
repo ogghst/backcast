@@ -153,7 +153,6 @@ async def create_schedule_baseline(
         # Extract branch and control_date from request body
         # Note: Schema defaults branch to "main", but we enforce it here per "create on main first" policy
         branch = "main"  # Always create on main first
-        control_date = baseline_in.control_date
 
         return await service.create(
             create_schema=baseline_in,
@@ -243,8 +242,10 @@ async def update_schedule_baseline(
 
         return await service.update(
             root_id=schedule_baseline_id,
-            baseline_in=baseline_in,
             actor_id=current_user.user_id,
+            branch=branch,
+            control_date=control_date,
+            **update_data,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

@@ -163,7 +163,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
         self, root_id: UUID, branch: str = "main", as_of: datetime | None = None
     ) -> TBranchable | None:
         """Get the active version of an entity by its root ID.
-        
+
         Dispatches to get_as_of if as_of is provided, otherwise get_current.
         """
         if as_of:
@@ -683,7 +683,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
         root_field = self._get_root_field_name()
 
         # Build base statement - use getattr to access branch column
-        branch_column = self.entity_class.branch
+        branch_column = cast(Any, self.entity_class.branch)
         stmt = select(branch_column).where(
             getattr(self.entity_class, root_field) == root_id,
         )

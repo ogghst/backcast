@@ -1,38 +1,31 @@
 import asyncio
 import logging
 import time
-from uuid import uuid4
-from datetime import datetime, timedelta, UTC
-from sqlalchemy import select
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-
-from app.db.session import async_session_maker
-from app.services.evm_service import EVMService
-from app.services.project import ProjectService
-from app.services.wbe import WBEService
-from app.services.cost_element_service import CostElementService
-from app.services.schedule_baseline_service import ScheduleBaselineService
-from app.services.cost_registration_service import CostRegistrationService
-from app.services.progress_entry_service import ProgressEntryService
-from app.services.forecast_service import ForecastService
-
-from app.models.schemas.project import ProjectCreate
-from app.models.schemas.wbe import WBECreate
-from app.models.schemas.cost_element import CostElementCreate
-from app.models.schemas.schedule_baseline import ScheduleBaselineCreate
-from app.models.schemas.cost_registration import CostRegistrationCreate
-from app.models.schemas.progress_entry import ProgressEntryCreate
-from app.models.schemas.forecast import ForecastCreate
+from uuid import uuid4
 
 from app.core.versioning.enums import BranchMode
+from app.db.session import async_session_maker
+from app.models.schemas.cost_registration import CostRegistrationCreate
 from app.models.schemas.evm import EntityType
+from app.models.schemas.progress_entry import ProgressEntryCreate
+from app.services.cost_element_service import CostElementService
+from app.services.cost_registration_service import CostRegistrationService
+from app.services.evm_service import EVMService
+from app.services.forecast_service import ForecastService
+from app.services.progress_entry_service import ProgressEntryService
+from app.services.project import ProjectService
+from app.services.schedule_baseline_service import ScheduleBaselineService
+from app.services.wbe import WBEService
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from app.models.domain.department import Department
-from app.models.domain.cost_element_type import CostElementType
+from app.models.domain.cost_element_type import CostElementType  # noqa: E402
+from app.models.domain.department import Department  # noqa: E402
+
 
 async def setup_test_data(session):
     """Sets up a project with rigorous testing data:
@@ -43,7 +36,7 @@ async def setup_test_data(session):
     """
     logger.info("Setting up test data...")
     user_id = uuid4()
-    
+
     # Initialize Services
     project_service = ProjectService(session)
     wbe_service = WBEService(session)
@@ -63,7 +56,7 @@ async def setup_test_data(session):
         created_by=user_id
     )
     session.add(dept)
-    
+
     cet_id = uuid4()
     cet = CostElementType(
         cost_element_type_id=cet_id,
@@ -75,7 +68,7 @@ async def setup_test_data(session):
     )
     session.add(cet)
     await session.flush()
-    
+
     logger.info(f"Created Cost Element Type: {cet_id}")
 
     # 1. Create Project
@@ -103,11 +96,11 @@ async def setup_test_data(session):
             name=f"WBE {i}",
             code=f"WBE-{i}"
         )
-        
+
         # 3. Create Cost Elements (10 per WBE)
         for j in range(10):
             ce_id = uuid4()
-            ce = await ce_service.create_root(
+            await ce_service.create_root(
                 root_id=ce_id,
                 actor_id=user_id,
                 wbe_id=wbe_id,
@@ -121,7 +114,7 @@ async def setup_test_data(session):
     # 4. Create Related Data for ALL Cost Elements
     start_date = datetime.now(UTC) - timedelta(days=30)
     end_date = datetime.now(UTC) + timedelta(days=30)
-    
+
     for ce_id in cost_elements:
         # Schedule Baseline
         await sb_service.create_root(
@@ -133,7 +126,7 @@ async def setup_test_data(session):
             end_date=end_date,
             progression_type="LINEAR"
         )
-        
+
         # Cost Registration (Actual Cost)
         await cr_service.create_cost_registration(
             registration_in=CostRegistrationCreate(
@@ -145,7 +138,7 @@ async def setup_test_data(session):
             ),
             actor_id=user_id
         )
-        
+
         # Progress Entry
         await pe_service.create_progress_entry(
             progress_in=ProgressEntryCreate(
@@ -165,7 +158,7 @@ async def setup_test_data(session):
             eac_amount=Decimal("11000.00"),
             basis_of_estimate="Initial forecast"
         )
-        
+
     logger.info(f"Created {len(cost_elements)} Cost Elements with full data.")
     return project_id
 
@@ -174,15 +167,15 @@ async def main():
         # Create fresh data
         project_id = await setup_test_data(session)
         await session.commit()
-        
+
         logger.info(f"Testing EVM performance for project: {project_id}")
 
         # Re-initialize EVM Service with new session
         evm_service = EVMService(session)
-        
+
         # Measure time
         start_time = time.time()
-        
+
         logger.info("Starting calculation...")
         try:
             # First run (cold?)
@@ -193,11 +186,11 @@ async def main():
                 branch="main",
                 branch_mode=BranchMode.MERGE
             )
-            
+
             elapsed = time.time() - start_time
             logger.info(f"Calculation took {elapsed:.4f} seconds")
             logger.info(f"Metrics: BAC={metrics.bac}, CPI={metrics.cpi}, SPI={metrics.spi}")
-            
+
             if elapsed < 1.0:
                 logger.info("SUCCESS: Performance goal met (<1.0s)!")
             else:

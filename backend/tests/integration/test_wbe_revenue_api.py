@@ -245,7 +245,7 @@ class TestWBERevenueAllocationAPI:
             },
         )
         assert response1.status_code == 201
-        wbe_id = response1.json()["wbe_id"]
+        response1.json()["wbe_id"]
 
         # Create another WBE with 40,000
         response2 = await client.post(

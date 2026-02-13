@@ -189,7 +189,6 @@ async def create_wbe(
         # treats it separate, OR we let the service handle it.
         # WBEService.create_wbe takes control_date as explicit arg.
         # So we explicitly extract it.
-        control_date = wbe_in.control_date
 
         # Check if WBE code already exists in the project
         existing = await service.get_by_code(

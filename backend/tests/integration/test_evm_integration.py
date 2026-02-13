@@ -1026,7 +1026,7 @@ class TestWBEEntityEVM:
             "/api/v1/departments",
             json={"code": f"D-{uuid4().hex[:4].upper()}", "name": "Empty Dept"},
         )
-        dept_id = dept_res.json()["department_id"]
+        dept_res.json()["department_id"]
 
         proj_res = await client.post(
             "/api/v1/projects",

@@ -39,6 +39,8 @@ from app.models.schemas.impact_analysis import (
     EntityChange,
     EntityChanges,
     EVMMetricsComparison,
+    ForecastChanges,
+    ForecastComparison,
     ImpactAnalysisResponse,
     KPIMetric,
     KPIScorecard,
@@ -371,6 +373,9 @@ class ImpactAnalysisService:
         # Compare entities
         entity_changes = await self._compare_entities(project_id, branch_name)
 
+        # Compare forecasts
+        forecast_changes = await self._compare_forecasts(project_id, branch_name)
+
         # Build waterfall chart
         margin_delta = change_gross_margin - main_gross_margin
         waterfall = self._build_waterfall(main_gross_margin, margin_delta)
@@ -386,6 +391,7 @@ class ImpactAnalysisService:
             entity_changes=entity_changes,
             waterfall=waterfall,
             time_series=time_series,
+            forecast_changes=forecast_changes,
         )
 
     def _compare_kpis(
@@ -625,17 +631,17 @@ class ImpactAnalysisService:
         merged_cost_registrations: list[CostRegistration] = []
         # CRITICAL: Only include registrations linked to CostElements in the merged view
         # This reflects MERGE mode semantics for actual costs
-        for cr_id, main_cr in main_cr_map.items():
-            if main_cr.cost_element_id in merged_ce_ids:
-                if cr_id in branch_cr_map:
-                    merged_cost_registrations.append(branch_cr_map[cr_id])
+        for _cr_id, _main_cr in main_cr_map.items():
+            if _main_cr.cost_element_id in merged_ce_ids:
+                if _cr_id in branch_cr_map:
+                    merged_cost_registrations.append(branch_cr_map[_cr_id])
                 else:
-                    merged_cost_registrations.append(main_cr)
+                    merged_cost_registrations.append(_main_cr)
 
-        for cr_id, branch_cr in branch_cr_map.items():
-            if cr_id not in main_cr_map:
-                if branch_cr.cost_element_id in merged_ce_ids:
-                    merged_cost_registrations.append(branch_cr)
+        for _cr_id, _branch_cr in branch_cr_map.items():
+            if _cr_id not in main_cr_map:
+                if _branch_cr.cost_element_id in merged_ce_ids:
+                    merged_cost_registrations.append(_branch_cr)
 
         # Compare Cost Registrations: main vs merged view
         cr_changes = self._compare_cost_registration_lists(
@@ -647,38 +653,26 @@ class ImpactAnalysisService:
         wbe_cost_deltas: dict[UUID, Decimal] = {}
         ce_cost_deltas: dict[UUID, Decimal] = {}
 
-        for _cr_change in cr_changes:
-            # We need to find the registration to get its WBE/CE links
-            # Searching for the change in our maps
-            # (In a real system, we'd do this more efficiently during collation)
-            cr_id = None
-            # Extract root_id from CR ID (reversing the shift)
-            # This is tricky since int(root_id.int >> 96) is lossy.
-            # Better: use the original maps we already have.
-            pass
-
-        # RE-IMPLEMENTING COLLATION: Build cost delta maps directly from CR lists
-        main_cr_map = {cr.cost_registration_id: cr for cr in main_cost_registrations}
+        # Build cost delta maps directly from CR lists
         merged_cr_map = {cr.cost_registration_id: cr for cr in merged_cost_registrations}
         all_cr_ids = set(main_cr_map.keys()) | set(merged_cr_map.keys())
 
         for cr_id in all_cr_ids:
-            main_cr = main_cr_map.get(cr_id)
-            merged_cr = merged_cr_map.get(cr_id)
+            main_cr: CostRegistration | None = main_cr_map.get(cr_id)
+            merged_cr: CostRegistration | None = merged_cr_map.get(cr_id)
 
             delta = Decimal("0")
-            ref_cr = None
+            ref_cr: CostRegistration | None = None
 
-            if main_cr is None:
+            if main_cr is None and merged_cr is not None:
                 # Added in branch
-                delta = merged_cr.amount  # type: ignore
+                delta = merged_cr.amount
                 ref_cr = merged_cr
-            elif merged_cr is None:
+            elif merged_cr is None and main_cr is not None:
                 # Removed in branch
                 delta = -main_cr.amount
                 ref_cr = main_cr
-            else:
-                delta = merged_cr.amount - main_cr.amount
+            elif main_cr is not None and merged_cr is not None:
                 ref_cr = merged_cr
 
             if delta != 0 and ref_cr:
@@ -700,9 +694,9 @@ class ImpactAnalysisService:
 
         # Aggregate CE cost deltas into WBE cost deltas
         for ce_id, delta in ce_cost_deltas.items():
-            wbe_id = ce_to_wbe_map.get(ce_id)
-            if wbe_id:
-                wbe_cost_deltas[wbe_id] = wbe_cost_deltas.get(wbe_id, Decimal("0")) + delta
+            _wbe_id: UUID | None = ce_to_wbe_map.get(ce_id)
+            if _wbe_id:
+                wbe_cost_deltas[_wbe_id] = wbe_cost_deltas.get(_wbe_id, Decimal("0")) + delta
 
         # Compare WBEs: main vs merged view with cost deltas
         wbe_changes = self._compare_wbe_lists(main_wbes, merged_wbes, wbe_cost_deltas)
@@ -1989,3 +1983,97 @@ class ImpactAnalysisService:
                 "eac": None,
                 "vac": None,
             }
+
+    async def _compare_forecasts(
+        self, project_id: UUID, branch_name: str
+    ) -> ForecastChanges | None:
+        """Compare forecasts between main and change branches.
+
+        Returns:
+            ForecastChanges with EAC comparisons for cost elements that have
+            forecasts in at least one branch.
+        """
+        from app.services.forecast_service import ForecastService
+
+        forecast_service = ForecastService(self._db)
+
+        # Get all cost elements for project from both branches
+        main_ce_stmt = (
+            select(CostElement)
+            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id == project_id,
+                CostElement.branch == "main",
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+        )
+        main_ce_result = await self._db.execute(main_ce_stmt)
+        main_cost_elements = main_ce_result.scalars().all()
+
+        # Get cost elements from change branch
+        change_ce_stmt = (
+            select(CostElement)
+            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id == project_id,
+                CostElement.branch == branch_name,
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+        )
+        change_ce_result = await self._db.execute(change_ce_stmt)
+        change_cost_elements = change_ce_result.scalars().all()
+
+        # If no cost elements in either branch, return None
+        if not main_cost_elements and not change_cost_elements:
+            return None
+
+        # Get forecasts for main branch
+        main_ce_ids = [ce.cost_element_id for ce in main_cost_elements]
+        main_forecasts = await forecast_service.get_forecasts_for_cost_elements(
+            main_ce_ids, branch="main"
+        )
+
+        # Get forecasts for change branch
+        change_ce_ids = [ce.cost_element_id for ce in change_cost_elements]
+        change_forecasts = await forecast_service.get_forecasts_for_cost_elements(
+            change_ce_ids, branch=branch_name
+        )
+
+        # Build lookup maps for cost elements by ID
+        main_ce_map = {ce.cost_element_id: ce for ce in main_cost_elements}
+        change_ce_map = {ce.cost_element_id: ce for ce in change_cost_elements}
+
+        # Build comparisons for cost elements with forecasts in at least one branch
+        all_ce_ids = set(main_forecasts.keys()) | set(change_forecasts.keys())
+        comparisons: list[ForecastComparison] = []
+
+        for ce_id in all_ce_ids:
+            # Find the cost element (prefer change branch if exists)
+            ce = change_ce_map.get(ce_id) or main_ce_map.get(ce_id)
+            if not ce:
+                continue
+
+            main_fcast = main_forecasts.get(ce_id)
+            change_fcast = change_forecasts.get(ce_id)
+
+            # Include if there's a forecast in at least one branch
+            if main_fcast or change_fcast:
+                comparisons.append(
+                    ForecastComparison(
+                        cost_element_id=ce_id,
+                        cost_element_code=ce.code,
+                        cost_element_name=ce.name,
+                        budget_amount=ce.budget_amount,
+                        main_eac=main_fcast.eac_amount if main_fcast else None,
+                        main_forecast=main_fcast,
+                        change_eac=change_fcast.eac_amount if change_fcast else None,
+                        branch_forecast=change_fcast,
+                    )
+                )
+
+        if not comparisons:
+            return None
+
+        return ForecastChanges(forecasts=comparisons)

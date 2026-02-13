@@ -62,7 +62,7 @@ class TestChangeOrderWorkflowFullTemporal:
         wbe_service = WBEService(db_session)
         ce_service = CostElementService(db_session)
         sb_service = ScheduleBaselineService(db_session)
-        forecast_service = ForecastService(db_session)
+        ForecastService(db_session)
         progress_service = ProgressEntryService(db_session)
         cost_reg_service = CostRegistrationService(db_session)
         co_service = ChangeOrderService(db_session)
@@ -94,7 +94,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Create Project
         project_id = uuid4()
-        project = await project_service.create(
+        await project_service.create(
 
             root_id=project_id,
             actor_id=actor_id,
@@ -131,7 +131,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Create 2 CostElements (auto-creates ScheduleBaseline and Forecast)
         ce1_id = uuid4()
-        ce1 = await ce_service.create_cost_element(
+        await ce_service.create_cost_element(
             element_in=CostElementCreate(
                 cost_element_id=ce1_id,
                 wbe_id=wbe1_id,
@@ -146,7 +146,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         ce2_id = uuid4()
-        ce2 = await ce_service.create_cost_element(
+        await ce_service.create_cost_element(
             element_in=CostElementCreate(
                 cost_element_id=ce2_id,
                 wbe_id=wbe2_id,
@@ -167,7 +167,7 @@ class TestChangeOrderWorkflowFullTemporal:
         assert sb2 is not None
 
         # Update schedule baselines with dates
-        sb1_updated = await sb_service.update(
+        await sb_service.update(
             root_id=sb1.schedule_baseline_id,
             actor_id=actor_id,
             branch="main",
@@ -177,7 +177,7 @@ class TestChangeOrderWorkflowFullTemporal:
             progression_type="LINEAR",
         )
 
-        sb2_updated = await sb_service.update(
+        await sb_service.update(
             root_id=sb2.schedule_baseline_id,
             actor_id=actor_id,
             branch="main",
@@ -333,7 +333,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Create new versions of CostElement1 on CO branch (budget increase)
-        ce1_updated = await ce_service.create_cost_element(
+        await ce_service.create_cost_element(
             element_in=CostElementCreate(
                 cost_element_id=ce1_id,
                 wbe_id=wbe1_id,
@@ -767,7 +767,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         ce_id = uuid4()
-        ce = await ce_service.create_cost_element(
+        await ce_service.create_cost_element(
             element_in=CostElementCreate(
                 cost_element_id=ce_id,
                 wbe_id=wbe_id,
