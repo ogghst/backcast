@@ -33,5 +33,13 @@ export type EVMTimeSeriesPoint = {
      * Actual value at this date
      */
     actual: string;
+    /**
+     * Cost Performance Index (EV / AC, < 1.0 = over budget)
+     */
+    cpi?: (string | null);
+    /**
+     * Schedule Performance Index (EV / PV, < 1.0 = behind schedule)
+     */
+    spi?: (string | null);
 };
 

@@ -30,6 +30,7 @@ class ChangeOrderBase(BaseModel):
         None, description="When change takes effect"
     )
     status: str = Field(default="Draft", description="Workflow state")
+    impact_level: str | None = Field(None, description="Financial impact level")
 
 
 class ChangeOrderCreate(ChangeOrderBase):
@@ -43,6 +44,11 @@ class ChangeOrderCreate(ChangeOrderBase):
     control_date: datetime | None = Field(
         None, description="Control date for bitemporal operations"
     )
+    # Workflow state fields for seeding purposes
+    assigned_approver_id: UUID | None = Field(None, description="Assigned approver")
+    sla_assigned_at: datetime | None = Field(None, description="SLA assigned timestamp")
+    sla_due_date: datetime | None = Field(None, description="SLA due date")
+    sla_status: str | None = Field(None, description="SLA status")
 
 
 class ChangeOrderUpdate(BaseModel):

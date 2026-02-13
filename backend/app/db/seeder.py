@@ -3,14 +3,12 @@
 Provides flexible JSON-based seeding that uses Pydantic schemas for validation.
 """
 
+import asyncio
 import json
 import logging
 from pathlib import Path
 from typing import Any
 from uuid import UUID
-
-import asyncio
-
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -484,7 +482,7 @@ class DataSeeder:
         # Use admin user for actor_id if available to ensure authority for approvals
         user_service = UserService(session)
         admin = await user_service.get_by_email("admin@backcast.org")
-        
+
         if admin:
             actor_id = admin.user_id
             logger.info(f"Using admin user {actor_id} for Change Order seeding")
@@ -512,10 +510,20 @@ class DataSeeder:
                     # Store the target status for workflow transition
                     target_status = item.get("status", "Draft")
 
-                    # Remove status from create data so it defaults to "Draft"
-                    # This allows us to properly transition through the workflow
+                    # Store workflow state fields for direct update after creation
+                    workflow_fields = {}
+                    for field in ["assigned_approver_id", "sla_assigned_at", "sla_due_date", "sla_status"]:
+                        if field in item:
+                            workflow_fields[field] = item[field]
+
+                    # Remove status, workflow fields, and non-model fields from create data
+                    # so it defaults to "Draft" and only includes valid model fields
                     create_data = item.copy()
-                    create_data.pop("status", None)
+                    # Fields to remove from create_data
+                    fields_to_remove = ["status", "assigned_approver_id", "sla_assigned_at",
+                                     "sla_due_date", "sla_status", "priority", "estimated_cost"]
+                    for field in fields_to_remove:
+                        create_data.pop(field, None)
 
                     # Create change order with Draft status
                     # Note: Automatic impact analysis runs on creation but may fail if
@@ -529,8 +537,21 @@ class DataSeeder:
 
                     # Prevent timestamp overlap for subsequent updates
                     await asyncio.sleep(1)
-                    
+
                     co_id = created_co.change_order_id
+
+                    # If workflow fields are present in seed data, set them directly
+                    # This is needed for seeding specific workflow states
+                    if workflow_fields:
+                        workflow_update = ChangeOrderUpdate(**workflow_fields)
+                        await co_service.update_change_order(
+                            change_order_id=co_id,
+                            change_order_in=workflow_update,
+                            actor_id=actor_id,
+                            branch="main",
+                        )
+                        logger.info(f"  → Set workflow fields: {co_in.code}")
+                        await asyncio.sleep(1)
 
                     # If target status is not Draft, attempt to transition through workflow
                     if target_status and target_status != "Draft":
@@ -639,6 +660,64 @@ class DataSeeder:
             f"Change Order seeding complete: {created_count} created, {skipped_count} skipped/failed"
         )
 
+    async def seed_change_order_audit_logs(self, session: AsyncSession) -> None:
+        """Seed Change Order Audit Logs from change_order_audit_logs.json file.
+
+        Args:
+            session: Database session
+        """
+        from sqlalchemy import insert
+
+        logger.info("Starting Change Order Audit Log seeding...")
+        audit_data = self.load_seed_file("change_order_audit_logs.json")
+
+        if not audit_data:
+            logger.info("No Change Order Audit Log seed data found or file is empty")
+            return
+
+        from app.models.domain.change_order_audit_log import ChangeOrderAuditLog
+
+        created_count = 0
+        skipped_count = 0
+
+        with seed_operation():
+            for item in audit_data:
+                try:
+                    # Check if audit log already exists
+                    from sqlalchemy import select
+
+                    existing = await session.execute(
+                        select(ChangeOrderAuditLog).where(
+                            ChangeOrderAuditLog.id == item["id"]
+                        )
+                    )
+                    if existing.scalar_one_or_none():
+                        logger.debug(f"Audit log {item['id']} already exists, skipping")
+                        skipped_count += 1
+                        continue
+
+                    # Insert audit log entry
+                    # Parse datetime strings to datetime objects
+                    from datetime import datetime
+                    item_copy = item.copy()
+                    if 'changed_at' in item_copy and isinstance(item_copy['changed_at'], str):
+                        item_copy['changed_at'] = datetime.fromisoformat(item_copy['changed_at'])
+
+                    await session.execute(
+                        insert(ChangeOrderAuditLog).values(**item_copy)
+                    )
+                    created_count += 1
+                    logger.debug(f"Created audit log entry: {item['id']}")
+
+                except Exception as e:
+                    logger.error(f"Failed to seed audit log {item.get('id')}: {e}")
+                    await session.rollback()
+                    skipped_count += 1
+
+        logger.info(
+            f"Change Order Audit Log seeding complete: {created_count} created, {skipped_count} skipped/failed"
+        )
+
     async def seed_all(self, session: AsyncSession) -> None:
         """Execute all seeding operations in the correct order.
 
@@ -674,6 +753,9 @@ class DataSeeder:
 
             # Seed Change Orders
             await self.seed_change_orders(session)
+
+            # Seed Change Order Audit Logs
+            await self.seed_change_order_audit_logs(session)
 
             # Commit all changes (services usually commit internally for writes?
             # Or depend on session commit at end. If services use execute() they might depend on session commit.)

@@ -5219,6 +5219,25 @@
               "title": "Mode"
             },
             "description": "Comparison mode: merged (main+change) or isolated (change only)"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: get impact analysis as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: get impact analysis as of this timestamp (ISO 8601)"
           }
         ],
         "responses": {
@@ -5560,6 +5579,18 @@
               "format": "uuid",
               "title": "Change Order Id"
             }
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch name",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch name"
           }
         ],
         "responses": {
@@ -5592,7 +5623,7 @@
           "Change Orders"
         ],
         "summary": "Get Pending Approvals",
-        "description": "Get change orders pending approval for the current user.\n\nFilters change orders by:\n- assigned_approver_id = current_user.user_id\n- status in (\"Submitted for Approval\", \"Under Review\")\n\nReturns paginated list of change orders awaiting the user's approval.\n\nRequires read permission.",
+        "description": "Get change orders pending approval for the current user.\n\nFilters change orders by:\n- assigned_approver_id = current_user.user_id\n- status in (\"Submitted for Approval\", \"Under Review\")\n- branch name (default: \"main\")\n\nReturns paginated list of change orders awaiting the user's approval.\n\nRequires read permission.",
         "operationId": "get_pending_approvals",
         "security": [
           {
@@ -5625,6 +5656,31 @@
               "title": "Per Page"
             },
             "description": "Items per page"
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch name",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch name"
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(merged|isolated)$",
+              "description": "Branch mode: merged (combine with main) or isolated (current branch only)",
+              "default": "merged",
+              "title": "Mode"
+            },
+            "description": "Branch mode: merged (combine with main) or isolated (current branch only)"
           }
         ],
         "responses": {
@@ -8194,8 +8250,7 @@
           "budget_amount": {
             "anyOf": [
               {
-                "type": "number",
-                "minimum": 0.0
+                "type": "number"
               },
               {
                 "type": "string",
@@ -9500,6 +9555,32 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Actual",
             "description": "Actual value at this date"
+          },
+          "cpi": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpi",
+            "description": "Cost Performance Index (EV / AC, < 1.0 = over budget)"
+          },
+          "spi": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spi",
+            "description": "Schedule Performance Index (EV / PV, < 1.0 = behind schedule)"
           }
         },
         "type": "object",

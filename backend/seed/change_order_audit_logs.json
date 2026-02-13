@@ -1,0 +1,56 @@
+[
+  {
+    "id": "d163518e-3ccb-402f-8e8c-858ed7d41e99",
+    "change_order_id": "b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e",
+    "old_status": "Draft",
+    "new_status": "Submitted for Approval",
+    "comment": "Change order submitted for approval. High impact safety upgrade requiring OSHA compliance.",
+    "changed_by": "dce2e861-bdb7-5887-beaf-6a22837d266d",
+    "changed_at": "2026-01-15T10:00:00"
+  },
+  {
+    "id": "faed8cca-e4c5-4c6d-8631-41ce07d6d877",
+    "change_order_id": "c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f",
+    "old_status": "Draft",
+    "new_status": "Submitted for Approval",
+    "comment": "Submitted for approval. Low impact ergonomic improvement.",
+    "changed_by": "10bce202-8321-5208-8c9c-1fa8269e48fa",
+    "changed_at": "2026-01-10T09:00:00"
+  },
+  {
+    "id": "9fbc6e6e-7e63-4c3b-8124-8322dc4ebb03",
+    "change_order_id": "c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f",
+    "old_status": "Submitted for Approval",
+    "new_status": "Approved",
+    "comment": "Approved. Low cost ergonomic improvement with clear operator benefit.",
+    "changed_by": "e03556f3-4385-5d68-a685-af307fc8af5c",
+    "changed_at": "2026-01-12T14:30:00"
+  },
+  {
+    "id": "f4182078-f4dc-4afe-8e2f-49616273e9fd",
+    "change_order_id": "e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
+    "old_status": "Draft",
+    "new_status": "Submitted for Approval",
+    "comment": "Critical automation upgrade submitted for approval. High investment required for production targets.",
+    "changed_by": "dce2e861-bdb7-5887-beaf-6a22837d266d",
+    "changed_at": "2026-01-18T14:00:00"
+  },
+  {
+    "id": "043b93fb-10fe-4bfd-989f-aad501bba837",
+    "change_order_id": "f6a7b8c9-d0e1-4f6a-3b4c-5d6e7f8a9b0c",
+    "old_status": "Draft",
+    "new_status": "Submitted for Approval",
+    "comment": "Pallet system expansion submitted for review.",
+    "changed_by": "10bce202-8321-5208-8c9c-1fa8269e48fa",
+    "changed_at": "2026-01-12T11:00:00"
+  },
+  {
+    "id": "e368ddcf-c8a0-4824-a414-f9c11bed39a6",
+    "change_order_id": "f6a7b8c9-d0e1-4f6a-3b4c-5d6e7f8a9b0c",
+    "old_status": "Submitted for Approval",
+    "new_status": "Rejected",
+    "comment": "Rejected. Budget constraints and alternative solutions preferred. Re-submit with revised scope.",
+    "changed_by": "533a7e61-6b73-5978-a751-7862efa734f7",
+    "changed_at": "2026-01-15T09:30:00"
+  }
+]

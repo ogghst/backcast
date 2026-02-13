@@ -25,7 +25,11 @@
     "estimated_cost": 45000.00,
     "justification": "Compliance with updated OSHA safety standards effective 2026-06-01. Current E-stop spacing does not meet new requirements.",
     "effective_date": null,
-    "control_date": null
+    "control_date": null,
+    "assigned_approver_id": "533a7e61-6b73-5978-a751-7862efa734f7",
+    "sla_assigned_at": "2026-01-15T10:00:00",
+    "sla_due_date": "2026-01-22T10:00:00",
+    "sla_status": "pending"
   },
   {
     "change_order_id": "c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f",
@@ -39,7 +43,11 @@
     "estimated_cost": 12500.00,
     "justification": "Ergonomic improvement requested by operators. Current location requires operators to leave work area for adjustments.",
     "effective_date": null,
-    "control_date": null
+    "control_date": null,
+    "assigned_approver_id": "e03556f3-4385-5d68-a685-af307fc8af5c",
+    "sla_assigned_at": "2026-01-10T09:00:00",
+    "sla_due_date": "2026-01-17T09:00:00",
+    "sla_status": "met"
   },
   {
     "change_order_id": "d4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a",
@@ -67,7 +75,11 @@
     "estimated_cost": 375000.00,
     "justification": "Automation required to meet increased production targets. Manual handling bottleneck limiting throughput.",
     "effective_date": null,
-    "control_date": null
+    "control_date": null,
+    "assigned_approver_id": "e03556f3-4385-5d68-a685-af307fc8af5c",
+    "sla_assigned_at": "2026-01-18T14:00:00",
+    "sla_due_date": "2026-01-25T14:00:00",
+    "sla_status": "pending"
   },
   {
     "change_order_id": "f6a7b8c9-d0e1-4f6a-3b4c-5d6e7f8a9b0c",
@@ -81,6 +93,10 @@
     "estimated_cost": 125000.00,
     "justification": "New product lines require different pallet handling. Current system incompatible with new SKUs.",
     "effective_date": null,
-    "control_date": null
+    "control_date": null,
+    "assigned_approver_id": "533a7e61-6b73-5978-a751-7862efa734f7",
+    "sla_assigned_at": "2026-01-12T11:00:00",
+    "sla_due_date": "2026-01-19T11:00:00",
+    "sla_status": "met"
   }
 ]
