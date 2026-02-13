@@ -322,6 +322,7 @@ backend/seed/
 ├── SEED_DATA_PLAN.md                  ← Detailed implementation plan
 ├── projects.json                      ← 2 projects
 ├── change_orders.json                 ← 6 change orders
+├── change_order_audit_logs.json      ← 6 audit log entries (workflow transitions)
 ├── branches.json                      ← 6 branch entities
 ├── wbes.json                          ← 32 WBEs (20 main + 12 branch versions)
 ├── cost_elements.json                 ← 140 CEs (100 main + 40 branch versions)

@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ApprovalInfo } from "./ApprovalInfo";
-import type { ApprovalInfo as ApprovalInfoType } from "../api/useApprovalInfo";
+import type { ApprovalInfoPublic as ApprovalInfoType } from "@/api/generated";
 
 // Mock dayjs to have consistent date formatting
 vi.mock("dayjs", () => ({

@@ -746,6 +746,7 @@ async def recover_change_order(
 )
 async def get_change_order_approval_info(
     change_order_id: UUID,
+    branch: str = Query("main", description="Branch name"),
     current_user: User = Depends(get_current_active_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ApprovalInfoPublic:
@@ -765,7 +766,7 @@ async def get_change_order_approval_info(
 
     try:
         # Get change order
-        co = await service.get_current(change_order_id, branch="main")
+        co = await service.get_current(change_order_id, branch=branch)
         if not co:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -868,6 +869,12 @@ async def get_change_order_approval_info(
 async def get_pending_approvals(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     per_page: int = Query(20, ge=1, description="Items per page"),
+    branch: str = Query("main", description="Branch name"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
     current_user: User = Depends(get_current_active_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> dict[str, Any]:
@@ -876,12 +883,17 @@ async def get_pending_approvals(
     Filters change orders by:
     - assigned_approver_id = current_user.user_id
     - status in ("Submitted for Approval", "Under Review")
+    - branch name (default: "main")
 
     Returns paginated list of change orders awaiting the user's approval.
 
     Requires read permission.
     """
+    from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
+
+    # Parse mode string to BranchMode enum
+    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
 
     # Calculate skip from page number
     skip = (page - 1) * per_page
@@ -892,6 +904,8 @@ async def get_pending_approvals(
             user_id=current_user.user_id,
             skip=skip,
             limit=per_page,
+            branch=branch,
+            branch_mode=branch_mode,
         )
 
         # Convert to Pydantic models with workflow metadata

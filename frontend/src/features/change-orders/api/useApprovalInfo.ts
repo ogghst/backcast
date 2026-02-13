@@ -1,40 +1,20 @@
 import { useQuery, UseQueryOptions } from "@tanstack/react-query";
-import { OpenAPI } from "@/api/generated/core/OpenAPI";
-import { request as __request } from "@/api/generated/core/request";
 import { queryKeys } from "@/api/queryKeys";
+import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
+import type { ApprovalInfoPublic } from "@/api/generated";
+import { ChangeOrdersService } from "@/api/generated/services/ChangeOrdersService";
+
+// Re-export ApprovalInfoPublic as ApprovalInfo for backward compatibility
+export type ApprovalInfo = ApprovalInfoPublic;
 
 /**
- * TypeScript interface for ApprovalInfoPublic schema.
- *
- * Matches backend schema in backend/app/models/schemas/change_order.py
+ * Parameters for useApprovalInfo hook.
  */
-export interface ApprovalInfo {
-  /** Financial impact level (LOW/MEDIUM/HIGH/CRITICAL) */
-  impact_level: string | null;
-  /** Financial impact details (budget_delta, revenue_delta) */
-  financial_impact: {
-    budget_delta: number;
-    revenue_delta: number;
-  } | null;
-  /** Assigned approver details */
-  assigned_approver: {
-    user_id: string;
-    full_name: string;
-    email: string;
-    role: string;
-  } | null;
-  /** When the approval SLA started */
-  sla_assigned_at: string | null;
-  /** SLA deadline for approval */
-  sla_due_date: string | null;
-  /** Current SLA tracking status (pending/approaching/overdue) */
-  sla_status: string | null;
-  /** Number of business days remaining until SLA deadline */
-  sla_business_days_remaining: number | null;
-  /** Whether the current user has authority to approve this change order */
-  user_can_approve: boolean;
-  /** Current user's authority level (LOW/MEDIUM/HIGH/CRITICAL) */
-  user_authority_level: string | null;
+interface UseApprovalInfoParams {
+  /** Change Order ID to fetch approval info for */
+  changeOrderId: string | undefined;
+  /** Branch name (optional, defaults to time machine context branch or "main") */
+  branch?: string;
 }
 
 /**
@@ -43,26 +23,38 @@ export interface ApprovalInfo {
  * Context: Used in change order detail view to display approval matrix,
  * assigned approver, SLA status, and user's approval authority.
  *
- * @param changeOrderId - Change Order ID to fetch approval info for
+ * @param params - Parameters including changeOrderId and optional branch
  * @param queryOptions - Optional React Query configuration
  * @returns Query result with ApprovalInfo data
  *
  * @example
- * const { data: approvalInfo, isLoading } = useApprovalInfo(changeOrderId);
+ * // Use current branch from time machine context
+ * const { data: approvalInfo, isLoading } = useApprovalInfo({ changeOrderId });
+ *
+ * // Use specific branch
+ * const { data: approvalInfo, isLoading } = useApprovalInfo({
+ *   changeOrderId,
+ *   branch: "BR-CO-2026-001"
+ * });
  */
 export const useApprovalInfo = (
-  changeOrderId: string | undefined,
-  queryOptions?: Omit<UseQueryOptions<ApprovalInfo, Error>, "queryKey">,
+  params: UseApprovalInfoParams | string | undefined,
+  queryOptions?: Omit<UseQueryOptions<ApprovalInfoPublic, Error>, "queryKey">,
 ) => {
+  // Support legacy call pattern where first arg is just changeOrderId string
+  const changeOrderId = typeof params === "string" ? params : params?.changeOrderId;
+  const paramBranch = typeof params === "object" ? params?.branch : undefined;
+
+  // Get branch from time machine context with fallback
+  const { branch: tmBranch } = useTimeMachineParams();
+  const branch = paramBranch || tmBranch || "main";
+
   return useQuery({
     queryKey: queryKeys.changeOrders.approvalInfo(changeOrderId || ""),
     queryFn: async () => {
       if (!changeOrderId) throw new Error("Change Order ID is required");
 
-      return __request(OpenAPI, {
-        method: "GET",
-        url: `/api/v1/change-orders/${changeOrderId}/approval-info`,
-      }) as Promise<ApprovalInfo>;
+      return ChangeOrdersService.getChangeOrderApprovalInfo(changeOrderId, branch) as Promise<ApprovalInfoPublic>;
     },
     enabled: !!changeOrderId,
     ...queryOptions,

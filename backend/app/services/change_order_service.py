@@ -473,7 +473,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                 f"Current status: {co.status}. "
                 f"Must be 'Implemented' or 'Rejected'."
             )
-        
+
         # Get branch name
         if not co.branch_name:
              # Should not happen for valid COs, but handle gracefully
@@ -1200,6 +1200,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         user_id: UUID,
         skip: int = 0,
         limit: int = 100,
+        branch: str = "main",
+        branch_mode: Any | None = None,
     ) -> tuple[list[ChangeOrder], int]:
         """Get change orders pending approval for a specific user.
 
@@ -1210,11 +1212,13 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             user_id: User ID to filter by (assigned approver)
             skip: Number of records to skip
             limit: Maximum records to return
+            branch: Branch to query (default: "main")
+            branch_mode: Optional BranchMode enum for merged/isolated filtering
 
         Returns:
             Tuple of (list of Change Orders, total count)
         """
-        from typing import cast
+        from typing import Any, cast
 
         from sqlalchemy import func
 
@@ -1222,7 +1226,9 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         stmt = select(ChangeOrder).where(
             ChangeOrder.assigned_approver_id == user_id,
             ChangeOrder.status.in_(["Submitted for Approval", "Under Review"]),
-            cast("Any", ChangeOrder).deleted_at.is_(None),
+            ChangeOrder.branch == branch,
+            func.upper(cast(Any, ChangeOrder).valid_time).is_(None),  # Current versions
+            cast(Any, ChangeOrder).deleted_at.is_(None),
         )
 
         # Get total count

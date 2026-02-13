@@ -14,7 +14,7 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import type { ApprovalInfo } from "../api/useApprovalInfo";
+import type { ApprovalInfoPublic as ApprovalInfo } from "@/api/generated";
 
 const { Text } = Typography;
 
