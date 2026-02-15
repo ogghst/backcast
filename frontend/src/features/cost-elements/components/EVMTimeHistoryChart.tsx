@@ -10,11 +10,9 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { Select, Spin, Empty, Typography } from "antd";
+import { Select, Spin, Empty } from "antd";
 import { useState } from "react";
 import dayjs from "dayjs";
-
-const { Title } = Typography;
 
 interface EVMTimeHistoryChartProps {
   costElementId: string;
@@ -86,7 +84,7 @@ export const EVMTimeHistoryChart = ({
         <Select
           defaultValue="week"
           value={granularity}
-          onChange={(val) => setGranularity(val as any)}
+          onChange={(val) => setGranularity(val as "day" | "week" | "month")}
           options={[
             { value: "day", label: "Daily" },
             { value: "week", label: "Weekly" },

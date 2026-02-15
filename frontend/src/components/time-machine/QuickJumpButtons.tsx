@@ -63,6 +63,7 @@ export function QuickJumpButtons({
   );
 }
 
+/* eslint-disable react-refresh/only-export-components */
 /**
  * Calculate a date based on quick jump preset relative to a base date.
  *

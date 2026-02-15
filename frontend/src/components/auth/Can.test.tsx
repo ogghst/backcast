@@ -17,7 +17,7 @@ describe("Can Component", () => {
     // Mock the getState method of the useAuthStore
     // Assuming useAuthStore is a function that also has a getState property
     vi.mocked(useAuthStore).getState = vi.fn(() => ({
-      user: null as any,
+      user: null as unknown,
       permissions: [],
       token: null,
       isAuthenticated: false,
@@ -31,7 +31,7 @@ describe("Can Component", () => {
       setUser: vi.fn(),
     }));
     // Default mock implementation for the hook itself
-    vi.mocked(useAuthStore).mockImplementation((selector: any) => {
+    vi.mocked(useAuthStore).mockImplementation((selector: unknown) => {
       const state = {
         hasPermission: mockHasPermission,
         hasAnyPermission: mockHasAnyPermission,

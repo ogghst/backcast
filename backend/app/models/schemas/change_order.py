@@ -109,6 +109,10 @@ class ChangeOrderPublic(ChangeOrderBase):
     updated_by: UUID | None = Field(None, description="User who last updated")
     updated_at: datetime | None = Field(None, description="When last updated")
     branch: str = Field(..., description="Branch name")
+    branch_name: str | None = Field(
+        None,
+        description="Change branch name for impact analysis (e.g., BR-CO-2026-001)",
+    )
     parent_id: UUID | None = Field(None, description="Parent version ID")
     deleted_at: datetime | None = Field(None, description="Soft delete timestamp")
 

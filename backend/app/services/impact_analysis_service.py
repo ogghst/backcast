@@ -35,6 +35,7 @@ from app.models.domain.project import Project
 from app.models.domain.schedule_baseline import ScheduleBaseline
 from app.models.domain.wbe import WBE
 from app.models.schemas.evm import EntityType
+from app.models.schemas.forecast import ForecastRead
 from app.models.schemas.impact_analysis import (
     EntityChange,
     EntityChanges,
@@ -2067,9 +2068,13 @@ class ImpactAnalysisService:
                         cost_element_name=ce.name,
                         budget_amount=ce.budget_amount,
                         main_eac=main_fcast.eac_amount if main_fcast else None,
-                        main_forecast=main_fcast,
+                        main_forecast=ForecastRead.model_validate(main_fcast)
+                        if main_fcast
+                        else None,
                         change_eac=change_fcast.eac_amount if change_fcast else None,
-                        branch_forecast=change_fcast,
+                        branch_forecast=ForecastRead.model_validate(change_fcast)
+                        if change_fcast
+                        else None,
                     )
                 )
 

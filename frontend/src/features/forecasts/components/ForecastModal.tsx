@@ -21,7 +21,6 @@ export const ForecastModal = ({
   confirmLoading,
   initialValues,
   currentBranch,
-  costElementId,
   costElementName,
   budgetAmount,
 }: ForecastModalProps) => {

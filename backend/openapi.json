@@ -4430,6 +4430,102 @@
         }
       }
     },
+    "/api/v1/change-orders/stats": {
+      "get": {
+        "tags": [
+          "Change Orders"
+        ],
+        "summary": "Get Change Order Stats",
+        "description": "Get aggregated statistics for change orders in a project.\n\nReturns comprehensive analytics including:\n- Summary KPIs (total count, cost exposure, pending/approved values)\n- Distribution by status and impact level\n- Cumulative cost trend over time\n- Approval workload by approver\n- Aging items (stuck/overdue change orders)\n\nRequires change-order-read permission.",
+        "operationId": "get_change_order_stats",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Project ID",
+              "title": "Project Id"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "branch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Branch name",
+              "default": "main",
+              "title": "Branch"
+            },
+            "description": "Branch name"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel timestamp",
+              "title": "As Of"
+            },
+            "description": "Time travel timestamp"
+          },
+          {
+            "name": "aging_threshold_days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 30,
+              "minimum": 1,
+              "description": "Aging threshold in days",
+              "default": 7,
+              "title": "Aging Threshold Days"
+            },
+            "description": "Aging threshold in days"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeOrderStatsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/change-orders": {
       "get": {
         "tags": [
@@ -4539,11 +4635,9 @@
                 }
               ],
               "description": "Filters in format 'column:value;column:value1,value2'",
-              "examples": {
-                "status_filter": {
-                  "value": "status:Draft"
-                }
-              },
+              "examples": [
+                "status:Draft"
+              ],
               "title": "Filters"
             },
             "description": "Filters in format 'column:value;column:value1,value2'"
@@ -7429,6 +7523,70 @@
   },
   "components": {
     "schemas": {
+      "AgingChangeOrder": {
+        "properties": {
+          "change_order_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Change Order Id",
+            "description": "Change Order ID (UUID)"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "Business identifier (e.g., CO-2026-001)"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Change order title"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Current status"
+          },
+          "days_in_status": {
+            "type": "integer",
+            "title": "Days In Status",
+            "description": "Number of days in current status"
+          },
+          "impact_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impact Level",
+            "description": "Impact level (LOW/MEDIUM/HIGH/CRITICAL)"
+          },
+          "sla_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Status",
+            "description": "SLA status (pending/approaching/overdue)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "change_order_id",
+          "code",
+          "title",
+          "status",
+          "days_in_status"
+        ],
+        "title": "AgingChangeOrder",
+        "description": "Change order that is stuck or aging."
+      },
       "ApprovalInfoPublic": {
         "properties": {
           "impact_level": {
@@ -7541,6 +7699,46 @@
         "type": "object",
         "title": "ApprovalInfoPublic",
         "description": "Schema for approval information response."
+      },
+      "ApprovalWorkloadItem": {
+        "properties": {
+          "approver_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Approver Id",
+            "description": "User ID of the approver"
+          },
+          "approver_name": {
+            "type": "string",
+            "title": "Approver Name",
+            "description": "Full name of the approver"
+          },
+          "pending_count": {
+            "type": "integer",
+            "title": "Pending Count",
+            "description": "Number of pending approvals",
+            "default": 0
+          },
+          "overdue_count": {
+            "type": "integer",
+            "title": "Overdue Count",
+            "description": "Number of overdue approvals (past SLA deadline)",
+            "default": 0
+          },
+          "avg_days_waiting": {
+            "type": "number",
+            "title": "Avg Days Waiting",
+            "description": "Average days waiting for approval",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "approver_id",
+          "approver_name"
+        ],
+        "title": "ApprovalWorkloadItem",
+        "description": "Pending approval workload by approver."
       },
       "Body_login": {
         "properties": {
@@ -7788,6 +7986,18 @@
             "description": "Workflow state",
             "default": "Draft"
           },
+          "impact_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impact Level",
+            "description": "Financial impact level"
+          },
           "control_date": {
             "anyOf": [
               {
@@ -7800,6 +8010,57 @@
             ],
             "title": "Control Date",
             "description": "Control date for bitemporal operations"
+          },
+          "assigned_approver_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Approver Id",
+            "description": "Assigned approver"
+          },
+          "sla_assigned_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Assigned At",
+            "description": "SLA assigned timestamp"
+          },
+          "sla_due_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Due Date",
+            "description": "SLA due date"
+          },
+          "sla_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sla Status",
+            "description": "SLA status"
           }
         },
         "type": "object",
@@ -7810,6 +8071,40 @@
         ],
         "title": "ChangeOrderCreate",
         "description": "Schema for creating a new Change Order."
+      },
+      "ChangeOrderImpactStats": {
+        "properties": {
+          "impact_level": {
+            "type": "string",
+            "title": "Impact Level",
+            "description": "Impact level (LOW/MEDIUM/HIGH/CRITICAL)"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Number of change orders at this impact level"
+          },
+          "total_value": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Value",
+            "description": "Total cost exposure for COs at this impact level"
+          }
+        },
+        "type": "object",
+        "required": [
+          "impact_level",
+          "count"
+        ],
+        "title": "ChangeOrderImpactStats",
+        "description": "Statistics by impact level."
       },
       "ChangeOrderPublic": {
         "properties": {
@@ -7876,6 +8171,18 @@
             "description": "Workflow state",
             "default": "Draft"
           },
+          "impact_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impact Level",
+            "description": "Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)"
+          },
           "change_order_id": {
             "type": "string",
             "format": "uuid",
@@ -7938,6 +8245,18 @@
             "title": "Branch",
             "description": "Branch name"
           },
+          "branch_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Name",
+            "description": "Change branch name for impact analysis (e.g., BR-CO-2026-001)"
+          },
           "parent_id": {
             "anyOf": [
               {
@@ -7990,18 +8309,6 @@
             "title": "Branch Locked",
             "description": "Whether the associated branch is locked",
             "default": false
-          },
-          "impact_level": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Impact Level",
-            "description": "Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)"
           },
           "assigned_approver_id": {
             "anyOf": [
@@ -8117,6 +8424,161 @@
         ],
         "title": "ChangeOrderRecoveryRequest",
         "description": "Request to recover a stuck change order workflow.\n\nContext: Admin-only endpoint to recover stuck change orders when\nimpact analysis fails or workflow gets stuck in intermediate states.\n\nArgs:\n    impact_level: Manual impact level assignment (LOW/MEDIUM/HIGH/CRITICAL)\n    assigned_approver_id: User to assign as approver\n    skip_impact_analysis: Skip impact analysis and use manual values\n    recovery_reason: Explanation for recovery (10-500 chars)"
+      },
+      "ChangeOrderStatsResponse": {
+        "properties": {
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count",
+            "description": "Total number of change orders",
+            "default": 0
+          },
+          "total_cost_exposure": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Cost Exposure",
+            "description": "Total potential cost impact (sum of budget deltas)",
+            "default": "0"
+          },
+          "pending_value": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Pending Value",
+            "description": "Total value of pending change orders (not yet approved/rejected)",
+            "default": "0"
+          },
+          "approved_value": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Approved Value",
+            "description": "Total value of approved change orders",
+            "default": "0"
+          },
+          "by_status": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeOrderStatusStats"
+            },
+            "type": "array",
+            "title": "By Status",
+            "description": "Breakdown by status"
+          },
+          "by_impact_level": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeOrderImpactStats"
+            },
+            "type": "array",
+            "title": "By Impact Level",
+            "description": "Breakdown by impact level"
+          },
+          "cost_trend": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeOrderTrendPoint"
+            },
+            "type": "array",
+            "title": "Cost Trend",
+            "description": "Cumulative cost trend over time"
+          },
+          "avg_approval_time_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Approval Time Days",
+            "description": "Average days from submission to approval (historical)"
+          },
+          "approval_workload": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalWorkloadItem"
+            },
+            "type": "array",
+            "title": "Approval Workload",
+            "description": "Pending approvals grouped by approver"
+          },
+          "aging_items": {
+            "items": {
+              "$ref": "#/components/schemas/AgingChangeOrder"
+            },
+            "type": "array",
+            "title": "Aging Items",
+            "description": "Change orders that have been in the same status too long"
+          },
+          "aging_threshold_days": {
+            "type": "integer",
+            "title": "Aging Threshold Days",
+            "description": "Configured threshold for aging detection",
+            "default": 7
+          }
+        },
+        "type": "object",
+        "title": "ChangeOrderStatsResponse",
+        "description": "Aggregated statistics for change orders.\n\nResponse schema for GET /api/v1/change-orders/stats endpoint.\nProvides comprehensive analytics for the Change Order Dashboard."
+      },
+      "ChangeOrderStatusStats": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Status value (Draft, Submitted for Approval, etc.)"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Number of change orders in this status"
+          },
+          "total_value": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Value",
+            "description": "Total cost exposure for COs in this status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "count"
+        ],
+        "title": "ChangeOrderStatusStats",
+        "description": "Statistics by change order status."
+      },
+      "ChangeOrderTrendPoint": {
+        "properties": {
+          "trend_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Trend Date",
+            "description": "Date of the data point (week/month start)"
+          },
+          "cumulative_value": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cumulative Value",
+            "description": "Cumulative cost impact up to this date",
+            "default": "0"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Number of change orders up to this date",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "trend_date"
+        ],
+        "title": "ChangeOrderTrendPoint",
+        "description": "Single point in the cost trend."
       },
       "ChangeOrderUpdate": {
         "properties": {
@@ -9752,6 +10214,104 @@
         "title": "EntityType",
         "description": "Entity type for EVM metrics.\n\nDefines the granularity level for EVM calculations:\n- COST_ELEMENT: Individual cost element (leaf node)\n- WBE: Work Breakdown Element (intermediate node)\n- PROJECT: Project level (root node)"
       },
+      "ForecastChanges": {
+        "properties": {
+          "forecasts": {
+            "items": {
+              "$ref": "#/components/schemas/ForecastComparison"
+            },
+            "type": "array",
+            "title": "Forecasts",
+            "description": "Forecast comparisons between main and change branch"
+          }
+        },
+        "type": "object",
+        "title": "ForecastChanges",
+        "description": "Forecast changes for impact analysis."
+      },
+      "ForecastComparison": {
+        "properties": {
+          "costElementId": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Costelementid",
+            "description": "Cost Element ID"
+          },
+          "costElementCode": {
+            "type": "string",
+            "title": "Costelementcode",
+            "description": "Cost Element code"
+          },
+          "costElementName": {
+            "type": "string",
+            "title": "Costelementname",
+            "description": "Cost Element name"
+          },
+          "budgetAmount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Budgetamount",
+            "description": "BAC from CostElement"
+          },
+          "mainEac": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maineac",
+            "description": "EAC in main branch (deprecated, use mainForecast)"
+          },
+          "mainForecast": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForecastRead"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Full Forecast object from main branch"
+          },
+          "changeEac": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changeeac",
+            "description": "EAC in change branch (deprecated, use branchForecast)"
+          },
+          "branchForecast": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForecastRead"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Full Forecast object from change branch"
+          }
+        },
+        "type": "object",
+        "required": [
+          "costElementId",
+          "costElementCode",
+          "costElementName",
+          "budgetAmount"
+        ],
+        "title": "ForecastComparison",
+        "description": "Comparison of a single forecast between main and change branch.\n\nMatches frontend ForecastImpactList expectations with mainForecast and branchForecast\nobjects containing full ForecastRead data.\n\nField names use camelCase to match frontend TypeScript interface."
+      },
       "ForecastCreate": {
         "properties": {
           "eac_amount": {
@@ -9815,6 +10375,145 @@
         ],
         "title": "ForecastCreate",
         "description": "Properties required for creating a Forecast."
+      },
+      "ForecastRead": {
+        "properties": {
+          "eac_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,2}0*$",
+            "title": "Eac Amount",
+            "description": "Estimate at Complete"
+          },
+          "basis_of_estimate": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Basis Of Estimate",
+            "description": "Basis for the estimate"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "forecast_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Forecast Id"
+          },
+          "branch": {
+            "type": "string",
+            "title": "Branch"
+          },
+          "created_by": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Created By"
+          },
+          "approved_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved Date"
+          },
+          "approved_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By"
+          },
+          "valid_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Time"
+          },
+          "transaction_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transaction Time"
+          },
+          "cost_element_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Element Id"
+          },
+          "cost_element_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Element Code"
+          },
+          "cost_element_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Element Name"
+          },
+          "cost_element_budget_amount": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Element Budget Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "eac_amount",
+          "basis_of_estimate",
+          "id",
+          "forecast_id",
+          "branch",
+          "created_by"
+        ],
+        "title": "ForecastRead",
+        "description": "Properties returned to client."
       },
       "ForecastUpdate": {
         "properties": {
@@ -9955,6 +10654,17 @@
             "type": "array",
             "title": "Time Series",
             "description": "S-curve comparison data"
+          },
+          "forecast_changes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForecastChanges"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Forecast impact analysis (EAC comparisons)"
           }
         },
         "type": "object",

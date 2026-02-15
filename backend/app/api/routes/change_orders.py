@@ -24,7 +24,9 @@ from app.models.schemas.change_order import (
     ChangeOrderUpdate,
     MergeRequest,
 )
+from app.models.schemas.change_order_reporting import ChangeOrderStatsResponse
 from app.models.schemas.impact_analysis import ImpactAnalysisResponse
+from app.services.change_order_reporting_service import ChangeOrderReportingService
 from app.services.change_order_service import ChangeOrderService
 from app.services.impact_analysis_service import ImpactAnalysisService
 
@@ -52,6 +54,59 @@ def get_approval_matrix_service(
     from app.services.approval_matrix_service import ApprovalMatrixService
 
     return ApprovalMatrixService(session)
+
+
+def get_reporting_service(
+    session: AsyncSession = Depends(get_db),
+) -> ChangeOrderReportingService:
+    """Get ChangeOrderReportingService instance."""
+    return ChangeOrderReportingService(session)
+
+
+@router.get(
+    "/stats",
+    response_model=ChangeOrderStatsResponse,
+    operation_id="get_change_order_stats",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-read"))],
+)
+async def get_change_order_stats(
+    project_id: UUID = Query(..., description="Project ID"),
+    branch: str = Query("main", description="Branch name"),
+    as_of: datetime | None = Query(None, description="Time travel timestamp"),
+    aging_threshold_days: int = Query(7, ge=1, le=30, description="Aging threshold in days"),
+    service: ChangeOrderReportingService = Depends(get_reporting_service),
+) -> ChangeOrderStatsResponse:
+    """Get aggregated statistics for change orders in a project.
+
+    Returns comprehensive analytics including:
+    - Summary KPIs (total count, cost exposure, pending/approved values)
+    - Distribution by status and impact level
+    - Cumulative cost trend over time
+    - Approval workload by approver
+    - Aging items (stuck/overdue change orders)
+
+    Requires change-order-read permission.
+    """
+    from datetime import UTC
+
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        as_of = datetime.now(UTC)
+
+    try:
+        stats = await service.get_change_order_stats(
+            project_id=project_id,
+            branch=branch,
+            as_of=as_of,
+            aging_threshold_days=aging_threshold_days,
+        )
+        return stats
+    except Exception as e:
+        logger.error(f"Error getting change order stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving change order statistics: {str(e)}",
+        ) from e
 
 
 @router.get(

@@ -40,10 +40,8 @@ vi.mock("@/features/evm/components/EVMSummaryView", () => ({
 vi.mock("@/features/evm/components/EVMAnalyzerModal", () => ({
   EVMAnalyzerModal: ({
     open,
-    onClose,
   }: {
     open: boolean;
-    onClose: () => void;
   }) => (open ? <div data-testid="evm-analyzer-modal">Modal Content</div> : null),
 }));
 
@@ -132,19 +130,19 @@ describe("WBEDetail Page", () => {
       data: mockWBEData,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     vi.mocked(useEVMMetrics).mockReturnValue({
       data: mockEVMMetrics,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     vi.mocked(useEVMTimeSeries).mockReturnValue({
       data: mockTimeSeries,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     // Act
     render(<WBEDetail wbeId="test-wbe-id" />, { wrapper });
@@ -164,7 +162,7 @@ describe("WBEDetail Page", () => {
       data: undefined,
       isLoading: true,
       error: null,
-    } as any);
+    } as unknown);
 
     // Act
     render(<WBEDetail wbeId="test-wbe-id" />, { wrapper });
@@ -182,7 +180,7 @@ describe("WBEDetail Page", () => {
       data: undefined,
       isLoading: false,
       error: new Error("Failed to load WBE"),
-    } as any);
+    } as unknown);
 
     // Act
     render(<WBEDetail wbeId="test-wbe-id" />, { wrapper });
@@ -201,19 +199,19 @@ describe("WBEDetail Page", () => {
       data: mockWBEData,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     vi.mocked(useEVMMetrics).mockReturnValue({
       data: mockEVMMetrics,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     vi.mocked(useEVMTimeSeries).mockReturnValue({
       data: mockTimeSeries,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     // Act
     render(<WBEDetail wbeId="test-wbe-id" />, { wrapper });
@@ -232,19 +230,19 @@ describe("WBEDetail Page", () => {
       data: mockWBEData,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     vi.mocked(useEVMMetrics).mockReturnValue({
       data: mockEVMMetrics,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     vi.mocked(useEVMTimeSeries).mockReturnValue({
       data: mockTimeSeries,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     // Act
     render(<WBEDetail wbeId="test-wbe-id" />, { wrapper });
@@ -267,13 +265,13 @@ describe("WBEDetail Page", () => {
       data: mockWBEData,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     vi.mocked(useEVMMetrics).mockReturnValue({
       data: mockEVMMetrics,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     // Act
     render(<WBEDetail wbeId="test-wbe-id" />, { wrapper });
@@ -291,13 +289,13 @@ describe("WBEDetail Page", () => {
       data: mockWBEData,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     vi.mocked(useEVMTimeSeries).mockReturnValue({
       data: mockTimeSeries,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     // Act
     render(<WBEDetail wbeId="test-wbe-id" />, { wrapper });
@@ -315,19 +313,19 @@ describe("WBEDetail Page", () => {
       data: mockWBEData,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     vi.mocked(useEVMMetrics).mockReturnValue({
       data: mockEVMMetrics,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     vi.mocked(useEVMTimeSeries).mockReturnValue({
       data: mockTimeSeries,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     // Act
     render(<WBEDetail wbeId="test-wbe-id" />, { wrapper });
@@ -353,13 +351,13 @@ describe("WBEDetail Page", () => {
       data: mockWBEData,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     vi.mocked(useEVMMetrics).mockReturnValue({
       data: undefined,
       isLoading: false,
       error: null,
-    } as any);
+    } as unknown);
 
     // Act
     render(<WBEDetail wbeId="test-wbe-id" />, { wrapper });

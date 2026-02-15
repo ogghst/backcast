@@ -61,7 +61,7 @@ describe("WorkflowButtons", () => {
       reject: mockReject,
       merge: mockMerge,
       isLoading: false,
-      mutation: mockMutation as any,
+      mutation: mockMutation as unknown,
     });
 
     vi.mocked(isActionAvailable).mockImplementation((action) => {
@@ -218,7 +218,7 @@ describe("WorkflowButtons", () => {
         reject: mockReject,
         merge: mockMerge,
         isLoading: true,
-        mutation: mockMutation as any,
+        mutation: mockMutation as unknown,
       });
 
       render(<WorkflowButtons changeOrder={mockChangeOrder} />, { wrapper });

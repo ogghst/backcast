@@ -195,7 +195,8 @@ export const useUpdateCostElement = (
     { previousElement?: CostElementRead }
   >({
     mutationFn: ({ id, data }: { id: string; data: UpdateWithBranch }) => {
-      const { branch, ...rest } = data;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { branch: _branch, ...rest } = data;
       // Inject control_date
       const payload: CostElementUpdate = {
         ...rest,
@@ -241,7 +242,7 @@ export const useUpdateCostElement = (
       toast.success("Updated successfully");
       mutationOptions?.onSuccess?.(...args);
     },
-    onError: (error, variables, context: any) => {
+    onError: (error, variables, context: unknown) => {
       // Rollback
       if (context?.previousElement) {
         const branch = variables.data.branch || tmBranch;
@@ -385,9 +386,9 @@ export const useCostElementForecast = (
 export const useUpdateCostElementForecast = (
   mutationOptions?: Omit<
     UseMutationOptions<
-      Record<string, any>,
+      Record<string, unknown>,
       Error,
-      { costElementId: string; data: Record<string, any>; branch?: string }
+      { costElementId: string; data: Record<string, unknown>; branch?: string }
     >,
     "mutationFn"
   >,
@@ -402,7 +403,7 @@ export const useUpdateCostElementForecast = (
       branch,
     }: {
       costElementId: string;
-      data: Record<string, any>;
+      data: Record<string, unknown>;
       branch?: string;
     }) => {
       // Include branch and control_date in request body (as per API conventions for write operations)

@@ -172,7 +172,7 @@ describe("ChangeOrderWorkflowSection", () => {
     // Arrange
     const { useWorkflowActions } = await import("@/features/change-orders/hooks/useWorkflowActions");
     const mockSubmit = vi.fn().mockResolvedValue({});
-    (useWorkflowActions as any).mockReturnValue({
+    (useWorkflowActions as unknown).mockReturnValue({
       submit: mockSubmit,
       approve: vi.fn(),
       reject: vi.fn(),

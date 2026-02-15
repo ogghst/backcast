@@ -535,6 +535,52 @@ class DataSeeder:
                     created_count += 1
                     logger.info(f"Created Change Order: {co_in.code} - {co_in.title}")
 
+                    # Verify impact analysis completed - retry if needed
+                    max_retries = 3
+                    impact_analysis_completed = False
+                    for retry in range(max_retries):
+                        await session.refresh(created_co)
+                        if created_co.impact_analysis_status == "completed":
+                            logger.info(f"  → Impact analysis completed: {co_in.code}")
+                            impact_analysis_completed = True
+                            break
+                        elif created_co.impact_analysis_status in ("failed", "skipped"):
+                            logger.warning(
+                                f"  → Impact analysis {created_co.impact_analysis_status}, "
+                                f"retrying ({retry + 1}/{max_retries}): {co_in.code}"
+                            )
+                            # Re-run impact analysis
+                            if created_co.branch_name:
+                                try:
+                                    await co_service._run_impact_analysis(
+                                        created_co, created_co.branch_name
+                                    )
+                                    await session.commit()
+                                except Exception as e:
+                                    logger.warning(f"  → Impact analysis retry failed: {e}")
+                                    await session.rollback()
+                                    await asyncio.sleep(2)  # Wait before retry
+                            else:
+                                logger.warning(
+                                    "  → Cannot retry impact analysis: branch_name is None"
+                                )
+                                break
+                        else:
+                            # Still in progress, wait
+                            logger.info("  → Impact analysis in progress, waiting...")
+                            await asyncio.sleep(2)
+
+                    # After retry loop, check final status
+                    if not impact_analysis_completed:
+                        await session.refresh(created_co)
+                        if created_co.impact_analysis_status != "completed":
+                            logger.warning(
+                                f"  → Impact analysis not completed after {max_retries} retries, "
+                                f"skipping workflow transitions for {co_in.code}"
+                            )
+                            # Skip workflow transitions but keep the CO in Draft status
+                            continue
+
                     # Prevent timestamp overlap for subsequent updates
                     await asyncio.sleep(1)
 

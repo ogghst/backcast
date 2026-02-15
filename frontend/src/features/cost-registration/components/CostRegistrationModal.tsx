@@ -69,9 +69,9 @@ export const CostRegistrationModal = ({
         });
       }
     }
-  }, [open, initialValues, form]);
+  }, [open, initialValues, form, asOf]);
 
-  const processSubmit = async (values: any) => {
+  const processSubmit = async (values: Record<string, unknown>) => {
     // Convert dayjs date to ISO string
     const submissionValues = {
       ...values,

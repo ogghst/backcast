@@ -123,6 +123,7 @@ export function TimeMachineProvider({ children }: TimeMachineProviderProps) {
  * }
  * ```
  */
+/* eslint-disable react-refresh/only-export-components */
 export function useTimeMachine(): TimeMachineContextValue {
   const context = useContext(TimeMachineContext);
   if (!context) {

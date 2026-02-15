@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { HierarchicalDiffView } from "./HierarchicalDiffView";
 import type { ImpactAnalysisResponse } from "@/api/generated";
 
@@ -199,7 +199,8 @@ describe("HierarchicalDiffView", () => {
       render(<HierarchicalDiffView impactData={mockImpactData} showUnchanged={false} />);
 
       // Should have filter control
-      const filterToggle = screen.queryByRole("checkbox", {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const _filterToggle = screen.queryByRole("checkbox", {
         name: /show unchanged/i,
       });
       // Note: This might be a Switch or Toggle implementation
@@ -354,7 +355,8 @@ describe("HierarchicalDiffView", () => {
       expect(tree).toBeInTheDocument();
 
       // Tree items should have proper roles (Ant Design Tree uses these roles)
-      const treeItems = screen.queryAllByRole("treeitem");
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const _treeItems = screen.queryAllByRole("treeitem");
       // Note: Ant Design might not expose all items as treeitem roles
       // Just verify tree exists
       expect(tree).toBeInTheDocument();

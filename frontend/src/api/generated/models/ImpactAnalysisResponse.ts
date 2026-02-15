@@ -3,6 +3,7 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { EntityChanges } from './EntityChanges';
+import type { ForecastChanges } from './ForecastChanges';
 import type { KPIScorecard } from './KPIScorecard';
 import type { TimeSeriesData } from './TimeSeriesData';
 import type { WaterfallSegment } from './WaterfallSegment';
@@ -38,5 +39,9 @@ export type ImpactAnalysisResponse = {
      * S-curve comparison data
      */
     time_series?: Array<TimeSeriesData>;
+    /**
+     * Forecast impact analysis (EAC comparisons)
+     */
+    forecast_changes?: (ForecastChanges | null);
 };
 

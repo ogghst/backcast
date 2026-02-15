@@ -27,7 +27,7 @@ export const ProjectBranchSelector: React.FC<ProjectBranchSelectorProps> = ({
     label: b.name,
     isDefault: b.is_default,
     isChangeOrderBranch: b.type === "change_order",
-    changeOrderStatus: b.change_order_status as any, // Cast to match Status enum
+    changeOrderStatus: b.change_order_status as BranchOption["changeOrderStatus"],
   }));
 
   if (isLoading) {

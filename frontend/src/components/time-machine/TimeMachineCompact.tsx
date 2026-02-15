@@ -51,6 +51,7 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
   // Ensure store knows about current project and initialize with start date
   // Note: We pass null for projectStartDate to initialize at "now" instead of project start date
   // This avoids issues where the project doesn't exist at its own start date in the bitemporal system
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     // Pass null to initialize at "now" instead of project's start_date
     setCurrentProject(projectId, null);

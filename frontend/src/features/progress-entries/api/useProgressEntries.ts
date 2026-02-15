@@ -153,7 +153,6 @@ export const useCreateProgressEntry = (
   >,
 ) => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   const { asOf } = useTimeMachineParams();
 
   return useMutation<ProgressEntryRead, Error, ProgressEntryCreate>({

@@ -382,6 +382,8 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
             return {}
 
         # Query via CostElement.forecast_id (inverted FK)
+        # Note: Forecasts are not branched separately - they follow the cost element
+        # So we filter by cost element branch but NOT forecast branch
         stmt = (
             select(
                 CostElement.cost_element_id,
@@ -391,7 +393,6 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
             .where(
                 CostElement.cost_element_id.in_(cost_element_ids),
                 CostElement.branch == branch,
-                Forecast.branch == branch,
                 # CRITICAL: Only match cost elements WITH a forecast
                 CostElement.forecast_id.is_not(None),
                 # "Current" filter (no as_of)

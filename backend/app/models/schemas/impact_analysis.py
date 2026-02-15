@@ -13,16 +13,13 @@ Per Phase 3 Plan:
 
 from datetime import date
 from decimal import Decimal
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import TypedDict
 
 from app.models.schemas.forecast import ForecastRead
-
-if TYPE_CHECKING:
-    from app.models.domain.forecast import Forecast
 
 # Type alias for entity change types
 type EntityChangeType = Literal["added", "modified", "removed"]
@@ -258,7 +255,7 @@ class ForecastComparison(BaseModel):
         serialization_alias="mainEac",
         description="EAC in main branch (deprecated, use mainForecast)",
     )
-    main_forecast: "Forecast | ForecastRead | None" = Field(
+    main_forecast: ForecastRead | None = Field(
         default=None,
         serialization_alias="mainForecast",
         description="Full Forecast object from main branch",
@@ -268,7 +265,7 @@ class ForecastComparison(BaseModel):
         serialization_alias="changeEac",
         description="EAC in change branch (deprecated, use branchForecast)",
     )
-    branch_forecast: "Forecast | ForecastRead | None" = Field(
+    branch_forecast: ForecastRead | None = Field(
         default=None,
         serialization_alias="branchForecast",
         description="Full Forecast object from change branch",

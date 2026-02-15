@@ -7,6 +7,7 @@ import type { ChangeOrderApproval } from '../models/ChangeOrderApproval';
 import type { ChangeOrderCreate } from '../models/ChangeOrderCreate';
 import type { ChangeOrderPublic } from '../models/ChangeOrderPublic';
 import type { ChangeOrderRecoveryRequest } from '../models/ChangeOrderRecoveryRequest';
+import type { ChangeOrderStatsResponse } from '../models/ChangeOrderStatsResponse';
 import type { ChangeOrderUpdate } from '../models/ChangeOrderUpdate';
 import type { ImpactAnalysisResponse } from '../models/ImpactAnalysisResponse';
 import type { MergeRequest } from '../models/MergeRequest';
@@ -14,6 +15,45 @@ import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
 export class ChangeOrdersService {
+    /**
+     * Get Change Order Stats
+     * Get aggregated statistics for change orders in a project.
+     *
+     * Returns comprehensive analytics including:
+     * - Summary KPIs (total count, cost exposure, pending/approved values)
+     * - Distribution by status and impact level
+     * - Cumulative cost trend over time
+     * - Approval workload by approver
+     * - Aging items (stuck/overdue change orders)
+     *
+     * Requires change-order-read permission.
+     * @param projectId Project ID
+     * @param branch Branch name
+     * @param asOf Time travel timestamp
+     * @param agingThresholdDays Aging threshold in days
+     * @returns ChangeOrderStatsResponse Successful Response
+     * @throws ApiError
+     */
+    public static getChangeOrderStats(
+        projectId: string,
+        branch: string = 'main',
+        asOf?: (string | null),
+        agingThresholdDays: number = 7,
+    ): CancelablePromise<ChangeOrderStatsResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/change-orders/stats',
+            query: {
+                'project_id': projectId,
+                'branch': branch,
+                'as_of': asOf,
+                'aging_threshold_days': agingThresholdDays,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
     /**
      * Read Change Orders
      * Retrieve change orders for a project with pagination.

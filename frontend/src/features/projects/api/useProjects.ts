@@ -35,7 +35,7 @@ export interface ProjectListParams {
   search?: string;
   sortField?: string;
   sortOrder?: string;
-  queryOptions?: any;
+  queryOptions?: unknown;
 }
 
 /**

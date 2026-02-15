@@ -57,17 +57,9 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
   }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
   const createMode = isCreateMode(changeOrderId);
+  const [isModalOpen, setIsModalOpen] = useState(createMode);
   const pageTitle = getPageTitle(createMode);
-
-  // Automatically open modal in create mode
-  useEffect(() => {
-    if (createMode) {
-      setIsModalOpen(true);
-    }
-  }, [createMode]);
 
   // Fetch change order data for edit mode
   const { data: changeOrder, isLoading } = useChangeOrder(
