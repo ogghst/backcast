@@ -51,16 +51,16 @@ import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 export interface QueryKeyFactoryMethods {
   all: QueryKey;
   lists: () => QueryKey;
-  list: (params?: any) => QueryKey;
+  list: (params?: Record<string, unknown>) => QueryKey;
   details: () => QueryKey;
-  detail: (id: string, context?: any) => QueryKey;
+  detail: (id: string, context?: unknown) => QueryKey;
 }
 
 /**
  * API methods using semantic names (direct service pattern)
  */
 export interface VersionedApiMethods<T, TCreate, TUpdate, TList = T[]> {
-  list?: (filters?: any) => Promise<TList>;
+  list?: (filters?: Record<string, unknown>) => Promise<TList>;
   detail?: (id: string) => Promise<T>;
   create?: (data: TCreate) => Promise<T>;
   update?: (id: string, data: TUpdate) => Promise<T>;
@@ -98,22 +98,13 @@ export interface VersionedHookOptions {
  * @param apiMethods - API service methods
  * @param options - Configuration for invalidation and optimistic updates
  */
-export const createVersionedResourceHooks = <
-  T,
-  TCreate,
-  TUpdate,
-  TList = T[]
->(
-  resourceName: string,
+export const createVersionedResourceHooks = <T, TCreate, TUpdate, TList = T[]>(
+  _resourceName: string,
   queryKeyFactory: QueryKeyFactoryMethods,
   apiMethods: VersionedApiMethods<T, TCreate, TUpdate, TList>,
-  options?: VersionedHookOptions
+  options?: VersionedHookOptions,
 ) => {
   // Get Time Machine context
-  const getContext = () => {
-    const { branch, asOf, mode } = useTimeMachineParams();
-    return { branch, asOf, mode };
-  };
 
   // Normalize invalidation arrays
   const getInvalidationKeys = (type: "create" | "update" | "delete") => {
@@ -122,10 +113,11 @@ export const createVersionedResourceHooks = <
   };
 
   const useList = (
-    params?: any,
-    queryOptions?: Omit<UseQueryOptions<TList, Error>, "queryKey" | "queryFn">
+    params?: Record<string, unknown>,
+    queryOptions?: Omit<UseQueryOptions<TList, Error>, "queryKey" | "queryFn">,
   ) => {
-    const context = getContext();
+    const { branch, asOf, mode } = useTimeMachineParams();
+    const context = { branch, asOf, mode };
 
     return useQuery({
       queryKey: queryKeyFactory.list({
@@ -144,9 +136,10 @@ export const createVersionedResourceHooks = <
 
   const useDetail = (
     id: string,
-    queryOptions?: Omit<UseQueryOptions<T, Error>, "queryKey" | "queryFn">
+    queryOptions?: Omit<UseQueryOptions<T, Error>, "queryKey" | "queryFn">,
   ) => {
-    const context = getContext();
+    const { branch, asOf, mode } = useTimeMachineParams();
+    const context = { branch, asOf, mode };
 
     return useQuery({
       queryKey: queryKeyFactory.detail(id, context),
@@ -162,13 +155,9 @@ export const createVersionedResourceHooks = <
   };
 
   const useCreate = (
-    mutationOptions?: Omit<
-      UseMutationOptions<T, Error, TCreate>,
-      "mutationFn"
-    >
+    mutationOptions?: Omit<UseMutationOptions<T, Error, TCreate>, "mutationFn">,
   ) => {
     const queryClient = useQueryClient();
-    const context = getContext();
 
     return useMutation({
       mutationFn: (data: TCreate) => {
@@ -195,10 +184,9 @@ export const createVersionedResourceHooks = <
     mutationOptions?: Omit<
       UseMutationOptions<T, Error, { id: string; data: TUpdate }>,
       "mutationFn"
-    >
+    >,
   ) => {
     const queryClient = useQueryClient();
-    const context = getContext();
 
     return useMutation({
       mutationFn: ({ id, data }: { id: string; data: TUpdate }) => {
@@ -225,10 +213,9 @@ export const createVersionedResourceHooks = <
     mutationOptions?: Omit<
       UseMutationOptions<void, Error, string>,
       "mutationFn"
-    >
+    >,
   ) => {
     const queryClient = useQueryClient();
-    const context = getContext();
 
     return useMutation({
       mutationFn: (id: string) => {

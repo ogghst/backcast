@@ -38,7 +38,7 @@ export interface WBEListParams {
   search?: string;
   sortField?: string;
   sortOrder?: string;
-  queryOptions?: any;
+  queryOptions?: Partial<UseQueryOptions<PaginatedResponse<WBERead>, Error>>;
 }
 
 // Custom useWBEs list hook with Time Machine integration

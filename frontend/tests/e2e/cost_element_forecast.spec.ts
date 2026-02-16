@@ -9,7 +9,7 @@ async function getTestData(page: Page) {
 
   // Get auth token from localStorage
   const authStorage = await page.evaluate(() =>
-    localStorage.getItem("auth-storage")
+    localStorage.getItem("auth-storage"),
   );
   if (!authStorage) throw new Error("No auth token found");
 
@@ -27,8 +27,8 @@ async function getTestData(page: Page) {
   });
   expect(projRes.ok()).toBeTruthy();
   const projs = await projRes.json();
-  const proj = projs.items?.find(
-    (p: { code: string; project_id: string }) => p.code === "PRJ-DEMO-001"
+  projs.items?.find(
+    (p: { code: string; project_id: string }) => p.code === "PRJ-DEMO-001",
   );
   if (!proj) throw new Error("Demo Project PRJ-DEMO-001 not found");
 
@@ -41,7 +41,7 @@ async function getTestData(page: Page) {
   const wbeData = await wbeRes.json();
   const wbeItems = Array.isArray(wbeData) ? wbeData : wbeData.items;
   const wbe = wbeItems?.find(
-    (w: { code: string; wbe_id: string }) => w.code === "PRJ-DEMO-001-L1-1"
+    (w: { code: string; wbe_id: string }) => w.code === "PRJ-DEMO-001-L1-1",
   );
   if (!wbe) throw new Error("Demo WBE PRJ-DEMO-001-L1-1 not found");
 
@@ -53,7 +53,7 @@ async function getTestData(page: Page) {
   expect(typeRes.ok()).toBeTruthy();
   const types = await typeRes.json();
   const type = types.items?.find(
-    (t: { code: string; cost_element_type_id: string }) => t.code === "LAB"
+    (t: { code: string; cost_element_type_id: string }) => t.code === "LAB",
   );
   if (!type) throw new Error("Cost Element Type LAB not found");
 
@@ -72,7 +72,7 @@ test.describe("Cost Element Forecast E2E Tests (1:1 Relationship)", () => {
 
     // Wait for successful login
     await expect(page.getByRole("menuitem", { name: "Dashboard" })).toBeVisible(
-      { timeout: 15000 }
+      { timeout: 15000 },
     );
   });
 
@@ -80,7 +80,7 @@ test.describe("Cost Element Forecast E2E Tests (1:1 Relationship)", () => {
     page,
     request,
   }) => {
-    const { proj, wbe, type, timestamp, token, baseURL } = await getTestData(page);
+    const { wbe, type, timestamp, token, baseURL } = await getTestData(page);
 
     // === CREATE COST ELEMENT VIA API ===
     // We know this works from the API tests, so use it for setup
@@ -109,24 +109,30 @@ test.describe("Cost Element Forecast E2E Tests (1:1 Relationship)", () => {
 
     // Wait for cost element detail page - check for the page title (h1)
     await expect(
-      page.getByRole('heading', { name: new RegExp(`^${uniqueCode}`) })
+      page.getByRole("heading", { name: new RegExp(`^${uniqueCode}`) }),
     ).toBeVisible({ timeout: 10000 });
 
     // Click on Forecasts tab - use role-based selector
-    const forecastsTab = page.getByRole('tab', { name: 'Forecasts' });
+    const forecastsTab = page.getByRole("tab", { name: "Forecasts" });
     await forecastsTab.click();
 
     // Wait for Forecasts tab to load - check for EVM Metrics text
-    await expect(page.getByText(/EVM Metrics:/i)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/EVM Metrics:/i)).toBeVisible({
+      timeout: 10000,
+    });
 
     // Wait for the table to be visible
-    await expect(page.locator('.ant-table')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(".ant-table")).toBeVisible({ timeout: 5000 });
 
     // VERIFY: A default forecast should exist with EAC = budget amount
     // Look for the EAC amount within the Forecasts tab specifically
-    const forecastsTabContent = page.getByRole('tabpanel', { name: 'Forecasts' });
+    const forecastsTabContent = page.getByRole("tabpanel", {
+      name: "Forecasts",
+    });
     // Use nth(1) to get the second occurrence (the exact match, not the BAC text)
-    await expect(forecastsTabContent.getByText('€100,000').nth(1)).toBeVisible({ timeout: 5000 });
+    await expect(forecastsTabContent.getByText("€100,000").nth(1)).toBeVisible({
+      timeout: 5000,
+    });
 
     // Verify the forecast has the default basis
     const basisText = await page.locator("text=Initial forecast").textContent();
@@ -137,7 +143,7 @@ test.describe("Cost Element Forecast E2E Tests (1:1 Relationship)", () => {
     page,
     request,
   }) => {
-    const { proj, wbe, type, timestamp, token, baseURL } = await getTestData(page);
+    const { wbe, type, timestamp, token, baseURL } = await getTestData(page);
 
     // First, create a cost element via API to get its ID
     const createRes = await request.post(`${baseURL}/api/v1/cost-elements`, {
@@ -169,7 +175,7 @@ test.describe("Cost Element Forecast E2E Tests (1:1 Relationship)", () => {
           eac_amount: 120000,
           basis_of_estimate: "Updated forecast based on revised vendor quotes",
         },
-      }
+      },
     );
     expect(updateRes.ok()).toBeTruthy();
 
@@ -179,24 +185,28 @@ test.describe("Cost Element Forecast E2E Tests (1:1 Relationship)", () => {
 
     // Wait for page to load - check for the page heading (h1)
     await expect(
-      page.getByRole('heading', { name: new RegExp(`^${costElement.code}`) })
+      page.getByRole("heading", { name: new RegExp(`^${costElement.code}`) }),
     ).toBeVisible({ timeout: 10000 });
 
     // Click on Forecasts tab - use role-based selector
-    const forecastsTab = page.getByRole('tab', { name: 'Forecasts' });
+    const forecastsTab = page.getByRole("tab", { name: "Forecasts" });
     await forecastsTab.click();
 
     // Wait for Forecasts tab to load - check for EVM Metrics text
-    await expect(page.getByText(/EVM Metrics:/i)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/EVM Metrics:/i)).toBeVisible({
+      timeout: 10000,
+    });
 
     // Wait for the table to be visible
-    await expect(page.locator('.ant-table')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(".ant-table")).toBeVisible({ timeout: 5000 });
 
     // Verify the updated values are displayed in the Forecasts tab
-    const forecastsTabContent = page.getByRole('tabpanel', { name: 'Forecasts' });
-    await expect(forecastsTabContent.getByText('€120,000')).toBeVisible();
+    const forecastsTabContent = page.getByRole("tabpanel", {
+      name: "Forecasts",
+    });
+    await expect(forecastsTabContent.getByText("€120,000")).toBeVisible();
     await expect(
-      forecastsTabContent.getByText("revised vendor quotes")
+      forecastsTabContent.getByText("revised vendor quotes"),
     ).toBeVisible();
 
     // Verify VAC updated correctly (BAC - EAC = 100000 - 120000 = -20000)
@@ -207,7 +217,7 @@ test.describe("Cost Element Forecast E2E Tests (1:1 Relationship)", () => {
     page,
     request,
   }) => {
-    const { proj, wbe, type, timestamp, token, baseURL } = await getTestData(page);
+    const { wbe, type, timestamp, token, baseURL } = await getTestData(page);
 
     // First, create a cost element via API
     const createRes = await request.post(`${baseURL}/api/v1/cost-elements`, {
@@ -234,7 +244,7 @@ test.describe("Cost Element Forecast E2E Tests (1:1 Relationship)", () => {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      }
+      },
     );
     expect(deleteRes.ok()).toBeTruthy();
 
@@ -244,24 +254,30 @@ test.describe("Cost Element Forecast E2E Tests (1:1 Relationship)", () => {
 
     // Wait for page to load - check for the cost element code in the title
     await expect(
-      page.getByRole('heading', { name: new RegExp(`^${costElement.code}`) })
+      page.getByRole("heading", { name: new RegExp(`^${costElement.code}`) }),
     ).toBeVisible({ timeout: 10000 });
 
     // Click on Forecasts tab - use role-based selector
-    const forecastsTab = page.getByRole('tab', { name: 'Forecasts' });
+    const forecastsTab = page.getByRole("tab", { name: "Forecasts" });
     await forecastsTab.click();
 
     // Wait for Forecasts tab to load - check for EVM Metrics text
-    await expect(page.getByText(/EVM Metrics:/i)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/EVM Metrics:/i)).toBeVisible({
+      timeout: 10000,
+    });
 
     // Verify forecast is deleted - check for empty state indicators
     // The table should not be visible
-    await expect(page.locator('.ant-table-body')).not.toBeVisible({ timeout: 5000 });
+    await expect(page.locator(".ant-table-body")).not.toBeVisible({
+      timeout: 5000,
+    });
 
     // The "Create Forecast" button should be visible in the empty state
-    const forecastsTabContent = page.getByRole('tabpanel', { name: 'Forecasts' });
+    const forecastsTabContent = page.getByRole("tabpanel", {
+      name: "Forecasts",
+    });
     await expect(
-      forecastsTabContent.getByRole('button', { name: 'Create Forecast' })
+      forecastsTabContent.getByRole("button", { name: "Create Forecast" }),
     ).toBeVisible({ timeout: 5000 });
 
     // Note: The cost element itself should still exist (forecast deletion doesn't cascade to CE)
@@ -287,12 +303,8 @@ test.describe("Cost Element Forecast E2E Tests (1:1 Relationship)", () => {
     expect(listBody.detail.new_endpoints.get).toContain("/cost-elements/");
   });
 
-  test("New forecast endpoints work correctly", async ({
-    page,
-    request,
-  }) => {
-    const { proj, wbe, type, timestamp, baseURL, token } =
-      await getTestData(page);
+  test("New forecast endpoints work correctly", async ({ page, request }) => {
+    const { wbe, type, timestamp, baseURL, token } = await getTestData(page);
 
     // Create a cost element first
     const createRes = await request.post(`${baseURL}/api/v1/cost-elements`, {
@@ -314,7 +326,7 @@ test.describe("Cost Element Forecast E2E Tests (1:1 Relationship)", () => {
     // GET forecast via new endpoint
     const getRes = await request.get(
       `${baseURL}/api/v1/cost-elements/${costElement.cost_element_id}/forecast`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${token}` } },
     );
     expect(getRes.ok()).toBeTruthy();
     const forecast = await getRes.json();
@@ -333,7 +345,7 @@ test.describe("Cost Element Forecast E2E Tests (1:1 Relationship)", () => {
           eac_amount: 115000,
           basis_of_estimate: "Updated via API",
         },
-      }
+      },
     );
     expect(updateRes.ok()).toBeTruthy();
     const updated = await updateRes.json();
@@ -342,14 +354,14 @@ test.describe("Cost Element Forecast E2E Tests (1:1 Relationship)", () => {
     // DELETE forecast via new endpoint
     const deleteRes = await request.delete(
       `${baseURL}/api/v1/cost-elements/${costElement.cost_element_id}/forecast`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${token}` } },
     );
     expect(deleteRes.ok()).toBeTruthy();
 
     // Verify forecast is deleted
     const getAfterDelete = await request.get(
       `${baseURL}/api/v1/cost-elements/${costElement.cost_element_id}/forecast`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      { headers: { Authorization: `Bearer ${token}` } },
     );
     expect(getAfterDelete.status()).toBe(404);
   });

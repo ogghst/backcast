@@ -10,6 +10,7 @@ import {
   useQueryClient,
   type UseMutationOptions,
   useQuery,
+  type UseQueryOptions,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
@@ -71,7 +72,9 @@ interface ScheduleBaselineListParams {
   branch?: string;
   cost_element_id?: string;
   pagination?: { current?: number; pageSize?: number };
-  queryOptions?: any;
+  queryOptions?: Partial<
+    UseQueryOptions<PaginatedResponse<ScheduleBaselineRead>, Error>
+  >;
 }
 
 /**
@@ -81,12 +84,15 @@ export const useScheduleBaselines = (params?: ScheduleBaselineListParams) => {
   const { asOf, mode, branch: tmBranch } = useTimeMachineParams();
 
   return useQuery<PaginatedResponse<ScheduleBaselineRead>>({
-    queryKey: queryKeys.scheduleBaselines.list({
-      ...params,
-      asOf,
-      mode,
-      branch: tmBranch,
-    }),
+    queryKey: queryKeys.scheduleBaselines.list(
+      params?.cost_element_id || "global",
+      {
+        ...params,
+        asOf,
+        mode,
+        branch: tmBranch,
+      },
+    ),
     queryFn: async () => {
       const {
         branch = tmBranch || "main",
@@ -130,7 +136,7 @@ export const useScheduleBaseline = (
   scheduleBaselineId: string,
   branch: string = "main",
 ) => {
-  const { asOf, mode } = useTimeMachineParams();
+  const { asOf } = useTimeMachineParams();
 
   return useQuery<ScheduleBaselineRead>({
     queryKey: queryKeys.scheduleBaselines.detail(scheduleBaselineId, {

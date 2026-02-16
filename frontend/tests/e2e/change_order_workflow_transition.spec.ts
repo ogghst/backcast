@@ -13,9 +13,6 @@ import { test, expect } from "@playwright/test";
  * - Error messages when attempting invalid transitions
  */
 test.describe("Change Order Workflow Transition", () => {
-  let projectId: string;
-  let changeOrderId: string;
-
   test.beforeEach(async ({ page }) => {
     // Login as admin
     await page.goto("/login");
@@ -24,7 +21,7 @@ test.describe("Change Order Workflow Transition", () => {
     await page.click('button[type="submit"]');
     await page.waitForURL("/");
     await expect(
-      page.getByRole("menuitem", { name: "Dashboard" })
+      page.getByRole("menuitem", { name: "Dashboard" }),
     ).toBeVisible();
 
     // Create a project for testing
@@ -34,9 +31,13 @@ test.describe("Change Order Workflow Transition", () => {
     const timestamp = Date.now();
     const projectCode = `E2E-WORKFLOW-${timestamp}`;
 
-    await page.getByRole("button", { name: "Add Project" }).click({ force: true });
+    await page
+      .getByRole("button", { name: "Add Project" })
+      .click({ force: true });
     await page.getByLabel("Project Code").fill(projectCode);
-    await page.getByLabel("Project Name").fill(`E2E Workflow Test Project ${timestamp}`);
+    await page
+      .getByLabel("Project Name")
+      .fill(`E2E Workflow Test Project ${timestamp}`);
     await page.getByRole("dialog").getByLabel("Budget").fill("100000");
     await page.getByRole("button", { name: "Create" }).click();
     await expect(page.locator(".ant-modal-content")).not.toBeVisible();
@@ -44,14 +45,11 @@ test.describe("Change Order Workflow Transition", () => {
     // Navigate to project detail and store project ID
     await page.click(`text=${projectCode}`);
     await expect(page).toHaveURL(/\/projects\/[a-f0-9-]+$/);
-    const url = page.url();
-    const match = url.match(/\/projects\/([a-f0-9-]+)$/);
-    if (match) {
-      projectId = match[1];
-    }
   });
 
-  test("should transition from Draft to Submitted for Approval", async ({ page }) => {
+  test("should transition from Draft to Submitted for Approval", async ({
+    page,
+  }) => {
     const timestamp = Date.now();
     const coCode = `CO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, "0")}`;
 
@@ -60,10 +58,12 @@ test.describe("Change Order Workflow Transition", () => {
     await page.getByLabel("Change Order Code").fill(coCode);
     await page.getByLabel("Title").fill(`Workflow Test CO ${timestamp}`);
     await page.getByLabel("Status").selectOption("Draft");
-    await page.getByLabel("Description").fill(
-      "This CO tests workflow transitions from Draft to Submitted for Approval. " +
-        "The status field should only show Draft in create mode and valid transitions in edit mode."
-    );
+    await page
+      .getByLabel("Description")
+      .fill(
+        "This CO tests workflow transitions from Draft to Submitted for Approval. " +
+          "The status field should only show Draft in create mode and valid transitions in edit mode.",
+      );
     await page.getByRole("button", { name: "Create" }).click();
     await expect(page.locator(".ant-modal-content")).not.toBeVisible();
 
@@ -78,7 +78,7 @@ test.describe("Change Order Workflow Transition", () => {
 
     // Verify edit modal shows valid transitions (Draft should allow "Submitted for Approval")
     await expect(
-      page.getByRole("dialog").getByText("Edit Change Order")
+      page.getByRole("dialog").getByText("Edit Change Order"),
     ).toBeVisible();
 
     // Get the status field options
@@ -90,11 +90,15 @@ test.describe("Change Order Workflow Transition", () => {
     await expect(dropdown).toBeVisible();
 
     // Verify that "Submitted for Approval" is an option
-    const options = await dropdown.locator(".ant-select-item-option").allTextContents();
+    const options = await dropdown
+      .locator(".ant-select-item-option")
+      .allTextContents();
     expect(options).toContain("Submitted for Approval");
 
     // Select "Submitted for Approval"
-    await page.locator('.ant-select-item-option:has-text("Submitted for Approval")').click();
+    await page
+      .locator('.ant-select-item-option:has-text("Submitted for Approval")')
+      .click();
 
     // Submit the form
     await page.getByRole("button", { name: "Save" }).click();
@@ -103,7 +107,9 @@ test.describe("Change Order Workflow Transition", () => {
     await expect(page.locator(".ant-modal-content")).not.toBeVisible();
 
     // Verify status changed to "Submitted for Approval"
-    await expect(coRow.locator('text="Submitted for Approval"')).toBeVisible({ timeout: 10000 });
+    await expect(coRow.locator('text="Submitted for Approval"')).toBeVisible({
+      timeout: 10000,
+    });
 
     // Check console logs for backend debug messages
     // The backend should log: [DEBUG] Status transition: Draft -> Submitted for Approval
@@ -123,7 +129,9 @@ test.describe("Change Order Workflow Transition", () => {
     await expect(page.locator(".ant-message-error")).not.toBeVisible();
   });
 
-  test("should show locked branch warning when status is Under Review", async ({ page }) => {
+  test("should show locked branch warning when status is Under Review", async ({
+    page,
+  }) => {
     const timestamp = Date.now();
     const coCode = `CO-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 1000)).padStart(3, "0")}`;
 
@@ -132,21 +140,27 @@ test.describe("Change Order Workflow Transition", () => {
     await page.getByLabel("Change Order Code").fill(coCode);
     await page.getByLabel("Title").fill(`Lock Test CO ${timestamp}`);
     await page.getByLabel("Status").selectOption("Draft");
-    await page.getByLabel("Description").fill("Testing branch locking on Under Review status.");
+    await page
+      .getByLabel("Description")
+      .fill("Testing branch locking on Under Review status.");
     await page.getByRole("button", { name: "Create" }).click();
     await expect(page.locator(".ant-modal-content")).not.toBeVisible();
 
     // Transition to Submitted for Approval
     const coRow = page.locator(`tr:has-text("${coCode}")`);
     await coRow.locator('button[title="Edit Change Order"]').click();
-    await page.locator('.ant-select-item-option:has-text("Submitted for Approval")').click();
+    await page
+      .locator('.ant-select-item-option:has-text("Submitted for Approval")')
+      .click();
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.locator(".ant-modal-content")).not.toBeVisible();
 
     // Transition to Under Review
     await coRow.locator('button[title="Edit Change Order"]').click();
     await page.getByLabel("Status").click();
-    await page.locator('.ant-select-item-option:has-text("Under Review")').click();
+    await page
+      .locator('.ant-select-item-option:has-text("Under Review")')
+      .click();
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.locator(".ant-modal-content")).not.toBeVisible();
 
@@ -158,7 +172,7 @@ test.describe("Change Order Workflow Transition", () => {
 
     // The modal should show a warning banner about locked branch
     await expect(
-      page.locator(".ant-alert-warning").filter({ hasText: "Branch Locked" })
+      page.locator(".ant-alert-warning").filter({ hasText: "Branch Locked" }),
     ).toBeVisible();
 
     // The status field should be disabled
@@ -177,7 +191,9 @@ test.describe("Change Order Workflow Transition", () => {
     await page.getByLabel("Change Order Code").fill(coCode);
     await page.getByLabel("Title").fill(`Reject Test CO ${timestamp}`);
     await page.getByLabel("Status").selectOption("Draft");
-    await page.getByLabel("Description").fill("Testing resubmission after rejection.");
+    await page
+      .getByLabel("Description")
+      .fill("Testing resubmission after rejection.");
     await page.getByRole("button", { name: "Create" }).click();
     await expect(page.locator(".ant-modal-content")).not.toBeVisible();
 
@@ -185,14 +201,18 @@ test.describe("Change Order Workflow Transition", () => {
     const coRow = page.locator(`tr:has-text("${coCode}")`);
     await coRow.locator('button[title="Edit Change Order"]').click();
     await page.getByLabel("Status").click();
-    await page.locator('.ant-select-item-option:has-text("Submitted for Approval")').click();
+    await page
+      .locator('.ant-select-item-option:has-text("Submitted for Approval")')
+      .click();
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.locator(".ant-modal-content")).not.toBeVisible();
 
     // Transition to Under Review
     await coRow.locator('button[title="Edit Change Order"]').click();
     await page.getByLabel("Status").click();
-    await page.locator('.ant-select-item-option:has-text("Under Review")').click();
+    await page
+      .locator('.ant-select-item-option:has-text("Under Review")')
+      .click();
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.locator(".ant-modal-content")).not.toBeVisible();
 
@@ -218,7 +238,9 @@ test.describe("Change Order Workflow Transition", () => {
     await expect(dropdown).toBeVisible();
 
     // Verify that "Submitted for Approval" is available for resubmission
-    const options = await dropdown.locator(".ant-select-item-option").allTextContents();
+    const options = await dropdown
+      .locator(".ant-select-item-option")
+      .allTextContents();
     expect(options).toContain("Submitted for Approval");
 
     await page.locator(".ant-modal-close").click();
@@ -230,7 +252,7 @@ test.describe("Change Order Workflow Transition", () => {
 
     // Verify modal is open
     await expect(
-      page.getByRole("dialog").getByText("Create Change Order")
+      page.getByRole("dialog").getByText("Create Change Order"),
     ).toBeVisible();
 
     // Click on the status dropdown
@@ -241,7 +263,9 @@ test.describe("Change Order Workflow Transition", () => {
     await expect(dropdown).toBeVisible();
 
     // Get all available options
-    const options = await dropdown.locator(".ant-select-item-option").allTextContents();
+    const options = await dropdown
+      .locator(".ant-select-item-option")
+      .allTextContents();
 
     // Verify only "Draft" is available in create mode
     expect(options).toEqual(["Draft"]);
@@ -260,9 +284,13 @@ test.describe("Change Order Workflow Transition", () => {
     // Create a Draft Change Order
     await page.getByRole("button", { name: /New Change Order/i }).click();
     await page.getByLabel("Change Order Code").fill(coCode);
-    await page.getByLabel("Title").fill(`Invalid Transition Test CO ${timestamp}`);
+    await page
+      .getByLabel("Title")
+      .fill(`Invalid Transition Test CO ${timestamp}`);
     await page.getByLabel("Status").selectOption("Draft");
-    await page.getByLabel("Description").fill("Testing invalid status transitions.");
+    await page
+      .getByLabel("Description")
+      .fill("Testing invalid status transitions.");
     await page.getByRole("button", { name: "Create" }).click();
     await expect(page.locator(".ant-modal-content")).not.toBeVisible();
 
@@ -279,7 +307,9 @@ test.describe("Change Order Workflow Transition", () => {
     await expect(dropdown).toBeVisible();
 
     // Get all available options
-    const options = await dropdown.locator(".ant-select-item-option").allTextContents();
+    const options = await dropdown
+      .locator(".ant-select-item-option")
+      .allTextContents();
 
     // "Implemented" should NOT be available directly from Draft
     expect(options).not.toContain("Implemented");
@@ -290,7 +320,9 @@ test.describe("Change Order Workflow Transition", () => {
     await page.locator(".ant-modal-close").click();
   });
 
-  test("should display backend debug info in error messages", async ({ page }) => {
+  test("should display backend debug info in error messages", async ({
+    page,
+  }) => {
     // This test verifies that backend debug information is included in error messages
     // when an error occurs during status transition
 
@@ -302,7 +334,9 @@ test.describe("Change Order Workflow Transition", () => {
     await page.getByLabel("Change Order Code").fill(coCode);
     await page.getByLabel("Title").fill(`Debug Info Test ${timestamp}`);
     await page.getByLabel("Status").selectOption("Draft");
-    await page.getByLabel("Description").fill("Testing backend debug info in error messages.");
+    await page
+      .getByLabel("Description")
+      .fill("Testing backend debug info in error messages.");
     await page.getByRole("button", { name: "Create" }).click();
     await expect(page.locator(".ant-modal-content")).not.toBeVisible();
 
@@ -329,6 +363,8 @@ test.describe("Change Order Workflow Transition", () => {
     expect(apiErrors.filter((e) => e.includes(coCode))).toHaveLength(0);
 
     // Verify the update was successful
-    await expect(page.locator(`text=Updated Debug Info Test ${timestamp}`)).toBeVisible();
+    await expect(
+      page.locator(`text=Updated Debug Info Test ${timestamp}`),
+    ).toBeVisible();
   });
 });

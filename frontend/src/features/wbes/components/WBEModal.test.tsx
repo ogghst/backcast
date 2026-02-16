@@ -83,7 +83,7 @@ describe("WBEModal", () => {
       const mockWBE: WBERead = {
         id: "wbe-123",
         wbe_id: "wbe-123",
-        project_id: mockProjectId as any,
+        project_id: mockProjectId,
         code: "1.1",
         name: "Test WBE",
         budget_allocation: 50000,
@@ -93,7 +93,7 @@ describe("WBEModal", () => {
         description: null,
         branch: "main",
         created_at: "2025-01-01T00:00:00Z",
-        created_by: "user-123" as any,
+        created_by: "user-123",
         created_by_name: null,
         parent_name: null,
         deleted_by: null,
@@ -101,7 +101,9 @@ describe("WBEModal", () => {
         transaction_time: null,
       };
 
-      render(<WBEModal {...defaultProps} initialValues={mockWBE} />, { wrapper });
+      render(<WBEModal {...defaultProps} initialValues={mockWBE} />, {
+        wrapper,
+      });
 
       // In main branch, revenue field should not be visible
       expect(screen.queryByText(/Revenue Allocation/i)).not.toBeInTheDocument();
@@ -153,9 +155,13 @@ describe("WBEModal", () => {
    */
   describe("T-F003: Backend validation error display", () => {
     it("displays error when backend validation fails", async () => {
-      const mockOnOk = vi.fn().mockRejectedValue(
-        new Error("Total revenue allocation (€150,000) does not match project contract value (€160,000)")
-      );
+      const mockOnOk = vi
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            "Total revenue allocation (€150,000) does not match project contract value (€160,000)",
+          ),
+        );
 
       render(<WBEModal {...defaultProps} onOk={mockOnOk} />, { wrapper });
 
@@ -181,11 +187,14 @@ describe("WBEModal", () => {
     });
 
     it("clears errors when modal is reopened", async () => {
-      const mockOnOk = vi.fn().mockRejectedValueOnce(
-        new Error("Validation failed")
-      );
+      const mockOnOk = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Validation failed"));
 
-      const { rerender } = render(<WBEModal {...defaultProps} onOk={mockOnOk} />, { wrapper });
+      const { rerender } = render(
+        <WBEModal {...defaultProps} onOk={mockOnOk} />,
+        { wrapper },
+      );
 
       // Trigger error - fill all required fields
       fireEvent.change(screen.getByLabelText(/WBE Name/i), {
@@ -250,7 +259,7 @@ describe("WBEModal", () => {
             name: "Test WBE",
             code: "1.1",
             // revenue_allocation is undefined in main branch (field not visible)
-          })
+          }),
         );
       });
     });

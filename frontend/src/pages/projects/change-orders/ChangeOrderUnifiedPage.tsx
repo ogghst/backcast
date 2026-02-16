@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { Breadcrumb, message, Card, Tabs } from "antd";
 import { Link } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ChangeOrderWorkflowSection } from "@/features/change-orders/components/ChangeOrderWorkflowSection";
 import { ApprovalInfo } from "@/features/change-orders/components/ApprovalInfo";
 import { ChangeOrderSummaryCard } from "@/features/change-orders/components/ChangeOrderSummaryCard";
@@ -68,9 +68,7 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
 
   // Fetch approval information for existing change orders
   const { data: approvalInfo, isLoading: isLoadingApprovalInfo } =
-    useApprovalInfo(
-      changeOrderId && !createMode ? changeOrderId : undefined,
-    );
+    useApprovalInfo(changeOrderId && !createMode ? changeOrderId : undefined);
 
   // Fetch project data for breadcrumb
   const { data: project } = useProject(projectId);
@@ -209,7 +207,9 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
                 <ChangeOrderWorkflowSection
                   changeOrder={changeOrder || null}
                   onActionSuccess={() => {
-                    queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
+                    queryClient.invalidateQueries({
+                      queryKey: queryKeys.changeOrders.all,
+                    });
                   }}
                   useCollapsibleCard
                 />
@@ -221,7 +221,9 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
               children: (
                 <ImpactAnalysisDashboard
                   changeOrderId={changeOrder.change_order_id}
-                  branchName={changeOrder ? `BR-${changeOrder.code}` : undefined}
+                  branchName={
+                    changeOrder ? `BR-${changeOrder.code}` : undefined
+                  }
                   showHeader={false}
                 />
               ),

@@ -39,7 +39,7 @@ function createWrapper(queryClient: QueryClient) {
     return React.createElement(
       QueryClientProvider,
       { client: queryClient },
-      React.createElement(TimeMachineProvider, null, children)
+      React.createElement(TimeMachineProvider, null, children),
     );
   };
 }
@@ -69,7 +69,11 @@ describe("useVersionedCrud Factory", () => {
       const factory = createVersionedResourceHooks(
         "test-resource",
         queryKeys.testResource,
-        mockApiMethods as any
+        mockApiMethods as unknown as VersionedApiMethods<
+          unknown,
+          unknown,
+          unknown
+        >,
       );
 
       // Act
@@ -85,10 +89,11 @@ describe("useVersionedCrud Factory", () => {
       const testQuery = queries.find((q) => q.queryKey[0] === "test-resource");
 
       expect(testQuery).toBeDefined();
-      const queryKey = testQuery!.queryKey as any[];
+      const queryKey = testQuery!.queryKey as unknown[];
       // Context should be in the query key
-      expect(queryKey.some((key) => typeof key === "object" && "branch" in key))
-        .toBe(true);
+      expect(
+        queryKey.some((key) => typeof key === "object" && "branch" in key),
+      ).toBe(true);
     });
 
     it("should include branch, asOf, and mode in all query keys", async () => {
@@ -98,7 +103,11 @@ describe("useVersionedCrud Factory", () => {
       const factory = createVersionedResourceHooks(
         "test-resource",
         queryKeys.testResource,
-        mockApiMethods as any
+        mockApiMethods as unknown as VersionedApiMethods<
+          unknown,
+          unknown,
+          unknown
+        >,
       );
 
       // Act - Test list query
@@ -111,7 +120,7 @@ describe("useVersionedCrud Factory", () => {
         () => factory.useDetail("test-id"),
         {
           wrapper: createWrapper(queryClient),
-        }
+        },
       );
 
       // Assert
@@ -121,18 +130,18 @@ describe("useVersionedCrud Factory", () => {
       // Verify both list and detail queries have context
       const queries = queryClient.getQueryCache().getAll();
       const testQueries = queries.filter(
-        (q) => q.queryKey[0] === "test-resource"
+        (q) => q.queryKey[0] === "test-resource",
       );
 
       expect(testQueries.length).toBeGreaterThanOrEqual(2);
 
       // Each query key should have context params
       testQueries.forEach((query) => {
-        const queryKey = query.queryKey as any[];
+        const queryKey = query.queryKey as unknown[];
         const hasContext = queryKey.some(
           (key) =>
             typeof key === "object" &&
-            ("branch" in key || "asOf" in key || "mode" in key)
+            ("branch" in key || "asOf" in key || "mode" in key),
         );
         expect(hasContext).toBe(true);
       });
@@ -155,7 +164,11 @@ describe("useVersionedCrud Factory", () => {
       const factory = createVersionedResourceHooks(
         "test-resource",
         queryKeys.testResource,
-        mockApiMethods as any
+        mockApiMethods as unknown as VersionedApiMethods<
+          unknown,
+          unknown,
+          unknown
+        >,
       );
 
       // Act
@@ -177,7 +190,11 @@ describe("useVersionedCrud Factory", () => {
       const factory = createVersionedResourceHooks(
         "test-resource",
         queryKeys.testResource,
-        mockApiMethods as any
+        mockApiMethods as unknown as VersionedApiMethods<
+          unknown,
+          unknown,
+          unknown
+        >,
       );
 
       // Act
@@ -207,12 +224,16 @@ describe("useVersionedCrud Factory", () => {
       const factory = createVersionedResourceHooks(
         "test-resource",
         queryKeys.testResource,
-        mockApiMethods as any,
+        mockApiMethods as unknown as VersionedApiMethods<
+          unknown,
+          unknown,
+          unknown
+        >,
         {
           invalidation: {
             create: [queryKeys.forecasts.all],
           },
-        }
+        },
       );
 
       // Act

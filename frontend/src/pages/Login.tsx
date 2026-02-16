@@ -1,13 +1,11 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Form, Input, Button, Alert, Typography } from "antd";
+import { Form, Input, Button, Alert } from "antd";
 import { UserOutlined, LockOutlined } from "@ant-design/icons";
 import { useAuth } from "@/hooks/useAuth";
 import { AuthLayout } from "@/layouts/AuthLayout";
 import type { UserLogin } from "@/types/auth";
 import { getErrorMessage } from "@/utils/apiError";
-
-const { Text } = Typography;
 
 export default function Login() {
   const navigate = useNavigate();

@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
-import { useAuth } from "@/hooks/useAuth";
+
 import {
   ProgressEntriesService,
   type ProgressEntryRead,
