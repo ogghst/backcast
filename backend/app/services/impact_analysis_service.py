@@ -1225,12 +1225,26 @@ class ImpactAnalysisService:
                 )
                 .where(
                     WBE.project_id == project_id,
-                    cast(Any, ScheduleBaseline).deleted_at.is_(None),
+                    # ZOMBIE PROTECTION for ScheduleBaseline
+                    or_(
+                        cast(Any, ScheduleBaseline).deleted_at.is_(None),
+                        cast(Any, ScheduleBaseline).deleted_at > as_of,
+                    ),
                     # Time machine: Only include schedules/WBEs/CostElements valid at as_of
                     ScheduleBaseline.valid_time.op("@>")(as_of_tstz),
                     func.lower(ScheduleBaseline.valid_time) <= as_of_tstz,
+                    # ZOMBIE PROTECTION for WBE
+                    or_(
+                        cast(Any, WBE).deleted_at.is_(None),
+                        cast(Any, WBE).deleted_at > as_of,
+                    ),
                     WBE.valid_time.op("@>")(as_of_tstz),
                     func.lower(WBE.valid_time) <= as_of_tstz,
+                    # ZOMBIE PROTECTION for CostElement
+                    or_(
+                        cast(Any, CostElement).deleted_at.is_(None),
+                        cast(Any, CostElement).deleted_at > as_of,
+                    ),
                     CostElement.valid_time.op("@>")(as_of_tstz),
                     func.lower(CostElement.valid_time) <= as_of_tstz,
                 )
@@ -1324,7 +1338,11 @@ class ImpactAnalysisService:
                 .where(
                     WBE.project_id == project_id,
                     CostElement.branch.in_(["main", branch_name]),
-                    CostElement.deleted_at.is_(None),
+                    # ZOMBIE PROTECTION for CostElement
+                    or_(
+                        cast(Any, CostElement).deleted_at.is_(None),
+                        cast(Any, CostElement).deleted_at > as_of,
+                    ),
                     # Time machine: Only include cost elements valid at as_of
                     CostElement.valid_time.op("@>")(as_of_tstz),
                     func.lower(CostElement.valid_time) <= as_of_tstz,
@@ -1364,7 +1382,11 @@ class ImpactAnalysisService:
                 .where(
                     WBE.project_id == project_id,
                     CostElement.branch.in_(["main", branch_name]),
-                    ProgressEntry.deleted_at.is_(None),
+                    # ZOMBIE PROTECTION for ProgressEntry
+                    or_(
+                        ProgressEntry.deleted_at.is_(None),
+                        ProgressEntry.deleted_at > as_of,
+                    ),
                     # Time machine: Only include progress entries valid at as_of
                     ProgressEntry.valid_time.op("@>")(as_of_tstz),
                     func.lower(ProgressEntry.valid_time) <= as_of_tstz,
@@ -1417,7 +1439,11 @@ class ImpactAnalysisService:
                 .where(
                     WBE.project_id == project_id,
                     CostElement.branch.in_(["main", branch_name]),
-                    CostRegistration.deleted_at.is_(None),
+                    # ZOMBIE PROTECTION for CostRegistration
+                    or_(
+                        CostRegistration.deleted_at.is_(None),
+                        CostRegistration.deleted_at > as_of,
+                    ),
                     # Time machine: Only include cost registrations valid at as_of
                     CostRegistration.valid_time.op("@>")(as_of_tstz),
                     func.lower(CostRegistration.valid_time) <= as_of_tstz,
@@ -1672,7 +1698,11 @@ class ImpactAnalysisService:
                 .where(
                     WBE.project_id == project_id,
                     WBE.branch == "main",
-                    WBE.deleted_at.is_(None),
+                    # ZOMBIE PROTECTION: Entity visible if not deleted, or deleted AFTER as_of
+                    or_(
+                        cast(Any, WBE).deleted_at.is_(None),
+                        cast(Any, WBE).deleted_at > as_of,
+                    ),
                     WBE.valid_time.op("@>")(as_of_tstz),
                     func.lower(WBE.valid_time) <= as_of_tstz,
                 )
@@ -1698,7 +1728,11 @@ class ImpactAnalysisService:
                 .where(
                     WBE.project_id == project_id,
                     WBE.branch == branch_name,
-                    WBE.deleted_at.is_(None),
+                    # ZOMBIE PROTECTION: Entity visible if not deleted, or deleted AFTER as_of
+                    or_(
+                        cast(Any, WBE).deleted_at.is_(None),
+                        cast(Any, WBE).deleted_at > as_of,
+                    ),
                     WBE.valid_time.op("@>")(as_of_tstz),
                     func.lower(WBE.valid_time) <= as_of_tstz,
                 )

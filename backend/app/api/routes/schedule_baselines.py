@@ -75,9 +75,7 @@ async def read_schedule_baselines(
     skip = (page - 1) * per_page
 
     # Build base statement
-    stmt = select(ScheduleBaseline).where(
-        cast(Any, ScheduleBaseline).deleted_at.is_(None),
-    )
+    stmt = select(ScheduleBaseline)
 
     # Build query with branch and mode support
     # In MERGE mode, query both current branch and main
@@ -90,6 +88,10 @@ async def read_schedule_baselines(
         stmt = stmt.where(ScheduleBaseline.branch == branch)
 
     # Apply time-travel filter if as_of is provided
+    # CRITICAL: Use proper zombie protection for time-travel queries
+    # per temporal-query-reference.md
+    from sqlalchemy import or_
+
     if as_of:
         # Cast as_of to TIMESTAMP(timezone=True) for proper timezone handling with TSTZRANGE
         from sqlalchemy import cast as sql_cast
@@ -97,11 +99,17 @@ async def read_schedule_baselines(
         stmt = stmt.where(
             cast(Any, ScheduleBaseline).valid_time.op("@>")(as_of_tstz),
             func.lower(cast(Any, ScheduleBaseline).valid_time) <= as_of_tstz,
+            # ZOMBIE PROTECTION: Entity visible if not deleted, or deleted AFTER as_of
+            or_(
+                cast(Any, ScheduleBaseline).deleted_at.is_(None),
+                cast(Any, ScheduleBaseline).deleted_at > as_of_tstz,
+            ),
         )
     else:
-        # Current version only
+        # Current version only (no as_of provided - should not reach here due to default)
         stmt = stmt.where(
-            func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None)
+            func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None),
+            cast(Any, ScheduleBaseline).deleted_at.is_(None),
         )
 
     # Apply optional filters
