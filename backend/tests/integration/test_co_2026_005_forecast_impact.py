@@ -270,6 +270,10 @@ class TestCO2026005ForecastImpact:
         """Test impact analysis at project creation time (end of day).
 
         as_of = project.start_date end of day (2026-01-07T23:59:59Z)
+
+        EXPECTED: forecast_changes is None because the seed data for BR-CO-2026-005
+        has valid_time starting at 2026-01-31, which is AFTER the query time.
+        This is correct time-travel behavior - querying before data exists returns None.
         """
         co, project = co_and_project
         assert co.branch_name is not None, "branch_name should not be None"
@@ -287,11 +291,12 @@ class TestCO2026005ForecastImpact:
         )
 
         # Verify forecast changes at project start
-        assert impact.forecast_changes is not None
-
-        # Count NEW forecasts at project start
-        new_forecasts = _get_new_forecasts(impact.forecast_changes)
-        assert len(new_forecasts) == EXPECTED_FORECAST_COUNT
+        # EXPECTED: None because data doesn't exist yet (valid_time starts 2026-01-31)
+        assert impact.forecast_changes is None, (
+            "forecast_changes should be None when querying before data exists. "
+            "Seed data for BR-CO-2026-005 starts at 2026-01-31, "
+            "but query time is 2026-01-07."
+        )
 
     @pytest.mark.asyncio
     async def test_impact_at_project_end_date(
@@ -335,55 +340,96 @@ class TestCO2026005ForecastImpact:
     async def test_impact_consistency_across_time(
         self, seeded_session: AsyncSession, co_and_project: tuple[ChangeOrder, Project]
     ) -> None:
-        """Test that impact analysis returns consistent results across time points.
+        """Test time-travel behavior: before data exists vs after data exists.
 
-        For this static seed data, NEW forecast counts and totals should be
-        identical at project start and project end.
+        EXPECTED behavior:
+        - Query BEFORE data exists (2026-01-07): forecast_changes is None
+        - Query AFTER data exists (2027-01-07): forecast_changes has data
         """
         co, project = co_and_project
         assert co.branch_name is not None, "branch_name should not be None"
 
         service = ImpactAnalysisService(seeded_session)
 
-        # Impact at project start
-        as_of_start = datetime(2026, 1, 7, 23, 59, 59, tzinfo=UTC)
-        impact_start = await service.analyze_impact(
+        # Impact BEFORE data exists (2026-01-07)
+        as_of_before = datetime(2026, 1, 7, 23, 59, 59, tzinfo=UTC)
+        impact_before = await service.analyze_impact(
             change_order_id=co.change_order_id,
             branch_name=co.branch_name,
             branch_mode=BranchMode.MERGE,
             include_evm_metrics=False,
-            as_of=as_of_start,
+            as_of=as_of_before,
         )
 
-        # Impact at project end
-        as_of_end = datetime(2027, 1, 7, 23, 59, 59, tzinfo=UTC)
-        impact_end = await service.analyze_impact(
+        # Impact AFTER data exists (2027-01-07)
+        as_of_after = datetime(2027, 1, 7, 23, 59, 59, tzinfo=UTC)
+        impact_after = await service.analyze_impact(
             change_order_id=co.change_order_id,
             branch_name=co.branch_name,
             branch_mode=BranchMode.MERGE,
             include_evm_metrics=False,
-            as_of=as_of_end,
+            as_of=as_of_after,
         )
 
-        # Count NEW forecasts at both time points
-        assert impact_start.forecast_changes is not None
-        assert impact_end.forecast_changes is not None
+        # BEFORE: No data exists yet (seed data starts 2026-01-31)
+        assert impact_before.forecast_changes is None, (
+            "forecast_changes should be None when querying before data exists"
+        )
 
-        new_forecasts_start = _get_new_forecasts(impact_start.forecast_changes)
-        new_forecasts_end = _get_new_forecasts(impact_end.forecast_changes)
+        # AFTER: Data exists, should have forecast changes
+        assert impact_after.forecast_changes is not None, (
+            "forecast_changes should be populated when querying after data exists"
+        )
 
-        # NEW forecast counts should match
-        assert len(new_forecasts_start) == len(new_forecasts_end) == EXPECTED_FORECAST_COUNT
+        new_forecasts_after = _get_new_forecasts(impact_after.forecast_changes)
+        assert len(new_forecasts_after) == EXPECTED_FORECAST_COUNT
 
-        # Total EAC for NEW forecasts should match
-        eac_start = sum(
+        # Total EAC for NEW forecasts should match expected
+        eac_after = sum(
             fc.branch_forecast.eac_amount
-            for fc in new_forecasts_start
+            for fc in new_forecasts_after
             if fc.branch_forecast
         )
-        eac_end = sum(
+        assert eac_after == EXPECTED_TOTAL_BRANCH_EAC
+
+    @pytest.mark.asyncio
+    async def test_impact_at_data_creation_time(
+        self, seeded_session: AsyncSession, co_and_project: tuple[ChangeOrder, Project]
+    ) -> None:
+        """Test impact analysis at the exact time when data was created.
+
+        as_of = 2026-02-01T00:00:00Z (after seed data valid_time starts at 2026-01-31)
+
+        EXPECTED: forecast_changes has data because the query is AFTER valid_time starts.
+        """
+        co, project = co_and_project
+        assert co.branch_name is not None, "branch_name should not be None"
+
+        # Query at a time AFTER seed data was created
+        as_of_creation = datetime(2026, 2, 1, 0, 0, 0, tzinfo=UTC)
+
+        service = ImpactAnalysisService(seeded_session)
+        impact = await service.analyze_impact(
+            change_order_id=co.change_order_id,
+            branch_name=co.branch_name,
+            branch_mode=BranchMode.MERGE,
+            include_evm_metrics=False,
+            as_of=as_of_creation,
+        )
+
+        # Verify forecast changes at data creation time
+        assert impact.forecast_changes is not None, (
+            "forecast_changes should be populated when querying after data exists"
+        )
+
+        # Count NEW forecasts at data creation time
+        new_forecasts = _get_new_forecasts(impact.forecast_changes)
+        assert len(new_forecasts) == EXPECTED_FORECAST_COUNT
+
+        # Verify total EAC
+        total_branch_eac = sum(
             fc.branch_forecast.eac_amount
-            for fc in new_forecasts_end
+            for fc in new_forecasts
             if fc.branch_forecast
         )
-        assert eac_start == eac_end == EXPECTED_TOTAL_BRANCH_EAC
+        assert total_branch_eac == EXPECTED_TOTAL_BRANCH_EAC

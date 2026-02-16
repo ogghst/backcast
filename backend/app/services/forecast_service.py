@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.service import BranchableService
@@ -368,12 +368,14 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         self,
         cost_element_ids: builtins.list[UUID],
         branch: str = "main",
+        as_of: datetime | None = None,
     ) -> dict[UUID, Forecast]:
         """Get forecasts for multiple cost elements efficiently.
 
         Args:
             cost_element_ids: List of cost element UUIDs
             branch: Branch name (default: "main")
+            as_of: Time travel timestamp (None = current, past = historical point)
 
         Returns:
             Dictionary mapping cost_element_id to Forecast
@@ -384,24 +386,59 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         # Query via CostElement.forecast_id (inverted FK)
         # Note: Forecasts are not branched separately - they follow the cost element
         # So we filter by cost element branch but NOT forecast branch
-        stmt = (
-            select(
-                CostElement.cost_element_id,
-                Forecast
+        # Use sql_cast for time-travel pattern
+        if as_of is not None:
+            from sqlalchemy import cast as sql_cast
+            from sqlalchemy.dialects.postgresql import TIMESTAMP
+
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            stmt = (
+                select(
+                    CostElement.cost_element_id,
+                    Forecast
+                )
+                .join(CostElement, CostElement.forecast_id == Forecast.forecast_id)
+                .where(
+                    CostElement.cost_element_id.in_(cost_element_ids),
+                    CostElement.branch == branch,
+                    # CRITICAL: Only match cost elements WITH a forecast
+                    CostElement.forecast_id.is_not(None),
+                    # Zombie protection: Entity visible if not deleted, or deleted AFTER as_of
+                    or_(
+                        Forecast.deleted_at.is_(None),
+                        Forecast.deleted_at > as_of,
+                    ),
+                    or_(
+                        cast(Any, CostElement).deleted_at.is_(None),
+                        cast(Any, CostElement).deleted_at > as_of,
+                    ),
+                    # Time machine: Only include forecasts valid at as_of
+                    Forecast.valid_time.op("@>")(as_of_tstz),
+                    func.lower(Forecast.valid_time) <= as_of_tstz,
+                    CostElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                )
             )
-            .join(CostElement, CostElement.forecast_id == Forecast.forecast_id)
-            .where(
-                CostElement.cost_element_id.in_(cost_element_ids),
-                CostElement.branch == branch,
-                # CRITICAL: Only match cost elements WITH a forecast
-                CostElement.forecast_id.is_not(None),
-                # "Current" filter (no as_of)
-                func.upper(Forecast.valid_time).is_(None),
-                Forecast.deleted_at.is_(None),
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
+        else:
+            # No time filtering - get current forecasts
+            stmt = (
+                select(
+                    CostElement.cost_element_id,
+                    Forecast
+                )
+                .join(CostElement, CostElement.forecast_id == Forecast.forecast_id)
+                .where(
+                    CostElement.cost_element_id.in_(cost_element_ids),
+                    CostElement.branch == branch,
+                    # CRITICAL: Only match cost elements WITH a forecast
+                    CostElement.forecast_id.is_not(None),
+                    # "Current" filter (no as_of)
+                    func.upper(Forecast.valid_time).is_(None),
+                    Forecast.deleted_at.is_(None),
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                )
             )
-        )
 
         result = await self.session.execute(stmt)
 

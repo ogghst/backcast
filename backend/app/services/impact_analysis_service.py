@@ -22,7 +22,7 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy import cast as sql_cast
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,6 +31,7 @@ from app.core.versioning.enums import BranchMode
 from app.models.domain.change_order import ChangeOrder
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_registration import CostRegistration
+from app.models.domain.forecast import Forecast
 from app.models.domain.project import Project
 from app.models.domain.schedule_baseline import ScheduleBaseline
 from app.models.domain.wbe import WBE
@@ -375,7 +376,7 @@ class ImpactAnalysisService:
         entity_changes = await self._compare_entities(project_id, branch_name)
 
         # Compare forecasts
-        forecast_changes = await self._compare_forecasts(project_id, branch_name)
+        forecast_changes = await self._compare_forecasts(project_id, branch_name, as_of)
 
         # Build waterfall chart
         margin_delta = change_gross_margin - main_gross_margin
@@ -1986,43 +1987,92 @@ class ImpactAnalysisService:
             }
 
     async def _compare_forecasts(
-        self, project_id: UUID, branch_name: str
+        self, project_id: UUID, branch_name: str, as_of: datetime | None = None
     ) -> ForecastChanges | None:
-        """Compare forecasts between main and change branches.
+        """Compare forecasts between main and change branches using MERGE mode.
+
+        Builds a merged forecast view where branch forecasts override main forecasts,
+        then compares main vs merged to identify changes.
+
+        Time Machine (as_of):
+        - When as_of is provided, filters all temporal data (CostElement, Forecast)
+          to include only entities with valid_time starting before or at the as_of timestamp
+        - When as_of is None, returns current state (no temporal filtering)
 
         Returns:
-            ForecastChanges with EAC comparisons for cost elements that have
-            forecasts in at least one branch.
+            ForecastChanges with EAC comparisons for cost elements with forecast changes.
+            Only returns forecasts that have been added, modified, or removed.
         """
         from app.services.forecast_service import ForecastService
 
         forecast_service = ForecastService(self._db)
 
-        # Get all cost elements for project from both branches
-        main_ce_stmt = (
-            select(CostElement)
-            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
-            .where(
-                WBE.project_id == project_id,
-                CostElement.branch == "main",
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
+        # ========================================
+        # STEP 1: Get cost elements using proper temporal filtering
+        # ========================================
+        # Use sql_cast for consistency with time-travel pattern
+        if as_of is not None:
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            main_ce_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == "main",
+                    # Zombie protection: Entity visible if not deleted, or deleted AFTER as_of
+                    or_(
+                        cast(Any, CostElement).deleted_at.is_(None),
+                        cast(Any, CostElement).deleted_at > as_of,
+                    ),
+                    CostElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                )
+                .order_by(cast(Any, CostElement).valid_time.desc())
             )
-        )
+            change_ce_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == branch_name,
+                    # Zombie protection
+                    or_(
+                        cast(Any, CostElement).deleted_at.is_(None),
+                        cast(Any, CostElement).deleted_at > as_of,
+                    ),
+                    CostElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                )
+                .order_by(cast(Any, CostElement).valid_time.desc())
+            )
+        else:
+            # No time filtering - get current cost elements
+            main_ce_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == "main",
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                )
+                .order_by(cast(Any, CostElement).valid_time.desc())
+            )
+            change_ce_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == branch_name,
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                )
+                .order_by(cast(Any, CostElement).valid_time.desc())
+            )
+
         main_ce_result = await self._db.execute(main_ce_stmt)
         main_cost_elements = main_ce_result.scalars().all()
 
-        # Get cost elements from change branch
-        change_ce_stmt = (
-            select(CostElement)
-            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
-            .where(
-                WBE.project_id == project_id,
-                CostElement.branch == branch_name,
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
-            )
-        )
         change_ce_result = await self._db.execute(change_ce_stmt)
         change_cost_elements = change_ce_result.scalars().all()
 
@@ -2030,37 +2080,65 @@ class ImpactAnalysisService:
         if not main_cost_elements and not change_cost_elements:
             return None
 
-        # Get forecasts for main branch
+        # ========================================
+        # STEP 2: Get forecasts with as_of support
+        # ========================================
         main_ce_ids = [ce.cost_element_id for ce in main_cost_elements]
         main_forecasts = await forecast_service.get_forecasts_for_cost_elements(
-            main_ce_ids, branch="main"
+            main_ce_ids, branch="main", as_of=as_of
         )
 
-        # Get forecasts for change branch
         change_ce_ids = [ce.cost_element_id for ce in change_cost_elements]
         change_forecasts = await forecast_service.get_forecasts_for_cost_elements(
-            change_ce_ids, branch=branch_name
+            change_ce_ids, branch=branch_name, as_of=as_of
         )
 
-        # Build lookup maps for cost elements by ID
+        # ========================================
+        # STEP 3: Build merged forecast view (MERGE MODE)
+        # ========================================
+        # Key: Branch forecasts override main forecasts; main forecasts are inherited
+        merged_forecasts: dict[UUID, Forecast] = {}
+
+        # First, add all main forecasts to merged view (base layer)
+        for ce_id, forecast in main_forecasts.items():
+            merged_forecasts[ce_id] = forecast
+
+        # Then, override with branch forecasts (branch takes precedence)
+        for ce_id, forecast in change_forecasts.items():
+            merged_forecasts[ce_id] = forecast
+
+        # ========================================
+        # STEP 4: Compare main vs merged view to identify changes
+        # ========================================
         main_ce_map = {ce.cost_element_id: ce for ce in main_cost_elements}
         change_ce_map = {ce.cost_element_id: ce for ce in change_cost_elements}
 
-        # Build comparisons for cost elements with forecasts in at least one branch
-        all_ce_ids = set(main_forecasts.keys()) | set(change_forecasts.keys())
         comparisons: list[ForecastComparison] = []
+        all_ce_ids = set(main_ce_map.keys()) | set(change_ce_map.keys())
 
         for ce_id in all_ce_ids:
-            # Find the cost element (prefer change branch if exists)
             ce = change_ce_map.get(ce_id) or main_ce_map.get(ce_id)
             if not ce:
                 continue
 
             main_fcast = main_forecasts.get(ce_id)
-            change_fcast = change_forecasts.get(ce_id)
+            merged_fcast = merged_forecasts.get(ce_id)
 
-            # Include if there's a forecast in at least one branch
-            if main_fcast or change_fcast:
+            # Determine change type
+            is_added = main_fcast is None and merged_fcast is not None
+            is_removed = main_fcast is not None and merged_fcast is None
+            is_modified = (
+                main_fcast is not None
+                and merged_fcast is not None
+                and main_fcast.eac_amount != merged_fcast.eac_amount
+            )
+
+            # Only include if there's a change
+            if is_added or is_removed or is_modified:
+                # Get actual branch forecast for frontend compatibility
+                # (may be None if removed, or the branch forecast otherwise)
+                branch_fcast_for_frontend = change_forecasts.get(ce_id)
+
                 comparisons.append(
                     ForecastComparison(
                         cost_element_id=ce_id,
@@ -2071,9 +2149,9 @@ class ImpactAnalysisService:
                         main_forecast=ForecastRead.model_validate(main_fcast)
                         if main_fcast
                         else None,
-                        change_eac=change_fcast.eac_amount if change_fcast else None,
-                        branch_forecast=ForecastRead.model_validate(change_fcast)
-                        if change_fcast
+                        change_eac=merged_fcast.eac_amount if merged_fcast else None,
+                        branch_forecast=ForecastRead.model_validate(branch_fcast_for_frontend)
+                        if branch_fcast_for_frontend
                         else None,
                     )
                 )
