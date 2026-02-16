@@ -802,6 +802,10 @@ async def recover_change_order(
 async def get_change_order_approval_info(
     change_order_id: UUID,
     branch: str = Query("main", description="Branch name"),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get approval info as of this timestamp (ISO 8601)",
+    ),
     current_user: User = Depends(get_current_active_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ApprovalInfoPublic:
@@ -820,8 +824,8 @@ async def get_change_order_approval_info(
     from app.services.impact_analysis_service import ImpactAnalysisService
 
     try:
-        # Get change order
-        co = await service.get_current(change_order_id, branch=branch)
+        # Get change order (supports time travel with as_of)
+        co = await service.get_by_root_id(change_order_id, branch=branch, as_of=as_of)
         if not co:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

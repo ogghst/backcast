@@ -2,7 +2,8 @@ import { useQuery, UseQueryOptions } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import type { ApprovalInfoPublic } from "@/api/generated";
-import { ChangeOrdersService } from "@/api/generated/services/ChangeOrdersService";
+import { OpenAPI } from "@/api/generated/core/OpenAPI";
+import { request as __request } from "@/api/generated/core/request";
 
 // Re-export ApprovalInfoPublic as ApprovalInfo for backward compatibility
 export type ApprovalInfo = ApprovalInfoPublic;
@@ -45,16 +46,23 @@ export const useApprovalInfo = (
   const changeOrderId = typeof params === "string" ? params : params?.changeOrderId;
   const paramBranch = typeof params === "object" ? params?.branch : undefined;
 
-  // Get branch from time machine context with fallback
-  const { branch: tmBranch } = useTimeMachineParams();
+  // Get branch and asOf from time machine context with fallback
+  const { branch: tmBranch, asOf } = useTimeMachineParams();
   const branch = paramBranch || tmBranch || "main";
 
   return useQuery({
-    queryKey: queryKeys.changeOrders.approvalInfo(changeOrderId || ""),
+    queryKey: queryKeys.changeOrders.approvalInfo(changeOrderId || "", { asOf }),
     queryFn: async () => {
       if (!changeOrderId) throw new Error("Change Order ID is required");
 
-      return ChangeOrdersService.getChangeOrderApprovalInfo(changeOrderId, branch) as Promise<ApprovalInfoPublic>;
+      return __request(OpenAPI, {
+        method: "GET",
+        url: `/api/v1/change-orders/${changeOrderId}/approval-info`,
+        query: {
+          branch: branch,
+          as_of: asOf || undefined,
+        },
+      }) as Promise<ApprovalInfoPublic>;
     },
     enabled: !!changeOrderId,
     ...queryOptions,

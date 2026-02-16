@@ -128,8 +128,8 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     details: () => ["change-orders", "detail"] as const,
     detail: (id: string, context?: unknown) =>
       ["change-orders", "detail", id, context] as const,
-    impact: (id: string, branchName?: string, mode?: string) =>
-      ["change-orders", id, "impact", branchName, mode] as const,
+    impact: (id: string, branchName?: string, mode?: string, context?: unknown) =>
+      ["change-orders", id, "impact", branchName, mode, context] as const,
     mergeConflicts: (
       changeOrderId: string,
       sourceBranch: string,
@@ -143,8 +143,8 @@ export const queryKeys = createQueryKeys("backcast-evs", {
         targetBranch,
       ] as const,
     branches: ["change-orders", "branches"] as const,
-    approvalInfo: (id: string) =>
-      ["change-orders", id, "approval-info"] as const,
+    approvalInfo: (id: string, context?: unknown) =>
+      ["change-orders", id, "approval-info", context] as const,
     pendingApprovals: (params?: unknown) =>
       ["pending-approvals", params] as const,
     stats: (projectId: string, context?: unknown) =>

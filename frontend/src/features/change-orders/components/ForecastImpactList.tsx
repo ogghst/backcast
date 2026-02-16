@@ -9,14 +9,14 @@ interface ForecastRead {
 }
 
 interface ForecastComparison {
-  cost_element_id: string;
-  cost_element_code: string;
-  cost_element_name: string;
-  budget_amount: number;
-  main_eac?: number;
-  main_forecast?: ForecastRead;
-  change_eac?: number;
-  branch_forecast?: ForecastRead;
+  costElementId: string;
+  costElementCode: string;
+  costElementName: string;
+  budgetAmount: number;
+  mainEac?: number;
+  mainForecast?: ForecastRead;
+  changeEac?: number;
+  branchForecast?: ForecastRead;
 }
 
 interface ForecastImpactListProps {
@@ -72,7 +72,7 @@ export const ForecastImpactList = ({
 
   // Filter to only show forecasts that exist in at least one branch
   const activeForecasts = forecasts.filter(
-    (f) => f.main_forecast || f.branch_forecast
+    (f) => f.mainForecast || f.branchForecast
   );
 
   if (activeForecasts.length === 0) {
@@ -91,9 +91,9 @@ export const ForecastImpactList = ({
       width: "25%",
       render: (_, record) => (
         <div>
-          <div style={{ fontWeight: 500 }}>{record.cost_element_code}</div>
-          <div style={{ fontSize: 12, color: "#8c8c8c" }}>{record.cost_element_name}</div>
-          <div style={{ fontSize: 11, color: token.colorTextTertiary }}>BAC: {formatCurrency(record.budget_amount)}</div>
+          <div style={{ fontWeight: 500 }}>{record.costElementCode}</div>
+          <div style={{ fontSize: 12, color: "#8c8c8c" }}>{record.costElementName}</div>
+          <div style={{ fontSize: 11, color: token.colorTextTertiary }}>BAC: {formatCurrency(record.budgetAmount)}</div>
         </div>
       ),
     },
@@ -110,13 +110,13 @@ export const ForecastImpactList = ({
       width: "18%",
       align: "right" as const,
       render: (_, record) => {
-        const eac = record.main_forecast
-          ? Number(record.main_forecast.eac_amount)
-          : (record.main_eac ?? null);
+        const eac = record.mainForecast
+          ? Number(record.mainForecast.eac_amount)
+          : (record.mainEac ?? null);
         if (eac === null) {
           return <span style={{ color: token.colorTextSecondary }}>-</span>;
         }
-        const vac = calculateVAC(record.budget_amount, eac);
+        const vac = calculateVAC(record.budgetAmount, eac);
         const status = getVACStatus(vac);
         return (
           <div>
@@ -141,13 +141,13 @@ export const ForecastImpactList = ({
       width: "18%",
       align: "right" as const,
       render: (_, record) => {
-        const eac = record.branch_forecast
-          ? Number(record.branch_forecast.eac_amount)
-          : (record.change_eac ?? null);
+        const eac = record.branchForecast
+          ? Number(record.branchForecast.eac_amount)
+          : (record.changeEac ?? null);
         if (eac === null) {
           return <span style={{ color: token.colorTextSecondary }}>-</span>;
         }
-        const vac = calculateVAC(record.budget_amount, eac);
+        const vac = calculateVAC(record.budgetAmount, eac);
         const status = getVACStatus(vac);
         return (
           <div>
@@ -165,12 +165,12 @@ export const ForecastImpactList = ({
       width: "18%",
       align: "right" as const,
       render: (_, record) => {
-        const mainEAC = record.main_forecast
-          ? Number(record.main_forecast.eac_amount)
-          : (record.main_eac ?? null);
-        const branchEAC = record.branch_forecast
-          ? Number(record.branch_forecast.eac_amount)
-          : (record.change_eac ?? null);
+        const mainEAC = record.mainForecast
+          ? Number(record.mainForecast.eac_amount)
+          : (record.mainEac ?? null);
+        const branchEAC = record.branchForecast
+          ? Number(record.branchForecast.eac_amount)
+          : (record.changeEac ?? null);
 
         if (mainEAC === null && branchEAC === null) {
           return <span style={{ color: token.colorTextSecondary }}>-</span>;
@@ -225,19 +225,19 @@ export const ForecastImpactList = ({
       key: "statusChange",
       width: "15%",
       render: (_, record) => {
-        const mainEAC = record.main_forecast
-          ? Number(record.main_forecast.eac_amount)
-          : (record.main_eac ?? null);
-        const branchEAC = record.branch_forecast
-          ? Number(record.branch_forecast.eac_amount)
-          : (record.change_eac ?? null);
+        const mainEAC = record.mainForecast
+          ? Number(record.mainForecast.eac_amount)
+          : (record.mainEac ?? null);
+        const branchEAC = record.branchForecast
+          ? Number(record.branchForecast.eac_amount)
+          : (record.changeEac ?? null);
 
         if (mainEAC === null || branchEAC === null) {
           return <span style={{ color: token.colorTextSecondary }}>-</span>;
         }
 
-        const mainVAC = calculateVAC(record.budget_amount, mainEAC);
-        const branchVAC = calculateVAC(record.budget_amount, branchEAC);
+        const mainVAC = calculateVAC(record.budgetAmount, mainEAC);
+        const branchVAC = calculateVAC(record.budgetAmount, branchEAC);
         const mainStatus = getVACStatus(mainVAC);
         const branchStatus = getVACStatus(branchVAC);
 
@@ -266,27 +266,27 @@ export const ForecastImpactList = ({
 
   // Calculate summary statistics
   const totalMainEAC = activeForecasts.reduce((sum, f) => {
-    return sum + (f.main_forecast ? Number(f.main_forecast.eac_amount) : (f.main_eac ?? 0));
+    return sum + (f.mainForecast ? Number(f.mainForecast.eac_amount) : (f.mainEac ?? 0));
   }, 0);
 
   const totalBranchEAC = activeForecasts.reduce((sum, f) => {
-    return sum + (f.branch_forecast ? Number(f.branch_forecast.eac_amount) : (f.change_eac ?? 0));
+    return sum + (f.branchForecast ? Number(f.branchForecast.eac_amount) : (f.changeEac ?? 0));
   }, 0);
 
   const totalDelta = totalBranchEAC - totalMainEAC;
   const deltaPercent = totalMainEAC > 0 ? (totalDelta / totalMainEAC) * 100 : 0;
 
   const forecastAddedCount = activeForecasts.filter(
-    (f) => !f.main_forecast && f.branch_forecast
+    (f) => !f.mainForecast && f.branchForecast
   ).length;
   const forecastsRemovedCount = activeForecasts.filter(
-    (f) => f.main_forecast && !f.branch_forecast
+    (f) => f.mainForecast && !f.branchForecast
   ).length;
   const forecastsModifiedCount = activeForecasts.filter(
     (f) =>
-      f.main_forecast &&
-      f.branch_forecast &&
-      Number(f.main_forecast.eac_amount) !== Number(f.branch_forecast.eac_amount)
+      f.mainForecast &&
+      f.branchForecast &&
+      Number(f.mainForecast.eac_amount) !== Number(f.branchForecast.eac_amount)
   ).length;
 
   return (
@@ -343,7 +343,7 @@ export const ForecastImpactList = ({
       <Table
         dataSource={activeForecasts}
         columns={columns}
-        rowKey={(record) => record.cost_element_id}
+        rowKey={(record) => record.costElementId}
         pagination={false}
         size="small"
       />

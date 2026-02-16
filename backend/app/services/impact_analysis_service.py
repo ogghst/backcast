@@ -230,44 +230,100 @@ class ImpactAnalysisService:
 
         project_id = change_order.project_id
 
-        # Calculate KPIs from main branch
-        main_bac_stmt = select(func.sum(WBE.budget_allocation)).where(
-            WBE.project_id == project_id,
-            WBE.branch == "main",
-            func.upper(cast(Any, WBE).valid_time).is_(None),
-            cast(Any, WBE).deleted_at.is_(None),
-        )
+        # Calculate KPIs from main branch with temporal filtering
+        if as_of is not None:
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            main_bac_stmt = select(func.sum(WBE.budget_allocation)).where(
+                WBE.project_id == project_id,
+                WBE.branch == "main",
+                # Zombie protection: Entity visible if not deleted, or deleted AFTER as_of
+                or_(
+                    cast(Any, WBE).deleted_at.is_(None),
+                    cast(Any, WBE).deleted_at > as_of,
+                ),
+                # Time travel based on business validity
+                WBE.valid_time.op("@>")(as_of_tstz),
+                func.lower(WBE.valid_time) <= as_of_tstz,
+            )
+            main_revenue_stmt = select(func.sum(WBE.revenue_allocation)).where(
+                WBE.project_id == project_id,
+                WBE.branch == "main",
+                # Zombie protection
+                or_(
+                    cast(Any, WBE).deleted_at.is_(None),
+                    cast(Any, WBE).deleted_at > as_of,
+                ),
+                # Time travel based on business validity
+                WBE.valid_time.op("@>")(as_of_tstz),
+                func.lower(WBE.valid_time) <= as_of_tstz,
+            )
+            # MERGE MODE: Calculate KPIs from merged view (main + branch overrides)
+            # Step 1: Get all main WBEs with temporal filtering
+            main_wbes_stmt = select(WBE).where(
+                WBE.project_id == project_id,
+                WBE.branch == "main",
+                # Zombie protection
+                or_(
+                    cast(Any, WBE).deleted_at.is_(None),
+                    cast(Any, WBE).deleted_at > as_of,
+                ),
+                # Time travel based on business validity
+                WBE.valid_time.op("@>")(as_of_tstz),
+                func.lower(WBE.valid_time) <= as_of_tstz,
+            )
+            # Step 2: Get branch WBEs (overrides) with temporal filtering
+            branch_wbes_stmt = select(WBE).where(
+                WBE.project_id == project_id,
+                WBE.branch == branch_name,
+                # Zombie protection
+                or_(
+                    cast(Any, WBE).deleted_at.is_(None),
+                    cast(Any, WBE).deleted_at > as_of,
+                ),
+                # Time travel based on business validity
+                WBE.valid_time.op("@>")(as_of_tstz),
+                func.lower(WBE.valid_time) <= as_of_tstz,
+            )
+        else:
+            # Current version query
+            main_bac_stmt = select(func.sum(WBE.budget_allocation)).where(
+                WBE.project_id == project_id,
+                WBE.branch == "main",
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
+            )
+            main_revenue_stmt = select(func.sum(WBE.revenue_allocation)).where(
+                WBE.project_id == project_id,
+                WBE.branch == "main",
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
+            )
+            # MERGE MODE: Calculate KPIs from merged view (main + branch overrides)
+            # Step 1: Get all main WBEs
+            main_wbes_stmt = select(WBE).where(
+                WBE.project_id == project_id,
+                WBE.branch == "main",
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
+            )
+            # Step 2: Get branch WBEs (overrides)
+            branch_wbes_stmt = select(WBE).where(
+                WBE.project_id == project_id,
+                WBE.branch == branch_name,
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
+            )
         main_bac_result = await self._db.execute(main_bac_stmt)
         main_bac = main_bac_result.scalar() or Decimal("0")
 
         # Calculate revenue from main branch
-        main_revenue_stmt = select(func.sum(WBE.revenue_allocation)).where(
-            WBE.project_id == project_id,
-            WBE.branch == "main",
-            func.upper(cast(Any, WBE).valid_time).is_(None),
-            cast(Any, WBE).deleted_at.is_(None),
-        )
         main_revenue_result = await self._db.execute(main_revenue_stmt)
         main_revenue = main_revenue_result.scalar() or Decimal("0")
 
-        # MERGE MODE: Calculate KPIs from merged view (main + branch overrides)
-        # Step 1: Get all main WBEs
-        main_wbes_stmt = select(WBE).where(
-            WBE.project_id == project_id,
-            WBE.branch == "main",
-            func.upper(cast(Any, WBE).valid_time).is_(None),
-            cast(Any, WBE).deleted_at.is_(None),
-        )
+        # Execute WBE queries
         main_wbes_result = await self._db.execute(main_wbes_stmt)
         main_wbes = {wbe.wbe_id: wbe for wbe in main_wbes_result.scalars().all()}
 
-        # Step 2: Get branch WBEs (overrides)
-        branch_wbes_stmt = select(WBE).where(
-            WBE.project_id == project_id,
-            WBE.branch == branch_name,
-            func.upper(cast(Any, WBE).valid_time).is_(None),
-            cast(Any, WBE).deleted_at.is_(None),
-        )
         branch_wbes_result = await self._db.execute(branch_wbes_stmt)
         branch_wbes = {wbe.wbe_id: wbe for wbe in branch_wbes_result.scalars().all()}
 
@@ -299,21 +355,63 @@ class ImpactAnalysisService:
         main_budget_total = main_bac
         change_budget_total = change_bac
 
-        # Calculate actual costs from CostRegistrations
+        # Calculate actual costs from CostRegistrations with temporal filtering
         # CRITICAL: Filter CostElement by branch because CostRegistration is NOT branchable
         # Without this filter, the join could match CostElements from any branch, causing
         # incorrect cost aggregation and FK violations
-        main_actual_costs_stmt = (
-            select(func.sum(CostRegistration.amount))
-            .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
-            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
-            .where(
-                WBE.project_id == project_id,
-                CostElement.branch == "main",  # STRICT: Only count costs against main branch CostElements
-                CostRegistration.deleted_at.is_(None),
-                func.upper(CostRegistration.valid_time).is_(None),
+        # Also apply temporal filtering for WBE, CostElement, and CostRegistration
+        if as_of is not None:
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            main_actual_costs_stmt = (
+                select(func.sum(CostRegistration.amount))
+                .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == "main",  # STRICT: Only count costs against main branch CostElements
+                    # Zombie protection for WBE
+                    or_(
+                        cast(Any, WBE).deleted_at.is_(None),
+                        cast(Any, WBE).deleted_at > as_of,
+                    ),
+                    # Time travel for WBE
+                    WBE.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    # Zombie protection for CostElement
+                    or_(
+                        cast(Any, CostElement).deleted_at.is_(None),
+                        cast(Any, CostElement).deleted_at > as_of,
+                    ),
+                    # Time travel for CostElement
+                    CostElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                    # Zombie protection for CostRegistration
+                    or_(
+                        CostRegistration.deleted_at.is_(None),
+                        CostRegistration.deleted_at > as_of,
+                    ),
+                    # Time travel for CostRegistration
+                    CostRegistration.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostRegistration.valid_time) <= as_of_tstz,
+                )
             )
-        )
+        else:
+            # Current version query
+            main_actual_costs_stmt = (
+                select(func.sum(CostRegistration.amount))
+                .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == "main",  # STRICT: Only count costs against main branch CostElements
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None),
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                    CostRegistration.deleted_at.is_(None),
+                    func.upper(CostRegistration.valid_time).is_(None),
+                )
+            )
         main_actual_costs_result = await self._db.execute(main_actual_costs_stmt)
         main_actual_costs = main_actual_costs_result.scalar() or Decimal("0")
 
@@ -347,6 +445,7 @@ class ImpactAnalysisService:
             project_id=project_id,
             branch_name=branch_name,
             branch_mode=branch_mode,
+            as_of=as_of,
         )
         kpi_scorecard.schedule_start_date = schedule_comparison["schedule_start_date"]
         kpi_scorecard.schedule_end_date = schedule_comparison["schedule_end_date"]
@@ -358,6 +457,7 @@ class ImpactAnalysisService:
                 project_id=project_id,
                 branch_name=branch_name,
                 branch_mode=branch_mode,
+                as_of=as_of,
             )
             kpi_scorecard.cpi = evm_comparison["cpi"]
             kpi_scorecard.spi = evm_comparison["spi"]
@@ -373,7 +473,7 @@ class ImpactAnalysisService:
             kpi_scorecard.vac = None
 
         # Compare entities
-        entity_changes = await self._compare_entities(project_id, branch_name)
+        entity_changes = await self._compare_entities(project_id, branch_name, as_of)
 
         # Compare forecasts
         forecast_changes = await self._compare_forecasts(project_id, branch_name, as_of)
@@ -467,7 +567,7 @@ class ImpactAnalysisService:
         )
 
     async def _compare_entities(
-        self, project_id: UUID, branch_name: str
+        self, project_id: UUID, branch_name: str, as_of: datetime | None = None
     ) -> EntityChanges:
         """Compare entities between main and merged (main + branch) view.
 
@@ -482,6 +582,7 @@ class ImpactAnalysisService:
         Args:
             project_id: UUID of the project
             branch_name: Name of the change branch (e.g., "BR-CO-2026-001")
+            as_of: Time travel timestamp (None = current, past = historical point)
 
         Returns:
             EntityChanges with added/modified/removed WBEs and Cost Elements
@@ -588,34 +689,121 @@ class ImpactAnalysisService:
 
         # Compare Cost Registrations (actual costs)
         # CRITICAL: Filter CostElement by branch because CostRegistration is NOT branchable
-        main_cr_stmt = (
-            select(CostRegistration)
-            .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
-            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
-            .where(
-                WBE.project_id == project_id,
-                CostElement.branch == "main",  # STRICT: Only match main branch CostElements
-                CostRegistration.deleted_at.is_(None),
-                func.upper(CostRegistration.valid_time).is_(None),
+        # CRITICAL: Apply temporal filtering to all entities (WBE, CostElement, CostRegistration)
+        if as_of is not None:
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            main_cr_stmt = (
+                select(CostRegistration)
+                .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == "main",  # STRICT: Only match main branch CostElements
+                    # Zombie protection for WBE
+                    or_(
+                        cast(Any, WBE).deleted_at.is_(None),
+                        cast(Any, WBE).deleted_at > as_of,
+                    ),
+                    # Time travel for WBE
+                    WBE.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    # Zombie protection for CostElement
+                    or_(
+                        cast(Any, CostElement).deleted_at.is_(None),
+                        cast(Any, CostElement).deleted_at > as_of,
+                    ),
+                    # Time travel for CostElement
+                    CostElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                    # Zombie protection for CostRegistration
+                    or_(
+                        CostRegistration.deleted_at.is_(None),
+                        CostRegistration.deleted_at > as_of,
+                    ),
+                    # Time travel for CostRegistration
+                    CostRegistration.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostRegistration.valid_time) <= as_of_tstz,
+                )
+                .order_by(CostRegistration.valid_time.desc())
             )
-            .order_by(CostRegistration.valid_time.desc())
-        )
+        else:
+            # Current version query
+            main_cr_stmt = (
+                select(CostRegistration)
+                .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == "main",  # STRICT: Only match main branch CostElements
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None),
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                    CostRegistration.deleted_at.is_(None),
+                    func.upper(CostRegistration.valid_time).is_(None),
+                )
+                .order_by(CostRegistration.valid_time.desc())
+            )
         main_cr_result = await self._db.execute(main_cr_stmt)
         main_cost_registrations = list(main_cr_result.scalars().all())
 
         # Get Cost Registrations linked to branch CostElements
         # CRITICAL: Filter CostElement by branch because CostRegistration is NOT branchable
-        branch_cr_stmt = (
-            select(CostRegistration)
-            .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
-            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
-            .where(
-                WBE.project_id == project_id,
-                CostElement.branch == branch_name,  # Branch-specific CostElements
-                CostRegistration.deleted_at.is_(None),
-                func.upper(CostRegistration.valid_time).is_(None),
+        # CRITICAL: Apply temporal filtering to all entities (WBE, CostElement, CostRegistration)
+        if as_of is not None:
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            branch_cr_stmt = (
+                select(CostRegistration)
+                .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == branch_name,  # Branch-specific CostElements
+                    # Zombie protection for WBE
+                    or_(
+                        cast(Any, WBE).deleted_at.is_(None),
+                        cast(Any, WBE).deleted_at > as_of,
+                    ),
+                    # Time travel for WBE
+                    WBE.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    # Zombie protection for CostElement
+                    or_(
+                        cast(Any, CostElement).deleted_at.is_(None),
+                        cast(Any, CostElement).deleted_at > as_of,
+                    ),
+                    # Time travel for CostElement
+                    CostElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                    # Zombie protection for CostRegistration
+                    or_(
+                        CostRegistration.deleted_at.is_(None),
+                        CostRegistration.deleted_at > as_of,
+                    ),
+                    # Time travel for CostRegistration
+                    CostRegistration.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostRegistration.valid_time) <= as_of_tstz,
+                )
+                .order_by(CostRegistration.valid_time.desc())
             )
-        )
+        else:
+            # Current version query
+            branch_cr_stmt = (
+                select(CostRegistration)
+                .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == branch_name,  # Branch-specific CostElements
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None),
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                    CostRegistration.deleted_at.is_(None),
+                    func.upper(CostRegistration.valid_time).is_(None),
+                )
+                .order_by(CostRegistration.valid_time.desc())
+            )
         branch_cr_result = await self._db.execute(branch_cr_stmt)
         branch_cost_registrations = list(branch_cr_result.scalars().all())
 
@@ -1717,6 +1905,7 @@ class ImpactAnalysisService:
         project_id: UUID,
         branch_name: str,
         branch_mode: BranchMode = BranchMode.MERGE,
+        as_of: datetime | None = None,
     ) -> dict[str, KPIMetric | None]:
         """Fetch and compare schedule baselines between main and change branches.
 
@@ -1724,6 +1913,7 @@ class ImpactAnalysisService:
             project_id: UUID of the project
             branch_name: Name of the change branch
             branch_mode: MERGE mode calculates merged values, STRICT mode calculates isolated values
+            as_of: Time travel timestamp (None = current, past = historical point)
 
         Returns:
             Dictionary with schedule_start_date, schedule_end_date, schedule_duration KPIMetrics
@@ -1732,31 +1922,86 @@ class ImpactAnalysisService:
         # Get all cost elements for the project (both branches)
         # We need to find schedule baselines via cost elements
 
-        # Fetch cost elements from main branch
-        main_ce_stmt = (
-            select(CostElement)
-            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
-            .where(
-                WBE.project_id == project_id,
-                CostElement.branch == "main",
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
+        # Fetch cost elements from main branch with temporal filtering
+        if as_of is not None:
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            main_ce_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == "main",
+                    # Zombie protection for WBE
+                    or_(
+                        cast(Any, WBE).deleted_at.is_(None),
+                        cast(Any, WBE).deleted_at > as_of,
+                    ),
+                    # Time travel for WBE
+                    WBE.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    # Zombie protection for CostElement
+                    or_(
+                        cast(Any, CostElement).deleted_at.is_(None),
+                        cast(Any, CostElement).deleted_at > as_of,
+                    ),
+                    # Time travel for CostElement
+                    CostElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                )
             )
-        )
+            change_ce_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == branch_name,
+                    # Zombie protection for WBE
+                    or_(
+                        cast(Any, WBE).deleted_at.is_(None),
+                        cast(Any, WBE).deleted_at > as_of,
+                    ),
+                    # Time travel for WBE
+                    WBE.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    # Zombie protection for CostElement
+                    or_(
+                        cast(Any, CostElement).deleted_at.is_(None),
+                        cast(Any, CostElement).deleted_at > as_of,
+                    ),
+                    # Time travel for CostElement
+                    CostElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                )
+            )
+        else:
+            # Current version query
+            main_ce_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == "main",
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None),
+                )
+            )
+            change_ce_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == branch_name,
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None),
+                )
+            )
         main_ce_result = await self._db.execute(main_ce_stmt)
         main_cost_elements = main_ce_result.scalars().all()
 
-        # Fetch cost elements from change branch
-        change_ce_stmt = (
-            select(CostElement)
-            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
-            .where(
-                WBE.project_id == project_id,
-                CostElement.branch == branch_name,
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
-            )
-        )
         change_ce_result = await self._db.execute(change_ce_stmt)
         change_cost_elements = change_ce_result.scalars().all()
 
@@ -1772,30 +2017,69 @@ class ImpactAnalysisService:
         main_baseline_ids = [ce.schedule_baseline_id for ce in main_cost_elements if ce.schedule_baseline_id]
         change_baseline_ids = [ce.schedule_baseline_id for ce in change_cost_elements if ce.schedule_baseline_id]
 
-        # Fetch schedule baselines
-        if main_baseline_ids:
-            main_sb_stmt = select(ScheduleBaseline).where(
-                ScheduleBaseline.schedule_baseline_id.in_(main_baseline_ids),
-                ScheduleBaseline.branch == "main",
-                func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None),
-                cast(Any, ScheduleBaseline).deleted_at.is_(None),
-            )
-            main_sb_result = await self._db.execute(main_sb_stmt)
-            main_schedule_baselines = main_sb_result.scalars().all()
-        else:
-            main_schedule_baselines = []
+        # Fetch schedule baselines with temporal filtering
+        if as_of is not None:
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            if main_baseline_ids:
+                main_sb_stmt = select(ScheduleBaseline).where(
+                    ScheduleBaseline.schedule_baseline_id.in_(main_baseline_ids),
+                    ScheduleBaseline.branch == "main",
+                    # Zombie protection
+                    or_(
+                        cast(Any, ScheduleBaseline).deleted_at.is_(None),
+                        cast(Any, ScheduleBaseline).deleted_at > as_of,
+                    ),
+                    # Time travel
+                    ScheduleBaseline.valid_time.op("@>")(as_of_tstz),
+                    func.lower(ScheduleBaseline.valid_time) <= as_of_tstz,
+                )
+                main_sb_result = await self._db.execute(main_sb_stmt)
+                main_schedule_baselines = main_sb_result.scalars().all()
+            else:
+                main_schedule_baselines = []
 
-        if change_baseline_ids:
-            change_sb_stmt = select(ScheduleBaseline).where(
-                ScheduleBaseline.schedule_baseline_id.in_(change_baseline_ids),
-                ScheduleBaseline.branch == branch_name,
-                func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None),
-                cast(Any, ScheduleBaseline).deleted_at.is_(None),
-            )
-            change_sb_result = await self._db.execute(change_sb_stmt)
-            change_schedule_baselines = change_sb_result.scalars().all()
+            if change_baseline_ids:
+                change_sb_stmt = select(ScheduleBaseline).where(
+                    ScheduleBaseline.schedule_baseline_id.in_(change_baseline_ids),
+                    ScheduleBaseline.branch == branch_name,
+                    # Zombie protection
+                    or_(
+                        cast(Any, ScheduleBaseline).deleted_at.is_(None),
+                        cast(Any, ScheduleBaseline).deleted_at > as_of,
+                    ),
+                    # Time travel
+                    ScheduleBaseline.valid_time.op("@>")(as_of_tstz),
+                    func.lower(ScheduleBaseline.valid_time) <= as_of_tstz,
+                )
+                change_sb_result = await self._db.execute(change_sb_stmt)
+                change_schedule_baselines = change_sb_result.scalars().all()
+            else:
+                change_schedule_baselines = []
         else:
-            change_schedule_baselines = []
+            # Current version query
+            if main_baseline_ids:
+                main_sb_stmt = select(ScheduleBaseline).where(
+                    ScheduleBaseline.schedule_baseline_id.in_(main_baseline_ids),
+                    ScheduleBaseline.branch == "main",
+                    func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None),
+                    cast(Any, ScheduleBaseline).deleted_at.is_(None),
+                )
+                main_sb_result = await self._db.execute(main_sb_stmt)
+                main_schedule_baselines = main_sb_result.scalars().all()
+            else:
+                main_schedule_baselines = []
+
+            if change_baseline_ids:
+                change_sb_stmt = select(ScheduleBaseline).where(
+                    ScheduleBaseline.schedule_baseline_id.in_(change_baseline_ids),
+                    ScheduleBaseline.branch == branch_name,
+                    func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None),
+                    cast(Any, ScheduleBaseline).deleted_at.is_(None),
+                )
+                change_sb_result = await self._db.execute(change_sb_stmt)
+                change_schedule_baselines = change_sb_result.scalars().all()
+            else:
+                change_schedule_baselines = []
 
         # If no schedule baselines found, return None
         if not main_schedule_baselines and not change_schedule_baselines:
@@ -1880,6 +2164,7 @@ class ImpactAnalysisService:
         project_id: UUID,
         branch_name: str,
         branch_mode: BranchMode = BranchMode.MERGE,
+        as_of: datetime | None = None,
     ) -> dict[str, KPIMetric | None]:
         """Fetch and compare EVM metrics between main and change branches.
 
@@ -1887,6 +2172,7 @@ class ImpactAnalysisService:
             project_id: UUID of the project
             branch_name: Name of the change branch
             branch_mode: MERGE mode calculates merged values, STRICT mode calculates isolated values
+            as_of: Time travel timestamp (None = current, past = historical point)
 
         Returns:
             Dictionary with cpi, spi, tcpi, eac, vac KPIMetrics
@@ -1894,7 +2180,7 @@ class ImpactAnalysisService:
         """
         try:
             # Calculate EVM metrics for main branch
-            control_date = datetime.now(UTC)
+            control_date = as_of if as_of is not None else datetime.now(UTC)
             main_evm_response = await self._evm_service.calculate_evm_metrics_batch(
                 entity_type=EntityType.PROJECT,
                 entity_ids=[project_id],
