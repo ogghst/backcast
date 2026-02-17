@@ -36,11 +36,13 @@ interface ProgressEntryListParams {
  * Progress entries are NOT branchable but support time-travel queries.
  */
 export const useProgressEntries = (params?: ProgressEntryListParams) => {
-  const { asOf } = useTimeMachineParams();
+  const { asOf, branch, mode } = useTimeMachineParams();
 
   return useQuery<PaginatedResponse<ProgressEntryRead>>({
     queryKey: queryKeys.progressEntries.list(params?.cost_element_id || "", {
       asOf: params?.asOf || asOf,
+      branch,
+      mode,
     }),
     queryFn: async () => {
       const { cost_element_id, page = 1, perPage = 20 } = params || {};
@@ -48,6 +50,8 @@ export const useProgressEntries = (params?: ProgressEntryListParams) => {
       const res = await ProgressEntriesService.getProgressEntries(
         page,
         perPage,
+        branch,
+        mode,
         cost_element_id,
         params?.asOf || asOf || undefined,
       );
