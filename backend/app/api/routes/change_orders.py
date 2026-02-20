@@ -231,8 +231,13 @@ async def create_change_order(
         )
         if existing:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Change Order with code '{change_order_in.code}' already exists",
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error_type": "DUPLICATE_CODE",
+                    "message": f"Change Order with code '{change_order_in.code}' already exists",
+                    "code": change_order_in.code,
+                    "suggestion": "Please fetch a new suggested code.",
+                },
             )
 
         change_order = await service.create_change_order(
@@ -247,6 +252,27 @@ async def create_change_order(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         ) from e
+
+
+@router.get(
+    "/next-code",
+    operation_id="get_next_change_order_code",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-read"))],
+)
+async def get_next_change_order_code(
+    project_id: UUID = Query(..., description="Project ID to scope the code"),
+    year: int | None = Query(None, description="Year for the code (defaults to current year)"),
+    service: ChangeOrderService = Depends(get_change_order_service),
+) -> dict[str, str]:
+    """Get the next available change order code.
+
+    Returns the next sequential code in format CO-YYYY-NNN.
+    Codes are scoped to the project and year.
+
+    Requires read permission.
+    """
+    next_code = await service.get_next_code(project_id, year)
+    return {"code": next_code}
 
 
 @router.get(

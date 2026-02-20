@@ -271,6 +271,29 @@ export const useChangeOrderHistory = (
 };
 
 /**
+ * Custom hook for fetching the next available change order code.
+ * Used to auto-suggest codes when creating new change orders.
+ */
+export const useNextChangeOrderCode = (
+  projectId: string | undefined,
+  year?: number,
+) => {
+  return useQuery({
+    queryKey: queryKeys.changeOrders.nextCode(projectId!, year),
+    queryFn: async () => {
+      if (!projectId) throw new Error("Project ID is required");
+      const result = await __request(OpenAPI, {
+        method: "GET",
+        url: "/api/v1/change-orders/next-code",
+        query: { project_id: projectId, ...(year && { year }) },
+      });
+      return result as { code: string };
+    },
+    enabled: !!projectId,
+  });
+};
+
+/**
  * Merge conflict type - represents a single field conflict during merge.
  */
 export interface MergeConflict {

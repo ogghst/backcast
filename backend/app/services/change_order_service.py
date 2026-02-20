@@ -658,6 +658,58 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_next_code(
+        self, project_id: UUID, year: int | None = None
+    ) -> str:
+        """Get the next available change order code for a project.
+
+        Format: CO-YYYY-NNN (e.g., CO-2026-001)
+
+        Args:
+            project_id: Project UUID to scope the code search
+            year: Year for the code (defaults to current year)
+
+        Returns:
+            Next available code string
+        """
+        from datetime import UTC
+
+        if year is None:
+            year = datetime.now(UTC).year
+
+        prefix = f"CO-{year}-"
+
+        # Query max code number for this project and year
+        # Use regex to extract the numeric part after the prefix
+        stmt = (
+            select(ChangeOrder.code)
+            .where(
+                ChangeOrder.project_id == project_id,
+                ChangeOrder.code.like(f"{prefix}%"),
+                ChangeOrder.branch == "main",
+                func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
+                cast(Any, ChangeOrder).deleted_at.is_(None),
+            )
+        )
+
+        result = await self.session.execute(stmt)
+        existing_codes = [row[0] for row in result.fetchall()]
+
+        # Extract numeric parts from existing codes
+        max_number = 0
+        for code in existing_codes:
+            try:
+                num_str = code.replace(prefix, "")
+                num = int(num_str)
+                if num > max_number:
+                    max_number = num
+            except (ValueError, AttributeError):
+                continue
+
+        # Increment to next number and format with zero-padding
+        next_number = max_number + 1
+        return f"{prefix}{str(next_number).zfill(3)}"
+
     async def merge_change_order(
         self,
         change_order_id: UUID,

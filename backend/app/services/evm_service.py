@@ -614,8 +614,13 @@ class EVMService:
             valid_ids, as_of=control_date
         )
 
+        # CRITICAL FIX: In MERGE mode, forecasts should be fetched from the cost element's branch
+        # When the requested branch doesn't exist, cost_elements are from main (via MERGE fallback),
+        # so forecasts must also be fetched from main, not the non-existent branch.
+        # Forecasts "follow" the cost element - they are linked via CostElement.forecast_id.
+        forecast_branch = "main" if branch_mode == BranchMode.MERGE else branch
         forecasts_map = await self.f_service.get_forecasts_for_cost_elements(
-            valid_ids, branch
+            valid_ids, forecast_branch
         )
 
         # 3. Calculate metrics in memory

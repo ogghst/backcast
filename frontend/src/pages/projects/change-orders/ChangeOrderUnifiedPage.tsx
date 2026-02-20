@@ -12,13 +12,16 @@ import {
   useChangeOrder,
   useCreateChangeOrder,
   useUpdateChangeOrder,
-  useChangeOrders,
 } from "@/features/change-orders/api/useChangeOrders";
 import { useApprovalInfo } from "@/features/change-orders/api/useApprovalInfo";
 import { useProject } from "@/features/projects/api/useProjects";
 import type { ChangeOrderCreate, ChangeOrderUpdate } from "@/api/generated";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
+
+interface ServerErrors {
+  code?: string;
+}
 
 /**
  * ChangeOrderUnifiedPage - Single page for change order create/edit/view.
@@ -60,6 +63,7 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
   const createMode = isCreateMode(changeOrderId);
   const [isModalOpen, setIsModalOpen] = useState(createMode);
   const pageTitle = getPageTitle(createMode);
+  const [serverErrors, setServerErrors] = useState<ServerErrors>({});
 
   // Fetch change order data for edit mode
   const { data: changeOrder, isLoading } = useChangeOrder(
@@ -72,13 +76,6 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
 
   // Fetch project data for breadcrumb
   const { data: project } = useProject(projectId);
-
-  // Get existing codes for auto-generation
-  const { data: changeOrdersData } = useChangeOrders({
-    projectId,
-    pagination: { current: 1, pageSize: 100 }, // Get all for code generation
-  });
-  const existingCodes = changeOrdersData?.items.map((co) => co.code) || [];
 
   // Mutations
   const { mutateAsync: createChangeOrder } = useCreateChangeOrder({
@@ -95,20 +92,34 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
   });
 
   const handleSave = async (values: ChangeOrderCreate | ChangeOrderUpdate) => {
-    if (createMode) {
-      // Ensure project_id is set correctly
-      const createData: ChangeOrderCreate = {
-        ...values,
-        project_id: projectId!,
-      } as ChangeOrderCreate;
-      await createChangeOrder(createData);
-      // Navigation happens in onSuccess of mutation
-    } else {
-      await updateChangeOrder({
-        id: changeOrderId!,
-        data: values as ChangeOrderUpdate,
-      });
-      setIsModalOpen(false);
+    // Clear previous server errors
+    setServerErrors({});
+
+    try {
+      if (createMode) {
+        // Ensure project_id is set correctly
+        const createData: ChangeOrderCreate = {
+          ...values,
+          project_id: projectId!,
+        } as ChangeOrderCreate;
+        await createChangeOrder(createData);
+        // Navigation happens in onSuccess of mutation
+      } else {
+        await updateChangeOrder({
+          id: changeOrderId!,
+          data: values as ChangeOrderUpdate,
+        });
+        setIsModalOpen(false);
+      }
+    } catch (error: unknown) {
+      // Handle duplicate code error (409 Conflict)
+      const errorObj = error as { status?: number; body?: { detail?: ServerErrors & { error_type?: string; message?: string } } };
+      if (errorObj?.status === 409 && errorObj?.body?.detail?.error_type === "DUPLICATE_CODE") {
+        setServerErrors({
+          code: errorObj.body.detail.message || "This code already exists. Please use a different code.",
+        });
+      }
+      throw error; // Re-throw to let mutation handle toast
     }
   };
 
@@ -170,13 +181,14 @@ export function ChangeOrderUnifiedPage(): JSX.Element {
         open={isModalOpen}
         onCancel={() => {
           setIsModalOpen(false);
+          setServerErrors({}); // Clear errors on cancel
           if (createMode) handleCancel();
         }}
         onOk={handleSave}
         confirmLoading={false}
         initialValues={changeOrder}
         projectId={projectId!}
-        existingCodes={existingCodes}
+        serverErrors={serverErrors}
       />
 
       {/* Tabbed Interface for Approval, Workflow, and Impact Analysis (hidden in create mode) */}

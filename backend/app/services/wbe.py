@@ -64,10 +64,12 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
 
         from app.models.domain.project import Project
 
-        # Get project contract value
+        # Get project contract value from main branch (projects are always in main)
         project_stmt = select(Project.contract_value).where(
             Project.project_id == project_id,
-            Project.branch == branch,
+            Project.branch == "main",  # Projects always exist in main branch
+            func.upper(cast(Any, Project).valid_time).is_(None),  # Only current version
+            cast(Any, Project).deleted_at.is_(None),  # Not deleted
         )
         project_result = await self.session.execute(project_stmt)
         contract_value = project_result.scalar_one_or_none()

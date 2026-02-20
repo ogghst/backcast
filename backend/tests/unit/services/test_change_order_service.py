@@ -979,3 +979,183 @@ class TestChangeOrderServiceApproverAssignment:
         # Assert - Score and level calculation works correctly
         assert score < 10, f"Expected LOW impact score < 10, got {score}"
         assert level == "LOW", f"Expected LOW impact level, got {level}"
+
+
+class TestChangeOrderServiceGetNextCode:
+    """Test ChangeOrderService.get_next_code() method."""
+
+    @pytest.mark.asyncio
+    async def test_get_next_code_no_existing_codes(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Test get_next_code returns CO-YYYY-001 when no codes exist.
+
+        Acceptance Criteria:
+        - Returns CO-{current_year}-001 when project has no change orders
+        """
+        # Arrange
+        from datetime import UTC
+
+        service = ChangeOrderService(db_session)
+        project_id = uuid4()
+        current_year = datetime.now(UTC).year
+
+        # Act
+        next_code = await service.get_next_code(project_id)
+
+        # Assert
+        expected = f"CO-{current_year}-001"
+        assert next_code == expected, f"Expected {expected}, got {next_code}"
+
+    @pytest.mark.asyncio
+    async def test_get_next_code_with_existing_codes(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Test get_next_code returns max + 1 when codes exist.
+
+        Acceptance Criteria:
+        - Returns next sequential code (max + 1)
+        - Correctly zero-pads the number
+        """
+        # Arrange
+        from datetime import UTC
+
+        service = ChangeOrderService(db_session)
+        project_id = uuid4()
+        actor_id = uuid4()
+        current_year = datetime.now(UTC).year
+
+        # Create existing change orders
+        for i in range(1, 4):
+            co_in = ChangeOrderCreate(
+                project_id=project_id,
+                code=f"CO-{current_year}-{str(i).zfill(3)}",
+                title=f"Change Order {i}",
+                description=f"Description {i}",
+            )
+            await service.create_change_order(co_in, actor_id=actor_id)
+
+        # Act
+        next_code = await service.get_next_code(project_id)
+
+        # Assert
+        expected = f"CO-{current_year}-004"
+        assert next_code == expected, f"Expected {expected}, got {next_code}"
+
+    @pytest.mark.asyncio
+    async def test_get_next_code_different_years_independent(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Test that codes for different years are independent.
+
+        Acceptance Criteria:
+        - Codes from previous year don't affect current year's sequence
+        - Each year starts from 001
+        """
+        # Arrange
+        service = ChangeOrderService(db_session)
+        project_id = uuid4()
+        actor_id = uuid4()
+
+        # Create a CO for 2025
+        co_in = ChangeOrderCreate(
+            project_id=project_id,
+            code="CO-2025-005",
+            title="Previous Year CO",
+            description="Description",
+        )
+        await service.create_change_order(co_in, actor_id=actor_id)
+
+        # Act - Get next code for 2026
+        next_code = await service.get_next_code(project_id, year=2026)
+
+        # Assert - Should start from 001, not affected by 2025 codes
+        expected = "CO-2026-001"
+        assert next_code == expected, f"Expected {expected}, got {next_code}"
+
+    @pytest.mark.asyncio
+    async def test_get_next_code_scoped_to_project(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Test that codes are scoped to project.
+
+        Acceptance Criteria:
+        - Codes from other projects don't affect this project's sequence
+        - Each project has independent numbering
+        """
+        # Arrange
+        service = ChangeOrderService(db_session)
+        project_id_1 = uuid4()
+        project_id_2 = uuid4()
+        actor_id = uuid4()
+        current_year = datetime.now(UTC).year
+
+        # Create CO in project 1
+        co_in = ChangeOrderCreate(
+            project_id=project_id_1,
+            code=f"CO-{current_year}-003",
+            title="Project 1 CO",
+            description="Description",
+        )
+        await service.create_change_order(co_in, actor_id=actor_id)
+
+        # Act - Get next code for project 2 (should start from 001)
+        next_code = await service.get_next_code(project_id_2)
+
+        # Assert
+        expected = f"CO-{current_year}-001"
+        assert next_code == expected, f"Expected {expected}, got {next_code}"
+
+    @pytest.mark.asyncio
+    async def test_get_next_code_ignores_deleted_codes(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Test that soft-deleted codes are not considered.
+
+        Acceptance Criteria:
+        - Soft-deleted change orders don't affect next code calculation
+        """
+        # Arrange
+        from datetime import UTC
+
+        service = ChangeOrderService(db_session)
+        project_id = uuid4()
+        actor_id = uuid4()
+        current_year = datetime.now(UTC).year
+
+        # Create and delete a change order
+        co_in = ChangeOrderCreate(
+            project_id=project_id,
+            code=f"CO-{current_year}-001",
+            title="To Be Deleted",
+            description="Description",
+        )
+        created = await service.create_change_order(co_in, actor_id=actor_id)
+        await service.delete_change_order(created.change_order_id, actor_id=actor_id)
+
+        # Act - Should return 001 since 001 was deleted
+        next_code = await service.get_next_code(project_id)
+
+        # Assert
+        expected = f"CO-{current_year}-001"
+        assert next_code == expected, f"Expected {expected}, got {next_code}"
+
+    @pytest.mark.asyncio
+    async def test_get_next_code_with_explicit_year(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Test get_next_code with explicit year parameter.
+
+        Acceptance Criteria:
+        - Explicitly passed year is used instead of current year
+        """
+        # Arrange
+        service = ChangeOrderService(db_session)
+        project_id = uuid4()
+
+        # Act
+        next_code = await service.get_next_code(project_id, year=2027)
+
+        # Assert
+        expected = "CO-2027-001"
+        assert next_code == expected, f"Expected {expected}, got {next_code}"
