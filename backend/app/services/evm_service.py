@@ -589,8 +589,12 @@ class EVMService:
         cost_elements: list[CostElement] = []
         valid_ids: list[UUID] = []
 
+        # Deduplicate to prevent double-counting EVM metrics when the same CE
+        # appears in multiple WBEs (e.g., in MERGE mode with branch versions)
+        unique_cost_element_ids = list(dict.fromkeys(cost_element_ids))
+
         # TODO: Optimize this loop with a batch get_as_of in BranchableService later
-        for ce_id in cost_element_ids:
+        for ce_id in unique_cost_element_ids:
             ce = await self.ce_service.get_as_of(
                 entity_id=ce_id, as_of=control_date, branch=branch, branch_mode=branch_mode
             )
