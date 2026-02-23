@@ -3,13 +3,11 @@
 Tests use the ChangeOrderService to create test data, ensuring proper JSONB handling.
 """
 
-import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -77,7 +75,7 @@ class TestGetSummaryKpis(TestChangeOrderReportingService):
             actor_id=actor_id,
         )
 
-        co2 = await co_service.create_change_order(
+        await co_service.create_change_order(
             ChangeOrderCreate(
                 project_id=project_id,
                 code="CO-STAT-002",

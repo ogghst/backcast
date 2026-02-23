@@ -8,15 +8,16 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import DECIMAL, ForeignKey, String, Text
+from sqlalchemy import DECIMAL, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base.base import EntityBase
 from app.models.mixins import BranchableMixin, VersionableMixin
 
 if TYPE_CHECKING:
-    pass
+    from app.models.domain.cost_element_type import CostElementType
+    from app.models.domain.wbe import WBE
 
 
 class CostElement(EntityBase, VersionableMixin, BranchableMixin):
@@ -57,15 +58,17 @@ class CostElement(EntityBase, VersionableMixin, BranchableMixin):
     # Parent relationships
     wbe_id: Mapped[UUID] = mapped_column(
         PG_UUID,
-        ForeignKey("wbes.wbe_id"),
         nullable=False,
         index=True,
+        # NOTE: No database-level ForeignKey constraint because wbe_id is a root ID
+        # that is not unique across versions. Integrity is enforced at application level.
     )
     cost_element_type_id: Mapped[UUID] = mapped_column(
         PG_UUID,
-        ForeignKey("cost_element_types.cost_element_type_id"),
         nullable=False,
         index=True,
+        # NOTE: No database-level ForeignKey constraint because cost_element_type_id is
+        # a root ID that is not unique across versions. Integrity is enforced at application level.
     )
 
     # Identity
@@ -110,7 +113,19 @@ class CostElement(EntityBase, VersionableMixin, BranchableMixin):
     # - valid_time, transaction_time, deleted_at, created_by, deleted_by (VersionableMixin)
     # - branch, parent_id, merge_from_branch (BranchableMixin)
 
-    # NOTE: Department is DERIVED via cost_element_type.department_id (not stored here)
+    # Relationships (View-only for navigation, no DB constraints)
+    wbe: Mapped["WBE"] = relationship(
+        "WBE",
+        primaryjoin="CostElement.wbe_id == WBE.wbe_id",
+        foreign_keys=[wbe_id],
+        viewonly=True,
+    )
+    cost_element_type: Mapped["CostElementType"] = relationship(
+        "CostElementType",
+        primaryjoin="CostElement.cost_element_type_id == CostElementType.cost_element_type_id",
+        foreign_keys=[cost_element_type_id],
+        viewonly=True,
+    )
 
     def __repr__(self) -> str:
         return (

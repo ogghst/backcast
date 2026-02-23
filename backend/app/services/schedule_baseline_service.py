@@ -116,6 +116,29 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         """
         data["schedule_baseline_id"] = root_id
 
+        # 1. Validate Cost Element existence (Application-level Integrity)
+        if "cost_element_id" in data and data["cost_element_id"]:
+            ce_exists = await self.session.execute(
+                select(CostElement.id).where(
+                    CostElement.cost_element_id == data["cost_element_id"],
+                    CostElement.branch == branch,
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None)
+                ).limit(1)
+            )
+            if not ce_exists.scalar_one_or_none():
+                # Fallback to main branch
+                ce_exists_main = await self.session.execute(
+                    select(CostElement.id).where(
+                        CostElement.cost_element_id == data["cost_element_id"],
+                        CostElement.branch == "main",
+                        func.upper(cast(Any, CostElement).valid_time).is_(None),
+                        cast(Any, CostElement).deleted_at.is_(None)
+                    ).limit(1)
+                )
+                if not ce_exists_main.scalar_one_or_none():
+                    raise ValueError(f"Cost Element {data['cost_element_id']} not found on branch {branch} or main")
+
         cmd = CreateVersionCommand(
             entity_class=cast(type[VersionableProtocol], ScheduleBaseline),
             root_id=root_id,

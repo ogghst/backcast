@@ -1,13 +1,12 @@
 """API tests for Change Order Stats endpoint."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user

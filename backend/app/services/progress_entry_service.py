@@ -1,9 +1,10 @@
 """Progress Entry Service - versionable progress tracking management."""
 
 from datetime import UTC, datetime
+from typing import Any, cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.commands import (
@@ -35,7 +36,7 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         """
         super().__init__(ProgressEntry, db)
 
-    async def create_progress_entry(
+    async def create(
         self,
         progress_in: ProgressEntryCreate,
         actor_id: UUID,
@@ -71,6 +72,33 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         # Remove control_date from progress_data if present to avoid duplicate kwarg error
         progress_data.pop("control_date", None)
 
+        # 1. Validate Cost Element existence (Application-level Integrity)
+        from app.models.domain.cost_element import CostElement
+        ce_exists = await self.session.execute(
+            select(CostElement.id).where(
+                CostElement.cost_element_id == progress_in.cost_element_id,
+                # Progress entries are global, check main branch
+                CostElement.branch == "main",
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None)
+            ).limit(1)
+        )
+        if not ce_exists.scalar_one_or_none():
+             # Fallback: check any branch? No, progress is usually reported against main.
+             # Actually, if we are in a branch, we might report progress on a branched CE.
+             # But ProgressEntry is NOT branchable. This is a slight mismatch in architecture
+             # but consistent with "progress is a fact".
+             # We check main first, then any? Better to check if ANY version exists.
+            ce_any_exists = await self.session.execute(
+                select(CostElement.id).where(
+                    CostElement.cost_element_id == progress_in.cost_element_id,
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None)
+                ).limit(1)
+            )
+            if not ce_any_exists.scalar_one_or_none():
+                 raise ValueError(f"Cost Element {progress_in.cost_element_id} not found")
+
         cmd = CreateVersionCommand(
             entity_class=ProgressEntry,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
@@ -81,7 +109,7 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         return await cmd.execute(self.session)
 
 
-    async def update_progress_entry(
+    async def update(
         self,
         progress_entry_id: UUID,
         progress_in: ProgressEntryUpdate,

@@ -492,6 +492,21 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         root_id = wbe_in.wbe_id or uuid4()
         wbe_data["wbe_id"] = root_id
 
+        # 1. Validate Parent Project existence (Application-level Integrity)
+        from typing import Any, cast
+
+        from app.models.domain.project import Project
+
+        project_exists = await self.session.execute(
+            select(Project.id).where(
+                Project.project_id == wbe_in.project_id,
+                func.upper(cast(Any, Project).valid_time).is_(None),
+                cast(Any, Project).deleted_at.is_(None),
+            ).limit(1)
+        )
+        if not project_exists.scalar_one_or_none():
+            raise ValueError(f"Project {wbe_in.project_id} not found or inactive")
+
         # Infer level from parent
         if wbe_in.parent_wbe_id:
             # Get the branch for this WBE to lookup parent on same branch

@@ -187,6 +187,39 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         if "branch" not in element_data or element_data["branch"] == "main":
             element_data["branch"] = target_branch
 
+        # 1. Validate Parent WBE existence (Application-level Integrity)
+        wbe_exists = await self.session.execute(
+            select(WBE.id).where(
+                WBE.wbe_id == element_in.wbe_id,
+                WBE.branch == target_branch,
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None)
+            ).limit(1)
+        )
+        if not wbe_exists.scalar_one_or_none():
+            # Fallback to main branch for parent WBE
+            wbe_exists_main = await self.session.execute(
+                select(WBE.id).where(
+                    WBE.wbe_id == element_in.wbe_id,
+                    WBE.branch == "main",
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None)
+                ).limit(1)
+            )
+            if not wbe_exists_main.scalar_one_or_none():
+                raise ValueError(f"Parent WBE {element_in.wbe_id} not found on branch {target_branch} or main")
+
+        # 2. Validate Cost Element Type existence
+        type_exists = await self.session.execute(
+            select(CostElementType.id).where(
+                CostElementType.cost_element_type_id == element_in.cost_element_type_id,
+                func.upper(cast(Any, CostElementType).valid_time).is_(None),
+                cast(Any, CostElementType).deleted_at.is_(None)
+            ).limit(1)
+        )
+        if not type_exists.scalar_one_or_none():
+            raise ValueError(f"Cost Element Type {element_in.cost_element_type_id} not found")
+
         # Create the cost element
         cmd = CreateVersionCommand(
             entity_class=CostElement,  # type: ignore[type-var,unused-ignore]

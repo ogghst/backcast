@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import DateTime, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -57,9 +57,9 @@ class CostRegistration(EntityBase, VersionableMixin):
     # Foreign key to cost element
     cost_element_id: Mapped[UUID] = mapped_column(
         PG_UUID,
-        ForeignKey("cost_elements.cost_element_id"),
         nullable=False,
         index=True,
+        # NOTE: No database-level ForeignKey constraint on root ID.
     )
 
     # Cost amount (decimal with 2 decimal places for currency)

@@ -10,15 +10,15 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import DECIMAL, ForeignKey, String, Text
+from sqlalchemy import DECIMAL, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base.base import EntityBase
 from app.models.mixins import BranchableMixin, VersionableMixin
 
 if TYPE_CHECKING:
-    pass
+    from app.models.domain.project import Project
 
 
 class WBE(EntityBase, VersionableMixin, BranchableMixin):
@@ -45,9 +45,10 @@ class WBE(EntityBase, VersionableMixin, BranchableMixin):
     # Parent relationship - links to Project's root project_id
     project_id: Mapped[UUID] = mapped_column(
         PG_UUID,
-        ForeignKey("projects.project_id"),
         nullable=False,
         index=True,
+        # NOTE: No database-level ForeignKey constraint because project_id is a root ID
+        # that is not unique across versions. Integrity is enforced at application level.
     )
 
     # WBE hierarchy - parent WBE root ID
@@ -72,12 +73,13 @@ class WBE(EntityBase, VersionableMixin, BranchableMixin):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
-    # Note: relationship to Project uses back_populates, defined in Project model
-    # project: Mapped["Project"] = relationship(
-    #     "Project",
-    #     foreign_keys=[project_id],
-    #     back_populates="wbes"
-    # )
+    # Note: relationship to Project uses root ID join and is view-only
+    project: Mapped["Project"] = relationship(
+        "Project",
+        primaryjoin="WBE.project_id == Project.project_id",
+        foreign_keys=[project_id],
+        viewonly=True,
+    )
 
     # Temporal and branching fields inherited from mixins:
     # - valid_time: TSTZRANGE (from VersionableMixin)
