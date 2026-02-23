@@ -284,9 +284,7 @@ class TestScheduleBaselineCreate:
 class TestScheduleBaselineUpdate:
     """Test schedule baseline UPDATE endpoint with temporal context."""
 
-    async def _get_baseline_id(
-        self, client: AsyncClient, cost_element_id: str
-    ) -> str:
+    async def _get_baseline_id(self, client: AsyncClient, cost_element_id: str) -> str:
         """Helper to get the schedule baseline ID for a cost element."""
         # Query schedule baselines filtered by cost element
         list_response = await client.get(
@@ -363,9 +361,7 @@ class TestScheduleBaselineUpdate:
 class TestScheduleBaselineDelete:
     """Test schedule baseline DELETE endpoint continues using query parameters."""
 
-    async def _get_baseline_id(
-        self, client: AsyncClient, cost_element_id: str
-    ) -> str:
+    async def _get_baseline_id(self, client: AsyncClient, cost_element_id: str) -> str:
         """Helper to get the schedule baseline ID for a cost element."""
         # Query schedule baselines filtered by cost element
         list_response = await client.get(
@@ -410,9 +406,7 @@ class TestScheduleBaselineDelete:
 class TestScheduleBaselineDirectEndpoints:
     """Test direct schedule baseline endpoints at /api/v1/schedule-baselines."""
 
-    async def _get_baseline_id(
-        self, client: AsyncClient, cost_element_id: str
-    ) -> str:
+    async def _get_baseline_id(self, client: AsyncClient, cost_element_id: str) -> str:
         """Helper to get the schedule baseline ID for a cost element."""
         # Query schedule baselines filtered by cost element
         list_response = await client.get(
@@ -449,12 +443,12 @@ class TestScheduleBaselineDirectEndpoints:
                 "progression_type": "LINEAR",
                 "branch": "main",
                 "control_date": None,
+                "cost_element_id": setup_dependencies["cost_element_id"],
             },
         )
-
         # Assert - Should create successfully (direct endpoint doesn't require cost_element)
-        assert response.status_code == 201
         data = response.json()
+        assert response.status_code == 201
         assert data["branch"] == "main"
         assert data["name"] == "Direct Baseline"
 

@@ -52,7 +52,7 @@ class TestTimeTravelQueries:
         actor_id = uuid4()
 
         # Create cost with valid_time starting Jan 1
-        await service.create(
+        await service.create_cost_registration(
             CostRegistrationCreate(
                 cost_element_id=cost_element_id,
                 amount=Decimal("100.00"),
@@ -63,7 +63,7 @@ class TestTimeTravelQueries:
         )
 
         # Create cost with valid_time starting Jan 15 (should be excluded)
-        await service.create(
+        await service.create_cost_registration(
             CostRegistrationCreate(
                 cost_element_id=cost_element_id,
                 amount=Decimal("200.00"),
@@ -103,7 +103,7 @@ class TestTimeTravelQueries:
         actor_id = uuid4()
 
         # Create two costs
-        await service.create(
+        await service.create_cost_registration(
             CostRegistrationCreate(
                 cost_element_id=cost_element.cost_element_id,
                 amount=Decimal("100.00"),
@@ -111,7 +111,7 @@ class TestTimeTravelQueries:
             ),
             actor_id=actor_id,
         )
-        await service.create(
+        await service.create_cost_registration(
             CostRegistrationCreate(
                 cost_element_id=cost_element.cost_element_id,
                 amount=Decimal("250.00"),
@@ -160,7 +160,7 @@ class TestTimeTravelQueries:
         actor_id = uuid4()
 
         # Create cost with valid_time starting Jan 1
-        registration = await service.create(
+        registration = await service.create_cost_registration(
             CostRegistrationCreate(
                 cost_element_id=cost_element_id,
                 amount=Decimal("100.00"),
@@ -208,7 +208,7 @@ class TestTimeTravelQueries:
         actor_id = uuid4()
 
         # Create and soft delete cost
-        registration = await service.create(
+        registration = await service.create_cost_registration(
             CostRegistrationCreate(
                 cost_element_id=cost_element.cost_element_id,
                 amount=Decimal("100.00"),
@@ -255,7 +255,7 @@ class TestTimeTravelQueries:
         actor_id = uuid4()
 
         # Create v1 with valid_time starting Jan 1
-        v1 = await service.create(
+        v1 = await service.create_cost_registration(
             CostRegistrationCreate(
                 cost_element_id=cost_element_id,
                 amount=Decimal("100.00"),
@@ -270,7 +270,7 @@ class TestTimeTravelQueries:
         # Update to v2 with valid_time starting Jan 15
         from app.models.schemas.cost_registration import CostRegistrationUpdate
 
-        _ = await service.update(
+        _ = await service.update_cost_registration(
             v1_id,
             CostRegistrationUpdate(
                 amount=Decimal("150.00"),
@@ -316,7 +316,7 @@ class TestTimeTravelQueries:
         actor_id = uuid4()
 
         # T1: Create cost with valid_time starting Jan 1
-        registration = await service.create(
+        registration = await service.create_cost_registration(
             CostRegistrationCreate(
                 cost_element_id=cost_element_id,
                 amount=Decimal("100.00"),
@@ -347,10 +347,12 @@ class TestTimeTravelQueries:
         )
 
         # Assert - Cost included before deletion, excluded after
-        assert total_before_deletion == Decimal("100.00"), \
+        assert total_before_deletion == Decimal("100.00"), (
             "Cost should be included when querying before deletion date (T3 < T2)"
-        assert total_after_deletion == 0, \
+        )
+        assert total_after_deletion == 0, (
             "Cost should be excluded when querying after deletion date (T4 > T2)"
+        )
 
     @pytest.mark.asyncio
     async def test_get_total_excludes_costs_with_future_valid_time_start(
@@ -370,7 +372,7 @@ class TestTimeTravelQueries:
         actor_id = uuid4()
 
         # Create cost with valid_time starting Jan 1
-        await service.create(
+        await service.create_cost_registration(
             CostRegistrationCreate(
                 cost_element_id=cost_element_id,
                 amount=Decimal("100.00"),
@@ -381,7 +383,7 @@ class TestTimeTravelQueries:
         )
 
         # Create cost with valid_time starting Jan 20 (future from query perspective)
-        await service.create(
+        await service.create_cost_registration(
             CostRegistrationCreate(
                 cost_element_id=cost_element_id,
                 amount=Decimal("200.00"),
@@ -398,9 +400,10 @@ class TestTimeTravelQueries:
         )
 
         # Assert - Only first cost included (second cost's valid_time starts after as_of)
-        assert total == Decimal("100.00"), \
-            f"Only costs with lower(valid_time) <= as_of should be included. " \
+        assert total == Decimal("100.00"), (
+            f"Only costs with lower(valid_time) <= as_of should be included. "
             f"Got {total}, expected 100.00"
+        )
 
         # Verify current total includes both
         current_total = await service.get_total_for_cost_element(cost_element_id)
@@ -422,7 +425,7 @@ class TestTimeTravelQueries:
         actor_id = uuid4()
 
         # Create cost with timezone-aware datetime
-        await service.create(
+        await service.create_cost_registration(
             CostRegistrationCreate(
                 cost_element_id=cost_element_id,
                 amount=Decimal("100.00"),
@@ -439,5 +442,6 @@ class TestTimeTravelQueries:
         )
 
         # Assert - Should handle timezone conversion correctly
-        assert total == Decimal("100.00"), \
+        assert total == Decimal("100.00"), (
             "TIMESTAMP casting should handle timezone-aware datetimes correctly"
+        )

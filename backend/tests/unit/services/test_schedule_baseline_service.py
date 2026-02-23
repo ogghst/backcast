@@ -401,11 +401,35 @@ async def test_cost_element_create_auto_creates_default_schedule_baseline(
     ce_service = CostElementService(db_session)
     user_id = uuid4()
 
+    from app.models.domain.cost_element_type import CostElementType
+    from app.models.domain.wbe import WBE
     from app.models.schemas.cost_element import CostElementCreate
 
+    wbe_id = uuid4()
+    wbe = WBE(
+        wbe_id=wbe_id,
+        project_id=uuid4(),
+        code="WBE-TEST",
+        name="Test WBE",
+        branch="main",
+        created_by=user_id,
+    )
+    db_session.add(wbe)
+
+    cet_id = uuid4()
+    cet = CostElementType(
+        cost_element_type_id=cet_id,
+        department_id=uuid4(),
+        code="TEST-CET",
+        name="Test CET",
+        created_by=user_id,
+    )
+    db_session.add(cet)
+    await db_session.commit()
+
     element_data = CostElementCreate(
-        wbe_id=uuid4(),
-        cost_element_type_id=uuid4(),
+        wbe_id=wbe_id,
+        cost_element_type_id=cet_id,
         code="TEST-007",
         name="Test Cost Element",
         budget_amount=100000.00,
@@ -413,7 +437,7 @@ async def test_cost_element_create_auto_creates_default_schedule_baseline(
     )
 
     # Act: Create cost element
-    cost_element = await ce_service.create(
+    cost_element = await ce_service.create_cost_element(
         element_in=element_data,
         actor_id=user_id,
         branch="main",
@@ -474,18 +498,42 @@ async def test_cost_element_soft_delete_cascades_to_schedule_baseline(
     sb_service = ScheduleBaselineService(db_session)
     user_id = uuid4()
 
+    from app.models.domain.cost_element_type import CostElementType
+    from app.models.domain.wbe import WBE
     from app.models.schemas.cost_element import CostElementCreate
 
+    wbe_id = uuid4()
+    wbe = WBE(
+        wbe_id=wbe_id,
+        project_id=uuid4(),
+        code="WBE-TEST",
+        name="Test WBE",
+        branch="main",
+        created_by=user_id,
+    )
+    db_session.add(wbe)
+
+    cet_id = uuid4()
+    cet = CostElementType(
+        cost_element_type_id=cet_id,
+        department_id=uuid4(),
+        code="TEST-CET",
+        name="Test CET",
+        created_by=user_id,
+    )
+    db_session.add(cet)
+    await db_session.commit()
+
     element_data = CostElementCreate(
-        wbe_id=uuid4(),
-        cost_element_type_id=uuid4(),
+        wbe_id=wbe_id,
+        cost_element_type_id=cet_id,
         code="TEST-008",
         name="Test Cost Element",
         budget_amount=100000.00,
         branch="main",
     )
 
-    cost_element = await ce_service.create(
+    cost_element = await ce_service.create_cost_element(
         element_in=element_data,
         actor_id=user_id,
         branch="main",

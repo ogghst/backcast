@@ -119,25 +119,31 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         # 1. Validate Cost Element existence (Application-level Integrity)
         if "cost_element_id" in data and data["cost_element_id"]:
             ce_exists = await self.session.execute(
-                select(CostElement.id).where(
+                select(CostElement.id)
+                .where(
                     CostElement.cost_element_id == data["cost_element_id"],
                     CostElement.branch == branch,
                     func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None)
-                ).limit(1)
+                    cast(Any, CostElement).deleted_at.is_(None),
+                )
+                .limit(1)
             )
             if not ce_exists.scalar_one_or_none():
                 # Fallback to main branch
                 ce_exists_main = await self.session.execute(
-                    select(CostElement.id).where(
+                    select(CostElement.id)
+                    .where(
                         CostElement.cost_element_id == data["cost_element_id"],
                         CostElement.branch == "main",
                         func.upper(cast(Any, CostElement).valid_time).is_(None),
-                        cast(Any, CostElement).deleted_at.is_(None)
-                    ).limit(1)
+                        cast(Any, CostElement).deleted_at.is_(None),
+                    )
+                    .limit(1)
                 )
                 if not ce_exists_main.scalar_one_or_none():
-                    raise ValueError(f"Cost Element {data['cost_element_id']} not found on branch {branch} or main")
+                    raise ValueError(
+                        f"Cost Element {data['cost_element_id']} not found on branch {branch} or main"
+                    )
 
         cmd = CreateVersionCommand(
             entity_class=cast(type[VersionableProtocol], ScheduleBaseline),
@@ -172,16 +178,16 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
 
         root_id = create_schema.schedule_baseline_id or uuid4()
 
+        # Exclude fields handled explicitly
+        exclude_fields = {"schedule_baseline_id", "branch", "control_date"}
+        data = create_schema.model_dump(exclude_unset=True, exclude=exclude_fields)
+
         return await self.create_root(
             root_id=root_id,
             actor_id=actor_id,
             control_date=control_date,
             branch=branch,
-            name=create_schema.name,
-            start_date=create_schema.start_date,
-            end_date=create_schema.end_date,
-            progression_type=create_schema.progression_type,
-            description=create_schema.description,
+            **data,
         )
 
     async def get_by_id(
@@ -492,13 +498,11 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         # Query via CostElement.schedule_baseline_id to ensure we get the linked baseline
         # We need to join CostElement to filter by cost_element_id and get the baseline_id
         stmt = (
-            select(
-                CostElement.cost_element_id,
-                ScheduleBaseline
-            )
+            select(CostElement.cost_element_id, ScheduleBaseline)
             .join(
                 ScheduleBaseline,
-                CostElement.schedule_baseline_id == ScheduleBaseline.schedule_baseline_id
+                CostElement.schedule_baseline_id
+                == ScheduleBaseline.schedule_baseline_id,
             )
             .where(
                 CostElement.cost_element_id.in_(cost_element_ids),
@@ -520,4 +524,3 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             baselines[ce_id] = baseline
 
         return baselines
-

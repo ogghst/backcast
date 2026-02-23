@@ -70,6 +70,7 @@ async def read_schedule_baselines(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     skip = (page - 1) * per_page
@@ -95,6 +96,7 @@ async def read_schedule_baselines(
     if as_of:
         # Cast as_of to TIMESTAMP(timezone=True) for proper timezone handling with TSTZRANGE
         from sqlalchemy import cast as sql_cast
+
         as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
         stmt = stmt.where(
             cast(Any, ScheduleBaseline).valid_time.op("@>")(as_of_tstz),
@@ -159,10 +161,9 @@ async def create_schedule_baseline(
     """Create a new schedule baseline in specified branch."""
     try:
         # Extract branch and control_date from request body
-        # Note: Schema defaults branch to "main", but we enforce it here per "create on main first" policy
-        branch = "main"  # Always create on main first
+        branch = baseline_in.branch or "main"
 
-        return await service.create(
+        return await service.create_schedule_baseline(
             create_schema=baseline_in,
             actor_id=current_user.user_id,
             branch=branch,
@@ -197,6 +198,7 @@ async def read_schedule_baseline(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     if as_of:
@@ -246,7 +248,9 @@ async def update_schedule_baseline(
             )
 
         # Convert ScheduleBaselineUpdate to dict for update, excluding branch and control_date
-        update_data = baseline_in.model_dump(exclude_unset=True, exclude={"branch", "control_date"})
+        update_data = baseline_in.model_dump(
+            exclude_unset=True, exclude={"branch", "control_date"}
+        )
 
         return await service.update(
             root_id=schedule_baseline_id,

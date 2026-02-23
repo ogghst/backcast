@@ -7,18 +7,28 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import tests.unit.fixtures.cost_element_fixtures as _fixtures
 from app.models.schemas.progress_entry import (
     ProgressEntryCreate,
     ProgressEntryUpdate,
 )
 from app.services.progress_entry_service import ProgressEntryService
+from tests.unit.fixtures.cost_element_fixtures import (  # noqa: F401
+    sample_cost_element_type,
+    sample_department,
+    sample_wbe,
+)
+
+sample_cost_element_with_budget = _fixtures.sample_cost_element_with_budget  # noqa: F401
 
 
 class TestProgressEntryServiceCreate:
     """Test ProgressEntryService.create() method."""
 
     @pytest.mark.asyncio
-    async def test_create_progress_entry_success(self, db_session: AsyncSession) -> None:
+    async def test_create_progress_entry_success(
+        self, db_session: AsyncSession, sample_cost_element_with_budget
+    ) -> None:
         """Test successfully creating a progress entry.
 
         Acceptance Criteria:
@@ -31,7 +41,7 @@ class TestProgressEntryServiceCreate:
         """
         # Arrange
         service = ProgressEntryService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
         uuid4()
         progress_in = ProgressEntryCreate(
             cost_element_id=cost_element_id,
@@ -53,7 +63,7 @@ class TestProgressEntryServiceCreate:
 
     @pytest.mark.asyncio
     async def test_create_progress_entry_with_zero_percentage(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, sample_cost_element_with_budget
     ) -> None:
         """Test creating progress entry with 0% progress.
 
@@ -61,7 +71,7 @@ class TestProgressEntryServiceCreate:
         """
         # Arrange
         service = ProgressEntryService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
         progress_in = ProgressEntryCreate(
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("0.00"),
@@ -76,7 +86,7 @@ class TestProgressEntryServiceCreate:
 
     @pytest.mark.asyncio
     async def test_create_progress_entry_with_hundred_percentage(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, sample_cost_element_with_budget
     ) -> None:
         """Test creating progress entry with 100% progress.
 
@@ -84,7 +94,7 @@ class TestProgressEntryServiceCreate:
         """
         # Arrange
         service = ProgressEntryService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
         progress_in = ProgressEntryCreate(
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("100.00"),
@@ -99,7 +109,7 @@ class TestProgressEntryServiceCreate:
 
     @pytest.mark.asyncio
     async def test_create_progress_entry_with_negative_percentage_raises_error(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, sample_cost_element_with_budget
     ) -> None:
         """Test creating progress entry with negative percentage raises ValidationError.
 
@@ -107,11 +117,12 @@ class TestProgressEntryServiceCreate:
         """
         # Arrange
         ProgressEntryService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
         uuid4()
 
         # Act & Assert - Pydantic validates before service is called
         from pydantic import ValidationError as PydanticValidationError
+
         with pytest.raises(PydanticValidationError, match="greater_than_equal"):
             ProgressEntryCreate(
                 cost_element_id=cost_element_id,
@@ -120,7 +131,7 @@ class TestProgressEntryServiceCreate:
 
     @pytest.mark.asyncio
     async def test_create_progress_entry_with_over_hundred_percentage_raises_error(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, sample_cost_element_with_budget
     ) -> None:
         """Test creating progress entry with >100% raises ValidationError.
 
@@ -128,10 +139,11 @@ class TestProgressEntryServiceCreate:
         """
         # Arrange
         ProgressEntryService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
 
         # Act & Assert - Pydantic validates before service is called
         from pydantic import ValidationError as PydanticValidationError
+
         with pytest.raises(PydanticValidationError, match="less_than_equal"):
             ProgressEntryCreate(
                 cost_element_id=cost_element_id,
@@ -143,14 +155,16 @@ class TestProgressEntryServiceUpdate:
     """Test ProgressEntryService.update() method."""
 
     @pytest.mark.asyncio
-    async def test_update_progress_entry_increase(self, db_session: AsyncSession) -> None:
+    async def test_update_progress_entry_increase(
+        self, db_session: AsyncSession, sample_cost_element_with_budget
+    ) -> None:
         """Test updating progress entry to increase percentage.
 
         Test ID: T-005
         """
         # Arrange - create initial progress entry
         service = ProgressEntryService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
         progress_in = ProgressEntryCreate(
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("50.00"),
@@ -172,14 +186,16 @@ class TestProgressEntryServiceUpdate:
         assert updated_progress.progress_percentage == Decimal("75.00")
 
     @pytest.mark.asyncio
-    async def test_update_progress_entry_decrease(self, db_session: AsyncSession) -> None:
+    async def test_update_progress_entry_decrease(
+        self, db_session: AsyncSession, sample_cost_element_with_budget
+    ) -> None:
         """Test updating progress entry to decrease percentage.
 
         Test ID: T-006
         """
         # Arrange - create initial progress entry
         service = ProgressEntryService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
         progress_in = ProgressEntryCreate(
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("75.00"),
@@ -208,7 +224,7 @@ class TestProgressEntryServiceGetLatest:
 
     @pytest.mark.asyncio
     async def test_get_latest_progress_returns_most_recent(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, sample_cost_element_with_budget
     ) -> None:
         """Test that get_latest_progress returns the most recent entry.
 
@@ -216,7 +232,7 @@ class TestProgressEntryServiceGetLatest:
         """
         # Arrange
         service = ProgressEntryService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
         uuid4()
         actor_id = uuid4()
 
@@ -251,14 +267,16 @@ class TestProgressEntryServiceGetLatest:
         assert latest.progress_percentage == Decimal("75.00")
 
     @pytest.mark.asyncio
-    async def test_get_latest_progress_with_as_of(self, db_session: AsyncSession) -> None:
+    async def test_get_latest_progress_with_as_of(
+        self, db_session: AsyncSession, sample_cost_element_with_budget
+    ) -> None:
         """Test get_latest_progress with time-travel (as_of parameter).
 
         Test ID: T-009
         """
         # Arrange
         service = ProgressEntryService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
         uuid4()
         actor_id = uuid4()
 
@@ -292,7 +310,7 @@ class TestProgressEntryServiceGetLatest:
 
     @pytest.mark.asyncio
     async def test_get_latest_progress_returns_none_when_no_entries(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, sample_cost_element_with_budget
     ) -> None:
         """Test that get_latest_progress returns None when no entries exist.
 
@@ -300,7 +318,7 @@ class TestProgressEntryServiceGetLatest:
         """
         # Arrange
         service = ProgressEntryService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
 
         # Act
         latest = await service.get_latest_progress(cost_element_id=cost_element_id)
@@ -314,7 +332,7 @@ class TestProgressEntryServiceGetHistory:
 
     @pytest.mark.asyncio
     async def test_get_progress_history_ordered_by_date(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, sample_cost_element_with_budget
     ) -> None:
         """Test that get_progress_history returns entries ordered by reported_date DESC.
 
@@ -322,7 +340,7 @@ class TestProgressEntryServiceGetHistory:
         """
         # Arrange
         service = ProgressEntryService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
         uuid4()
         actor_id = uuid4()
 
@@ -364,7 +382,7 @@ class TestProgressEntryServiceGetHistory:
 
     @pytest.mark.asyncio
     async def test_get_progress_history_with_pagination(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, sample_cost_element_with_budget
     ) -> None:
         """Test get_progress_history with pagination.
 
@@ -372,7 +390,7 @@ class TestProgressEntryServiceGetHistory:
         """
         # Arrange
         service = ProgressEntryService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
         uuid4()
         actor_id = uuid4()
 
@@ -397,7 +415,7 @@ class TestProgressEntryServiceGetHistory:
 
     @pytest.mark.asyncio
     async def test_multiple_times_per_day_allowed(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, sample_cost_element_with_budget
     ) -> None:
         """Test that multiple progress entries can be created on the same day.
 
@@ -405,7 +423,7 @@ class TestProgressEntryServiceGetHistory:
         """
         # Arrange
         service = ProgressEntryService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
         uuid4()
         actor_id = uuid4()
 

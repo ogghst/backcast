@@ -68,10 +68,13 @@ async def read_progress_entries(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     items, total = await service.get_progress_history(
-        cost_element_id=cost_element_id if cost_element_id else UUID("00000000-0000-0000-0000-000000000000"),  # Dummy ID for list all
+        cost_element_id=cost_element_id
+        if cost_element_id
+        else UUID("00000000-0000-0000-0000-000000000000"),  # Dummy ID for list all
         skip=skip,
         limit=per_page,
         as_of=as_of,
@@ -114,7 +117,7 @@ async def create_progress_entry(
     - control_date determines when the progress was measured (defaults to now)
     """
     try:
-        progress = await service.create_progress_entry(
+        progress = await service.create(
             progress_in=progress_in,
             actor_id=current_user.user_id,
         )
@@ -147,6 +150,7 @@ async def read_progress_entry(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     if as_of:
@@ -185,7 +189,7 @@ async def update_progress_entry(
     The system will maintain full version history for audit trails.
     """
     try:
-        progress = await service.update_progress_entry(
+        progress = await service.update(
             progress_entry_id=progress_entry_id,
             progress_in=progress_in,
             actor_id=current_user.user_id,
@@ -246,6 +250,7 @@ async def read_latest_progress(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     progress = await service.get_latest_progress(

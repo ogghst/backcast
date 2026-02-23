@@ -7,16 +7,26 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import tests.unit.fixtures.cost_element_fixtures as _fixtures
 from app.models.schemas.progress_entry import ProgressEntryCreate
 from app.services.progress_entry_service import ProgressEntryService
+from tests.unit.fixtures.cost_element_fixtures import (  # noqa: F401
+    sample_cost_element_type,
+    sample_department,
+    sample_wbe,
+)
+
+sample_cost_element_with_budget = _fixtures.sample_cost_element_with_budget  # noqa: F401
 
 
 @pytest.mark.asyncio
-async def test_get_progress_history_with_as_of(db_session: AsyncSession) -> None:
+async def test_get_progress_history_with_as_of(
+    db_session: AsyncSession, sample_cost_element_with_budget
+) -> None:
     """Test that get_progress_history correctly filters by as_of timestamp."""
     # Arrange
     service = ProgressEntryService(db_session)
-    cost_element_id = uuid4()
+    cost_element_id = sample_cost_element_with_budget.cost_element_id
     actor_id = uuid4()
 
     # Create progress entries with different control dates

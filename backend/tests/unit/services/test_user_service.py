@@ -55,7 +55,7 @@ class TestUserServiceGetUser:
         await db_session.refresh(user)
 
         # Act
-        result = await service.get_user(user.id)
+        result = await service.get_user(user.user_id)
 
         # Assert
         assert result is not None
@@ -88,7 +88,7 @@ class TestUserServiceCreate:
         assert created_user.email == "newuser@example.com"
         assert created_user.user_id is not None
         # Verify persistence
-        fetched = await service.get_user(created_user.id)
+        fetched = await service.get_user(created_user.user_id)
         assert fetched is not None
         assert fetched.email == "newuser@example.com"
 
@@ -124,7 +124,7 @@ class TestUserServiceUpdate:
         assert v2.full_name == "Updated Name"
 
         # Verify persistence of new version
-        fetched = await service.get_user(v2.id)
+        fetched = await service.get_user(v2.user_id)
         assert fetched is not None
         assert fetched.full_name == "Updated Name"
 
@@ -156,11 +156,9 @@ class TestUserServiceDelete:
         assert deleted_user.is_deleted is True
         assert deleted_user.deleted_at is not None
 
-        # Verify persistence
-        fetched = await service.get_user(v1.id)
-        assert fetched is not None
-        assert fetched.is_deleted is True
-        assert fetched.deleted_at is not None
+        # Verify persistence (get_user filters deleted_at)
+        fetched = await service.get_user(v1.user_id)
+        assert fetched is None
 
         # get_by_email should return None for deleted users
         result = await service.get_by_email("delete_test@example.com")
@@ -201,7 +199,7 @@ class TestUserServicePreferences:
         user = await service.create_user(user_in, actor_id=uuid4())
 
         # Act
-        prefs = await service.get_user_preferences(user.id)
+        prefs = await service.get_user_preferences(user.user_id)
 
         # Assert
         assert prefs == {}
@@ -236,14 +234,14 @@ class TestUserServicePreferences:
 
         # Act
         new_prefs = {"theme": "dark"}
-        result = await service.update_user_preferences(user.id, new_prefs)
+        result = await service.update_user_preferences(user.user_id, new_prefs)
         await db_session.commit()
 
         # Assert
         assert result == {"theme": "dark"}
 
         # Verify persistence
-        fetched_prefs = await service.get_user_preferences(user.id)
+        fetched_prefs = await service.get_user_preferences(user.user_id)
         assert fetched_prefs == {"theme": "dark"}
 
     @pytest.mark.asyncio
@@ -263,19 +261,19 @@ class TestUserServicePreferences:
 
         # Set initial preferences
         await service.update_user_preferences(
-            user.id, {"theme": "light", "locale": "en"}
+            user.user_id, {"theme": "light", "locale": "en"}
         )
         await db_session.commit()
 
         # Act - update only theme
-        result = await service.update_user_preferences(user.id, {"theme": "dark"})
+        result = await service.update_user_preferences(user.user_id, {"theme": "dark"})
         await db_session.commit()
 
         # Assert - theme updated, locale preserved
         assert result == {"theme": "dark", "locale": "en"}
 
         # Verify persistence
-        fetched_prefs = await service.get_user_preferences(user.id)
+        fetched_prefs = await service.get_user_preferences(user.user_id)
         assert fetched_prefs == {"theme": "dark", "locale": "en"}
 
     @pytest.mark.asyncio
@@ -307,15 +305,15 @@ class TestUserServicePreferences:
         user = await service.create_user(user_in, actor_id=uuid4())
 
         # Act & Assert - valid themes should work
-        result = await service.update_user_preferences(user.id, {"theme": "dark"})
+        result = await service.update_user_preferences(user.user_id, {"theme": "dark"})
         assert result["theme"] == "dark"
 
-        result = await service.update_user_preferences(user.id, {"theme": "light"})
+        result = await service.update_user_preferences(user.user_id, {"theme": "light"})
         assert result["theme"] == "light"
 
         # Extra fields should be allowed
         result = await service.update_user_preferences(
-            user.id, {"theme": "dark", "locale": "en-US", "timezone": "UTC"}
+            user.user_id, {"theme": "dark", "locale": "en-US", "timezone": "UTC"}
         )
         assert result["theme"] == "dark"
         assert result["locale"] == "en-US"
