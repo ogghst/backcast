@@ -46,9 +46,7 @@ class TestSCurveTimeSeriesGeneration:
     - Expected: Flatter curve over longer period
     """
 
-    async def test_s_curve_with_budget_increase(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_s_curve_with_budget_increase(self, db_session: AsyncSession) -> None:
         """Test S-curve when change branch increases WBE budget.
 
         Edge Case 1: Budget Increase
@@ -106,7 +104,13 @@ class TestSCurveTimeSeriesGeneration:
             db_session, wbe_id, cet_id, "main", schedule_start, schedule_end, "LINEAR"
         )
         self._create_schedule_baseline(
-            db_session, wbe_id, cet_id, branch_name, schedule_start, schedule_end, "LINEAR"
+            db_session,
+            wbe_id,
+            cet_id,
+            branch_name,
+            schedule_start,
+            schedule_end,
+            "LINEAR",
         )
 
         await db_session.commit()
@@ -132,18 +136,16 @@ class TestSCurveTimeSeriesGeneration:
             # Change should be 1.5x main (50% increase)
             if main_val > 0:
                 ratio = change_val / main_val
-                assert (
-                    abs(ratio - Decimal("1.5")) < Decimal("0.01")
-                ), f"At {point.week_start}, change ({change_val}) should be ~1.5x main ({main_val}), got ratio {ratio}"
+                assert abs(ratio - Decimal("1.5")) < Decimal("0.01"), (
+                    f"At {point.week_start}, change ({change_val}) should be ~1.5x main ({main_val}), got ratio {ratio}"
+                )
 
         # Verify final cumulative values match total budgets
         final_point = data_points[-1]
         assert final_point.main_value == Decimal("50000.00")
         assert final_point.change_value == Decimal("75000.00")
 
-    async def test_s_curve_with_new_wbe_added(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_s_curve_with_new_wbe_added(self, db_session: AsyncSession) -> None:
         """Test S-curve when change branch adds a new WBE.
 
         Edge Case 2: New WBE Added
@@ -213,10 +215,22 @@ class TestSCurveTimeSeriesGeneration:
             db_session, wbe_1_id, cet_id, "main", schedule_start, schedule_end, "LINEAR"
         )
         self._create_schedule_baseline(
-            db_session, wbe_1_id, cet_id, branch_name, schedule_start, schedule_end, "LINEAR"
+            db_session,
+            wbe_1_id,
+            cet_id,
+            branch_name,
+            schedule_start,
+            schedule_end,
+            "LINEAR",
         )
         self._create_schedule_baseline(
-            db_session, wbe_2_id, cet_id, branch_name, schedule_start, schedule_end, "LINEAR"
+            db_session,
+            wbe_2_id,
+            cet_id,
+            branch_name,
+            schedule_start,
+            schedule_end,
+            "LINEAR",
         )
 
         await db_session.commit()
@@ -236,10 +250,12 @@ class TestSCurveTimeSeriesGeneration:
 
         # Verify final cumulative values
         final_point = data_points[-1]
-        assert final_point.main_value == Decimal("100000.00"), "Main branch should have $100k total"
-        assert (
-            final_point.change_value == Decimal("150000.00")
-        ), "Change branch should have $150k total ($100k + $50k new WBE)"
+        assert final_point.main_value == Decimal("100000.00"), (
+            "Main branch should have $100k total"
+        )
+        assert final_point.change_value == Decimal("150000.00"), (
+            "Change branch should have $150k total ($100k + $50k new WBE)"
+        )
 
         # Verify that change branch is consistently $50k higher throughout
         mid_point = data_points[len(data_points) // 2]
@@ -250,8 +266,7 @@ class TestSCurveTimeSeriesGeneration:
         # Delta should be approximately $50k (the new WBE's contribution)
         # We allow some tolerance due to weekly aggregation
         assert abs(delta - Decimal("50000.00")) < Decimal("5000.00"), (
-            f"Delta should be ~$50k, got {delta} "
-            f"(main={main_mid}, change={change_mid})"
+            f"Delta should be ~$50k, got {delta} (main={main_mid}, change={change_mid})"
         )
 
     async def test_s_curve_with_progression_type_change(
@@ -307,13 +322,21 @@ class TestSCurveTimeSeriesGeneration:
 
         # Create schedule baselines with DIFFERENT progression types
         schedule_start = datetime(2026, 1, 1, tzinfo=UTC)
-        schedule_end = datetime(2026, 12, 31, tzinfo=UTC)  # Full year for better S-curve visibility
+        schedule_end = datetime(
+            2026, 12, 31, tzinfo=UTC
+        )  # Full year for better S-curve visibility
 
         self._create_schedule_baseline(
             db_session, wbe_id, cet_id, "main", schedule_start, schedule_end, "LINEAR"
         )
         self._create_schedule_baseline(
-            db_session, wbe_id, cet_id, branch_name, schedule_start, schedule_end, "GAUSSIAN"
+            db_session,
+            wbe_id,
+            cet_id,
+            branch_name,
+            schedule_start,
+            schedule_end,
+            "GAUSSIAN",
         )
 
         await db_session.commit()
@@ -329,7 +352,9 @@ class TestSCurveTimeSeriesGeneration:
         assert budget_series is not None, "Should have budget time series"
 
         data_points = budget_series.data_points
-        assert len(data_points) > 10, "Should generate many weekly data points for a year-long project"
+        assert len(data_points) > 10, (
+            "Should generate many weekly data points for a year-long project"
+        )
 
         # Verify final values are the same (same total budget)
         final_point = data_points[-1]
@@ -460,18 +485,16 @@ class TestSCurveTimeSeriesGeneration:
         )
 
         # Verify main has approximately 50% at midpoint
-        assert (
-            abs(main_at_3m - Decimal("50000.00")) < Decimal("10000.00")
-        ), f"Main should have ~$50k at 3 months, got {main_at_3m}"
+        assert abs(main_at_3m - Decimal("50000.00")) < Decimal("10000.00"), (
+            f"Main should have ~$50k at 3 months, got {main_at_3m}"
+        )
 
         # Verify change has approximately 33% at 3 months
-        assert (
-            abs(change_at_3m - Decimal("33333.00")) < Decimal("10000.00")
-        ), f"Change should have ~$33k at 3 months, got {change_at_3m}"
+        assert abs(change_at_3m - Decimal("33333.00")) < Decimal("10000.00"), (
+            f"Change should have ~$33k at 3 months, got {change_at_3m}"
+        )
 
-    async def test_s_curve_empty_project(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_s_curve_empty_project(self, db_session: AsyncSession) -> None:
         """Test S-curve generation when project has no WBEs or schedules.
 
         Edge Case 5: Empty Project

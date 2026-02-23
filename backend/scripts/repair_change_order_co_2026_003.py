@@ -8,6 +8,7 @@ This script recovers a stuck change order by:
 4. Creating new version with proper state
 5. Approving the change order
 """
+
 import asyncio
 import sys
 from pathlib import Path
@@ -26,7 +27,9 @@ from app.models.domain.user import User
 from app.services.change_order_service import ChangeOrderService
 
 
-async def get_current_co_by_code(session: AsyncSession, code: str) -> ChangeOrder | None:
+async def get_current_co_by_code(
+    session: AsyncSession, code: str
+) -> ChangeOrder | None:
     """Get the current version of a change order by its code.
 
     Uses temporal query to find the version with an open valid_time upper bound.
@@ -53,8 +56,7 @@ async def repair_change_order():
 
         # 1. Get admin user
         admin_stmt = select(User).where(
-            User.email == "admin@backcast.org",
-            User.deleted_at.is_(None)
+            User.email == "admin@backcast.org", User.deleted_at.is_(None)
         )
         admin_result = await session.execute(admin_stmt)
         admin = admin_result.scalar_one_or_none()
@@ -96,7 +98,7 @@ async def repair_change_order():
             root_id=co_id,
             actor_id=admin_id,  # Use 'id' for actor_id too
             branch="main",
-            **update_data
+            **update_data,
         )
 
         print(f"✅ Updated CO status to: {updated_co.status}")
@@ -112,7 +114,7 @@ async def repair_change_order():
             approver_id=admin_id,  # Use 'id' not 'user_id'
             actor_id=admin_id,
             branch="main",
-            comments="Recovered from stuck workflow - impact analysis skipped, admin override"
+            comments="Recovered from stuck workflow - impact analysis skipped, admin override",
         )
 
         print(f"✅ Change order approved! Final status: {approved_co.status}")

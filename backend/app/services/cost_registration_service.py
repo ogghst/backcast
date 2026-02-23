@@ -94,28 +94,33 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
 
         # 1. Validate Cost Element existence (Application-level Integrity)
         ce_exists = await self.session.execute(
-            select(CostElement.id).where(
+            select(CostElement.id)
+            .where(
                 CostElement.cost_element_id == registration_in.cost_element_id,
                 CostElement.branch == branch,
                 func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None)
-            ).limit(1)
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            .limit(1)
         )
         if not ce_exists.scalar_one_or_none():
             # Fallback to main branch
             ce_exists_main = await self.session.execute(
-                select(CostElement.id).where(
+                select(CostElement.id)
+                .where(
                     CostElement.cost_element_id == registration_in.cost_element_id,
                     CostElement.branch == "main",
                     func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None)
-                ).limit(1)
+                    cast(Any, CostElement).deleted_at.is_(None),
+                )
+                .limit(1)
             )
             if not ce_exists_main.scalar_one_or_none():
-                raise ValueError(f"Cost Element {registration_in.cost_element_id} not found on branch {branch} or main")
+                raise ValueError(
+                    f"Cost Element {registration_in.cost_element_id} not found on branch {branch} or main"
+                )
 
-    # Budget validation removed - allowing over-budget registration with frontend warning
-
+        # Budget validation removed - allowing over-budget registration with frontend warning
 
         cmd = CreateVersionCommand(
             entity_class=CostRegistration,  # type: ignore[type-var,unused-ignore]
@@ -219,7 +224,9 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             Tuple of (list of cost registrations, total count)
         """
         # Build base query
-        stmt = select(CostRegistration).where(CostRegistration.cost_element_id.isnot(None))
+        stmt = select(CostRegistration).where(
+            CostRegistration.cost_element_id.isnot(None)
+        )
 
         # FIX: Use standardized bitemporal filter instead of custom implementation
         # The custom filter was missing:
@@ -417,7 +424,9 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
 
         # Build base query with time-travel support
         stmt = select(
-            func.date_trunc(pg_period, CostRegistration.registration_date).label("period_start"),
+            func.date_trunc(pg_period, CostRegistration.registration_date).label(
+                "period_start"
+            ),
             func.sum(CostRegistration.amount).label("total_amount"),
         ).where(
             CostRegistration.cost_element_id == cost_element_id,
@@ -440,7 +449,10 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
 
         result = await self.session.execute(stmt)
         return [
-            {"period_start": row.period_start.isoformat(), "total_amount": float(row.total_amount)}
+            {
+                "period_start": row.period_start.isoformat(),
+                "total_amount": float(row.total_amount),
+            }
             for row in result.all()
         ]
 
@@ -497,12 +509,13 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         cumulative_costs = []
         for row in rows:
             cumulative_amount += row.amount
-            cumulative_costs.append({
-                "registration_date": row.registration_date.isoformat(),
-                "amount": float(row.amount),
-                "cumulative_amount": float(cumulative_amount),
-            })
-
+            cumulative_costs.append(
+                {
+                    "registration_date": row.registration_date.isoformat(),
+                    "amount": float(row.amount),
+                    "cumulative_amount": float(cumulative_amount),
+                }
+            )
 
         return cumulative_costs
 
@@ -526,11 +539,9 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         stmt = (
             select(
                 CostRegistration.cost_element_id,
-                func.sum(CostRegistration.amount).label("total")
+                func.sum(CostRegistration.amount).label("total"),
             )
-            .where(
-                CostRegistration.cost_element_id.in_(cost_element_ids)
-            )
+            .where(CostRegistration.cost_element_id.in_(cost_element_ids))
             .group_by(CostRegistration.cost_element_id)
         )
 
@@ -548,4 +559,3 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             totals[row.cost_element_id] = row.total or Decimal("0.00")
 
         return totals
-

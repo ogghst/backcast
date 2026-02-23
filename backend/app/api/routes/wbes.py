@@ -95,6 +95,7 @@ async def read_wbes(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     # Parse parent_wbe_id
@@ -200,9 +201,7 @@ async def create_wbe(
                 detail=f"WBE with code '{wbe_in.code}' already exists in this project",
             )
 
-        wbe = await service.create_wbe(
-            wbe_in=wbe_in, actor_id=current_user.user_id
-        )
+        wbe = await service.create_wbe(wbe_in=wbe_in, actor_id=current_user.user_id)
         return wbe
     except ValueError as e:
         raise HTTPException(
@@ -234,6 +233,7 @@ async def read_wbe(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     if as_of:
@@ -324,10 +324,13 @@ async def read_wbe_breadcrumb(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     try:
-        return await service.get_breadcrumb(wbe_id, branch=branch, branch_mode=branch_mode, as_of=as_of)
+        return await service.get_breadcrumb(
+            wbe_id, branch=branch, branch_mode=branch_mode, as_of=as_of
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

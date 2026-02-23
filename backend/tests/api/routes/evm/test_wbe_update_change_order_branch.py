@@ -139,9 +139,7 @@ async def test_update_wbe_in_change_order_branch_fallback_to_main(
     # Note: parent_id is not returned in the API response
 
     # Verify we can retrieve the WBE on the BR-123 branch
-    response = await client.get(
-        f"/api/v1/wbes/{created_wbe['wbe_id']}?branch=BR-123"
-    )
+    response = await client.get(f"/api/v1/wbes/{created_wbe['wbe_id']}?branch=BR-123")
     assert response.status_code == 200
     co_version = cast(dict[str, Any], response.json())
     assert co_version["name"] == "Updated WBE in CO Branch"

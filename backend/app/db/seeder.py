@@ -443,11 +443,9 @@ class DataSeeder:
                         item["branch"] = "main"
 
                     pe_in = ProgressEntryCreate(**item)
-                    await pe_service.create_progress_entry(pe_in, actor_id)
+                    await pe_service.create(actor_id=actor_id, progress_in=pe_in)
                     created_count += 1
-                    logger.info(
-                        f"Created Progress Entry: {pe_in.progress_percentage}%"
-                    )
+                    logger.info(f"Created Progress Entry: {pe_in.progress_percentage}%")
 
                 except Exception as e:
                     logger.error(
@@ -488,8 +486,11 @@ class DataSeeder:
             logger.info(f"Using admin user {actor_id} for Change Order seeding")
         else:
             from uuid import uuid4
+
             actor_id = uuid4()
-            logger.warning("Admin user not found, using random UUID for actor_id (approvals may fail)")
+            logger.warning(
+                "Admin user not found, using random UUID for actor_id (approvals may fail)"
+            )
 
         created_count = 0
         skipped_count = 0
@@ -501,9 +502,13 @@ class DataSeeder:
                     co_in = ChangeOrderCreate(**item)
 
                     # Check if change order already exists
-                    existing_co = await co_service.get_current_by_code(co_in.code, branch="main")
+                    existing_co = await co_service.get_current_by_code(
+                        co_in.code, branch="main"
+                    )
                     if existing_co:
-                        logger.debug(f"Change Order {co_in.code} already exists, skipping")
+                        logger.debug(
+                            f"Change Order {co_in.code} already exists, skipping"
+                        )
                         skipped_count += 1
                         continue
 
@@ -512,7 +517,12 @@ class DataSeeder:
 
                     # Store workflow state fields for direct update after creation
                     workflow_fields = {}
-                    for field in ["assigned_approver_id", "sla_assigned_at", "sla_due_date", "sla_status"]:
+                    for field in [
+                        "assigned_approver_id",
+                        "sla_assigned_at",
+                        "sla_due_date",
+                        "sla_status",
+                    ]:
                         if field in item:
                             workflow_fields[field] = item[field]
 
@@ -520,8 +530,15 @@ class DataSeeder:
                     # so it defaults to "Draft" and only includes valid model fields
                     create_data = item.copy()
                     # Fields to remove from create_data
-                    fields_to_remove = ["status", "assigned_approver_id", "sla_assigned_at",
-                                     "sla_due_date", "sla_status", "priority", "estimated_cost"]
+                    fields_to_remove = [
+                        "status",
+                        "assigned_approver_id",
+                        "sla_assigned_at",
+                        "sla_due_date",
+                        "sla_status",
+                        "priority",
+                        "estimated_cost",
+                    ]
                     for field in fields_to_remove:
                         create_data.pop(field, None)
 
@@ -557,7 +574,9 @@ class DataSeeder:
                                     )
                                     await session.commit()
                                 except Exception as e:
-                                    logger.warning(f"  → Impact analysis retry failed: {e}")
+                                    logger.warning(
+                                        f"  → Impact analysis retry failed: {e}"
+                                    )
                                     await session.rollback()
                                     await asyncio.sleep(2)  # Wait before retry
                             else:
@@ -624,7 +643,9 @@ class DataSeeder:
 
                                 # Then transition to Under Review by updating status
                                 # Note: This is a direct status update for seeding purposes
-                                under_review_update = ChangeOrderUpdate(status="Under Review")
+                                under_review_update = ChangeOrderUpdate(
+                                    status="Under Review"
+                                )
                                 await co_service.update_change_order(
                                     change_order_id=co_id,
                                     change_order_in=under_review_update,
@@ -644,7 +665,9 @@ class DataSeeder:
                                 )
 
                                 # Then transition to Under Review
-                                under_review_update = ChangeOrderUpdate(status="Under Review")
+                                under_review_update = ChangeOrderUpdate(
+                                    status="Under Review"
+                                )
                                 await co_service.update_change_order(
                                     change_order_id=co_id,
                                     change_order_in=under_review_update,
@@ -673,7 +696,9 @@ class DataSeeder:
                                 )
 
                                 # Then transition to Under Review
-                                under_review_update = ChangeOrderUpdate(status="Under Review")
+                                under_review_update = ChangeOrderUpdate(
+                                    status="Under Review"
+                                )
                                 await co_service.update_change_order(
                                     change_order_id=co_id,
                                     change_order_in=under_review_update,
@@ -745,9 +770,14 @@ class DataSeeder:
                     # Insert audit log entry
                     # Parse datetime strings to datetime objects
                     from datetime import datetime
+
                     item_copy = item.copy()
-                    if 'changed_at' in item_copy and isinstance(item_copy['changed_at'], str):
-                        item_copy['changed_at'] = datetime.fromisoformat(item_copy['changed_at'])
+                    if "changed_at" in item_copy and isinstance(
+                        item_copy["changed_at"], str
+                    ):
+                        item_copy["changed_at"] = datetime.fromisoformat(
+                            item_copy["changed_at"]
+                        )
 
                     await session.execute(
                         insert(ChangeOrderAuditLog).values(**item_copy)

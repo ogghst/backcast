@@ -186,9 +186,7 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
             # Fall back to main branch to get the current version
             current = await self._get_current_on_branch(session, "main")
             if not current:
-                raise ValueError(
-                    f"No active version on main branch for {self.root_id}"
-                )
+                raise ValueError(f"No active version on main branch for {self.root_id}")
             # The updates will create a new version on the change order branch
         elif not current:
             raise ValueError(
@@ -249,7 +247,7 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         # This is essential when current is from main but we're updating on a change order branch
         new_version = cast(
             TBranchable,
-            current.clone(branch=self.branch, **self.updates, parent_id=current_id)
+            current.clone(branch=self.branch, **self.updates, parent_id=current_id),
         )
 
         # 3. Close current (only if not already closed as remainder)
@@ -361,9 +359,7 @@ class MergeBranchCommand(BranchCommandABC[TBranchable]):
         )
 
         # 5. Close Target
-        await self._close_version(
-            session, target, close_at_valid_time=merge_timestamp
-        )
+        await self._close_version(session, target, close_at_valid_time=merge_timestamp)
         session.add(merged)
         await session.flush()  # Get ID assigned
 

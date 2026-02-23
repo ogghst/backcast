@@ -208,8 +208,7 @@ async def assert_temporal_consistency[TVersionable: VersionableProtocol](
         elif callable(expectation):
             # Expectation is a callable that performs assertions
             assert entity is not None, (
-                f"Entity {entity_id} should exist at {as_of_time} "
-                f"for assertion check"
+                f"Entity {entity_id} should exist at {as_of_time} for assertion check"
             )
             expectation(entity)
         elif isinstance(expectation, dict):
@@ -284,8 +283,7 @@ async def assert_branch_isolation[TVersionable: VersionableProtocol](
 
     if expect_exists_on_a:
         assert entity_a is not None, (
-            f"Entity {entity_id} should exist on branch '{branch_a}' "
-            f"at {as_of_time}"
+            f"Entity {entity_id} should exist on branch '{branch_a}' at {as_of_time}"
         )
     else:
         assert entity_a is None, (
@@ -295,8 +293,7 @@ async def assert_branch_isolation[TVersionable: VersionableProtocol](
 
     if expect_exists_on_b:
         assert entity_b is not None, (
-            f"Entity {entity_id} should exist on branch '{branch_b}' "
-            f"at {as_of_time}"
+            f"Entity {entity_id} should exist on branch '{branch_b}' at {as_of_time}"
         )
     else:
         assert entity_b is None, (

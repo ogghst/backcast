@@ -334,4 +334,3 @@ class TestWBERevenueAllocationAPI:
         data = response2.json()
         assert data["revenue_allocation"] == "100000.00"
         assert data["branch"] == "BR-1"
-

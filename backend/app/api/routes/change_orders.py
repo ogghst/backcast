@@ -73,7 +73,9 @@ async def get_change_order_stats(
     project_id: UUID = Query(..., description="Project ID"),
     branch: str = Query("main", description="Branch name"),
     as_of: datetime | None = Query(None, description="Time travel timestamp"),
-    aging_threshold_days: int = Query(7, ge=1, le=30, description="Aging threshold in days"),
+    aging_threshold_days: int = Query(
+        7, ge=1, le=30, description="Aging threshold in days"
+    ),
     service: ChangeOrderReportingService = Depends(get_reporting_service),
 ) -> ChangeOrderStatsResponse:
     """Get aggregated statistics for change orders in a project.
@@ -165,6 +167,7 @@ async def read_change_orders(
         # Default to current time if as_of is not provided
         if as_of is None:
             from datetime import UTC
+
             as_of = datetime.now(tz=UTC)
 
         # Get change orders for the project
@@ -261,7 +264,9 @@ async def create_change_order(
 )
 async def get_next_change_order_code(
     project_id: UUID = Query(..., description="Project ID to scope the code"),
-    year: int | None = Query(None, description="Year for the code (defaults to current year)"),
+    year: int | None = Query(
+        None, description="Year for the code (defaults to current year)"
+    ),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> dict[str, str]:
     """Get the next available change order code.
@@ -300,6 +305,7 @@ async def read_change_order(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     if as_of:

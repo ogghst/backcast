@@ -580,9 +580,7 @@ class TestGetFinancialImpactDetails:
     """Test get_financial_impact_details method."""
 
     @pytest.mark.asyncio
-    async def test_returns_all_expected_fields(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_returns_all_expected_fields(self, db_session: AsyncSession) -> None:
         """RED: Should return all 7 expected fields."""
         # Arrange
         service = FinancialImpactService(db_session)
@@ -647,9 +645,7 @@ class TestGetFinancialImpactDetails:
         assert len(details) == 7
 
     @pytest.mark.asyncio
-    async def test_budget_calculations_accurate(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_budget_calculations_accurate(self, db_session: AsyncSession) -> None:
         """RED: Budget calculations should be accurate."""
         # Arrange
         service = FinancialImpactService(db_session)
@@ -827,9 +823,7 @@ class TestGetFinancialImpactDetails:
             await service.get_financial_impact_details(non_existent_id)
 
     @pytest.mark.asyncio
-    async def test_zero_budget_revenue_details(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_zero_budget_revenue_details(self, db_session: AsyncSession) -> None:
         """RED: Should handle zero budget and revenue correctly."""
         # Arrange
         service = FinancialImpactService(db_session)

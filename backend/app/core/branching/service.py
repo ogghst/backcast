@@ -559,7 +559,10 @@ class BranchableService[TBranchable: BranchableProtocol]:
             cast(Any, self.entity_class).valid_time.op("@>")(as_of_tstz),
             func.lower(cast(Any, self.entity_class).valid_time) <= as_of_tstz,
             # Deleted At Check (respect temporal deletion)
-            func.coalesce(cast(Any, self.entity_class).deleted_at, sql_cast(datetime.max, TIMESTAMP(timezone=True)))
+            func.coalesce(
+                cast(Any, self.entity_class).deleted_at,
+                sql_cast(datetime.max, TIMESTAMP(timezone=True)),
+            )
             > as_of_tstz,
         ]
 

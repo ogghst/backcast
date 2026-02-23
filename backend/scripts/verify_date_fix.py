@@ -1,4 +1,3 @@
-
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -9,6 +8,7 @@ from app.services.change_order_service import ChangeOrderService
 class MockService(ChangeOrderService):
     def __init__(self):
         pass
+
 
 service = MockService()
 
@@ -33,14 +33,18 @@ except Exception as e:
 
 print("\nTesting naive vs naive...")
 try:
-    days = service._calculate_business_days_remaining(naive_date, naive_date.replace(day=5))
+    days = service._calculate_business_days_remaining(
+        naive_date, naive_date.replace(day=5)
+    )
     print(f"Result (naive vs naive): {days}")
 except Exception as e:
     print(f"FAILED (naive vs naive): {e}")
 
 print("\nTesting aware vs aware...")
 try:
-    days = service._calculate_business_days_remaining(aware_date, aware_date.replace(day=10))
+    days = service._calculate_business_days_remaining(
+        aware_date, aware_date.replace(day=10)
+    )
     print(f"Result (aware vs aware): {days}")
 except Exception as e:
     print(f"FAILED (aware vs aware): {e}")

@@ -10,7 +10,9 @@ from app.services.wbe import WBEService
 
 class TestWBEBreadcrumb:
     @pytest.mark.asyncio
-    async def test_breadcrumb_ancestors_on_mixed_branches(self, db_session: AsyncSession):
+    async def test_breadcrumb_ancestors_on_mixed_branches(
+        self, db_session: AsyncSession
+    ):
         """Test that get_breadcrumb correctly traverses ancestors across branches.
 
         Structure:
@@ -28,7 +30,7 @@ class TestWBEBreadcrumb:
             actor_id=actor_id,
             branch="main",
             name="Test Project",
-            code="PRJ-001"
+            code="PRJ-001",
         )
 
         # 2. Create L1 WBE on main
@@ -40,7 +42,7 @@ class TestWBEBreadcrumb:
             project_id=project.project_id,
             code="L1",
             name="Level 1",
-            level=1
+            level=1,
         )
 
         # 3. Create L2 WBE on BR-FEAT (child of L1)
@@ -53,14 +55,12 @@ class TestWBEBreadcrumb:
             code="L2",
             name="Level 2",
             level=2,
-            parent_wbe_id=l1_id
+            parent_wbe_id=l1_id,
         )
 
         # 4. Fetch breadcrumb for L2 in MERGE mode
         breadcrumb = await wbe_service.get_breadcrumb(
-            l2_id,
-            branch="BR-FEAT",
-            branch_mode=BranchMode.MERGE
+            l2_id, branch="BR-FEAT", branch_mode=BranchMode.MERGE
         )
 
         # Assertions

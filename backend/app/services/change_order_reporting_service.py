@@ -97,18 +97,13 @@ class ChangeOrderReportingService:
             aging_threshold_days=aging_threshold_days,
         )
 
-    def _build_base_query(
-        self, project_id: UUID, branch: str, as_of: datetime
-    ) -> Any:
+    def _build_base_query(self, project_id: UUID, branch: str, as_of: datetime) -> Any:
         """Build base query for current change orders."""
-        return (
-            select(ChangeOrder)
-            .where(
-                ChangeOrder.project_id == project_id,
-                ChangeOrder.branch == branch,
-                func.upper(ChangeOrder.valid_time).is_(None),
-                ChangeOrder.deleted_at.is_(None),
-            )
+        return select(ChangeOrder).where(
+            ChangeOrder.project_id == project_id,
+            ChangeOrder.branch == branch,
+            func.upper(ChangeOrder.valid_time).is_(None),
+            ChangeOrder.deleted_at.is_(None),
         )
 
     async def _get_summary_kpis(

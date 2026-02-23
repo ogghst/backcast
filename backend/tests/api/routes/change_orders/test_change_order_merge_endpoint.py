@@ -71,9 +71,7 @@ def mock_get_rbac_service() -> RBACServiceABC:
 def override_auth() -> Generator[None, None, None]:
     """Override authentication and RBAC for all tests."""
     app.dependency_overrides[get_current_user] = mock_get_current_user
-    app.dependency_overrides[
-        get_current_active_user
-    ] = mock_get_current_active_user
+    app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
     app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
     yield
     app.dependency_overrides = {}
@@ -195,7 +193,9 @@ async def test_merge_endpoint_returns_200(
     assert len(main_wbes) >= 1
     # Find the one with the modified name (merged version)
     merged_wbe = next((w for w in main_wbes if w.name == "Modified WBE"), None)
-    assert merged_wbe is not None, f"No WBE with 'Modified WBE' found. Found: {[w.name for w in main_wbes]}"
+    assert merged_wbe is not None, (
+        f"No WBE with 'Modified WBE' found. Found: {[w.name for w in main_wbes]}"
+    )
 
     # Assert - CostElement merged to main
     result = await db_session.execute(
@@ -210,7 +210,9 @@ async def test_merge_endpoint_returns_200(
     assert len(main_ces) >= 1
     # Find the one with the modified name (merged version)
     merged_ce = next((ce for ce in main_ces if ce.name == "Modified CostElement"), None)
-    assert merged_ce is not None, f"No CostElement with 'Modified CostElement' found. Found: {[ce.name for ce in main_ces]}"
+    assert merged_ce is not None, (
+        f"No CostElement with 'Modified CostElement' found. Found: {[ce.name for ce in main_ces]}"
+    )
 
 
 @pytest.mark.asyncio

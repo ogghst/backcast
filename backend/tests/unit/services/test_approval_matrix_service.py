@@ -21,9 +21,7 @@ class TestGetUserAuthorityLevel:
     """Test get_user_authority_level method."""
 
     @pytest.mark.asyncio
-    async def test_admin_has_critical_authority(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_admin_has_critical_authority(self, db_session: AsyncSession) -> None:
         """RED: Admin role should have CRITICAL authority."""
         # Arrange
         service = ApprovalMatrixService(db_session)
@@ -44,9 +42,7 @@ class TestGetUserAuthorityLevel:
         assert authority == "CRITICAL"
 
     @pytest.mark.asyncio
-    async def test_manager_has_high_authority(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_manager_has_high_authority(self, db_session: AsyncSession) -> None:
         """RED: Manager role should have HIGH authority."""
         # Arrange
         service = ApprovalMatrixService(db_session)
@@ -67,9 +63,7 @@ class TestGetUserAuthorityLevel:
         assert authority == "HIGH"
 
     @pytest.mark.asyncio
-    async def test_viewer_has_low_authority(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_viewer_has_low_authority(self, db_session: AsyncSession) -> None:
         """RED: Viewer role should have LOW authority."""
         # Arrange
         service = ApprovalMatrixService(db_session)
@@ -150,9 +144,7 @@ class TestGetAuthorityForImpact:
         assert authority == "CRITICAL"
 
     @pytest.mark.asyncio
-    async def test_invalid_impact_raises_error(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_invalid_impact_raises_error(self, db_session: AsyncSession) -> None:
         """RED: Invalid impact level should raise ValueError."""
         # Arrange
         service = ApprovalMatrixService(db_session)
@@ -280,9 +272,7 @@ class TestCanApprove:
         assert can_approve is True
 
     @pytest.mark.asyncio
-    async def test_inactive_user_cannot_approve(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_inactive_user_cannot_approve(self, db_session: AsyncSession) -> None:
         """RED: Inactive user should not be able to approve regardless of role."""
         # Arrange
         service = ApprovalMatrixService(db_session)
@@ -322,9 +312,7 @@ class TestGetApproverForImpact:
     """Test get_approver_for_impact method."""
 
     @pytest.mark.asyncio
-    async def test_get_approver_for_low_impact(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_get_approver_for_low_impact(self, db_session: AsyncSession) -> None:
         """RED: LOW impact should return manager-level approver."""
         # Arrange
         service = ApprovalMatrixService(db_session)
@@ -356,9 +344,7 @@ class TestGetApproverForImpact:
         await db_session.flush()
 
         # Act
-        approver_id = await service.get_approver_for_impact(
-            uuid4(), ImpactLevel.LOW
-        )
+        approver_id = await service.get_approver_for_impact(uuid4(), ImpactLevel.LOW)
 
         # Assert - should return an active user with sufficient authority
         assert approver_id is not None
@@ -407,9 +393,7 @@ class TestGetApproverForImpact:
         await db_session.flush()
 
         # Act
-        approver_id = await service.get_approver_for_impact(
-            uuid4(), ImpactLevel.HIGH
-        )
+        approver_id = await service.get_approver_for_impact(uuid4(), ImpactLevel.HIGH)
 
         # Assert
         assert approver_id is None

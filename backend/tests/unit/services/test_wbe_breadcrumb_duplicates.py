@@ -3,13 +3,16 @@
 This test specifically checks that the breadcrumb doesn't contain duplicate entries
 when WBEs exist on multiple branches.
 """
-import pytest
+
 from uuid import uuid4
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.wbe import WBEService
-from app.services.project import ProjectService
+
 from app.core.versioning.enums import BranchMode
 from app.models.schemas.wbe import WBEUpdate
+from app.services.project import ProjectService
+from app.services.wbe import WBEService
 
 
 class TestWBEBreadcrumbDuplicates:
@@ -83,15 +86,21 @@ class TestWBEBreadcrumbDuplicates:
 
         # Path should contain both L1 and L2, with NO duplicates
         path = breadcrumb["wbe_path"]
-        assert len(path) == 2, f"Expected 2 items in breadcrumb path, got {len(path)}: {[p['code'] for p in path]}"
+        assert len(path) == 2, (
+            f"Expected 2 items in breadcrumb path, got {len(path)}: {[p['code'] for p in path]}"
+        )
 
         # Check no duplicate wbe_ids (this is the key test for the bug fix)
         wbe_ids = [p["wbe_id"] for p in path]
-        assert len(wbe_ids) == len(set(wbe_ids)), f"Found duplicate wbe_ids in breadcrumb: {wbe_ids}"
+        assert len(wbe_ids) == len(set(wbe_ids)), (
+            f"Found duplicate wbe_ids in breadcrumb: {wbe_ids}"
+        )
 
         # Check no duplicate codes
         codes = [p["code"] for p in path]
-        assert len(codes) == len(set(codes)), f"Found duplicate codes in breadcrumb: {codes}"
+        assert len(codes) == len(set(codes)), (
+            f"Found duplicate codes in breadcrumb: {codes}"
+        )
 
         # Verify expected order: L1 first, then L2
         assert path[0]["code"] == "L1"
@@ -177,11 +186,15 @@ class TestWBEBreadcrumbDuplicates:
 
         # Assertions
         path = breadcrumb["wbe_path"]
-        assert len(path) == 3, f"Expected 3 items in breadcrumb path, got {len(path)}: {[p['code'] for p in path]}"
+        assert len(path) == 3, (
+            f"Expected 3 items in breadcrumb path, got {len(path)}: {[p['code'] for p in path]}"
+        )
 
         # Check no duplicate wbe_ids
         wbe_ids = [p["wbe_id"] for p in path]
-        assert len(wbe_ids) == len(set(wbe_ids)), f"Found duplicate wbe_ids in breadcrumb: {wbe_ids}"
+        assert len(wbe_ids) == len(set(wbe_ids)), (
+            f"Found duplicate wbe_ids in breadcrumb: {wbe_ids}"
+        )
 
         # Verify expected order: L1, L2, L3
         assert path[0]["code"] == "L1"

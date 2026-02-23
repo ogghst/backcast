@@ -45,9 +45,9 @@ class TestPVCalculationPerformance:
         avg_ms_per_calc = elapsed_ms / iterations
 
         # Assert: Average calculation time < 0.01ms (10 microseconds)
-        assert (
-            avg_ms_per_calc < 0.01
-        ), f"Linear progression too slow: {avg_ms_per_calc:.6f}ms per calculation"
+        assert avg_ms_per_calc < 0.01, (
+            f"Linear progression too slow: {avg_ms_per_calc:.6f}ms per calculation"
+        )
 
         # Total time for 1000 calculations should be < 10ms
         assert elapsed_ms < 10, f"Linear progression batch too slow: {elapsed_ms:.2f}ms"
@@ -75,12 +75,14 @@ class TestPVCalculationPerformance:
         avg_ms_per_calc = elapsed_ms / iterations
 
         # Assert: Average calculation time < 0.015ms (15 microseconds)
-        assert (
-            avg_ms_per_calc < 0.015
-        ), f"Gaussian progression too slow: {avg_ms_per_calc:.6f}ms per calculation"
+        assert avg_ms_per_calc < 0.015, (
+            f"Gaussian progression too slow: {avg_ms_per_calc:.6f}ms per calculation"
+        )
 
         # Total time for 1000 calculations should be < 15ms
-        assert elapsed_ms < 15, f"Gaussian progression batch too slow: {elapsed_ms:.2f}ms"
+        assert elapsed_ms < 15, (
+            f"Gaussian progression batch too slow: {elapsed_ms:.2f}ms"
+        )
 
     @pytest.mark.performance
     def test_logarithmic_progression_performance(self):
@@ -104,12 +106,14 @@ class TestPVCalculationPerformance:
         avg_ms_per_calc = elapsed_ms / iterations
 
         # Assert: Average calculation time < 0.01ms (10 microseconds)
-        assert (
-            avg_ms_per_calc < 0.01
-        ), f"Logarithmic progression too slow: {avg_ms_per_calc:.6f}ms per calculation"
+        assert avg_ms_per_calc < 0.01, (
+            f"Logarithmic progression too slow: {avg_ms_per_calc:.6f}ms per calculation"
+        )
 
         # Total time for 1000 calculations should be < 10ms
-        assert elapsed_ms < 10, f"Logarithmic progression batch too slow: {elapsed_ms:.2f}ms"
+        assert elapsed_ms < 10, (
+            f"Logarithmic progression batch too slow: {elapsed_ms:.2f}ms"
+        )
 
     @pytest.mark.performance
     def test_pv_calculation_full_formula_performance(self):
@@ -138,9 +142,9 @@ class TestPVCalculationPerformance:
         avg_ms_per_calc = elapsed_ms / iterations
 
         # Assert: Average calculation time < 0.02ms (20 microseconds)
-        assert (
-            avg_ms_per_calc < 0.02
-        ), f"PV calculation too slow: {avg_ms_per_calc:.6f}ms per calculation"
+        assert avg_ms_per_calc < 0.02, (
+            f"PV calculation too slow: {avg_ms_per_calc:.6f}ms per calculation"
+        )
 
         # Total time for 1000 calculations should be < 20ms
         assert elapsed_ms < 20, f"PV calculation batch too slow: {elapsed_ms:.2f}ms"
@@ -173,9 +177,9 @@ class TestPVCalculationPerformance:
         avg_ms_per_calc = elapsed_ms / iterations
 
         # Assert: Average calculation time < 0.03ms (30 microseconds)
-        assert (
-            avg_ms_per_calc < 0.03
-        ), f"Mixed progression too slow: {avg_ms_per_calc:.6f}ms per calculation"
+        assert avg_ms_per_calc < 0.03, (
+            f"Mixed progression too slow: {avg_ms_per_calc:.6f}ms per calculation"
+        )
 
         # Total time for 1000 calculations should be < 30ms
         assert elapsed_ms < 30, f"Mixed progression batch too slow: {elapsed_ms:.2f}ms"
@@ -213,11 +217,11 @@ class TestPVCalculationPerformanceTarget:
         elapsed_ms = (time.perf_counter() - start_time) * 1000
 
         # Assert: Single calculation < 50ms (very generous target)
-        assert (
-            elapsed_ms < 50
-        ), f"PV calculation exceeds 50ms target: {elapsed_ms:.2f}ms"
+        assert elapsed_ms < 50, (
+            f"PV calculation exceeds 50ms target: {elapsed_ms:.2f}ms"
+        )
 
         # In reality, this should be < 1ms
-        assert (
-            elapsed_ms < 1
-        ), f"PV calculation unexpectedly slow: {elapsed_ms:.2f}ms (expected < 1ms)"
+        assert elapsed_ms < 1, (
+            f"PV calculation unexpectedly slow: {elapsed_ms:.2f}ms (expected < 1ms)"
+        )

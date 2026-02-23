@@ -53,9 +53,7 @@ class TestEVMServiceAC:
     """Test AC (Actual Cost) calculation."""
 
     @pytest.mark.asyncio
-    async def test_ac_sum_of_cost_registrations(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_ac_sum_of_cost_registrations(self, db_session: AsyncSession) -> None:
         """Test AC = sum of cost registrations.
 
         Test ID: T-011
@@ -69,9 +67,7 @@ class TestEVMServiceEV:
     """Test EV (Earned Value) calculation."""
 
     @pytest.mark.asyncio
-    async def test_ev_with_progress_entry(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_ev_with_progress_entry(self, db_session: AsyncSession) -> None:
         """Test EV = BAC × progress_percentage / 100.
 
         Test ID: T-011
@@ -686,7 +682,7 @@ class TestEVMServiceTimeSeries:
         dates = service._generate_date_intervals(
             start_date=start_date,
             end_date=end_date,
-            granularity=EVMTimeSeriesGranularity.DAY
+            granularity=EVMTimeSeriesGranularity.DAY,
         )
 
         # Assert
@@ -703,13 +699,13 @@ class TestEVMServiceTimeSeries:
         # Arrange
         service = EVMService(None)
         start_date = datetime(2024, 1, 1)  # Monday
-        end_date = datetime(2024, 1, 15)   # Monday (+2 weeks)
+        end_date = datetime(2024, 1, 15)  # Monday (+2 weeks)
 
         # Act
         dates = service._generate_date_intervals(
             start_date=start_date,
             end_date=end_date,
-            granularity=EVMTimeSeriesGranularity.WEEK
+            granularity=EVMTimeSeriesGranularity.WEEK,
         )
 
         # Assert
@@ -756,4 +752,3 @@ class TestEVMServiceMergeModeWithNonExistentBranch:
         #
         # Full integration test would be in test_evm_integration.py
         pytest.skip("Requires full integration setup with cost elements and forecasts")
-

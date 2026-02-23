@@ -54,9 +54,7 @@ async def test_change_order_update_consistency_fix(
         control_date=datetime.now(UTC),  # Explict control date
     )
 
-    co = await service.create_change_order(
-        co_create, actor_id=actor_id
-    )
+    co = await service.create_change_order(co_create, actor_id=actor_id)
     assert co is not None
     assert co.title == "Original Title"
 

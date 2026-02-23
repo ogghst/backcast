@@ -158,7 +158,7 @@ class TestEVMHistoryAPI:
             params={
                 "granularity": "week",
                 "control_date": control_date.isoformat(),
-            }
+            },
         )
 
         # Assert

@@ -56,7 +56,9 @@ async def test_merge_branch_with_explicit_control_date(
 
     # Create initial version on main
     project = await service.create_project(
-        project_in=ProjectCreate(code="TEST-001", name="Original", budget=Decimal("100000")),
+        project_in=ProjectCreate(
+            code="TEST-001", name="Original", budget=Decimal("100000")
+        ),
         actor_id=admin_user.user_id,
         control_date=datetime(2026, 1, 10, tzinfo=UTC),
     )
@@ -116,7 +118,9 @@ async def test_merge_branch_with_control_date_none(
 
     # Create initial version on main
     project = await service.create_project(
-        project_in=ProjectCreate(code="TEST-002", name="Original", budget=Decimal("100000")),
+        project_in=ProjectCreate(
+            code="TEST-002", name="Original", budget=Decimal("100000")
+        ),
         actor_id=admin_user.user_id,
         control_date=datetime(2026, 1, 10, tzinfo=UTC),
     )
@@ -178,7 +182,9 @@ async def test_merge_branch_control_date_in_past(
 
     # Create initial version on main (before past_date)
     project = await service.create_project(
-        project_in=ProjectCreate(code="TEST-003", name="Original", budget=Decimal("100000")),
+        project_in=ProjectCreate(
+            code="TEST-003", name="Original", budget=Decimal("100000")
+        ),
         actor_id=admin_user.user_id,
         control_date=datetime(2025, 12, 20, tzinfo=UTC),
     )
@@ -237,7 +243,9 @@ async def test_merge_branch_control_date_utc_aware(
 
     # Create initial version on main
     project = await service.create_project(
-        project_in=ProjectCreate(code="TEST-004", name="Original", budget=Decimal("100000")),
+        project_in=ProjectCreate(
+            code="TEST-004", name="Original", budget=Decimal("100000")
+        ),
         actor_id=admin_user.user_id,
         control_date=datetime(2026, 1, 10, tzinfo=UTC),
     )

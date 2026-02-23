@@ -35,9 +35,9 @@ async def wipe() -> None:
             try:
                 await conn.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE"))
                 # List all tables and drop them
-                result = await conn.execute(text(
-                    "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
-                ))
+                result = await conn.execute(
+                    text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+                )
                 tables = [row[0] for row in result]
                 for table in tables:
                     await conn.execute(text(f'DROP TABLE IF EXISTS "{table}" CASCADE'))

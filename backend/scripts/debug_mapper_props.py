@@ -1,4 +1,3 @@
-
 import sys
 from pathlib import Path
 
@@ -18,6 +17,7 @@ def inspect_mapper_properties():
     for col in mapper.columns:
         prop = mapper.get_property_by_column(col)
         print(f"Column: {col.name}, Key in Mapper: {col.key}, Property Key: {prop.key}")
+
 
 if __name__ == "__main__":
     inspect_mapper_properties()

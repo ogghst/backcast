@@ -129,12 +129,15 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var,u
         # 1. Validate Manager (User) existence (Application-level Integrity)
         if dept_in.manager_id:
             from app.models.domain.user import User
+
             user_exists = await self.session.execute(
-                select(User.id).where(
+                select(User.id)
+                .where(
                     User.user_id == dept_in.manager_id,
                     func.upper(User.valid_time).is_(None),
-                    User.deleted_at.is_(None)
-                ).limit(1)
+                    User.deleted_at.is_(None),
+                )
+                .limit(1)
             )
             if not user_exists.scalar_one_or_none():
                 raise ValueError(f"Manager (User) {dept_in.manager_id} not found")
@@ -147,7 +150,6 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var,u
             **dept_data,
         )
         return await cmd.execute(self.session)
-
 
     async def update_department(
         self, department_id: UUID, dept_in: DepartmentUpdate, actor_id: UUID

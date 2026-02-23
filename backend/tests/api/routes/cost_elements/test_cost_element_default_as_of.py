@@ -1,4 +1,3 @@
-
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
@@ -136,7 +135,7 @@ async def test_create_future_cost_element_and_query_default(
         "wbe_id": deps["wbe_id"],
         "cost_element_type_id": deps["cost_element_type_id"],
         "branch": "main",
-        "control_date": future_date.isoformat()
+        "control_date": future_date.isoformat(),
     }
 
     # Create in future
@@ -153,15 +152,21 @@ async def test_create_future_cost_element_and_query_default(
 
     # Query specific ID with default as_of (should be now) -> Should be 404
     res_single = await client.get(f"/api/v1/cost-elements/{created_id}")
-    assert res_single.status_code == 404, "Should not find future cost element by ID with default query"
+    assert res_single.status_code == 404, (
+        "Should not find future cost element by ID with default query"
+    )
 
     # Query with explicit future as_of -> Should find it
     future_iso = (future_date + timedelta(minutes=1)).isoformat()
-    res_future_list = await client.get("/api/v1/cost-elements", params={"as_of": future_iso})
+    res_future_list = await client.get(
+        "/api/v1/cost-elements", params={"as_of": future_iso}
+    )
     assert res_future_list.status_code == 200
     items_future = res_future_list.json()["items"]
     found_future = any(i["cost_element_id"] == created_id for i in items_future)
     assert found_future, "Should find future cost element with valid as_of"
 
-    res_future_single = await client.get(f"/api/v1/cost-elements/{created_id}", params={"as_of": future_iso})
+    res_future_single = await client.get(
+        f"/api/v1/cost-elements/{created_id}", params={"as_of": future_iso}
+    )
     assert res_future_single.status_code == 200

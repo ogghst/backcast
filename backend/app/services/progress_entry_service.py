@@ -15,10 +15,6 @@ from app.core.versioning.commands import (
 from app.core.versioning.enums import BranchMode
 from app.core.versioning.service import TemporalService
 from app.models.domain.progress_entry import ProgressEntry
-from app.models.schemas.progress_entry import (
-    ProgressEntryCreate,
-    ProgressEntryUpdate,
-)
 
 
 class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type-var,unused-ignore]
@@ -38,9 +34,10 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
 
     async def create(
         self,
-        progress_in: ProgressEntryCreate,
         actor_id: UUID,
+        root_id: UUID | None = None,
         control_date: datetime | None = None,
+        **fields: Any,
     ) -> ProgressEntry:
         """Create new progress entry using CreateVersionCommand.
 
@@ -50,13 +47,27 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
             control_date: Optional control date for valid_time (defaults to now)
         """
         # Extract control_date from schema if not provided
-        if control_date is None:
+        progress_in = fields.pop("progress_in", None)
+
+        # Extract control_date from schema if not provided
+        if control_date is None and progress_in:
             control_date = getattr(progress_in, "control_date", None)
+        if progress_in is None:
+            # Try to build from fields if possible
+            if not fields:
+                raise ValueError("Either progress_in or fields must be provided")
+            progress_data = fields.copy()
+            cost_element_id = fields.get("cost_element_id")
+            if not cost_element_id:
+                raise ValueError("cost_element_id is required")
+        else:
+            progress_data = progress_in.model_dump(exclude_unset=True)
+            cost_element_id = progress_in.cost_element_id
 
-        progress_data = progress_in.model_dump(exclude_unset=True)
+        # Use root_id if provided, then check progress_data, then generate new one
+        if root_id is None:
+            root_id = progress_data.get("progress_entry_id") or uuid4()
 
-        # Use provided progress_entry_id (for seeding) or generate new one
-        root_id = progress_in.progress_entry_id or uuid4()
         progress_data["progress_entry_id"] = root_id
 
         # Validate progress_percentage is 0-100 (already validated by Pydantic schema)
@@ -74,30 +85,35 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
 
         # 1. Validate Cost Element existence (Application-level Integrity)
         from app.models.domain.cost_element import CostElement
+
         ce_exists = await self.session.execute(
-            select(CostElement.id).where(
-                CostElement.cost_element_id == progress_in.cost_element_id,
+            select(CostElement.id)
+            .where(
+                CostElement.cost_element_id == cost_element_id,
                 # Progress entries are global, check main branch
                 CostElement.branch == "main",
                 func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None)
-            ).limit(1)
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            .limit(1)
         )
         if not ce_exists.scalar_one_or_none():
-             # Fallback: check any branch? No, progress is usually reported against main.
-             # Actually, if we are in a branch, we might report progress on a branched CE.
-             # But ProgressEntry is NOT branchable. This is a slight mismatch in architecture
-             # but consistent with "progress is a fact".
-             # We check main first, then any? Better to check if ANY version exists.
+            # Fallback: check any branch? No, progress is usually reported against main.
+            # Actually, if we are in a branch, we might report progress on a branched CE.
+            # But ProgressEntry is NOT branchable. This is a slight mismatch in architecture
+            # but consistent with "progress is a fact".
+            # We check main first, then any? Better to check if ANY version exists.
             ce_any_exists = await self.session.execute(
-                select(CostElement.id).where(
-                    CostElement.cost_element_id == progress_in.cost_element_id,
+                select(CostElement.id)
+                .where(
+                    CostElement.cost_element_id == cost_element_id,
                     func.upper(cast(Any, CostElement).valid_time).is_(None),
-                    cast(Any, CostElement).deleted_at.is_(None)
-                ).limit(1)
+                    cast(Any, CostElement).deleted_at.is_(None),
+                )
+                .limit(1)
             )
             if not ce_any_exists.scalar_one_or_none():
-                 raise ValueError(f"Cost Element {progress_in.cost_element_id} not found")
+                raise ValueError(f"Cost Element {cost_element_id} not found")
 
         cmd = CreateVersionCommand(
             entity_class=ProgressEntry,  # type: ignore[type-var,unused-ignore]
@@ -108,13 +124,12 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         )
         return await cmd.execute(self.session)
 
-
     async def update(
         self,
-        progress_entry_id: UUID,
-        progress_in: ProgressEntryUpdate,
+        entity_id: UUID,
         actor_id: UUID,
         control_date: datetime | None = None,
+        **updates: Any,
     ) -> ProgressEntry:
         """Update progress entry using UpdateVersionCommand.
 
@@ -124,11 +139,15 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
             actor_id: The user making the update
             control_date: Optional control date for valid_time (defaults to now)
         """
+        progress_in = updates.pop("progress_in", None)
         # Extract control_date from schema if not provided
-        if control_date is None:
+        if control_date is None and progress_in:
             control_date = getattr(progress_in, "control_date", None)
 
-        update_data = progress_in.model_dump(exclude_unset=True)
+        if progress_in:
+            update_data = progress_in.model_dump(exclude_unset=True)
+        else:
+            update_data = updates.copy()
 
         # If control_date is still None, default to now
         if control_date is None:
@@ -138,7 +157,9 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         # Validate progress_percentage if provided
         if "progress_percentage" in update_data:
             progress_percentage = update_data["progress_percentage"]
-            if progress_percentage is not None and (progress_percentage < 0 or progress_percentage > 100):
+            if progress_percentage is not None and (
+                progress_percentage < 0 or progress_percentage > 100
+            ):
                 raise ValueError("Progress percentage must be between 0 and 100")
 
         # Custom command class to handle multi-word entity name
@@ -148,7 +169,7 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
 
         cmd = ProgressEntryUpdateCommand(
             entity_class=ProgressEntry,  # type: ignore[type-var,unused-ignore]
-            root_id=progress_entry_id,
+            root_id=entity_id,
             actor_id=actor_id,
             control_date=control_date,
             **update_data,
@@ -227,7 +248,11 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         return result.scalar_one_or_none()
 
     async def get_progress_history(
-        self, cost_element_id: UUID, skip: int = 0, limit: int = 100, as_of: datetime | None = None
+        self,
+        cost_element_id: UUID,
+        skip: int = 0,
+        limit: int = 100,
+        as_of: datetime | None = None,
     ) -> tuple[list[ProgressEntry], int]:
         """Get all progress entries for a cost element (for charts).
 
@@ -321,12 +346,10 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         stmt = (
             select(ProgressEntry)
             .distinct(ProgressEntry.cost_element_id)
-            .where(
-                ProgressEntry.cost_element_id.in_(cost_element_ids)
-            )
+            .where(ProgressEntry.cost_element_id.in_(cost_element_ids))
             .order_by(
                 ProgressEntry.cost_element_id,
-                func.lower(ProgressEntry.valid_time).desc()
+                func.lower(ProgressEntry.valid_time).desc(),
             )
         )
 
@@ -348,4 +371,3 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
             progress_entries[entry.cost_element_id] = entry
 
         return progress_entries
-

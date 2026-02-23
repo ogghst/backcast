@@ -20,9 +20,7 @@ class TestEVMMetricsWBEAggregation:
     """
 
     @pytest.mark.asyncio
-    async def test_wbe_aggregates_from_children(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_wbe_aggregates_from_children(self, db_session: AsyncSession) -> None:
         """Test WBE BAC = sum(child BACs).
 
         Test ID: T-BE-003-001
@@ -65,9 +63,7 @@ class TestEVMMetricsWBEAggregation:
         pytest.skip("Requires full integration setup - will implement in GREEN phase")
 
     @pytest.mark.asyncio
-    async def test_wbe_time_travel_works(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_wbe_time_travel_works(self, db_session: AsyncSession) -> None:
         """Test time-travel works for WBE.
 
         Test ID: T-BE-003-002
@@ -105,9 +101,7 @@ class TestEVMMetricsProjectAggregation:
     """
 
     @pytest.mark.asyncio
-    async def test_project_aggregates_from_wbes(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_project_aggregates_from_wbes(self, db_session: AsyncSession) -> None:
         """Test Project BAC = sum(child WBE BACs).
 
         Test ID: T-BE-004-001

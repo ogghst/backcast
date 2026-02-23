@@ -23,16 +23,16 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Add revenue_allocation column to wbes table."""
     op.add_column(
-        'wbes',
+        "wbes",
         sa.Column(
-            'revenue_allocation',
+            "revenue_allocation",
             postgresql.NUMERIC(precision=15, scale=2),
             nullable=True,
-            comment='Revenue allocated to this WBE from project contract value'
-        )
+            comment="Revenue allocated to this WBE from project contract value",
+        ),
     )
 
 
 def downgrade() -> None:
     """Remove revenue_allocation column from wbes table."""
-    op.drop_column('wbes', 'revenue_allocation')
+    op.drop_column("wbes", "revenue_allocation")

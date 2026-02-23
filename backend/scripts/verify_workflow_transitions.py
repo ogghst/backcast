@@ -16,10 +16,14 @@ async def main():
 
     async with async_session_maker() as session:
         # Find a change order in "Submitted for Approval" status
-        stmt = select(ChangeOrder).where(
-            ChangeOrder.status == "Submitted for Approval",
-            ChangeOrder.deleted_at.is_(None),
-        ).limit(1)
+        stmt = (
+            select(ChangeOrder)
+            .where(
+                ChangeOrder.status == "Submitted for Approval",
+                ChangeOrder.deleted_at.is_(None),
+            )
+            .limit(1)
+        )
 
         result = await session.execute(stmt)
         co = result.scalar_one_or_none()

@@ -1,4 +1,3 @@
-
 import sys
 from pathlib import Path
 
@@ -30,6 +29,7 @@ def inspect_mapper():
 
     if hasattr(b, "branch_metadata"):
         print(f"  b.branch_metadata type: {type(b.branch_metadata)}")
+
 
 if __name__ == "__main__":
     inspect_mapper()

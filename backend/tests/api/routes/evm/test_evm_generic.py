@@ -709,9 +709,7 @@ class TestEVMBatchEndpoint:
         assert data["ac"] == 60000.0
 
     @pytest.mark.asyncio
-    async def test_post_evm_batch_multiple_entities(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_post_evm_batch_multiple_entities(self, client: AsyncClient) -> None:
         """Test POST /evm/batch with multiple cost elements.
 
         Test ID: BE-004-T-013
@@ -740,7 +738,11 @@ class TestEVMBatchEndpoint:
 
         proj_res = await client.post(
             "/api/v1/projects",
-            json={"code": f"P-{uuid4().hex[:4].upper()}", "name": "Proj", "budget": 200000},
+            json={
+                "code": f"P-{uuid4().hex[:4].upper()}",
+                "name": "Proj",
+                "budget": 200000,
+            },
         )
         proj_id = proj_res.json()["project_id"]
 
@@ -861,9 +863,7 @@ class TestEVMBatchEndpoint:
         assert data["branch"] == "main"
 
     @pytest.mark.asyncio
-    async def test_post_evm_batch_empty_entity_ids(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_post_evm_batch_empty_entity_ids(self, client: AsyncClient) -> None:
         """Test POST /evm/batch with empty entity_ids list.
 
         Test ID: BE-004-T-016

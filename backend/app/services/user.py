@@ -59,9 +59,7 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def create_user(
-        self, user_in: UserRegister, actor_id: UUID
-    ) -> User:
+    async def create_user(self, user_in: UserRegister, actor_id: UUID) -> User:
         """Create new user using CreateVersionCommand with Pydantic validation."""
         user_data = user_in.model_dump(exclude_unset=True)
 
@@ -88,7 +86,6 @@ class UserService(TemporalService[User]):  # type: ignore[type-var,unused-ignore
             **user_data,
         )
         return await cmd.execute(self.session)
-
 
     async def update_user(
         self, user_id: UUID, user_in: UserUpdate, actor_id: UUID

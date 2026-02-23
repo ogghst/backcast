@@ -6,6 +6,7 @@ This test reproduces the issue where cost elements were being created in the
 The bug was caused by the CostElementCreate schema having a default value for
 the 'branch' field set to 'main', which would override the frontend's branch value.
 """
+
 from uuid import uuid4
 
 import pytest

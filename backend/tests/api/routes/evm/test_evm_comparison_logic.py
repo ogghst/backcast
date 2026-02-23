@@ -63,9 +63,7 @@ def override_auth() -> Any:
 
 @pytest.mark.asyncio
 class TestEVMCostComparisonLogic:
-    async def test_cost_comparison_actual_maps_to_ac(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_cost_comparison_actual_maps_to_ac(self, client: AsyncClient) -> None:
         """Test that the 'actual' field in time series maps to Actual Cost (AC), not Earned Value (EV).
 
         And verifies valid_time (as_of) filtering.
@@ -74,7 +72,11 @@ class TestEVMCostComparisonLogic:
         # Project
         proj_res = await client.post(
             "/api/v1/projects",
-            json={"code": f"P-{uuid4().hex[:4].upper()}", "name": "Test Project", "budget": 10000}
+            json={
+                "code": f"P-{uuid4().hex[:4].upper()}",
+                "name": "Test Project",
+                "budget": 10000,
+            },
         )
         assert proj_res.status_code == 201
         project_id = proj_res.json()["project_id"]
@@ -86,22 +88,26 @@ class TestEVMCostComparisonLogic:
                 "code": f"W-{uuid4().hex[:4].upper()}",
                 "name": "Test WBE",
                 "project_id": project_id,
-                "branch": "main"
-            }
+                "branch": "main",
+            },
         )
         wbe_id = wbe_res.json()["wbe_id"]
 
         # Department
         dept_res = await client.post(
             "/api/v1/departments",
-            json={"code": f"D-{uuid4().hex[:4].upper()}", "name": "Test Dept"}
+            json={"code": f"D-{uuid4().hex[:4].upper()}", "name": "Test Dept"},
         )
         dept_id = dept_res.json()["department_id"]
 
         # Type
         type_res = await client.post(
             "/api/v1/cost-element-types",
-            json={"code": f"T-{uuid4().hex[:4].upper()}", "name": "Test Type", "department_id": dept_id}
+            json={
+                "code": f"T-{uuid4().hex[:4].upper()}",
+                "name": "Test Type",
+                "department_id": dept_id,
+            },
         )
         type_id = type_res.json()["cost_element_type_id"]
 
@@ -114,8 +120,8 @@ class TestEVMCostComparisonLogic:
                 "budget_amount": 10000,
                 "wbe_id": wbe_id,
                 "cost_element_type_id": type_id,
-                "branch": "main"
-            }
+                "branch": "main",
+            },
         )
         cost_element_id = ce_res.json()["cost_element_id"]
 
@@ -143,8 +149,8 @@ class TestEVMCostComparisonLogic:
                 "cost_element_id": cost_element_id,
                 "amount": 1000,
                 "description": "Cost T1",
-                "registration_date": "2025-06-01T12:00:00Z"
-            }
+                "registration_date": "2025-06-01T12:00:00Z",
+            },
         )
 
         # Wait a bit to ensure distinct timestamps if needed, or rely on execution order.
@@ -154,7 +160,8 @@ class TestEVMCostComparisonLogic:
         # We need to sleep briefly or use returned valid_time if available.
         # Or just take current time.
         import asyncio
-        await asyncio.sleep(0.1) # minimal delay
+
+        await asyncio.sleep(0.1)  # minimal delay
         t_after_reg1 = datetime.now(UTC)
 
         # Reg 2
@@ -164,8 +171,8 @@ class TestEVMCostComparisonLogic:
                 "cost_element_id": cost_element_id,
                 "amount": 2000,
                 "description": "Cost T2",
-                "registration_date": "2025-07-01T12:00:00Z"
-            }
+                "registration_date": "2025-07-01T12:00:00Z",
+            },
         )
 
         t_after_reg2 = datetime.now(UTC)
@@ -176,7 +183,7 @@ class TestEVMCostComparisonLogic:
         # Should see only Reg1 (1000)
         res_t1 = await client.get(
             f"/api/v1/evm/cost_element/{cost_element_id}/timeseries",
-            params={"control_date": t_after_reg1.isoformat(), "granularity": "month"}
+            params={"control_date": t_after_reg1.isoformat(), "granularity": "month"},
         )
         assert res_t1.status_code == 200
         data_t1 = res_t1.json()
@@ -195,15 +202,19 @@ class TestEVMCostComparisonLogic:
         last_ac_t1 = points_t1[-1]["ac"]
         last_actual_t1 = points_t1[-1]["actual"]
 
-        print(f"\nDEBUG: T1 Query (After Reg1): AC={last_ac_t1}, Actual={last_actual_t1}")
+        print(
+            f"\nDEBUG: T1 Query (After Reg1): AC={last_ac_t1}, Actual={last_actual_t1}"
+        )
 
         assert float(last_ac_t1) == 1000.0, f"Expected AC 1000 at T1, got {last_ac_t1}"
-        assert float(last_actual_t1) == 1000.0, f"Expected Actual 1000 at T1, got {last_actual_t1}"
+        assert float(last_actual_t1) == 1000.0, (
+            f"Expected Actual 1000 at T1, got {last_actual_t1}"
+        )
 
         # Query AS OF t_after_reg2
         res_t2 = await client.get(
             f"/api/v1/evm/cost_element/{cost_element_id}/timeseries",
-            params={"control_date": t_after_reg2.isoformat(), "granularity": "month"}
+            params={"control_date": t_after_reg2.isoformat(), "granularity": "month"},
         )
         data_t2 = res_t2.json()
         points_t2 = data_t2["points"]
@@ -214,10 +225,14 @@ class TestEVMCostComparisonLogic:
         print(f"DEBUG: T2 Query (After Reg2): AC={last_ac_t2}, Actual={last_actual_t2}")
 
         assert float(last_ac_t2) == 3000.0, f"Expected AC 3000 at T2, got {last_ac_t2}"
-        assert float(last_actual_t2) == 3000.0, f"Expected Actual 3000 at T2, got {last_actual_t2}"
+        assert float(last_actual_t2) == 3000.0, (
+            f"Expected Actual 3000 at T2, got {last_actual_t2}"
+        )
 
         # 4. Check 'actual' mapping
         # If 'actual' maps to Actual Cost, it should match 'ac'.
         # If it maps to EV, it will be 0 (no progress).
 
-        assert float(last_actual_t1) == float(last_ac_t1), f"Actual field ({last_actual_t1}) should match AC ({last_ac_t1})"
+        assert float(last_actual_t1) == float(last_ac_t1), (
+            f"Actual field ({last_actual_t1}) should match AC ({last_ac_t1})"
+        )

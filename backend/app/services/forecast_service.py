@@ -327,7 +327,6 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         )
         return await cmd.execute(self.session)
 
-
     async def ensure_exists(
         self,
         cost_element_id: UUID,
@@ -393,10 +392,7 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
 
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
             stmt = (
-                select(
-                    CostElement.cost_element_id,
-                    Forecast
-                )
+                select(CostElement.cost_element_id, Forecast)
                 .join(CostElement, CostElement.forecast_id == Forecast.forecast_id)
                 .where(
                     CostElement.cost_element_id.in_(cost_element_ids),
@@ -422,10 +418,7 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         else:
             # No time filtering - get current forecasts
             stmt = (
-                select(
-                    CostElement.cost_element_id,
-                    Forecast
-                )
+                select(CostElement.cost_element_id, Forecast)
                 .join(CostElement, CostElement.forecast_id == Forecast.forecast_id)
                 .where(
                     CostElement.cost_element_id.in_(cost_element_ids),
@@ -448,4 +441,3 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
             forecasts[ce_id] = forecast
 
         return forecasts
-

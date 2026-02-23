@@ -223,9 +223,7 @@ async def test_delete_cost_element_branch(
         "cost_element_type_id": deps["cost_element_type_id"],
         "branch": "main",
     }
-    create_res = await client.post(
-        "/api/v1/cost-elements", json=element_data
-    )
+    create_res = await client.post("/api/v1/cost-elements", json=element_data)
     element_id = create_res.json()["cost_element_id"]
 
     # Delete in main
@@ -260,14 +258,14 @@ async def test_get_history_filters_by_branch(
     # 2. Update in main (creates second version in main)
     update_res = await client.put(
         f"/api/v1/cost-elements/{element_id}",
-        json={"name": "Updated in Main", "branch": "main"}
+        json={"name": "Updated in Main", "branch": "main"},
     )
     assert update_res.status_code == 200
 
     # 3. Create version in feature branch (fork)
     feature_update_res = await client.put(
         f"/api/v1/cost-elements/{element_id}",
-        json={"name": "Feature Branch Version", "branch": "feature-1"}
+        json={"name": "Feature Branch Version", "branch": "feature-1"},
     )
     assert feature_update_res.status_code == 200
 

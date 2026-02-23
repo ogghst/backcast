@@ -6,7 +6,6 @@ branchable entities (WBEs, CostElements).
 Follows RED-GREEN-REFACTOR TDD methodology.
 """
 
-
 from uuid import uuid4
 
 import pytest
@@ -23,9 +22,7 @@ class TestChangeOrderFullMerge:
     """Integration test suite for full Change Order merge workflow."""
 
     @pytest.mark.asyncio
-    async def test_merge_happy_path(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_merge_happy_path(self, db_session: AsyncSession) -> None:
         """Test successful merge of CO with WBEs and CostElements.
 
         Expected: All entities merged from BR-{code} branch to main branch.
@@ -148,9 +145,7 @@ class TestChangeOrderFullMerge:
         assert len(wbes_main[0]) >= 2
 
     @pytest.mark.asyncio
-    async def test_merge_creates_new_entities(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_merge_creates_new_entities(self, db_session: AsyncSession) -> None:
         """Test that source branch versions overwrite target branch versions.
 
         Expected: WBEs from source branch overwrite versions on main.
@@ -229,9 +224,7 @@ class TestChangeOrderFullMerge:
         assert wbe_after.name == "Modified WBE"
 
     @pytest.mark.asyncio
-    async def test_merge_with_empty_branch(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_merge_with_empty_branch(self, db_session: AsyncSession) -> None:
         """Test merge when source branch has no WBEs or CostElements.
 
         Expected: Merge succeeds, only CO entity is merged.
@@ -280,9 +273,7 @@ class TestChangeOrderFullMerge:
         assert result.status == "Implemented"
 
     @pytest.mark.asyncio
-    async def test_merge_soft_deletes_entities(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_merge_soft_deletes_entities(self, db_session: AsyncSession) -> None:
         """Test that soft-deleted entities propagate correctly during merge.
 
         Expected: Entity soft-deleted on source branch is also soft-deleted on main after merge.
@@ -379,4 +370,6 @@ class TestChangeOrderFullMerge:
         wbe_after = result.scalar_one_or_none()
 
         assert wbe_after is not None, "WBE should exist on main after merge"
-        assert wbe_after.deleted_at is not None, "WBE should be soft-deleted on main after merge"
+        assert wbe_after.deleted_at is not None, (
+            "WBE should be soft-deleted on main after merge"
+        )

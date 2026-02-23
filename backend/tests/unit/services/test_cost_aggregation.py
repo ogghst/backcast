@@ -16,9 +16,7 @@ class TestCostAggregationDaily:
     """
 
     @pytest.mark.asyncio
-    async def test_get_costs_by_period_daily(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_get_costs_by_period_daily(self, db_session: AsyncSession) -> None:
         """Test daily aggregation of costs.
 
         Scenario:
@@ -38,9 +36,7 @@ class TestCostAggregationWeekly:
     """
 
     @pytest.mark.asyncio
-    async def test_get_costs_by_period_weekly(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_get_costs_by_period_weekly(self, db_session: AsyncSession) -> None:
         """Test weekly aggregation of costs.
 
         Scenario:
@@ -60,9 +56,7 @@ class TestCostAggregationMonthly:
     """
 
     @pytest.mark.asyncio
-    async def test_get_costs_by_period_monthly(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_get_costs_by_period_monthly(self, db_session: AsyncSession) -> None:
         """Test monthly aggregation of costs.
 
         Scenario:
@@ -101,9 +95,7 @@ class TestCumulativeCosts:
     """Test cumulative cost calculation."""
 
     @pytest.mark.asyncio
-    async def test_get_cumulative_costs(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_get_cumulative_costs(self, db_session: AsyncSession) -> None:
         """Test cumulative cost calculation.
 
         Scenario:
@@ -153,9 +145,7 @@ class TestCostAggregationEmptyResults:
     """Test cost aggregation with no matching data."""
 
     @pytest.mark.asyncio
-    async def test_get_costs_by_period_no_data(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_get_costs_by_period_no_data(self, db_session: AsyncSession) -> None:
         """Test aggregation when no costs exist in date range.
 
         Expected: Empty list

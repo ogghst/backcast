@@ -118,8 +118,8 @@ async def create_progress_entry(
     """
     try:
         progress = await service.create(
-            progress_in=progress_in,
             actor_id=current_user.user_id,
+            progress_in=progress_in,
         )
         return progress
     except ValueError as e:
@@ -190,9 +190,9 @@ async def update_progress_entry(
     """
     try:
         progress = await service.update(
-            progress_entry_id=progress_entry_id,
-            progress_in=progress_in,
+            entity_id=progress_entry_id,
             actor_id=current_user.user_id,
+            progress_in=progress_in,
         )
         return progress
     except ValueError as e:

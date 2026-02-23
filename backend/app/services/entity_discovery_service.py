@@ -36,9 +36,7 @@ class EntityDiscoveryService:
         Returns:
             List of WBEs where branch matches and deleted_at IS NULL
         """
-        stmt = select(WBE).where(
-            and_(WBE.branch == branch, WBE.deleted_at.is_(None))
-        )
+        stmt = select(WBE).where(and_(WBE.branch == branch, WBE.deleted_at.is_(None)))
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 

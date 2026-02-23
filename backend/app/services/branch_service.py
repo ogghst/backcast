@@ -71,7 +71,7 @@ class BranchService(TemporalService[Branch]):  # type: ignore[type-var]
             entity_class=cast(type[VersionableProtocol], Branch),
             root_id=branch.branch_id,
             actor_id=current_actor,
-            locked=True
+            locked=True,
         )
         return cast(Branch, await cmd.execute(self.session))
 
@@ -102,7 +102,7 @@ class BranchService(TemporalService[Branch]):  # type: ignore[type-var]
             entity_class=cast(type[VersionableProtocol], Branch),
             root_id=branch.branch_id,
             actor_id=current_actor,
-            locked=False
+            locked=False,
         )
         return cast(Branch, await cmd.execute(self.session))
 

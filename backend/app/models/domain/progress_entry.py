@@ -49,9 +49,7 @@ class ProgressEntry(EntityBase, VersionableMixin):
     __tablename__ = "progress_entries"
 
     # Root ID (stable identity across versions)
-    progress_entry_id: Mapped[UUID] = mapped_column(
-        PG_UUID, nullable=False, index=True
-    )
+    progress_entry_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
 
     # Foreign key to cost element
     cost_element_id: Mapped[UUID] = mapped_column(
@@ -65,8 +63,6 @@ class ProgressEntry(EntityBase, VersionableMixin):
     progress_percentage: Mapped[Decimal] = mapped_column(
         Numeric(precision=5, scale=2), nullable=False
     )
-
-
 
     # Optional notes (e.g., justification for progress decrease)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

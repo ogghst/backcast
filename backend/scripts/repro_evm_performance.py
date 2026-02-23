@@ -53,7 +53,7 @@ async def setup_test_data(session):
         name="Test Department",
         code=f"DEPT-{dept_id}",
         description="Test Dept",
-        created_by=user_id
+        created_by=user_id,
     )
     session.add(dept)
 
@@ -64,7 +64,7 @@ async def setup_test_data(session):
         name="Test Type",
         code=f"CET-{cet_id}",
         description="Test Type",
-        created_by=user_id
+        created_by=user_id,
     )
     session.add(cet)
     await session.flush()
@@ -80,7 +80,7 @@ async def setup_test_data(session):
         code=f"PRJ-{project_id}",
         description="Auto-generated for EVM perf test",
         start_date=datetime.now(UTC),
-        end_date=datetime.now(UTC) + timedelta(days=365)
+        end_date=datetime.now(UTC) + timedelta(days=365),
     )
     logger.info(f"Created Project: {project_id}")
 
@@ -94,7 +94,7 @@ async def setup_test_data(session):
             actor_id=user_id,
             project_id=project_id,
             name=f"WBE {i}",
-            code=f"WBE-{i}"
+            code=f"WBE-{i}",
         )
 
         # 3. Create Cost Elements (10 per WBE)
@@ -107,7 +107,7 @@ async def setup_test_data(session):
                 name=f"Cost Element {i}-{j}",
                 code=f"CE-{i}-{j}",
                 budget_amount=Decimal("10000.00"),
-                cost_element_type_id=cet_id  # Use ID, not string
+                cost_element_type_id=cet_id,  # Use ID, not string
             )
             cost_elements.append(ce_id)
 
@@ -124,7 +124,7 @@ async def setup_test_data(session):
             name="Baseline",
             start_date=start_date,
             end_date=end_date,
-            progression_type="LINEAR"
+            progression_type="LINEAR",
         )
 
         # Cost Registration (Actual Cost)
@@ -134,9 +134,9 @@ async def setup_test_data(session):
                 amount=Decimal("5000.00"),
                 registration_date=datetime.now(UTC),
                 reference="INV-001",
-                description="Test Cost"
+                description="Test Cost",
             ),
-            actor_id=user_id
+            actor_id=user_id,
         )
 
         # Progress Entry
@@ -146,9 +146,9 @@ async def setup_test_data(session):
                 cost_element_id=ce_id,
                 progress_percentage=Decimal("50.0"),
                 report_date=datetime.now(UTC),
-                notes="Halfway done"
+                notes="Halfway done",
             ),
-            actor_id=user_id
+            actor_id=user_id,
         )
 
         # Forecast
@@ -156,11 +156,12 @@ async def setup_test_data(session):
             cost_element_id=ce_id,
             actor_id=user_id,
             eac_amount=Decimal("11000.00"),
-            basis_of_estimate="Initial forecast"
+            basis_of_estimate="Initial forecast",
         )
 
     logger.info(f"Created {len(cost_elements)} Cost Elements with full data.")
     return project_id
+
 
 async def main():
     async with async_session_maker() as session:
@@ -184,20 +185,25 @@ async def main():
                 entity_ids=[project_id],
                 control_date=datetime.now(UTC),
                 branch="main",
-                branch_mode=BranchMode.MERGE
+                branch_mode=BranchMode.MERGE,
             )
 
             elapsed = time.time() - start_time
             logger.info(f"Calculation took {elapsed:.4f} seconds")
-            logger.info(f"Metrics: BAC={metrics.bac}, CPI={metrics.cpi}, SPI={metrics.spi}")
+            logger.info(
+                f"Metrics: BAC={metrics.bac}, CPI={metrics.cpi}, SPI={metrics.spi}"
+            )
 
             if elapsed < 1.0:
                 logger.info("SUCCESS: Performance goal met (<1.0s)!")
             else:
-                logger.warning(f"FAILURE: Performance goal not met ({elapsed:.4f}s > 1.0s)")
+                logger.warning(
+                    f"FAILURE: Performance goal not met ({elapsed:.4f}s > 1.0s)"
+                )
 
         except Exception as e:
             logger.error(f"Error during calculation: {e}", exc_info=True)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

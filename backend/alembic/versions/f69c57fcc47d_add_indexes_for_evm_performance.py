@@ -5,13 +5,14 @@ Revises: 4295c725f05f
 Create Date: 2026-01-22 15:15:07.275266
 
 """
+
 from collections.abc import Sequence
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'f69c57fcc47d'
-down_revision: str | Sequence[str] | None = '4295c725f05f'
+revision: str = "f69c57fcc47d"
+down_revision: str | Sequence[str] | None = "4295c725f05f"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -62,6 +63,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     # Drop indexes in reverse order
-    op.execute('DROP INDEX IF EXISTS ix_wbes_project_id')
+    op.execute("DROP INDEX IF EXISTS ix_wbes_project_id")
     # op.execute('DROP INDEX IF EXISTS ix_progress_entries_cost_element_reported_date')
-    op.execute('DROP INDEX IF EXISTS ix_cost_registrations_cost_element_date')
+    op.execute("DROP INDEX IF EXISTS ix_cost_registrations_cost_element_date")

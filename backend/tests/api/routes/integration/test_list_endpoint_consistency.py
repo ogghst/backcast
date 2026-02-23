@@ -88,7 +88,7 @@ class TestScheduleBaselinesListEndpoint:
         as_of = datetime.now(tz=UTC).isoformat()
         response = await client.get(
             "/api/v1/schedule-baselines",
-            params={"as_of": as_of, "page": 1, "per_page": 20}
+            params={"as_of": as_of, "page": 1, "per_page": 20},
         )
         # Should not raise 422 validation error
         assert response.status_code in [200, 401, 403, 404]
@@ -106,7 +106,13 @@ class TestScheduleBaselinesListEndpoint:
         as_of = datetime.now(tz=UTC).isoformat()
         response = await client.get(
             "/api/v1/schedule-baselines",
-            params={"branch": "main", "mode": "merged", "as_of": as_of, "page": 1, "per_page": 20}
+            params={
+                "branch": "main",
+                "mode": "merged",
+                "as_of": as_of,
+                "page": 1,
+                "per_page": 20,
+            },
         )
         # Should not raise 422 validation error
         assert response.status_code in [200, 401, 403, 404]
@@ -237,8 +243,6 @@ class TestWBEsListEndpoint:
 
     async def test_list_has_mode_parameter(self, client: AsyncClient):
         """Test that WBEs list endpoint has mode parameter (existing)."""
-        response = await client.get(
-            "/api/v1/wbes?mode=merged&page=1&per_page=20"
-        )
+        response = await client.get("/api/v1/wbes?mode=merged&page=1&per_page=20")
         # Should not raise 422 validation error
         assert response.status_code in [200, 401, 403, 404]

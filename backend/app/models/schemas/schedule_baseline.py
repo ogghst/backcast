@@ -65,7 +65,9 @@ class ScheduleBaselineUpdate(BaseModel):
     end_date: datetime | None = None
     progression_type: str | None = None
     description: str | None = None
-    branch: str | None = Field(None, description="Branch name for update (defaults to main)")
+    branch: str | None = Field(
+        None, description="Branch name for update (defaults to main)"
+    )
     control_date: datetime | None = Field(
         None, description="Optional control date for update (valid_time start)"
     )
@@ -78,7 +80,9 @@ class ScheduleBaselineRead(ScheduleBaselineBase):
 
     id: UUID
     schedule_baseline_id: UUID
-    cost_element_id: UUID | None = None  # Optional for baselines created without cost element
+    cost_element_id: UUID | None = (
+        None  # Optional for baselines created without cost element
+    )
     created_by: UUID
     branch: str
     cost_element_code: str | None = None

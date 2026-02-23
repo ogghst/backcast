@@ -101,7 +101,8 @@ class ImpactAnalysisService:
         """
         # Filter entries with valid_time.lower <= as_of_date (recorded on or before)
         valid_entries = [
-            pe for pe in progress_entries
+            pe
+            for pe in progress_entries
             if pe.valid_time and pe.valid_time.lower <= as_of_date
         ]
 
@@ -183,7 +184,11 @@ class ImpactAnalysisService:
             # Create analysis task with timeout
             analysis_task = asyncio.create_task(
                 self._perform_analysis(
-                    change_order_id, branch_name, branch_mode, include_evm_metrics, as_of
+                    change_order_id,
+                    branch_name,
+                    branch_mode,
+                    include_evm_metrics,
+                    as_of,
                 )
             )
 
@@ -399,11 +404,15 @@ class ImpactAnalysisService:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
             main_actual_costs_stmt = (
                 select(func.sum(CostRegistration.amount))
-                .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+                .join(
+                    CostElement,
+                    CostRegistration.cost_element_id == CostElement.cost_element_id,
+                )
                 .join(WBE, CostElement.wbe_id == WBE.wbe_id)
                 .where(
                     WBE.project_id == project_id,
-                    CostElement.branch == "main",  # STRICT: Only count costs against main branch CostElements
+                    CostElement.branch
+                    == "main",  # STRICT: Only count costs against main branch CostElements
                     # Zombie protection for WBE
                     or_(
                         cast(Any, WBE).deleted_at.is_(None),
@@ -434,11 +443,15 @@ class ImpactAnalysisService:
             # Current version query
             main_actual_costs_stmt = (
                 select(func.sum(CostRegistration.amount))
-                .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+                .join(
+                    CostElement,
+                    CostRegistration.cost_element_id == CostElement.cost_element_id,
+                )
                 .join(WBE, CostElement.wbe_id == WBE.wbe_id)
                 .where(
                     WBE.project_id == project_id,
-                    CostElement.branch == "main",  # STRICT: Only count costs against main branch CostElements
+                    CostElement.branch
+                    == "main",  # STRICT: Only count costs against main branch CostElements
                     func.upper(cast(Any, WBE).valid_time).is_(None),
                     cast(Any, WBE).deleted_at.is_(None),
                     func.upper(cast(Any, CostElement).valid_time).is_(None),
@@ -453,7 +466,9 @@ class ImpactAnalysisService:
         # For change branch actual costs, we use the same value as main for now
         # because CostRegistration is NOT branchable. In the future, if CostRegistrations
         # become branchable or we add branch-context tracking, we'd filter those here too.
-        change_actual_costs = main_actual_costs  # Placeholder until branch filtering is implemented
+        change_actual_costs = (
+            main_actual_costs  # Placeholder until branch filtering is implemented
+        )
 
         # Gross margin calculation (simplified: 20% of budget as margin)
         # In production, this would come from actual cost/revenue data
@@ -729,11 +744,15 @@ class ImpactAnalysisService:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
             main_cr_stmt = (
                 select(CostRegistration)
-                .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+                .join(
+                    CostElement,
+                    CostRegistration.cost_element_id == CostElement.cost_element_id,
+                )
                 .join(WBE, CostElement.wbe_id == WBE.wbe_id)
                 .where(
                     WBE.project_id == project_id,
-                    CostElement.branch == "main",  # STRICT: Only match main branch CostElements
+                    CostElement.branch
+                    == "main",  # STRICT: Only match main branch CostElements
                     # Zombie protection for WBE
                     or_(
                         cast(Any, WBE).deleted_at.is_(None),
@@ -765,11 +784,15 @@ class ImpactAnalysisService:
             # Current version query
             main_cr_stmt = (
                 select(CostRegistration)
-                .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+                .join(
+                    CostElement,
+                    CostRegistration.cost_element_id == CostElement.cost_element_id,
+                )
                 .join(WBE, CostElement.wbe_id == WBE.wbe_id)
                 .where(
                     WBE.project_id == project_id,
-                    CostElement.branch == "main",  # STRICT: Only match main branch CostElements
+                    CostElement.branch
+                    == "main",  # STRICT: Only match main branch CostElements
                     func.upper(cast(Any, WBE).valid_time).is_(None),
                     cast(Any, WBE).deleted_at.is_(None),
                     func.upper(cast(Any, CostElement).valid_time).is_(None),
@@ -789,7 +812,10 @@ class ImpactAnalysisService:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
             branch_cr_stmt = (
                 select(CostRegistration)
-                .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+                .join(
+                    CostElement,
+                    CostRegistration.cost_element_id == CostElement.cost_element_id,
+                )
                 .join(WBE, CostElement.wbe_id == WBE.wbe_id)
                 .where(
                     WBE.project_id == project_id,
@@ -825,7 +851,10 @@ class ImpactAnalysisService:
             # Current version query
             branch_cr_stmt = (
                 select(CostRegistration)
-                .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+                .join(
+                    CostElement,
+                    CostRegistration.cost_element_id == CostElement.cost_element_id,
+                )
                 .join(WBE, CostElement.wbe_id == WBE.wbe_id)
                 .where(
                     WBE.project_id == project_id,
@@ -851,7 +880,9 @@ class ImpactAnalysisService:
         # - CRs linked to main CostElements that are NOT overridden by branch
         # - CRs linked to branch CostElements
         main_cr_map = {cr.cost_registration_id: cr for cr in main_cost_registrations}
-        branch_cr_map = {cr.cost_registration_id: cr for cr in branch_cost_registrations}
+        branch_cr_map = {
+            cr.cost_registration_id: cr for cr in branch_cost_registrations
+        }
 
         merged_cost_registrations: list[CostRegistration] = []
         # CRITICAL: Only include registrations linked to CostElements in the merged view
@@ -879,7 +910,9 @@ class ImpactAnalysisService:
         ce_cost_deltas: dict[UUID, Decimal] = {}
 
         # Build cost delta maps directly from CR lists
-        merged_cr_map = {cr.cost_registration_id: cr for cr in merged_cost_registrations}
+        merged_cr_map = {
+            cr.cost_registration_id: cr for cr in merged_cost_registrations
+        }
         all_cr_ids = set(main_cr_map.keys()) | set(merged_cr_map.keys())
 
         for cr_id in all_cr_ids:
@@ -921,7 +954,9 @@ class ImpactAnalysisService:
         for ce_id, delta in ce_cost_deltas.items():
             _wbe_id: UUID | None = ce_to_wbe_map.get(ce_id)
             if _wbe_id:
-                wbe_cost_deltas[_wbe_id] = wbe_cost_deltas.get(_wbe_id, Decimal("0")) + delta
+                wbe_cost_deltas[_wbe_id] = (
+                    wbe_cost_deltas.get(_wbe_id, Decimal("0")) + delta
+                )
 
         # Compare WBEs: main vs merged view with cost deltas
         wbe_changes = self._compare_wbe_lists(main_wbes, merged_wbes, wbe_cost_deltas)
@@ -931,7 +966,9 @@ class ImpactAnalysisService:
             main_cost_elements, merged_cost_elements, ce_cost_deltas
         )
 
-        return EntityChanges(wbes=wbe_changes, cost_elements=ce_changes, cost_registrations=cr_changes)
+        return EntityChanges(
+            wbes=wbe_changes, cost_elements=ce_changes, cost_registrations=cr_changes
+        )
 
     def _compare_wbe_lists(
         self,
@@ -1249,7 +1286,8 @@ class ImpactAnalysisService:
                 select(ScheduleBaseline, CostElement, WBE)
                 .join(
                     CostElement,
-                    ScheduleBaseline.schedule_baseline_id == CostElement.schedule_baseline_id,
+                    ScheduleBaseline.schedule_baseline_id
+                    == CostElement.schedule_baseline_id,
                 )
                 .join(
                     WBE,
@@ -1290,7 +1328,8 @@ class ImpactAnalysisService:
                 select(ScheduleBaseline, CostElement, WBE)
                 .join(
                     CostElement,
-                    ScheduleBaseline.schedule_baseline_id == CostElement.schedule_baseline_id,
+                    ScheduleBaseline.schedule_baseline_id
+                    == CostElement.schedule_baseline_id,
                 )
                 .join(
                     WBE,
@@ -1316,7 +1355,9 @@ class ImpactAnalysisService:
         if not schedules:
             # Fallback: If no schedules exist, use simple WBE-based budget calculation
             # This handles projects that haven't set up schedule baselines yet
-            return await self._generate_simple_budget_series(project_id, branch_name, as_of)
+            return await self._generate_simple_budget_series(
+                project_id, branch_name, as_of
+            )
 
         # Separate by CostElement branch (not ScheduleBaseline.branch)
         # ScheduleBaselines are shared across branches (they're in main), but CostElements
@@ -1326,7 +1367,9 @@ class ImpactAnalysisService:
 
         if not main_schedules:
             # Fallback: If no main schedules exist, use simple WBE-based budget calculation
-            return await self._generate_simple_budget_series(project_id, branch_name, as_of)
+            return await self._generate_simple_budget_series(
+                project_id, branch_name, as_of
+            )
 
         # ========================================================================
         # STEP 1b: Determine date range for S-curve
@@ -1335,13 +1378,14 @@ class ImpactAnalysisService:
 
         # First, filter valid schedules (needed later in the code)
         valid_main_schedules = [
-            s for s in main_schedules if s[0].start_date is not None and s[0].end_date is not None
+            s
+            for s in main_schedules
+            if s[0].start_date is not None and s[0].end_date is not None
         ]
 
         # Fetch the project's start_date and end_date from the main branch
         project_result = await self._db.execute(
-            select(Project)
-            .where(
+            select(Project).where(
                 Project.project_id == project_id,
                 Project.branch == "main",
                 Project.deleted_at.is_(None),
@@ -1416,7 +1460,10 @@ class ImpactAnalysisService:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
             progress_stmt = (
                 select(ProgressEntry, CostElement)
-                .join(CostElement, ProgressEntry.cost_element_id == CostElement.cost_element_id)
+                .join(
+                    CostElement,
+                    ProgressEntry.cost_element_id == CostElement.cost_element_id,
+                )
                 .join(WBE, CostElement.wbe_id == WBE.wbe_id)
                 .where(
                     WBE.project_id == project_id,
@@ -1433,13 +1480,16 @@ class ImpactAnalysisService:
             ).order_by(
                 CostElement.branch,
                 CostElement.cost_element_id,
-                func.lower(ProgressEntry.valid_time).desc()
+                func.lower(ProgressEntry.valid_time).desc(),
             )
         else:
             # No time filtering - get current progress entries
             progress_stmt = (
                 select(ProgressEntry, CostElement)
-                .join(CostElement, ProgressEntry.cost_element_id == CostElement.cost_element_id)
+                .join(
+                    CostElement,
+                    ProgressEntry.cost_element_id == CostElement.cost_element_id,
+                )
                 .join(WBE, CostElement.wbe_id == WBE.wbe_id)
                 .where(
                     WBE.project_id == project_id,
@@ -1450,7 +1500,7 @@ class ImpactAnalysisService:
             ).order_by(
                 CostElement.branch,
                 CostElement.cost_element_id,
-                func.lower(ProgressEntry.valid_time).desc()
+                func.lower(ProgressEntry.valid_time).desc(),
             )
 
         progress_result = await self._db.execute(progress_stmt)
@@ -1473,7 +1523,10 @@ class ImpactAnalysisService:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
             cost_reg_stmt = (
                 select(CostRegistration, CostElement)
-                .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+                .join(
+                    CostElement,
+                    CostRegistration.cost_element_id == CostElement.cost_element_id,
+                )
                 .join(WBE, CostElement.wbe_id == WBE.wbe_id)
                 .where(
                     WBE.project_id == project_id,
@@ -1492,7 +1545,10 @@ class ImpactAnalysisService:
             # No time filtering - get current cost registrations
             cost_reg_stmt = (
                 select(CostRegistration, CostElement)
-                .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+                .join(
+                    CostElement,
+                    CostRegistration.cost_element_id == CostElement.cost_element_id,
+                )
                 .join(WBE, CostElement.wbe_id == WBE.wbe_id)
                 .where(
                     WBE.project_id == project_id,
@@ -1506,7 +1562,9 @@ class ImpactAnalysisService:
         cost_reg_rows = cost_reg_result.all()
 
         # Build cost registration lookup: (cost_element_id, branch) -> list of registrations
-        cost_reg_lookup: dict[tuple[UUID, str], list[CostRegistration]] = defaultdict(list)
+        cost_reg_lookup: dict[tuple[UUID, str], list[CostRegistration]] = defaultdict(
+            list
+        )
         for cr, ce in cost_reg_rows:
             cost_reg_lookup[(ce.cost_element_id, ce.branch)].append(cr)
 
@@ -1514,7 +1572,9 @@ class ImpactAnalysisService:
         # STEP 5: Generate weekly intervals
         # ========================================================================
         weekly_periods = []
-        current_week_start = min_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        current_week_start = min_start.replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
 
         # Safety: Limit to 520 weeks (10 years) to prevent performance issues
         max_weeks = 520
@@ -1541,7 +1601,8 @@ class ImpactAnalysisService:
 
         # Pre-group schedules by branch for efficient iteration
         valid_change_schedules = [
-            s for s in change_schedules
+            s
+            for s in change_schedules
             if s[0].start_date is not None and s[0].end_date is not None
         ]
 
@@ -1586,13 +1647,17 @@ class ImpactAnalysisService:
                     main_pv += budget_pv
 
                     # EV: Use progress entries (as of week_mid for historical accuracy)
-                    progress_entries = progress_lookup.get((ce.cost_element_id, "main"), [])
+                    progress_entries = progress_lookup.get(
+                        (ce.cost_element_id, "main"), []
+                    )
                     progress_pct = self._get_progress_as_of(progress_entries, week_mid)
                     ev = budget * progress_pct / Decimal("100")
                     main_ev += ev
 
                     # AC: Use cost registrations (cumulative up to week_mid)
-                    registrations = cost_reg_lookup.get((ce.cost_element_id, "main"), [])
+                    registrations = cost_reg_lookup.get(
+                        (ce.cost_element_id, "main"), []
+                    )
                     for cr in registrations:
                         if cr.registration_date and cr.registration_date <= week_mid:
                             main_ac += cr.amount
@@ -1621,13 +1686,17 @@ class ImpactAnalysisService:
                     change_pv += budget_pv
 
                     # EV: Use progress entries (as of week_mid for historical accuracy)
-                    progress_entries = progress_lookup.get((ce.cost_element_id, branch_name), [])
+                    progress_entries = progress_lookup.get(
+                        (ce.cost_element_id, branch_name), []
+                    )
                     progress_pct = self._get_progress_as_of(progress_entries, week_mid)
                     ev = budget * progress_pct / Decimal("100")
                     change_ev += ev
 
                     # AC: Use cost registrations
-                    registrations = cost_reg_lookup.get((ce.cost_element_id, branch_name), [])
+                    registrations = cost_reg_lookup.get(
+                        (ce.cost_element_id, branch_name), []
+                    )
                     for cr in registrations:
                         if cr.registration_date and cr.registration_date <= week_mid:
                             change_ac += cr.amount
@@ -1655,15 +1724,24 @@ class ImpactAnalysisService:
                         change_pv += budget_pv
 
                         # EV: Use progress entries from main (as of week_mid)
-                        progress_entries = progress_lookup.get((ce.cost_element_id, "main"), [])
-                        progress_pct = self._get_progress_as_of(progress_entries, week_mid)
+                        progress_entries = progress_lookup.get(
+                            (ce.cost_element_id, "main"), []
+                        )
+                        progress_pct = self._get_progress_as_of(
+                            progress_entries, week_mid
+                        )
                         ev = budget * progress_pct / Decimal("100")
                         change_ev += ev
 
                         # AC: Use cost registrations from main
-                        registrations = cost_reg_lookup.get((ce.cost_element_id, "main"), [])
+                        registrations = cost_reg_lookup.get(
+                            (ce.cost_element_id, "main"), []
+                        )
                         for cr in registrations:
-                            if cr.registration_date and cr.registration_date <= week_mid:
+                            if (
+                                cr.registration_date
+                                and cr.registration_date <= week_mid
+                            ):
                                 change_ac += cr.amount
 
                     except ValueError:
@@ -1730,29 +1808,23 @@ class ImpactAnalysisService:
         # Get total budget from main branch
         if as_of is not None:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            main_budget_stmt = (
-                select(func.sum(WBE.budget_allocation))
-                .where(
-                    WBE.project_id == project_id,
-                    WBE.branch == "main",
-                    # ZOMBIE PROTECTION: Entity visible if not deleted, or deleted AFTER as_of
-                    or_(
-                        cast(Any, WBE).deleted_at.is_(None),
-                        cast(Any, WBE).deleted_at > as_of,
-                    ),
-                    WBE.valid_time.op("@>")(as_of_tstz),
-                    func.lower(WBE.valid_time) <= as_of_tstz,
-                )
+            main_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
+                WBE.project_id == project_id,
+                WBE.branch == "main",
+                # ZOMBIE PROTECTION: Entity visible if not deleted, or deleted AFTER as_of
+                or_(
+                    cast(Any, WBE).deleted_at.is_(None),
+                    cast(Any, WBE).deleted_at > as_of,
+                ),
+                WBE.valid_time.op("@>")(as_of_tstz),
+                func.lower(WBE.valid_time) <= as_of_tstz,
             )
         else:
-            main_budget_stmt = (
-                select(func.sum(WBE.budget_allocation))
-                .where(
-                    WBE.project_id == project_id,
-                    WBE.branch == "main",
-                    func.upper(cast(Any, WBE).valid_time).is_(None),
-                    cast(Any, WBE).deleted_at.is_(None),
-                )
+            main_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
+                WBE.project_id == project_id,
+                WBE.branch == "main",
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
             )
         main_budget_result = await self._db.execute(main_budget_stmt)
         main_total = main_budget_result.scalar() or Decimal("0")
@@ -1760,29 +1832,23 @@ class ImpactAnalysisService:
         # Get total budget from change branch
         if as_of is not None:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            change_budget_stmt = (
-                select(func.sum(WBE.budget_allocation))
-                .where(
-                    WBE.project_id == project_id,
-                    WBE.branch == branch_name,
-                    # ZOMBIE PROTECTION: Entity visible if not deleted, or deleted AFTER as_of
-                    or_(
-                        cast(Any, WBE).deleted_at.is_(None),
-                        cast(Any, WBE).deleted_at > as_of,
-                    ),
-                    WBE.valid_time.op("@>")(as_of_tstz),
-                    func.lower(WBE.valid_time) <= as_of_tstz,
-                )
+            change_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
+                WBE.project_id == project_id,
+                WBE.branch == branch_name,
+                # ZOMBIE PROTECTION: Entity visible if not deleted, or deleted AFTER as_of
+                or_(
+                    cast(Any, WBE).deleted_at.is_(None),
+                    cast(Any, WBE).deleted_at > as_of,
+                ),
+                WBE.valid_time.op("@>")(as_of_tstz),
+                func.lower(WBE.valid_time) <= as_of_tstz,
             )
         else:
-            change_budget_stmt = (
-                select(func.sum(WBE.budget_allocation))
-                .where(
-                    WBE.project_id == project_id,
-                    WBE.branch == branch_name,
-                    func.upper(cast(Any, WBE).valid_time).is_(None),
-                    cast(Any, WBE).deleted_at.is_(None),
-                )
+            change_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
+                WBE.project_id == project_id,
+                WBE.branch == branch_name,
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
             )
         change_budget_result = await self._db.execute(change_budget_stmt)
         change_total = change_budget_result.scalar() or Decimal("0")
@@ -2085,8 +2151,16 @@ class ImpactAnalysisService:
             }
 
         # Get schedule baselines from cost elements
-        main_baseline_ids = [ce.schedule_baseline_id for ce in main_cost_elements if ce.schedule_baseline_id]
-        change_baseline_ids = [ce.schedule_baseline_id for ce in change_cost_elements if ce.schedule_baseline_id]
+        main_baseline_ids = [
+            ce.schedule_baseline_id
+            for ce in main_cost_elements
+            if ce.schedule_baseline_id
+        ]
+        change_baseline_ids = [
+            ce.schedule_baseline_id
+            for ce in change_cost_elements
+            if ce.schedule_baseline_id
+        ]
 
         # Fetch schedule baselines with temporal filtering
         if as_of is not None:
@@ -2208,7 +2282,9 @@ class ImpactAnalysisService:
             """Calculate duration metric in days."""
             delta = Decimal(str(change_dur - main_dur))
             delta_percent = (
-                float((change_dur - main_dur) / main_dur * 100) if main_dur > 0 else None
+                float((change_dur - main_dur) / main_dur * 100)
+                if main_dur > 0
+                else None
             )
 
             # Calculate merged value when in MERGE mode
@@ -2227,7 +2303,9 @@ class ImpactAnalysisService:
         return {
             "schedule_start_date": _calculate_date_metric(main_start, change_start),
             "schedule_end_date": _calculate_date_metric(main_end, change_end),
-            "schedule_duration": _calculate_duration_metric(main_duration, change_duration),
+            "schedule_duration": _calculate_duration_metric(
+                main_duration, change_duration
+            ),
         }
 
     async def _fetch_and_compare_evm_metrics(
@@ -2270,28 +2348,60 @@ class ImpactAnalysisService:
             )
 
             # Extract metrics (convert to Decimal to ensure type safety)
-            main_cpi = Decimal(str(main_evm_response.cpi)) if main_evm_response.cpi is not None else Decimal("1.0")
-            change_cpi = Decimal(str(change_evm_response.cpi)) if change_evm_response.cpi is not None else Decimal("1.0")
+            main_cpi = (
+                Decimal(str(main_evm_response.cpi))
+                if main_evm_response.cpi is not None
+                else Decimal("1.0")
+            )
+            change_cpi = (
+                Decimal(str(change_evm_response.cpi))
+                if change_evm_response.cpi is not None
+                else Decimal("1.0")
+            )
 
-            main_spi = Decimal(str(main_evm_response.spi)) if main_evm_response.spi is not None else Decimal("1.0")
-            change_spi = Decimal(str(change_evm_response.spi)) if change_evm_response.spi is not None else Decimal("1.0")
+            main_spi = (
+                Decimal(str(main_evm_response.spi))
+                if main_evm_response.spi is not None
+                else Decimal("1.0")
+            )
+            change_spi = (
+                Decimal(str(change_evm_response.spi))
+                if change_evm_response.spi is not None
+                else Decimal("1.0")
+            )
 
             # TCPI calculation (simplified: BAC / EAC if EAC exists)
-            main_eac_for_tcpi = Decimal(str(main_evm_response.eac)) if main_evm_response.eac is not None else None
+            main_eac_for_tcpi = (
+                Decimal(str(main_evm_response.eac))
+                if main_evm_response.eac is not None
+                else None
+            )
             main_tcpi = (
                 Decimal("1.0")
                 if main_eac_for_tcpi is None or main_eac_for_tcpi == 0
                 else Decimal(str(main_evm_response.bac)) / main_eac_for_tcpi
             )
-            change_eac_for_tcpi = Decimal(str(change_evm_response.eac)) if change_evm_response.eac is not None else None
+            change_eac_for_tcpi = (
+                Decimal(str(change_evm_response.eac))
+                if change_evm_response.eac is not None
+                else None
+            )
             change_tcpi = (
                 Decimal("1.0")
                 if change_eac_for_tcpi is None or change_eac_for_tcpi == 0
                 else Decimal(str(change_evm_response.bac)) / change_eac_for_tcpi
             )
 
-            main_eac = Decimal(str(main_evm_response.eac)) if main_evm_response.eac is not None else Decimal(str(main_evm_response.bac))
-            change_eac = Decimal(str(change_evm_response.eac)) if change_evm_response.eac is not None else Decimal(str(change_evm_response.bac))
+            main_eac = (
+                Decimal(str(main_evm_response.eac))
+                if main_evm_response.eac is not None
+                else Decimal(str(main_evm_response.bac))
+            )
+            change_eac = (
+                Decimal(str(change_evm_response.eac))
+                if change_evm_response.eac is not None
+                else Decimal(str(change_evm_response.bac))
+            )
 
             # Calculate VAC (ensure Decimal)
             main_bac_dec = Decimal(str(main_evm_response.bac))
@@ -2303,9 +2413,7 @@ class ImpactAnalysisService:
             def _calculate_metric(main_val: Decimal, change_val: Decimal) -> KPIMetric:
                 """Calculate metric KPIMetric."""
                 delta = change_val - main_val
-                delta_percent = (
-                    float(delta / main_val * 100) if main_val != 0 else None
-                )
+                delta_percent = float(delta / main_val * 100) if main_val != 0 else None
 
                 # Calculate merged value when in MERGE mode
                 merged_value = None
@@ -2507,7 +2615,9 @@ class ImpactAnalysisService:
                         if main_fcast
                         else None,
                         change_eac=merged_fcast.eac_amount if merged_fcast else None,
-                        branch_forecast=ForecastRead.model_validate(branch_fcast_for_frontend)
+                        branch_forecast=ForecastRead.model_validate(
+                            branch_fcast_for_frontend
+                        )
                         if branch_fcast_for_frontend
                         else None,
                     )

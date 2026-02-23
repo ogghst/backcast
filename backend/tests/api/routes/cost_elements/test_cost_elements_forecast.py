@@ -226,11 +226,15 @@ class TestCostElementForecastAPI:
         cost_element_id = ce_res.json()["cost_element_id"]
 
         # Delete the forecast
-        response = await client.delete(f"/api/v1/cost-elements/{cost_element_id}/forecast")
+        response = await client.delete(
+            f"/api/v1/cost-elements/{cost_element_id}/forecast"
+        )
         assert response.status_code == 204
 
         # Verify forecast is deleted
-        get_response = await client.get(f"/api/v1/cost-elements/{cost_element_id}/forecast")
+        get_response = await client.get(
+            f"/api/v1/cost-elements/{cost_element_id}/forecast"
+        )
         assert get_response.status_code == 404
 
     async def test_delete_cost_element_cascades_to_forecast(
@@ -256,7 +260,9 @@ class TestCostElementForecastAPI:
         cost_element_id = ce_res.json()["cost_element_id"]
 
         # Verify forecast exists
-        get_before = await client.get(f"/api/v1/cost-elements/{cost_element_id}/forecast")
+        get_before = await client.get(
+            f"/api/v1/cost-elements/{cost_element_id}/forecast"
+        )
         assert get_before.status_code == 200
 
         # Delete the cost element
@@ -264,7 +270,9 @@ class TestCostElementForecastAPI:
         assert del_response.status_code == 204
 
         # Verify forecast is also deleted (cascade)
-        get_after = await client.get(f"/api/v1/cost-elements/{cost_element_id}/forecast")
+        get_after = await client.get(
+            f"/api/v1/cost-elements/{cost_element_id}/forecast"
+        )
         assert get_after.status_code == 404
 
     async def test_create_new_forecast_when_none_exists(
@@ -290,11 +298,15 @@ class TestCostElementForecastAPI:
         cost_element_id = ce_res.json()["cost_element_id"]
 
         # Delete the auto-created forecast
-        delete_response = await client.delete(f"/api/v1/cost-elements/{cost_element_id}/forecast")
+        delete_response = await client.delete(
+            f"/api/v1/cost-elements/{cost_element_id}/forecast"
+        )
         assert delete_response.status_code == 204
 
         # Verify no forecast exists
-        get_response = await client.get(f"/api/v1/cost-elements/{cost_element_id}/forecast")
+        get_response = await client.get(
+            f"/api/v1/cost-elements/{cost_element_id}/forecast"
+        )
         assert get_response.status_code == 404
 
         # Create a new forecast via PUT
@@ -410,12 +422,18 @@ class TestForecastZombieCheck:
         cost_element_id = ce_res.json()["cost_element_id"]
 
         # Delete the forecast (T3)
-        del_response = await client.delete(f"/api/v1/cost-elements/{cost_element_id}/forecast")
+        del_response = await client.delete(
+            f"/api/v1/cost-elements/{cost_element_id}/forecast"
+        )
         assert del_response.status_code == 204
 
         # Query current time (T4 - after deletion) - should NOT return
-        current_response = await client.get(f"/api/v1/cost-elements/{cost_element_id}/forecast")
-        assert current_response.status_code == 404, "Forecast should NOT be visible after deletion"
+        current_response = await client.get(
+            f"/api/v1/cost-elements/{cost_element_id}/forecast"
+        )
+        assert current_response.status_code == 404, (
+            "Forecast should NOT be visible after deletion"
+        )
 
     async def test_update_forecast_with_control_date_sets_valid_time(
         self, client: AsyncClient, setup_dependencies: dict[str, Any]
@@ -476,7 +494,10 @@ class TestForecastZombieCheck:
 
         updated_forecast = update_response.json()
         assert updated_forecast["eac_amount"] == "120000.00"
-        assert updated_forecast["basis_of_estimate"] == "Updated forecast with control date"
+        assert (
+            updated_forecast["basis_of_estimate"]
+            == "Updated forecast with control date"
+        )
 
         # Verify that the forecast was actually updated (not ignored)
         # by fetching it again and checking the values

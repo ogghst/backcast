@@ -84,6 +84,7 @@ async def read_cost_registrations(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     items, total = await service.get_cost_registrations(
@@ -168,6 +169,7 @@ async def get_budget_status(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     try:
@@ -192,14 +194,20 @@ async def get_budget_status(
     dependencies=[Depends(RoleChecker(required_permission="cost-registration-read"))],
 )
 async def get_aggregated_costs(
-    cost_element_id: UUID = Query(..., description="Cost Element ID to aggregate costs for"),
+    cost_element_id: UUID = Query(
+        ..., description="Cost Element ID to aggregate costs for"
+    ),
     period: str = Query(
         ...,
         pattern="^(daily|weekly|monthly)$",
         description="Aggregation period (daily, weekly, or monthly)",
     ),
-    start_date: datetime = Query(..., description="Start date for aggregation (ISO 8601)"),
-    end_date: datetime | None = Query(None, description="End date for aggregation (ISO 8601, defaults to now)"),
+    start_date: datetime = Query(
+        ..., description="Start date for aggregation (ISO 8601)"
+    ),
+    end_date: datetime | None = Query(
+        None, description="End date for aggregation (ISO 8601, defaults to now)"
+    ),
     as_of: datetime | None = Query(
         None,
         description="Time travel: get costs as of this timestamp (ISO 8601)",
@@ -221,6 +229,7 @@ async def get_aggregated_costs(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     try:
@@ -245,9 +254,15 @@ async def get_aggregated_costs(
     dependencies=[Depends(RoleChecker(required_permission="cost-registration-read"))],
 )
 async def get_cumulative_costs(
-    cost_element_id: UUID = Query(..., description="Cost Element ID to get cumulative costs for"),
-    start_date: datetime = Query(..., description="Start date for calculation (ISO 8601)"),
-    end_date: datetime | None = Query(None, description="End date for calculation (ISO 8601, defaults to now)"),
+    cost_element_id: UUID = Query(
+        ..., description="Cost Element ID to get cumulative costs for"
+    ),
+    start_date: datetime = Query(
+        ..., description="Start date for calculation (ISO 8601)"
+    ),
+    end_date: datetime | None = Query(
+        None, description="End date for calculation (ISO 8601, defaults to now)"
+    ),
     as_of: datetime | None = Query(
         None,
         description="Time travel: get costs as of this timestamp (ISO 8601)",
@@ -269,6 +284,7 @@ async def get_cumulative_costs(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     try:
@@ -311,6 +327,7 @@ async def read_cost_registration(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     if as_of:

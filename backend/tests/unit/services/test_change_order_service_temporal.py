@@ -37,13 +37,11 @@ async def test_create_change_order_temporal_branch_creation(db_session):
         project_id=project.project_id,
         code="CO-TEMP-001",
         title="Temporal CO",
-        status="Draft"
+        status="Draft",
     )
 
     co = await service.create_change_order(
-        change_order_in=co_in,
-        actor_id=actor_id,
-        control_date=control_date
+        change_order_in=co_in, actor_id=actor_id, control_date=control_date
     )
 
     # Assert: Change Order created correctly
@@ -57,7 +55,9 @@ async def test_create_change_order_temporal_branch_creation(db_session):
     branch_service = service.branch_service
 
     # Fetch branch using standard lookup (should find it as it's current)
-    branch = await branch_service.get_by_name_and_project(branch_name, project.project_id)
+    branch = await branch_service.get_by_name_and_project(
+        branch_name, project.project_id
+    )
 
     assert branch is not None
     assert branch.name == branch_name
@@ -90,14 +90,16 @@ async def test_change_order_workflow_locking_temporal(db_session):
         project_id=project.project_id,
         code="CO-LOCK-001",
         title="Lock Test CO",
-        status="Draft"
+        status="Draft",
     )
     co = await service.create_change_order(co_in, actor_id)
 
     branch_name = f"BR-{co.code}"
 
     # Verify initial state
-    branch_v1 = await service.branch_service.get_by_name_and_project(branch_name, project.project_id)
+    branch_v1 = await service.branch_service.get_by_name_and_project(
+        branch_name, project.project_id
+    )
     assert branch_v1.locked is False
 
     # Act: Move to Submitted (should LOCK)
@@ -125,16 +127,18 @@ async def test_change_order_workflow_locking_temporal(db_session):
         change_order_id=co.change_order_id,
         change_order_in=update_in,
         actor_id=actor_id,
-        control_date=update_time
+        control_date=update_time,
     )
 
     assert updated_co.status == "Submitted for Approval"
 
     # Verify Branch is now LOCKED
     # And it should be a NEW VERSION
-    branch_v2 = await service.branch_service.get_by_name_and_project(branch_name, project.project_id)
+    branch_v2 = await service.branch_service.get_by_name_and_project(
+        branch_name, project.project_id
+    )
     assert branch_v2.locked is True
-    assert branch_v2.id != branch_v1.id # Must be new version
+    assert branch_v2.id != branch_v1.id  # Must be new version
     # The valid_time.lower is the actual time when the branch lock operation happens,
     # not the control_date used for time-travel queries
     assert branch_v2.valid_time.lower < update_time

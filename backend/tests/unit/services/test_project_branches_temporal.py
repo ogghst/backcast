@@ -23,10 +23,7 @@ async def test_get_project_branches_temporal(db_session):
 
     # Branch 1 (Main) - created automatically in real app, manual here
     branch_main = Branch(
-        name="main",
-        type="main",
-        project_id=project.project_id,
-        created_by=user_id
+        name="main", type="main", project_id=project.project_id, created_by=user_id
     )
     db_session.add(branch_main)
 
@@ -43,7 +40,7 @@ async def test_get_project_branches_temporal(db_session):
         name="BR-CO-TEST-1",
         type="change_order",
         project_id=project.project_id,
-        created_by=user_id
+        created_by=user_id,
     )
     db_session.add(branch_co)
     await db_session.flush()
@@ -67,7 +64,9 @@ async def test_get_project_branches_temporal(db_session):
 
     # Query at t_before_co
     t_before_co = branch_co.valid_time.lower - timedelta(seconds=1)
-    result_past = await service.get_project_branches(project.project_id, as_of=t_before_co)
+    result_past = await service.get_project_branches(
+        project.project_id, as_of=t_before_co
+    )
 
     # Assert
     assert len(result_current) == 2
@@ -87,4 +86,4 @@ async def test_get_project_branches_temporal(db_session):
     # assert len(result_pre_creation) == 0
 
     if branch_main.valid_time.lower <= t_before_co:
-         assert len(result_past) >= 1
+        assert len(result_past) >= 1

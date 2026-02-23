@@ -91,7 +91,9 @@ async def test_td57_deleted_after_as_of_should_fallback(db_session):
 
     # This should return None because at T=after_deletion,
     # the entity WAS deleted on BR-123
-    assert result_after is None, "Entity deleted BEFORE as_of should NOT fall back to main"
+    assert result_after is None, (
+        "Entity deleted BEFORE as_of should NOT fall back to main"
+    )
 
 
 @pytest.mark.asyncio

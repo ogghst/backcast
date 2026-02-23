@@ -25,7 +25,7 @@ async def test_wbe_project_link_stability(db_session):
         code="PRJ-REG-001",
         name="Regression Project V1",
         status="active",
-        created_by=user_id
+        created_by=user_id,
     )
     db_session.add(project_v1)
     await db_session.commit()
@@ -39,7 +39,7 @@ async def test_wbe_project_link_stability(db_session):
         name="Regression WBE",
         level=1,
         budget_allocation=0,
-        created_by=user_id
+        created_by=user_id,
     )
     db_session.add(wbe)
     await db_session.commit()
@@ -50,24 +50,25 @@ async def test_wbe_project_link_stability(db_session):
         code="PRJ-REG-001",
         name="Regression Project V2 (Updated)",
         status="active",
-        created_by=user_id
+        created_by=user_id,
     )
     db_session.add(project_v2)
     await db_session.commit()
 
     # 4. Fetch WBE and verify link
     from sqlalchemy.orm import selectinload
+
     result = await db_session.execute(
-        select(WBE)
-        .options(selectinload(WBE.project))
-        .where(WBE.wbe_id == wbe_id)
+        select(WBE).options(selectinload(WBE.project)).where(WBE.wbe_id == wbe_id)
     )
     fetched_wbe = result.scalar_one()
 
     assert fetched_wbe.project_id == project_id
 
     # 5. Verify we can find all versions of the project via the WBE's project_id
-    proj_result = await db_session.execute(select(Project).where(Project.project_id == fetched_wbe.project_id))
+    proj_result = await db_session.execute(
+        select(Project).where(Project.project_id == fetched_wbe.project_id)
+    )
     projects = proj_result.scalars().all()
     assert len(projects) >= 2
     assert any(p.name == "Regression Project V1" for p in projects)
@@ -79,6 +80,7 @@ async def test_wbe_project_link_stability(db_session):
     assert fetched_wbe.project is not None
     assert fetched_wbe.project.project_id == project_id
 
+
 @pytest.mark.asyncio
 async def test_cost_element_wbe_link_stability(db_session):
     """
@@ -89,11 +91,25 @@ async def test_cost_element_wbe_link_stability(db_session):
     wbe_id = uuid.uuid4()
 
     # Setup parent Project
-    project = Project(project_id=project_id, code="PRJ-CE-001", name="CE Project", status="active", created_by=user_id)
+    project = Project(
+        project_id=project_id,
+        code="PRJ-CE-001",
+        name="CE Project",
+        status="active",
+        created_by=user_id,
+    )
     db_session.add(project)
 
     # 1. Create WBE (V1)
-    wbe_v1 = WBE(wbe_id=wbe_id, project_id=project_id, code="WBE-CE-001", name="WBE V1", level=1, budget_allocation=0, created_by=user_id)
+    wbe_v1 = WBE(
+        wbe_id=wbe_id,
+        project_id=project_id,
+        code="WBE-CE-001",
+        name="WBE V1",
+        level=1,
+        budget_allocation=0,
+        created_by=user_id,
+    )
     db_session.add(wbe_v1)
     await db_session.commit()
 
@@ -102,22 +118,31 @@ async def test_cost_element_wbe_link_stability(db_session):
     ce = CostElement(
         cost_element_id=ce_id,
         wbe_id=wbe_id,
-        cost_element_type_id=uuid.uuid4(), # Just a dummy for now
+        cost_element_type_id=uuid.uuid4(),  # Just a dummy for now
         code="CE-001",
         name="Regression CE",
         budget_amount=1000.00,
-        created_by=user_id
+        created_by=user_id,
     )
     db_session.add(ce)
     await db_session.commit()
 
     # 3. Update WBE (creates V2)
-    wbe_v2 = WBE(wbe_id=wbe_id, project_id=project_id, code="WBE-CE-001", name="WBE V2 (Updated)", level=1, budget_allocation=0, created_by=user_id)
+    wbe_v2 = WBE(
+        wbe_id=wbe_id,
+        project_id=project_id,
+        code="WBE-CE-001",
+        name="WBE V2 (Updated)",
+        level=1,
+        budget_allocation=0,
+        created_by=user_id,
+    )
     db_session.add(wbe_v2)
     await db_session.commit()
 
     # 4. Verify link
     from sqlalchemy.orm import selectinload
+
     result = await db_session.execute(
         select(CostElement)
         .options(selectinload(CostElement.wbe))
@@ -150,7 +175,7 @@ async def test_department_manager_link_stability(db_session):
         email="manager@example.com",
         full_name="Test Manager",
         hashed_password="...",
-        created_by=user_id
+        created_by=user_id,
     )
     db_session.add(user)
 
@@ -160,13 +185,14 @@ async def test_department_manager_link_stability(db_session):
         manager_id=user_id,
         code="DEPT-001",
         name="Test Dept",
-        created_by=user_id
+        created_by=user_id,
     )
     db_session.add(dept)
     await db_session.commit()
 
     # 3. Verify link
     from sqlalchemy.orm import selectinload
+
     result = await db_session.execute(
         select(Department)
         .options(selectinload(Department.manager))
@@ -197,7 +223,7 @@ async def test_cost_element_type_department_link_stability(db_session):
         manager_id=uuid4(),
         code="DEPT-CET-001",
         name="CET Dept",
-        created_by=actor_id
+        created_by=actor_id,
     )
     db_session.add(dept)
 
@@ -208,13 +234,15 @@ async def test_cost_element_type_department_link_stability(db_session):
         department_id=dept_id,
         code="CET-001",
         name="Test CET",
-        created_by=actor_id
+        created_by=actor_id,
     )
     db_session.add(cet)
     await db_session.commit()
 
     # 3. Verify link
-    result = await db_session.execute(select(CostElementType).where(CostElementType.cost_element_type_id == cet_id))
+    result = await db_session.execute(
+        select(CostElementType).where(CostElementType.cost_element_type_id == cet_id)
+    )
     fetched_cet = result.scalar_one()
     assert fetched_cet.department_id == dept_id
 
@@ -238,7 +266,7 @@ async def test_cost_registration_cost_element_link_stability(db_session):
         code="CE-REG-001",
         name="Reg CE",
         budget_amount=Decimal("1000.00"),
-        created_by=actor_id
+        created_by=actor_id,
     )
     db_session.add(ce)
 
@@ -249,12 +277,14 @@ async def test_cost_registration_cost_element_link_stability(db_session):
         cost_element_id=ce_id,
         amount=Decimal("500.00"),
         description="Test Registration",
-        created_by=actor_id
+        created_by=actor_id,
     )
     db_session.add(registration)
     await db_session.commit()
 
     # 3. Verify link
-    result = await db_session.execute(select(CostRegistration).where(CostRegistration.cost_registration_id == reg_id))
+    result = await db_session.execute(
+        select(CostRegistration).where(CostRegistration.cost_registration_id == reg_id)
+    )
     fetched_reg = result.scalar_one()
     assert fetched_reg.cost_element_id == ce_id

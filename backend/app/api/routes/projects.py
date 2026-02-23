@@ -84,6 +84,7 @@ async def read_projects(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     try:
@@ -179,6 +180,7 @@ async def read_project(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     if as_of:
@@ -290,6 +292,7 @@ async def read_project_branches(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     return await service.get_project_branches(project_id, as_of=as_of)

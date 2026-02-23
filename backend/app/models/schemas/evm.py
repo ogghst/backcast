@@ -61,16 +61,12 @@ class EVMMetricsRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     # Basic EVM metrics (float for JSON serialization as numbers)
-    bac: float = Field(
-        ..., description="Budget at Completion (total planned budget)"
-    )
+    bac: float = Field(..., description="Budget at Completion (total planned budget)")
     pv: float = Field(
         ..., description="Planned Value (budgeted cost of work scheduled)"
     )
     ac: float = Field(..., description="Actual Cost (cost incurred to date)")
-    ev: float = Field(
-        ..., description="Earned Value (budgeted cost of work performed)"
-    )
+    ev: float = Field(..., description="Earned Value (budgeted cost of work performed)")
 
     # Variances (negative = unfavorable)
     cv: float = Field(
@@ -85,7 +81,8 @@ class EVMMetricsRead(BaseModel):
         None, description="Cost Performance Index (EV / AC, < 1.0 = over budget)"
     )
     spi: float | None = Field(
-        None, description="Schedule Performance Index (EV / PV, < 1.0 = behind schedule)"
+        None,
+        description="Schedule Performance Index (EV / PV, < 1.0 = behind schedule)",
     )
 
     # Forecast-based performance metrics (New)
@@ -112,14 +109,14 @@ class EVMMetricsRead(BaseModel):
     # Metadata
     cost_element_id: UUID = Field(..., description="Cost Element ID")
     control_date: datetime = Field(
-        ..., description="Control date for time-travel query (entities fetched at this valid_time)"
+        ...,
+        description="Control date for time-travel query (entities fetched at this valid_time)",
     )
     branch: str = Field(
-        ..., description="Branch name (ISOLATED uses only this branch, MERGE falls back to parents)"
+        ...,
+        description="Branch name (ISOLATED uses only this branch, MERGE falls back to parents)",
     )
-    branch_mode: BranchMode = Field(
-        ..., description="Branch mode (ISOLATED or MERGE)"
-    )
+    branch_mode: BranchMode = Field(..., description="Branch mode (ISOLATED or MERGE)")
     progress_percentage: float | None = Field(
         None, description="Progress percentage (0-100)"
     )
@@ -157,19 +154,17 @@ class EVMMetricsResponse(BaseModel):
     entity_type: EntityType = Field(
         ..., description="Entity type (cost_element, wbe, or project)"
     )
-    entity_id: UUID = Field(..., description="Entity ID (cost element, WBE, or project)")
+    entity_id: UUID = Field(
+        ..., description="Entity ID (cost element, WBE, or project)"
+    )
 
     # Basic EVM metrics (float for JSON serialization as numbers)
-    bac: float = Field(
-        ..., description="Budget at Completion (total planned budget)"
-    )
+    bac: float = Field(..., description="Budget at Completion (total planned budget)")
     pv: float = Field(
         ..., description="Planned Value (budgeted cost of work scheduled)"
     )
     ac: float = Field(..., description="Actual Cost (cost incurred to date)")
-    ev: float = Field(
-        ..., description="Earned Value (budgeted cost of work performed)"
-    )
+    ev: float = Field(..., description="Earned Value (budgeted cost of work performed)")
 
     # Variances (negative = unfavorable)
     cv: float = Field(
@@ -184,7 +179,8 @@ class EVMMetricsResponse(BaseModel):
         None, description="Cost Performance Index (EV / AC, < 1.0 = over budget)"
     )
     spi: float | None = Field(
-        None, description="Schedule Performance Index (EV / PV, < 1.0 = behind schedule)"
+        None,
+        description="Schedule Performance Index (EV / PV, < 1.0 = behind schedule)",
     )
 
     # Forecast-based metrics
@@ -205,12 +201,8 @@ class EVMMetricsResponse(BaseModel):
     control_date: datetime = Field(
         ..., description="Control date for time-travel query"
     )
-    branch: str = Field(
-        ..., description="Branch name"
-    )
-    branch_mode: BranchMode = Field(
-        ..., description="Branch mode (ISOLATED or MERGE)"
-    )
+    branch: str = Field(..., description="Branch name")
+    branch_mode: BranchMode = Field(..., description="Branch mode (ISOLATED or MERGE)")
     progress_percentage: float | None = Field(
         None, description="Progress percentage (0-100)"
     )
@@ -232,15 +224,14 @@ class EVMTimeSeriesPoint(BaseModel):
     pv: Decimal = Field(..., description="Planned Value at this date")
     ev: Decimal = Field(..., description="Earned Value at this date")
     ac: Decimal = Field(..., description="Actual Cost at this date")
-    forecast: Decimal = Field(
-        ..., description="Forecast value at this date"
-    )
+    forecast: Decimal = Field(..., description="Forecast value at this date")
     actual: Decimal = Field(..., description="Actual value at this date")
     cpi: Decimal | None = Field(
         None, description="Cost Performance Index (EV / AC, < 1.0 = over budget)"
     )
     spi: Decimal | None = Field(
-        None, description="Schedule Performance Index (EV / PV, < 1.0 = behind schedule)"
+        None,
+        description="Schedule Performance Index (EV / PV, < 1.0 = behind schedule)",
     )
 
 
@@ -275,12 +266,6 @@ class EVMTimeSeriesResponse(BaseModel):
     points: list[EVMTimeSeriesPoint] = Field(
         ..., description="List of time-series data points"
     )
-    start_date: datetime = Field(
-        ..., description="Start date of the time series"
-    )
-    end_date: datetime = Field(
-        ..., description="End date of the time series"
-    )
-    total_points: int = Field(
-        ..., description="Total number of data points"
-    )
+    start_date: datetime = Field(..., description="Start date of the time series")
+    end_date: datetime = Field(..., description="End date of the time series")
+    total_points: int = Field(..., description="Total number of data points")

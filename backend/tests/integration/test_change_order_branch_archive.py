@@ -59,12 +59,11 @@ class TestChangeOrderBranchArchive:
             code=co_code,
             title="To Be Archived",
             description="Testing Archive",
-            status="Draft"
+            status="Draft",
         )
 
         created_co = await co_service.create_change_order(
-            change_order_in=create_schema,
-            actor_id=actor_id
+            change_order_in=create_schema, actor_id=actor_id
         )
         co_id = created_co.change_order_id
 
@@ -96,14 +95,14 @@ class TestChangeOrderBranchArchive:
         # Capture time before archival
         # Ensure we have a distinct timestamp after creation/update
         import asyncio
+
         await asyncio.sleep(0.1)
         before_archive = datetime.now(UTC)
         await asyncio.sleep(0.1)
 
         # Act
         await co_service.archive_change_order_branch(
-            change_order_id=co_id,
-            actor_id=actor_id
+            change_order_id=co_id, actor_id=actor_id
         )
 
         # Assert
@@ -111,6 +110,7 @@ class TestChangeOrderBranchArchive:
         # 1. Branch should be soft-deleted (not found by standard get)
         # get_by_name_and_project filters deleted_at is None
         from sqlalchemy.exc import NoResultFound
+
         with pytest.raises(NoResultFound):
             await branch_service.get_by_name_and_project(branch_name, project_id)
 
@@ -147,18 +147,16 @@ class TestChangeOrderBranchArchive:
             code=co_code,
             title="Active CO",
             description="Should not archive",
-            status="Draft"
+            status="Draft",
         )
 
         created_co = await co_service.create_change_order(
-            change_order_in=create_schema,
-            actor_id=actor_id
+            change_order_in=create_schema, actor_id=actor_id
         )
         co_id = created_co.change_order_id
 
         # Act & Assert
         with pytest.raises(ValueError, match="Cannot archive active Change Order"):
             await co_service.archive_change_order_branch(
-                change_order_id=co_id,
-                actor_id=actor_id
+                change_order_id=co_id, actor_id=actor_id
             )

@@ -5,13 +5,14 @@ Revises: 0e0378323809
 Create Date: 2026-01-18 00:03:33.681646
 
 """
+
 from collections.abc import Sequence
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'e45e085ced4d'
-down_revision: str | Sequence[str] | None = '0e0378323809'
+revision: str = "e45e085ced4d"
+down_revision: str | Sequence[str] | None = "0e0378323809"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -16,7 +16,9 @@ class ChangeOrderStatusStats(BaseModel):
 
     model_config = ConfigDict(strict=True)
 
-    status: str = Field(description="Status value (Draft, Submitted for Approval, etc.)")
+    status: str = Field(
+        description="Status value (Draft, Submitted for Approval, etc.)"
+    )
     count: int = Field(description="Number of change orders in this status")
     total_value: Decimal | None = Field(
         default=None,

@@ -64,18 +64,12 @@ def log_performance(
                     f"{duration_ms:.2f}ms"
                 )
                 # Log warnings for slow operations
-                if (
-                    "timeseries" in operation_name.lower()
-                    and duration_ms > 1000
-                ):
+                if "timeseries" in operation_name.lower() and duration_ms > 1000:
                     logger.warning(
                         f"EVM Performance: {operation_name} exceeded 1s budget: "
                         f"{duration_ms:.2f}ms"
                     )
-                elif (
-                    "metrics" in operation_name.lower()
-                    and duration_ms > 500
-                ):
+                elif "metrics" in operation_name.lower() and duration_ms > 500:
                     logger.warning(
                         f"EVM Performance: {operation_name} exceeded 500ms budget: "
                         f"{duration_ms:.2f}ms"
@@ -84,8 +78,6 @@ def log_performance(
         return wrapper
 
     return decorator
-
-
 
 
 class EVMService:
@@ -149,12 +141,16 @@ class EVMService:
         warning = None
 
         # Get BAC (Budget at Completion) with time-travel and branch mode
-        bac = await self._get_bac_as_of(cost_element_id, control_date, branch, branch_mode)
+        bac = await self._get_bac_as_of(
+            cost_element_id, control_date, branch, branch_mode
+        )
         if bac is None:
             raise ValueError(f"Cost element {cost_element_id} not found")
 
         # Get PV (Planned Value) from schedule baseline with time-travel and branch mode
-        pv = await self._get_pv_as_of(cost_element_id, control_date, branch, branch_mode)
+        pv = await self._get_pv_as_of(
+            cost_element_id, control_date, branch, branch_mode
+        )
 
         # Get AC (Actual Cost) from cost registrations (global facts, not branchable)
         ac = await self._get_ac_as_of(cost_element_id, control_date)
@@ -173,7 +169,9 @@ class EVMService:
         cpi, spi = self._calculate_indices(ev, ac, pv)
 
         # Get EAC (Estimate at Completion) from forecast with time-travel and branch mode
-        eac = await self._get_eac_as_of(cost_element_id, control_date, branch, branch_mode)
+        eac = await self._get_eac_as_of(
+            cost_element_id, control_date, branch, branch_mode
+        )
 
         # Calculate VAC (Variance at Completion) and ETC (Estimate to Complete)
         # VAC = BAC - EAC (negative = over budget, positive = under budget)
@@ -208,11 +206,15 @@ class EVMService:
             branch_mode=branch_mode,
             progress_percentage=progress_percentage,
             warning=warning,
-            cpi_forecast=cpi_forecast
+            cpi_forecast=cpi_forecast,
         )
 
     async def _get_bac_as_of(
-        self, cost_element_id: UUID, as_of: datetime, branch: str, branch_mode: BranchMode
+        self,
+        cost_element_id: UUID,
+        as_of: datetime,
+        branch: str,
+        branch_mode: BranchMode,
     ) -> Decimal | None:
         """Get Budget at Completion (BAC) as of specified date with branch mode.
 
@@ -226,14 +228,21 @@ class EVMService:
             BAC value or None if cost element not found
         """
         cost_element = await self.ce_service.get_as_of(
-            entity_id=cost_element_id, as_of=as_of, branch=branch, branch_mode=branch_mode
+            entity_id=cost_element_id,
+            as_of=as_of,
+            branch=branch,
+            branch_mode=branch_mode,
         )
         if cost_element is None:
             return None
         return cost_element.budget_amount
 
     async def _get_pv_as_of(
-        self, cost_element_id: UUID, as_of: datetime, branch: str, branch_mode: BranchMode
+        self,
+        cost_element_id: UUID,
+        as_of: datetime,
+        branch: str,
+        branch_mode: BranchMode,
     ) -> Decimal:
         """Get Planned Value (PV) as of specified date with branch mode.
 
@@ -253,7 +262,10 @@ class EVMService:
         try:
             # First, get the cost element to find its schedule_baseline_id
             cost_element = await self.ce_service.get_as_of(
-                entity_id=cost_element_id, as_of=as_of, branch=branch, branch_mode=branch_mode
+                entity_id=cost_element_id,
+                as_of=as_of,
+                branch=branch,
+                branch_mode=branch_mode,
             )
 
             if cost_element is None or cost_element.schedule_baseline_id is None:
@@ -345,7 +357,11 @@ class EVMService:
         return ev, progress_percentage, None
 
     async def _get_eac_as_of(
-        self, cost_element_id: UUID, as_of: datetime, branch: str, branch_mode: BranchMode
+        self,
+        cost_element_id: UUID,
+        as_of: datetime,
+        branch: str,
+        branch_mode: BranchMode,
     ) -> Decimal | None:
         """Get Estimate at Completion (EAC) from forecast.
 
@@ -367,7 +383,10 @@ class EVMService:
         """
         # First, get the cost element to find its forecast_id
         cost_element = await self.ce_service.get_as_of(
-            entity_id=cost_element_id, as_of=as_of, branch=branch, branch_mode=branch_mode
+            entity_id=cost_element_id,
+            as_of=as_of,
+            branch=branch,
+            branch_mode=branch_mode,
         )
 
         if cost_element is None or cost_element.forecast_id is None:
@@ -596,7 +615,10 @@ class EVMService:
         # TODO: Optimize this loop with a batch get_as_of in BranchableService later
         for ce_id in unique_cost_element_ids:
             ce = await self.ce_service.get_as_of(
-                entity_id=ce_id, as_of=control_date, branch=branch, branch_mode=branch_mode
+                entity_id=ce_id,
+                as_of=control_date,
+                branch=branch,
+                branch_mode=branch_mode,
             )
             if ce:
                 cost_elements.append(ce)
@@ -689,7 +711,6 @@ class EVMService:
             results.append(metric)
 
         return results
-
 
     @log_performance("calculate_evm_metrics_batch")
     async def calculate_evm_metrics_batch(
@@ -1177,7 +1198,10 @@ class EVMService:
 
         # Get the cost element to find its schedule baseline
         cost_element = await self.ce_service.get_as_of(
-            entity_id=entity_id, as_of=control_date, branch=branch, branch_mode=branch_mode
+            entity_id=entity_id,
+            as_of=control_date,
+            branch=branch,
+            branch_mode=branch_mode,
         )
 
         if cost_element is None:
@@ -1298,9 +1322,9 @@ class EVMService:
         # Build a map of date -> cumulative AC for fast lookup
         ac_map: dict[datetime, Decimal] = {}
         for entry in cumulative_costs:
-            entry_date = datetime.fromisoformat(
-                entry["registration_date"]
-            ).replace(hour=0, minute=0, second=0, microsecond=0)
+            entry_date = datetime.fromisoformat(entry["registration_date"]).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
             if entry_date.tzinfo is None and control_date.tzinfo is not None:
                 entry_date = entry_date.replace(tzinfo=control_date.tzinfo)
             ac_map[entry_date] = Decimal(str(entry["cumulative_amount"]))
@@ -1318,10 +1342,12 @@ class EVMService:
         # Extract lower bound of valid_time for each progress entry
         # Note: valid_time is a Python Range object at this point (already loaded from DB)
         progress_with_dates: list[tuple[ProgressEntry, datetime | None]] = [
-            (pe, pe.valid_time.lower if pe.valid_time else None) for pe in progress_entries
+            (pe, pe.valid_time.lower if pe.valid_time else None)
+            for pe in progress_entries
         ]
         sorted_entries = sorted(
-            progress_with_dates, key=lambda x: x[1] if x[1] is not None else datetime.min
+            progress_with_dates,
+            key=lambda x: x[1] if x[1] is not None else datetime.min,
         )
         ev_map: dict[datetime, tuple[Decimal, Decimal]] = {}
 
@@ -1363,7 +1389,9 @@ class EVMService:
         # Determine the baseline end date for PV projection
         # If schedule_baseline_end is provided, use it; otherwise use baseline's end_date
         baseline_end_for_projection = (
-            schedule_baseline_end if schedule_baseline_end else schedule_baseline.end_date
+            schedule_baseline_end
+            if schedule_baseline_end
+            else schedule_baseline.end_date
         )
 
         # Generate points using pre-fetched data (no more queries!)
@@ -1417,9 +1445,7 @@ class EVMService:
                     pv = bac * Decimal(str(progress))
 
                 # Get EV from progress entries (find latest progress as of date)
-                for report_date, (_progress_pct, ev_val) in sorted(
-                    ev_map.items()
-                ):
+                for report_date, (_progress_pct, ev_val) in sorted(ev_map.items()):
                     if report_date <= date:
                         latest_ev = ev_val
                     else:
@@ -1445,8 +1471,12 @@ class EVMService:
                 ac=ac,
                 forecast=pv,  # Forecast equals planned value
                 actual=ac,  # Actual equals actual cost
-                cpi=float(cpi) if cpi is not None else None,  # Convert Decimal to float for JSON
-                spi=float(spi) if spi is not None else None,  # Convert Decimal to float for JSON
+                cpi=float(cpi)
+                if cpi is not None
+                else None,  # Convert Decimal to float for JSON
+                spi=float(spi)
+                if spi is not None
+                else None,  # Convert Decimal to float for JSON
             )
             points.append(point)
 
@@ -1494,7 +1524,9 @@ class EVMService:
                         year=current_date.year + 1, month=1, day=1
                     )
                 else:
-                    current_date = current_date.replace(month=current_date.month + 1, day=1)
+                    current_date = current_date.replace(
+                        month=current_date.month + 1, day=1
+                    )
 
         return dates
 

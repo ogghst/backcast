@@ -18,6 +18,7 @@ from app.services.change_order_workflow_service import ChangeOrderWorkflowServic
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 async def verify_fix():
     # Use a separate session maker to ensure we can control commit/rollback
     async with async_session_maker() as session:
@@ -56,7 +57,7 @@ async def verify_fix():
                 change_order_id=co.change_order_id,
                 actor_id=admin_user.user_id,
                 comments="Verification test - approval from Under Review",
-                db_session=session
+                db_session=session,
             )
 
             print(f"✅ SUCCESS! Change Order approved. New Status: {updated_co.status}")
@@ -69,7 +70,9 @@ async def verify_fix():
         except Exception as e:
             print(f"❌ FAILED to approve: {e}")
             import traceback
+
             traceback.print_exc()
+
 
 if __name__ == "__main__":
     asyncio.run(verify_fix())

@@ -41,6 +41,7 @@ async def create_test_entities(
     """
     # Create department through service layer (uses CreateVersionCommand)
     from app.models.schemas.department import DepartmentCreate
+
     dept_service = DepartmentService(db_session)
     department = await dept_service.create_department(
         DepartmentCreate(
@@ -54,6 +55,7 @@ async def create_test_entities(
 
     # Create user through service layer (uses CreateVersionCommand)
     from app.models.schemas.user import UserRegister
+
     user_service = UserService(db_session)
     await user_service.create_user(
         UserRegister(
@@ -68,6 +70,7 @@ async def create_test_entities(
 
     # Create project through service layer (uses CreateVersionCommand)
     from app.models.schemas.project import ProjectCreate
+
     project_service = ProjectService(db_session)
     project = await project_service.create_project(
         ProjectCreate(
@@ -96,6 +99,7 @@ async def create_test_entities(
 
     # Create cost element type through service layer (uses CreateVersionCommand)
     from app.models.schemas.cost_element_type import CostElementTypeCreate
+
     cet_service = CostElementTypeService(db_session)
     cost_element_type = await cet_service.create(
         CostElementTypeCreate(
@@ -190,6 +194,7 @@ async def test_evm_calculation_performance_with_10_elements(db_session):
     # For performance testing, query current versions (no time-travel)
     # Using a far future date ensures all current entities are valid
     from datetime import timedelta
+
     query_date = datetime.now(UTC) + timedelta(days=1)
 
     start_time = time.time()
@@ -270,7 +275,9 @@ async def test_cost_aggregation_performance_with_1000_entries(db_session):
                 CostRegistrationCreate(
                     cost_registration_id=uuid4(),
                     cost_element_id=cost_element.cost_element_id,
-                    amount=Decimal(f"{(i + 1) * 1}.00"),  # Sum = 5050, well under 10000 budget
+                    amount=Decimal(
+                        f"{(i + 1) * 1}.00"
+                    ),  # Sum = 5050, well under 10000 budget
                     registration_date=base_date + timedelta(days=i),
                 ),
                 actor_id=created_by_id,
@@ -294,8 +301,7 @@ async def test_cost_aggregation_performance_with_1000_entries(db_session):
 
     # Assert: Performance requirement met
     assert total_time < 500, (
-        f"Cost aggregation took {total_time:.2f}ms, "
-        f"exceeding 500ms requirement"
+        f"Cost aggregation took {total_time:.2f}ms, exceeding 500ms requirement"
     )
 
     # Verify results are valid
@@ -366,8 +372,7 @@ async def test_evm_query_with_complex_filters_performance(db_session):
 
     # Assert: Performance requirement met
     assert total_time < 500, (
-        f"Time-travel query took {total_time:.2f}ms, "
-        f"exceeding 500ms requirement"
+        f"Time-travel query took {total_time:.2f}ms, exceeding 500ms requirement"
     )
 
     # Verify results are valid (all 50 entries should be returned)

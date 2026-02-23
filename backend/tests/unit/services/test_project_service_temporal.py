@@ -33,9 +33,7 @@ class TestProjectServiceTemporalList:
         )
 
         # We manually control the creation time using control_date
-        project_v1 = await service.create_project(
-            project_in, actor_id=actor_id
-        )
+        project_v1 = await service.create_project(project_in, actor_id=actor_id)
         project_id = project_v1.project_id
 
         # 2. Delete Project at t3

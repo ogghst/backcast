@@ -153,7 +153,9 @@ class TestChangeOrderStatsEndpoint:
     ) -> None:
         """Test that stats endpoint denies access without permission."""
         # Override with no-permission mock
-        app.dependency_overrides[get_rbac_service] = lambda: MockRBACServiceNoPermission()
+        app.dependency_overrides[get_rbac_service] = (
+            lambda: MockRBACServiceNoPermission()
+        )
 
         project_id = test_project["project_id"]
 
@@ -201,7 +203,9 @@ class TestChangeOrderStatsEndpoint:
 
         # Validate types
         assert isinstance(data["total_count"], int)
-        assert isinstance(data["total_cost_exposure"], (int, float, str))  # Decimal serialized
+        assert isinstance(
+            data["total_cost_exposure"], (int, float, str)
+        )  # Decimal serialized
         assert isinstance(data["by_status"], list)
         assert isinstance(data["by_impact_level"], list)
         assert isinstance(data["cost_trend"], list)

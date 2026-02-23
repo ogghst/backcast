@@ -173,7 +173,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         element_data = element_in.model_dump(exclude_unset=True)
 
         # Extract control_date from schema if present (for seeding/time-travel)
-        control_date = getattr(element_in, 'control_date', None)
+        control_date = getattr(element_in, "control_date", None)
 
         # Remove control_date from data to avoid duplicate kwarg error
         element_data.pop("control_date", None)
@@ -189,36 +189,46 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
 
         # 1. Validate Parent WBE existence (Application-level Integrity)
         wbe_exists = await self.session.execute(
-            select(WBE.id).where(
+            select(WBE.id)
+            .where(
                 WBE.wbe_id == element_in.wbe_id,
                 WBE.branch == target_branch,
                 func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None)
-            ).limit(1)
+                cast(Any, WBE).deleted_at.is_(None),
+            )
+            .limit(1)
         )
         if not wbe_exists.scalar_one_or_none():
             # Fallback to main branch for parent WBE
             wbe_exists_main = await self.session.execute(
-                select(WBE.id).where(
+                select(WBE.id)
+                .where(
                     WBE.wbe_id == element_in.wbe_id,
                     WBE.branch == "main",
                     func.upper(cast(Any, WBE).valid_time).is_(None),
-                    cast(Any, WBE).deleted_at.is_(None)
-                ).limit(1)
+                    cast(Any, WBE).deleted_at.is_(None),
+                )
+                .limit(1)
             )
             if not wbe_exists_main.scalar_one_or_none():
-                raise ValueError(f"Parent WBE {element_in.wbe_id} not found on branch {target_branch} or main")
+                raise ValueError(
+                    f"Parent WBE {element_in.wbe_id} not found on branch {target_branch} or main"
+                )
 
         # 2. Validate Cost Element Type existence
         type_exists = await self.session.execute(
-            select(CostElementType.id).where(
+            select(CostElementType.id)
+            .where(
                 CostElementType.cost_element_type_id == element_in.cost_element_type_id,
                 func.upper(cast(Any, CostElementType).valid_time).is_(None),
-                cast(Any, CostElementType).deleted_at.is_(None)
-            ).limit(1)
+                cast(Any, CostElementType).deleted_at.is_(None),
+            )
+            .limit(1)
         )
         if not type_exists.scalar_one_or_none():
-            raise ValueError(f"Cost Element Type {element_in.cost_element_type_id} not found")
+            raise ValueError(
+                f"Cost Element Type {element_in.cost_element_type_id} not found"
+            )
 
         # Create the cost element
         cmd = CreateVersionCommand(
@@ -261,7 +271,6 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         await self.session.flush()
 
         return cost_element
-
 
     async def update(  # type: ignore[override]
         self,
@@ -764,8 +773,12 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         wbe_where_clauses = [cast(Any, WBEAlias).deleted_at.is_(None)]
         if as_of:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            wbe_where_clauses.append(cast(Any, WBEAlias).valid_time.op("@>")(as_of_tstz))
-            wbe_where_clauses.append(func.lower(cast(Any, WBEAlias).valid_time) <= as_of_tstz)
+            wbe_where_clauses.append(
+                cast(Any, WBEAlias).valid_time.op("@>")(as_of_tstz)
+            )
+            wbe_where_clauses.append(
+                func.lower(cast(Any, WBEAlias).valid_time) <= as_of_tstz
+            )
         else:
             wbe_where_clauses.append(
                 func.upper(cast(Any, WBEAlias).valid_time).is_(None)
@@ -780,8 +793,12 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         type_where_clauses = [cast(Any, TypeAlias).deleted_at.is_(None)]
         if as_of:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            type_where_clauses.append(cast(Any, TypeAlias).valid_time.op("@>")(as_of_tstz))
-            type_where_clauses.append(func.lower(cast(Any, TypeAlias).valid_time) <= as_of_tstz)
+            type_where_clauses.append(
+                cast(Any, TypeAlias).valid_time.op("@>")(as_of_tstz)
+            )
+            type_where_clauses.append(
+                func.lower(cast(Any, TypeAlias).valid_time) <= as_of_tstz
+            )
         else:
             type_where_clauses.append(
                 func.upper(cast(Any, TypeAlias).valid_time).is_(None)
@@ -841,7 +858,8 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 .outerjoin(wbe_subq, CostElement.wbe_id == wbe_subq.c.wbe_id)
                 .outerjoin(
                     type_subq,
-                    CostElement.cost_element_type_id == type_subq.c.cost_element_type_id,
+                    CostElement.cost_element_type_id
+                    == type_subq.c.cost_element_type_id,
                 )
                 .where(
                     CostElement.cost_element_id == cost_element_id,

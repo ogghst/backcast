@@ -18,6 +18,7 @@ from app.services.change_order_service import ChangeOrderService
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 async def debug_rbac():
     async with async_session_maker() as session:
         print("\n--- DEBUGGING RBAC FOR CO-2026-003 ---\n")
@@ -44,7 +45,9 @@ async def debug_rbac():
             print("❌ ERROR: No admin user found in the database!")
             return
 
-        print(f"\n✅ Found Admin User: {admin_user.full_name} (ID: {admin_user.user_id})")
+        print(
+            f"\n✅ Found Admin User: {admin_user.full_name} (ID: {admin_user.user_id})"
+        )
         print(f"   Role: {admin_user.role}")
         print(f"   Is Active: {admin_user.is_active}")
 
@@ -56,7 +59,9 @@ async def debug_rbac():
         print(f"\n   User Authority Level: {user_authority}")
 
         if co.impact_level:
-            required_authority = approval_service.get_authority_for_impact(co.impact_level)
+            required_authority = approval_service.get_authority_for_impact(
+                co.impact_level
+            )
             print(f"   Required Authority for {co.impact_level}: {required_authority}")
         else:
             print("   Change Order has NO IMPACT LEVEL (None)")
@@ -70,11 +75,12 @@ async def debug_rbac():
         else:
             print("\n❌ FAILURE: Admin user CANNOT approve this CO.")
             if not co.impact_level:
-               print("   -> Reason: Impact Level is None")
+                print("   -> Reason: Impact Level is None")
             elif not admin_user.is_active:
-               print("   -> Reason: User is not active")
+                print("   -> Reason: User is not active")
             else:
-               print("   -> Reason: Insufficient authority (Logic check needed)")
+                print("   -> Reason: Insufficient authority (Logic check needed)")
+
 
 if __name__ == "__main__":
     asyncio.run(debug_rbac())

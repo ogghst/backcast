@@ -209,4 +209,3 @@ async def test_wbe_zombie_check_merge_mode_no_fallback(db_session):
 #
 # Reference: docs/02-architecture/cross-cutting/temporal-query-reference.md
 # ============================================================================
-

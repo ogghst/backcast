@@ -48,12 +48,15 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
 
         # 1. Validate Department existence (Application-level Integrity)
         from app.models.domain.department import Department
+
         dept_exists = await self.session.execute(
-            select(Department.id).where(
+            select(Department.id)
+            .where(
                 Department.department_id == type_in.department_id,
                 func.upper(Department.valid_time).is_(None),
-                Department.deleted_at.is_(None)
-            ).limit(1)
+                Department.deleted_at.is_(None),
+            )
+            .limit(1)
         )
         if not dept_exists.scalar_one_or_none():
             raise ValueError(f"Department {type_in.department_id} not found")
@@ -66,7 +69,6 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
             **type_data,
         )
         return await cmd.execute(self.session)
-
 
     async def update(  # type: ignore[override]
         self,

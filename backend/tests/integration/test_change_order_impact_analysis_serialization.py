@@ -84,7 +84,7 @@ class TestChangeOrderImpactAnalysisSerialization:
         )
 
         # Act - Serialize with mode='json' (as done in change_order_service.py)
-        impact_dict = impact_response.model_dump(mode='json')
+        impact_dict = impact_response.model_dump(mode="json")
 
         # Assert - UUID is converted to string
         assert isinstance(impact_dict["change_order_id"], str)
@@ -175,15 +175,19 @@ class TestChangeOrderImpactAnalysisSerialization:
         )
 
         # Act - Use the same serialization as in change_order_service.py
-        impact_analysis_results = impact_response.model_dump(mode='json')
+        impact_analysis_results = impact_response.model_dump(mode="json")
 
         # Assert - UUID is properly serialized as string
         assert isinstance(impact_analysis_results["change_order_id"], str)
         assert UUID(impact_analysis_results["change_order_id"]) == change_order_id
 
         # Assert - All Decimal values are properly serialized
-        assert isinstance(impact_analysis_results["kpi_scorecard"]["bac"]["main_value"], str)
-        assert impact_analysis_results["kpi_scorecard"]["bac"]["main_value"] == "100000.00"
+        assert isinstance(
+            impact_analysis_results["kpi_scorecard"]["bac"]["main_value"], str
+        )
+        assert (
+            impact_analysis_results["kpi_scorecard"]["bac"]["main_value"] == "100000.00"
+        )
 
         # Assert - Can be JSON serialized (required for JSONB)
         import json

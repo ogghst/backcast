@@ -127,7 +127,8 @@ async def co_and_project(seeded_session: AsyncSession) -> tuple[ChangeOrder, Pro
 def _get_new_forecasts(forecast_changes: ForecastChanges) -> list[Any]:
     """Get forecasts that are NEW (only on branch, not on main)."""
     return [
-        fc for fc in forecast_changes.forecasts
+        fc
+        for fc in forecast_changes.forecasts
         if fc.main_forecast is None and fc.branch_forecast is not None
     ]
 
@@ -152,8 +153,12 @@ class TestCO2026005ForecastImpact:
             as_of=None,  # Current time
         )
 
-        assert impact.forecast_changes is not None, "forecast_changes should not be None"
-        assert len(impact.forecast_changes.forecasts) > 0, "Should have forecast comparisons"
+        assert impact.forecast_changes is not None, (
+            "forecast_changes should not be None"
+        )
+        assert len(impact.forecast_changes.forecasts) > 0, (
+            "Should have forecast comparisons"
+        )
 
     @pytest.mark.asyncio
     async def test_new_forecasts_count(
@@ -199,7 +204,9 @@ class TestCO2026005ForecastImpact:
 
         # All NEW forecasts should have main_forecast=None and branch_forecast populated
         for fc in new_forecasts:
-            assert fc.main_forecast is None, "Expected main_forecast=None for NEW forecasts"
+            assert fc.main_forecast is None, (
+                "Expected main_forecast=None for NEW forecasts"
+            )
             assert fc.branch_forecast is not None, "branch_forecast should be populated"
 
     @pytest.mark.asyncio
@@ -222,9 +229,7 @@ class TestCO2026005ForecastImpact:
         new_forecasts = _get_new_forecasts(impact.forecast_changes)
 
         total_branch_eac = sum(
-            fc.branch_forecast.eac_amount
-            for fc in new_forecasts
-            if fc.branch_forecast
+            fc.branch_forecast.eac_amount for fc in new_forecasts if fc.branch_forecast
         )
 
         assert total_branch_eac == EXPECTED_TOTAL_BRANCH_EAC, (
@@ -329,9 +334,7 @@ class TestCO2026005ForecastImpact:
         assert len(new_forecasts) == EXPECTED_FORECAST_COUNT
 
         total_branch_eac = sum(
-            fc.branch_forecast.eac_amount
-            for fc in new_forecasts
-            if fc.branch_forecast
+            fc.branch_forecast.eac_amount for fc in new_forecasts if fc.branch_forecast
         )
 
         assert total_branch_eac == EXPECTED_TOTAL_BRANCH_EAC
@@ -428,8 +431,6 @@ class TestCO2026005ForecastImpact:
 
         # Verify total EAC
         total_branch_eac = sum(
-            fc.branch_forecast.eac_amount
-            for fc in new_forecasts
-            if fc.branch_forecast
+            fc.branch_forecast.eac_amount for fc in new_forecasts if fc.branch_forecast
         )
         assert total_branch_eac == EXPECTED_TOTAL_BRANCH_EAC

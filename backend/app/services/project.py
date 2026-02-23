@@ -186,7 +186,7 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         project_data = project_in.model_dump(exclude_unset=True)
 
         # Extract control_date from schema if present (for seeding/time-travel)
-        control_date = getattr(project_in, 'control_date', None)
+        control_date = getattr(project_in, "control_date", None)
 
         # Remove control_date from data to avoid duplicate kwarg error
         project_data.pop("control_date", None)
@@ -203,7 +203,6 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             **project_data,
         )
         return await cmd.execute(self.session)
-
 
     async def update_project(
         self,

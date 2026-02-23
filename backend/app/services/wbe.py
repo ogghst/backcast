@@ -119,7 +119,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import cast as type_cast
 
-
         stmt = (
             select(WBE)
             .where(
@@ -209,7 +208,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import Any, cast
 
-
         Parent = aliased(WBE, name="parent_wbe")
 
         # Build WHERE clauses for parent name resolution
@@ -221,8 +219,12 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         if as_of:
             # Get parent version valid at as_of time
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            parent_where_clauses.append(cast(Any, Parent).valid_time.op("@>")(as_of_tstz))
-            parent_where_clauses.append(func.lower(cast(Any, Parent).valid_time) <= as_of_tstz)
+            parent_where_clauses.append(
+                cast(Any, Parent).valid_time.op("@>")(as_of_tstz)
+            )
+            parent_where_clauses.append(
+                func.lower(cast(Any, Parent).valid_time) <= as_of_tstz
+            )
         else:
             # Get current parent version
             parent_where_clauses.append(
@@ -232,10 +234,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         # Scalar subquery for parent name (correlated subquery)
         # This avoids cartesian product by executing once per row instead of FROM/FROM join
         parent_name_subq = (
-            select(Parent.name)
-            .where(*parent_where_clauses)
-            .limit(1)
-            .scalar_subquery()
+            select(Parent.name).where(*parent_where_clauses).limit(1).scalar_subquery()
         )
 
         return select(WBE, parent_name_subq.label("parent_name"))
@@ -369,7 +368,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """Get all WBEs for a specific project (current versions)."""
         from typing import Any, cast
 
-
         stmt = (
             self._get_base_stmt()
             .where(
@@ -404,7 +402,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             List of WBEs matching the parent filter
         """
         from typing import Any, cast
-
 
         # Build base statement with parent name join
         stmt = self._get_base_stmt(as_of=as_of)
@@ -445,7 +442,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """Get WBE by code within a project (current version)."""
         from typing import Any, cast
 
-
         stmt = (
             self._get_base_stmt()
             .where(
@@ -461,9 +457,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         resolved = await self._resolve_parent_names(result.all())
         return resolved[0] if resolved else None
 
-    async def create_wbe(
-        self, wbe_in: WBECreate, actor_id: UUID
-    ) -> WBE:
+    async def create_wbe(self, wbe_in: WBECreate, actor_id: UUID) -> WBE:
         """Create new WBE using CreateVersionCommand.
 
         Context: Main entry point for WBE creation. Validates revenue
@@ -498,11 +492,13 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         from app.models.domain.project import Project
 
         project_exists = await self.session.execute(
-            select(Project.id).where(
+            select(Project.id)
+            .where(
                 Project.project_id == wbe_in.project_id,
                 func.upper(cast(Any, Project).valid_time).is_(None),
                 cast(Any, Project).deleted_at.is_(None),
-            ).limit(1)
+            )
+            .limit(1)
         )
         if not project_exists.scalar_one_or_none():
             raise ValueError(f"Project {wbe_in.project_id} not found or inactive")
@@ -518,7 +514,9 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
                 parent = await self.get_by_root_id(wbe_in.parent_wbe_id, branch="main")
 
             if not parent:
-                raise ValueError(f"Parent WBE {wbe_in.parent_wbe_id} not found on branch {branch}")
+                raise ValueError(
+                    f"Parent WBE {wbe_in.parent_wbe_id} not found on branch {branch}"
+                )
             wbe_data["level"] = parent.level + 1
         else:
             wbe_data["level"] = 1
@@ -543,7 +541,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         )
 
         return wbe
-
 
     async def update_wbe(
         self,
@@ -607,7 +604,9 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
                     parent = await self.get_by_root_id(new_parent_id, branch="main")
 
                 if not parent:
-                    raise ValueError(f"Parent WBE {new_parent_id} not found on branch {branch}")
+                    raise ValueError(
+                        f"Parent WBE {new_parent_id} not found on branch {branch}"
+                    )
                 update_data["level"] = parent.level + 1
             else:
                 # Setting to root
@@ -851,7 +850,11 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         project = project_result.scalar_one_or_none()
 
         # Strategy 2: If not found on current branch and in MERGE mode, try main
-        if not project and branch_mode == BranchMode.MERGE and current_wbe.branch != "main":
+        if (
+            not project
+            and branch_mode == BranchMode.MERGE
+            and current_wbe.branch != "main"
+        ):
             project_stmt = select(Project).where(
                 Project.project_id == current_wbe.project_id,
                 Project.branch == "main",
@@ -991,7 +994,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             WBE with parent_name attached, or None if not found
         """
         from typing import Any, cast
-
 
         stmt = (
             self._get_base_stmt(as_of=as_of)

@@ -553,7 +553,9 @@ class TestCostRegistrationsAPI:
             f"/api/v1/cost-registrations/{reg_id}?as_of={t2_as_of}"
         )
         # Zombie Check: Entity should be visible (was alive at T2)
-        assert response.status_code == 200, "Entity should be visible before deletion date"
+        assert response.status_code == 200, (
+            "Entity should be visible before deletion date"
+        )
         data = response.json()
         assert data["cost_registration_id"] == reg_id
         assert data["amount"] == "100.00"
@@ -564,7 +566,9 @@ class TestCostRegistrationsAPI:
             f"/api/v1/cost-registrations/{reg_id}?as_of={t4_as_of}"
         )
         # Zombie Check: Entity should NOT be visible (was deleted at T3)
-        assert response.status_code == 404, "Entity should not be visible after deletion date"
+        assert response.status_code == 404, (
+            "Entity should not be visible after deletion date"
+        )
 
     @pytest.mark.asyncio
     async def test_cost_registration_future_valid_time_not_visible(
@@ -598,14 +602,18 @@ class TestCostRegistrationsAPI:
         response = await client.get(
             f"/api/v1/cost-registrations/{reg_id}?as_of={past_as_of}"
         )
-        assert response.status_code == 404, "Registration should not be visible before valid_time"
+        assert response.status_code == 404, (
+            "Registration should not be visible before valid_time"
+        )
 
         # Query at Feb 25 (after valid_time start) - should return
         future_as_of = "2026-02-25T12:00:00Z"
         response = await client.get(
             f"/api/v1/cost-registrations/{reg_id}?as_of={future_as_of}"
         )
-        assert response.status_code == 200, "Registration should be visible after valid_time"
+        assert response.status_code == 200, (
+            "Registration should be visible after valid_time"
+        )
         data = response.json()
         assert data["cost_registration_id"] == reg_id
         assert data["amount"] == "200.00"
@@ -642,7 +650,9 @@ class TestCostRegistrationsAPI:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data["items"]) == 0, "List should be empty when viewing before valid_time"
+        assert len(data["items"]) == 0, (
+            "List should be empty when viewing before valid_time"
+        )
 
         # Query list at Feb 25 (after valid_time) - should include the registration
         future_as_of = "2026-02-25T12:00:00Z"
@@ -651,7 +661,9 @@ class TestCostRegistrationsAPI:
         )
         assert response.status_code == 200
         data = response.json()
-        assert len(data["items"]) == 1, "List should include registration when viewing after valid_time"
+        assert len(data["items"]) == 1, (
+            "List should include registration when viewing after valid_time"
+        )
         # Amount may be string or float depending on serialization
         amount = data["items"][0]["amount"]
         if isinstance(amount, str):
@@ -696,7 +708,9 @@ class TestCostRegistrationsAPI:
         data = response.json()
         assert data["budget"] == "5000.00", f"Budget should be {budget_amount}"
         assert data["used"] == "0", "Used should be 0 when viewing before valid_time"
-        assert data["remaining"] == "5000.00", f"Remaining should be full budget {budget_amount}"
+        assert data["remaining"] == "5000.00", (
+            f"Remaining should be full budget {budget_amount}"
+        )
         assert data["percentage"] == 0.0, "Percentage used should be 0%"
 
         # Get budget status at Feb 25 (after valid_time) - used should be 1000
@@ -708,5 +722,7 @@ class TestCostRegistrationsAPI:
         data = response.json()
         assert data["budget"] == "5000.00", f"Budget should be {budget_amount}"
         assert data["used"] == "1000.00", f"Used should be {registration_amount}"
-        assert data["remaining"] == "4000.00", f"Remaining should be {budget_amount - registration_amount}"
+        assert data["remaining"] == "4000.00", (
+            f"Remaining should be {budget_amount - registration_amount}"
+        )
         assert data["percentage"] == 20.0, "Percentage used should be 20%"

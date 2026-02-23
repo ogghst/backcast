@@ -531,7 +531,10 @@ class TestWBEParentBranchLookup:
             mock_created_parent.wbe_id = parent_id
             mock_created_child = MagicMock()
             mock_created_child.wbe_id = uuid4()
-            mock_service.create_wbe.side_effect = [mock_created_parent, mock_created_child]
+            mock_service.create_wbe.side_effect = [
+                mock_created_parent,
+                mock_created_child,
+            ]
 
             await seeder.seed_wbes(db_session)
 
@@ -548,7 +551,9 @@ class TestWBEParentBranchLookup:
                 call.kwargs.get("branch") == branch or call[1].get("branch") == branch
                 for call in parent_lookup_calls
             )
-            assert correct_branch_used, f"Expected branch '{branch}' not found in get_by_root_id calls: {parent_lookup_calls}"
+            assert correct_branch_used, (
+                f"Expected branch '{branch}' not found in get_by_root_id calls: {parent_lookup_calls}"
+            )
 
     async def test_create_wbe_child_fails_when_parent_on_different_branch(
         self, db_session: AsyncSession, tmp_path: Path

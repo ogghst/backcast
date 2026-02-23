@@ -172,7 +172,8 @@ class CreateVersionCommand(VersionedCommandABC[TVersionable]):
             # Check for overlap starting at control_date
             stmt_check = stmt_check.where(
                 or_(
-                    func.upper(cast(Any, self.entity_class).valid_time) > self.control_date,
+                    func.upper(cast(Any, self.entity_class).valid_time)
+                    > self.control_date,
                     func.upper(cast(Any, self.entity_class).valid_time).is_(None),
                 )
             )
@@ -599,4 +600,3 @@ class UpdateChangeOrderStatusCommand:
                 f"No active Change Order found with ID {self.change_order_id} "
                 f"on branch {self.branch}"
             )
-

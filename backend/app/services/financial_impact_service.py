@@ -48,9 +48,7 @@ class FinancialImpactService:
         """
         self._db = db_session
 
-    async def calculate_impact_level(
-        self, change_order_id: UUID
-    ) -> str:
+    async def calculate_impact_level(self, change_order_id: UUID) -> str:
         """Calculate the financial impact level for a change order.
 
         Compares budget deltas between main branch and change order branch

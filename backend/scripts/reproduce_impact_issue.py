@@ -18,6 +18,7 @@ from app.services.wbe import WBEService
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 async def main():
     logger.info("Starting reproduction script...")
     async with async_session_maker() as session:
@@ -37,7 +38,7 @@ async def main():
             name=f"Impact Test Project {project_id}",
             code=f"PRJ-{project_id}",
             description="Test for Impact Analysis",
-            start_date=datetime.now(UTC)
+            start_date=datetime.now(UTC),
         )
         logger.info(f"Created Project: {project_id}")
 
@@ -50,7 +51,7 @@ async def main():
             name="Main WBE",
             code="1.0",
             budget_allocation=Decimal("100000.00"),
-            branch="main"
+            branch="main",
         )
         logger.info(f"Created WBE {wbe_id} on main with budget 100,000.00")
 
@@ -71,11 +72,13 @@ async def main():
             code=co_code,
             title="Test Change Order",
             description="Testing impact analysis",
-            control_date=datetime.now(UTC)
+            control_date=datetime.now(UTC),
         )
 
         co = await co_service.create_change_order(co_in, actor_id=user_id)
-        logger.info(f"Created Change Order {co.change_order_id} on branch {co.branch_name}")
+        logger.info(
+            f"Created Change Order {co.change_order_id} on branch {co.branch_name}"
+        )
 
         # 4. Run Impact Analysis
         logger.info("Running Impact Analysis...")
@@ -83,7 +86,7 @@ async def main():
             impact = await impact_service.analyze_impact(
                 change_order_id=co.change_order_id,
                 branch_name=co.branch_name,
-                include_evm_metrics=False
+                include_evm_metrics=False,
             )
 
             # 5. Check Results
@@ -92,7 +95,9 @@ async def main():
             logger.info(f"Main BAC: {scorecard.bac.main_value}")
             logger.info(f"Change BAC: {scorecard.bac.change_value}")
             logger.info(f"Budget Delta: {scorecard.budget_delta.delta}")
-            logger.info(f"Budget Delta Percent: {scorecard.budget_delta.delta_percent}%")
+            logger.info(
+                f"Budget Delta Percent: {scorecard.budget_delta.delta_percent}%"
+            )
 
             if scorecard.bac.change_value == Decimal("0"):
                 logger.error("BUG CONFIRMED: Change BAC is 0!")
@@ -103,6 +108,7 @@ async def main():
 
         except Exception as e:
             logger.error(f"Analysis Failed: {e}", exc_info=True)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

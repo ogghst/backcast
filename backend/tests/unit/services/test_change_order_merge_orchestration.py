@@ -46,11 +46,14 @@ class TestChangeOrderMergeOrchestration:
         db_session.flush = AsyncMock()
         db_session.refresh = AsyncMock()
 
-        with patch(
-            "app.services.change_order_service.EntityDiscoveryService"
-        ) as MockDiscoveryService, patch(
-            "app.services.change_order_service.UpdateChangeOrderStatusCommand"
-        ) as MockStatusCommand:
+        with (
+            patch(
+                "app.services.change_order_service.EntityDiscoveryService"
+            ) as MockDiscoveryService,
+            patch(
+                "app.services.change_order_service.UpdateChangeOrderStatusCommand"
+            ) as MockStatusCommand,
+        ):
             mock_discovery = AsyncMock()
             MockDiscoveryService.return_value = mock_discovery
 
@@ -115,13 +118,15 @@ class TestChangeOrderMergeOrchestration:
         db_session.flush = AsyncMock()
         db_session.refresh = AsyncMock()
 
-        with patch(
-            "app.services.change_order_service.EntityDiscoveryService"
-        ) as MockDiscoveryService, patch(
-            "app.services.change_order_service.WBEService"
-        ) as MockWBEService, patch(
-            "app.services.change_order_service.UpdateChangeOrderStatusCommand"
-        ) as MockStatusCommand:
+        with (
+            patch(
+                "app.services.change_order_service.EntityDiscoveryService"
+            ) as MockDiscoveryService,
+            patch("app.services.change_order_service.WBEService") as MockWBEService,
+            patch(
+                "app.services.change_order_service.UpdateChangeOrderStatusCommand"
+            ) as MockStatusCommand,
+        ):
             mock_discovery = AsyncMock()
             MockDiscoveryService.return_value = mock_discovery
 
@@ -195,11 +200,14 @@ class TestChangeOrderMergeOrchestration:
         db_session.flush = AsyncMock()
         db_session.refresh = AsyncMock()
 
-        with patch(
-            "app.services.change_order_service.EntityDiscoveryService"
-        ) as MockDiscoveryService, patch(
-            "app.services.change_order_service.UpdateChangeOrderStatusCommand"
-        ) as MockStatusCommand:
+        with (
+            patch(
+                "app.services.change_order_service.EntityDiscoveryService"
+            ) as MockDiscoveryService,
+            patch(
+                "app.services.change_order_service.UpdateChangeOrderStatusCommand"
+            ) as MockStatusCommand,
+        ):
             mock_discovery = AsyncMock()
             MockDiscoveryService.return_value = mock_discovery
 
@@ -266,11 +274,12 @@ class TestChangeOrderMergeOrchestration:
         db_session.flush = AsyncMock()
         db_session.refresh = AsyncMock()
 
-        with patch(
-            "app.services.change_order_service.EntityDiscoveryService"
-        ) as MockDiscoveryService, patch(
-            "app.services.change_order_service.WBEService"
-        ) as MockWBEService:
+        with (
+            patch(
+                "app.services.change_order_service.EntityDiscoveryService"
+            ) as MockDiscoveryService,
+            patch("app.services.change_order_service.WBEService") as MockWBEService,
+        ):
             mock_discovery = AsyncMock()
             MockDiscoveryService.return_value = mock_discovery
 

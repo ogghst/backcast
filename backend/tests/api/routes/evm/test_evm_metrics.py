@@ -203,9 +203,7 @@ class TestEVMMetricsAPI:
         cost_element_id = setup_evm_data["cost_element_id"]
 
         # Act
-        response = await client.get(
-            f"/api/v1/cost-elements/{cost_element_id}/evm"
-        )
+        response = await client.get(f"/api/v1/cost-elements/{cost_element_id}/evm")
 
         # Assert
         assert response.status_code == 200
@@ -224,7 +222,9 @@ class TestEVMMetricsAPI:
         # Verify values (Decimal fields are serialized as numbers)
         assert data["bac"] == 100000.0  # Budget
         assert data["ac"] == 60000.0  # Sum of costs
-        assert data["ev"] == 50000.0  # BAC × 50% (4 decimal places for calculated values)
+        assert (
+            data["ev"] == 50000.0
+        )  # BAC × 50% (4 decimal places for calculated values)
 
         # Verify variances
         assert data["cv"] == -10000.0  # EV - AC = 50000 - 60000
@@ -268,7 +268,11 @@ class TestEVMMetricsAPI:
 
         proj_res = await client.post(
             "/api/v1/projects",
-            json={"code": f"P-{uuid4().hex[:4].upper()}", "name": "Proj2", "budget": 100000},
+            json={
+                "code": f"P-{uuid4().hex[:4].upper()}",
+                "name": "Proj2",
+                "budget": 100000,
+            },
         )
         proj_id = proj_res.json()["project_id"]
 
@@ -297,9 +301,7 @@ class TestEVMMetricsAPI:
         new_cost_element_id = ce_res.json()["cost_element_id"]
 
         # Act
-        response = await client.get(
-            f"/api/v1/cost-elements/{new_cost_element_id}/evm"
-        )
+        response = await client.get(f"/api/v1/cost-elements/{new_cost_element_id}/evm")
 
         # Assert
         assert response.status_code == 200
@@ -408,7 +410,7 @@ class TestEVMMetricsAPI:
             params={
                 "granularity": "month",
                 "control_date": control_date.isoformat(),
-            }
+            },
         )
         assert response.status_code == 200
         data = response.json()
@@ -427,9 +429,12 @@ class TestEVMMetricsAPI:
         # Expected AC in May is 35000 (from March 1st registration)
         # AC in June 1st is 35000.
         # July should stay 35000.
-        assert float(may_point["ac"]) == 35000.0, f"May AC expected 35000.0, got {may_point['ac']}"
-        assert float(july_point["ac"]) == 35000.0, f"AC for future date should be flatlined at 35000.0, but got {july_point['ac']}"
-
+        assert float(may_point["ac"]) == 35000.0, (
+            f"May AC expected 35000.0, got {may_point['ac']}"
+        )
+        assert float(july_point["ac"]) == 35000.0, (
+            f"AC for future date should be flatlined at 35000.0, but got {july_point['ac']}"
+        )
 
     @pytest.mark.asyncio
     async def test_evm_timeseries_ev_future_flatline(
@@ -454,7 +459,7 @@ class TestEVMMetricsAPI:
             params={
                 "granularity": "month",
                 "control_date": control_date.isoformat(),
-            }
+            },
         )
         assert response.status_code == 200
         data = response.json()
@@ -464,7 +469,9 @@ class TestEVMMetricsAPI:
         # June (last progress)
         june_point = next((p for p in points if p["date"].startswith("2026-06")), None)
         # August (Future)
-        august_point = next((p for p in points if p["date"].startswith("2026-08")), None)
+        august_point = next(
+            (p for p in points if p["date"].startswith("2026-08")), None
+        )
 
         assert june_point is not None, "June point not found"
         assert august_point is not None, "August point not found"
@@ -473,8 +480,12 @@ class TestEVMMetricsAPI:
         # Expected EV in June is 50,000 (50% of 100,000)
         # August should stay 50,000.
         expected_ev = 50000.0
-        assert float(june_point["ev"]) == expected_ev, f"June EV expected {expected_ev}, got {june_point['ev']}"
-        assert float(august_point["ev"]) == expected_ev, f"August EV expected {expected_ev}, got {august_point['ev']}"
+        assert float(june_point["ev"]) == expected_ev, (
+            f"June EV expected {expected_ev}, got {june_point['ev']}"
+        )
+        assert float(august_point["ev"]) == expected_ev, (
+            f"August EV expected {expected_ev}, got {august_point['ev']}"
+        )
 
     @pytest_asyncio.fixture
     async def setup_wbe_level_data(self, client: AsyncClient) -> dict[str, Any]:
@@ -482,7 +493,11 @@ class TestEVMMetricsAPI:
         # 1. Project
         proj_res = await client.post(
             "/api/v1/projects",
-            json={"code": f"P2-{uuid4().hex[:4].upper()}", "name": "Proj2", "budget": 200000},
+            json={
+                "code": f"P2-{uuid4().hex[:4].upper()}",
+                "name": "Proj2",
+                "budget": 200000,
+            },
         )
         proj_id = proj_res.json()["project_id"]
 
@@ -596,11 +611,10 @@ class TestEVMMetricsAPI:
             "ce2_metrics": {"bac": 50000, "ev": 10000, "ac": 5000},
             "wbe_metrics": {
                 "bac": 150000,  # 100k + 50k
-                "ev": 60000,    # 50k + 10k
-                "ac": 65000,    # 60k + 5k
-            }
+                "ev": 60000,  # 50k + 10k
+                "ac": 65000,  # 60k + 5k
+            },
         }
-
 
     @pytest.mark.asyncio
     async def test_get_evm_metrics_wbe_aggregates_child_cost_elements(
@@ -640,7 +654,9 @@ class TestEVMMetricsAPI:
         Expected: Project metrics should be sum of child WBEs (which sum cost elements).
         """
         project_id = setup_wbe_level_data["project_id"]
-        expected = setup_wbe_level_data["wbe_metrics"]  # Project only has 1 WBE, so same metrics
+        expected = setup_wbe_level_data[
+            "wbe_metrics"
+        ]  # Project only has 1 WBE, so same metrics
 
         response = await client.get(f"/api/v1/evm/project/{project_id}/metrics")
         assert response.status_code == 200
@@ -666,14 +682,16 @@ class TestEVMMetricsAPI:
             params={
                 "granularity": "month",
                 "control_date": control_date.isoformat(),
-            }
+            },
         )
         assert response.status_code == 200
         data = response.json()
         assert len(data["points"]) > 0
 
         # Check June point (both have data)
-        june_point = next((p for p in data["points"] if p["date"].startswith("2026-06")), None)
+        june_point = next(
+            (p for p in data["points"] if p["date"].startswith("2026-06")), None
+        )
         assert june_point is not None
 
         # EV should be sum of both
@@ -707,7 +725,6 @@ class TestEVMMetricsAPI:
         assert wbe_data["ev"] == 0
         assert "No cost elements found" in wbe_data["warning"]
 
-
     @pytest.mark.asyncio
     async def test_get_evm_timeseries_project_aggregates_points(
         self, client: AsyncClient, setup_wbe_level_data: dict[str, Any]
@@ -723,16 +740,17 @@ class TestEVMMetricsAPI:
             params={
                 "granularity": "month",
                 "control_date": control_date.isoformat(),
-            }
+            },
         )
         assert response.status_code == 200
         data = response.json()
         assert len(data["points"]) > 0
 
         # Check June point
-        june_point = next((p for p in data["points"] if p["date"].startswith("2026-06")), None)
+        june_point = next(
+            (p for p in data["points"] if p["date"].startswith("2026-06")), None
+        )
         assert june_point is not None
-
 
     @pytest.mark.asyncio
     async def test_batch_calculate_evm_metrics_cost_elements(
@@ -762,7 +780,7 @@ class TestEVMMetricsAPI:
         # Verify cumulative CPI
         expected_cpi = expected["ev"] / expected["ac"]
         if data["cpi"] is not None:
-             assert abs(data["cpi"] - expected_cpi) < 0.0001
+            assert abs(data["cpi"] - expected_cpi) < 0.0001
 
     @pytest.mark.asyncio
     async def test_batch_calculate_evm_metrics_invalid_type(
@@ -794,18 +812,10 @@ class TestEVMMetricsAPI:
         assert response.status_code == 200
         response.json()
 
-
     @pytest.mark.asyncio
     async def test_get_evm_timeseries_cost_element_not_found(
         self, client: AsyncClient
     ) -> None:
         """Test timeseries returns 404 if cost element not found."""
-        response = await client.get(
-            f"/api/v1/evm/cost_element/{uuid4()}/timeseries"
-        )
+        response = await client.get(f"/api/v1/evm/cost_element/{uuid4()}/timeseries")
         assert response.status_code == 404
-
-
-
-
-

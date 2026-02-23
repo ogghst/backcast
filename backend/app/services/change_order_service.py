@@ -77,7 +77,9 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             .where(
                 ChangeOrder.change_order_id == root_id,
                 ChangeOrder.branch == branch,
-                func.upper(cast(Any, ChangeOrder).valid_time).is_(None),  # Open upper bound
+                func.upper(cast(Any, ChangeOrder).valid_time).is_(
+                    None
+                ),  # Open upper bound
                 cast(Any, ChangeOrder).deleted_at.is_(None),
             )
             .order_by(cast(Any, ChangeOrder).valid_time.desc())
@@ -189,7 +191,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             actor_id=actor_id,
             control_date=control_date,
             # branch="main", # REMOVED: Branch entity is not checking into a branch itself
-
             # Fields for Branch entity
             branch_id=branch_root_id,
             name=branch_name,
@@ -324,7 +325,8 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                     ChangeOrder.change_order_id == change_order_id,
                     ChangeOrder.branch == "main",
                     cast(Any, ChangeOrder).valid_time.op("@>")(query_timestamp_tstz),
-                    func.lower(cast(Any, ChangeOrder).valid_time) <= query_timestamp_tstz,
+                    func.lower(cast(Any, ChangeOrder).valid_time)
+                    <= query_timestamp_tstz,
                     cast(Any, ChangeOrder).deleted_at.is_(None),
                 )
                 .order_by(cast(Any, ChangeOrder).valid_time.desc())
@@ -442,6 +444,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             raise ValueError(f"Failed to update Change Order {change_order_id}")
 
         return updated_co
+
     async def archive_change_order_branch(
         self,
         change_order_id: UUID,
@@ -477,11 +480,11 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         # Get branch name
         if not co.branch_name:
-             # Should not happen for valid COs, but handle gracefully
-             logger.warning(
-                 f"Change Order {co.code} has no branch_name. Nothing to archive."
-             )
-             return
+            # Should not happen for valid COs, but handle gracefully
+            logger.warning(
+                f"Change Order {co.code} has no branch_name. Nothing to archive."
+            )
+            return
 
         # Archive the branch using BranchService soft_delete
         # BranchService inherits from TemporalService which provides soft_delete
@@ -495,9 +498,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         # Soft delete the branch
         await self.branch_service.soft_delete(
-            entity_id=branch.branch_id,
-            actor_id=actor_id,
-            control_date=control_date
+            entity_id=branch.branch_id, actor_id=actor_id, control_date=control_date
         )
 
     async def delete_change_order(
@@ -649,7 +650,9 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             .where(
                 ChangeOrder.code == code,
                 ChangeOrder.branch == branch,
-                func.upper(cast(Any, ChangeOrder).valid_time).is_(None),  # Open upper bound
+                func.upper(cast(Any, ChangeOrder).valid_time).is_(
+                    None
+                ),  # Open upper bound
                 cast(Any, ChangeOrder).deleted_at.is_(None),
             )
             .order_by(cast(Any, ChangeOrder).valid_time.desc())
@@ -658,9 +661,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_next_code(
-        self, project_id: UUID, year: int | None = None
-    ) -> str:
+    async def get_next_code(self, project_id: UUID, year: int | None = None) -> str:
         """Get the next available change order code for a project.
 
         Format: CO-YYYY-NNN (e.g., CO-2026-001)
@@ -681,15 +682,12 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         # Query max code number for this project and year
         # Use regex to extract the numeric part after the prefix
-        stmt = (
-            select(ChangeOrder.code)
-            .where(
-                ChangeOrder.project_id == project_id,
-                ChangeOrder.code.like(f"{prefix}%"),
-                ChangeOrder.branch == "main",
-                func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
-                cast(Any, ChangeOrder).deleted_at.is_(None),
-            )
+        stmt = select(ChangeOrder.code).where(
+            ChangeOrder.project_id == project_id,
+            ChangeOrder.code.like(f"{prefix}%"),
+            ChangeOrder.branch == "main",
+            func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
+            cast(Any, ChangeOrder).deleted_at.is_(None),
         )
 
         result = await self.session.execute(stmt)
@@ -757,9 +755,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             )
 
         # Detect merge conflicts before proceeding
-        conflicts = await self._detect_all_merge_conflicts(
-            source_branch, target_branch
-        )
+        conflicts = await self._detect_all_merge_conflicts(source_branch, target_branch)
         if conflicts:
             from app.core.branching.exceptions import MergeConflictError
 
@@ -889,7 +885,9 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             raise ValueError(f"Change Order {change_order_id} not found")
 
         # Validate status transition
-        if not await self.workflow.is_valid_transition(co.status, "Submitted for Approval"):
+        if not await self.workflow.is_valid_transition(
+            co.status, "Submitted for Approval"
+        ):
             raise ValueError(
                 f"Cannot submit CO with status '{co.status}' for approval. "
                 f"Current status must be 'Draft' or 'Rejected'."
@@ -1361,7 +1359,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                 update(ChangeOrder)
                 .where(ChangeOrder.id == change_order.id)
                 .values(
-                    impact_analysis_results=impact_analysis.model_dump(mode='json'),
+                    impact_analysis_results=impact_analysis.model_dump(mode="json"),
                     impact_analysis_status="completed",
                     impact_score=impact_score,
                     impact_level=impact_level,
@@ -1471,7 +1469,9 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             )
             return None
 
-    def _calculate_impact_score(self, impact_analysis: "ImpactAnalysisResponse") -> Decimal:
+    def _calculate_impact_score(
+        self, impact_analysis: "ImpactAnalysisResponse"
+    ) -> Decimal:
         """Calculate impact severity score from KPI scorecard.
 
         Context: Phase 6 Task #2 - Weighted impact score calculation.

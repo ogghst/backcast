@@ -487,7 +487,9 @@ class TestBranchIsolation:
 
         # Get the original cost element's dependencies
         cost_element_id = test_cost_element_with_baseline.cost_element_id
-        original_ce = await cost_element_service.get_by_id(cost_element_id, branch="main")
+        original_ce = await cost_element_service.get_by_id(
+            cost_element_id, branch="main"
+        )
 
         # Get baseline in main branch (auto-created)
         main_response = await client.get(

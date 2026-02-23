@@ -22,11 +22,14 @@ mock_admin_user = User(
     hashed_password="hash",
 )
 
+
 def mock_get_current_user() -> User:
     return mock_admin_user
 
+
 def mock_get_current_active_user() -> User:
     return mock_admin_user
+
 
 class MockRBACService(RBACServiceABC):
     def has_role(self, user_role: str, required_roles: list[str]) -> bool:
@@ -44,8 +47,10 @@ class MockRBACService(RBACServiceABC):
             "change-order-audit-read",  # Add other potential perms if needed
         ]
 
+
 def mock_get_rbac_service() -> RBACServiceABC:
     return MockRBACService()
+
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
@@ -54,6 +59,7 @@ def override_auth() -> Generator[None, None, None]:
     app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
     yield
     app.dependency_overrides = {}
+
 
 @pytest.mark.asyncio
 async def test_change_order_branch_visibility_future_control_date(
@@ -81,7 +87,7 @@ async def test_change_order_branch_visibility_future_control_date(
         "title": "Future Change Order",
         "description": "Testing visibility",
         "control_date": future_date.isoformat(),
-        "branch": "main"
+        "branch": "main",
     }
 
     response = await client.post(
@@ -99,20 +105,27 @@ async def test_change_order_branch_visibility_future_control_date(
 
     # 4. Verify Branch DOES NOT Exist (since it is in the future)
     co_branch = next((b for b in branches if b["name"] == "BR-CO-FUTURE-001"), None)
-    assert co_branch is None, "Future Change Order branch SHOULD NOT be visible by default"
+    assert co_branch is None, (
+        "Future Change Order branch SHOULD NOT be visible by default"
+    )
 
     # 5. Get Project Branches (Time Travel to Future)
     response_future = await client.get(
         f"/api/v1/projects/{project_id}/branches",
-        params={"as_of": future_date.isoformat()}
+        params={"as_of": future_date.isoformat()},
     )
     assert response_future.status_code == 200
     branches_future = response_future.json()
 
     # 6. Verify Branch Exists in Future
-    co_branch_future = next((b for b in branches_future if b["name"] == "BR-CO-FUTURE-001"), None)
-    assert co_branch_future is not None, "Future Change Order branch SHOULD be visible with time travel"
+    co_branch_future = next(
+        (b for b in branches_future if b["name"] == "BR-CO-FUTURE-001"), None
+    )
+    assert co_branch_future is not None, (
+        "Future Change Order branch SHOULD be visible with time travel"
+    )
 
     # 7. Verify Change Order Status
-    assert co_branch_future["change_order_status"] == "Draft", \
+    assert co_branch_future["change_order_status"] == "Draft", (
         f"Expected status 'Draft', got {co_branch_future.get('change_order_status')}"
+    )

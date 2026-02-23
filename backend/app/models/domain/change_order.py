@@ -164,7 +164,7 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
         """Derive created_at from transaction_time.lower for API compatibility."""
         if self.transaction_time is not None:
             # Cast to Any to access PostgreSQL range lower bound
-            lower_bound = getattr(self.transaction_time, 'lower', None)
+            lower_bound = getattr(self.transaction_time, "lower", None)
             if isinstance(lower_bound, datetime):
                 return lower_bound
         return None

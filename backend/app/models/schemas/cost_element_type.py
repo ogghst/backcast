@@ -28,7 +28,6 @@ class CostElementTypeCreate(CostElementTypeBase):
     )
 
 
-
 class CostElementTypeUpdate(BaseModel):
     """Properties that can be updated."""
 

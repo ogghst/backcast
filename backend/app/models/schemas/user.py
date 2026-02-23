@@ -51,7 +51,6 @@ class UserRegister(UserBase):
     )
 
 
-
 # Properties to receive via API on update
 class UserUpdate(BaseModel):
     """Schema for user updates."""
