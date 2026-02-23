@@ -814,7 +814,7 @@ async def recover_change_order(
             assigned_approver_id=recovery_data.assigned_approver_id,
             skip_impact_analysis=recovery_data.skip_impact_analysis,
             recovery_reason=recovery_data.recovery_reason,
-            actor_id=current_user.id,  # Use User.id, not User.user_id for FK
+            actor_id=current_user.user_id,  # Use User.user_id (root ID) for FK
             branch=branch,
         )
         return await service._to_public(recovered_co)

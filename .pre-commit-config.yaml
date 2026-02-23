@@ -11,7 +11,7 @@ repos:
       # Ruff linter with auto-fix for Python files
       - id: ruff
         name: Ruff Linter (with auto-fix)
-        entry: uv run --directory backend ruff check --fix
+        entry: /bin/bash -c 'export LC_ALL=C.UTF-8; export PATH="$PATH:$HOME/.local/bin"; uv run --directory backend ruff check --fix'
         language: system
         types: [python]
         pass_filenames: false
@@ -20,7 +20,7 @@ repos:
       # Ruff formatter for Python files
       - id: ruff-format
         name: Ruff Formatter
-        entry: uv run --directory backend ruff format
+        entry: /bin/bash -c 'export LC_ALL=C.UTF-8; export PATH="$PATH:$HOME/.local/bin"; uv run --directory backend ruff format'
         language: system
         types: [python]
         pass_filenames: false
@@ -28,7 +28,7 @@ repos:
       # MyPy type checker in strict mode
       - id: mypy
         name: MyPy (strict mode)
-        entry: uv run --directory backend mypy app --strict
+        entry: /bin/bash -c 'export LC_ALL=C.UTF-8; export PATH="$PATH:$HOME/.local/bin"; uv run --directory backend mypy app --strict'
         language: system
         types: [python]
         pass_filenames: false
