@@ -160,7 +160,7 @@ export interface TimeSeriesConfigOptions {
   /** Series data - array of objects with name, data points */
   series: Array<{
     name: string;
-    data: Array<[string, number]>; // [date, value] tuples
+    data: Array<[string, number | null]>; // [date, value] tuples
     color?: string;
   }>;
   /** Show DataZoom slider */
@@ -234,6 +234,7 @@ export function buildTimeSeriesOptions(
       type: "line" as const,
       data: s.data,
       smooth: true,
+      connectNulls: true,
       symbol: "circle" as const,
       symbolSize: 6,
       yAxisIndex: dualYAxis && index >= 2 ? 1 : 0,
@@ -283,10 +284,21 @@ export function buildTimeSeriesOptions(
         let result = `<div style="margin-bottom: 4px; font-weight: 600;">${xFormatter(date)}</div>`;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         params.forEach((param: any) => {
+          const rawValue = Array.isArray(param.value)
+            ? param.value[1]
+            : param.value;
+
+          // Skip null values in tooltip
+          if (rawValue === null || rawValue === undefined) {
+            return;
+          }
+
           // Format performance indices with 2 decimal places
           const value = isPerformanceIndices
-            ? (typeof param.value === "number" ? param.value.toFixed(2) : param.value)
-            : yFormatter(param.value);
+            ? typeof rawValue === "number"
+              ? rawValue.toFixed(2)
+              : rawValue
+            : yFormatter(rawValue);
 
           result += `<div style="display: flex; justify-content: space-between; gap: 16px;">
             <span style="display: flex; align-items: center;">
@@ -296,7 +308,10 @@ export function buildTimeSeriesOptions(
             <span style="font-weight: 600;">${value}</span>
           </div>`;
         });
-        return result;
+        return result ===
+          `<div style="margin-bottom: 4px; font-weight: 600;">${xFormatter(date)}</div>`
+          ? ""
+          : result;
       },
     },
     legend: {

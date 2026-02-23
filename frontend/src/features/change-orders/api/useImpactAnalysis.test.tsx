@@ -33,7 +33,11 @@ describe("useImpactAnalysis", () => {
       },
     });
     vi.clearAllMocks();
-    mockUseTimeMachineParams.mockReturnValue({ asOf: null, branch: "main", mode: "merged" });
+    mockUseTimeMachineParams.mockReturnValue({
+      asOf: null,
+      branch: "main",
+      mode: "merged",
+    });
   });
 
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -45,7 +49,11 @@ describe("useImpactAnalysis", () => {
     const branchName = "feature-branch";
     const asOf = "2024-01-15T10:00:00Z";
 
-    mockUseTimeMachineParams.mockReturnValue({ asOf, branch: "main", mode: "merged" });
+    mockUseTimeMachineParams.mockReturnValue({
+      asOf,
+      branch: "main",
+      mode: "merged",
+    });
 
     vi.mocked(__request).mockResolvedValue({
       financial_impact: {},
@@ -53,17 +61,16 @@ describe("useImpactAnalysis", () => {
       visualizations: {},
     });
 
-    const { result } = renderHook(
-      () => useImpactAnalysis(changeOrderId, branchName, "merged"),
-      { wrapper }
-    );
+    renderHook(() => useImpactAnalysis(changeOrderId, branchName, "merged"), {
+      wrapper,
+    });
 
     // Wait for the query to be registered
     await waitFor(() => {
       // Check the query key in the cache
       const cacheData = queryClient.getQueryCache().getAll();
       const impactQuery = cacheData.find((query) =>
-        query.queryKey.includes("impact")
+        query.queryKey.includes("impact"),
       );
 
       expect(impactQuery).toBeDefined();
@@ -85,10 +92,14 @@ describe("useImpactAnalysis", () => {
     });
 
     // First query with asOf1
-    mockUseTimeMachineParams.mockReturnValue({ asOf: asOf1, branch: "main", mode: "merged" });
-    const { result: result1, unmount: unmount1 } = renderHook(
+    mockUseTimeMachineParams.mockReturnValue({
+      asOf: asOf1,
+      branch: "main",
+      mode: "merged",
+    });
+    const { unmount: unmount1 } = renderHook(
       () => useImpactAnalysis(changeOrderId, branchName, "merged"),
-      { wrapper }
+      { wrapper },
     );
 
     await waitFor(() => {
@@ -101,7 +112,11 @@ describe("useImpactAnalysis", () => {
     unmount1();
 
     // Second query with asOf2
-    mockUseTimeMachineParams.mockReturnValue({ asOf: asOf2, branch: "main", mode: "merged" });
+    mockUseTimeMachineParams.mockReturnValue({
+      asOf: asOf2,
+      branch: "main",
+      mode: "merged",
+    });
     renderHook(() => useImpactAnalysis(changeOrderId, branchName, "merged"), {
       wrapper,
     });
@@ -116,7 +131,7 @@ describe("useImpactAnalysis", () => {
       // Verify they have different asOf values in their keys
       const asOfValues = queries.map((q) => {
         const contextObj = q.queryKey.find(
-          (key) => typeof key === "object" && key !== null && "asOf" in key
+          (key) => typeof key === "object" && key !== null && "asOf" in key,
         );
         return contextObj?.asOf;
       });
@@ -131,7 +146,11 @@ describe("useImpactAnalysis", () => {
     const branchName = "feature-branch";
     const asOf = "2024-01-15T10:00:00Z";
 
-    mockUseTimeMachineParams.mockReturnValue({ asOf, branch: "main", mode: "merged" });
+    mockUseTimeMachineParams.mockReturnValue({
+      asOf,
+      branch: "main",
+      mode: "merged",
+    });
 
     vi.mocked(__request).mockResolvedValue({
       financial_impact: {},
@@ -150,7 +169,7 @@ describe("useImpactAnalysis", () => {
           query: expect.objectContaining({
             as_of: asOf,
           }),
-        })
+        }),
       );
     });
   });

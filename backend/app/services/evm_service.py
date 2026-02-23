@@ -1207,37 +1207,22 @@ class EVMService:
         if cost_element is None:
             raise ValueError(f"Cost element {entity_id} not found")
 
-        # Get the schedule baseline for date range
-        if cost_element.schedule_baseline_id is None:
-            # No baseline means no date range - return empty time-series
-            return EVMTimeSeriesResponse(
-                granularity=granularity,
-                points=[],
-                start_date=control_date,
-                end_date=control_date,
-                total_points=0,
+        schedule_baseline = None
+        if cost_element.schedule_baseline_id is not None:
+            schedule_baseline = await self.sb_service.get_as_of(
+                entity_id=cost_element.schedule_baseline_id,
+                as_of=control_date,
+                branch=branch,
+                branch_mode=branch_mode,
             )
 
-        schedule_baseline = await self.sb_service.get_as_of(
-            entity_id=cost_element.schedule_baseline_id,
-            as_of=control_date,
-            branch=branch,
-            branch_mode=branch_mode,
-        )
-
-        if schedule_baseline is None:
-            # No baseline found - return empty time-series
-            return EVMTimeSeriesResponse(
-                granularity=granularity,
-                points=[],
-                start_date=control_date,
-                end_date=control_date,
-                total_points=0,
-            )
-
-        # Determine date range based on entity type
-        start_date = schedule_baseline.start_date
-        end_date = schedule_baseline.end_date
+        # Determine date range based on entity type or fallback to control_date
+        if schedule_baseline:
+            start_date = schedule_baseline.start_date
+            end_date = schedule_baseline.end_date
+        else:
+            start_date = control_date
+            end_date = control_date
 
         # EXTEND TIME SERIES BEYOND BASELINE IF CONTROL_DATE IS LATER
         # This allows viewing projected values (PV) alongside actual data (EV, AC)
@@ -1255,8 +1240,18 @@ class EVMService:
             control_date=control_date,
             branch=branch,
             branch_mode=branch_mode,
-            schedule_baseline_end=schedule_baseline.end_date,  # Pass for distinction
+            schedule_baseline_end=schedule_baseline.end_date
+            if schedule_baseline
+            else None,
         )
+
+        # Refine start and end dates if we generated points from fallback AC/EV
+        if points and schedule_baseline is None:
+            start_date = points[0].date
+            end_date = points[-1].date
+        elif not points:
+            start_date = control_date
+            end_date = control_date
 
         return EVMTimeSeriesResponse(
             granularity=granularity,
@@ -1369,30 +1364,53 @@ class EVMService:
             branch=branch,
             branch_mode=branch_mode,
         )
-        if cost_element is None or cost_element.schedule_baseline_id is None:
-            return []
 
-        schedule_baseline = await self.sb_service.get_as_of(
-            entity_id=cost_element.schedule_baseline_id,
-            as_of=control_date,
-            branch=branch,
-            branch_mode=branch_mode,
-        )
+        schedule_baseline = None
+        if cost_element is not None and cost_element.schedule_baseline_id is not None:
+            schedule_baseline = await self.sb_service.get_as_of(
+                entity_id=cost_element.schedule_baseline_id,
+                as_of=control_date,
+                branch=branch,
+                branch_mode=branch_mode,
+            )
+
         if schedule_baseline is None:
-            return []
+            # If no schedule baseline, check if we have any AC or EV data
+            if not ac_map and not ev_map:
+                return []
 
-        # Import progression strategy
-        from app.services.progression import get_progression_strategy
+            # Find earliest date
+            earliest_ac = min(ac_map.keys()) if ac_map else control_date
+            earliest_ev = min(ev_map.keys()) if ev_map else control_date
+            earliest_date = min(earliest_ac, earliest_ev)
 
-        strategy = get_progression_strategy(schedule_baseline.progression_type)
+            dates = self._generate_date_intervals(
+                start_date=earliest_date,
+                end_date=control_date,
+                granularity=granularity,
+            )
+            strategy = None
+            baseline_end_for_projection = control_date
+        else:
+            # Import progression strategy
+            from app.services.progression import get_progression_strategy
 
-        # Determine the baseline end date for PV projection
-        # If schedule_baseline_end is provided, use it; otherwise use baseline's end_date
-        baseline_end_for_projection = (
-            schedule_baseline_end
-            if schedule_baseline_end
-            else schedule_baseline.end_date
-        )
+            strategy = get_progression_strategy(schedule_baseline.progression_type)
+
+            # Determine the baseline end date for PV projection
+            # If schedule_baseline_end is provided, use it; otherwise use baseline's end_date
+            baseline_end_for_projection = (
+                schedule_baseline_end
+                if schedule_baseline_end
+                else schedule_baseline.end_date
+            )
+
+            # Generate date intervals for the aggregated range
+            dates = self._generate_date_intervals(
+                start_date=schedule_baseline.start_date,
+                end_date=max(schedule_baseline.end_date, control_date),
+                granularity=granularity,
+            )
 
         # Generate points using pre-fetched data (no more queries!)
         points: list[EVMTimeSeriesPoint] = []
@@ -1416,8 +1434,10 @@ class EVMService:
                 break
 
         for date in dates:
-            # Calculate PV (deterministic based on date)
-            if date > control_date:
+            # 1. Calculate PV (deterministic based on date)
+            if schedule_baseline is None or strategy is None:
+                pv = Decimal("0")
+            elif date > control_date:
                 # Future dates: use plan values
                 # If date is beyond baseline end, cap progress at 1.0 (100% of BAC)
                 if date > baseline_end_for_projection:
@@ -1429,8 +1449,6 @@ class EVMService:
                         end_date=schedule_baseline.end_date,
                     )
                     pv = bac * Decimal(str(progress))
-                ev = final_ev  # Use EV at control_date for future dates (flat line)
-                ac = final_ac  # Use AC at control_date for future dates (flat line)
             else:
                 # Past and current dates: use actual/fetched values
                 # If date is beyond baseline end, cap progress at 1.0
@@ -1444,6 +1462,11 @@ class EVMService:
                     )
                     pv = bac * Decimal(str(progress))
 
+            # 2. Calculate EV and AC
+            if date > control_date:
+                ev = final_ev  # Use EV at control_date for future dates (flat line)
+                ac = final_ac  # Use AC at control_date for future dates (flat line)
+            else:
                 # Get EV from progress entries (find latest progress as of date)
                 for report_date, (_progress_pct, ev_val) in sorted(ev_map.items()):
                     if report_date <= date:
@@ -1655,15 +1678,24 @@ class EVMService:
             total_actual = Decimal("0")
 
             for ts in all_timeseries:
-                # Find point for this date in the time-series
+                # Find the latest point less than or equal to the current date
+                # Since ts.points is sorted chronologically, we take the last point that matches
+                latest_point = None
                 for point in ts.points:
-                    if point.date.date() == date.date():  # Compare dates without time
-                        total_pv += point.pv
-                        total_ev += point.ev
-                        total_ac += point.ac
-                        total_forecast += point.forecast
-                        total_actual += point.actual
+                    if point.date.date() <= date.date():  # Compare dates without time
+                        latest_point = point
+                    else:
+                        # Since points are sorted, we can stop once we pass the current date
                         break
+
+                if latest_point:
+                    total_pv += latest_point.pv
+                    total_ev += latest_point.ev
+                    total_ac += latest_point.ac
+                    total_forecast += latest_point.forecast
+                    total_actual += latest_point.actual
+
+            cpi, spi = self._calculate_indices(total_ev, total_ac, total_pv)
 
             aggregated_point = EVMTimeSeriesPoint(
                 date=date,
@@ -1672,6 +1704,8 @@ class EVMService:
                 ac=total_ac,
                 forecast=total_forecast,
                 actual=total_actual,
+                cpi=cpi,
+                spi=spi,
             )
             aggregated_points.append(aggregated_point)
 
@@ -1813,15 +1847,24 @@ class EVMService:
             total_actual = Decimal("0")
 
             for ts in all_timeseries:
-                # Find point for this date in the time-series
+                # Find the latest point less than or equal to the current date
+                # Since ts.points is sorted chronologically, we take the last point that matches
+                latest_point = None
                 for point in ts.points:
-                    if point.date.date() == date.date():  # Compare dates without time
-                        total_pv += point.pv
-                        total_ev += point.ev
-                        total_ac += point.ac
-                        total_forecast += point.forecast
-                        total_actual += point.actual
+                    if point.date.date() <= date.date():  # Compare dates without time
+                        latest_point = point
+                    else:
+                        # Since points are sorted, we can stop once we pass the current date
                         break
+
+                if latest_point:
+                    total_pv += latest_point.pv
+                    total_ev += latest_point.ev
+                    total_ac += latest_point.ac
+                    total_forecast += latest_point.forecast
+                    total_actual += latest_point.actual
+
+            cpi, spi = self._calculate_indices(total_ev, total_ac, total_pv)
 
             aggregated_point = EVMTimeSeriesPoint(
                 date=date,
@@ -1830,6 +1873,8 @@ class EVMService:
                 ac=total_ac,
                 forecast=total_forecast,
                 actual=total_actual,
+                cpi=cpi,
+                spi=spi,
             )
             aggregated_points.append(aggregated_point)
 

@@ -99,10 +99,12 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         # Subquery for current WBE versions
         wbe_subq = (
             select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
+            .distinct(WBEAlias.wbe_id)
             .where(
                 func.upper(cast(Any, WBEAlias).valid_time).is_(None),
                 cast(Any, WBEAlias).deleted_at.is_(None),
             )
+            .order_by(WBEAlias.wbe_id, cast(Any, WBEAlias).transaction_time.desc())
             .subquery("wbe_lookup_subq")
         )
 
@@ -674,10 +676,12 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         WBEAlias = aliased(WBE, name="wbe_history_lookup")
         wbe_subq = (
             select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
+            .distinct(WBEAlias.wbe_id)
             .where(
                 func.upper(cast(Any, WBEAlias).valid_time).is_(None),
                 cast(Any, WBEAlias).deleted_at.is_(None),
             )
+            .order_by(WBEAlias.wbe_id, cast(Any, WBEAlias).transaction_time.desc())
             .subquery("wbe_history_lookup_subq")
         )
 
@@ -786,7 +790,9 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
 
         wbe_subq = (
             select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
+            .distinct(WBEAlias.wbe_id)
             .where(*wbe_where_clauses)
+            .order_by(WBEAlias.wbe_id, cast(Any, WBEAlias).transaction_time.desc())
             .subquery("wbe_lookup_subq")
         )
 

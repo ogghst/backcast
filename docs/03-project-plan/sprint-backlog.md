@@ -29,6 +29,9 @@ TBD
 ## Iteration Records
 
 ### Recent Completed Iterations
+n- **Fix Branchable Entity Parent Lookup Duplication (2026-02-23):** ✅ Complete
+  - Fixed duplicate Cost Elements showing up in the WBE details page.
+  - Added `.distinct(WBEAlias.wbe_id)` to parent WBE subqueries to avoid duplicating rows across branches.
 
 - **FK Constraint Refactoring (Phase 2: Core Entities) (2026-02-23):** ✅ Complete
   - Dropped 7 invalid DB FK constraints across core entities.
