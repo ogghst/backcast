@@ -9,8 +9,8 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Select, func, select
 from sqlalchemy import cast as sql_cast
+from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -790,8 +790,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import Any, cast
 
-        from sqlalchemy import literal_column, select
-        from sqlalchemy.orm import aliased
+        from sqlalchemy import select
 
         from app.models.domain.project import Project
 
@@ -863,114 +862,85 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         if not project:
             raise ValueError(f"Project {current_wbe.project_id} not found")
 
-        # Build recursive CTE to get all ancestors
-        # Base case: current WBE
-        base_cte_stmt: Select[Any] = select(
-            WBE.id,
-            WBE.wbe_id,
-            WBE.code,
-            WBE.name,
-            WBE.parent_wbe_id,
-            literal_column("0").label("depth"),
-        ).where(
-            WBE.wbe_id == wbe_id,
-            WBE.branch == current_wbe.branch,
-            cast(Any, WBE).deleted_at.is_(None),
-        )
+        # Build recursive CTE using raw SQL for reliable behavior
+        # Using LATERAL JOIN ensures exactly ONE parent per recursive iteration
+        # This fixes the duplicate breadcrumb issue caused by SQLAlchemy's
+        # DISTINCT ON not working as expected in recursive CTEs
 
+        # Build the time-travel filter condition
+        # Pre-format the as_of timestamp for PostgreSQL timestamptz
         if as_of:
-            base_cte_stmt = self._apply_bitemporal_filter_for_time_travel(
-                base_cte_stmt, as_of
-            )
+            # For time-travel queries, the WBE must be valid at the as_of timestamp
+            # Use isoformat() which already includes timezone info
+            as_of_ts = as_of.isoformat()
+            time_filter = f"AND valid_time @> '{as_of_ts}'::timestamptz AND lower(valid_time) <= '{as_of_ts}'::timestamptz"
         else:
-            base_cte_stmt = base_cte_stmt.where(
-                func.upper(cast(Any, WBE).valid_time).is_(None)
-            )
+            # For current version, get the version with open upper bound
+            time_filter = "AND upper(valid_time) IS NULL"
 
-        wbe_cte = base_cte_stmt.cte(name="wbe_ancestors", recursive=True)
-
-        # Recursive case: get parent WBEs
-        wbe_parent = aliased(WBE, name="wbe_parent")
-        
-        # In MERGE mode, we need to find parents on current branch OR main
-        # We use a subquery with DISTINCT ON to prioritize current branch
+        # Build the branch filter based on mode
         if branch_mode == BranchMode.MERGE and current_wbe.branch != "main":
-            # Subquery to find best parent version (branch priority)
-            parent_lookup_stmt = select(
-                wbe_parent.id,
-                wbe_parent.wbe_id,
-                wbe_parent.code,
-                wbe_parent.name,
-                wbe_parent.parent_wbe_id,
-                wbe_parent.branch
-            ).distinct(wbe_parent.wbe_id).where(
-                wbe_parent.branch.in_([current_wbe.branch, "main"]),
-                cast(Any, wbe_parent).deleted_at.is_(None),
-            )
-            
-            if as_of:
-                parent_lookup_stmt = self._apply_bitemporal_filter_for_time_travel(
-                    parent_lookup_stmt, as_of
-                )
-            else:
-                parent_lookup_stmt = parent_lookup_stmt.where(
-                    func.upper(cast(Any, wbe_parent).valid_time).is_(None)
-                )
-            
-            # Order by wbe_id and branch priority (current branch < 'main' alphabetically if branch starts with 'BR-')
-            # Actually better to use a case statement or just explicit order
-            from sqlalchemy import case
-            branch_priority = case(
-                (wbe_parent.branch == current_wbe.branch, 0),
-                (wbe_parent.branch == "main", 1),
-                else_=2
-            )
-            parent_lookup_stmt = parent_lookup_stmt.order_by(
-                wbe_parent.wbe_id,
-                branch_priority
-            )
-            
-            parent_lookup_subq = parent_lookup_stmt.subquery()
-            
-            recursive_stmt = select(
-                parent_lookup_subq.c.id,
-                parent_lookup_subq.c.wbe_id,
-                parent_lookup_subq.c.code,
-                parent_lookup_subq.c.name,
-                parent_lookup_subq.c.parent_wbe_id,
-                (wbe_cte.c.depth + 1).label("depth"),
-            ).where(
-                parent_lookup_subq.c.wbe_id == wbe_cte.c.parent_wbe_id
-            )
+            # MERGE mode: look in both current branch and main
+            # Use LATERAL JOIN with branch priority ordering
+            # For MERGE mode, we build a custom SELECT clause that references the LATERAL subquery
+            recursive_sql = f"""
+                -- Recursive case: get parent WBEs using LATERAL
+                SELECT best_parent.id, best_parent.wbe_id, best_parent.code, best_parent.name, best_parent.parent_wbe_id, wa.depth + 1
+                FROM wbe_ancestors wa
+                , LATERAL (
+                    SELECT id, wbe_id, code, name, parent_wbe_id
+                    FROM wbes w
+                    WHERE w.wbe_id = wa.parent_wbe_id
+                        AND branch IN (:current_branch, 'main')
+                        AND w.deleted_at IS NULL
+                        {time_filter}
+                    ORDER BY
+                        CASE WHEN branch = :current_branch THEN 0
+                             WHEN branch = 'main' THEN 1 ELSE 2 END
+                    LIMIT 1
+                ) best_parent
+            """
         else:
-            # STRICT mode or already on main: only look on current branch
-            recursive_stmt = select(
-                wbe_parent.id,
-                wbe_parent.wbe_id,
-                wbe_parent.code,
-                wbe_parent.name,
-                wbe_parent.parent_wbe_id,
-                (wbe_cte.c.depth + 1).label("depth"),
-            ).where(
-                wbe_parent.wbe_id == wbe_cte.c.parent_wbe_id,
-                wbe_parent.branch == current_wbe.branch,
-                cast(Any, wbe_parent).deleted_at.is_(None),
+            # STRICT mode or main branch: only look on current branch
+            # Regular JOIN for STRICT mode (no LATERAL needed)
+            recursive_sql = f"""
+                -- Recursive case: get parent WBEs using regular JOIN
+                SELECT w.id, w.wbe_id, w.code, w.name, w.parent_wbe_id, wa.depth + 1
+                FROM wbe_ancestors wa
+                INNER JOIN wbes w ON w.wbe_id = wa.parent_wbe_id
+                    AND w.branch = :current_branch
+                    AND w.deleted_at IS NULL
+                    {time_filter}
+            """
+
+        # Build the complete raw SQL query
+        raw_sql = text(f"""
+            WITH RECURSIVE wbe_ancestors AS (
+                -- Base case: current WBE
+                SELECT id, wbe_id, code, name, parent_wbe_id, 0 as depth
+                FROM wbes
+                WHERE wbe_id = :wbe_id
+                    AND branch = :current_branch
+                    AND deleted_at IS NULL
+                    {time_filter}
+
+                UNION ALL
+
+                {recursive_sql}
             )
+            SELECT id, wbe_id, code, name
+            FROM wbe_ancestors
+            ORDER BY depth DESC
+        """)
 
-            if as_of:
-                recursive_stmt = self._apply_bitemporal_filter_for_time_travel(
-                    recursive_stmt, as_of
-                )
-            else:
-                recursive_stmt = recursive_stmt.where(
-                    func.upper(cast(Any, wbe_parent).valid_time).is_(None)
-                )
+        # Build parameters for the query
+        params = {
+            "wbe_id": str(wbe_id),
+            "current_branch": current_wbe.branch,
+        }
 
-        wbe_cte = wbe_cte.union_all(recursive_stmt)
-
-        # Execute CTE query ordered by depth (root first)
-        ancestors_stmt = select(wbe_cte).order_by(wbe_cte.c.depth.desc())
-        ancestors_result = await self.session.execute(ancestors_stmt)
+        # Execute the raw SQL query
+        ancestors_result = await self.session.execute(raw_sql, params)
         ancestors = ancestors_result.all()
 
         # Build breadcrumb response
