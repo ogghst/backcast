@@ -232,8 +232,10 @@
 - **Impact:** Prevents linting errors from accumulating, reduces manual cleanup effort
 - **Estimated Effort:** 2 hours
 - **Target Date:** 2026-01-20
-- **Status:** 🔴 Open
-- **Owner:** Tech Lead
+- **Status:** ✅ Completed
+- **Completed Date:** 2026-02-23
+- **Resolution:** Activated `.pre-commit-config.yaml` using `pre-commit install`. Hooks now run Ruff and MyPy on commit.
+- **Owner:** Backend Developer
 - **Notes:** Should be configured to run on Python files only, with `--fix` option for auto-correctable issues
 
 #### [TD-063] Add Zombie Check Tests for All Versioned Entities
@@ -485,6 +487,24 @@
   - [ ] Add auto-generated files to `.eslintignore` if appropriate
   - [ ] Update code generation scripts to avoid adding directives
 - **Documentation:** [REACT_BEST_PRACTICES_REVIEW.md](../../frontend/REACT_BEST_PRACTICES_REVIEW.md)
+
+#### [TD-081] Backend MyPy Debt: Inconsistent Type Hinting in Tests and Routes
+
+- **Source:** FK Refactoring Phase 2 CHECK phase (2026-02-23)
+- **Description:** 663 MyPy errors detected across `backend/app` and `backend/tests`. Errors are primarily in legacy API routes and old test files, including missing type annotations, `Any` returns, and incompatible argument types.
+- **Impact:** Reduced type safety in core integration layers; slows down verification during refactoring
+- **Estimated Effort:** 3-4 days (24-32 hours)
+- **Target Date:** 2026-04-15
+- **Status:** 🔴 Open
+- **Owner:** Backend Developer
+- **Priority:** Medium
+- **Risk:** Silent type errors in API/Test logic
+- **Solution:** Incremental cleanup focusing on `app/` first, followed by `tests/`. Enforce strict mode for new files.
+- **Action Items:**
+  - [ ] Audit MyPy errors in `app/api/` and fix
+  - [ ] Clean up `tests/` directory errors
+  - [ ] Fix `generate_openapi.py` duplicate module issue
+  - [ ] Update CI to fail on new MyPy regressions in `app/`
 
 ---
 

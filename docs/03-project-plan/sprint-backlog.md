@@ -1,39 +1,28 @@
 # Current Iteration
 
-**Iteration:** Change Order Branch Archival (E06-U08)
-**Start Date:** 2026-02-07
-**Status:** 🏗️ **IN ANALYSIS**
+**Iteration:** Next Development Sprint
+**Start Date:** 2026-02-23
+**Status:** 🏗️ **PLANNING**
 
 ---
 
 ## Goal
 
-Implement the ability to archive (soft-delete) Change Order branches after they have been merged or rejected, decluttering the active branch list while preserving audit history.
-
-**Key Focus Areas:**
-
-1. **Analysis**: Determine best approach for branch archival (Service vs API)
-2. **Implementation**: Add `archive_change_order_branch` to `ChangeOrderService`
-3. **Verification**: Test archival workflow and time-travel access
+TBD
 
 ---
 
 ## Stories in Scope
 
-| Story                                           | Points | Priority | Status          | Dependencies     |
-| :---------------------------------------------- | :----- | :------- | :-------------- | :--------------- |
-| **[E06-U08] Delete/Archive Branches**           | 3      | Critical | 🏗️ Analysis     | E06-U05 (Merged) |
-
-**Total Estimated Effort:** 3 points
+| Story                                 | Points | Priority | Status    | Dependencies |
+| :------------------------------------ | :----- | :------- | :-------- | :----------- |
+| **[E06-U08] Delete/Archive Branches** | 3      | Critical | ⏸️ Paused | E06-U05      |
 
 ---
 
 ## Success Criteria
 
-- [ ] `archive_change_order_branch` method implemented
-- [ ] Integration test simulates full lifecycle (Create -> Merge -> Archive)
-- [ ] Archived branches hidden from `get_branches`
-- [ ] Archived branches visible in `get_branches_as_of` (time-travel)
+TBD
 
 ---
 
@@ -41,8 +30,16 @@ Implement the ability to archive (soft-delete) Change Order branches after they 
 
 ### Recent Completed Iterations
 
-- **FK Constraint Migration (Technical Debt) (2026-02-07):** ⏸️ Paused/Planned
-  - Initial planning started but context switched to Epic 6 Critical path.
+- **FK Constraint Refactoring (Phase 2: Core Entities) (2026-02-23):** ✅ Complete
+  - Dropped 7 invalid DB FK constraints across core entities.
+  - Standardized Business Key linking (Root UUIDs) for bitemporal integrity.
+  - Restored ORM navigation via `primaryjoin`.
+  - Activated git pre-commit hooks for Ruff and MyPy.
+
+- **FK Constraint Refactoring (Phase 1: ChangeOrders) (2026-02-07):** ✅ Complete
+  - Dropped invalid FK on `ChangeOrder.assigned_approver_id`.
+  - Updated data to use `user_id` business key.
+  - Confirmed application-level integrity pattern.
 
 - **Backend RSC Compliance (2026-02-07):** ✅ Complete
   - Refactored `ChangeOrderService` audit logging
