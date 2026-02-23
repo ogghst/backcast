@@ -38,7 +38,7 @@ export const useImpactAnalysis = (
         query: {
           branch_name: branchName,
           mode: mode,
-          as_of: asOf || undefined,
+          as_of: asOf || new Date().toISOString(),
         },
       }) as Promise<ImpactAnalysisResponse>;
     },

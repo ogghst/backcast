@@ -17,9 +17,10 @@ Per Phase 5 Plan:
 
 import asyncio
 import logging
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
@@ -36,6 +37,9 @@ from app.models.domain.project import Project
 from app.models.domain.schedule_baseline import ScheduleBaseline
 from app.models.domain.wbe import WBE
 from app.models.schemas.evm import EntityType
+
+if TYPE_CHECKING:
+    from app.models.domain.progress_entry import ProgressEntry
 from app.models.schemas.forecast import ForecastRead
 from app.models.schemas.impact_analysis import (
     EntityChange,
@@ -76,6 +80,37 @@ class ImpactAnalysisService:
         from app.services.evm_service import EVMService
 
         self._evm_service = EVMService(db_session)
+
+    @staticmethod
+    def _get_progress_as_of(
+        progress_entries: list["ProgressEntry"],
+        as_of_date: datetime,
+    ) -> Decimal:
+        """Get progress percentage as of a specific date.
+
+        Finds the most recent progress entry that was recorded on or before
+        the as_of_date. This ensures historical EV calculations use progress
+        as it was known at that point in time, not future progress.
+
+        Args:
+            progress_entries: List of ProgressEntry objects for a cost element
+            as_of_date: The date to get progress as of (typically week_mid)
+
+        Returns:
+            Progress percentage (0-100) as of the date, or 0 if no valid entries
+        """
+        # Filter entries with valid_time.lower <= as_of_date (recorded on or before)
+        valid_entries = [
+            pe for pe in progress_entries
+            if pe.valid_time and pe.valid_time.lower <= as_of_date
+        ]
+
+        if not valid_entries:
+            return Decimal("0")
+
+        # Return the most recent valid entry (highest valid_time.lower)
+        latest = max(valid_entries, key=lambda pe: pe.valid_time.lower)
+        return latest.progress_percentage
 
     async def analyze_impact(
         self,
@@ -1326,6 +1361,10 @@ class ImpactAnalysisService:
             min_start = min(s[0].start_date for s in valid_main_schedules)
             max_end = max(s[0].end_date for s in valid_main_schedules)
 
+        # Cap the time series at the control date (defaults to now when as_of is None)
+        control_date = as_of if as_of is not None else datetime.now(UTC)
+        max_end = min(max_end, control_date)
+
         # ========================================================================
         # STEP 2: Batch fetch all required data for EVM calculations
         # ========================================================================
@@ -1417,13 +1456,13 @@ class ImpactAnalysisService:
         progress_result = await self._db.execute(progress_stmt)
         progress_rows = progress_result.all()
 
-        # Build progress lookup: (cost_element_id, branch) -> latest ProgressEntry
-        progress_lookup: dict[tuple[UUID, str], ProgressEntry] = {}
+        # Build progress lookup: (cost_element_id, branch) -> list of ProgressEntry
+        # Store ALL progress entries (not just latest) to enable date-based filtering
+        # during weekly aggregation, similar to how AC handles cost registrations.
+        progress_lookup: dict[tuple[UUID, str], list[ProgressEntry]] = defaultdict(list)
         for pe, ce in progress_rows:
             key = (ce.cost_element_id, ce.branch)
-            # Only keep the first (latest) entry for each key
-            if key not in progress_lookup:
-                progress_lookup[key] = pe
+            progress_lookup[key].append(pe)
 
         # ========================================================================
         # STEP 4: Batch fetch CostRegistration data for AC calculation
@@ -1467,7 +1506,6 @@ class ImpactAnalysisService:
         cost_reg_rows = cost_reg_result.all()
 
         # Build cost registration lookup: (cost_element_id, branch) -> list of registrations
-        from collections import defaultdict
         cost_reg_lookup: dict[tuple[UUID, str], list[CostRegistration]] = defaultdict(list)
         for cr, ce in cost_reg_rows:
             cost_reg_lookup[(ce.cost_element_id, ce.branch)].append(cr)
@@ -1547,12 +1585,11 @@ class ImpactAnalysisService:
                     main_budget += budget_pv
                     main_pv += budget_pv
 
-                    # EV: Use progress entries
-                    pe = progress_lookup.get((ce.cost_element_id, "main"))
-                    if pe:
-                        ev = budget * pe.progress_percentage / Decimal("100")
-                        main_ev += ev
-                    # If no progress entry, EV = 0
+                    # EV: Use progress entries (as of week_mid for historical accuracy)
+                    progress_entries = progress_lookup.get((ce.cost_element_id, "main"), [])
+                    progress_pct = self._get_progress_as_of(progress_entries, week_mid)
+                    ev = budget * progress_pct / Decimal("100")
+                    main_ev += ev
 
                     # AC: Use cost registrations (cumulative up to week_mid)
                     registrations = cost_reg_lookup.get((ce.cost_element_id, "main"), [])
@@ -1583,11 +1620,11 @@ class ImpactAnalysisService:
                     change_budget += budget_pv
                     change_pv += budget_pv
 
-                    # EV: Use progress entries
-                    pe = progress_lookup.get((ce.cost_element_id, branch_name))
-                    if pe:
-                        ev = budget * pe.progress_percentage / Decimal("100")
-                        change_ev += ev
+                    # EV: Use progress entries (as of week_mid for historical accuracy)
+                    progress_entries = progress_lookup.get((ce.cost_element_id, branch_name), [])
+                    progress_pct = self._get_progress_as_of(progress_entries, week_mid)
+                    ev = budget * progress_pct / Decimal("100")
+                    change_ev += ev
 
                     # AC: Use cost registrations
                     registrations = cost_reg_lookup.get((ce.cost_element_id, branch_name), [])
@@ -1617,11 +1654,11 @@ class ImpactAnalysisService:
                         change_budget += budget_pv
                         change_pv += budget_pv
 
-                        # EV: Use progress entries from main
-                        pe = progress_lookup.get((ce.cost_element_id, "main"))
-                        if pe:
-                            ev = budget * pe.progress_percentage / Decimal("100")
-                            change_ev += ev
+                        # EV: Use progress entries from main (as of week_mid)
+                        progress_entries = progress_lookup.get((ce.cost_element_id, "main"), [])
+                        progress_pct = self._get_progress_as_of(progress_entries, week_mid)
+                        ev = budget * progress_pct / Decimal("100")
+                        change_ev += ev
 
                         # AC: Use cost registrations from main
                         registrations = cost_reg_lookup.get((ce.cost_element_id, "main"), [])

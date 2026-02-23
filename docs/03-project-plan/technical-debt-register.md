@@ -1,52 +1,201 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-02-13
-**Total Debt Items:** 9 (25 completed)
-**Total Estimated Effort:** 31 hours
-**Completed Effort:** 54.25 hours
- +++++++ REPLACE
+**Last Updated:** 2026-02-21
+**Total Debt Items:** 24 (24 completed)
+**Total Estimated Effort:** 109 hours
+**Completed Effort:** 30.25 hours
 
 ---
 
 ## Debt Items
 
 ### High Severity
-*(No high severity items currently open)*
 
----
-
-### Medium Severity
-
-#### [TD-067] FK Constraint: Business Key vs Primary Key in Temporal Entities ✅
+#### [TD-067] FK Constraint: Business Key vs Primary Key in Temporal Entities
 
 - **Source:** Change Order Workflow Recovery (2026-02-06)
 - **Description:** `ChangeOrder.assigned_approver_id` foreign key references `users(id)` (auto-generated primary key) instead of `users(user_id)` (business key). This causes issues in bitemporal queries because PK changes across versions while business key remains stable.
 - **Impact:** Data integrity issues in bitemporal queries; using PK may return wrong or expired versions
 - **Estimated Effort:** 2-3 days (16-24 hours)
-- **Actual Effort:** ~20 hours
 - **Target Date:** 2026-02-15
-- **Completed Date:** 2026-02-13
-- **Status:** ✅ Completed
+- **Status:** 🔴 Open
 - **Owner:** Backend Developer
 - **Priority:** High
-- **Resolution:** Updated `ChangeOrder.assigned_approver_id` FK to reference `users.user_id` (business key) instead of `users(id)` (primary key). This ensures stable references across temporal versions and aligns with ADR-005 bitemporal semantics. The fix was implemented in `backend/app/models/domain/change_order.py:122`.
+- **Risk:** Data integrity issues in bitemporal queries
+- **Solution Options:**
+  1. **Option 1 (Preferred)**: Update FK to Reference Business Keys - Correct bitemporal semantics, stable references, aligns with ADR-005. Requires data migration (16-24 hours)
+  2. **Option 2**: Add Generated Column with Business Key Reference - No data migration, backward compatible, but more complex query logic and doesn't fix root issue (8-16 hours)
+  3. **Option 3 (Current)**: Application Layer Workaround - No database changes, but risk of inconsistent queries, not long-term solution (0 hours - already implemented)
 - **Affected Entities:**
-  1. **Change Orders** (`backend/app/models/domain/change_order.py:122`) - ✅ Fixed - now references `users.user_id`
+  1. **Change Orders** (`backend/app/models/domain/change_order.py:122`) - `assigned_approver_id` → should reference `users.user_id` (Status: ⚠️ Known issue)
   2. **Projects** (`backend/app/models/domain/project.py`) - May have FK references to users (Status: 🔍 Needs audit)
   3. **WBEs** (`backend/app/models/domain/wbe.py`) - `project_id` reference needs verification (Status: 🔍 Needs audit)
   4. **Cost Elements** (`backend/app/models/domain/cost_element.py`) - `wbe_id` reference needs verification (Status: 🔍 Needs audit)
-  5. **All temporal entities** with FK references (Status: 🔍 Comprehensive audit recommended)
+  5. **All temporal entities** with FK references (Status: 🔍 Comprehensive audit needed)
+- **Migration Plan (Option 1 - Preferred):**
+  1. **Audit Phase** (1 day): Scan all temporal entities for FK references, document all PK vs business key mismatches, assess data impact
+  2. **Design Phase** (0.5 days): Design migration strategy, plan for zero-downtime deployment, rollback procedures
+  3. **Implementation Phase** (1-1.5 days): Create Alembic migration to update FK constraints, update model definitions to use business keys, update service layer, update tests
+  4. **Testing Phase** (0.5 days): Unit tests for FK references, integration tests for bitemporal queries, performance tests
+  5. **Documentation Phase** (0.5 days): Update coding standards, document FK reference pattern for temporal entities, add ADR supplement if needed
+- **Action Items:**
+  - [ ] Audit all FK references in temporal entities
+  - [ ] Create migration plan for Option 1
+  - [ ] Update coding standards to specify business key FKs for temporal entities
+  - [ ] Add validation to prevent PK-based FKs in new temporal entities
+  - [ ] Schedule implementation iteration
 - **References:**
   - **Issue**: CO-2026-003 recovery
   - **ADR**: ADR-005 Bitemporal Versioning
-  - **Files**: `backend/app/models/domain/change_order.py:122`
+  - **Files**: `backend/app/models/domain/change_order.py:122`, `backend/scripts/repair_change_order_co_2026_003.py`, `backend/app/services/change_order_service.py:recover_change_order()`
   - **Iteration**: 2026-02-06-change-order-workflow-recovery
+
+#### [TD-069] Failing Time Machine Store Tests
+
+- **Source:** React Best Practices Review (2026-02-21)
+- **Description:** 3 failing tests in `src/stores/useTimeMachineStore.test.ts` related to time machine state management. View mode not preserved when switching projects, and project settings not maintained correctly.
+- **Impact:** Code quality regression risk; time machine functionality may not work correctly across project changes
+- **Estimated Effort:** 4 hours
+- **Target Date:** 2026-02-28
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Priority:** High
+- **Risk:** Broken time travel functionality, inconsistent user experience
+- **Test File:** [frontend/src/stores/useTimeMachineStore.test.ts](../../frontend/src/stores/useTimeMachineStore.test.ts)
+- **Failing Tests:**
+  - View mode preservation across project changes
+  - Project settings persistence
+  - State synchronization between time machine and project contexts
+- **Action Items:**
+  - [ ] Investigate test failures and root cause
+  - [ ] Fix state management logic in useTimeMachineStore
+  - [ ] Ensure all tests pass
+  - [ ] Add regression tests for time machine state transitions
+- **Documentation:** [REACT_BEST_PRACTICES_REVIEW.md](../../frontend/REACT_BEST_PRACTICES_REVIEW.md)
+
+#### [TD-070] Missing Query Key Factory Pattern
+
+- **Source:** React Best Practices Review (2026-02-21)
+- **Description:** Query keys defined inline throughout the codebase with inconsistent patterns. This makes cache management harder and can lead to key conflicts.
+- **Impact:** Harder to maintain cache, potential cache key conflicts, type safety issues
+- **Estimated Effort:** 4 hours
+- **Target Date:** 2026-03-15
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Priority:** High
+- **Risk:** Cache inconsistencies, difficult debugging, maintenance burden
+- **Solution:** Create centralized query key factory following TanStack Query best practices
+- **Reference Solution Created:** `/home/nicola/dev/backcast_evs/frontend/src/api/queryKeys.ts`
+- **Affected Features:** All features using TanStack Query (projects, WBEs, change orders, forecasts, etc.)
+- **Action Items:**
+  - [ ] Review and finalize query key factory pattern
+  - [ ] Migrate all query hooks to use centralized keys
+  - [ ] Update query invalidation logic
+  - [ ] Add TypeScript types for query keys
+  - [ ] Document query key patterns
+- **Documentation:** [REACT_BEST_PRACTICES_REVIEW.md](../../frontend/REACT_BEST_PRACTICES_REVIEW.md), [TanStack Query Best Practices](https://tanstack.com/query/latest/docs/react/guides/query-keys)
+
+#### [TD-071] No Optimistic Updates
+
+- **Source:** React Best Practices Review (2026-02-21)
+- **Description:** Mutations wait for server response before updating UI, causing slower perceived performance. No optimistic update patterns implemented across the application.
+- **Impact:** Slower perceived performance, poor user experience during mutations
+- **Estimated Effort:** 6 hours
+- **Target Date:** 2026-03-15
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Priority:** High
+- **Risk:** Poor user experience, especially on slow connections
+- **Solution:** Implement optimistic update patterns using TanStack Query's `optimisticUpdater` and `onMutate` callbacks
+- **Reference Solution Created:** `/home/nicola/dev/backcast_evs/frontend/src/api/utils/optimisticUpdates.ts`
+- **Affected Mutations:** All create/update/delete mutations (projects, WBEs, change orders, etc.)
+- **Action Items:**
+  - [ ] Create optimistic update utilities
+  - [ ] Implement optimistic updates for high-impact mutations (create WBE, update project, etc.)
+  - [ ] Add rollback logic for failed mutations
+  - [ ] Test optimistic update behavior
+  - [ ] Document patterns for future mutations
+- **Documentation:** [REACT_BEST_PRACTICES_REVIEW.md](../../frontend/REACT_BEST_PRACTICES_REVIEW.md)
+
+#### [TD-072] Column Definitions Recreated Every Render
+
+- **Source:** React Best Practices Review (2026-02-21)
+- **Description:** 116 lines of column definitions in `ProjectList.tsx` (lines 143-258) recreated on every render, causing unnecessary computation.
+- **Impact:** Performance degradation, especially with large datasets
+- **Estimated Effort:** 2 hours
+- **Target Date:** 2026-03-01
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Priority:** High
+- **Risk:** Poor performance with large project lists
+- **Solution:** Extract column definitions to custom hook with `useMemo`
+- **Affected Files:**
+  - `frontend/src/features/projects/components/ProjectList.tsx:143-258`
+  - `frontend/src/features/users/components/UserList.tsx`
+  - `frontend/src/features/wbes/components/WBEList.tsx`
+- **Reference Solution Created:** `/home/nicola/dev/backcast_evs/frontend/src/features/projects/components/ProjectList.columns.tsx`
+- **Action Items:**
+  - [ ] Extract column definitions to separate files
+  - [ ] Wrap in custom hooks with useMemo
+  - [ ] Apply pattern to UserList and WBEList
+  - [ ] Test performance improvement
+  - [ ] Document pattern for future table components
+- **Documentation:** [REACT_BEST_PRACTICES_REVIEW.md](../../frontend/REACT_BEST_PRACTICES_REVIEW.md)
+
+#### [TD-073] Inconsistent Error Handling
+
+- **Source:** React Best Practices Review (2026-02-21)
+- **Description:** Some components use try-catch, others rely on mutation error handling. No centralized error handling pattern across the application.
+- **Impact:** Inconsistent user experience, difficult to maintain, potential for unhandled errors
+- **Estimated Effort:** 4 hours
+- **Target Date:** 2026-03-08
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Priority:** High
+- **Risk:** Poor user experience, inconsistent error messages, potential for unhandled errors
+- **Solution:** Create centralized error handling utilities with consistent patterns
+- **Reference Solution Created:** `/home/nicola/dev/backcast_evs/frontend/src/utils/errorHandling.ts`
+- **Affected Components:** All form components, mutation handlers, and API calls
+- **Action Items:**
+  - [ ] Design error handling pattern (user notification, logging, retry logic)
+  - [ ] Create centralized error handling utilities
+  - [ ] Migrate components to use centralized handling
+  - [ ] Add error boundary components
+  - [ ] Document error handling patterns
+- **Documentation:** [REACT_BEST_PRACTICES_REVIEW.md](../../frontend/REACT_BEST_PRACTICES_REVIEW.md)
+
+#### [TD-074] Missing useCallback/useMemo
+
+- **Source:** React Best Practices Review (2026-02-21)
+- **Description:** Event handlers and computed values recreated on every render in multiple components. This causes unnecessary re-renders of child components.
+- **Impact:** Performance degradation, unnecessary re-renders
+- **Estimated Effort:** 3 hours
+- **Target Date:** 2026-03-01
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Priority:** High
+- **Risk:** Poor performance, especially in components with complex state
+- **Solution:** Add `useCallback` for event handlers and `useMemo` for computed values
+- **Affected Files:**
+  - `frontend/src/features/projects/components/ProjectList.tsx`
+  - `frontend/src/features/users/components/UserList.tsx`
+  - `frontend/src/features/wbes/components/WBEList.tsx`
+- **Action Items:**
+  - [ ] Audit components for missing useCallback/useMemo
+  - [ ] Add useCallback to event handlers
+  - [ ] Add useMemo to computed values
+  - [ ] Verify performance improvements
+  - [ ] Add to code review checklist
+- **Documentation:** [REACT_BEST_PRACTICES_REVIEW.md](../../frontend/REACT_BEST_PRACTICES_REVIEW.md)
+
+---
+
+### Medium Severity
 
 #### [TD-016] Performance Optimization (Large Projects)
 
 - **Source:** Hierarchical Nav ACT phase
 - **Description:** `useWBEs` fetches full list. Needs pagination or server-side tree loading for very large projects.
- +++++++ REPLACE
 - **Impact:** Slow load times for large datasets
 - **Estimated Effort:** 3 hours
 - **Target Date:** 2026-02-01
@@ -153,6 +302,92 @@
 - **Resolution:** Timeout configuration implemented in 2026-02-06-change-order-workflow-recovery iteration
 - **Documentation:** [Change Order Workflow Recovery Iteration](./iterations/2026-02-06-change-order-workflow-recovery/)
 
+#### [TD-075] Missing React.memo Optimizations
+
+- **Source:** React Best Practices Review (2026-02-21)
+- **Description:** Multiple components re-render unnecessarily when parent updates. No `React.memo` wrappers applied to performance-critical components.
+- **Impact:** Performance degradation in data-heavy components, unnecessary re-renders
+- **Estimated Effort:** 3 hours
+- **Target Date:** 2026-03-15
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Priority:** Medium
+- **Risk:** Poor performance with large datasets
+- **Solution:** Add `React.memo` to performance-critical components with proper prop comparison
+- **Affected Components:** All list components, cards, and data display components
+- **Example Component:** `frontend/src/features/change-orders/components/KPICards.tsx`
+- **Action Items:**
+  - [ ] Identify performance-critical components
+  - [ ] Add React.memo wrappers with proper comparison functions
+  - [ ] Verify performance improvements
+  - [ ] Add to frontend coding standards
+- **Documentation:** [REACT_BEST_PRACTICES_REVIEW.md](../../frontend/REACT_BEST_PRACTICES_REVIEW.md)
+
+#### [TD-076] Large Component Files
+
+- **Source:** React Best Practices Review (2026-02-21)
+- **Description:** `ProjectList.tsx` is 378 lines and doing too much (table, columns, modal, history drawer). Component violates single responsibility principle.
+- **Impact:** Difficult to maintain, test, and understand; high cognitive load
+- **Estimated Effort:** 4 hours
+- **Target Date:** 2026-03-08
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Priority:** Medium
+- **Risk:** Maintainability issues, difficult to onboard new developers
+- **Solution:** Extract column definitions and sub-components into separate files
+- **Affected Files:**
+  - `frontend/src/features/projects/components/ProjectList.tsx` (378 lines)
+  - Other large components (need audit)
+- **Action Items:**
+  - [ ] Audit all component files for size violations (>300 lines)
+  - [ ] Extract column definitions to separate files (see TD-072)
+  - [ ] Extract sub-components (modals, drawers, etc.)
+  - [ ] Create reusable patterns for component organization
+  - [ ] Update coding standards with max file size guidelines
+- **Documentation:** [REACT_BEST_PRACTICES_REVIEW.md](../../frontend/REACT_BEST_PRACTICES_REVIEW.md)
+
+#### [TD-077] Reusable Form Field Components
+
+- **Source:** React Best Practices Review (2026-02-21)
+- **Description:** Similar form fields repeated across components. No standardized form field components for common patterns (text inputs, selects, date pickers, etc.).
+- **Impact:** Code duplication, inconsistency, higher maintenance burden
+- **Estimated Effort:** 4 hours
+- **Target Date:** 2026-03-15
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Priority:** Medium
+- **Risk:** Inconsistent UX, code duplication, maintenance burden
+- **Solution:** Create reusable form field components with consistent validation, styling, and error handling
+- **Reference Solution Created:** `/home/nicola/dev/backcast_evs/frontend/src/components/forms/FormField.tsx`
+- **Affected Components:** All form components across the application
+- **Action Items:**
+  - [ ] Design form field component API
+  - [ ] Implement common form field types (text, select, date, number, etc.)
+  - [ ] Add consistent validation patterns
+  - [ ] Migrate existing forms to use new components
+  - [ ] Document form field patterns
+- **Documentation:** [REACT_BEST_PRACTICES_REVIEW.md](../../frontend/REACT_BEST_PRACTICES_REVIEW.md)
+
+#### [TD-078] Missing Barrel Exports
+
+- **Source:** React Best Practices Review (2026-02-21)
+- **Description:** Some features lack proper `index.ts` barrel exports, causing long import paths and inconsistent imports across the codebase.
+- **Impact:** Poor developer experience, inconsistent imports, refactoring difficulty
+- **Estimated Effort:** 2 hours
+- **Target Date:** 2026-03-01
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Priority:** Medium
+- **Risk:** Developer friction, inconsistent code organization
+- **Solution:** Create barrel exports for all features with consistent patterns
+- **Affected Features:** Features lacking `index.ts` barrel exports (needs audit)
+- **Action Items:**
+  - [ ] Audit all features for missing barrel exports
+  - [ ] Create index.ts files with consistent export patterns
+  - [ ] Update imports to use barrel exports
+  - [ ] Document barrel export patterns in coding standards
+- **Documentation:** [REACT_BEST_PRACTICES_REVIEW.md](../../frontend/REACT_BEST_PRACTICES_REVIEW.md)
+
 ---
 
 ### Low Severity
@@ -209,6 +444,47 @@
 - **Owner:** Backend Developer
 - **Notes:** Data classes provide minimal value to test. Acceptable baseline for this iteration.
 - **Documentation:** [Branch Mode CHECK](./iterations/2026-01-12-merge-isolation-strategies/03-check.md)
+
+#### [TD-079] Inline Styles Instead of Styled Components
+
+- **Source:** React Best Practices Review (2026-02-21)
+- **Description:** Inline styles used throughout the codebase instead of styled components or CSS modules. Makes maintenance harder and reduces consistency.
+- **Impact:** Harder to maintain styles, inconsistent styling approach, difficult to theme
+- **Estimated Effort:** 4 hours
+- **Target Date:** 2026-03-31
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Priority:** Low
+- **Risk:** Maintainability issues, styling inconsistencies
+- **Solution:** Extract inline styles to styled components or CSS modules
+- **Example:** `frontend/src/features/change-orders/components/KPICards.tsx` - `style={{ marginBottom: 8, color: "#8c8c8c" }}`
+- **Affected Files:** Throughout the codebase (needs audit)
+- **Action Items:**
+  - [ ] Audit codebase for inline style usage
+  - [ ] Create styled component patterns for common styles
+  - [ ] Migrate inline styles to styled components incrementally
+  - [ ] Document styling patterns in coding standards
+- **Documentation:** [REACT_BEST_PRACTICES_REVIEW.md](../../frontend/REACT_BEST_PRACTICES_REVIEW.md)
+
+#### [TD-080] Unused ESLint Disable Directives
+
+- **Source:** React Best Practices Review (2026-02-21)
+- **Description:** Unused `/* eslint-disable */` directives in multiple auto-generated files. Clutters code and may hide real issues.
+- **Impact:** Code cleanliness, potential for hiding real linting issues
+- **Estimated Effort:** 1 hour
+- **Target Date:** 2026-03-01
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Priority:** Low
+- **Risk:** Minor - code cleanliness
+- **Solution:** Remove unused directives or add files to `.eslintignore`
+- **Affected Files:** Auto-generated files with unused ESLint disable directives
+- **Action Items:**
+  - [ ] Scan for unused ESLint disable directives
+  - [ ] Remove unused directives
+  - [ ] Add auto-generated files to `.eslintignore` if appropriate
+  - [ ] Update code generation scripts to avoid adding directives
+- **Documentation:** [REACT_BEST_PRACTICES_REVIEW.md](../../frontend/REACT_BEST_PRACTICES_REVIEW.md)
 
 ---
 
