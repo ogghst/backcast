@@ -40,6 +40,16 @@ export const CostElementBreadcrumbBuilder = ({
     return null;
   }
 
+  const projectItem = {
+    title: (
+      <Link to={`/projects/${breadcrumb.project.project_id}`}>
+        {breadcrumb.project.code}
+      </Link>
+    ),
+  };
+
+  const showProjectItem = breadcrumb.wbe.code !== breadcrumb.project.code;
+
   const items = [
     {
       title: (
@@ -51,13 +61,7 @@ export const CostElementBreadcrumbBuilder = ({
     {
       title: <Link to="/projects">Projects</Link>,
     },
-    {
-      title: (
-        <Link to={`/projects/${breadcrumb.project.project_id}`}>
-          {breadcrumb.project.code}
-        </Link>
-      ),
-    },
+    ...(showProjectItem ? [projectItem] : []),
     {
       title: (
         <Link

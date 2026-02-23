@@ -890,28 +890,81 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         wbe_cte = base_cte_stmt.cte(name="wbe_ancestors", recursive=True)
 
         # Recursive case: get parent WBEs
-        wbe_alias = aliased(WBE, name="wbe_parent")
-        recursive_stmt = select(
-            wbe_alias.id,
-            wbe_alias.wbe_id,
-            wbe_alias.code,
-            wbe_alias.name,
-            wbe_alias.parent_wbe_id,
-            (wbe_cte.c.depth + 1).label("depth"),
-        ).where(
-            wbe_alias.wbe_id == wbe_cte.c.parent_wbe_id,
-            wbe_alias.branch == current_wbe.branch,
-            cast(Any, wbe_alias).deleted_at.is_(None),
-        )
-
-        if as_of:
-            recursive_stmt = self._apply_bitemporal_filter_for_time_travel(
-                recursive_stmt, as_of
+        wbe_parent = aliased(WBE, name="wbe_parent")
+        
+        # In MERGE mode, we need to find parents on current branch OR main
+        # We use a subquery with DISTINCT ON to prioritize current branch
+        if branch_mode == BranchMode.MERGE and current_wbe.branch != "main":
+            # Subquery to find best parent version (branch priority)
+            parent_lookup_stmt = select(
+                wbe_parent.id,
+                wbe_parent.wbe_id,
+                wbe_parent.code,
+                wbe_parent.name,
+                wbe_parent.parent_wbe_id,
+                wbe_parent.branch
+            ).distinct(wbe_parent.wbe_id).where(
+                wbe_parent.branch.in_([current_wbe.branch, "main"]),
+                cast(Any, wbe_parent).deleted_at.is_(None),
+            )
+            
+            if as_of:
+                parent_lookup_stmt = self._apply_bitemporal_filter_for_time_travel(
+                    parent_lookup_stmt, as_of
+                )
+            else:
+                parent_lookup_stmt = parent_lookup_stmt.where(
+                    func.upper(cast(Any, wbe_parent).valid_time).is_(None)
+                )
+            
+            # Order by wbe_id and branch priority (current branch < 'main' alphabetically if branch starts with 'BR-')
+            # Actually better to use a case statement or just explicit order
+            from sqlalchemy import case
+            branch_priority = case(
+                (wbe_parent.branch == current_wbe.branch, 0),
+                (wbe_parent.branch == "main", 1),
+                else_=2
+            )
+            parent_lookup_stmt = parent_lookup_stmt.order_by(
+                wbe_parent.wbe_id,
+                branch_priority
+            )
+            
+            parent_lookup_subq = parent_lookup_stmt.subquery()
+            
+            recursive_stmt = select(
+                parent_lookup_subq.c.id,
+                parent_lookup_subq.c.wbe_id,
+                parent_lookup_subq.c.code,
+                parent_lookup_subq.c.name,
+                parent_lookup_subq.c.parent_wbe_id,
+                (wbe_cte.c.depth + 1).label("depth"),
+            ).where(
+                parent_lookup_subq.c.wbe_id == wbe_cte.c.parent_wbe_id
             )
         else:
-            recursive_stmt = recursive_stmt.where(
-                func.upper(cast(Any, wbe_alias).valid_time).is_(None)
+            # STRICT mode or already on main: only look on current branch
+            recursive_stmt = select(
+                wbe_parent.id,
+                wbe_parent.wbe_id,
+                wbe_parent.code,
+                wbe_parent.name,
+                wbe_parent.parent_wbe_id,
+                (wbe_cte.c.depth + 1).label("depth"),
+            ).where(
+                wbe_parent.wbe_id == wbe_cte.c.parent_wbe_id,
+                wbe_parent.branch == current_wbe.branch,
+                cast(Any, wbe_parent).deleted_at.is_(None),
             )
+
+            if as_of:
+                recursive_stmt = self._apply_bitemporal_filter_for_time_travel(
+                    recursive_stmt, as_of
+                )
+            else:
+                recursive_stmt = recursive_stmt.where(
+                    func.upper(cast(Any, wbe_parent).valid_time).is_(None)
+                )
 
         wbe_cte = wbe_cte.union_all(recursive_stmt)
 

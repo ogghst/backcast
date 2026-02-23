@@ -11,6 +11,7 @@ export default defineConfig({
     },
   },
   server: {
+    host: "::",
     proxy: {
       "/api": {
         target: "http://localhost:8020",
