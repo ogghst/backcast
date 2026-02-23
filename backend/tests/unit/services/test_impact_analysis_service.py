@@ -424,7 +424,7 @@ class TestImpactAnalysisServiceRevenueImpact:
         assert len(changes) == 1
         assert changes[0].change_type == "modified"
         assert changes[0].revenue_delta == Decimal("10000.00")  # 70k - 60k
-        assert changes[0].budget_delta == Decimal("5000.00")  # 55k - 50k
+        assert changes[0].budget_delta is None  # WBE budget comes from CostElements now
 
     @pytest.mark.asyncio
     async def test_compare_wbe_revenue_delta_removed(
@@ -461,7 +461,9 @@ class TestImpactAnalysisServiceRevenueImpact:
         assert len(changes) == 1
         assert changes[0].change_type == "removed"
         assert changes[0].revenue_delta == Decimal("-40000.00")  # Lost revenue
-        assert changes[0].budget_delta == Decimal("-30000.00")  # Lost budget
+        assert changes[0].budget_delta == Decimal(
+            "0.00"
+        )  # WBE budget comes from CostElements now
 
 
 class TestImpactAnalysisServiceScheduleBaselineComparison:

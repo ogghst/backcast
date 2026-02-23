@@ -420,5 +420,19 @@
     "id": "53e16647-e9c5-4759-844c-409c8d5356c6",
     "branch": "BR-CO-2026-008",
     "parent_id": null
+  },
+  {
+    "id": "6d38c6ad-774e-42a9-9620-85ca2099607d",
+    "wbe_id": "e91f8c2b-42d2-518e-acfd-7201280f9799",
+    "code": "PRJ-DEMO-002-L1-2-L2-2-L3-1",
+    "name": "L3 WBE 1.2.2.1",
+    "budget_allocation": 50000.0,
+    "level": 3,
+    "description": "Added missing WBE",
+    "project_id": "877c4cba-b30e-54c1-b25d-c73fb364019d",
+    "parent_wbe_id": "4a4bbb14-6308-520d-b591-9ff0b4c65aad",
+    "control_date": "2026-01-01T00:00:00",
+    "branch": "main",
+    "parent_id": null
   }
 ]

@@ -1,6 +1,9 @@
 import { Segmented } from "antd";
-import { MergeCellsOutlined, SplitCellsOutlined } from "@ant-design/icons";
-import { useTimeMachineStore, type BranchMode } from "@/stores/useTimeMachineStore";
+import { BlockOutlined, ApartmentOutlined } from "@ant-design/icons";
+import {
+  useTimeMachineStore,
+  type BranchMode,
+} from "@/stores/useTimeMachineStore";
 import { useTimeMachine } from "@/contexts/TimeMachineContext";
 
 interface ViewModeSelectorProps {
@@ -34,13 +37,13 @@ export function ViewModeSelector({ compact = false }: ViewModeSelectorProps) {
   const options = [
     {
       value: "merged" as BranchMode,
-      icon: <MergeCellsOutlined />,
-      label: compact ? undefined : "Merged",
+      icon: <ApartmentOutlined />,
+      label: "Merged",
     },
     {
       value: "isolated" as BranchMode,
-      icon: <SplitCellsOutlined />,
-      label: compact ? undefined : "Isolated",
+      icon: <BlockOutlined />,
+      label: "Isolated",
     },
   ];
 

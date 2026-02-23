@@ -351,7 +351,9 @@ class DataSeeder:
                         item["branch"] = "main"
 
                     ce_in = CostElementCreate(**item)
-                    await ce_service.create_cost_element(ce_in, actor_id)
+                    await ce_service.create_cost_element(
+                        ce_in, actor_id, branch=item["branch"]
+                    )
                     created_count += 1
                     logger.info(f"Created Cost Element: {ce_in.code}")
 
@@ -396,7 +398,9 @@ class DataSeeder:
                         item["branch"] = "main"
 
                     cr_in = CostRegistrationCreate(**item)
-                    await cr_service.create_cost_registration(cr_in, actor_id)
+                    await cr_service.create_cost_registration(
+                        cr_in, actor_id, branch=item["branch"]
+                    )
                     created_count += 1
                     logger.info(f"Created Cost Registration: {cr_in.amount}")
 
@@ -443,7 +447,9 @@ class DataSeeder:
                         item["branch"] = "main"
 
                     pe_in = ProgressEntryCreate(**item)
-                    await pe_service.create(actor_id=actor_id, progress_in=pe_in)
+                    await pe_service.create(
+                        actor_id=actor_id, progress_in=pe_in, branch=item["branch"]
+                    )
                     created_count += 1
                     logger.info(f"Created Progress Entry: {pe_in.progress_percentage}%")
 

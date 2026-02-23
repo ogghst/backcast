@@ -273,64 +273,100 @@ class ImpactAnalysisService:
         # Calculate KPIs from main branch with temporal filtering
         if as_of is not None:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            main_bac_stmt = select(func.sum(WBE.budget_allocation)).where(
-                WBE.project_id == project_id,
-                WBE.branch == "main",
-                # Zombie protection: Entity visible if not deleted, or deleted AFTER as_of
-                or_(
-                    cast(Any, WBE).deleted_at.is_(None),
-                    cast(Any, WBE).deleted_at > as_of,
-                ),
-                # Time travel based on business validity
-                WBE.valid_time.op("@>")(as_of_tstz),
-                func.lower(WBE.valid_time) <= as_of_tstz,
+            main_ce_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == "main",
+                    or_(
+                        cast(Any, WBE).deleted_at.is_(None),
+                        cast(Any, WBE).deleted_at > as_of,
+                    ),
+                    WBE.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    or_(
+                        cast(Any, CostElement).deleted_at.is_(None),
+                        cast(Any, CostElement).deleted_at > as_of,
+                    ),
+                    CostElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                )
+            )
+            branch_ce_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == branch_name,
+                    or_(
+                        cast(Any, WBE).deleted_at.is_(None),
+                        cast(Any, WBE).deleted_at > as_of,
+                    ),
+                    WBE.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    or_(
+                        cast(Any, CostElement).deleted_at.is_(None),
+                        cast(Any, CostElement).deleted_at > as_of,
+                    ),
+                    CostElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                )
             )
             main_revenue_stmt = select(func.sum(WBE.revenue_allocation)).where(
                 WBE.project_id == project_id,
                 WBE.branch == "main",
-                # Zombie protection
                 or_(
                     cast(Any, WBE).deleted_at.is_(None),
                     cast(Any, WBE).deleted_at > as_of,
                 ),
-                # Time travel based on business validity
                 WBE.valid_time.op("@>")(as_of_tstz),
                 func.lower(WBE.valid_time) <= as_of_tstz,
             )
-            # MERGE MODE: Calculate KPIs from merged view (main + branch overrides)
-            # Step 1: Get all main WBEs with temporal filtering
             main_wbes_stmt = select(WBE).where(
                 WBE.project_id == project_id,
                 WBE.branch == "main",
-                # Zombie protection
                 or_(
                     cast(Any, WBE).deleted_at.is_(None),
                     cast(Any, WBE).deleted_at > as_of,
                 ),
-                # Time travel based on business validity
                 WBE.valid_time.op("@>")(as_of_tstz),
                 func.lower(WBE.valid_time) <= as_of_tstz,
             )
-            # Step 2: Get branch WBEs (overrides) with temporal filtering
             branch_wbes_stmt = select(WBE).where(
                 WBE.project_id == project_id,
                 WBE.branch == branch_name,
-                # Zombie protection
                 or_(
                     cast(Any, WBE).deleted_at.is_(None),
                     cast(Any, WBE).deleted_at > as_of,
                 ),
-                # Time travel based on business validity
                 WBE.valid_time.op("@>")(as_of_tstz),
                 func.lower(WBE.valid_time) <= as_of_tstz,
             )
         else:
-            # Current version query
-            main_bac_stmt = select(func.sum(WBE.budget_allocation)).where(
-                WBE.project_id == project_id,
-                WBE.branch == "main",
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
+            main_ce_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == "main",
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None),
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                )
+            )
+            branch_ce_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == branch_name,
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None),
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                )
             )
             main_revenue_stmt = select(func.sum(WBE.revenue_allocation)).where(
                 WBE.project_id == project_id,
@@ -338,23 +374,31 @@ class ImpactAnalysisService:
                 func.upper(cast(Any, WBE).valid_time).is_(None),
                 cast(Any, WBE).deleted_at.is_(None),
             )
-            # MERGE MODE: Calculate KPIs from merged view (main + branch overrides)
-            # Step 1: Get all main WBEs
             main_wbes_stmt = select(WBE).where(
                 WBE.project_id == project_id,
                 WBE.branch == "main",
                 func.upper(cast(Any, WBE).valid_time).is_(None),
                 cast(Any, WBE).deleted_at.is_(None),
             )
-            # Step 2: Get branch WBEs (overrides)
             branch_wbes_stmt = select(WBE).where(
                 WBE.project_id == project_id,
                 WBE.branch == branch_name,
                 func.upper(cast(Any, WBE).valid_time).is_(None),
                 cast(Any, WBE).deleted_at.is_(None),
             )
-        main_bac_result = await self._db.execute(main_bac_stmt)
-        main_bac = main_bac_result.scalar() or Decimal("0")
+
+        # Execute CE queries for BAC calculation
+        main_ces_result = await self._db.execute(main_ce_stmt)
+        main_ces = {ce.cost_element_id: ce for ce in main_ces_result.scalars().all()}
+
+        branch_ces_result = await self._db.execute(branch_ce_stmt)
+        branch_ces = {
+            ce.cost_element_id: ce for ce in branch_ces_result.scalars().all()
+        }
+
+        main_bac = sum(
+            (ce.budget_amount or Decimal("0") for ce in main_ces.values()), Decimal("0")
+        )
 
         # Calculate revenue from main branch
         main_revenue_result = await self._db.execute(main_revenue_stmt)
@@ -371,21 +415,27 @@ class ImpactAnalysisService:
         merged_bac = Decimal("0")
         merged_revenue = Decimal("0")
 
-        # Include all main WBEs, using branch override if exists
+        # Include all main CEs, using branch override if exists
+        for ce_id, main_ce in main_ces.items():
+            if ce_id in branch_ces:
+                merged_bac += branch_ces[ce_id].budget_amount or Decimal("0")
+            else:
+                merged_bac += main_ce.budget_amount or Decimal("0")
+
+        # Include CEs that exist only on branch
+        for ce_id, branch_ce in branch_ces.items():
+            if ce_id not in main_ces:
+                merged_bac += branch_ce.budget_amount or Decimal("0")
+
+        # Calculate merged revenue from WBEs
         for wbe_id, main_wbe in main_wbes.items():
             if wbe_id in branch_wbes:
-                # Use branch version (override)
-                merged_bac += branch_wbes[wbe_id].budget_allocation or Decimal("0")
                 merged_revenue += branch_wbes[wbe_id].revenue_allocation or Decimal("0")
             else:
-                # Use main version (no override)
-                merged_bac += main_wbe.budget_allocation or Decimal("0")
                 merged_revenue += main_wbe.revenue_allocation or Decimal("0")
 
-        # Include WBEs that exist only on branch (new entities)
         for wbe_id, branch_wbe in branch_wbes.items():
             if wbe_id not in main_wbes:
-                merged_bac += branch_wbe.budget_allocation or Decimal("0")
                 merged_revenue += branch_wbe.revenue_allocation or Decimal("0")
 
         change_bac = merged_bac
@@ -684,8 +734,7 @@ class ImpactAnalysisService:
             if wbe_id not in main_wbe_map:
                 merged_wbes.append(branch_wbe)
 
-        # Compare WBEs: main vs merged view
-        wbe_changes = self._compare_wbe_lists(main_wbes, merged_wbes)
+        # We will compare WBEs after gathering Cost Elements so we can aggregate budgets.
 
         # Get current Cost Elements from main branch
         main_ce_stmt = (
@@ -735,6 +784,20 @@ class ImpactAnalysisService:
         # Compare Cost Elements: main vs merged view
         ce_changes = self._compare_cost_element_lists(
             main_cost_elements, merged_cost_elements
+        )
+
+        # Aggregate Cost Element budgets by WBE root ID
+        main_wbe_budgets: dict[UUID, Decimal] = defaultdict(Decimal)
+        for ce in main_cost_elements:
+            main_wbe_budgets[ce.wbe_id] += ce.budget_amount or Decimal("0")
+
+        merged_wbe_budgets: dict[UUID, Decimal] = defaultdict(Decimal)
+        for ce in merged_cost_elements:
+            merged_wbe_budgets[ce.wbe_id] += ce.budget_amount or Decimal("0")
+
+        # Compare WBEs: main vs merged view using aggregated Cost Element budgets
+        wbe_changes = self._compare_wbe_lists(
+            main_wbes, merged_wbes, main_wbe_budgets, merged_wbe_budgets
         )
 
         # Compare Cost Registrations (actual costs)
@@ -974,6 +1037,8 @@ class ImpactAnalysisService:
         self,
         main_wbes: list[WBE],
         change_wbes: list[WBE],
+        main_budgets: dict[UUID, Decimal] | None = None,
+        change_budgets: dict[UUID, Decimal] | None = None,
         cost_deltas: dict[UUID, Decimal] | None = None,
     ) -> list[EntityChange]:
         """Compare two lists of WBEs and identify changes.
@@ -981,6 +1046,8 @@ class ImpactAnalysisService:
         Args:
             main_wbes: WBEs from main branch
             change_wbes: WBEs from change branch (merged view)
+            main_budgets: Optional map of wbe_id -> aggregated cost element budget (main)
+            change_budgets: Optional map of wbe_id -> aggregated cost element budget (merged)
             cost_deltas: Optional map of wbe_id -> aggregated cost delta
 
         Returns:
@@ -993,6 +1060,8 @@ class ImpactAnalysisService:
         changes: list[EntityChange] = []
         all_root_ids = set(main_wbe_map.keys()) | set(change_wbe_map.keys())
         cost_deltas = cost_deltas or {}
+        main_budgets = main_budgets or {}
+        change_budgets = change_budgets or {}
 
         for root_id in all_root_ids:
             main_wbe = main_wbe_map.get(root_id)
@@ -1011,7 +1080,7 @@ class ImpactAnalysisService:
                         id=int(root_id.int >> 96),  # Simplified ID conversion
                         name=change_wbe.name,
                         change_type="added",
-                        budget_delta=change_wbe.budget_allocation,
+                        budget_delta=change_budgets.get(root_id, Decimal("0")),
                         revenue_delta=change_wbe.revenue_allocation,
                         cost_delta=cost_delta,
                     )
@@ -1024,14 +1093,18 @@ class ImpactAnalysisService:
                         id=int(root_id.int >> 96),
                         name=main_wbe.name,
                         change_type="removed",
-                        budget_delta=-main_wbe.budget_allocation,  # Negative impact
+                        budget_delta=-main_budgets.get(
+                            root_id, Decimal("0")
+                        ),  # Negative impact
                         revenue_delta=-main_revenue,  # Negative revenue impact
                         cost_delta=cost_delta,
                     )
                 )
             else:
                 # Exists in both - check for modifications
-                budget_delta = change_wbe.budget_allocation - main_wbe.budget_allocation
+                budget_delta = change_budgets.get(
+                    root_id, Decimal("0")
+                ) - main_budgets.get(root_id, Decimal("0"))
                 main_revenue = main_wbe.revenue_allocation or Decimal("0")
                 change_revenue = change_wbe.revenue_allocation or Decimal("0")
                 revenue_delta = change_revenue - main_revenue
@@ -1630,8 +1703,8 @@ class ImpactAnalysisService:
             # ------------------------------------------------------------
             # Calculate main branch metrics
             # ------------------------------------------------------------
-            for schedule, ce, wbe in valid_main_schedules:
-                budget = wbe.budget_allocation or Decimal("0")
+            for schedule, ce, _wbe in valid_main_schedules:
+                budget = ce.budget_amount or Decimal("0")
                 if not (schedule.start_date and schedule.end_date):
                     continue
 
@@ -1669,8 +1742,8 @@ class ImpactAnalysisService:
             # ------------------------------------------------------------
             # Calculate change branch metrics
             # ------------------------------------------------------------
-            for schedule, ce, wbe in valid_change_schedules:
-                budget = wbe.budget_allocation or Decimal("0")
+            for schedule, ce, _wbe in valid_change_schedules:
+                budget = ce.budget_amount or Decimal("0")
                 if not (schedule.start_date and schedule.end_date):
                     continue
 
@@ -1709,7 +1782,7 @@ class ImpactAnalysisService:
             # ------------------------------------------------------------
             for schedule, ce, wbe in valid_main_schedules:
                 if wbe.wbe_id in only_in_main:
-                    budget = wbe.budget_allocation or Decimal("0")
+                    budget = ce.budget_amount or Decimal("0")
                     if not (schedule.start_date and schedule.end_date):
                         continue
 
@@ -1808,50 +1881,129 @@ class ImpactAnalysisService:
         # Get total budget from main branch
         if as_of is not None:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            main_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
-                WBE.project_id == project_id,
-                WBE.branch == "main",
-                # ZOMBIE PROTECTION: Entity visible if not deleted, or deleted AFTER as_of
-                or_(
-                    cast(Any, WBE).deleted_at.is_(None),
-                    cast(Any, WBE).deleted_at > as_of,
-                ),
-                WBE.valid_time.op("@>")(as_of_tstz),
-                func.lower(WBE.valid_time) <= as_of_tstz,
+            main_budget_stmt = (
+                select(func.sum(CostElement.budget_amount))
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == "main",
+                    or_(
+                        cast(Any, WBE).deleted_at.is_(None),
+                        cast(Any, WBE).deleted_at > as_of,
+                    ),
+                    WBE.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    or_(
+                        cast(Any, CostElement).deleted_at.is_(None),
+                        cast(Any, CostElement).deleted_at > as_of,
+                    ),
+                    CostElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                )
             )
         else:
-            main_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
-                WBE.project_id == project_id,
-                WBE.branch == "main",
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
+            main_budget_stmt = (
+                select(func.sum(CostElement.budget_amount))
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == "main",
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None),
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                )
             )
         main_budget_result = await self._db.execute(main_budget_stmt)
         main_total = main_budget_result.scalar() or Decimal("0")
 
-        # Get total budget from change branch
+        # Get total budget from change branch (merged view)
         if as_of is not None:
-            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            change_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
-                WBE.project_id == project_id,
-                WBE.branch == branch_name,
-                # ZOMBIE PROTECTION: Entity visible if not deleted, or deleted AFTER as_of
-                or_(
-                    cast(Any, WBE).deleted_at.is_(None),
-                    cast(Any, WBE).deleted_at > as_of,
-                ),
-                WBE.valid_time.op("@>")(as_of_tstz),
-                func.lower(WBE.valid_time) <= as_of_tstz,
+            main_ces_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == "main",
+                    or_(
+                        cast(Any, WBE).deleted_at.is_(None),
+                        cast(Any, WBE).deleted_at > as_of,
+                    ),
+                    WBE.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    or_(
+                        cast(Any, CostElement).deleted_at.is_(None),
+                        cast(Any, CostElement).deleted_at > as_of,
+                    ),
+                    CostElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                )
+            )
+            branch_ces_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == branch_name,
+                    or_(
+                        cast(Any, WBE).deleted_at.is_(None),
+                        cast(Any, WBE).deleted_at > as_of,
+                    ),
+                    WBE.valid_time.op("@>")(as_of_tstz),
+                    func.lower(WBE.valid_time) <= as_of_tstz,
+                    or_(
+                        cast(Any, CostElement).deleted_at.is_(None),
+                        cast(Any, CostElement).deleted_at > as_of,
+                    ),
+                    CostElement.valid_time.op("@>")(as_of_tstz),
+                    func.lower(CostElement.valid_time) <= as_of_tstz,
+                )
             )
         else:
-            change_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
-                WBE.project_id == project_id,
-                WBE.branch == branch_name,
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
+            main_ces_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == "main",
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None),
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                )
             )
-        change_budget_result = await self._db.execute(change_budget_stmt)
-        change_total = change_budget_result.scalar() or Decimal("0")
+            branch_ces_stmt = (
+                select(CostElement)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.branch == branch_name,
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None),
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                )
+            )
+
+        main_ces_result = await self._db.execute(main_ces_stmt)
+        main_ces = {ce.cost_element_id: ce for ce in main_ces_result.scalars().all()}
+        branch_ces_result = await self._db.execute(branch_ces_stmt)
+        branch_ces = {
+            ce.cost_element_id: ce for ce in branch_ces_result.scalars().all()
+        }
+
+        merged_total = Decimal("0")
+        for ce_id, main_ce in main_ces.items():
+            if ce_id in branch_ces:
+                merged_total += branch_ces[ce_id].budget_amount or Decimal("0")
+            else:
+                merged_total += main_ce.budget_amount or Decimal("0")
+
+        for ce_id, branch_ce in branch_ces.items():
+            if ce_id not in main_ces:
+                merged_total += branch_ce.budget_amount or Decimal("0")
+
+        change_total = merged_total
 
         # Return as a single time point (current week)
         current_week_start = datetime.now(UTC).date()

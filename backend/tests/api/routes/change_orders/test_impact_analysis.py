@@ -178,12 +178,16 @@ async def test_get_impact_success(
     assert "budget_delta" in kpi
     assert "gross_margin" in kpi
 
-    # MERGE MODE: Main branch has budget (sum of 3 WBEs: 450000)
-    # Branch has no overrides, so merged view = main (450000)
+    # MERGE MODE: Main branch has budget (sum of WBEs used to be 450000, now it comes from Cost Elements)
+    # Since no Cost Elements are seeded, the BAC must be 0
     # Therefore change_value = main_value and delta = 0
-    assert kpi["bac"]["main_value"] == "450000.00"
-    assert kpi["bac"]["change_value"] == "450000.00"  # Merged = main (no overrides)
-    assert kpi["bac"]["delta"] == "0.00"  # No delta when merged = main
+    from decimal import Decimal
+
+    assert Decimal(kpi["bac"]["main_value"]) == Decimal("0")
+    assert Decimal(kpi["bac"]["change_value"]) == Decimal(
+        "0"
+    )  # Merged = main (no overrides)
+    assert Decimal(kpi["bac"]["delta"]) == Decimal("0")  # No delta when merged = main
 
     # Verify entity changes
     # MERGE MODE: Since branch has no entity overrides, merged = main

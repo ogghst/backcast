@@ -1,6 +1,16 @@
-import { Select, Badge, Space } from "antd";
-import { BranchesOutlined } from "@ant-design/icons";
+import { Select, Space } from "antd";
+import {
+  BranchesOutlined,
+  EditOutlined,
+  SendOutlined,
+  SearchOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  PlayCircleOutlined,
+  StopOutlined,
+} from "@ant-design/icons";
 import type { BranchOption } from "./types";
+import React from "react";
 
 interface BranchSelectorProps {
   /** Currently selected branch */
@@ -15,15 +25,15 @@ interface BranchSelectorProps {
   compact?: boolean;
 }
 
-// Status dot colors for change order branches
-const STATUS_DOT_COLOR: Record<string, string> = {
-  Draft: "#faad14", // Amber
-  Submitted: "#1890ff", // Blue
-  "Under Review": "#52c41a", // Green
-  Approved: "#52c41a", // Green
-  Rejected: "#ff4d4f", // Red
-  Implemented: "#722ed1", // Purple
-  Closed: "#8c8c8c", // Gray
+// Map status to Ant Design Icon
+const STATUS_ICON: Record<string, React.ReactNode> = {
+  Draft: <EditOutlined style={{ color: "#faad14" }} />, // Amber
+  Submitted: <SendOutlined style={{ color: "#1890ff" }} />, // Blue
+  "Under Review": <SearchOutlined style={{ color: "#52c41a" }} />, // Green
+  Approved: <CheckCircleOutlined style={{ color: "#52c41a" }} />, // Green
+  Rejected: <CloseCircleOutlined style={{ color: "#ff4d4f" }} />, // Red
+  Implemented: <PlayCircleOutlined style={{ color: "#722ed1" }} />, // Purple
+  Closed: <StopOutlined style={{ color: "#8c8c8c" }} />, // Gray
 };
 
 /**
@@ -63,14 +73,14 @@ export function BranchSelector({
         label: (
           <Space size="small">
             {branch.isChangeOrderBranch ? (
-              <Badge
-                color={STATUS_DOT_COLOR[branch.changeOrderStatus || "Draft"]}
-                text={
-                  <span style={{ fontSize: compact ? 12 : 13 }}>
-                    {branch.label}
-                  </span>
-                }
-              />
+              <Space size="small" align="center">
+                {STATUS_ICON[branch.changeOrderStatus || "Draft"] || (
+                  <EditOutlined style={{ color: "#faad14" }} />
+                )}
+                <span style={{ fontSize: compact ? 12 : 13 }}>
+                  {branch.label}
+                </span>
+              </Space>
             ) : (
               <span style={{ fontSize: compact ? 12 : 13 }}>
                 {branch.label}
