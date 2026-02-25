@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-02-21
-**Total Debt Items:** 24 (24 completed)
-**Total Estimated Effort:** 109 hours
+**Last Updated:** 2026-02-25
+**Total Debt Items:** 32 (24 completed)
+**Total Estimated Effort:** 125 hours
 **Completed Effort:** 30.25 hours
 
 ---
@@ -505,6 +505,166 @@
   - [ ] Clean up `tests/` directory errors
   - [ ] Fix `generate_openapi.py` duplicate module issue
   - [ ] Update CI to fail on new MyPy regressions in `app/`
+
+#### [TD-082] Missing Archive Action for Rejected Change Orders
+
+- **Source:** Change Order Workflow UI Test (2026-02-25)
+- **Description:** The Change Order workflow documented in `docs/01-product-scope/change-management-user-stories.md` specifies a `Rejected → Archived` transition, but the UI only shows a "Submit" action from Rejected state. There is no "Archive" button to finalize a rejected change order.
+- **Impact:** Incomplete workflow implementation; rejected change orders cannot be properly archived, leading to potential confusion about their final state
+- **Estimated Effort:** 2 hours
+- **Target Date:** 2026-03-15
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Priority:** Medium
+- **Risk:** Incomplete workflow, user confusion, audit trail gaps
+- **Solution:** Add "Archive" action button to the Workflow tab when change order is in Rejected state
+- **Affected Files:**
+  - `frontend/src/features/change-orders/components/ChangeOrderWorkflow.tsx` (or equivalent)
+  - Backend API may need `/archive` endpoint if not already implemented
+- **Documentation Reference:** [Change Management User Stories](../../01-product-scope/change-management-user-stories.md) - Section 4: Change Workflow & Transitions
+- **Expected Workflow:**
+  ```
+  Rejected → Archive → Archived (Terminal State)
+  Rejected → Reopen → Draft (for rework)
+  ```
+- **Current UI Behavior:**
+  - Rejected state shows only "Submit" action (goes to Submitted for Approval)
+  - Missing: "Archive" action to finalize rejection
+  - Missing: "Reopen" action to return to Draft state
+- **Action Items:**
+  - [ ] Verify backend has `/archive` endpoint for change orders
+  - [ ] Add "Archive" button to Workflow tab for Rejected state
+  - [ ] Consider adding "Reopen" button for Rejected → Draft transition
+  - [ ] Update tests to verify complete workflow transitions
+  - [ ] Update user documentation if needed
+- **Test Evidence:** Playwright MCP UI test conducted 2026-02-25
+
+#### [TD-083] Missing Reopen Action for Rejected Change Orders
+
+- **Source:** Change Order Workflow UI Test (2026-02-25)
+- **Description:** Documentation specifies `Rejected → Draft (Reopen)` transition, but UI only shows "Submit" action which goes to "Submitted for Approval" state, not Draft. This prevents users from making modifications before resubmitting.
+- **Impact:** Users cannot return a rejected change order to Draft state for modifications; must resubmit directly without ability to edit
+- **Estimated Effort:** 1 hour
+- **Target Date:** 2026-03-15
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Priority:** Medium
+- **Risk:** Poor UX, workflow doesn't match documented behavior
+- **Solution:** Add "Reopen" action button that transitions from Rejected → Draft state
+- **Affected Files:**
+  - `frontend/src/features/change-orders/components/ChangeOrderWorkflow.tsx` (or equivalent)
+  - Backend may need to support Draft status transition from Rejected
+- **Documentation Reference:** [Change Management User Stories](../../01-product-scope/change-management-user-stories.md) - Section 4
+- **Expected Behavior:** Rejected → Reopen → Draft (allows editing before resubmission)
+- **Current Behavior:** Rejected → Submit → Submitted for Approval (skips Draft editing phase)
+- **Action Items:**
+  - [ ] Verify backend allows Rejected → Draft transition
+  - [ ] Add "Reopen" button to Workflow tab for Rejected state
+  - [ ] Ensure branch is unlocked when returning to Draft
+  - [ ] Update tests for complete workflow transitions
+- **Test Evidence:** Playwright MCP UI test conducted 2026-02-25
+
+#### [TD-084] Ant Design Deprecation Warnings
+
+- **Source:** Change Order Workflow UI Test (2026-02-25)
+- **Description:** Multiple Ant Design component deprecation warnings appearing in browser console during UI testing. These indicate use of deprecated props that will be removed in future Ant Design versions.
+- **Impact:** Future breaking changes when upgrading Ant Design; noisy console output; potential for missed real errors
+- **Estimated Effort:** 2 hours
+- **Target Date:** 2026-03-31
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Priority:** Low
+- **Risk:** Breaking changes in future Ant Design upgrades
+- **Deprecation Warnings Detected:**
+  - `[antd: Table] pagination.position → pagination.placement`
+  - `[antd: Modal] destroyOnClose → destroyOnHidden`
+  - `[antd: Input] addonAfter → Space.Compact`
+  - `[antd: Descriptions] labelStyle → styles.label`
+  - `[antd: Card] bordered → variant`
+  - `[antd: Space] direction → orientation`
+  - `[antd: Alert] message → title`
+- **Affected Components:**
+  - `frontend/src/features/projects/components/ProjectList.tsx`
+  - `frontend/src/features/change-orders/components/` (various)
+  - Other components using deprecated Ant Design props
+- **Solution:** Update components to use new Ant Design prop names
+- **Action Items:**
+  - [ ] Audit all components for deprecated Ant Design props
+  - [ ] Update to new prop names incrementally
+  - [ ] Add ESLint rule to detect deprecated props (if available)
+  - [ ] Update coding standards to reference current Ant Design API
+- **Test Evidence:** Browser console output from Playwright MCP UI test (2026-02-25)
+
+#### [TD-085] React Duplicate Key Warnings in Cost Elements Table
+
+- **Source:** Frontend Verification Test (2026-02-25)
+- **Description:** Browser console shows multiple "Encountered two children with the same key" warnings when viewing Cost Elements tables. The same cost element codes (e.g., PRJ-DEMO-001-L1-1-CE-1, PRJ-DEMO-001-L1-1-CE-2) appear multiple times in the list, causing React key conflicts.
+- **Impact:** React rendering issues, potential performance degradation, harder to debug real errors, confusing UI with duplicate rows
+- **Estimated Effort:** 3 hours
+- **Target Date:** 2026-03-15
+- **Status:** 🔴 Open
+- **Owner:** Frontend Developer
+- **Priority:** Medium
+- **Risk:** UI rendering bugs, poor user experience, performance issues
+- **Evidence from Testing:**
+  - Console warnings: "Warning: Encountered two children with the same key" (18+ occurrences)
+  - Cost Elements table shows duplicate rows for same cost element codes
+  - Occurs at WBE detail level when viewing cost elements
+- **Root Cause Hypothesis:**
+  - Cost elements may be returned multiple times from API (temporal versioning issue?)
+  - Frontend may not be filtering unique cost elements correctly
+  - Key generation may use cost element code instead of unique ID
+- **Affected Files:**
+  - `frontend/src/features/cost-elements/components/CostElementList.tsx`
+  - `frontend/src/features/wbes/components/WBEDetail.tsx`
+  - Backend API endpoint for cost elements by WBE
+- **Solution Options:**
+  1. Fix backend query to return unique cost elements per branch/time
+  2. Add frontend deduplication logic
+  3. Use cost element UUID as React key instead of code
+- **Action Items:**
+  - [ ] Investigate API response for cost elements - check for duplicates
+  - [ ] Verify cost element query uses correct branch/temporal filters
+  - [ ] Update React key to use unique ID (UUID) instead of code
+  - [ ] Add frontend deduplication if backend issue cannot be fixed immediately
+  - [ ] Add tests to catch duplicate key warnings
+- **Test Evidence:** Playwright MCP UI test conducted 2026-02-25
+
+#### [TD-086] Budget-Status API Network Errors
+
+- **Source:** Frontend Verification Test (2026-02-25)
+- **Description:** Network errors appear in browser notifications when viewing Cost Element detail pages. The budget-status endpoint returns CORS errors or 404s, causing "Network Error" notifications to appear.
+- **Impact:** Poor user experience with error notifications; budget status data unavailable; noisy error output
+- **Estimated Effort:** 2 hours
+- **Target Date:** 2026-03-08
+- **Status:** 🔴 Open
+- **Owner:** Full Stack Developer
+- **Priority:** Medium
+- **Risk:** Missing budget status functionality, user confusion from error messages
+- **Evidence from Testing:**
+  - Console errors: `Access to XMLHttpRequest at 'http://192.16.../cost-elements/{id}/budget-status' - net::ERR_FAILED`
+  - Notification toasts: "Network Error" appear at top of page
+  - Occurs when navigating to Cost Element detail page
+- **Root Cause Hypothesis:**
+  - Endpoint may not exist on backend (404)
+  - CORS configuration may be blocking the request
+  - API URL may be incorrectly configured (192.16.x.x address)
+- **Affected Files:**
+  - Backend: Budget status API endpoint
+  - `frontend/src/api/` - API client configuration
+  - `frontend/src/features/cost-elements/components/CostElementDetail.tsx`
+- **Solution:**
+  1. Verify budget-status endpoint exists on backend
+  2. Check CORS configuration for the endpoint
+  3. Verify API client is using correct base URL
+  4. Add proper error handling to suppress expected errors
+- **Action Items:**
+  - [ ] Check if `/api/v1/cost-elements/{id}/budget-status` endpoint exists
+  - [ ] Verify CORS configuration allows the request
+  - [ ] Check API client base URL configuration
+  - [ ] Add error boundary or try-catch for budget-status calls
+  - [ ] Consider removing budget-status call if feature not implemented
+- **Test Evidence:** Playwright MCP UI test conducted 2026-02-25
 
 ---
 
