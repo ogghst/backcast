@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-02-21
-**Total Debt Items:** 24 (24 completed)
-**Total Estimated Effort:** 109 hours
+**Last Updated:** 2026-02-24
+**Total Debt Items:** 25 (24 completed)
+**Total Estimated Effort:** 125 hours
 **Completed Effort:** 30.25 hours
 
 ---
@@ -389,6 +389,25 @@
   - [ ] Update imports to use barrel exports
   - [ ] Document barrel export patterns in coding standards
 - **Documentation:** [REACT_BEST_PRACTICES_REVIEW.md](../../frontend/REACT_BEST_PRACTICES_REVIEW.md)
+
+---
+
+#### [TD-082] Missing Automated E2E Tests for WBE EVM Integration
+
+- **Source:** WBE EVM Summary CHECK/ACT phase (2026-02-24)
+- **Description:** WBE EVM Analysis Tab renders complex charts (EVM Time Series) and collapsible content that currently rely purely on manual UI testing verifications to guarantee functionality alongside temporal and branch-specific contexts.
+- **Impact:** Future changes to Time Machine or EVM chart components risk silently breaking WBE-specific contexts without automated testing checks.
+- **Estimated Effort:** 2 days (16 hours)
+- **Target Date:** TBD
+- **Status:** 🔴 Open
+- **Owner:** QA / Frontend Developer
+- **Priority:** Medium
+- **Risk:** Silent UI regressions for EVM metric visualizations in sub-contexts
+- **Solution:** Configure a robust Playwright E2E pipeline targeting specifically the WBE details `Tabs` rendering under different Temporal/Branch data conditions with mocked EVM payloads.
+- **Action Items:**
+  - [ ] Initialize Cypress or Playwright framework matching existing mockServiceWorker definitions
+  - [ ] Mock generic useEVMMetrics hook returns
+  - [ ] Write targeted integration/e2e tests for dynamic view updates when contexts switch
 
 ---
 

@@ -4760,6 +4760,79 @@
         }
       }
     },
+    "/api/v1/change-orders/next-code": {
+      "get": {
+        "tags": [
+          "Change Orders"
+        ],
+        "summary": "Get Next Change Order Code",
+        "description": "Get the next available change order code.\n\nReturns the next sequential code in format CO-YYYY-NNN.\nCodes are scoped to the project and year.\n\nRequires read permission.",
+        "operationId": "get_next_change_order_code",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Project ID to scope the code",
+              "title": "Project Id"
+            },
+            "description": "Project ID to scope the code"
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Year for the code (defaults to current year)",
+              "title": "Year"
+            },
+            "description": "Year for the code (defaults to current year)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Get Next Change Order Code"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/change-orders/{change_order_id}": {
       "get": {
         "tags": [
@@ -4999,6 +5072,59 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChangeOrderPublic"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/change-orders/{change_order_id}/archive": {
+      "post": {
+        "tags": [
+          "Change Orders"
+        ],
+        "summary": "Archive Change Order",
+        "description": "Archive a Change Order branch.\n\nOnly allows archiving of \"Implemented\" or \"Rejected\" Change Orders.\nThe branch will be soft-deleted, making it hidden from active queries\nbut still available in history.",
+        "operationId": "archive_change_order",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "change_order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Change Order Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Archive Change Order"
                 }
               }
             }
@@ -5685,6 +5811,25 @@
               "title": "Branch"
             },
             "description": "Branch name"
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time travel: get approval info as of this timestamp (ISO 8601)",
+              "title": "As Of"
+            },
+            "description": "Time travel: get approval info as of this timestamp (ISO 8601)"
           }
         ],
         "responses": {

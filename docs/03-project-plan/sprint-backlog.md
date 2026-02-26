@@ -14,9 +14,9 @@ TBD
 
 ## Stories in Scope
 
-| Story                                 | Points | Priority | Status    | Dependencies |
-| :------------------------------------ | :----- | :------- | :-------- | :----------- |
-| **[E06-U08] Delete/Archive Branches** | 3      | Critical | ⏸️ Paused | E06-U05      |
+| Story                                                | Points | Priority | Status      | Dependencies |
+| :--------------------------------------------------- | :----- | :------- | :---------- | :----------- |
+| **[E06-U08] Delete/Archive Branches UI Integration** | 2      | Critical | 🏗️ Planning | None         |
 
 ---
 
@@ -29,7 +29,13 @@ TBD
 ## Iteration Records
 
 ### Recent Completed Iterations
-n- **Fix Branchable Entity Parent Lookup Duplication (2026-02-23):** ✅ Complete
+
+- **WBE EVM Summary Tab Implementation (2026-02-24):** ✅ Complete
+  - Implemented generic EVM tab using existing `EVMSummaryView`
+  - Refactored WBEDetailPage into Tabs (`Overview` & `EVM Analysis`)
+  - Supported dynamic fetching of metrics and Time Series projections via `useEVMMetrics`
+
+- **Fix Branchable Entity Parent Lookup Duplication (2026-02-23):** ✅ Complete
   - Fixed duplicate Cost Elements showing up in the WBE details page.
   - Added `.distinct(WBEAlias.wbe_id)` to parent WBE subqueries to avoid duplicating rows across branches.
 

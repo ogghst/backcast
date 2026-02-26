@@ -1018,9 +1018,25 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                 f"to approve this change order with impact level {co.impact_level}."
             )
 
-        # Verify the assigned approver is the one approving
-        if co.assigned_approver_id != approver_id:
+        # Verify the assigned approver is the one approving or has override permission
+        from app.core.rbac import get_rbac_service
+
+        rbac = get_rbac_service()
+        has_override = rbac.has_permission(
+            approver.role, "change-order-override-approver"
+        )
+
+        debug_msg = (
+            f"[RBAC DEBUG] Approver: {approver.email}, Role: '{approver.role}', "
+            f"Override: {has_override}, Assigned: {co.assigned_approver_id}, "
+            f"Current: {approver_id}"
+        )
+        print(debug_msg)
+        logger.error(debug_msg)
+
+        if co.assigned_approver_id != approver_id and not has_override:
             raise ValueError(
+                f"{debug_msg}. "
                 f"This change order is assigned to approver {co.assigned_approver_id}. "
                 f"User {approver_id} is not authorized to approve it."
             )

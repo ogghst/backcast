@@ -425,6 +425,35 @@ async def delete_change_order(
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
+@router.post(
+    "/{change_order_id}/archive",
+    operation_id="archive_change_order",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-update"))],
+)
+async def archive_change_order(
+    change_order_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    service: ChangeOrderService = Depends(get_change_order_service),
+) -> dict[str, str]:
+    """Archive a Change Order branch.
+
+    Only allows archiving of "Implemented" or "Rejected" Change Orders.
+    The branch will be soft-deleted, making it hidden from active queries
+    but still available in history.
+    """
+    try:
+        await service.archive_change_order_branch(
+            change_order_id=change_order_id,
+            actor_id=current_user.user_id,
+        )
+        return {"detail": "Branch archived successfully"}
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+
 @router.get(
     "/{change_order_id}/history",
     response_model=list[ChangeOrderPublic],

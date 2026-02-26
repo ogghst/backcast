@@ -38,6 +38,7 @@
         "change-order-approve",
         "change-order-implement",
         "change-order-recover",
+        "change-order-override-approver",
         "forecast-read",
         "forecast-create",
         "forecast-update",

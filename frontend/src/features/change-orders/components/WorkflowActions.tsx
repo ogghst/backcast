@@ -6,8 +6,10 @@ import {
   MergeOutlined,
   ExclamationCircleOutlined,
   LockOutlined,
+  InboxOutlined,
 } from "@ant-design/icons";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { ChangeOrderPublic } from "@/api/generated";
 import { useAuthStore } from "@/stores/useAuthStore";
 import {
@@ -15,8 +17,17 @@ import {
   MergeConfirmationContent,
   MergeConflictsList,
 } from ".";
-import { useWorkflowActions, isActionAvailable, WORKFLOW_ACTIONS } from "../hooks/useWorkflowActions";
-import { useSubmitForApproval, useApproveChangeOrder, useRejectChangeOrder } from "../api/useApprovals";
+import {
+  useWorkflowActions,
+  isActionAvailable,
+  WORKFLOW_ACTIONS,
+} from "../hooks/useWorkflowActions";
+import {
+  useSubmitForApproval,
+  useApproveChangeOrder,
+  useRejectChangeOrder,
+} from "../api/useApprovals";
+import { useArchiveChangeOrder } from "../api/useArchiveChangeOrder";
 import { useCanApprove } from "../api/useCanApprove";
 import type { MergeConflict } from "../api/useChangeOrders";
 
@@ -50,18 +61,27 @@ export function WorkflowActions({
   mode = "all",
 }: WorkflowActionsProps) {
   const user = useAuthStore((state) => state.user);
-  const { canApprove, authorityLevel, isLoading: checkingAuthority, reason } = useCanApprove(changeOrder);
+  const {
+    canApprove,
+    authorityLevel,
+    isLoading: checkingAuthority,
+    reason,
+  } = useCanApprove(changeOrder);
 
   // Legacy workflow actions (for merge, non-approval transitions)
-  const { merge, isLoading: isLoadingLegacy } = useWorkflowActions(changeOrder.change_order_id);
+  const { merge, isLoading: isLoadingLegacy } = useWorkflowActions(
+    changeOrder.change_order_id,
+  );
 
   // New approval mutations
   const submitMutation = useSubmitForApproval();
   const approveMutation = useApproveChangeOrder();
   const rejectMutation = useRejectChangeOrder();
+  const archiveMutation = useArchiveChangeOrder();
+  const navigate = useNavigate();
 
   const [confirmModal, setConfirmModal] = useState<{
-    type: "submit" | "approve" | "reject" | "merge";
+    type: "submit" | "approve" | "reject" | "merge" | "archive";
     visible: boolean;
   }>({ type: "submit", visible: false });
 
@@ -79,17 +99,20 @@ export function WorkflowActions({
   // Determine if approve/reject should be shown
   // Show when status is Submitted for Approval or Under Review, and user has authority
   const canShowApproveReject =
-    (changeOrder.status === "Submitted for Approval" || changeOrder.status === "Under Review") &&
+    (changeOrder.status === "Submitted for Approval" ||
+      changeOrder.status === "Under Review") &&
     canApprove;
 
   // Determine if submit should be shown
   // Only show when status is Draft and user is the creator
-  const canShowSubmit = changeOrder.status === "Draft" && isCreator && canSubmit;
+  const canShowSubmit =
+    changeOrder.status === "Draft" && isCreator && canSubmit;
 
   const isLoading =
     submitMutation.isPending ||
     approveMutation.isPending ||
     rejectMutation.isPending ||
+    archiveMutation.isPending ||
     isLoadingLegacy ||
     checkingAuthority;
 
@@ -125,8 +148,14 @@ export function WorkflowActions({
     }
   };
 
+  const handleArchive = () => {
+    setConfirmModal({ type: "archive", visible: true });
+  };
+
   const confirmSubmit = async () => {
-    await handleAction(() => submitMutation.mutateAsync({ id: changeOrder.change_order_id, comment }));
+    await handleAction(() =>
+      submitMutation.mutateAsync({ id: changeOrder.change_order_id, comment }),
+    );
   };
 
   const confirmApprove = async () => {
@@ -134,7 +163,7 @@ export function WorkflowActions({
       approveMutation.mutateAsync({
         id: changeOrder.change_order_id,
         approval: { comments: comment || undefined },
-      })
+      }),
     );
   };
 
@@ -143,7 +172,7 @@ export function WorkflowActions({
       rejectMutation.mutateAsync({
         id: changeOrder.change_order_id,
         approval: { comments: comment || undefined },
-      })
+      }),
     );
   };
 
@@ -151,9 +180,20 @@ export function WorkflowActions({
     await handleAction(() => merge({ target_branch: "main", comment }));
   };
 
+  const confirmArchive = async () => {
+    await handleAction(async () => {
+      await archiveMutation.mutateAsync(changeOrder.change_order_id);
+      navigate("/change-orders");
+      // Return a dummy object to satisfy handleAction definition
+      return {} as ChangeOrderPublic;
+    });
+  };
+
   // Determine which buttons to show based on mode
   const showSubmit = mode === "all" ? canShowSubmit : canShowSubmit;
   const showMerge = canMerge;
+  const showArchive =
+    changeOrder.status === "Implemented" || changeOrder.status === "Rejected";
 
   return (
     <>
@@ -172,21 +212,34 @@ export function WorkflowActions({
 
         {/* Approve button - visible for authorized approvers */}
         {canShowApproveReject && mode !== "primary" && (
-          <Tooltip title={authorityLevel ? `Your authority level: ${authorityLevel}` : undefined}>
+          <Tooltip
+            title={
+              authorityLevel
+                ? `Your authority level: ${authorityLevel}`
+                : undefined
+            }
+          >
             <Button
               type="primary"
               icon={<CheckOutlined />}
               onClick={handleApprove}
               loading={isLoading}
             >
-              Approve {authorityLevel && <Tag color="blue">{authorityLevel}</Tag>}
+              Approve{" "}
+              {authorityLevel && <Tag color="blue">{authorityLevel}</Tag>}
             </Button>
           </Tooltip>
         )}
 
         {/* Reject button - visible for authorized approvers */}
         {canShowApproveReject && mode !== "primary" && (
-          <Tooltip title={authorityLevel ? `Your authority level: ${authorityLevel}` : undefined}>
+          <Tooltip
+            title={
+              authorityLevel
+                ? `Your authority level: ${authorityLevel}`
+                : undefined
+            }
+          >
             <Button
               danger
               icon={<CloseOutlined />}
@@ -204,7 +257,11 @@ export function WorkflowActions({
             changeOrder.status === "Under Review") &&
           !canApprove &&
           !checkingAuthority && (
-            <Tooltip title={reason || "You are not authorized to approve this change order"}>
+            <Tooltip
+              title={
+                reason || "You are not authorized to approve this change order"
+              }
+            >
               <Button icon={<LockOutlined />} disabled>
                 Approve
               </Button>
@@ -222,11 +279,34 @@ export function WorkflowActions({
             {WORKFLOW_ACTIONS.MERGE.label}
           </Button>
         )}
+
+        {/* Archive button - visually disabled if not Implemented/Rejected */}
+        {mode === "all" && (
+          <Tooltip
+            title={
+              !showArchive
+                ? "Only 'Implemented' or 'Rejected' change order branches can be archived"
+                : undefined
+            }
+          >
+            <Button
+              icon={<InboxOutlined />}
+              onClick={handleArchive}
+              disabled={!showArchive || isLoading}
+            >
+              Archive Branch
+            </Button>
+          </Tooltip>
+        )}
       </Space>
 
       {/* Submit confirmation modal */}
       <Modal
-        title={<Space><SendOutlined /> Submit for Approval</Space>}
+        title={
+          <Space>
+            <SendOutlined /> Submit for Approval
+          </Space>
+        }
         open={confirmModal.type === "submit" && confirmModal.visible}
         onOk={confirmSubmit}
         onCancel={() => {
@@ -238,8 +318,8 @@ export function WorkflowActions({
         width={500}
       >
         <p>
-          This will calculate the financial impact, assign an appropriate approver based on impact
-          level, and lock the branch for review.
+          This will calculate the financial impact, assign an appropriate
+          approver based on impact level, and lock the branch for review.
         </p>
         <WorkflowTransitionContent
           comment={comment}
@@ -250,7 +330,11 @@ export function WorkflowActions({
 
       {/* Approve confirmation modal */}
       <Modal
-        title={<Space><CheckOutlined /> Approve Change Order</Space>}
+        title={
+          <Space>
+            <CheckOutlined /> Approve Change Order
+          </Space>
+        }
         open={confirmModal.type === "approve" && confirmModal.visible}
         onOk={confirmApprove}
         onCancel={() => {
@@ -271,7 +355,11 @@ export function WorkflowActions({
 
       {/* Reject confirmation modal */}
       <Modal
-        title={<Space><ExclamationCircleOutlined /> Reject Change Order</Space>}
+        title={
+          <Space>
+            <ExclamationCircleOutlined /> Reject Change Order
+          </Space>
+        }
         open={confirmModal.type === "reject" && confirmModal.visible}
         onOk={confirmReject}
         onCancel={() => {
@@ -283,7 +371,10 @@ export function WorkflowActions({
         okButtonProps={{ danger: true }}
         width={500}
       >
-        <p>Are you sure you want to reject this change order? The branch will be unlocked.</p>
+        <p>
+          Are you sure you want to reject this change order? The branch will be
+          unlocked.
+        </p>
         <WorkflowTransitionContent
           comment={comment}
           onCommentChange={setComment}
@@ -293,7 +384,11 @@ export function WorkflowActions({
 
       {/* Merge confirmation modal */}
       <Modal
-        title={<Space><MergeOutlined /> Merge to Main Branch</Space>}
+        title={
+          <Space>
+            <MergeOutlined /> Merge to Main Branch
+          </Space>
+        }
         open={confirmModal.type === "merge" && confirmModal.visible}
         onOk={confirmMerge}
         onCancel={() => {
@@ -320,6 +415,29 @@ export function WorkflowActions({
             />
           </>
         )}
+      </Modal>
+
+      {/* Archive confirmation modal */}
+      <Modal
+        title={
+          <Space>
+            <InboxOutlined /> Archive Branch
+          </Space>
+        }
+        open={confirmModal.type === "archive" && confirmModal.visible}
+        onOk={confirmArchive}
+        onCancel={() => {
+          setConfirmModal({ ...confirmModal, visible: false });
+        }}
+        confirmLoading={isLoading}
+        okText="Archive"
+        okButtonProps={{ danger: true }}
+        width={500}
+      >
+        <p>
+          Are you sure you want to archive this Change Order branch? This will
+          hide the branch from active views but retain it in historical records.
+        </p>
       </Modal>
     </>
   );
