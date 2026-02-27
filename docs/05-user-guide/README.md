@@ -4,6 +4,23 @@ This directory contains user-facing documentation for working with the Backcast 
 
 ## Available Guides
 
+### [Change Order Workflow & Architecture Guide](./change-order-workflow-guide.md)
+
+Comprehensive documentation of the Change Order workflow and backend logic.
+
+**Topics Covered:**
+- Entity model and relationships
+- Workflow state machine and transitions
+- Branch isolation and merge operations
+- Impact analysis and approval matrix
+- API endpoints and usage examples
+- Debugging common issues
+
+**Target Audience:**
+- Backend developers working with change orders
+- System administrators debugging workflow issues
+- Technical users understanding the approval process
+
 ### [EVCS User Guide: Working with Versioned Entities](./evcs-wbe-user-guide.md)
 
 A comprehensive guide to the Entity Versioning Control System (EVCS) using the WBE (Work Breakdown Element) entity as the primary example.
