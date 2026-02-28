@@ -207,6 +207,10 @@ class ChangeOrderApproval(BaseModel):
         None,
         description="Optional comments explaining the approval/rejection decision",
     )
+    control_date: datetime | None = Field(
+        None,
+        description="Control date for the workflow operation (defaults to now)",
+    )
 
 
 # Response schemas for list endpoints
@@ -224,6 +228,7 @@ class ChangeOrderRecoveryRequest(BaseModel):
         assigned_approver_id: User to assign as approver
         skip_impact_analysis: Skip impact analysis and use manual values
         recovery_reason: Explanation for recovery (10-500 chars)
+        control_date: Optional control date for the operation (defaults to now)
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -246,4 +251,8 @@ class ChangeOrderRecoveryRequest(BaseModel):
         min_length=10,
         max_length=500,
         description="Explanation for recovery (required for audit)",
+    )
+    control_date: datetime | None = Field(
+        None,
+        description="Control date for the workflow operation (defaults to now)",
     )

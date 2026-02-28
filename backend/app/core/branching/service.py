@@ -723,17 +723,18 @@ class BranchableService[TBranchable: BranchableProtocol]:
             target_branch: Target branch name (default: "main")
 
         Returns:
-            List of conflict dictionaries. Empty if no conflicts.
-
-        Raises:
-            ValueError: If source or target branch doesn't have a current version
+            List of conflict dictionaries. Empty if no conflicts. Returns empty list
+            if entity doesn't exist on source branch (lazy branching - entity was never
+            modified on that branch, so no conflicts possible).
         """
         from typing import Any
 
         # Get current versions on both branches
         source = await self.get_current(root_id=root_id, branch=source_branch)
         if not source:
-            raise ValueError(f"No current version on source branch '{source_branch}'")
+            # Entity doesn't exist on source branch (lazy branching).
+            # This means it was never modified there, so no conflicts possible.
+            return []
 
         target = await self.get_current(root_id=root_id, branch=target_branch)
         if not target:

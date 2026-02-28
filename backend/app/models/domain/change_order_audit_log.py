@@ -57,6 +57,14 @@ class ChangeOrderAuditLog(EntityBase):
         server_default=sa.text("now()"),
     )
 
+    # Control date for workflow sequence validation
+    control_date: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=sa.text("now()"),
+        comment="Control date for the workflow operation (business/logical time)",
+    )
+
     def __repr__(self) -> str:
         return (
             f"<ChangeOrderAuditLog(id={self.id}, "

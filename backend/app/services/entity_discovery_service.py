@@ -4,7 +4,7 @@ Service to discover all active (non-deleted) branchable entities
 (WBEs, CostElements, Projects) in a given branch.
 """
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain.cost_element import CostElement
@@ -71,27 +71,45 @@ class EntityDiscoveryService:
         return list(result.scalars().all())
 
     async def discover_all_wbes(self, branch: str) -> list[WBE]:
-        """Discover all WBEs in the specified branch, including soft-deleted.
+        """Discover all current WBEs in the specified branch, including soft-deleted.
+
+        Returns only CURRENT versions (valid_time upper bound is NULL) to avoid
+        processing historical versions during merge operations.
 
         Args:
             branch: Branch name to search (e.g., "BR-123")
 
         Returns:
-            List of all WBEs where branch matches (including deleted)
+            List of current WBE versions where branch matches (including soft-deleted)
         """
-        stmt = select(WBE).where(WBE.branch == branch)
+        stmt = select(WBE).where(
+            and_(
+                WBE.branch == branch,
+                func.upper(WBE.valid_time).is_(None),
+                func.not_(func.isempty(WBE.valid_time)),
+            )
+        )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
     async def discover_all_cost_elements(self, branch: str) -> list[CostElement]:
-        """Discover all CostElements in the specified branch, including soft-deleted.
+        """Discover all current CostElements in the specified branch, including soft-deleted.
+
+        Returns only CURRENT versions (valid_time upper bound is NULL) to avoid
+        processing historical versions during merge operations.
 
         Args:
             branch: Branch name to search (e.g., "BR-123")
 
         Returns:
-            List of all CostElements where branch matches (including deleted)
+            List of current CostElement versions where branch matches (including soft-deleted)
         """
-        stmt = select(CostElement).where(CostElement.branch == branch)
+        stmt = select(CostElement).where(
+            and_(
+                CostElement.branch == branch,
+                func.upper(CostElement.valid_time).is_(None),
+                func.not_(func.isempty(CostElement.valid_time)),
+            )
+        )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
