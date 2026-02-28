@@ -79,6 +79,7 @@ export function TimeMachineProvider({ children }: TimeMachineProviderProps) {
     queryClient.invalidateQueries({ queryKey: queryKeys.wbes.all });
     queryClient.invalidateQueries({ queryKey: queryKeys.costElements.all });
     queryClient.invalidateQueries({ queryKey: queryKeys.costElementTypes.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
   }, [queryClient]);
 
   const value = useMemo<TimeMachineContextValue>(

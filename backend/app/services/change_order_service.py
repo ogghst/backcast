@@ -27,6 +27,7 @@ from app.models.protocols import VersionableProtocol
 from app.models.schemas.change_order import ChangeOrderCreate, ChangeOrderUpdate
 from app.services.branch_service import BranchService
 from app.services.change_order_workflow_service import ChangeOrderWorkflowService
+from app.services.change_order_workflow_validation import ControlDateValidator
 from app.services.cost_element_service import CostElementService
 from app.services.entity_discovery_service import EntityDiscoveryService
 from app.services.wbe import WBEService
@@ -747,12 +748,11 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         source_branch = f"BR-{current.code}"
 
-        # Check if source branch has active version
+        # Check if source branch has active version (lazy branching)
+        # If the CO was never modified on its branch, it won't have a version there.
+        # In that case, we skip merging the CO entity itself and just merge child entities.
         source_version = await self.get_current(change_order_id, branch=source_branch)
-        if not source_version:
-            raise ValueError(
-                f"No active version found on source branch {source_branch}"
-            )
+        co_was_forked = source_version is not None
 
         # Detect merge conflicts before proceeding
         conflicts = await self._detect_all_merge_conflicts(source_branch, target_branch)
@@ -811,25 +811,65 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                     control_date=control_date,
                 )
 
-        # 4. Merge the Change Order entity itself
-        merged_co = await self.merge_branch(
-            root_id=change_order_id,
+        # 4. Recalculate and update the Project's budget
+        # Sum all active cost elements on the target branch for this project
+        from app.models.domain.cost_element import CostElement
+        from app.models.domain.wbe import WBE
+
+        budget_stmt = (
+            select(func.sum(CostElement.budget_amount))
+            .select_from(CostElement)
+            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id == current.project_id,
+                CostElement.branch == target_branch,
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+        )
+        budget_result = await self.session.execute(budget_stmt)
+        new_budget = budget_result.scalar_one()
+
+        # Update the project with the new budget
+        from app.services.project import ProjectService
+
+        project_service = ProjectService(self.session)
+        from app.models.schemas.project import ProjectUpdate
+
+        project_update = ProjectUpdate(
+            budget=new_budget, branch=target_branch, control_date=control_date
+        )
+        await project_service.update_project(
+            project_id=current.project_id,
+            project_in=project_update,
             actor_id=actor_id,
-            source_branch=source_branch,
-            target_branch=target_branch,
-            control_date=control_date,
         )
 
-        # 5. Update CO status to "Implemented" using Command (RSC compliance)
+        # 5. Merge the Change Order entity itself (if it was forked)
+        # If the CO was never modified on its branch (lazy branching), we skip
+        # merging the CO entity and use the existing main branch version.
+        if co_was_forked:
+            await self.merge_branch(
+                root_id=change_order_id,
+                actor_id=actor_id,
+                source_branch=source_branch,
+                target_branch=target_branch,
+                control_date=control_date,
+            )
+        # else: CO was never forked - the existing main branch version is used
+
+        # 6. Update CO status to "Implemented" using Command (RSC compliance)
         status_cmd = UpdateChangeOrderStatusCommand(
             change_order_id=change_order_id,
             new_status="Implemented",
+            actor_id=actor_id,
             branch=target_branch,
+            control_date=control_date,
         )
-        await status_cmd.execute(self.session)
-        await self.session.refresh(merged_co)
+        updated_co = await status_cmd.execute(self.session)
+        await self.session.refresh(updated_co)
 
-        return merged_co
+        return updated_co
 
     async def revert_change_order_version(
         self,
@@ -859,6 +899,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         actor_id: UUID,
         branch: str = "main",
         comment: str | None = None,
+        control_date: datetime | None = None,
     ) -> ChangeOrder:
         """Submit a change order for approval with impact calculation and approver assignment.
 
@@ -871,13 +912,27 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             actor_id: User submitting for approval
             branch: Branch name (default: main)
             comment: Optional comment for audit log
+            control_date: Optional control date for the operation (defaults to now)
 
         Returns:
             Updated ChangeOrder with impact level and approver assigned
 
         Raises:
             ValueError: If change order not found or invalid status transition
+            ControlDateSequenceViolationError: If control_date violates sequence
         """
+        from datetime import UTC
+
+        # Default control_date to now if not provided
+        if control_date is None:
+            control_date = datetime.now(UTC)
+
+        # Validate control date sequence
+        await ControlDateValidator.validate_control_date_sequence(
+            change_order_id=change_order_id,
+            new_control_date=control_date,
+            session=self.session,
+        )
 
         # Get current change order
         co = await self.get_current(change_order_id, branch=branch)
@@ -931,12 +986,24 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         sla_days = SLA_BUSINESS_DAYS.get(impact_level, 5)
         sla_due_date = self._add_business_days(datetime.now(), sla_days)
 
-        # Update change order with SLA tracking
+        # Store old status for audit log
         old_status = co.status
-        co.sla_assigned_at = datetime.now()
-        co.sla_due_date = sla_due_date
-        co.sla_status = "pending"
-        co.status = "Submitted for Approval"
+
+        # Update change order with SLA tracking using versioned command
+        sla_assigned_at = datetime.now()
+        status_cmd = UpdateChangeOrderStatusCommand(
+            change_order_id=change_order_id,
+            new_status="Submitted for Approval",
+            actor_id=actor_id,
+            branch=branch,
+            control_date=control_date,
+            additional_updates={
+                "sla_assigned_at": sla_assigned_at,
+                "sla_due_date": sla_due_date,
+                "sla_status": "pending",
+            },
+        )
+        updated_co = await status_cmd.execute(self.session)
 
         # Record audit log using Command (RSC compliance)
         audit_cmd = CreateChangeOrderAuditLogCommand(
@@ -945,21 +1012,22 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             new_status="Submitted for Approval",
             actor_id=actor_id,
             comment=comment or f"Submitted for approval with {impact_level} impact",
+            control_date=control_date,
         )
         await audit_cmd.execute(self.session)
 
         # Lock the branch
-        if co.branch_name:
+        if updated_co.branch_name:
             await self.branch_service.lock(
-                name=co.branch_name,
-                project_id=co.project_id,
+                name=updated_co.branch_name,
+                project_id=updated_co.project_id,
                 actor_id=actor_id,
             )
 
         await self.session.commit()
-        await self.session.refresh(co)
+        await self.session.refresh(updated_co)
 
-        return co
+        return updated_co
 
     async def approve_change_order(
         self,
@@ -968,6 +1036,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         actor_id: UUID,
         branch: str = "main",
         comments: str | None = None,
+        control_date: datetime | None = None,
     ) -> ChangeOrder:
         """Approve a change order and transition to Approved status.
 
@@ -980,15 +1049,30 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             actor_id: User performing the approval (should match approver_id)
             branch: Branch name (default: main)
             comments: Optional approval comments
+            control_date: Optional control date for the operation (defaults to now)
 
         Returns:
             Updated ChangeOrder with Approved status
 
         Raises:
             ValueError: If change order not found, invalid status, or insufficient authority
+            ControlDateSequenceViolationError: If control_date violates sequence
         """
+        from datetime import UTC
+
         from app.services.approval_matrix_service import ApprovalMatrixService
         from app.services.user import UserService
+
+        # Default control_date to now if not provided
+        if control_date is None:
+            control_date = datetime.now(UTC)
+
+        # Validate control date sequence
+        await ControlDateValidator.validate_control_date_sequence(
+            change_order_id=change_order_id,
+            new_control_date=control_date,
+            session=self.session,
+        )
 
         # Get current change order
         co = await self.get_current(change_order_id, branch=branch)
@@ -1025,9 +1109,18 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                 f"User {approver_id} is not authorized to approve it."
             )
 
-        # Update status to Approved
+        # Store old status for audit log
         old_status = co.status
-        co.status = "Approved"
+
+        # Update status to Approved using versioned command
+        status_cmd = UpdateChangeOrderStatusCommand(
+            change_order_id=change_order_id,
+            new_status="Approved",
+            actor_id=actor_id,
+            branch=branch,
+            control_date=control_date,
+        )
+        updated_co = await status_cmd.execute(self.session)
 
         # Record audit log using Command (RSC compliance)
         audit_cmd = CreateChangeOrderAuditLogCommand(
@@ -1036,13 +1129,14 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             new_status="Approved",
             actor_id=actor_id,
             comment=comments or "Change order approved",
+            control_date=control_date,
         )
         await audit_cmd.execute(self.session)
 
         await self.session.commit()
-        await self.session.refresh(co)
+        await self.session.refresh(updated_co)
 
-        return co
+        return updated_co
 
     async def reject_change_order(
         self,
@@ -1051,6 +1145,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         actor_id: UUID,
         branch: str = "main",
         comments: str | None = None,
+        control_date: datetime | None = None,
     ) -> ChangeOrder:
         """Reject a change order and transition to Rejected status.
 
@@ -1063,15 +1158,30 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             actor_id: User performing the rejection (should match rejecter_id)
             branch: Branch name (default: main)
             comments: Optional rejection comments
+            control_date: Optional control date for the operation (defaults to now)
 
         Returns:
             Updated ChangeOrder with Rejected status and unlocked branch
 
         Raises:
             ValueError: If change order not found, invalid status, or insufficient authority
+            ControlDateSequenceViolationError: If control_date violates sequence
         """
+        from datetime import UTC
+
         from app.services.approval_matrix_service import ApprovalMatrixService
         from app.services.user import UserService
+
+        # Default control_date to now if not provided
+        if control_date is None:
+            control_date = datetime.now(UTC)
+
+        # Validate control date sequence
+        await ControlDateValidator.validate_control_date_sequence(
+            change_order_id=change_order_id,
+            new_control_date=control_date,
+            session=self.session,
+        )
 
         # Get current change order
         co = await self.get_current(change_order_id, branch=branch)
@@ -1101,9 +1211,18 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
                 f"to reject this change order with impact level {co.impact_level}."
             )
 
-        # Update status to Rejected
+        # Store old status for audit log
         old_status = co.status
-        co.status = "Rejected"
+
+        # Update status to Rejected using versioned command
+        status_cmd = UpdateChangeOrderStatusCommand(
+            change_order_id=change_order_id,
+            new_status="Rejected",
+            actor_id=actor_id,
+            branch=branch,
+            control_date=control_date,
+        )
+        updated_co = await status_cmd.execute(self.session)
 
         # Record audit log using Command (RSC compliance)
         audit_cmd = CreateChangeOrderAuditLogCommand(
@@ -1112,21 +1231,22 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             new_status="Rejected",
             actor_id=actor_id,
             comment=comments or "Change order rejected",
+            control_date=control_date,
         )
         await audit_cmd.execute(self.session)
 
         # Unlock the branch
-        if co.branch_name:
+        if updated_co.branch_name:
             await self.branch_service.unlock(
-                name=co.branch_name,
-                project_id=co.project_id,
+                name=updated_co.branch_name,
+                project_id=updated_co.project_id,
                 actor_id=actor_id,
             )
 
         await self.session.commit()
-        await self.session.refresh(co)
+        await self.session.refresh(updated_co)
 
-        return co
+        return updated_co
 
     async def recover_change_order(
         self,
@@ -1137,6 +1257,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         recovery_reason: str,
         actor_id: UUID,
         branch: str = "main",
+        control_date: datetime | None = None,
     ) -> ChangeOrder:
         """Recover a stuck change order workflow (admin only).
 
@@ -1152,14 +1273,29 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             recovery_reason: Explanation for recovery (audit trail)
             actor_id: Admin user performing recovery (use User.id, not User.user_id)
             branch: Branch name (default: main)
+            control_date: Optional control date for the operation (defaults to now)
 
         Returns:
             Updated ChangeOrder with recovered workflow state
 
         Raises:
             ValueError: If change order not found, invalid state, or invalid data
+            ControlDateSequenceViolationError: If control_date violates sequence
         """
+        from datetime import UTC
+
         from app.services.user import UserService
+
+        # Default control_date to now if not provided
+        if control_date is None:
+            control_date = datetime.now(UTC)
+
+        # Validate control date sequence
+        await ControlDateValidator.validate_control_date_sequence(
+            change_order_id=change_order_id,
+            new_control_date=control_date,
+            session=self.session,
+        )
 
         # Get current change order
         co = await self.get_current(change_order_id, branch=branch)
@@ -1204,47 +1340,60 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         old_approver = co.assigned_approver_id
         old_analysis_status = co.impact_analysis_status
 
-        # Update change order with recovery values
-        co.impact_level = impact_level
-        co.assigned_approver_id = assigned_approver_id
-        co.impact_analysis_status = "skipped" if skip_impact_analysis else "completed"
-
-        # Transition to appropriate status for approval
+        # Determine new status for recovery
+        new_status = co.status
         if co.status == "Draft":
-            co.status = "Under Review"
+            new_status = "Under Review"
         elif co.status in ("Submitted for Approval", "Under Review"):
-            co.status = "Under Review"
+            new_status = "Under Review"
+
+        # Update change order with recovery values using versioned command
+        new_analysis_status = "skipped" if skip_impact_analysis else "completed"
+        status_cmd = UpdateChangeOrderStatusCommand(
+            change_order_id=change_order_id,
+            new_status=new_status,
+            actor_id=actor_id,
+            branch=branch,
+            control_date=control_date,
+            additional_updates={
+                "impact_level": impact_level,
+                "assigned_approver_id": assigned_approver_id,
+                "impact_analysis_status": new_analysis_status,
+            },
+        )
+        updated_co = await status_cmd.execute(self.session)
 
         # Record audit log with detailed recovery information
         audit_comment = (
             f"Workflow recovery by admin. "
             f"Reason: {recovery_reason}. "
             f"Changes: "
-            f"status '{old_status}' → '{co.status}', "
+            f"status '{old_status}' → '{new_status}', "
             f"impact_level '{old_impact_level}' → '{impact_level}', "
             f"approver '{old_approver}' → '{assigned_approver_id}', "
-            f"analysis '{old_analysis_status}' → '{co.impact_analysis_status}'"
+            f"analysis '{old_analysis_status}' → '{new_analysis_status}'"
         )
 
         audit_cmd = CreateChangeOrderAuditLogCommand(
             change_order_id=change_order_id,
             old_status=old_status,
-            new_status=co.status,
+            new_status=new_status,
             actor_id=actor_id,
             comment=audit_comment,
+            control_date=control_date,
         )
         await audit_cmd.execute(self.session)
 
         await self.session.commit()
-        await self.session.refresh(co)
+        await self.session.refresh(updated_co)
 
         logger.info(
             f"Change order {change_order_id} recovered by user {actor_id}. "
-            f"Status: {old_status} → {co.status}, "
+            f"Status: {old_status} → {new_status}, "
             f"Impact: {impact_level}, Approver: {assigned_approver_id}"
         )
 
-        return co
+        return updated_co
 
     async def get_pending_approvals(
         self,
