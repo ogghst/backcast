@@ -52,19 +52,29 @@
 - **Completed:** 2026-01-15
 - **Ready for Iteration:** No (already complete)
 
-#### [E06-U05] Merge Approved Change Orders
+#### [E06-U05] Merge Approved Change Orders ✅
 
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 13
 - **Business Value:** CRITICAL - Completes change order lifecycle
-- **Dependencies:** E06-U01, E06-U04
+- **Dependencies:** E06-U01 ✅, E06-U04 ✅
 - **Acceptance Criteria:**
-  - Merge approved change order branch into main
-  - Conflict detection and resolution UI
-  - Immutable history of merge operation
-  - Rollback capability if merge causes issues
+  - Merge approved change order branch into main ✅
+  - Conflict detection and resolution UI ✅
+  - Immutable history of merge operation ✅
+  - Rollback capability if merge causes issues ✅
 - **Estimated Complexity:** Complex
-- **Ready for Iteration:** No (blocked by E06-U01, E06-U04)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-01-26
+- **Implementation Notes:**
+  - `ChangeOrderService.merge_change_order()` handles merge orchestration
+  - API `POST /{change_order_id}/merge` with conflict handling (409 Conflict)
+  - Conflict detection via `BranchableService._detect_merge_conflicts()`
+  - Status transition: Approved → Implemented
+  - Frontend: `ChangeOrderWorkflowSection.tsx` with merge button
+  - Hook: `useWorkflowActions.ts:merge()`
+  - Unit tests: `test_change_order_merge_orchestration.py`
+- **Ready for Iteration:** No (already complete)
 
 #### [E03-U06] Generic VersionedRepository for Reusability
 
@@ -106,18 +116,26 @@
 - **Estimated Complexity:** Medium
 - **Ready for Iteration:** No (blocked by E03-U02)
 
-#### [E06-U08] Delete/Archive Branches
+#### [E06-U08] Delete/Archive Branches ✅
 
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 3
 - **Business Value:** CRITICAL - Cleanup after merge
-- **Dependencies:** E06-U05
+- **Dependencies:** E06-U05 ✅
 - **Acceptance Criteria:**
-  - Delete branch after successful merge
-  - Archive option for historical reference
-  - Confirmation before deletion
+  - Delete branch after successful merge ✅
+  - Archive option for historical reference ✅
+  - Confirmation before deletion ✅
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E06-U05)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-02-25
+- **Implementation Notes:**
+  - Backend: POST /{id}/archive endpoint added to change_orders.py
+  - Frontend: useArchiveChangeOrder hook in useChangeOrders.ts
+  - Frontend: archive() action in useWorkflowActions.ts
+  - Frontend: Archive button and confirmation modal in WorkflowButtons.tsx
+  - Tests: 4 backend unit tests, 18 frontend tests
+- **Ready for Iteration:** No (already complete)
 
 ---
 

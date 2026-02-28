@@ -123,25 +123,26 @@
 
 **Business Value:** Enable isolated change order development
 **Priority:** CRITICAL
-**Status:** 🔄 In Progress (Phase 1 Complete)
+**Status:** ✅ Complete (All Phases)
 
 **User Stories:**
 
 - **E06-U01:** Create change orders ✅
 - **E06-U02:** Automatic branch creation for change orders (`BR-{id}`) ✅
-- **E06-U03:** Modify entities in branch (isolated from main) 🔄
+- **E06-U03:** Modify entities in branch (isolated from main) ✅
 - **E06-U04:** Compare branch to main (impact analysis) ✅
-- **E06-U05:** Merge approved change orders ⏳
-- **E06-U06:** Lock/unlock branches ⏳
+- **E06-U05:** Merge approved change orders ✅
+- **E06-U06:** Lock/unlock branches ✅
 - **E06-U07:** Merged view showing main + branch changes ✅
-- **E06-U08:** Delete/archive branches ⏳
+- **E06-U08:** Delete/archive branches ✅
 
 **Implementation Details:**
 
 - **Phase 1 Complete (2026-01-12):** Change Order creation, auto-branch creation, BranchableSoftDeleteCommand
-- **Phase 2 In Progress:** In-branch editing, workflow states (DRAFT/SUBMITTED/APPROVED/REJECTED)
+- **Phase 2 Complete:** In-branch editing, workflow states (DRAFT/SUBMITTED/APPROVED/REJECTED)
 - **Phase 3 Complete (2026-02-07):** Impact analysis, branch comparison, side-by-side diff, hierarchical diff view
-- **Phase 4 Pending:** Merge workflows, approval processes
+- **Phase 4 Complete (2026-01-26):** Merge workflows, conflict detection, status transitions
+- **Phase 5 Complete (2026-02-25):** Archive branch functionality (E06-U08)
 
 **Key Features:**
 

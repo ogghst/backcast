@@ -14,9 +14,9 @@ TBD
 
 ## Stories in Scope
 
-| Story                                 | Points | Priority | Status    | Dependencies |
-| :------------------------------------ | :----- | :------- | :-------- | :----------- |
-| **[E06-U08] Delete/Archive Branches** | 3      | Critical | ⏸️ Paused | E06-U05      |
+| Story                                 | Points | Priority | Status      | Dependencies |
+| :------------------------------------ | :----- | :------- | :---------- | :----------- |
+| **[E06-U08] Delete/Archive Branches** | 3      | Critical | ✅ Complete | E06-U05 ✅   |
 
 ---
 
@@ -29,7 +29,16 @@ TBD
 ## Iteration Records
 
 ### Recent Completed Iterations
-n- **Fix Branchable Entity Parent Lookup Duplication (2026-02-23):** ✅ Complete
+
+- **E06-U08 Delete/Archive Branches (2026-02-25):** ✅ Complete
+  - Added POST /{id}/archive API endpoint for soft-deleting change order branches
+  - Added useArchiveChangeOrder mutation hook in frontend
+  - Added archive() action to useWorkflowActions with WORKFLOW_ACTIONS.ARCHIVE
+  - Added Archive button and confirmation modal to WorkflowButtons
+  - Archive available for Implemented and Rejected statuses
+  - Full TDD with 4 backend tests, 18 frontend tests
+
+- **Fix Branchable Entity Parent Lookup Duplication (2026-02-23):** ✅ Complete
   - Fixed duplicate Cost Elements showing up in the WBE details page.
   - Added `.distinct(WBEAlias.wbe_id)` to parent WBE subqueries to avoid duplicating rows across branches.
 

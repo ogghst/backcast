@@ -382,6 +382,35 @@ FastAPI automatically generates:
 
 ---
 
+## Backend-Frontend Contract Coordination
+
+When implementing features that span backend and frontend:
+
+### Contract Definition
+
+- Define API paths in a shared location (e.g., constants file or OpenAPI spec)
+- Document request/response shapes before implementation
+- Use OpenAPI-generated types on frontend
+
+### Verification Checklist
+
+Before completing implementation:
+
+- [ ] Backend endpoint path matches frontend API call
+- [ ] Request/response schemas are synchronized
+- [ ] At least one test verifies actual endpoint path (not just mocked)
+- [ ] OpenAPI client regenerated if backend changed
+
+### Quick Verification
+
+```
+Backend: /api/v1/change-orders/{id}/archive
+Frontend: /api/v1/change-orders/${id}/archive
+                              ^^^^^^^^ MATCH?
+```
+
+---
+
 ## 1:1 Relationship Endpoints
 
 ### Nested Resource Pattern

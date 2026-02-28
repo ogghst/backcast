@@ -1,5 +1,5 @@
 import { Button, Space, Modal } from "antd";
-import { SendOutlined, CheckOutlined, CloseOutlined, MergeOutlined, ExclamationCircleOutlined } from "@ant-design/icons";
+import { SendOutlined, CheckOutlined, CloseOutlined, MergeOutlined, ExclamationCircleOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useState } from "react";
 import type { ChangeOrderPublic } from "@/api/generated";
 import {
@@ -27,6 +27,7 @@ interface WorkflowButtonsProps {
  * - Approve: Submitted for Approval → Under Review
  * - Reject: Any → Rejected (with confirmation)
  * - Merge: Approved → Implemented (with confirmation and conflict check)
+ * - Archive: Implemented/Rejected → Archived (with confirmation)
  */
 export function WorkflowButtons({
   changeOrder,
@@ -38,11 +39,12 @@ export function WorkflowButtons({
     approve,
     reject,
     merge,
+    archive,
     isLoading,
   } = useWorkflowActions(changeOrder.change_order_id);
 
   const [confirmModal, setConfirmModal] = useState<{
-    type: "reject" | "merge";
+    type: "reject" | "merge" | "archive";
     visible: boolean;
   }>({ type: "reject", visible: false });
 
@@ -55,6 +57,7 @@ export function WorkflowButtons({
   const canApprove = isActionAvailable("APPROVE", availableTransitions);
   const canReject = true; // Reject is always available as a workflow action
   const canMerge = isActionAvailable("MERGE", availableTransitions);
+  const canArchive = isActionAvailable("ARCHIVE", availableTransitions);
 
   const handleAction = async (action: () => Promise<ChangeOrderPublic>) => {
     try {
@@ -80,6 +83,10 @@ export function WorkflowButtons({
     }
   };
 
+  const handleArchive = () => {
+    setConfirmModal({ type: "archive", visible: true });
+  };
+
   const confirmReject = async () => {
     await handleAction(() => reject(comment));
   };
@@ -88,11 +95,16 @@ export function WorkflowButtons({
     await handleAction(() => merge({ target_branch: "main", comment }));
   };
 
+  const confirmArchive = async () => {
+    await handleAction(() => archive());
+  };
+
   // Determine which buttons to show based on mode
   const showSubmit = mode === "all" ? canSubmit : canSubmit;
   const showApprove = mode === "primary" ? canApprove : false;
   const showReject = mode === "primary" ? canReject : false;
   const showMerge = canMerge;
+  const showArchive = canArchive;
 
   return (
     <>
@@ -142,6 +154,17 @@ export function WorkflowButtons({
             disabled={isLoading || mergeConflicts.length > 0}
           >
             {WORKFLOW_ACTIONS.MERGE.label}
+          </Button>
+        )}
+
+        {/* Archive button - visible for Implemented/Rejected */}
+        {showArchive && (
+          <Button
+            icon={<DeleteOutlined />}
+            onClick={handleArchive}
+            disabled={isLoading}
+          >
+            {WORKFLOW_ACTIONS.ARCHIVE.label}
           </Button>
         )}
       </Space>
@@ -196,6 +219,25 @@ export function WorkflowButtons({
             />
           </>
         )}
+      </Modal>
+
+      {/* Archive confirmation modal */}
+      <Modal
+        title={<Space><ExclamationCircleOutlined /> Archive Branch</Space>}
+        open={confirmModal.type === "archive" && confirmModal.visible}
+        onOk={confirmArchive}
+        onCancel={() => {
+          setConfirmModal({ ...confirmModal, visible: false });
+          setComment("");
+        }}
+        confirmLoading={isLoading}
+        okText="Archive Branch"
+        okButtonProps={{ danger: true }}
+        width={500}
+      >
+        <p>
+          Archive this change order? The branch will hide it from the active branch list but but data remains accessible via time-travel queries.
+        </p>
       </Modal>
     </>
   );

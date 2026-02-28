@@ -1,6 +1,6 @@
 # Code Review Checklist
 
-**Last Updated:** 2026-01-08
+**Last Updated:** 2026-02-26
 
 ---
 
@@ -17,6 +17,7 @@
 - [ ] **Backend**: Pydantic models used correctly?
 - [ ] **Frontend**: 100% type safety?
 - [ ] **Common**: No `Any` or `any` used?
+- [ ] **Lint Clean**: No unused imports or variables (run linter before commit)?
 - [ ] **Standards**: Does the code follow [Backend Coding Standards](backend/coding-standards.md) or [Frontend Coding Standards](frontend/coding-standards.md)?
 
 ## 3. API & Data Patterns
@@ -52,6 +53,13 @@
 - [ ] Are database indexes added for frequently filtered/searched columns?
 - [ ] Are N+1 query problems avoided (e.g., using `selectinload` or `joinedload`)?
 - [ ] Is server-side processing used instead of client-side for large datasets?
+
+## 8. Parallel Development
+
+- [ ] **Contract First**: API paths and schemas defined before implementation?
+- [ ] **Deviation Tracking**: If backend differs from plan, is plan updated immediately?
+- [ ] **Integration Test**: At least one test makes actual HTTP call (not mocked)?
+- [ ] **Cross-Check**: Frontend expectations verified against backend implementation?
 
 ---
 

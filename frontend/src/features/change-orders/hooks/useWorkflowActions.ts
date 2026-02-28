@@ -12,6 +12,7 @@ import {
 import {
   useApproveChangeOrder,
   useRejectChangeOrder,
+  useArchiveChangeOrder,
 } from "../api/useApprovals";
 import { queryKeys } from "@/api/queryKeys";
 
@@ -31,6 +32,7 @@ export const WORKFLOW_ACTIONS = {
   APPROVE: { label: "Approve", status: "Approved" },
   REJECT: { label: "Reject", status: "Rejected" },
   MERGE: { label: "Merge to Main", status: "Implemented" },
+  ARCHIVE: { label: "Archive Branch", status: "Archived" },
 } as const;
 
 export type WorkflowActionKey = keyof typeof WORKFLOW_ACTIONS;
@@ -76,6 +78,14 @@ export function useWorkflowActions(changeOrderId: string, options?: WorkflowActi
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.branches });
+      options?.onSuccess?.(data);
+    },
+    onError: options?.onError,
+  });
+
+  // Archive mutation
+  const archiveMutation = useArchiveChangeOrder({
+    onSuccess: (data) => {
       options?.onSuccess?.(data);
     },
     onError: options?.onError,
@@ -150,13 +160,27 @@ export function useWorkflowActions(changeOrderId: string, options?: WorkflowActi
     [changeOrderId, mergeMutation]
   );
 
+  /**
+   * Archive the Change Order branch (Implemented/Rejected → Archived)
+   *
+   * Soft-deletes the branch, making it invisible in active lists but
+   * still accessible via time-travel queries.
+   */
+  const archive = useCallback(
+    async () => {
+      return archiveMutation.mutateAsync({ id: changeOrderId });
+    },
+    [changeOrderId, archiveMutation]
+  );
+
   return {
     submit,
     review,
     approve,
     reject,
     merge,
-    isLoading: updateMutation.isPending || approveMutation.isPending || rejectMutation.isPending || mergeMutation.isPending,
+    archive,
+    isLoading: updateMutation.isPending || approveMutation.isPending || rejectMutation.isPending || mergeMutation.isPending || archiveMutation.isPending,
     mutation: updateMutation,
   };
 }

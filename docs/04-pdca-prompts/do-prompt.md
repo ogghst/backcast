@@ -194,3 +194,17 @@ Update continuously with daily entries. Track running totals:
 3. **Continuous Refactoring**: Improve design while tests stay green
 4. **Document Progress**: Log every cycle for traceability
 5. **Quality Gates**: Pass mypy/ruff/eslint before CHECK phase
+
+---
+
+## Lessons Learned from Past Iterations
+
+Key patterns from previous iterations are now integrated into architecture docs:
+
+| Lesson | Reference |
+|--------|-----------|
+| API Contract Verification | [API Conventions: Contract Coordination](../../02-architecture/cross-cutting/api-conventions.md) |
+| Unused Imports | [Code Review Checklist: Lint Clean](../../02-architecture/code-review-checklist.md) |
+| Parallel Development | [Code Review Checklist: Parallel Development](../../02-architecture/code-review-checklist.md) |
+
+**Before completing DO phase**, verify these cross-cutting concerns.

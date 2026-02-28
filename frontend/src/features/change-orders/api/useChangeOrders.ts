@@ -408,3 +408,59 @@ export const useMergeChangeOrder = (
     ...mutationOptions,
   });
 };
+
+/**
+ * Hook for archiving a change order branch.
+ *
+ * Archives the branch associated with a change order after it has been
+ * Implemented or Rejected. The branch is soft-deleted but data remains
+ * accessible via time-travel queries.
+ *
+ * @param mutationOptions - Optional mutation options
+ * @returns Mutation hook for archiving change orders
+ */
+export const useArchiveChangeOrder = (
+  mutationOptions?: Omit<
+    UseMutationOptions<
+      ChangeOrderPublic,
+      Error,
+      { id: string }
+    >,
+    "mutationFn"
+  >,
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      // Direct API call until OpenAPI client is regenerated
+      const response = await __request(OpenAPI, {
+        method: "POST",
+        url: "/api/v1/change-orders/{change_order_id}/archive",
+        path: {
+          change_order_id: id,
+        },
+      });
+      return response as ChangeOrderPublic;
+    },
+    onSuccess: (data, ...args) => {
+      // Invalidate change orders queries
+      queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
+      // Invalidate branches query for this project
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.branches(data.project_id.toString()),
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
+
+      toast.success(
+        `Change Order branch archived successfully.`,
+      );
+      mutationOptions?.onSuccess?.(data, ...args);
+    },
+    onError: (error: Error, ...args) => {
+      toast.error(`Error archiving change order: ${error.message}`);
+      mutationOptions?.onError?.(error, ...args);
+    },
+    ...mutationOptions,
+  });
+};
