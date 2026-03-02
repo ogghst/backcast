@@ -174,7 +174,7 @@ Cost Elements are the leaf level of the project hierarchy where budgets are allo
 
 **Responsibility:** Branch creation, modification, comparison, merging
 **Owner:** Backend Team
-**Status:** Planned
+**Status:** Implemented
 **Versioning:** Uses EVCS Core branching capabilities
 
 **Key Operations:**
@@ -185,7 +185,9 @@ Cost Elements are the leaf level of the project hierarchy where budgets are allo
 - Branch merge for approved change orders
 - Branch locking/unlocking
 
-**Documentation:** [Time Travel & Branching Architecture](cross-cutting/temporal-query-reference.md)
+> **For workflow states, approval matrix, and user stories**, see: [Change Management User Stories](../../01-product-scope/change-management-user-stories.md)
+>
+> **For technical implementation**, see: [Time Travel & Branching Architecture](cross-cutting/temporal-query-reference.md)
 
 ---
 

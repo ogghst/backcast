@@ -184,79 +184,30 @@ Calculate forecast stability as the standard deviation of EAC changes over time.
 
 ## 8. Change Order Management Requirements
 
+> **For detailed change order workflows and user stories**, see: [Change Management User Stories](./change-management-user-stories.md)
+
 ### 8.1 Change Order Processing
 
 The system shall provide comprehensive change order management capabilities to handle scope changes, contract modifications, and customer-requested additions. Each change order must be created with a unique identifier, description of the change, requesting party, justification, and proposed effective date. When a change order is created, the system shall automatically spawn a dedicated change order branch from the selected source branch (default: main). The branch name shall follow the pattern `BR-{change_order_id}`.
 
-Change orders must support modifications to both costs and revenues. When a change order is approved and implemented, the system shall update the affected WBE budgets, cost element allocations, and revenue assignments accordingly. The system must maintain the original baseline data while clearly tracking the impact of approved changes on current budgets and forecasts.
+Change orders must support modifications to both costs and revenues. When a change order is approved and implemented, the system shall update the affected WBE budgets, cost element allocations, and revenue assignments accordingly.
 
 ### 8.2 Change Order Impact Analysis
 
-Before finalizing change orders, the system shall provide impact analysis showing the effect on project budgets, WBE allocations, cost element budgets, revenue recognition, schedule implications, and EVM performance indices. Users must be able to model change order impacts before formal approval.
+Before finalizing change orders, the system shall provide impact analysis showing the effect on project budgets, WBE allocations, cost element budgets, revenue recognition, schedule implications, and EVM performance indices.
 
-### 8.3 Change Order Approval Workflow
+### 8.3 Approval Workflow
 
-The system shall track change order status through defined workflow states. Each status transition must be recorded with timestamp and responsible user information.
-
-**Workflow States:**
-
-1. **Draft** - Initial state when change order is created
-   - Creator can edit all fields
-   - Not visible to approvers
-   - Can be deleted or submitted
-
-2. **Submitted** - Change order submitted for approval
-   - Read-only except for withdraw action
-   - Assigned to approver based on impact level
-   - Notification sent to approver
-
-3. **Under Review** - Approver is actively reviewing
-   - Approver can request clarification
-   - Branch is locked for editing
-   - Impact analysis generated
-
-4. **Approved** - Change order approved for implementation
-   - Branch is unlocked for implementation
-   - Changes can be merged to main
-   - Notification sent to stakeholders
-
-5. **Implemented** - Changes have been merged to main branch
-   - Change order is closed
-   - Final impact analysis captured
-   - Read-only historical record
-
-6. **Rejected** - Change order not approved
-   - Reason for rejection recorded
-   - Branch archived but not deleted
-   - Can be resubmitted with modifications
-
-7. **Archived** - Change order closed without implementation
-   - Withdrawn by creator
-   - Superseded by another change
-   - No longer relevant
+The system shall track change order status through defined workflow states: Draft → Submitted → Under Review → Approved/Rejected → Implemented → Archived.
 
 **Approval Matrix:**
 
-| Impact Level | Financial Impact | Approver | Approval SLA | Branch Behavior |
-|--------------|------------------|----------|--------------|-----------------|
-| Low          | < €10K           | Project Manager   | 2 business days | No locking during review |
-| Medium       | €10K - €50K      | Department Head   | 5 business days | Locked during review |
-| High         | > €50K           | Director          | 10 business days| Locked during review |
-| Critical     | > €100K          | Executive Committee| 15 business days| Locked, requires sign-off |
-
-**Notification Mechanisms:**
-
-- Email notifications for state transitions
-- In-app notifications for assigned actions
-- Daily digest for pending approvals
-- Escalation notifications when SLA approaching
-
-**Rollback Procedures:**
-
-- Approved changes can be rolled back within 24 hours
-- Rollback creates new change order automatically
-- Requires justification and approval
-- Full audit trail maintained
+| Impact Level | Financial Impact | Approver | Approval SLA |
+|--------------|------------------|----------|--------------|
+| Low          | < €10K           | Project Manager   | 2 business days |
+| Medium       | €10K - €50K      | Department Head   | 5 business days |
+| High         | > €50K           | Director          | 10 business days|
+| Critical     | > €100K          | Executive Committee| 15 business days|
 
 ### 8.4 Branching and Versioning System
 

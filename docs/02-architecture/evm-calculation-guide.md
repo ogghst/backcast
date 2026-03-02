@@ -1,44 +1,17 @@
 # EVM Calculation Guide
 
-**Last Updated:** 2026-01-18
+**Last Updated:** 2026-03-02
 **Related Iteration:** [2026-01-18-evm-foundation](../../03-project-plan/iterations/2026-01-18-evm-foundation/)
 
 ---
 
 ## Overview
 
-Earned Value Management (EVM) is a project management methodology that integrates scope, schedule, and cost for comprehensive performance measurement. This guide explains how EVM is implemented in Backcast EVS, including formulas, API usage, and time-travel capabilities.
+This guide explains **how EVM is implemented** in Backcast EVS, including data sources, calculation flow, API usage, and time-travel capabilities.
 
----
-
-## EVM Fundamentals
-
-### Key Metrics
-
-| Metric | Formula | Description |
-| ------ | ------- | ----------- |
-| **BAC** | Budget at Completion | Total planned budget for the cost element |
-| **PV** | Planned Value | Budgeted cost of work scheduled to be completed |
-| **AC** | Actual Cost | Actual cost incurred to date |
-| **EV** | Earned Value | Budgeted cost of work actually completed |
-| **CV** | Cost Variance = EV - AC | Difference between earned and actual cost |
-| **SV** | Schedule Variance = EV - PV | Difference between earned and planned value |
-| **CPI** | Cost Performance Index = EV / AC | Efficiency of cost usage (< 1.0 = over budget) |
-| **SPI** | Schedule Performance Index = EV / PV | Efficiency of schedule execution (< 1.0 = behind) |
-
-### Interpretation Guidelines
-
-**Variances (CV, SV):**
-
-- **Positive**: Under budget / ahead of schedule
-- **Zero**: On budget / on schedule
-- **Negative**: Over budget / behind schedule
-
-**Performance Indices (CPI, SPI):**
-
-- **> 1.0**: Under budget / ahead of schedule
-- **= 1.0**: On budget / on schedule
-- **< 1.0**: Over budget / behind schedule
+> **For EVM formulas and definitions**, see the authoritative source: [EVM Requirements](../../01-product-scope/evm-requirements.md)
+>
+> **For EVM API endpoints**, see: [EVM API Guide](./evm-api-guide.md)
 
 ---
 

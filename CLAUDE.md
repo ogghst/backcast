@@ -93,8 +93,12 @@ npm run lint                   # ESLint - must pass
 
 ## Documentation
 
-- see [Documentation Guide](docs/00-meta/README.md)
-- see [System Architecture and Coding Standards](docs/02-architecture/README.md)
+| Need | Start Here |
+|------|------------|
+| Project overview & onboarding | [`docs/00-meta/README.md`](docs/00-meta/README.md) |
+| Architecture & coding standards | [`docs/02-architecture/README.md`](docs/02-architecture/README.md) |
+| Domain terminology | [`docs/01-product-scope/glossary.md`](docs/01-product-scope/glossary.md) |
+| Current sprint status | [`docs/03-project-plan/sprint-backlog.md`](docs/03-project-plan/sprint-backlog.md) |
 
 # Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 

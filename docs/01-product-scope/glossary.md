@@ -1,7 +1,40 @@
 # Glossary
 
-**Last Updated:** 2026-01-13
-**Purpose:** Define domain terms, acronyms, and EVM terminology
+**Last Updated:** 2026-03-02
+**Purpose:** Define domain terms, acronyms, and naming conventions
+
+> **This is the authoritative reference** for terminology in Backcast EVS.
+> All documentation and code should follow these conventions.
+
+---
+
+## Naming Conventions
+
+### Entity Names
+
+| Context | Format | Example |
+|---------|--------|---------|
+| **UI/Documentation** | Title Case with space | "Cost Element", "Work Breakdown Element" |
+| **Code (classes)** | PascalCase | `CostElement`, `WorkBreakdownElement` |
+| **API/Database** | snake_case | `cost_element`, `work_breakdown_element` |
+| **Variables** | snake_case | `cost_element_id`, `wbe_code` |
+
+### Branch Mode Names
+
+| Use | Correct | Incorrect |
+|-----|---------|-----------|
+| Code/Docs | `merge`, `strict` | `MERGE`, `STRICT`, `merged`, `isolated` |
+| Display | "Merge mode", "Strict mode" | "Merged mode", "Isolated mode" |
+
+### Temporal Parameter Names
+
+| Parameter | Use Case | Description |
+|-----------|----------|-------------|
+| `as_of` | Read operations | Time-travel timestamp for queries |
+| `control_date` | Write operations | Effective date for mutations |
+| `valid_from` / `valid_to` | Data model | Temporal validity range |
+
+> **Important:** Do NOT use `control_date` for read operations. Use `as_of` consistently.
 
 ---
 
@@ -82,57 +115,45 @@ Time-phased budget plan against which performance is measured (EVM compliance).
 
 ## EVM Metrics
 
-**PV (Planned Value) / BCWS (Budgeted Cost of Work Scheduled)**  
-Authorized budget assigned to scheduled work. What you planned to accomplish.
+> **For detailed formulas and calculations**, see: [EVM Requirements](./evm-requirements.md)
 
-**EV (Earned Value) / BCWP (Budgeted Cost of Work Performed)**  
-Budgeted cost of work actually performed. What you actually accomplished (in budget terms).
+**PV (Planned Value) / BCWS** - Authorized budget assigned to scheduled work.
 
-**AC (Actual Cost) / ACWP (Actual Cost of Work Performed)**  
-Realized cost incurred for work performed. What you actually spent.
+**EV (Earned Value) / BCWP** - Budgeted cost of work actually performed.
 
-**CPI (Cost Performance Index)**  
-Cost efficiency indicator. `CPI = EV / AC`. >1 is good (under budget), <1 is concern (over budget).
+**AC (Actual Cost) / ACWP** - Realized cost incurred for work performed.
 
-**SPI (Schedule Performance Index)**  
-Schedule efficiency indicator. `SPI = EV / PV`. >1 is good (ahead), <1 is concern (behind).
+**BAC (Budget at Completion)** - Total planned budget for work scope.
 
-**CV (Cost Variance)**  
-`CV = EV - AC`. Negative = over budget, Positive = under budget.
+**EAC (Estimate at Completion)** - Expected total cost at project completion.
 
-**SV (Schedule Variance)**  
-`SV = EV - PV`. Negative = behind schedule, Positive = ahead of schedule.
+**CPI (Cost Performance Index)** - Cost efficiency: `EV / AC`. >1 = under budget, <1 = over budget.
 
-**VAC (Variance at Completion)**  
-Expected final cost variance. `VAC = BAC - EAC`.
+**SPI (Schedule Performance Index)** - Schedule efficiency: `EV / PV`. >1 = ahead, <1 = behind.
 
-**TCPI (To Complete Performance Index)**  
-Required cost performance on remaining work to meet budget goals. Two versions: based on BAC or EAC.
+**CV (Cost Variance)** - Cost difference: `EV - AC`. Negative = over budget.
+
+**SV (Schedule Variance)** - Schedule difference: `EV - PV`. Negative = behind schedule.
+
+**VAC (Variance at Completion)** - Final variance: `BAC - EAC`.
+
+**TCPI (To Complete Performance Index)** - Required performance on remaining work.
 
 ---
 
 ## Versioning Terms
 
-**Head Table**  
-Stores stable entity identity and current state pointers. Example: `User`, `Project`.
+> **For implementation details**, see: [Temporal Query Reference](../02-architecture/cross-cutting/temporal-query-reference.md)
 
-**Version Table**  
-Stores immutable historical snapshots of entity state. Example: `UserVersion`, `ProjectVersion`.
+**Valid Time** - When the fact was true in the real world (business perspective).
 
-**Valid From / Valid To**  
-Temporal validity range for a version record. `valid_to = NULL` indicates current version.
+**Transaction Time** - When the fact was recorded in the database (audit perspective).
 
-**Composite Primary Key**  
-Primary key consisting of multiple columns. Examples: `(id, branch)` for heads, `(head_id, valid_from)` for versions.
+**Time Travel** - Query entity state at any historical point using `as_of` parameter.
 
-**Time Travel**  
-Ability to query entity state at any historical point in time using temporal validity ranges.
+**Branch Isolation** - Each branch maintains separate timelines (main vs BR-{id}).
 
-**Deep Copy**  
-When creating a branch, all entities are copied from main to new branch, ensuring complete isolation.
-
-**Merge**  
-Applying changes from a branch back into main branch. Atomic operation (all-or-nothing).
+**Merge** - Apply branch changes to main. Atomic operation (all-or-nothing).
 
 ---
 

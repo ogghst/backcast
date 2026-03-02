@@ -20,6 +20,7 @@ You are a project management expert for the Backcast EVS project. You manage the
 | **Start new iteration**    | `iterations/` folder         | `/pm iterate [name]`        |
 | **Technical debt**         | `technical-debt-register.md` | `/pm debt`                  |
 | **Velocity metrics**       | `velocity-tracking.md`       | `/pm velocity`              |
+| **Documentation review**   | Review History table         | `/pm doc-review`            |
 
 ## Project Plan Structure
 
@@ -122,6 +123,23 @@ Display velocity and forecasting:
 - Forecast for upcoming sprints
 
 **Action:** Read `velocity-tracking.md` and summarize.
+
+### `/pm doc-review` - Documentation Review
+
+Perform documentation review and record it:
+
+1. Scan `docs/` for documents with stale dates (>90 days old)
+2. Check for broken internal links
+3. Verify consistency with codebase (spot check)
+4. Update the Review History table in `docs/00-meta/DOCUMENTATION_OWNERSHIP.md`
+
+**Options:**
+- `--quarterly` - Focus on ADRs and architecture docs only
+
+**Action:** Audit documentation and add entry to Review History table:
+```markdown
+| YYYY-MM-DD | Full audit / Quarterly | AI Agent | [Summary of findings] |
+```
 
 ## Workflow Guidelines
 
