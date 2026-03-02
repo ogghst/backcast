@@ -441,7 +441,7 @@ class ImpactAnalysisService:
         change_bac = merged_bac
         change_revenue = merged_revenue
 
-        # For simplicity, budget_total = bac (total WBE budget allocation)
+        # For simplicity, budget_total = bac (total cost element budget amounts)
         main_budget_total = main_bac
         change_budget_total = change_bac
 
@@ -1350,7 +1350,7 @@ class ImpactAnalysisService:
         # ========================================================================
         # Query all schedule baselines for cost elements in this project (both branches)
         # CRITICAL: We must join WBE with branch matching CostElement.branch to ensure
-        # we get the correct budget_allocation for each branch's WBE version
+        # we get the correct cost elements for each branch
 
         # Apply temporal filtering if as_of is specified
         if as_of is not None:
@@ -1868,7 +1868,7 @@ class ImpactAnalysisService:
         """Generate simple budget-based time series when no schedules exist.
 
         Fallback method for projects without schedule baselines.
-        Calculates budget totals from WBEs only.
+        Calculates budget totals from CostElement budgets only.
 
         Args:
             project_id: UUID of the project

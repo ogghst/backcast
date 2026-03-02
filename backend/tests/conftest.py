@@ -442,7 +442,6 @@ async def test_wbe(db_session: AsyncSession, test_project: Project) -> WBE:
         project_id=test_project.project_id,
         code="1.0",
         name="Test WBE",
-        budget_allocation=Decimal("50000.00"),
         level=1,
     )
     return await service.create_wbe(wbe_in, actor_id=uuid4())
@@ -563,7 +562,6 @@ async def test_entity_hierarchy(
         project_id=project.project_id,
         code="1.1",
         name="Site Preparation",
-        budget_allocation=Decimal("100000.00"),
         level=1,
         description="Site preparation phase",
     )
@@ -657,7 +655,6 @@ async def api_test_wbe(
             "project_id": api_test_project["project_id"],
             "code": f"API-WBE-{uuid4().hex[:6].upper()}",
             "name": "API Test WBE",
-            "budget_allocation": 50000,
             "level": 1,
         },
     )
@@ -785,7 +782,6 @@ async def api_test_entity_hierarchy(client: AsyncClient) -> dict[str, dict[str, 
             "project_id": project["project_id"],
             "code": f"HIER-WBE-{uuid4().hex[:6].upper()}",
             "name": "Hierarchy WBE",
-            "budget_allocation": 100000,
             "level": 1,
         },
     )

@@ -58,7 +58,9 @@ For each cost element, the system must support the definition of planned revenue
 
 The system shall allow users to establish initial budgets at the cost element level, representing the Budget at Completion (BAC) for each department's scope of work. Budget allocation must be performed for each cost element within each WBE, with the ability to define time-phased budget consumption plans.
 
-The system must maintain the integrity of budget allocations and provide warnings when total allocated budgets exceed available project budgets or when WBE budgets exceed allocated revenues.
+**Single Source of Truth:** Budget exists ONLY at the Cost Element level. WBE budgets are computed on-the-fly as the sum of their child cost element budgets. This eliminates ambiguity and ensures data consistency.
+
+The system must maintain the integrity of budget allocations and provide warnings when total allocated budgets exceed available project budgets or when computed WBE budgets exceed allocated revenues.
 
 ### 6.1.1 Cost Element Schedule Baseline
 
@@ -843,8 +845,9 @@ The system shall enforce data integrity through comprehensive validation rules:
 
 **Budget Allocation Validation:**
 
-- Total WBE budgets ≤ Project budget (warning at 90%, error at 100%)
-- Total cost element budgets ≤ WBE budget (warning at 90%, error at 100%)
+- Budget is defined at the Cost Element level only (single source of truth)
+- WBE budget is computed on-the-fly as sum of child cost element budgets
+- Total cost element budgets ≤ Project budget (warning at 90%, error at 100%)
 - Revenue allocations = Total project contract value (exact match required)
 - Budget values > 0 (positive values only)
 
@@ -865,7 +868,7 @@ The system shall enforce data integrity through comprehensive validation rules:
 
 **Hierarchical Consistency:**
 
-- Child WBE budgets ≤ Parent WBE budget
+- WBE budget is computed from child cost elements (not stored)
 - Cannot delete parent WBE without deleting or reassigning child WBEs
 - WBE must belong to exactly one project
 - Cost element must belong to exactly one WBE

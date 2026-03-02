@@ -32,15 +32,24 @@ class WBE(EntityBase, VersionableMixin, BranchableMixin):
         code: WBS code (e.g., "1.2.3").
         name: WBE name.
         description: Optional description.
-        budget_allocation: Budget allocated to this WBE.
+        revenue_allocation: Revenue allocated to this WBE from project contract value.
         level: Hierarchy level (1 for top-level, 2+ for children).
         parent_wbe_id: Parent WBE root ID for hierarchy (optional).
+        budget_allocation: Computed budget (sum of child cost element budgets).
+            Not stored in database; computed on-the-fly.
+
+    Note: Budget is now computed from child CostElement.budget_amount values.
     """
 
     __tablename__ = "wbes"
+    __allow_unmapped__ = True  # Allow non-mapped attributes like budget_allocation
 
     # Root ID (stable identity across versions and branches)
     wbe_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
+
+    # Computed attribute (not stored in DB, populated by service layer)
+    # This is set dynamically by WBEService._populate_computed_budgets()
+    budget_allocation: Decimal | None = None
 
     # Parent relationship - links to Project's root project_id
     project_id: Mapped[UUID] = mapped_column(
@@ -63,7 +72,8 @@ class WBE(EntityBase, VersionableMixin, BranchableMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
 
     # Financial
-    budget_allocation: Mapped[Decimal] = mapped_column(DECIMAL(15, 2), default=0)
+    # NOTE: budget_allocation removed - budgets now exist only in CostElement.budget_amount
+    # WBE budget is computed on-the-fly as sum of child cost element budgets
     revenue_allocation: Mapped[Decimal | None] = mapped_column(
         DECIMAL(15, 2), nullable=True, default=None
     )

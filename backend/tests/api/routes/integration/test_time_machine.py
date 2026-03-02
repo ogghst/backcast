@@ -115,7 +115,6 @@ async def test_wbe_time_travel_basic(
         "project_id": test_project["project_id"],
         "code": "TT-1.0",
         "name": "Time Travel WBE A",
-        "budget_allocation": 50000,
         "level": 1,
     }
     create_response = await client.post("/api/v1/wbes", json=wbe_data)

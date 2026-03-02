@@ -4,6 +4,7 @@ Following TDD RED-GREEN-REFACTOR cycle.
 
 Tests financial impact level calculation for change orders based on
 budget deltas between main branch and change order branches.
+Budget is now computed from CostElement.budget_amount, not WBE.budget_allocation.
 Implements User Story E06-U09.
 """
 
@@ -14,6 +15,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain.change_order import ChangeOrder, ImpactLevel
+from app.models.domain.cost_element import CostElement
 from app.models.domain.wbe import WBE
 from app.services.financial_impact_service import FinancialImpactService
 
@@ -156,14 +158,13 @@ class TestCalculateImpactLevel:
         db_session.add(change_order)
         await db_session.flush()
 
-        # Create WBEs in main branch (total budget: 50000)
+        # Create WBEs in main branch
         wbe_main_1 = WBE(
             wbe_id=uuid4(),
             project_id=project_id,
             code="1.1",
             name="WBE 1",
-            budget_allocation=30000,
-            revenue_allocation=35000,
+            revenue_allocation=Decimal("35000"),
             branch="main",
             created_by=uuid4(),
         )
@@ -172,22 +173,44 @@ class TestCalculateImpactLevel:
             project_id=project_id,
             code="1.2",
             name="WBE 2",
-            budget_allocation=20000,
-            revenue_allocation=25000,
+            revenue_allocation=Decimal("25000"),
             branch="main",
             created_by=uuid4(),
         )
         db_session.add_all([wbe_main_1, wbe_main_2])
         await db_session.flush()
 
-        # Create WBEs in change branch (total budget: 55000, delta: 5000)
+        # Create CostElements in main branch (total budget: 50000)
+        ce_main_1 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_main_1.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("30000"),
+            branch="main",
+            created_by=uuid4(),
+        )
+        ce_main_2 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_main_2.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-2",
+            name="Cost Element 2",
+            budget_amount=Decimal("20000"),
+            branch="main",
+            created_by=uuid4(),
+        )
+        db_session.add_all([ce_main_1, ce_main_2])
+        await db_session.flush()
+
+        # Create WBEs in change branch
         wbe_change_1 = WBE(
             wbe_id=uuid4(),
             project_id=project_id,
             code="1.1",
             name="WBE 1",
-            budget_allocation=33000,
-            revenue_allocation=38000,
+            revenue_allocation=Decimal("38000"),
             branch=f"BR-{code}",
             parent_id=wbe_main_1.id,
             created_by=uuid4(),
@@ -197,13 +220,36 @@ class TestCalculateImpactLevel:
             project_id=project_id,
             code="1.2",
             name="WBE 2",
-            budget_allocation=22000,
-            revenue_allocation=27000,
+            revenue_allocation=Decimal("27000"),
             branch=f"BR-{code}",
             parent_id=wbe_main_2.id,
             created_by=uuid4(),
         )
         db_session.add_all([wbe_change_1, wbe_change_2])
+        await db_session.flush()
+
+        # Create CostElements in change branch (total budget: 55000, delta: 5000)
+        ce_change_1 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_change_1.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("33000"),
+            branch=f"BR-{code}",
+            created_by=uuid4(),
+        )
+        ce_change_2 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_change_2.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-2",
+            name="Cost Element 2",
+            budget_amount=Decimal("22000"),
+            branch=f"BR-{code}",
+            created_by=uuid4(),
+        )
+        db_session.add_all([ce_change_1, ce_change_2])
         await db_session.flush()
 
         # Act
@@ -235,14 +281,13 @@ class TestCalculateImpactLevel:
         db_session.add(change_order)
         await db_session.flush()
 
-        # Create WBEs in main branch (total budget: 50000)
+        # Create WBEs in main branch
         wbe_main_1 = WBE(
             wbe_id=uuid4(),
             project_id=project_id,
             code="2.1",
             name="WBE 1",
-            budget_allocation=30000,
-            revenue_allocation=35000,
+            revenue_allocation=Decimal("35000"),
             branch="main",
             created_by=uuid4(),
         )
@@ -251,22 +296,44 @@ class TestCalculateImpactLevel:
             project_id=project_id,
             code="2.2",
             name="WBE 2",
-            budget_allocation=20000,
-            revenue_allocation=25000,
+            revenue_allocation=Decimal("25000"),
             branch="main",
             created_by=uuid4(),
         )
         db_session.add_all([wbe_main_1, wbe_main_2])
         await db_session.flush()
 
-        # Create WBEs in change branch (total budget: 75000, delta: 25000)
+        # Create CostElements in main branch (total budget: 50000)
+        ce_main_1 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_main_1.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("30000"),
+            branch="main",
+            created_by=uuid4(),
+        )
+        ce_main_2 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_main_2.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-2",
+            name="Cost Element 2",
+            budget_amount=Decimal("20000"),
+            branch="main",
+            created_by=uuid4(),
+        )
+        db_session.add_all([ce_main_1, ce_main_2])
+        await db_session.flush()
+
+        # Create WBEs in change branch
         wbe_change_1 = WBE(
             wbe_id=uuid4(),
             project_id=project_id,
             code="2.1",
             name="WBE 1",
-            budget_allocation=45000,
-            revenue_allocation=50000,
+            revenue_allocation=Decimal("50000"),
             branch=f"BR-{code}",
             parent_id=wbe_main_1.id,
             created_by=uuid4(),
@@ -276,13 +343,36 @@ class TestCalculateImpactLevel:
             project_id=project_id,
             code="2.2",
             name="WBE 2",
-            budget_allocation=30000,
-            revenue_allocation=35000,
+            revenue_allocation=Decimal("35000"),
             branch=f"BR-{code}",
             parent_id=wbe_main_2.id,
             created_by=uuid4(),
         )
         db_session.add_all([wbe_change_1, wbe_change_2])
+        await db_session.flush()
+
+        # Create CostElements in change branch (total budget: 75000, delta: 25000)
+        ce_change_1 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_change_1.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("45000"),
+            branch=f"BR-{code}",
+            created_by=uuid4(),
+        )
+        ce_change_2 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_change_2.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-2",
+            name="Cost Element 2",
+            budget_amount=Decimal("30000"),
+            branch=f"BR-{code}",
+            created_by=uuid4(),
+        )
+        db_session.add_all([ce_change_1, ce_change_2])
         await db_session.flush()
 
         # Act
@@ -314,14 +404,13 @@ class TestCalculateImpactLevel:
         db_session.add(change_order)
         await db_session.flush()
 
-        # Create WBEs in main branch (total budget: 50000)
+        # Create WBEs in main branch
         wbe_main_1 = WBE(
             wbe_id=uuid4(),
             project_id=project_id,
             code="3.1",
             name="WBE 1",
-            budget_allocation=30000,
-            revenue_allocation=35000,
+            revenue_allocation=Decimal("35000"),
             branch="main",
             created_by=uuid4(),
         )
@@ -330,22 +419,44 @@ class TestCalculateImpactLevel:
             project_id=project_id,
             code="3.2",
             name="WBE 2",
-            budget_allocation=20000,
-            revenue_allocation=25000,
+            revenue_allocation=Decimal("25000"),
             branch="main",
             created_by=uuid4(),
         )
         db_session.add_all([wbe_main_1, wbe_main_2])
         await db_session.flush()
 
-        # Create WBEs in change branch (total budget: 125000, delta: 75000)
+        # Create CostElements in main branch (total budget: 50000)
+        ce_main_1 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_main_1.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("30000"),
+            branch="main",
+            created_by=uuid4(),
+        )
+        ce_main_2 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_main_2.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-2",
+            name="Cost Element 2",
+            budget_amount=Decimal("20000"),
+            branch="main",
+            created_by=uuid4(),
+        )
+        db_session.add_all([ce_main_1, ce_main_2])
+        await db_session.flush()
+
+        # Create WBEs in change branch
         wbe_change_1 = WBE(
             wbe_id=uuid4(),
             project_id=project_id,
             code="3.1",
             name="WBE 1",
-            budget_allocation=75000,
-            revenue_allocation=80000,
+            revenue_allocation=Decimal("80000"),
             branch=f"BR-{code}",
             parent_id=wbe_main_1.id,
             created_by=uuid4(),
@@ -355,13 +466,36 @@ class TestCalculateImpactLevel:
             project_id=project_id,
             code="3.2",
             name="WBE 2",
-            budget_allocation=50000,
-            revenue_allocation=55000,
+            revenue_allocation=Decimal("55000"),
             branch=f"BR-{code}",
             parent_id=wbe_main_2.id,
             created_by=uuid4(),
         )
         db_session.add_all([wbe_change_1, wbe_change_2])
+        await db_session.flush()
+
+        # Create CostElements in change branch (total budget: 125000, delta: 75000)
+        ce_change_1 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_change_1.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("75000"),
+            branch=f"BR-{code}",
+            created_by=uuid4(),
+        )
+        ce_change_2 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_change_2.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-2",
+            name="Cost Element 2",
+            budget_amount=Decimal("50000"),
+            branch=f"BR-{code}",
+            created_by=uuid4(),
+        )
+        db_session.add_all([ce_change_1, ce_change_2])
         await db_session.flush()
 
         # Act
@@ -393,14 +527,13 @@ class TestCalculateImpactLevel:
         db_session.add(change_order)
         await db_session.flush()
 
-        # Create WBEs in main branch (total budget: 50000)
+        # Create WBEs in main branch
         wbe_main_1 = WBE(
             wbe_id=uuid4(),
             project_id=project_id,
             code="4.1",
             name="WBE 1",
-            budget_allocation=30000,
-            revenue_allocation=35000,
+            revenue_allocation=Decimal("35000"),
             branch="main",
             created_by=uuid4(),
         )
@@ -409,22 +542,44 @@ class TestCalculateImpactLevel:
             project_id=project_id,
             code="4.2",
             name="WBE 2",
-            budget_allocation=20000,
-            revenue_allocation=25000,
+            revenue_allocation=Decimal("25000"),
             branch="main",
             created_by=uuid4(),
         )
         db_session.add_all([wbe_main_1, wbe_main_2])
         await db_session.flush()
 
-        # Create WBEs in change branch (total budget: 200000, delta: 150000)
+        # Create CostElements in main branch (total budget: 50000)
+        ce_main_1 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_main_1.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("30000"),
+            branch="main",
+            created_by=uuid4(),
+        )
+        ce_main_2 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_main_2.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-2",
+            name="Cost Element 2",
+            budget_amount=Decimal("20000"),
+            branch="main",
+            created_by=uuid4(),
+        )
+        db_session.add_all([ce_main_1, ce_main_2])
+        await db_session.flush()
+
+        # Create WBEs in change branch
         wbe_change_1 = WBE(
             wbe_id=uuid4(),
             project_id=project_id,
             code="4.1",
             name="WBE 1",
-            budget_allocation=120000,
-            revenue_allocation=125000,
+            revenue_allocation=Decimal("125000"),
             branch=f"BR-{code}",
             parent_id=wbe_main_1.id,
             created_by=uuid4(),
@@ -434,13 +589,36 @@ class TestCalculateImpactLevel:
             project_id=project_id,
             code="4.2",
             name="WBE 2",
-            budget_allocation=80000,
-            revenue_allocation=85000,
+            revenue_allocation=Decimal("85000"),
             branch=f"BR-{code}",
             parent_id=wbe_main_2.id,
             created_by=uuid4(),
         )
         db_session.add_all([wbe_change_1, wbe_change_2])
+        await db_session.flush()
+
+        # Create CostElements in change branch (total budget: 200000, delta: 150000)
+        ce_change_1 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_change_1.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("120000"),
+            branch=f"BR-{code}",
+            created_by=uuid4(),
+        )
+        ce_change_2 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_change_2.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-2",
+            name="Cost Element 2",
+            budget_amount=Decimal("80000"),
+            branch=f"BR-{code}",
+            created_by=uuid4(),
+        )
+        db_session.add_all([ce_change_1, ce_change_2])
         await db_session.flush()
 
         # Act
@@ -518,14 +696,13 @@ class TestCalculateImpactLevel:
         db_session.add(change_order)
         await db_session.flush()
 
-        # Create WBEs in main branch (total budget: 75000)
+        # Create WBEs in main branch
         wbe_main_1 = WBE(
             wbe_id=uuid4(),
             project_id=project_id,
             code="6.1",
             name="WBE 1",
-            budget_allocation=45000,
-            revenue_allocation=50000,
+            revenue_allocation=Decimal("50000"),
             branch="main",
             created_by=uuid4(),
         )
@@ -534,23 +711,44 @@ class TestCalculateImpactLevel:
             project_id=project_id,
             code="6.2",
             name="WBE 2",
-            budget_allocation=30000,
-            revenue_allocation=35000,
+            revenue_allocation=Decimal("35000"),
             branch="main",
             created_by=uuid4(),
         )
         db_session.add_all([wbe_main_1, wbe_main_2])
         await db_session.flush()
 
-        # Create WBEs in change branch (total budget: 50000, delta: -25000)
-        # Absolute delta is 25000, which is MEDIUM
+        # Create CostElements in main branch (total budget: 75000)
+        ce_main_1 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_main_1.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("45000"),
+            branch="main",
+            created_by=uuid4(),
+        )
+        ce_main_2 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_main_2.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-2",
+            name="Cost Element 2",
+            budget_amount=Decimal("30000"),
+            branch="main",
+            created_by=uuid4(),
+        )
+        db_session.add_all([ce_main_1, ce_main_2])
+        await db_session.flush()
+
+        # Create WBEs in change branch
         wbe_change_1 = WBE(
             wbe_id=uuid4(),
             project_id=project_id,
             code="6.1",
             name="WBE 1",
-            budget_allocation=30000,
-            revenue_allocation=35000,
+            revenue_allocation=Decimal("35000"),
             branch=f"BR-{code}",
             parent_id=wbe_main_1.id,
             created_by=uuid4(),
@@ -560,13 +758,37 @@ class TestCalculateImpactLevel:
             project_id=project_id,
             code="6.2",
             name="WBE 2",
-            budget_allocation=20000,
-            revenue_allocation=25000,
+            revenue_allocation=Decimal("25000"),
             branch=f"BR-{code}",
             parent_id=wbe_main_2.id,
             created_by=uuid4(),
         )
         db_session.add_all([wbe_change_1, wbe_change_2])
+        await db_session.flush()
+
+        # Create CostElements in change branch (total budget: 50000, delta: -25000)
+        # Absolute delta is 25000, which is MEDIUM
+        ce_change_1 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_change_1.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("30000"),
+            branch=f"BR-{code}",
+            created_by=uuid4(),
+        )
+        ce_change_2 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_change_2.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-2",
+            name="Cost Element 2",
+            budget_amount=Decimal("20000"),
+            branch=f"BR-{code}",
+            created_by=uuid4(),
+        )
+        db_session.add_all([ce_change_1, ce_change_2])
         await db_session.flush()
 
         # Act
@@ -608,12 +830,25 @@ class TestGetFinancialImpactDetails:
             project_id=project_id,
             code="7.1",
             name="WBE 1",
-            budget_allocation=50000,
-            revenue_allocation=60000,
+            revenue_allocation=Decimal("60000"),
             branch="main",
             created_by=uuid4(),
         )
         db_session.add(wbe_main)
+        await db_session.flush()
+
+        # Create CostElement in main branch
+        ce_main = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_main.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("50000"),
+            branch="main",
+            created_by=uuid4(),
+        )
+        db_session.add(ce_main)
         await db_session.flush()
 
         # Create WBEs in change branch
@@ -622,13 +857,26 @@ class TestGetFinancialImpactDetails:
             project_id=project_id,
             code="7.1",
             name="WBE 1",
-            budget_allocation=55000,
-            revenue_allocation=65000,
+            revenue_allocation=Decimal("65000"),
             branch=f"BR-{code}",
             parent_id=wbe_main.id,
             created_by=uuid4(),
         )
         db_session.add(wbe_change)
+        await db_session.flush()
+
+        # Create CostElement in change branch
+        ce_change = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_change.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("55000"),
+            branch=f"BR-{code}",
+            created_by=uuid4(),
+        )
+        db_session.add(ce_change)
         await db_session.flush()
 
         # Act
@@ -667,14 +915,13 @@ class TestGetFinancialImpactDetails:
         db_session.add(change_order)
         await db_session.flush()
 
-        # Create WBEs in main branch (total: 50000)
+        # Create WBEs in main branch
         wbe_main_1 = WBE(
             wbe_id=uuid4(),
             project_id=project_id,
             code="8.1",
             name="WBE 1",
-            budget_allocation=30000,
-            revenue_allocation=35000,
+            revenue_allocation=Decimal("35000"),
             branch="main",
             created_by=uuid4(),
         )
@@ -683,22 +930,44 @@ class TestGetFinancialImpactDetails:
             project_id=project_id,
             code="8.2",
             name="WBE 2",
-            budget_allocation=20000,
-            revenue_allocation=25000,
+            revenue_allocation=Decimal("25000"),
             branch="main",
             created_by=uuid4(),
         )
         db_session.add_all([wbe_main_1, wbe_main_2])
         await db_session.flush()
 
-        # Create WBEs in change branch (total: 75000, delta: 25000)
+        # Create CostElements in main branch (total: 50000)
+        ce_main_1 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_main_1.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("30000"),
+            branch="main",
+            created_by=uuid4(),
+        )
+        ce_main_2 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_main_2.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-2",
+            name="Cost Element 2",
+            budget_amount=Decimal("20000"),
+            branch="main",
+            created_by=uuid4(),
+        )
+        db_session.add_all([ce_main_1, ce_main_2])
+        await db_session.flush()
+
+        # Create WBEs in change branch
         wbe_change_1 = WBE(
             wbe_id=uuid4(),
             project_id=project_id,
             code="8.1",
             name="WBE 1",
-            budget_allocation=45000,
-            revenue_allocation=50000,
+            revenue_allocation=Decimal("50000"),
             branch=f"BR-{code}",
             parent_id=wbe_main_1.id,
             created_by=uuid4(),
@@ -708,13 +977,36 @@ class TestGetFinancialImpactDetails:
             project_id=project_id,
             code="8.2",
             name="WBE 2",
-            budget_allocation=30000,
-            revenue_allocation=35000,
+            revenue_allocation=Decimal("35000"),
             branch=f"BR-{code}",
             parent_id=wbe_main_2.id,
             created_by=uuid4(),
         )
         db_session.add_all([wbe_change_1, wbe_change_2])
+        await db_session.flush()
+
+        # Create CostElements in change branch (total: 75000, delta: 25000)
+        ce_change_1 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_change_1.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("45000"),
+            branch=f"BR-{code}",
+            created_by=uuid4(),
+        )
+        ce_change_2 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_change_2.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-2",
+            name="Cost Element 2",
+            budget_amount=Decimal("30000"),
+            branch=f"BR-{code}",
+            created_by=uuid4(),
+        )
+        db_session.add_all([ce_change_1, ce_change_2])
         await db_session.flush()
 
         # Act
@@ -757,8 +1049,7 @@ class TestGetFinancialImpactDetails:
             project_id=project_id,
             code="9.1",
             name="WBE 1",
-            budget_allocation=30000,
-            revenue_allocation=35000,
+            revenue_allocation=Decimal("35000"),
             branch="main",
             created_by=uuid4(),
         )
@@ -767,12 +1058,35 @@ class TestGetFinancialImpactDetails:
             project_id=project_id,
             code="9.2",
             name="WBE 2",
-            budget_allocation=20000,
-            revenue_allocation=25000,
+            revenue_allocation=Decimal("25000"),
             branch="main",
             created_by=uuid4(),
         )
         db_session.add_all([wbe_main_1, wbe_main_2])
+        await db_session.flush()
+
+        # Create CostElements in main branch
+        ce_main_1 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_main_1.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("30000"),
+            branch="main",
+            created_by=uuid4(),
+        )
+        ce_main_2 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_main_2.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-2",
+            name="Cost Element 2",
+            budget_amount=Decimal("20000"),
+            branch="main",
+            created_by=uuid4(),
+        )
+        db_session.add_all([ce_main_1, ce_main_2])
         await db_session.flush()
 
         # Create WBEs in change branch (revenue: 85000, delta: 25000)
@@ -781,8 +1095,7 @@ class TestGetFinancialImpactDetails:
             project_id=project_id,
             code="9.1",
             name="WBE 1",
-            budget_allocation=45000,
-            revenue_allocation=50000,
+            revenue_allocation=Decimal("50000"),
             branch=f"BR-{code}",
             parent_id=wbe_main_1.id,
             created_by=uuid4(),
@@ -792,13 +1105,36 @@ class TestGetFinancialImpactDetails:
             project_id=project_id,
             code="9.2",
             name="WBE 2",
-            budget_allocation=30000,
-            revenue_allocation=35000,
+            revenue_allocation=Decimal("35000"),
             branch=f"BR-{code}",
             parent_id=wbe_main_2.id,
             created_by=uuid4(),
         )
         db_session.add_all([wbe_change_1, wbe_change_2])
+        await db_session.flush()
+
+        # Create CostElements in change branch
+        ce_change_1 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_change_1.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("45000"),
+            branch=f"BR-{code}",
+            created_by=uuid4(),
+        )
+        ce_change_2 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe_change_2.wbe_id,
+            cost_element_type_id=uuid4(),
+            code="CE-2",
+            name="Cost Element 2",
+            budget_amount=Decimal("30000"),
+            branch=f"BR-{code}",
+            created_by=uuid4(),
+        )
+        db_session.add_all([ce_change_1, ce_change_2])
         await db_session.flush()
 
         # Act
@@ -845,7 +1181,7 @@ class TestGetFinancialImpactDetails:
         db_session.add(change_order)
         await db_session.flush()
 
-        # No WBEs created
+        # No WBEs or CostElements created
 
         # Act
         details = await service.get_financial_impact_details(change_order_id)

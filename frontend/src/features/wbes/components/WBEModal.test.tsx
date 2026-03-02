@@ -63,9 +63,10 @@ describe("WBEModal", () => {
       // Revenue Allocation label should NOT be present
       expect(screen.queryByText(/Revenue Allocation/i)).not.toBeInTheDocument();
 
-      // Should only have 1 spinbutton (budget only)
-      const spinbuttons = screen.getAllByRole("spinbutton");
-      expect(spinbuttons).toHaveLength(1);
+      // Budget allocation input field is no longer present (computed from cost elements)
+      // No spinbuttons for budget input
+      const spinbuttons = screen.queryAllByRole("spinbutton");
+      expect(spinbuttons).toHaveLength(0);
     });
 
     it("shows revenue_allocation field in change order branch", () => {
@@ -108,9 +109,9 @@ describe("WBEModal", () => {
       // In main branch, revenue field should not be visible
       expect(screen.queryByText(/Revenue Allocation/i)).not.toBeInTheDocument();
 
-      // Should only have budget input (1 spinbutton)
-      const spinbuttons = screen.getAllByRole("spinbutton");
-      expect(spinbuttons).toHaveLength(1);
+      // Budget allocation is computed from cost elements, not an input field
+      const spinbuttons = screen.queryAllByRole("spinbutton");
+      expect(spinbuttons).toHaveLength(0);
     });
   });
 
@@ -126,9 +127,9 @@ describe("WBEModal", () => {
       // In main branch, revenue field is not rendered
       render(<WBEModal {...defaultProps} />, { wrapper });
 
-      // Should only have budget input (1 spinbutton)
-      const spinbuttons = screen.getAllByRole("spinbutton");
-      expect(spinbuttons).toHaveLength(1);
+      // Budget allocation is computed from cost elements, not an input field
+      const spinbuttons = screen.queryAllByRole("spinbutton");
+      expect(spinbuttons).toHaveLength(0);
 
       // Note: When in CO branch, revenue field would be visible and accept values
       // Testing CO branch behavior requires mocking TimeMachine store state
@@ -222,16 +223,18 @@ describe("WBEModal", () => {
 
   /**
    * Additional tests for complete coverage
+   * NOTE: Budget allocation is now computed from cost elements, not an input field
    */
-  describe("Budget allocation field (existing functionality)", () => {
-    it("renders budget_allocation field", () => {
+  describe("Budget allocation (computed from cost elements)", () => {
+    it("does not render budget_allocation input field (computed from cost elements)", () => {
       render(<WBEModal {...defaultProps} />, { wrapper });
 
-      expect(screen.getByText(/Budget Allocation/i)).toBeInTheDocument();
+      // Budget allocation input field is no longer rendered
+      expect(screen.queryByText(/Budget Allocation/i)).not.toBeInTheDocument();
 
-      // First spinbutton should be budget
-      const budgetInput = screen.getAllByRole("spinbutton")[0];
-      expect(budgetInput).toBeDefined();
+      // No budget input spinbutton
+      const spinbuttons = screen.queryAllByRole("spinbutton");
+      expect(spinbuttons).toHaveLength(0);
     });
   });
 

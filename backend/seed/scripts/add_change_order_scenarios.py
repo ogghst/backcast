@@ -67,12 +67,12 @@ def add_co_a_scope_addition(
     )
 
     # Create 2 new L3 WBEs
+    # NOTE: budget_allocation removed - budgets are now in CostElement.budget_amount
     new_wbe_1 = {
         "id": str(uuid4()),
         "wbe_id": str(uuid4()),
         "code": "PRJ-DEMO-001-L1-1-L2-1-L3-2",
         "name": "L3 WBE 1.1.2 (NEW - Secondary Conveyor)",
-        "budget_allocation": 30000.0,
         "level": 3,
         "description": "New L3 WBE for secondary conveyor system (CO-A)",
         "project_id": PROJECT_1_ID,
@@ -87,7 +87,6 @@ def add_co_a_scope_addition(
         "wbe_id": str(uuid4()),
         "code": "PRJ-DEMO-001-L1-1-L2-1-L3-3",
         "name": "L3 WBE 1.1.3 (NEW - Conveyor Controls)",
-        "budget_allocation": 30000.0,
         "level": 3,
         "description": "New L3 WBE for conveyor control system (CO-A)",
         "project_id": PROJECT_1_ID,
@@ -451,12 +450,12 @@ def add_co_f_critical_addition(
 
     # Create complete WBE hierarchy for robot cell integration
     # L1 WBE
+    # NOTE: budget_allocation removed - budgets are now in CostElement.budget_amount
     l1_wbe = {
         "id": str(uuid4()),
         "wbe_id": str(uuid4()),
         "code": "PRJ-DEMO-002-L1-3",
         "name": "L1 WBE 3 (NEW - Robot Cell)",
-        "budget_allocation": 150000.0,
         "level": 1,
         "description": "New L1 WBE for robot cell integration (CO-F)",
         "project_id": PROJECT_2_ID,
@@ -475,7 +474,6 @@ def add_co_f_critical_addition(
             "wbe_id": str(uuid4()),
             "code": f"PRJ-DEMO-002-L1-3-L2-{idx}",
             "name": f"L2 WBE 3.{idx} (NEW - Robot Cell)",
-            "budget_allocation": 75000.0,
             "level": 2,
             "description": f"New L2 WBE {idx} for robot cell (CO-F)",
             "project_id": PROJECT_2_ID,
@@ -495,7 +493,6 @@ def add_co_f_critical_addition(
             "wbe_id": str(uuid4()),
             "code": f"PRJ-DEMO-002-L1-3-L2-{idx}-L3-1",
             "name": f"L3 WBE 3.{idx}.1 (NEW - Robot Cell)",
-            "budget_allocation": 37500.0,
             "level": 3,
             "description": f"New L3 WBE {idx} for robot cell (CO-F)",
             "project_id": PROJECT_2_ID,
@@ -589,7 +586,7 @@ def add_co_g_mixed_addition(
         "wbe_id": str(uuid4()),
         "code": "PRJ-DEMO-001-L1-2-L2-3",
         "name": "L2 WBE 2.3 (NEW - Structural Support)",
-        "budget_allocation": 210000.0,
+        # NOTE: budget_allocation removed - budgets are now in CostElement.budget_amount
         "level": 2,
         "description": "New L2 WBE for structural reinforcements (CO-G)",
         "project_id": PROJECT_1_ID,

@@ -109,18 +109,7 @@ export const WBEModal = ({
           <Input placeholder="1.1" disabled={isEdit} />
         </Form.Item>
 
-        <Form.Item name="budget_allocation" label="Budget Allocation">
-          <InputNumber
-            style={{ width: "100%" }}
-            formatter={(value) =>
-              `€ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-            }
-            parser={(value) =>
-              value?.replace(/€\s?|(,*)/g, "") as unknown as number
-            }
-            placeholder="0.00"
-          />
-        </Form.Item>
+        {/* Budget allocation removed - budget is now computed from child cost elements */}
 
         {isChangeOrderBranch && (
           <Form.Item

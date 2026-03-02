@@ -108,13 +108,15 @@ Cost Element Types are organizational reference data that enable:
 
 - `Project` - Top-level container for financial data
 - `WBE` (Work Breakdown Element) - Individual machines/deliverables within projects
+  - `budget_allocation` is a **computed attribute** (sum of child CostElement.budget_amount)
+  - See [ADR-013: Computed Budget Attribute Pattern](decisions/ADR-013-computed-budget-attribute.md)
 
 **Key Files:**
 
 - `app/models/domain/project.py` - Project model
-- `app/models/domain/wbe.py` - WBE model
+- `app/models/domain/wbe.py` - WBE model (with computed budget_allocation)
 - `app/services/project_service.py` - ProjectService with EVCS support
-- `app/services/wbe_service.py` - WBEService with EVCS support
+- `app/services/wbe_service.py` - WBEService with budget computation
 - `app/api/routes/projects.py` - Project endpoints
 - `app/api/routes/wbes.py` - WBE endpoints
 
@@ -130,11 +132,17 @@ Cost Element Types are organizational reference data that enable:
 **Description:**
 Cost Elements are the leaf level of the project hierarchy where budgets are allocated and costs are tracked.
 
+**Budget Architecture (Single Source of Truth):**
+- `CostElement.budget_amount` is the **sole storage location** for all budget data
+- WBE budgets are computed on-the-fly from child CostElements
+- See [ADR-013: Computed Budget Attribute Pattern](decisions/ADR-013-computed-budget-attribute.md)
+
 **Key Entities:**
 
 - `CostElement` - Project-specific instance of a Cost Element Type
   - Branchable (supports change orders)
   - Has 1:1 relationship with ScheduleBaseline
+  - **Sole source of budget data** via `budget_amount` field
   - Satisfies: `BranchableProtocol`
   - Auto-creates default schedule baseline on creation
 

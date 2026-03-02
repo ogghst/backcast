@@ -94,7 +94,6 @@ async def test_create_wbe(
         "project_id": test_project["project_id"],
         "code": "1.0",
         "name": "Phase 1",
-        "budget_allocation": 100000,
         "level": 1,
         "description": "First phase of the project",
     }
@@ -105,7 +104,8 @@ async def test_create_wbe(
     data = response.json()
     assert data["name"] == "Phase 1"
     assert data["code"] == "1.0"
-    assert float(data["budget_allocation"]) == 100000.0
+    # budget_allocation is computed from cost elements (0 if no cost elements)
+    assert float(data["budget_allocation"]) == 0.0
     assert data["project_id"] == test_project["project_id"]
     assert "id" in data
     assert "wbe_id" in data
@@ -123,7 +123,6 @@ async def test_create_wbe_duplicate_code(
         "project_id": test_project["project_id"],
         "code": "1.1",
         "name": "WBE 1",
-        "budget_allocation": 50000,
         "level": 1,
     }
 
@@ -152,7 +151,6 @@ async def test_get_wbes_by_project(
             "project_id": test_project["project_id"],
             "code": f"1.{i}",
             "name": f"WBE {i}",
-            "budget_allocation": 10000 * (i + 1),
             "level": 1,
         }
         await client.post("/api/v1/wbes", json=wbe_data)
@@ -180,7 +178,6 @@ async def test_get_wbe_by_id(
         "project_id": test_project["project_id"],
         "code": "2.0",
         "name": "Specific WBE",
-        "budget_allocation": 75000,
         "level": 1,
     }
     create_response = await client.post("/api/v1/wbes", json=wbe_data)
@@ -207,7 +204,6 @@ async def test_update_wbe(
         "project_id": test_project["project_id"],
         "code": "3.0",
         "name": "Original WBE",
-        "budget_allocation": 50000,
         "level": 1,
     }
     create_response = await client.post("/api/v1/wbes", json=wbe_data)
@@ -216,14 +212,14 @@ async def test_update_wbe(
     # Update WBE
     update_data = {
         "name": "Updated WBE",
-        "budget_allocation": 75000,
     }
     response = await client.put(f"/api/v1/wbes/{wbe_id}", json=update_data)
 
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Updated WBE"
-    assert float(data["budget_allocation"]) == 75000
+    # budget_allocation is computed from cost elements (0 if no cost elements)
+    assert float(data["budget_allocation"]) == 0.0
     assert data["code"] == "3.0"  # Code should remain unchanged
 
 
@@ -239,7 +235,6 @@ async def test_delete_wbe(
         "project_id": test_project["project_id"],
         "code": "4.0",
         "name": "To Delete",
-        "budget_allocation": 25000,
         "level": 1,
     }
     create_response = await client.post("/api/v1/wbes", json=wbe_data)
@@ -272,7 +267,6 @@ async def test_get_wbe_history(
         "project_id": test_project["project_id"],
         "code": "5.0",
         "name": "History WBE",
-        "budget_allocation": 30000,
         "level": 1,
     }
     create_response = await client.post("/api/v1/wbes", json=wbe_data)
@@ -307,7 +301,6 @@ async def test_wbe_hierarchical_structure(
         "project_id": test_project["project_id"],
         "code": "1.0",
         "name": "Parent WBE",
-        "budget_allocation": 100000,
         "level": 1,
     }
     parent_response = await client.post("/api/v1/wbes", json=parent_data)
@@ -318,7 +311,6 @@ async def test_wbe_hierarchical_structure(
         "project_id": test_project["project_id"],
         "code": "1.1",
         "name": "Child WBE",
-        "budget_allocation": 50000,
         "level": 2,
         "parent_wbe_id": parent_id,
     }
@@ -345,7 +337,6 @@ async def test_create_wbe_with_control_date(
         "project_id": test_project["project_id"],
         "code": "CD-1.0",
         "name": "Control Date WBE",
-        "budget_allocation": 100000,
         "level": 1,
         "control_date": control_date,
     }
@@ -373,7 +364,6 @@ async def test_update_wbe_with_control_date(
             "project_id": test_project["project_id"],
             "code": "CD-2.0",
             "name": "Update Test WBE",
-            "budget_allocation": 50000,
             "level": 1,
         },
     )
@@ -406,7 +396,6 @@ async def test_delete_wbe_with_control_date(
             "project_id": test_project["project_id"],
             "code": "CD-3.0",
             "name": "Delete Test WBE",
-            "budget_allocation": 50000,
             "level": 1,
         },
     )
@@ -448,7 +437,6 @@ async def test_wbe_level_inference(
         "project_id": test_project["project_id"],
         "code": "L1",
         "name": "Level 1 WBE",
-        "budget_allocation": 100000,
         # note: no level provided
     }
     root_resp = await client.post("/api/v1/wbes", json=root_data)
@@ -465,7 +453,6 @@ async def test_wbe_level_inference(
         "project_id": test_project["project_id"],
         "code": "L2",
         "name": "Level 2 WBE",
-        "budget_allocation": 50000,
         "parent_wbe_id": root_id,
         # note: no level provided
     }
@@ -481,7 +468,6 @@ async def test_wbe_level_inference(
         "project_id": test_project["project_id"],
         "code": "L3",
         "name": "Level 3 WBE",
-        "budget_allocation": 25000,
         "parent_wbe_id": child_id,
     }
     sub_resp = await client.post("/api/v1/wbes", json=sub_child_data)
@@ -503,7 +489,6 @@ async def test_wbe_level_inference(
         "project_id": test_project["project_id"],
         "code": "L1-New",
         "name": "New Root",
-        "budget_allocation": 100000,
     }
     new_root_resp = await client.post("/api/v1/wbes", json=new_root_data)
     new_root_id = new_root_resp.json()["wbe_id"]
@@ -530,7 +515,6 @@ async def test_get_wbes_param_filter(
         "project_id": test_project["project_id"],
         "code": "TF-1",
         "name": "Root",
-        "budget_allocation": 100,
     }
     root_resp = await client.post("/api/v1/wbes", json=root_data)
     root_id = root_resp.json()["wbe_id"]
@@ -540,7 +524,6 @@ async def test_get_wbes_param_filter(
         "project_id": test_project["project_id"],
         "code": "TF-1.1",
         "name": "Child",
-        "budget_allocation": 50,
         "parent_wbe_id": root_id,
     }
     await client.post("/api/v1/wbes", json=child_data)

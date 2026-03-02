@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
+from typing import cast as typing_cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import cast as sql_cast
@@ -19,6 +20,7 @@ from app.core.branching.commands import UpdateCommand
 from app.core.branching.service import BranchableService
 from app.core.versioning.commands import CreateVersionCommand
 from app.core.versioning.enums import BranchMode
+from app.models.domain.cost_element import CostElement
 from app.models.domain.user import User
 from app.models.domain.wbe import WBE
 from app.models.schemas.wbe import WBECreate, WBEUpdate
@@ -111,6 +113,48 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
                 f"Over-allocation: €{difference:,.2f}"
             )
 
+    async def _compute_wbe_budget(
+        self, wbe_id: UUID, branch: str = "main"
+    ) -> Decimal:
+        """Compute WBE budget as sum of child cost element budgets.
+
+        Budget is no longer stored on WBE; it's computed on-the-fly
+        from CostElement.budget_amount values.
+
+        Args:
+            wbe_id: Root WBE ID
+            branch: Branch name (default: "main")
+
+        Returns:
+            Sum of all child cost element budgets for this WBE
+        """
+        stmt = select(func.sum(CostElement.budget_amount)).where(
+            CostElement.wbe_id == wbe_id,
+            CostElement.branch == branch,
+            func.upper(typing_cast(Any, CostElement).valid_time).is_(None),
+            typing_cast(Any, CostElement).deleted_at.is_(None),
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar() or Decimal("0")
+
+    async def _populate_computed_budgets(
+        self, wbes: list[WBE], branch: str = "main"
+    ) -> list[WBE]:
+        """Populate computed budget_allocation for a list of WBEs.
+
+        Args:
+            wbes: List of WBE objects to populate
+            branch: Branch name for budget computation
+
+        Returns:
+            Same list with budget_allocation populated on each WBE
+        """
+        for wbe in wbes:
+            wbe.budget_allocation = await self._compute_wbe_budget(
+                wbe.wbe_id, branch=wbe.branch
+            )
+        return wbes
+
     async def get_current(self, root_id: UUID, branch: str = "main") -> WBE | None:
         """Get the current active version for a root entity on a specific branch.
 
@@ -131,7 +175,10 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             .limit(1)
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        wbe = result.scalar_one_or_none()
+        if wbe:
+            wbe.budget_allocation = await self._compute_wbe_budget(root_id, branch=branch)
+        return wbe
 
     async def create_root(
         self,
@@ -362,6 +409,9 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         result = await self.session.execute(stmt)
         wbes = await self._resolve_parent_names(result.all())
 
+        # Populate computed budgets
+        wbes = await self._populate_computed_budgets(wbes, branch=branch)
+
         return wbes, total
 
     async def get_by_project(self, project_id: UUID, branch: str = "main") -> list[WBE]:
@@ -379,7 +429,8 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             .order_by(WBE.code)
         )
         result = await self.session.execute(stmt)
-        return await self._resolve_parent_names(result.all())
+        wbes = await self._resolve_parent_names(result.all())
+        return await self._populate_computed_budgets(wbes, branch=branch)
 
     async def get_by_parent(
         self,
@@ -434,7 +485,8 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
 
         stmt = stmt.order_by(WBE.code)
         result = await self.session.execute(stmt)
-        return await self._resolve_parent_names(result.all())
+        wbes = await self._resolve_parent_names(result.all())
+        return await self._populate_computed_budgets(wbes, branch=branch)
 
     async def get_by_code(
         self, code: str, project_id: UUID, branch: str = "main"
@@ -455,7 +507,10 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         )
         result = await self.session.execute(stmt)
         resolved = await self._resolve_parent_names(result.all())
-        return resolved[0] if resolved else None
+        if resolved:
+            resolved = await self._populate_computed_budgets(resolved, branch=branch)
+            return resolved[0]
+        return None
 
     async def create_wbe(self, wbe_in: WBECreate, actor_id: UUID) -> WBE:
         """Create new WBE using CreateVersionCommand.
@@ -540,6 +595,10 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             branch=wbe_data.get("branch", "main"),
         )
 
+        # Set computed budget on returned WBE
+        wbe.budget_allocation = await self._compute_wbe_budget(
+            root_id, branch=wbe_data.get("branch", "main")
+        )
         return wbe
 
     async def update_wbe(
@@ -632,6 +691,10 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             branch=branch,
         )
 
+        # Set computed budget on returned WBE
+        updated_wbe.budget_allocation = await self._compute_wbe_budget(
+            wbe_id, branch=branch
+        )
         return updated_wbe
 
     async def delete_wbe(
@@ -1012,6 +1075,8 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
 
         wbe, parent_name = row
         wbe.parent_name = parent_name
+        # Populate computed budget
+        wbe.budget_allocation = await self._compute_wbe_budget(root_id, branch=branch)
         return cast(WBE, wbe)
 
     async def get_wbe_history(self, wbe_id: UUID) -> list[WBE]:
@@ -1065,6 +1130,11 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             wbe, creator_name, parent_name = row
             wbe.created_by_name = creator_name
             wbe.parent_name = parent_name
+            # Note: Historical budget is computed from current cost elements
+            # For true historical budget, we'd need time-travel on cost elements too
+            wbe.budget_allocation = await self._compute_wbe_budget(
+                wbe_id, branch=wbe.branch
+            )
             history.append(wbe)
 
         return history
@@ -1102,4 +1172,10 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             ...     as_of=as_of
             ... )
         """
-        return await self.get_as_of(wbe_id, as_of, branch, branch_mode)
+        wbe = await self.get_as_of(wbe_id, as_of, branch, branch_mode)
+        if wbe:
+            # Populate computed budget
+            wbe.budget_allocation = await self._compute_wbe_budget(
+                wbe_id, branch=wbe.branch
+            )
+        return wbe
