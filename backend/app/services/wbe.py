@@ -113,9 +113,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
                 f"Over-allocation: €{difference:,.2f}"
             )
 
-    async def _compute_wbe_budget(
-        self, wbe_id: UUID, branch: str = "main"
-    ) -> Decimal:
+    async def _compute_wbe_budget(self, wbe_id: UUID, branch: str = "main") -> Decimal:
         """Compute WBE budget as sum of child cost element budgets.
 
         Budget is no longer stored on WBE; it's computed on-the-fly
@@ -177,7 +175,9 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         result = await self.session.execute(stmt)
         wbe = result.scalar_one_or_none()
         if wbe:
-            wbe.budget_allocation = await self._compute_wbe_budget(root_id, branch=branch)
+            wbe.budget_allocation = await self._compute_wbe_budget(
+                root_id, branch=branch
+            )
         return wbe
 
     async def create_root(

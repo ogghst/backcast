@@ -656,7 +656,9 @@ class UpdateChangeOrderStatusCommand:
                 {
                     "lower": current_lower,
                     "upper": self.control_date,
-                    "tx_lower": current_valid_time.lower if current_valid_time else update_timestamp,
+                    "tx_lower": current_valid_time.lower
+                    if current_valid_time
+                    else update_timestamp,
                     "tx_upper": update_timestamp,
                     "version_id": current_id,
                 },

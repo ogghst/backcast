@@ -20,11 +20,11 @@ Rollback Strategy:
 """
 
 from collections.abc import Sequence
-from decimal import Decimal
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 from sqlalchemy import text
+from sqlalchemy.dialects import postgresql
+
 from alembic import op
 
 # revision identifiers, used by Alembic.

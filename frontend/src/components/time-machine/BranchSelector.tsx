@@ -1,4 +1,4 @@
-import { Select, Space } from "antd";
+import { Select, Space, Spin } from "antd";
 import {
   BranchesOutlined,
   EditOutlined,
@@ -9,16 +9,16 @@ import {
   PlayCircleOutlined,
   StopOutlined,
 } from "@ant-design/icons";
-import type { BranchOption } from "./types";
 import React from "react";
+import { useProjectBranches } from "@/features/projects/api/useProjects";
+import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
+import type { BranchOption } from "./types";
 
 interface BranchSelectorProps {
-  /** Currently selected branch */
-  value: string;
-  /** Available branches */
-  branches: BranchOption[];
-  /** Called when branch selection changes */
-  onChange: (branch: string) => void;
+  /** Project ID to fetch branches for */
+  projectId: string;
+  /** Called when branch selection changes (optional) */
+  onChange?: (branch: string) => void;
   /** Disable selector */
   disabled?: boolean;
   /** Compact mode for header */
@@ -37,38 +37,71 @@ const STATUS_ICON: Record<string, React.ReactNode> = {
 };
 
 /**
- * Branch selector dropdown for switching between branches.
+ * Project-aware Branch selector dropdown for switching between branches.
+ *
+ * Fetches branches automatically for the given projectId and persists
+ * selection to the TimeMachineStore.
  *
  * Displays status badges for change order branches (BR-{code} pattern).
  *
  * @example
  * ```tsx
- * <BranchSelector
- *   value="main"
- *   branches={[
- *     { value: 'main', label: 'main', isDefault: true },
- *     { value: 'BR-CO-2026-001', label: 'BR-CO-2026-001', isChangeOrderBranch: true, changeOrderStatus: 'Draft' },
- *   ]}
- *   onChange={handleBranchChange}
- * />
+ * <BranchSelector projectId="proj-123" />
  * ```
  */
 export function BranchSelector({
-  value,
-  branches,
+  projectId,
   onChange,
   disabled = false,
   compact = false,
 }: BranchSelectorProps) {
+  // Fetch branches for this project
+  const { data: branches = [], isLoading } = useProjectBranches(projectId);
+
+  // Get selected branch and action from store
+  const selectedBranch = useTimeMachineStore(
+    (state) => state.projectSettings[projectId]?.selectedBranch ?? "main",
+  );
+  const selectBranch = useTimeMachineStore((state) => state.selectBranch);
+
+  const handleBranchChange = (value: string) => {
+    selectBranch(value);
+    if (onChange) {
+      onChange(value);
+    }
+  };
+
+  const options: BranchOption[] = branches.map((b) => ({
+    value: b.name,
+    label: b.name,
+    isDefault: b.is_default,
+    isChangeOrderBranch: b.type === "change_order",
+    changeOrderStatus:
+      b.change_order_status as BranchOption["changeOrderStatus"],
+  }));
+
+  if (isLoading && options.length === 0) {
+    return (
+      <Select
+        disabled
+        value={selectedBranch}
+        style={{ minWidth: compact ? 180 : 240 }}
+        size={compact ? "small" : "middle"}
+        suffixIcon={<Spin size="small" />}
+        options={[{ value: selectedBranch, label: selectedBranch }]}
+      />
+    );
+  }
+
   return (
     <Select
-      value={value}
-      onChange={onChange}
+      value={selectedBranch}
+      onChange={handleBranchChange}
       disabled={disabled}
-      style={{ minWidth: compact ? 120 : 180 }}
+      style={{ minWidth: compact ? 180 : 240 }}
       size={compact ? "small" : "middle"}
       suffixIcon={<BranchesOutlined />}
-      options={branches.map((branch) => ({
+      options={options.map((branch) => ({
         value: branch.value,
         label: (
           <Space size="small">

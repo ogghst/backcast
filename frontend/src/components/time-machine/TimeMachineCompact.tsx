@@ -8,7 +8,8 @@ import {
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { useTimeMachine } from "@/contexts/TimeMachineContext";
 import { useProject } from "@/features/projects/api/useProjects";
-import { ProjectBranchSelector } from "./ProjectBranchSelector";
+import { BranchSelector } from "./BranchSelector";
+import { ViewModeSelector } from "./ViewModeSelector";
 
 const { Text } = Typography;
 
@@ -100,8 +101,11 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
         </Space>
       </Button>
 
-      {/* Branch Selector */}
-      <ProjectBranchSelector projectId={projectId} />
+      {/* Branch and View Mode Selector */}
+      <Space size="small">
+        <BranchSelector projectId={projectId} compact />
+        <ViewModeSelector compact />
+      </Space>
 
       {/* Quick reset to now (only shown when viewing history) */}
       {isHistorical && (
