@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.domain.wbe import WBE
 from app.services.change_order_service import ChangeOrderService
 from app.services.cost_element_service import CostElementService
+from app.services.project import ProjectService
 from app.services.wbe import WBEService
 
 
@@ -36,6 +37,16 @@ class TestChangeOrderFullMerge:
         co_service = ChangeOrderService(db_session)
         wbe_service = WBEService(db_session)
         ce_service = CostElementService(db_session)
+        project_service = ProjectService(db_session)
+
+        # Create Project first
+        await project_service.create_root(
+            root_id=project_id,
+            actor_id=actor_id,
+            branch="main",
+            code="PRJ-1",
+            name="Test Project",
+        )
 
         # Create CO on main branch
         await co_service.create_root(
@@ -158,6 +169,16 @@ class TestChangeOrderFullMerge:
 
         co_service = ChangeOrderService(db_session)
         wbe_service = WBEService(db_session)
+        project_service = ProjectService(db_session)
+
+        # Create Project first
+        await project_service.create_root(
+            root_id=project_id,
+            actor_id=actor_id,
+            branch="main",
+            code="PRJ-2",
+            name="Test Project 2",
+        )
 
         # Create CO on main branch
         await co_service.create_root(
@@ -184,7 +205,7 @@ class TestChangeOrderFullMerge:
         )
 
         # Get WBE before merge
-        wbe_before = await wbe_service.get_by_root_id(wbe_id, branch="main")
+        wbe_before = await wbe_service.get_current(wbe_id, branch="main")
         assert wbe_before.name == "Original WBE"
 
         # Create CO version on source branch
@@ -219,7 +240,7 @@ class TestChangeOrderFullMerge:
         )
 
         # Assert
-        wbe_after = await wbe_service.get_by_root_id(wbe_id, branch="main")
+        wbe_after = await wbe_service.get_current(wbe_id, branch="main")
         assert wbe_after is not None
         assert wbe_after.name == "Modified WBE"
 
@@ -236,6 +257,16 @@ class TestChangeOrderFullMerge:
         co_code = "789"
 
         co_service = ChangeOrderService(db_session)
+        project_service = ProjectService(db_session)
+
+        # Create Project first
+        await project_service.create_root(
+            root_id=project_id,
+            actor_id=actor_id,
+            branch="main",
+            code="PRJ-3",
+            name="Test Project 3",
+        )
 
         # Create CO on main branch
         await co_service.create_root(
@@ -286,6 +317,16 @@ class TestChangeOrderFullMerge:
 
         co_service = ChangeOrderService(db_session)
         wbe_service = WBEService(db_session)
+        project_service = ProjectService(db_session)
+
+        # Create Project first
+        await project_service.create_root(
+            root_id=project_id,
+            actor_id=actor_id,
+            branch="main",
+            code="PRJ-4",
+            name="Test Project 4",
+        )
 
         # Create CO on main branch
         await co_service.create_root(
@@ -312,7 +353,7 @@ class TestChangeOrderFullMerge:
         )
 
         # Verify WBE exists and is not deleted on main
-        wbe_before = await wbe_service.get_by_root_id(wbe_id, branch="main")
+        wbe_before = await wbe_service.get_current(wbe_id, branch="main")
         assert wbe_before is not None
         assert wbe_before.deleted_at is None
 

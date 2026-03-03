@@ -361,8 +361,8 @@ async def test_merge_change_order(
     print(f"DEBUG: main_v1_id = {main_v1_id}")
     print(f"DEBUG: branch_v2_id = {branch_v2_id}")
 
-    # Should have 2 versions on main now (V1 closed, V3 current)
-    assert len(main_versions_all) == 2
+    # Should have 3 versions on main now (V1 closed, V2 closed merge, V3 current Implemented)
+    assert len(main_versions_all) == 3
 
     # Now get the CURRENT version (transaction_time.upper IS NULL)
     stmt_main_current = (

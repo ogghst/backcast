@@ -45,26 +45,6 @@ class ForecastService(BranchableService[Forecast]):  # type: ignore[type-var,unu
         """
         super().__init__(Forecast, db)
 
-    async def get_current(self, root_id: UUID, branch: str = "main") -> Forecast | None:
-        """Get the current active version for a root entity on a specific branch.
-
-        Override parent method to use 'forecast_id' field instead of
-        the auto-generated field name.
-        """
-        stmt = (
-            select(Forecast)
-            .where(
-                Forecast.forecast_id == root_id,
-                Forecast.branch == branch,
-                func.upper(cast(Any, Forecast).valid_time).is_(None),
-                cast(Any, Forecast).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, Forecast).valid_time.desc())
-            .limit(1)
-        )
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
-
     async def create_root(
         self,
         root_id: UUID,

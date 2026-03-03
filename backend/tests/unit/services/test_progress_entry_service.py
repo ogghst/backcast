@@ -177,7 +177,7 @@ class TestProgressEntryServiceUpdate:
             progress_percentage=Decimal("75.00"),
         )
         updated_progress = await service.update(
-            progress_entry_id=created_progress.progress_entry_id,
+            entity_id=created_progress.progress_entry_id,
             progress_in=progress_update,
             actor_id=actor_id,
         )
@@ -209,7 +209,7 @@ class TestProgressEntryServiceUpdate:
             notes="Work undone - inspection failed",
         )
         updated_progress = await service.update(
-            progress_entry_id=created_progress.progress_entry_id,
+            entity_id=created_progress.progress_entry_id,
             progress_in=progress_update,
             actor_id=actor_id,
         )

@@ -352,8 +352,8 @@ async def test_wbe_update_temporal_bounds(db_session: AsyncSession) -> None:
     assert v2_data["tx_upper"] is None, (
         "V2 transaction_time upper bound should be NULL (open-ended)"
     )
-    assert v2_data["tx_lower"] > v1_after["tx_upper"], (
-        f"V2 transaction_time lower bound should be after V1's transaction_time upper bound. "
+    assert v2_data["tx_lower"] >= v1_after["tx_upper"], (
+        f"V2 transaction_time lower bound should be on or after V1's transaction_time upper bound. "
         f"Got V2.tx_lower={v2_data['tx_lower']}, V1.tx_upper={v1_after['tx_upper']}"
     )
     print(f"  ✓ V2 transaction_time open-ended: [{v2_data['tx_lower']}, NULL)")
@@ -391,12 +391,12 @@ async def test_wbe_update_temporal_bounds(db_session: AsyncSession) -> None:
         f"  ✓ valid_time is continuous: V1.upper == V2.lower == {v1_after['valid_upper']}"
     )
 
-    # transaction_time should not overlap (v1.upper < v2.lower)
-    assert v1_after["tx_upper"] < v2_data["tx_lower"], (
+    # transaction_time should not overlap (v1.upper <= v2.lower)
+    assert v1_after["tx_upper"] <= v2_data["tx_lower"], (
         f"transaction_time should not overlap: V1.upper ({v1_after['tx_upper']}) "
-        f"should be < V2.lower ({v2_data['tx_lower']})"
+        f"should be <= V2.lower ({v2_data['tx_lower']})"
     )
-    print("  ✓ transaction_time does not overlap: V1.upper < V2.lower")
+    print("  ✓ transaction_time does not overlap: V1.upper <= V2.lower")
 
     # ========================================================================
     # SUMMARY

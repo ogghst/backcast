@@ -32,28 +32,6 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         """
         super().__init__(CostElement, db)
 
-    async def get_current(
-        self, root_id: UUID, branch: str = "main"
-    ) -> CostElement | None:
-        """Get the current active version for a root entity on a specific branch.
-
-        Override parent method to use 'cost_element_id' field instead of
-        the auto-generated field name.
-        """
-        stmt = (
-            select(CostElement)
-            .where(
-                CostElement.cost_element_id == root_id,
-                CostElement.branch == branch,
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, CostElement).valid_time.desc())
-            .limit(1)
-        )
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
-
     async def create_root(
         self,
         root_id: UUID,

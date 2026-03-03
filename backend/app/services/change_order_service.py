@@ -60,35 +60,6 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         self.workflow = ChangeOrderWorkflowService()
         self.branch_service = BranchService(session)
 
-    async def get_current(
-        self, root_id: UUID, branch: str = "main"
-    ) -> ChangeOrder | None:
-        """Get the current active version for a root entity on a specific branch.
-
-        Override parent method to use 'change_order_id' field instead of
-        the auto-generated 'changeorder_id'.
-
-        Uses the same pattern as WBEService: finds the version with an open
-        upper bound on valid_time, which represents the current/latest version
-        on this branch. This works correctly regardless of the valid_time
-        lower bound (past, present, or future dates).
-        """
-        stmt = (
-            select(ChangeOrder)
-            .where(
-                ChangeOrder.change_order_id == root_id,
-                ChangeOrder.branch == branch,
-                func.upper(cast(Any, ChangeOrder).valid_time).is_(
-                    None
-                ),  # Open upper bound
-                cast(Any, ChangeOrder).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, ChangeOrder).valid_time.desc())
-            .limit(1)
-        )
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
-
     async def create_root(
         self,
         root_id: UUID,
@@ -465,8 +436,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         Raises:
             ValueError: If Change Order not found or not in allowed status
         """
-        # Get current change order
-        co = await self.get_current(change_order_id)
+        co = await self.get_as_of(change_order_id)
         if not co:
             raise ValueError(f"Change Order {change_order_id} not found")
 
@@ -635,9 +605,9 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         return change_orders, total
 
     async def get_current_by_code(
-        self, code: str, branch: str = "main"
+        self, code: str, branch: str = "main", as_of: datetime | None = None
     ) -> ChangeOrder | None:
-        """Get the current active version for a business code.
+        """Get the active version for a business code as of a specific date.
 
         Args:
             code: The business code (e.g., "CO-2026-001")
@@ -646,16 +616,26 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         Returns:
             Current ChangeOrder or None
         """
+        conditions = [
+            ChangeOrder.code == code,
+            ChangeOrder.branch == branch,
+            cast(Any, ChangeOrder).deleted_at.is_(None),
+        ]
+
+        if as_of:
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            conditions.extend(
+                [
+                    cast(Any, ChangeOrder).valid_time.op("@>")(as_of_tstz),
+                    func.lower(cast(Any, ChangeOrder).valid_time) <= as_of_tstz,
+                ]
+            )
+        else:
+            conditions.append(func.upper(cast(Any, ChangeOrder).valid_time).is_(None))
+
         stmt = (
             select(ChangeOrder)
-            .where(
-                ChangeOrder.code == code,
-                ChangeOrder.branch == branch,
-                func.upper(cast(Any, ChangeOrder).valid_time).is_(
-                    None
-                ),  # Open upper bound
-                cast(Any, ChangeOrder).deleted_at.is_(None),
-            )
+            .where(*conditions)
             .order_by(cast(Any, ChangeOrder).valid_time.desc())
             .limit(1)
         )
@@ -737,7 +717,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         """
         # 1. Get current version (from main or source) to find the code
         # We check "main" first to get the metadata
-        current = await self.get_current(change_order_id, branch=target_branch)
+        current = await self.get_as_of(change_order_id, branch=target_branch)
 
         if not current:
             # Try to find it on any branch to get the code?
@@ -751,7 +731,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         # Check if source branch has active version (lazy branching)
         # If the CO was never modified on its branch, it won't have a version there.
         # In that case, we skip merging the CO entity itself and just merge child entities.
-        source_version = await self.get_current(change_order_id, branch=source_branch)
+        source_version = await self.get_as_of(change_order_id, branch=source_branch)
         co_was_forked = source_version is not None
 
         # Detect merge conflicts before proceeding
@@ -935,7 +915,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         )
 
         # Get current change order
-        co = await self.get_current(change_order_id, branch=branch)
+        co = await self.get_as_of(change_order_id, branch=branch)
         if not co:
             raise ValueError(f"Change Order {change_order_id} not found")
 
@@ -1075,7 +1055,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         )
 
         # Get current change order
-        co = await self.get_current(change_order_id, branch=branch)
+        co = await self.get_as_of(change_order_id, branch=branch)
         if not co:
             raise ValueError(f"Change Order {change_order_id} not found")
 
@@ -1184,7 +1164,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         )
 
         # Get current change order
-        co = await self.get_current(change_order_id, branch=branch)
+        co = await self.get_as_of(change_order_id, branch=branch)
         if not co:
             raise ValueError(f"Change Order {change_order_id} not found")
 
@@ -1298,7 +1278,7 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
         )
 
         # Get current change order
-        co = await self.get_current(change_order_id, branch=branch)
+        co = await self.get_as_of(change_order_id, branch=branch)
         if not co:
             raise ValueError(f"Change Order {change_order_id} not found")
 

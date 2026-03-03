@@ -253,7 +253,10 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         # 3. Close current (only if not already closed as remainder)
         if current is not None:
             await self._close_version(
-                session, current, close_at_valid_time=self.control_date
+                session,
+                current,
+                close_at_valid_time=self.control_date,
+                close_at_transaction_time=update_timestamp,
             )
 
         # CRITICAL FIX: Use the same update_timestamp for both ranges to avoid empty ranges

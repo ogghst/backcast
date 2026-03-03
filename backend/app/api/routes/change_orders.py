@@ -230,7 +230,7 @@ async def create_change_order(
     try:
         # Check if change order code already exists (on main branch)
         existing = await service.get_current_by_code(
-            change_order_in.code, branch="main"
+            change_order_in.code, branch="main", as_of=change_order_in.control_date
         )
         if existing:
             raise HTTPException(
@@ -507,7 +507,7 @@ async def merge_change_order(
     """
     try:
         # Get current CO to find source branch
-        current = await service.get_current(
+        current = await service.get_as_of(
             change_order_id, branch=merge_request.target_branch
         )
         if not current:
@@ -835,7 +835,7 @@ async def archive_change_order_branch(
             actor_id=current_user.user_id,
         )
         # Return updated CO
-        co = await service.get_current(change_order_id)
+        co = await service.get_as_of(change_order_id)
         if not co:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -951,7 +951,10 @@ async def get_change_order_approval_info(
 
     try:
         # Get change order (supports time travel with as_of)
-        co = await service.get_by_root_id(change_order_id, branch=branch, as_of=as_of)
+        if as_of:
+            co = await service.get_as_of(change_order_id, as_of=as_of, branch=branch)
+        else:
+            co = await service.get_as_of(change_order_id, branch=branch)
         if not co:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

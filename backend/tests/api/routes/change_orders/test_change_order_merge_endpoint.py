@@ -97,6 +97,18 @@ async def test_merge_endpoint_returns_200(
     wbe_service = WBEService(db_session)
     ce_service = CostElementService(db_session)
 
+    # Arrange - Create Project first
+    from app.services.project import ProjectService
+
+    project_service = ProjectService(db_session)
+    await project_service.create_root(
+        root_id=project_id,
+        actor_id=actor_id,
+        branch="main",
+        code="PRJ-1",
+        name="Test Project",
+    )
+
     # Arrange - Create CO on main branch
     await co_service.create_root(
         root_id=co_id,

@@ -69,61 +69,6 @@ class TemporalService[TVersionable: VersionableProtocol]:
         """Get entity by ID (returns specific version by PK)."""
         return await self.session.get(self.entity_class, entity_id)
 
-    async def get_by_root_id(
-        self, root_id: UUID, branch: str = "main"
-    ) -> TVersionable | None:
-        """Get current version by root ID.
-
-        Semantic alias for get_current_version that provides clearer intent
-        when called from service methods.
-
-        Args:
-            root_id: The root entity ID (e.g., project_id, wbe_id)
-            branch: Branch name (default: "main")
-
-        Returns:
-            Current version of the entity or None if not found
-        """
-        return await self.get_current_version(root_id, branch)
-
-    async def get_current_version(
-        self, root_id: UUID, branch: str = "main"
-    ) -> TVersionable | None:
-        """Get current active version of entity by its root ID.
-
-        Filters by:
-        - Root ID (e.g., project_id, wbe_id)
-        - Branch (default: main)
-        - Validity (valid_time unclosed)
-        - Not deleted
-        """
-        from typing import Any, cast
-
-        from sqlalchemy import func
-
-        # Introspect root field name (e.g. project_id, wbe_id, cost_element_id)
-        root_field = self._get_root_field_name()
-
-        # Prepare statement
-        stmt = select(self.entity_class).where(
-            getattr(self.entity_class, root_field) == root_id,
-        )
-
-        # Only filter by branch if the entity has a branch attribute
-        if hasattr(self.entity_class, "branch"):
-            stmt = stmt.where(self.entity_class.branch == branch)  # type: ignore[attr-defined]
-
-        stmt = stmt.where(
-            func.upper(cast(Any, self.entity_class).valid_time).is_(None),
-            func.not_(
-                func.isempty(self.entity_class.valid_time)
-            ),  # Exclude empty ranges
-            cast(Any, self.entity_class).deleted_at.is_(None),
-        )
-        stmt = stmt.order_by(cast(Any, self.entity_class).valid_time.desc()).limit(1)
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
-
     async def get_all(self, skip: int = 0, limit: int = 100000) -> list[TVersionable]:
         """Get all entities (current versions) with pagination.
 
@@ -155,11 +100,11 @@ class TemporalService[TVersionable: VersionableProtocol]:
     async def get_as_of(
         self,
         entity_id: UUID,
-        as_of: datetime,
+        as_of: datetime | None = None,
         branch: str = "main",
         branch_mode: "BranchMode | None" = None,
     ) -> TVersionable | None:
-        """Time travel: Get entity as it was at specific timestamp.
+        """Time travel or get current: Get entity as it was at specific timestamp.
 
         Implements bitemporal time travel by checking BOTH temporal dimensions:
         - valid_time: When the data was valid in the real world
@@ -210,7 +155,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
         return await self._get_as_of_from_branch(entity_id, as_of, "main")
 
     async def _get_as_of_from_branch(
-        self, entity_id: UUID, as_of: datetime, branch: str
+        self, entity_id: UUID, as_of: datetime | None, branch: str
     ) -> TVersionable | None:
         """Internal: Get entity from specific branch at timestamp.
 
@@ -233,8 +178,20 @@ class TemporalService[TVersionable: VersionableProtocol]:
         if hasattr(self.entity_class, "branch"):
             stmt = stmt.where(cast(Any, self.entity_class).branch == branch)
 
-        # Apply Valid Time Travel filter (only checks valid_time, not transaction_time)
-        stmt = self._apply_bitemporal_filter(stmt, as_of)
+        # Apply Valid Time Travel filter or Current Version filter
+        if as_of:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            from sqlalchemy import func
+
+            stmt = stmt.where(
+                func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+                func.not_(
+                    func.isempty(self.entity_class.valid_time)
+                ),  # Exclude empty ranges
+                cast(Any, self.entity_class).deleted_at.is_(None),
+            )
+            stmt = stmt.order_by(cast(Any, self.entity_class).valid_time.desc())
 
         stmt = stmt.limit(1)
         result = await self.session.execute(stmt)
@@ -411,7 +368,7 @@ class TemporalService[TVersionable: VersionableProtocol]:
         )
 
     async def _is_deleted_on_branch(
-        self, entity_id: UUID, as_of: datetime, branch: str
+        self, entity_id: UUID, as_of: datetime | None, branch: str
     ) -> bool:
         """Check if entity was explicitly deleted on branch at timestamp.
 
@@ -425,15 +382,17 @@ class TemporalService[TVersionable: VersionableProtocol]:
 
         root_field = self._get_root_field_name()
 
-        # Cast as_of to TIMESTAMP(timezone=True) for proper comparison
-        as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-
-        # Check for deleted version on this branch at or before as_of timestamp
-        stmt = select(self.entity_class).where(
+        # Check for deleted version on this branch
+        conditions = [
             getattr(self.entity_class, root_field) == entity_id,
             cast(Any, self.entity_class).deleted_at.is_not(None),  # IS deleted
-            cast(Any, self.entity_class).deleted_at <= as_of_tstz,  # Temporal check
-        )
+        ]
+
+        if as_of:
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            conditions.append(cast(Any, self.entity_class).deleted_at <= as_of_tstz)
+
+        stmt = select(self.entity_class).where(*conditions)
 
         # Only filter by branch if the entity has a branch attribute
         if hasattr(self.entity_class, "branch"):

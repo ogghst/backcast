@@ -80,7 +80,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
             return
 
         # Get the current entity to extract project_id
-        entity = await self.get_current(root_id, branch)
+        entity = await self.get_as_of(root_id, branch=branch)
         if entity is None:
             # Entity doesn't exist yet, no lock check needed
             return
@@ -158,48 +158,6 @@ class BranchableService[TBranchable: BranchableProtocol]:
     async def get_by_id(self, entity_id: UUID) -> TBranchable | None:
         """Get specific version by its version ID (primary key)."""
         return await self.session.get(self.entity_class, entity_id)
-
-    async def get_by_root_id(
-        self, root_id: UUID, branch: str = "main", as_of: datetime | None = None
-    ) -> TBranchable | None:
-        """Get the active version of an entity by its root ID.
-
-        Dispatches to get_as_of if as_of is provided, otherwise get_current.
-        """
-        if as_of:
-            return await self.get_as_of(root_id, as_of, branch)
-        return await self.get_current(root_id, branch)
-
-    async def get_current(
-        self, root_id: UUID, branch: str = "main"
-    ) -> TBranchable | None:
-        """Get the current active version for a root entity on a specific branch.
-
-        Uses clock_timestamp() instead of current_timestamp() because within
-        a transaction, current_timestamp() returns the transaction start time,
-        which may be before the valid_time lower bound of recently created records.
-        """
-        # Helper to get root field name
-        class_name = self.entity_class.__name__.lower()
-        if class_name.endswith("version"):
-            class_name = class_name[:-7]
-        root_field = f"{class_name}_id"
-
-        stmt = (
-            select(self.entity_class)
-            .where(
-                getattr(self.entity_class, root_field) == root_id,
-                cast(Any, self.entity_class).branch == branch,
-                cast(Any, self.entity_class).valid_time.op("@>")(
-                    func.clock_timestamp()
-                ),
-                cast(Any, self.entity_class).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, self.entity_class).valid_time.desc())
-            .limit(1)
-        )
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
 
     async def create(
         self,
@@ -525,21 +483,21 @@ class BranchableService[TBranchable: BranchableProtocol]:
     async def get_as_of(
         self,
         entity_id: UUID,
-        as_of: datetime,
+        as_of: datetime | None = None,
         branch: str = "main",
         branch_mode: BranchMode | None = None,
     ) -> TBranchable | None:
-        """Time travel: Get active version at specific timestamp on a branch.
+        """Time travel or get current: Get active version at specific timestamp on a branch.
 
         Uses Valid Time Travel semantics:
         - Only checks valid_time (when the fact was valid in the real world)
         - Does NOT check transaction_time (when recorded in database)
 
-        This allows querying historical states and forward-looking scenarios.
+        If as_of is None, gets the current active specified version.
 
         Args:
             entity_id: Root entity ID
-            as_of: Timestamp to query
+            as_of: Timestamp to query, or None for current version
             branch: Branch name (default: main)
             branch_mode: Resolution mode (STRICT=only branch, MERGE=fallback to main)
         """
@@ -549,22 +507,35 @@ class BranchableService[TBranchable: BranchableProtocol]:
         from sqlalchemy import cast as sql_cast
         from sqlalchemy.dialects.postgresql import TIMESTAMP
 
-        # CRITICAL FIX: Cast as_of to TIMESTAMP(timezone=True) for TSTZRANGE comparison
-        as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-
-        # Base conditions for ID and Valid Time (not transaction time!)
+        # Base conditions for ID
         conditions = [
             getattr(self.entity_class, root_field) == entity_id,
-            # Valid Time Coverage
-            cast(Any, self.entity_class).valid_time.op("@>")(as_of_tstz),
-            func.lower(cast(Any, self.entity_class).valid_time) <= as_of_tstz,
-            # Deleted At Check (respect temporal deletion)
-            func.coalesce(
-                cast(Any, self.entity_class).deleted_at,
-                sql_cast(datetime.max, TIMESTAMP(timezone=True)),
-            )
-            > as_of_tstz,
         ]
+
+        if as_of:
+            # CRITICAL FIX: Cast as_of to TIMESTAMP(timezone=True) for TSTZRANGE comparison
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            conditions.extend(
+                [
+                    # Valid Time Coverage
+                    cast(Any, self.entity_class).valid_time.op("@>")(as_of_tstz),
+                    func.lower(cast(Any, self.entity_class).valid_time) <= as_of_tstz,
+                    # Deleted At Check (respect temporal deletion)
+                    func.coalesce(
+                        cast(Any, self.entity_class).deleted_at,
+                        sql_cast(datetime.max, TIMESTAMP(timezone=True)),
+                    )
+                    > as_of_tstz,
+                ]
+            )
+        else:
+            # Current Version Coverage
+            conditions.extend(
+                [
+                    func.upper(cast(Any, self.entity_class).valid_time).is_(None),
+                    cast(Any, self.entity_class).deleted_at.is_(None),
+                ]
+            )
 
         # STRICT mode or already on main: exact branch match
         if branch_mode == BranchMode.STRICT or branch == "main":
@@ -597,16 +568,21 @@ class BranchableService[TBranchable: BranchableProtocol]:
 
         # No result on requested branch - check if entity was deleted on this branch
         # If deleted, don't fall back to main (respect the deletion)
-        # CRITICAL: Must check temporal aspect - only consider deleted if deleted_at <= as_of
-        deleted_check = (
-            select(self.entity_class)
-            .where(
-                getattr(self.entity_class, root_field) == entity_id,
-                cast(Any, self.entity_class).branch == branch,
-                cast(Any, self.entity_class).deleted_at.is_not(None),
-                cast(Any, self.entity_class).deleted_at <= as_of_tstz,  # Temporal check
+        # CRITICAL: Must check temporal aspect if as_of provided
+        deleted_check_conditions = [
+            getattr(self.entity_class, root_field) == entity_id,
+            cast(Any, self.entity_class).branch == branch,
+            cast(Any, self.entity_class).deleted_at.is_not(None),
+        ]
+
+        if as_of:
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            deleted_check_conditions.append(
+                cast(Any, self.entity_class).deleted_at <= as_of_tstz
             )
-            .limit(1)
+
+        deleted_check = (
+            select(self.entity_class).where(*deleted_check_conditions).limit(1)
         )
         deleted_result = await self.session.execute(deleted_check)
         is_deleted_on_branch = deleted_result.scalar_one_or_none() is not None
@@ -730,13 +706,13 @@ class BranchableService[TBranchable: BranchableProtocol]:
         from typing import Any
 
         # Get current versions on both branches
-        source = await self.get_current(root_id=root_id, branch=source_branch)
+        source = await self.get_as_of(entity_id=root_id, branch=source_branch)
         if not source:
             # Entity doesn't exist on source branch (lazy branching).
             # This means it was never modified there, so no conflicts possible.
             return []
 
-        target = await self.get_current(root_id=root_id, branch=target_branch)
+        target = await self.get_as_of(entity_id=root_id, branch=target_branch)
         if not target:
             raise ValueError(f"No current version on target branch '{target_branch}'")
 
@@ -882,7 +858,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
                 branch_mode=BranchMode.STRICT,
             )
         else:
-            version_a = await self.get_current(root_id=root_id, branch=branch_a)
+            version_a = await self.get_as_of(entity_id=root_id, branch=branch_a)
 
         # Get version from branch_b
         if as_of:
@@ -893,7 +869,7 @@ class BranchableService[TBranchable: BranchableProtocol]:
                 branch_mode=BranchMode.STRICT,
             )
         else:
-            version_b = await self.get_current(root_id=root_id, branch=branch_b)
+            version_b = await self.get_as_of(entity_id=root_id, branch=branch_b)
 
         return {
             "branch_a": version_a,

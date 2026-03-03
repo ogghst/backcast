@@ -73,6 +73,7 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
         session: AsyncSession,
         version: TVersionable,
         close_at_valid_time: datetime | None = None,
+        close_at_transaction_time: datetime | None = None,
     ) -> None:
         """Close a version by setting upper bound on BOTH temporal dimensions.
 
@@ -91,7 +92,7 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
         # CRITICAL FIX: Generate closing timestamps in Python to avoid identical timestamps
         # When calling clock_timestamp() twice in SQL, PostgreSQL returns the same microsecond
         # value if both calls execute within the same microsecond, creating empty ranges [t, t)
-        closing_timestamp = datetime.now(UTC)
+        closing_timestamp = close_at_transaction_time or datetime.now(UTC)
 
         # Determine closing times
         # If control_date (close_at_valid_time) is provided, use it for valid_time.
@@ -254,10 +255,16 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
         if not current:
             raise ValueError(f"No active version found for {self.root_id}")
 
+        # Generate universal timestamp for this update operation to ensure tx_lower >= tx_upper exactly
+        update_time = datetime.now(UTC)
+
         # CRITICAL FIX: Close current version FIRST to get its upper bound
         # This ensures we know exactly when the closed version ends
         await self._close_version(
-            session, current, close_at_valid_time=self.control_date
+            session,
+            current,
+            close_at_valid_time=self.control_date,
+            close_at_transaction_time=update_time,
         )
 
         # Refresh to get the updated valid_time (now closed)
@@ -332,11 +339,13 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
         stmt = text(
             f"""
             INSERT INTO {tablename} ({cols_str}, valid_time, transaction_time)
-            VALUES ({placeholders_str}, tstzrange(:valid_lower, NULL, '[]'), tstzrange(clock_timestamp(), NULL, '[]'))
+            VALUES ({placeholders_str}, tstzrange(:valid_lower, NULL, '[]'), tstzrange(:tx_lower, NULL, '[]'))
             RETURNING id
             """
         )
-        result = await session.execute(stmt, {**values, "valid_lower": new_valid_lower})
+        result = await session.execute(
+            stmt, {**values, "valid_lower": new_valid_lower, "tx_lower": update_time}
+        )
         new_version_id = result.scalar_one()
 
         # Fetch the newly created version from the database

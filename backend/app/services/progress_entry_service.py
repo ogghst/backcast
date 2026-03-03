@@ -37,6 +37,7 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         actor_id: UUID,
         root_id: UUID | None = None,
         control_date: datetime | None = None,
+        progress_in: Any = None,
         **fields: Any,
     ) -> ProgressEntry:
         """Create new progress entry using CreateVersionCommand.
@@ -46,8 +47,14 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
             actor_id: The user creating the progress entry
             control_date: Optional control date for valid_time (defaults to now)
         """
-        # Extract control_date from schema if not provided
-        progress_in = fields.pop("progress_in", None)
+        # Support kwargs override for progress_in
+        if progress_in is None:
+            progress_in = fields.pop("progress_in", None)
+
+        if actor_id is None:
+            actor_id = fields.pop("actor_id", None)
+            if actor_id is None:
+                raise ValueError("actor_id is required")
 
         # Extract control_date from schema if not provided
         if control_date is None and progress_in:

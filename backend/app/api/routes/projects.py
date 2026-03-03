@@ -187,8 +187,7 @@ async def read_project(
         # Time travel query
         project = await service.get_project_as_of(project_id, as_of, branch=branch)
     else:
-        # Current version
-        project = await service.get_by_root_id(project_id, branch=branch)
+        project = await service.get_as_of(project_id, branch=branch)
 
     if not project:
         raise HTTPException(

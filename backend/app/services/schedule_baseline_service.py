@@ -62,35 +62,6 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         """
         super().__init__(ScheduleBaseline, db)
 
-    async def get_current(
-        self, root_id: UUID, branch: str = "main"
-    ) -> ScheduleBaseline | None:
-        """Get the current active version for a root entity on a specific branch.
-
-        Override parent method to use 'schedule_baseline_id' field instead of
-        the auto-generated field name.
-
-        Args:
-            root_id: Root UUID identifier for the ScheduleBaseline
-            branch: Branch name (default: "main")
-
-        Returns:
-            Current ScheduleBaseline or None
-        """
-        stmt = (
-            select(ScheduleBaseline)
-            .where(
-                ScheduleBaseline.schedule_baseline_id == root_id,
-                ScheduleBaseline.branch == branch,
-                func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None),
-                cast(Any, ScheduleBaseline).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, ScheduleBaseline).valid_time.desc())
-            .limit(1)
-        )
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
-
     async def create_root(
         self,
         root_id: UUID,
