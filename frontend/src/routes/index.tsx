@@ -10,6 +10,7 @@ import { ProjectList } from "@/pages/projects/ProjectList";
 import { ProjectLayout } from "@/pages/projects/ProjectLayout";
 import { ProjectOverview } from "@/pages/projects/ProjectOverview";
 import { ProjectChangeOrdersPage } from "@/pages/projects/ProjectChangeOrdersPage";
+import { ProjectEVMAnalysis } from "@/pages/projects/ProjectEVMAnalysis";
 import { WBEList } from "@/pages/wbes/WBEList";
 import { WBEDetailPage } from "@/pages/wbes/WBEDetailPage";
 import { ChangeOrderUnifiedPage } from "@/pages/projects/change-orders/ChangeOrderUnifiedPage";
@@ -78,6 +79,10 @@ export const router = createBrowserRouter([
           {
             path: "change-orders",
             element: <ProjectChangeOrdersPage />,
+          },
+          {
+            path: "evm-analysis",
+            element: <ProjectEVMAnalysis />,
           },
         ],
       },
