@@ -65,9 +65,10 @@ class WBERead(BaseModel):
     project_id: UUID
     code: str
     name: str
-    # NOTE: budget_allocation is computed from child cost elements, not stored
+    # NOTE: budget_allocation is computed from cost elements in the full hierarchy, not stored
     budget_allocation: Decimal = Field(
-        Decimal(0), description="Computed budget (sum of child cost element budgets)"
+        Decimal(0),
+        description="Computed budget (sum of cost element budgets in full WBE hierarchy)",
     )
     revenue_allocation: Decimal | None = Field(
         None, ge=0, description="Revenue allocation from project contract value"

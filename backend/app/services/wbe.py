@@ -114,24 +114,62 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             )
 
     async def _compute_wbe_budget(self, wbe_id: UUID, branch: str = "main") -> Decimal:
-        """Compute WBE budget as sum of child cost element budgets.
+        """Compute WBE budget as sum of cost element budgets in full hierarchy.
 
-        Budget is no longer stored on WBE; it's computed on-the-fly
-        from CostElement.budget_amount values.
+        Budget includes all CostElements attached to this WBE AND all descendant WBEs.
+        Uses recursive CTE for efficient single-query calculation.
 
         Args:
             wbe_id: Root WBE ID
             branch: Branch name (default: "main")
 
         Returns:
-            Sum of all child cost element budgets for this WBE
+            Sum of all cost element budgets in the WBE hierarchy
         """
-        stmt = select(func.sum(CostElement.budget_amount)).where(
-            CostElement.wbe_id == wbe_id,
-            CostElement.branch == branch,
-            func.upper(typing_cast(Any, CostElement).valid_time).is_(None),
-            typing_cast(Any, CostElement).deleted_at.is_(None),
+        from sqlalchemy import literal_column
+
+        # Build recursive CTE to get all WBE IDs in hierarchy (including root)
+        # Base case: the root WBE itself
+        wbe_hierarchy = (
+            select(
+                WBE.wbe_id,
+                literal_column("0").label("depth"),
+            )
+            .where(
+                WBE.wbe_id == wbe_id,
+                WBE.branch == branch,
+                func.upper(typing_cast(Any, WBE).valid_time).is_(None),
+                typing_cast(Any, WBE).deleted_at.is_(None),
+            )
+            .cte(name="wbe_hierarchy", recursive=True)
         )
+
+        # Recursive case: child WBEs
+        child_wbe = aliased(WBE, name="child_wbe")
+        wbe_hierarchy = wbe_hierarchy.union_all(
+            select(
+                child_wbe.wbe_id,
+                (wbe_hierarchy.c.depth + 1).label("depth"),
+            ).where(
+                child_wbe.parent_wbe_id == wbe_hierarchy.c.wbe_id,
+                child_wbe.branch == branch,
+                func.upper(typing_cast(Any, child_wbe).valid_time).is_(None),
+                typing_cast(Any, child_wbe).deleted_at.is_(None),
+            )
+        )
+
+        # Sum all cost elements in the hierarchy
+        stmt = (
+            select(func.coalesce(func.sum(CostElement.budget_amount), Decimal("0")))
+            .select_from(wbe_hierarchy)
+            .join(CostElement, CostElement.wbe_id == wbe_hierarchy.c.wbe_id)
+            .where(
+                CostElement.branch == branch,
+                func.upper(typing_cast(Any, CostElement).valid_time).is_(None),
+                typing_cast(Any, CostElement).deleted_at.is_(None),
+            )
+        )
+
         result = await self.session.execute(stmt)
         return result.scalar() or Decimal("0")
 
@@ -139,6 +177,8 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         self, wbes: list[WBE], branch: str = "main"
     ) -> list[WBE]:
         """Populate computed budget_allocation for a list of WBEs.
+
+        Budget includes all cost elements in the WBE hierarchy (direct + descendants).
 
         Args:
             wbes: List of WBE objects to populate

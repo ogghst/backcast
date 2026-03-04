@@ -35,10 +35,11 @@ class WBE(EntityBase, VersionableMixin, BranchableMixin):
         revenue_allocation: Revenue allocated to this WBE from project contract value.
         level: Hierarchy level (1 for top-level, 2+ for children).
         parent_wbe_id: Parent WBE root ID for hierarchy (optional).
-        budget_allocation: Computed budget (sum of child cost element budgets).
+        budget_allocation: Computed budget (sum of cost element budgets in full WBE hierarchy).
             Not stored in database; computed on-the-fly.
 
-    Note: Budget is now computed from child CostElement.budget_amount values.
+    Note: Budget is computed from CostElement.budget_amount values in the full WBE hierarchy
+    (direct cost elements + all descendant WBEs' cost elements).
     """
 
     __tablename__ = "wbes"
