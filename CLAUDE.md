@@ -1,7 +1,3 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project Overview
 
 **Backcast EVS** (Entity Versioning System) is a Project Budget Management & Earned Value Management System for end-of-line automation projects. The system provides Git-style versioning with bitemporal entity tracking, branch isolation for change orders, and complete audit trails.
@@ -77,6 +73,8 @@ npm run lint                   # ESLint - must pass
 - **OpenAPI Docs:** Available at `/docs` (Swagger UI) and `/openapi.json`
 
 ## Quality Standards (REQUIRED for all commits)
+
+codebase and test suite is large. To improve efficiency, when validating the performed work execute only tests relevant to the scope
 
 - **Backend:** MyPy strict mode (zero errors), Ruff (zero errors), 80%+ test coverage
 - **Frontend:** TypeScript strict mode, ESLint clean, 80%+ test coverage
