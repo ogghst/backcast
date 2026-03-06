@@ -36,9 +36,9 @@
   },
   {
     "id": "01234567-89ab-cdef-0123-456789abcde0",
-    "provider_type": "azure",
-    "name": "Azure OpenAI",
-    "base_url": null,
+    "provider_type": "Z.AI",
+    "name": "Z.AI",
+    "base_url": "https://api.z.ai/api/anthropic",
     "is_active": false,
     "configs": [
       {
@@ -72,8 +72,8 @@
     "models": [
       {
         "id": "55555555-5555-5555-5555-555555555555",
-        "model_id": "llama2",
-        "display_name": "Llama 2",
+        "model_id": "qwen3.5:4b",
+        "display_name": "Qwen 3.5 (4b)",
         "is_active": true
       },
       {

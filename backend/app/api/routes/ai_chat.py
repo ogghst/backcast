@@ -1,5 +1,4 @@
-"""API routes for AI chat.
-"""
+"""API routes for AI chat."""
 
 from uuid import UUID
 
@@ -46,20 +45,14 @@ async def chat(
     """Send a chat message using LangGraph agent."""
     # Get assistant config - must be provided for new sessions
     if not request.assistant_config_id:
-        raise HTTPException(
-            status_code=400, detail="Assistant config is required"
-        )
+        raise HTTPException(status_code=400, detail="Assistant config is required")
     assistant_config = await config_service.get_assistant_config(
         request.assistant_config_id
     )
     if not assistant_config:
-        raise HTTPException(
-            status_code=400, detail="Assistant config is required"
-        )
+        raise HTTPException(status_code=400, detail="Assistant config is required")
     if not assistant_config.is_active:
-        raise HTTPException(
-            status_code=400, detail="Assistant config is not active"
-        )
+        raise HTTPException(status_code=400, detail="Assistant config is not active")
     # Process chat using agent service
     response = await agent_service.chat(
         message=request.message,
@@ -82,9 +75,7 @@ async def list_sessions(
 ) -> list[AIConversationSessionPublic]:
     """List conversation sessions for the current user."""
     sessions = await config_service.list_sessions(current_user.user_id)
-    return [
-        AIConversationSessionPublic.model_validate(s) for s in sessions
-    ]
+    return [AIConversationSessionPublic.model_validate(s) for s in sessions]
 
 
 @router.get(
@@ -106,9 +97,7 @@ async def get_session_messages(
     if session.user_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Access denied")
     messages = await config_service.list_messages(session_id)
-    return [
-        AIConversationMessagePublic.model_validate(m) for m in messages
-    ]
+    return [AIConversationMessagePublic.model_validate(m) for m in messages]
 
 
 @router.delete(

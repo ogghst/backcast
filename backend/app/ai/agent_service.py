@@ -5,7 +5,8 @@ Uses LangGraph StateGraph for conversation flow with tool calling loop.
 
 import json
 import logging
-from typing import Any, Literal
+from collections.abc import Sequence
+from typing import Literal
 from uuid import UUID
 
 from langchain_core.messages import (
@@ -20,6 +21,7 @@ from openai import AsyncOpenAI, BadRequestError
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing_extensions import TypedDict
 
 from app.ai.llm_client import LLMClientFactory
 from app.ai.tools import ToolContext, create_project_tools
@@ -69,6 +71,19 @@ class AgentState(BaseModel):
     next: Literal["agent", "tools", "end"] = "agent"
 
 
+class ModelResult(TypedDict):
+    """Return type for model execution."""
+
+    messages: Sequence[BaseMessage]
+    tool_call_count: int
+
+
+class ToolResult(TypedDict):
+    """Return type for tool execution."""
+
+    messages: Sequence[BaseMessage]
+
+
 class AgentService:
     """Service for LangGraph agent orchestration."""
 
@@ -76,7 +91,19 @@ class AgentService:
         self.session = session
 
     async def _get_llm_client(self, model_id: UUID) -> tuple[AsyncOpenAI, str]:
-        """Get LLM client and model name for a model."""
+        """Get LLM client and model name for a model.
+
+        Context: Internal helper to resolve the client factory for the configured provider.
+
+        Args:
+            model_id: UUID of the AI model to instantiate
+
+        Returns:
+            A tuple containing the instantiated LLM client and the target model name
+
+        Raises:
+            ValueError: If the model or its associated provider cannot be found
+        """
         config_service = AIConfigService(self.session)
         model = await config_service.get_model(model_id)
         if not model:
@@ -90,7 +117,16 @@ class AgentService:
         return client, str(model.model_id)
 
     def _should_continue(self, state: AgentState) -> Literal["agent", "tools", "end"]:
-        """Determine if we should continue tool calling."""
+        """Determine if we should continue tool calling.
+
+        Context: Agent loop condition to decide the next step based on the last message and tool iterations.
+
+        Args:
+            state: The current conversation state
+
+        Returns:
+            Next node step: "agent", "tools", or "end"
+        """
         messages = state.messages
         last_message = messages[-1] if messages else None
 
@@ -115,15 +151,33 @@ class AgentService:
         client: AsyncOpenAI,
         model_name: str,
         tools: list[StructuredTool],
-        config: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Call the LLM with the current messages and tools."""
+        config: dict[str, float | int | None] | None = None,
+    ) -> ModelResult:
+        """Call the LLM with the current messages and tools.
+
+        Context: Internal method called during the agent loop to generate a response or tool call request.
+
+        Args:
+            state: Current agent state containing conversation history
+            client: Configured AsyncOpenAI client
+            model_name: Model identifier to use for the completion
+            tools: List of tools available for the LLM to call
+            config: Optional configuration limits (temperature, max_tokens)
+
+        Returns:
+            Dictionary containing the generated AIMessage and the updated tool_call_count
+
+        Raises:
+            None (Exceptions are caught and returned as AIMessage errors)
+        """
         messages = state.messages
 
         # Convert tools to OpenAI format
-        tool_schemas: list[dict[str, Any]] = []
+        tool_schemas: list[dict[str, object]] = []
         for tool in tools:
-            schema = tool.args_schema.schema() if hasattr(tool.args_schema, "schema") else {}
+            schema = (
+                tool.args_schema.schema() if hasattr(tool.args_schema, "schema") else {}
+            )
             tool_schemas.append(
                 {
                     "type": "function",
@@ -136,8 +190,11 @@ class AgentService:
             )
 
         try:
+            temp = config.get("temperature") if config else None
+            max_tok = config.get("max_tokens") if config else None
+
             # Build messages for OpenAI
-            openai_messages: list[dict[str, Any]] = []
+            openai_messages: list[dict[str, object]] = []
             for m in messages:
                 if isinstance(m, SystemMessage):
                     openai_messages.append({"role": "system", "content": m.content})
@@ -151,8 +208,8 @@ class AgentService:
                 model=model_name,
                 messages=openai_messages,  # type: ignore[arg-type]
                 tools=tool_schemas if tool_schemas else None,  # type: ignore[arg-type]
-                temperature=config.get("temperature", DEFAULT_TEMPERATURE) if config else DEFAULT_TEMPERATURE,
-                max_tokens=config.get("max_tokens", DEFAULT_MAX_TOKENS) if config else DEFAULT_MAX_TOKENS,
+                temperature=float(temp) if temp is not None else DEFAULT_TEMPERATURE,
+                max_tokens=int(max_tok) if max_tok is not None else DEFAULT_MAX_TOKENS,
             )
 
             # Parse response
@@ -160,7 +217,7 @@ class AgentService:
             tool_calls = message.tool_calls or []
 
             # Create AIMessage
-            ai_tool_calls: list[dict[str, Any]] = []
+            ai_tool_calls: list[dict[str, object]] = []
             for tc in tool_calls:
                 # Handle both function and custom tool calls
                 if hasattr(tc, "function") and tc.function:
@@ -199,20 +256,39 @@ class AgentService:
             error_message = AIMessage(
                 content=f"I encountered an error processing your request: {str(e)}"
             )
-            return {"messages": [error_message], "tool_call_count": state.tool_call_count}
+            return {
+                "messages": [error_message],
+                "tool_call_count": state.tool_call_count,
+            }
         except Exception as e:
             logger.error(f"Unexpected error in _call_model: {e}")
             error_message = AIMessage(
                 content="I encountered an unexpected error. Please try again."
             )
-            return {"messages": [error_message], "tool_call_count": state.tool_call_count}
+            return {
+                "messages": [error_message],
+                "tool_call_count": state.tool_call_count,
+            }
 
     async def _execute_tools(
         self,
         state: AgentState,
         tools: dict[str, StructuredTool],
-    ) -> dict[str, Any]:
-        """Execute tool calls from the last message."""
+    ) -> ToolResult:
+        """Execute tool calls from the last message.
+
+        Context: Called when the model response contains tool calls that need execution.
+
+        Args:
+            state: Current agent state containing the messages
+            tools: Dictionary of available initialized tools
+
+        Returns:
+            Dictionary containing the ToolMessages with execution results
+
+        Raises:
+            None (tool execution errors are caught and returned as ToolMessages)
+        """
         messages = state.messages
         last_message = messages[-1] if messages else None
 
@@ -252,7 +328,22 @@ class AgentService:
         session_id: UUID | None,
         user_id: UUID,
     ) -> AIChatResponse:
-        """Process a chat message using LangGraph."""
+        """Process a chat message using LangGraph.
+
+        Context: Main entry point for the AI conversation. Manages the session, invokes the agent loop, and saves history.
+
+        Args:
+            message: The user's input message
+            assistant_config: Configuration defining the model and allowed tools
+            session_id: Optional existing session ID to continue. If None, a new session is created
+            user_id: ID of the user sending the message
+
+        Returns:
+            Structured response containing the assistant's message, any tool calls, and the session ID
+
+        Raises:
+            ValueError: If session creation fails or no assistant response is generated
+        """
         # Get or create session
         db_session: AIConversationSession | None
         if session_id:
@@ -287,7 +378,9 @@ class AgentService:
         history.insert(0, SystemMessage(content=system_prompt))
 
         # Get LLM client
-        client, model_name = await self._get_llm_client(UUID(str(assistant_config.model_id)))
+        client, model_name = await self._get_llm_client(
+            UUID(str(assistant_config.model_id))
+        )
 
         # Create tools
         tool_context = ToolContext(self.session, str(user_id))
@@ -344,7 +437,11 @@ class AgentService:
         tool_calls_data = None
         if final_message.tool_calls:
             tool_calls_data = [
-                {"id": tc.get("id", ""), "name": tc.get("name", ""), "args": tc.get("args", {})}
+                {
+                    "id": tc.get("id", ""),
+                    "name": tc.get("name", ""),
+                    "args": tc.get("args", {}),
+                }
                 for tc in final_message.tool_calls
             ]
 
@@ -366,17 +463,39 @@ class AgentService:
         )
 
     async def _get_session(self, session_id: UUID) -> AIConversationSession | None:
-        """Get a conversation session."""
+        """Get a conversation session.
+
+        Context: Internal DB helper.
+
+        Args:
+            session_id: ID of the session to retrieve
+
+        Returns:
+            The session object if found, otherwise None
+
+        Raises:
+            None
+        """
         stmt = select(AIConversationSession).where(
             AIConversationSession.id == str(session_id)
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def _build_conversation_history(
-        self, session_id: UUID
-    ) -> list[BaseMessage]:
-        """Build conversation history from session messages."""
+    async def _build_conversation_history(self, session_id: UUID) -> list[BaseMessage]:
+        """Build conversation history from session messages.
+
+        Context: Converts DB messages into LangChain message objects for context window.
+
+        Args:
+            session_id: The session ID corresponding to the current conversation
+
+        Returns:
+            List of LangChain BaseMessage instances (HumanMessage, AIMessage, SystemMessage)
+
+        Raises:
+            None
+        """
         messages: list[BaseMessage] = []
         db_messages = await self._get_session_messages(session_id)
         for msg in db_messages:
@@ -392,7 +511,19 @@ class AgentService:
     async def _get_session_messages(
         self, session_id: UUID
     ) -> list[AIConversationMessage]:
-        """Get all messages for a session."""
+        """Get all messages for a session.
+
+        Context: Internal DB helper.
+
+        Args:
+            session_id: The session ID
+
+        Returns:
+            List of AIConversationMessage instances ordered by creation time
+
+        Raises:
+            None
+        """
         stmt = (
             select(AIConversationMessage)
             .where(AIConversationMessage.session_id == str(session_id))

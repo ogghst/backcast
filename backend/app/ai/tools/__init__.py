@@ -19,10 +19,16 @@ class ProjectListInput(BaseModel):
     """Input for list_projects tool."""
 
     search: str | None = Field(None, description="Search term for project code or name")
-    status: str | None = Field(None, description="Filter by status code (e.g., 'ACT', 'PLN')")
+    status: str | None = Field(
+        None, description="Filter by status code (e.g., 'ACT', 'PLN')"
+    )
     skip: int = Field(0, ge=0, description="Number of records to skip")
-    limit: int = Field(20, ge=1, le=100, description="Maximum number of records to return")
-    sort_field: str | None = Field(None, description="Field to sort by (e.g., 'name', 'code')")
+    limit: int = Field(
+        20, ge=1, le=100, description="Maximum number of records to return"
+    )
+    sort_field: str | None = Field(
+        None, description="Field to sort by (e.g., 'name', 'code')"
+    )
     sort_order: str = Field("asc", description="Sort order (asc or desc)")
 
 
@@ -55,14 +61,26 @@ async def list_projects(
     sort_field: str | None = None,
     sort_order: str = "asc",
     context: ToolContext | None = None,
-) -> dict[str, Any]:
+) -> dict[str, object]:
     """List all projects in the system.
 
-    Returns project information including code, name, status, budget, and dates.
-    Supports search, filtering by status, and pagination.
+    Context: LangGraph tool used by the AI agent to search and retrieve paginated projects list.
+
+    Args:
+        search: Search term for project code or name
+        status: Filter by status code (e.g., 'ACT', 'PLN')
+        skip: Number of records to skip for pagination
+        limit: Maximum number of records to return
+        sort_field: Field to sort by (e.g., 'name', 'code')
+        sort_order: Sort order (asc or desc)
+        context: Injected tool execution context with user claims
 
     Returns:
-        Dictionary with projects list, total count, and pagination info
+        Dictionary with projects list, total count, skip, and limit values.
+        Returns an 'error' key if permission is denied or context is missing.
+
+    Raises:
+        None (errors are caught and returned as dict)
     """
     if context is None:
         return {"error": "Tool context not provided"}
@@ -108,14 +126,23 @@ async def list_projects(
         return {"error": str(e)}
 
 
-async def get_project(project_id: str, context: ToolContext | None = None) -> dict[str, Any]:
+async def get_project(
+    project_id: str, context: ToolContext | None = None
+) -> dict[str, object]:
     """Get detailed information about a specific project.
+
+    Context: LangGraph tool used by the AI agent to retrieve details for a specific project.
 
     Args:
         project_id: Project ID as UUID string
+        context: Injected tool execution context with user claims
 
     Returns:
-        Dictionary with detailed project information
+        Dictionary with detailed project information.
+        Returns an 'error' key if project is not found or context is missing.
+
+    Raises:
+        None (errors like invalid UUID are caught and returned as dict)
     """
     if context is None:
         return {"error": "Tool context not provided"}
@@ -139,7 +166,9 @@ async def get_project(project_id: str, context: ToolContext | None = None) -> di
             "description": project.description,
             "status": project.status,
             "budget": float(project.budget) if project.budget else None,
-            "start_date": project.start_date.isoformat() if project.start_date else None,
+            "start_date": project.start_date.isoformat()
+            if project.start_date
+            else None,
             "end_date": project.end_date.isoformat() if project.end_date else None,
             "branch": project.branch,
         }
@@ -152,7 +181,16 @@ async def get_project(project_id: str, context: ToolContext | None = None) -> di
 
 # LangGraph StructuredTool instances
 def create_project_tools(context: ToolContext) -> list[StructuredTool]:
-    """Create LangGraph StructuredTool instances for project operations."""
+    """Create LangGraph StructuredTool instances for project operations.
+
+    Context: AgentService uses this to retrieve available tools bound to the current user's session context.
+
+    Args:
+        context: Tool context initialized with the authenticated user's session and ID
+
+    Returns:
+        List of initialized StructuredTool instances ready to be bound to LangGraph agents
+    """
 
     async def wrapped_list_projects(**kwargs: Any) -> str:
         """Wrapped list_projects that includes context."""
@@ -187,6 +225,4 @@ def create_project_tools(context: ToolContext) -> list[StructuredTool]:
 
 
 # Export for use in agent
-PROJECT_TOOLS: list[Any] = []  # Will be populated at runtime with context
-
-
+PROJECT_TOOLS: list[StructuredTool] = []  # Will be populated at runtime with context

@@ -46,9 +46,7 @@ class AIConfigService:
         if self._fernet is None:
             secret_key = settings.SECRET_KEY
             # Derive a Fernet key from the secret key
-            key = base64.urlsafe_b64encode(
-                secret_key.encode()[:32].ljust(32, b"0")
-            )
+            key = base64.urlsafe_b64encode(secret_key.encode()[:32].ljust(32, b"0"))
             self._fernet = Fernet(key)
         return self._fernet
 
@@ -62,9 +60,7 @@ class AIConfigService:
 
     # === Provider Operations ===
 
-    async def list_providers(
-        self, include_inactive: bool = False
-    ) -> list[AIProvider]:
+    async def list_providers(self, include_inactive: bool = False) -> list[AIProvider]:
         """List all AI providers."""
         stmt = select(AIProvider)
         if not include_inactive:
@@ -177,9 +173,7 @@ class AIConfigService:
         if config:
             await self.session.delete(config)
 
-    async def get_decrypted_config(
-        self, provider_id: UUID
-    ) -> dict[str, str]:
+    async def get_decrypted_config(self, provider_id: UUID) -> dict[str, str]:
         """Get all config values for a provider (decrypted)."""
         configs = await self.list_provider_configs(provider_id, decrypt=True)
         return {c.key: c.value for c in configs if c.value}
@@ -225,9 +219,7 @@ class AIConfigService:
         await self.session.flush()
         return model
 
-    async def update_model(
-        self, model_id: UUID, model_in: AIModelCreate
-    ) -> AIModel:
+    async def update_model(self, model_id: UUID, model_in: AIModelCreate) -> AIModel:
         """Update an AI model."""
         model = await self.get_model(model_id)
         if not model:
@@ -259,9 +251,7 @@ class AIConfigService:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_assistant_config(
-        self, config_id: UUID
-    ) -> AIAssistantConfig | None:
+    async def get_assistant_config(self, config_id: UUID) -> AIAssistantConfig | None:
         """Get a specific assistant configuration."""
         stmt = select(AIAssistantConfig).where(AIAssistantConfig.id == config_id)
         result = await self.session.execute(stmt)
@@ -327,9 +317,7 @@ class AIConfigService:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_session(
-        self, session_id: UUID
-    ) -> AIConversationSession | None:
+    async def get_session(self, session_id: UUID) -> AIConversationSession | None:
         """Get a specific conversation session."""
         stmt = select(AIConversationSession).where(
             AIConversationSession.id == session_id
@@ -364,9 +352,7 @@ class AIConfigService:
 
     # === Conversation Message Operations ===
 
-    async def list_messages(
-        self, session_id: UUID
-    ) -> list[AIConversationMessage]:
+    async def list_messages(self, session_id: UUID) -> list[AIConversationMessage]:
         """List all messages in a session."""
         stmt = (
             select(AIConversationMessage)

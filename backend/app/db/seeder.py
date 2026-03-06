@@ -828,12 +828,16 @@ class DataSeeder:
                     provider_models = provider_dict.pop("models", [])
 
                     # Check if provider already exists
-                    stmt = sql_select(AIProvider).where(AIProvider.id == UUID(provider_id))
+                    stmt = sql_select(AIProvider).where(
+                        AIProvider.id == UUID(provider_id)
+                    )
                     result = await session.execute(stmt)
                     existing = result.scalar_one_or_none()
 
                     if existing:
-                        logger.debug(f"AI Provider {provider_dict.get('name')} already exists, skipping")
+                        logger.debug(
+                            f"AI Provider {provider_dict.get('name')} already exists, skipping"
+                        )
                         skipped_count += 1
                         continue
 
@@ -912,12 +916,16 @@ class DataSeeder:
                     assistant_id = assistant_dict.get("id")
 
                     # Check if assistant already exists
-                    stmt = sql_select(AIAssistantConfig).where(AIAssistantConfig.id == UUID(assistant_id))
+                    stmt = sql_select(AIAssistantConfig).where(
+                        AIAssistantConfig.id == UUID(assistant_id)
+                    )
                     result = await session.execute(stmt)
                     existing = result.scalar_one_or_none()
 
                     if existing:
-                        logger.debug(f"AI Assistant {assistant_dict.get('name')} already exists, skipping")
+                        logger.debug(
+                            f"AI Assistant {assistant_dict.get('name')} already exists, skipping"
+                        )
                         skipped_count += 1
                         continue
 

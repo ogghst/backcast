@@ -4,7 +4,6 @@ Support for OpenAI, Azure OpenAI, and Ollama endpoints.
 """
 
 import logging
-from typing import Any
 
 from openai import AsyncOpenAI
 
@@ -24,59 +23,74 @@ class LLMClientFactory:
     ) -> AsyncOpenAI:
         """Create an OpenAI client based on provider config.
 
+        Context: Called by AgentService to initialize the connection to the configured AI provider.
+
         Args:
-            provider: AI provider configuration
-            config: AI config service for getting decrypted config values
+            provider: AI provider configuration definition
+            config: AI config service for getting decrypted config values (e.g., API key)
 
         Returns:
-            Configured AsyncOpenAI client
+            Configured AsyncOpenAI client ready for requests
+
+        Raises:
+            ValueError: If Ollama provider is missing the required base_url
         """
         config_values = await config.list_provider_configs(provider.id, decrypt=True)
 
-        client_kwargs: dict[str, Any] = {
-            "api_key": "",
-            "timeout": 30.0,
-            "max_retries": 2,
-        }
+        api_key = ""
+        timeout = 30.0
+        max_retries = 2
+        base_url: str | None = None
 
         # Extract config values
-        api_key = None
-        base_url = None
         for cfg in config_values:
-            if cfg.key == "api_key":
-                api_key = cfg.value
-            elif cfg.key == "base_url":
-                base_url = cfg.value
+            if cfg.key == "api_key" and cfg.value is not None:
+                api_key = str(cfg.value)
+            elif cfg.key == "base_url" and cfg.value is not None:
+                base_url = str(cfg.value)
             elif cfg.key == "timeout" and cfg.value is not None:
-                client_kwargs["timeout"] = float(cfg.value)
+                timeout = float(cfg.value)
             elif cfg.key == "max_retries" and cfg.value is not None:
-                client_kwargs["max_retries"] = int(cfg.value)
+                max_retries = int(cfg.value)
 
-        # Set API key
-        if api_key:
-            client_kwargs["api_key"] = api_key
-
-        # Set base URL for provider
-        if base_url:
-            client_kwargs["base_url"] = base_url
-        elif provider.base_url:
-            client_kwargs["base_url"] = provider.base_url
+        # Set base URL for provider if configured at provider level
+        if not base_url and provider.base_url:
+            base_url = str(provider.base_url)
 
         # Handle provider type specific configurations
         if provider.provider_type == "azure":
-            # Azure OpenAI requires api_version
-            client_kwargs["api_version"] = "2024-02-15-preview"
             # Extract Azure-specific config
             azure_deployment = next(
-                (cfg.value for cfg in config_values if cfg.key == "azure_deployment"),
-                None
+                (
+                    str(cfg.value)
+                    for cfg in config_values
+                    if cfg.key == "azure_deployment" and cfg.value is not None
+                ),
+                None,
             )
+
+            # For Azure OpenAI we need additional default query parameters or explicit Azure client.
+            # Here we follow the existing pattern of using AsyncOpenAI directly with custom query params.
+            default_query = {"api-version": "2024-02-15-preview"}
             if azure_deployment:
-                client_kwargs["azure_deployment"] = azure_deployment
+                default_query["deployment-id"] = str(azure_deployment)
+
+            return AsyncOpenAI(
+                api_key=api_key,
+                base_url=base_url,
+                timeout=timeout,
+                max_retries=max_retries,
+                default_query=default_query,
+            )
+
         elif provider.provider_type == "ollama":
             # Ollama uses base_url (required)
-            if not base_url and not provider.base_url:
+            if not base_url:
                 raise ValueError("Ollama provider requires base_url")
 
-        return AsyncOpenAI(**client_kwargs)
-
+        return AsyncOpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
