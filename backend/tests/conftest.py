@@ -45,9 +45,8 @@ from app.services.department import DepartmentService
 from app.services.project import ProjectService
 from app.services.wbe import WBEService
 
-TEST_DATABASE_URL = str(
-    settings.DATABASE_URL
-)  # .rsplit("/", 1)[0] + "/backcast_evs_test"
+_orig_url = str(settings.DATABASE_URL)
+TEST_DATABASE_URL = _orig_url if _orig_url.endswith("_test") else _orig_url + "_test"
 
 
 @pytest.fixture(scope="session")
@@ -93,6 +92,7 @@ def apply_migrations() -> Generator[None, None, None]:
 
     env = os.environ.copy()
     env["WIPE_DATABASE_URL"] = TEST_DATABASE_URL
+    env["ORIGINAL_DATABASE_URL"] = str(original_url)
 
     try:
         subprocess.run(
