@@ -331,7 +331,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         return result.scalar_one_or_none()
 
     async def get_budget_status(
-        self, cost_element_id: UUID, as_of: datetime | None = None
+        self, cost_element_id: UUID, as_of: datetime | None = None, branch: str = "main"
     ) -> BudgetStatus:
         """Get budget status for a cost element with time-travel support.
 
@@ -341,6 +341,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         Args:
             cost_element_id: The cost element to get status for
             as_of: Optional timestamp for time-travel query (historical view)
+            branch: Branch context to resolve Cost Element budget (defaults to "main")
 
         Returns:
             BudgetStatus with budget, used, remaining, percentage
@@ -349,14 +350,28 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         # Note: CostElement budget itself could be time-traveled in future iterations
         stmt = select(CostElement).where(
             CostElement.cost_element_id == cost_element_id,
+            CostElement.branch == branch,
             func.upper(CostElement.valid_time).is_(None),
             CostElement.deleted_at.is_(None),
         )
         result = await self.session.execute(stmt)
         cost_element = result.scalar_one_or_none()
 
+        if cost_element is None and branch != "main":
+            # Fallback to main branch
+            stmt_main = select(CostElement).where(
+                CostElement.cost_element_id == cost_element_id,
+                CostElement.branch == "main",
+                func.upper(CostElement.valid_time).is_(None),
+                CostElement.deleted_at.is_(None),
+            )
+            result_main = await self.session.execute(stmt_main)
+            cost_element = result_main.scalar_one_or_none()
+
         if cost_element is None:
-            raise ValueError(f"Cost element {cost_element_id} not found")
+            raise ValueError(
+                f"Cost element {cost_element_id} not found on branch {branch} or main"
+            )
 
         budget = cost_element.budget_amount
 
