@@ -156,6 +156,9 @@ async def get_budget_status(
         None,
         description="Time travel: get budget status as of this timestamp (ISO 8601)",
     ),
+    branch: str = Query(
+        "main", description="Branch context to resolve Cost Element budget"
+    ),
     service: CostRegistrationService = Depends(get_cost_registration_service),
 ) -> dict[str, Any]:
     """Get budget status for a cost element with time-travel support.
@@ -173,7 +176,9 @@ async def get_budget_status(
         as_of = datetime.now(tz=UTC)
 
     try:
-        budget_status = await service.get_budget_status(cost_element_id, as_of=as_of)
+        budget_status = await service.get_budget_status(
+            cost_element_id, as_of=as_of, branch=branch
+        )
         return {
             "cost_element_id": str(budget_status.cost_element_id),
             "budget": str(budget_status.budget),
