@@ -703,9 +703,13 @@ EAC = AC + ETC
 - System tracks which method was used for audit trail
 - Historical ETC values preserved for trend analysis
 
-### 12.6 AI-Powered Project Assessment
+### 12.6 AI Integration
 
-The system shall be able to collect all project metrics at a control date or from a baseline and generate a comprehensive assessment using an AI endpoint. This capability is provided by the AI/ML Integration bounded context (see [Architecture: Bounded Contexts](../../02-architecture/01-bounded-contexts.md#10-aiml-integration)).
+The system provides comprehensive AI integration capabilities for project analysis, natural language interaction, and AI-assisted data operations. These capabilities are provided by the AI/ML Integration bounded context (see [Architecture: Bounded Contexts](../../02-architecture/01-bounded-contexts.md#10-aiml-integration)).
+
+#### 12.6.1 AI-Powered Project Assessment
+
+The system shall be able to collect all project metrics at a control date or from a baseline and generate a comprehensive assessment using an AI endpoint.
 
 **Assessment Content:**
 The AI-generated assessment shall include:
@@ -716,19 +720,83 @@ The AI-generated assessment shall include:
 - Recommendations for improvement
 - Comparison to similar projects (anonymized)
 
-**Usage:**
+#### 12.6.2 Natural Language Query Interface
 
-- Triggered on-demand by authorized users
-- Requires explicit user confirmation before generation
-- Results stored for historical reference
-- No write access to project data (read-only analysis)
+The system shall provide a natural language interface for querying project data.
 
-**Privacy and Security:**
+**Capabilities:**
 
-- Project data anonymized before sending to external AI services
+- Query any project data using natural language (e.g., "Show me the budget for machine X")
+- Receive contextual responses with references to source data
+- Drill down from summaries to detailed data
+- Export query results in standard formats
+
+**Examples:**
+
+- "What is the current CPI for project X?"
+- "Show me all change orders pending approval"
+- "Which cost elements are over budget?"
+- "Compare actual costs vs planned for Q1"
+
+#### 12.6.3 AI-Assisted Entity Operations
+
+The system shall support AI-assisted CRUD operations on all entities via natural language.
+
+**Supported Operations:**
+
+- **Create**: All entity types (Projects, WBEs, CostElements, ChangeOrders, Departments, etc.)
+- **Read**: Query any entity data via natural language
+- **Update**: Modify entity attributes via conversational interface
+- **Delete**: Soft delete entities (EVCS soft delete pattern)
+
+**Entity Types Covered:**
+
+- Project hierarchy (Projects, WBEs, CostElements)
+- Financial data (ScheduleBaselines, CostRegistrations, Forecasts)
+- Change management (ChangeOrders, BranchOperations)
+- Organizational (Departments, CostElementTypes, Users)
+- Quality (QualityEvents, RootCauses, PreventiveActions)
+
+**Confirmation Workflow:**
+
+- AI proposes operations with preview of changes
+- User reviews and explicitly confirms before execution
+- All changes follow standard EVCS versioning
+- User permissions are enforced (RBAC)
+- Soft deletes can be undone via EVCS version history
+
+#### 12.6.4 AI-Assisted Change Order Management
+
+The system shall support AI-assisted creation and management of change orders.
+
+**Capabilities:**
+
+- Generate change order drafts from natural language requirements
+- Describe impact of change orders in plain language
+- Suggest optimal approval paths based on impact level
+- Summarize branch differences for stakeholder review
+- Generate justification text based on impact analysis
+
+**Workflow Integration:**
+
+- AI-generated change orders follow standard workflow
+- Draft AI change orders require explicit user confirmation
+- All AI-assisted operations are audit logged
+
+#### 12.6.5 Privacy and Security
+
+**Data Protection:**
+
+- Project data anonymized before sending to external AI services for analysis
 - No PII sent to external services
-- AI usage audit logged
+- AI usage audit logged with user attribution
+
+**Operational Controls:**
+
+- All AI-initiated write operations require explicit user confirmation
+- User permissions (RBAC) enforced for all operations
 - Users can opt-out of AI features per organizational policy
+- AI operations respect branch isolation and locking
 
 ## 13. Reporting and Analytics Requirements
 

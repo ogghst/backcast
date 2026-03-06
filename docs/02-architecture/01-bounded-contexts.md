@@ -252,45 +252,90 @@ Quality events capture costs associated with rework, defects, warranty claims, a
 
 ### 10. AI/ML Integration
 
-**Responsibility:** Provide intelligent analysis and predictive capabilities for project management
+**Responsibility:** Provide intelligent analysis, natural language interaction, and AI-assisted data operations
 **Owner:** Backend Team
 **Status:** Planned
-**Versioning:** Not versioned (read-only analysis)
+**Versioning:** AI operations are logged; entity changes follow EVCS versioning
 
 **Description:**
-AI/ML Integration provides intelligent insights without write access to core data, maintaining data integrity while offering predictive analytics.
+AI/ML Integration provides a generalistic conversational AI interface built on LangGraph, enabling natural language interaction and AI-assisted CRUD operations with controlled write access through explicit user confirmation workflows.
 
-**Key Entities:**
+**Architecture Components:**
 
-- `AIAssessmentRequest` - Assessment job tracking (project_id, control_date, status)
-- `AIAssessmentResult` - Generated insights (summary, risks, recommendations)
-- `PredictionModel` - Model metadata (version, accuracy, training_date)
-- `AnomalyDetection` - Deviation alerts (metric, threshold, detected_date)
+- **LangGraph Agent Graph**: Core orchestration layer managing conversation flow, tool invocation, and state management
+- **OpenAI Provider**: Configurable connector to OpenAI-compatible endpoints (supports OpenAI, Azure OpenAI, self-hosted models)
+- **WebSocket Streamer**: Real-time bidirectional communication for streaming conversations to frontend
+- **Tool Layer**: Backend services exposed as LangGraph tools for entity operations
 
 **Key Responsibilities:**
 
+**Session Management:**
+- Support multiple concurrent sessions per user
+- Maintain conversation history and context per session
+- Associate sessions with project/branch context
+- Handle session persistence and resumption
+
+**Multimodal Input/Output:**
+- Accept text input from users
+- Accept image input (screenshots, diagrams, documents)
+- Accept file attachments (PDFs, spreadsheets, etc.)
+- Output text with Markdown formatting
+- Output Mermaid diagrams for visualizations
+- Stream responses in real-time via WebSocket
+
+**Tool Integration (Backend Services as Tools):**
+- Project & WBE Management tools (CRUD operations)
+- Cost Element & Financial Tracking tools
+- EVM Calculations & Reporting tools
+- Change Order Processing tools
+- Quality Event Management tools
+- Department & Cost Element Type tools
+- User Management tools (admin operations)
+
+**AI-Assisted Operations:**
+- Full CRUD operations on all entities via natural language
+- Create Projects, WBEs, Cost Elements from descriptions
+- Update any entity attributes via conversational interface
+- Soft delete entities (with confirmation workflow)
+- Generate change order drafts from user requirements
+- Suggest budget allocations based on project context
+- Assist with schedule baseline configuration
+
+**Analysis & Insights:**
 - Generate project assessments using AI (Section 12.6 of FR)
 - Detect anomalies in EVM metrics
 - Predict cost/schedule overruns
 - Suggest optimization opportunities
 - Analyze forecast accuracy trends
-- Provide natural language query interface (future)
+
+**Output Formatting:**
+- Markdown rendering for structured text responses
+- Mermaid diagram generation for:
+  - Project hierarchy visualization
+  - Workflow diagrams
+  - Timeline/Gantt charts
+  - Entity relationship diagrams
 
 **Dependencies:**
 
-- EVM Calculations & Reporting (metric sources)
-- Cost Element & Financial Tracking (data access)
-- External AI Services (OpenAI, Claude, etc.)
+- All bounded contexts (full CRUD access via tools)
+- LangGraph (agent orchestration)
+- OpenAI SDK (LLM provider)
+- WebSocket infrastructure (real-time streaming)
+- Authentication & Authorization (RBAC enforcement for tool calls)
 
 **Boundaries:**
 
 - Does NOT replace human decision-making
-- Does NOT have write access to core data
-- All AI suggestions require user confirmation
-- AI usage is audit logged
-- Project data anonymized before sending to external services
+- All AI-initiated write operations require explicit user confirmation
+- AI operations are fully audit logged with user attribution
+- Project data anonymized before sending to external AI services for analysis
+- Entity changes made via AI follow standard EVCS versioning and approval workflows
+- AI cannot bypass RBAC - user permissions are enforced for all tool operations
+- AI-generated change orders follow the same workflow as manually created ones
+- LLM endpoint is configurable (not locked to specific provider)
 
-**Documentation:** [Functional Requirements Section 12.6](../../01-product-scope/functional-requirements.md#126-ai-powered-project-assessment)
+**Documentation:** [Functional Requirements Section 12.6](../../01-product-scope/functional-requirements.md#126-ai-integration)
 
 ---
 
