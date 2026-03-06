@@ -1,14 +1,14 @@
 # Current Iteration
 
-**Iteration:** AI Integration Phase 1
-**Start Date:** 2026-03-05
-**Status:** 🔄 **IN PROGRESS**
+**Iteration:** Project Hierarchy Tree Component (E07-U01)
+**Start Date:** 2026-03-06
+**Status:** ✅ **COMPLETE**
 
 ---
 
 ## Goal
 
-Implement LangGraph AI component with OpenAI-compatible LLM configuration for natural language project queries.
+Create a new project structure component that shows the project WBE and Cost Element hierarchy using an expandable tree (Ant Design Tree).
 
 ---
 
@@ -16,34 +16,41 @@ Implement LangGraph AI component with OpenAI-compatible LLM configuration for na
 
 | Story                                              | Points | Priority | Status        | Dependencies |
 | :------------------------------------------------- | :----- | :------- | :----------- | :----------- |
-| **[E09-U01] Configure AI providers**               | 5      | Medium   | ✅ Complete   | -            |
-| **[E09-U02] Manage API keys securely**             | 3      | High     | ✅ Complete   | -            |
-| **[E09-U03] Create/configure AI assistants**       | 5      | Medium   | ✅ Complete   | E09-U02 ✅    |
-| **[E09-U04] Natural language queries**             | 8      | High     | 🔄 In Progress | E09-U01, E09-U03 ✅ |
-| **[E09-U05] List projects via natural language**   | 5      | Medium   | ✅ Complete   | E09-U01, E09-U03 ✅ |
-| **[E09-U06] Audit logging for AI operations**      | 3      | Low      | ✅ Complete   | -            |
+| **[E07-U01] Project Hierarchy Tree Component**     | 8      | High     | ✅ Complete   | -            |
 
-**Total Points:** 37 (29 completed, 8 in progress)
+**Total Points:** 8 (8 completed)
 
 ---
 
 ## Success Criteria
 
-- [x] Database migration for AI tables applied
-- [x] AI configuration API endpoints functional
-- [x] LangGraph agent service implemented
-- [x] Project tools (list_projects, get_project) working
-- [x] Mypy strict mode passing (0 errors)
-- [x] Ruff linting passing (0 errors)
-- [ ] Chat API returns responses from configured LLM
-- [ ] Session persistence functional
-- [ ] RBAC enforced for tool operations
+- [x] ProjectStructure component created with Ant Design Tree
+- [x] Root WBEs display on initial render with names and budgets
+- [x] Lazy loading for child WBEs and Cost Elements on expand
+- [x] Navigation to WBE detail page (/projects/:projectId/wbes/:wbeId)
+- [x] Navigation to Cost Element detail page (/cost-elements/:id)
+- [x] TimeMachine context integration (as_of, branch, mode)
+- [x] Empty state handling
+- [x] Loading state during lazy load
+- [x] Error state handling
+- [x] TypeScript strict mode passing (0 errors)
+- [x] ESLint passing (0 errors)
+- [x] Tests passing (16/16)
 
 ---
 
 ## Iteration Records
 
 ### Recent Completed Iterations
+
+- **Project Hierarchy Tree Component (E07-U01) (2026-03-06):** ✅ Complete
+  - ProjectStructure component with Ant Design Tree visualization
+  - Lazy loading for child WBEs and Cost Elements
+  - TimeMachine context integration
+  - Navigation to detail pages
+  - 16 tests passing (unit, integration, navigation)
+  - TypeScript strict mode and ESLint passing
+  - Documentation: 00-analysis.md, 01-plan.md, 02-do.md, 03-check.md, 04-act.md
 
 - **AI Integration Phase 1 (E09) (2026-03-05):** ✅ Complete (Phase 1)
   - Database schema for AI configuration (ai_providers, ai_models, ai_assistant_configs, ai_conversation_sessions)

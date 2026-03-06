@@ -9,6 +9,7 @@ import { CostElementTypeManagement } from "@/pages/admin/CostElementTypeManageme
 import { ProjectList } from "@/pages/projects/ProjectList";
 import { ProjectLayout } from "@/pages/projects/ProjectLayout";
 import { ProjectOverview } from "@/pages/projects/ProjectOverview";
+import { ProjectStructure } from "@/pages/projects/ProjectStructure";
 import { ProjectChangeOrdersPage } from "@/pages/projects/ProjectChangeOrdersPage";
 import { ProjectEVMAnalysis } from "@/pages/projects/ProjectEVMAnalysis";
 import { WBEList } from "@/pages/wbes/WBEList";
@@ -75,6 +76,10 @@ export const router = createBrowserRouter([
           {
             index: true,
             element: <ProjectOverview />,
+          },
+          {
+            path: "structure",
+            element: <ProjectStructure />,
           },
           {
             path: "change-orders",

@@ -211,9 +211,7 @@ async def project_with_hierarchy(
 
 
 @pytest.mark.asyncio
-async def test_simple_hierarchy_budget(
-    wbe_service: WBEService, project_with_hierarchy
-):
+async def test_simple_hierarchy_budget(wbe_service: WBEService, project_with_hierarchy):
     """Test budget calculation with direct and child cost elements.
 
     WBE 1.1 has:
@@ -233,9 +231,7 @@ async def test_simple_hierarchy_budget(
 
 
 @pytest.mark.asyncio
-async def test_deep_hierarchy_budget(
-    wbe_service: WBEService, project_with_hierarchy
-):
+async def test_deep_hierarchy_budget(wbe_service: WBEService, project_with_hierarchy):
     """Test budget calculation through 3 levels of hierarchy.
 
     WBE 1 has:
