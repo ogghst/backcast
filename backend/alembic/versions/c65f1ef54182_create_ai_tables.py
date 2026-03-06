@@ -37,12 +37,26 @@ def upgrade() -> None:
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("base_url", sa.String(500), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_ai_providers_type", "ai_providers", ["provider_type"], unique=False)
-    op.create_index("ix_ai_providers_active", "ai_providers", ["is_active"], unique=False)
+    op.create_index(
+        "ix_ai_providers_type", "ai_providers", ["provider_type"], unique=False
+    )
+    op.create_index(
+        "ix_ai_providers_active", "ai_providers", ["is_active"], unique=False
+    )
 
     # ai_provider_configs - Key-value config for providers
     op.create_table(
@@ -52,8 +66,18 @@ def upgrade() -> None:
         sa.Column("key", sa.String(100), nullable=False),
         sa.Column("value", sa.Text(), nullable=True),
         sa.Column("is_encrypted", sa.Boolean(), nullable=False, server_default="false"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
         sa.ForeignKeyConstraint(
             ["provider_id"],
             ["ai_providers.id"],
@@ -61,9 +85,16 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_ai_provider_configs_provider", "ai_provider_configs", ["provider_id"], unique=False)
+    op.create_index(
+        "ix_ai_provider_configs_provider",
+        "ai_provider_configs",
+        ["provider_id"],
+        unique=False,
+    )
     op.create_unique_constraint(
-        "uq_ai_provider_configs_provider_key", "ai_provider_configs", ["provider_id", "key"]
+        "uq_ai_provider_configs_provider_key",
+        "ai_provider_configs",
+        ["provider_id", "key"],
     )
 
     # ai_models - Available models per provider
@@ -74,8 +105,18 @@ def upgrade() -> None:
         sa.Column("model_id", sa.String(100), nullable=False),
         sa.Column("display_name", sa.String(255), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
         sa.ForeignKeyConstraint(
             ["provider_id"],
             ["ai_providers.id"],
@@ -100,8 +141,18 @@ def upgrade() -> None:
         sa.Column("max_tokens", sa.Integer(), nullable=True),
         sa.Column("allowed_tools", postgresql.ARRAY(sa.Text), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
         sa.ForeignKeyConstraint(
             ["model_id"],
             ["ai_models.id"],
@@ -109,8 +160,18 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_ai_assistant_configs_model", "ai_assistant_configs", ["model_id"], unique=False)
-    op.create_index("ix_ai_assistant_configs_active", "ai_assistant_configs", ["is_active"], unique=False)
+    op.create_index(
+        "ix_ai_assistant_configs_model",
+        "ai_assistant_configs",
+        ["model_id"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_ai_assistant_configs_active",
+        "ai_assistant_configs",
+        ["is_active"],
+        unique=False,
+    )
 
     # ai_conversation_sessions - User conversation sessions
     op.create_table(
@@ -119,8 +180,18 @@ def upgrade() -> None:
         sa.Column("user_id", sa.UUID(), nullable=False),
         sa.Column("assistant_config_id", sa.UUID(), nullable=False),
         sa.Column("title", sa.String(255), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
         sa.ForeignKeyConstraint(
             ["assistant_config_id"],
             ["ai_assistant_configs.id"],
@@ -128,7 +199,12 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_ai_conversation_sessions_user", "ai_conversation_sessions", ["user_id"], unique=False)
+    op.create_index(
+        "ix_ai_conversation_sessions_user",
+        "ai_conversation_sessions",
+        ["user_id"],
+        unique=False,
+    )
     op.create_index(
         "ix_ai_conversation_sessions_assistant",
         "ai_conversation_sessions",
@@ -145,7 +221,12 @@ def upgrade() -> None:
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("tool_calls", postgresql.JSONB(), nullable=True),
         sa.Column("tool_results", postgresql.JSONB(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
         sa.ForeignKeyConstraint(
             ["session_id"],
             ["ai_conversation_sessions.id"],
@@ -153,7 +234,12 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_ai_conversation_messages_session", "ai_conversation_messages", ["session_id"], unique=False)
+    op.create_index(
+        "ix_ai_conversation_messages_session",
+        "ai_conversation_messages",
+        ["session_id"],
+        unique=False,
+    )
 
 
 def downgrade() -> None:
@@ -173,7 +259,9 @@ def downgrade() -> None:
     op.drop_index("ix_ai_models_provider", "ai_models")
     op.drop_table("ai_models")
 
-    op.drop_unique_constraint("ai_provider_configs", "uq_ai_provider_configs_provider_key")
+    op.drop_unique_constraint(
+        "ai_provider_configs", "uq_ai_provider_configs_provider_key"
+    )
     op.drop_index("ix_ai_provider_configs_provider", "ai_provider_configs")
     op.drop_table("ai_provider_configs")
 

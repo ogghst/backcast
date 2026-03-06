@@ -69,7 +69,7 @@ class LLMClientFactory:
             # Extract Azure-specific config
             azure_deployment = next(
                 (cfg.value for cfg in config_values if cfg.key == "azure_deployment"),
-                None
+                None,
             )
             if azure_deployment:
                 client_kwargs["azure_deployment"] = azure_deployment
@@ -79,4 +79,3 @@ class LLMClientFactory:
                 raise ValueError("Ollama provider requires base_url")
 
         return AsyncOpenAI(**client_kwargs)
-

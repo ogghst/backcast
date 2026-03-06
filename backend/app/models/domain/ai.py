@@ -51,7 +51,9 @@ class AIProvider(SimpleEntityBase):
     )
 
     def __repr__(self) -> str:
-        return f"<AIProvider(id={self.id}, type={self.provider_type}, name={self.name})>"
+        return (
+            f"<AIProvider(id={self.id}, type={self.provider_type}, name={self.name})>"
+        )
 
 
 class AIProviderConfig(SimpleEntityBase):
@@ -64,7 +66,10 @@ class AIProviderConfig(SimpleEntityBase):
     __tablename__ = "ai_provider_configs"
 
     provider_id: Mapped[str] = mapped_column(
-        PG_UUID, ForeignKey("ai_providers.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID,
+        ForeignKey("ai_providers.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     key: Mapped[str] = mapped_column(String(100), nullable=False)
     value: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -88,7 +93,10 @@ class AIModel(SimpleEntityBase):
     __tablename__ = "ai_models"
 
     provider_id: Mapped[str] = mapped_column(
-        PG_UUID, ForeignKey("ai_providers.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID,
+        ForeignKey("ai_providers.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     model_id: Mapped[str] = mapped_column(String(100), nullable=False)
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -119,14 +127,15 @@ class AIAssistantConfig(SimpleEntityBase):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     model_id: Mapped[str] = mapped_column(
-        PG_UUID, ForeignKey("ai_models.id", ondelete="RESTRICT"), nullable=False, index=True
+        PG_UUID,
+        ForeignKey("ai_models.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
     )
     system_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     temperature: Mapped[float | None] = mapped_column(Float(3), nullable=True)
     max_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    allowed_tools: Mapped[list[str] | None] = mapped_column(
-        ARRAY(Text), nullable=True
-    )
+    allowed_tools: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     # Relationships
@@ -154,7 +163,10 @@ class AIConversationSession(SimpleEntityBase):
 
     user_id: Mapped[str] = mapped_column(PG_UUID, nullable=False, index=True)
     assistant_config_id: Mapped[str] = mapped_column(
-        PG_UUID, ForeignKey("ai_assistant_configs.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID,
+        ForeignKey("ai_assistant_configs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
@@ -184,7 +196,10 @@ class AIConversationMessage(SimpleEntityBase):
     __tablename__ = "ai_conversation_messages"
 
     session_id: Mapped[str] = mapped_column(
-        PG_UUID, ForeignKey("ai_conversation_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+        PG_UUID,
+        ForeignKey("ai_conversation_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)

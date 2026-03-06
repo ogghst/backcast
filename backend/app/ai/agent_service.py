@@ -123,7 +123,9 @@ class AgentService:
         # Convert tools to OpenAI format
         tool_schemas: list[dict[str, Any]] = []
         for tool in tools:
-            schema = tool.args_schema.schema() if hasattr(tool.args_schema, "schema") else {}
+            schema = (
+                tool.args_schema.schema() if hasattr(tool.args_schema, "schema") else {}
+            )
             tool_schemas.append(
                 {
                     "type": "function",
@@ -151,8 +153,12 @@ class AgentService:
                 model=model_name,
                 messages=openai_messages,  # type: ignore[arg-type]
                 tools=tool_schemas if tool_schemas else None,  # type: ignore[arg-type]
-                temperature=config.get("temperature", DEFAULT_TEMPERATURE) if config else DEFAULT_TEMPERATURE,
-                max_tokens=config.get("max_tokens", DEFAULT_MAX_TOKENS) if config else DEFAULT_MAX_TOKENS,
+                temperature=config.get("temperature", DEFAULT_TEMPERATURE)
+                if config
+                else DEFAULT_TEMPERATURE,
+                max_tokens=config.get("max_tokens", DEFAULT_MAX_TOKENS)
+                if config
+                else DEFAULT_MAX_TOKENS,
             )
 
             # Parse response
@@ -199,13 +205,19 @@ class AgentService:
             error_message = AIMessage(
                 content=f"I encountered an error processing your request: {str(e)}"
             )
-            return {"messages": [error_message], "tool_call_count": state.tool_call_count}
+            return {
+                "messages": [error_message],
+                "tool_call_count": state.tool_call_count,
+            }
         except Exception as e:
             logger.error(f"Unexpected error in _call_model: {e}")
             error_message = AIMessage(
                 content="I encountered an unexpected error. Please try again."
             )
-            return {"messages": [error_message], "tool_call_count": state.tool_call_count}
+            return {
+                "messages": [error_message],
+                "tool_call_count": state.tool_call_count,
+            }
 
     async def _execute_tools(
         self,
@@ -287,7 +299,9 @@ class AgentService:
         history.insert(0, SystemMessage(content=system_prompt))
 
         # Get LLM client
-        client, model_name = await self._get_llm_client(UUID(str(assistant_config.model_id)))
+        client, model_name = await self._get_llm_client(
+            UUID(str(assistant_config.model_id))
+        )
 
         # Create tools
         tool_context = ToolContext(self.session, str(user_id))
@@ -344,7 +358,11 @@ class AgentService:
         tool_calls_data = None
         if final_message.tool_calls:
             tool_calls_data = [
-                {"id": tc.get("id", ""), "name": tc.get("name", ""), "args": tc.get("args", {})}
+                {
+                    "id": tc.get("id", ""),
+                    "name": tc.get("name", ""),
+                    "args": tc.get("args", {}),
+                }
                 for tc in final_message.tool_calls
             ]
 
@@ -373,9 +391,7 @@ class AgentService:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def _build_conversation_history(
-        self, session_id: UUID
-    ) -> list[BaseMessage]:
+    async def _build_conversation_history(self, session_id: UUID) -> list[BaseMessage]:
         """Build conversation history from session messages."""
         messages: list[BaseMessage] = []
         db_messages = await self._get_session_messages(session_id)

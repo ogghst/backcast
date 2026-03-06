@@ -19,10 +19,16 @@ class ProjectListInput(BaseModel):
     """Input for list_projects tool."""
 
     search: str | None = Field(None, description="Search term for project code or name")
-    status: str | None = Field(None, description="Filter by status code (e.g., 'ACT', 'PLN')")
+    status: str | None = Field(
+        None, description="Filter by status code (e.g., 'ACT', 'PLN')"
+    )
     skip: int = Field(0, ge=0, description="Number of records to skip")
-    limit: int = Field(20, ge=1, le=100, description="Maximum number of records to return")
-    sort_field: str | None = Field(None, description="Field to sort by (e.g., 'name', 'code')")
+    limit: int = Field(
+        20, ge=1, le=100, description="Maximum number of records to return"
+    )
+    sort_field: str | None = Field(
+        None, description="Field to sort by (e.g., 'name', 'code')"
+    )
     sort_order: str = Field("asc", description="Sort order (asc or desc)")
 
 
@@ -108,7 +114,9 @@ async def list_projects(
         return {"error": str(e)}
 
 
-async def get_project(project_id: str, context: ToolContext | None = None) -> dict[str, Any]:
+async def get_project(
+    project_id: str, context: ToolContext | None = None
+) -> dict[str, Any]:
     """Get detailed information about a specific project.
 
     Args:
@@ -139,7 +147,9 @@ async def get_project(project_id: str, context: ToolContext | None = None) -> di
             "description": project.description,
             "status": project.status,
             "budget": float(project.budget) if project.budget else None,
-            "start_date": project.start_date.isoformat() if project.start_date else None,
+            "start_date": project.start_date.isoformat()
+            if project.start_date
+            else None,
             "end_date": project.end_date.isoformat() if project.end_date else None,
             "branch": project.branch,
         }
@@ -188,5 +198,3 @@ def create_project_tools(context: ToolContext) -> list[StructuredTool]:
 
 # Export for use in agent
 PROJECT_TOOLS: list[Any] = []  # Will be populated at runtime with context
-
-
