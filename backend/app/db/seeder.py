@@ -800,6 +800,154 @@ class DataSeeder:
             f"Change Order Audit Log seeding complete: {created_count} created, {skipped_count} skipped/failed"
         )
 
+    async def seed_ai_providers(self, session: AsyncSession) -> None:
+        """Seed AI providers from ai_providers.json file.
+
+        Args:
+            session: Database session
+        """
+        from sqlalchemy import select as sql_select
+
+        from app.models.domain.ai import AIModel, AIProvider, AIProviderConfig
+
+        logger.info("Starting AI provider seeding...")
+        provider_data = self.load_seed_file("ai_providers.json")
+
+        if not provider_data:
+            logger.info("No AI provider seed data found or file is empty")
+            return
+
+        created_count = 0
+        skipped_count = 0
+
+        with seed_operation():  # Allow explicit IDs from seed data
+            for idx, provider_dict in enumerate(provider_data):
+                try:
+                    provider_id = provider_dict.get("id")
+                    provider_configs = provider_dict.pop("configs", [])
+                    provider_models = provider_dict.pop("models", [])
+
+                    # Check if provider already exists
+                    stmt = sql_select(AIProvider).where(AIProvider.id == UUID(provider_id))
+                    result = await session.execute(stmt)
+                    existing = result.scalar_one_or_none()
+
+                    if existing:
+                        logger.debug(f"AI Provider {provider_dict.get('name')} already exists, skipping")
+                        skipped_count += 1
+                        continue
+
+                    # Create provider with explicit ID
+                    provider = AIProvider(
+                        id=UUID(provider_id) if provider_id else None,
+                        provider_type=provider_dict["provider_type"],
+                        name=provider_dict["name"],
+                        base_url=provider_dict.get("base_url"),
+                        is_active=provider_dict.get("is_active", True),
+                    )
+                    session.add(provider)
+                    await session.flush()
+
+                    # Add configs
+                    for config_dict in provider_configs:
+                        config_id = config_dict.pop("id", None)
+                        config = AIProviderConfig(
+                            id=UUID(config_id) if config_id else None,
+                            provider_id=str(provider.id),
+                            key=config_dict["key"],
+                            value=config_dict.get("value"),
+                            is_encrypted=config_dict.get("is_encrypted", False),
+                        )
+                        session.add(config)
+                        await session.flush()
+
+                    # Add models
+                    for model_dict in provider_models:
+                        model_id = model_dict.pop("id", None)
+                        model = AIModel(
+                            id=UUID(model_id) if model_id else None,
+                            provider_id=str(provider.id),
+                            model_id=model_dict["model_id"],
+                            display_name=model_dict["display_name"],
+                            is_active=model_dict.get("is_active", True),
+                        )
+                        session.add(model)
+                        await session.flush()
+
+                    created_count += 1
+                    logger.info(f"Created AI Provider: {provider.name}")
+
+                except Exception as e:
+                    logger.error(f"Failed to seed AI provider at index {idx}: {e}")
+                    skipped_count += 1
+                    continue
+
+        logger.info(
+            f"AI Provider seeding complete: {created_count} created, {skipped_count} skipped/failed"
+        )
+
+    async def seed_ai_assistants(self, session: AsyncSession) -> None:
+        """Seed AI assistant configs from ai_assistant_configs.json file.
+
+        Args:
+            session: Database session
+        """
+        from sqlalchemy import select as sql_select
+
+        from app.models.domain.ai import AIAssistantConfig
+
+        logger.info("Starting AI assistant seeding...")
+        assistant_data = self.load_seed_file("ai_assistant_configs.json")
+
+        if not assistant_data:
+            logger.info("No AI assistant seed data found or file is empty")
+            return
+
+        created_count = 0
+        skipped_count = 0
+
+        with seed_operation():  # Allow explicit IDs from seed data
+            for idx, assistant_dict in enumerate(assistant_data):
+                try:
+                    assistant_id = assistant_dict.get("id")
+
+                    # Check if assistant already exists
+                    stmt = sql_select(AIAssistantConfig).where(AIAssistantConfig.id == UUID(assistant_id))
+                    result = await session.execute(stmt)
+                    existing = result.scalar_one_or_none()
+
+                    if existing:
+                        logger.debug(f"AI Assistant {assistant_dict.get('name')} already exists, skipping")
+                        skipped_count += 1
+                        continue
+
+                    # Create assistant with explicit ID
+                    assistant = AIAssistantConfig(
+                        id=UUID(assistant_id) if assistant_id else None,
+                        name=assistant_dict["name"],
+                        description=assistant_dict.get("description"),
+                        model_id=str(assistant_dict["model_id"]),
+                        system_prompt=assistant_dict.get("system_prompt"),
+                        temperature=assistant_dict.get("temperature"),
+                        max_tokens=assistant_dict.get("max_tokens"),
+                        allowed_tools=assistant_dict.get("allowed_tools"),
+                        is_active=assistant_dict.get("is_active", True),
+                    )
+                    session.add(assistant)
+                    await session.flush()
+
+                    created_count += 1
+                    logger.info(f"Created AI Assistant: {assistant.name}")
+
+                except Exception as e:
+                    logger.error(f"Failed to seed AI assistant at index {idx}: {e}")
+                    skipped_count += 1
+                    continue
+
+        logger.info(
+            f"AI Assistant seeding complete: {created_count} created, {skipped_count} skipped/failed"
+        )
+
     async def seed_all(self, session: AsyncSession) -> None:
         """Execute all seeding operations in the correct order.
 
@@ -838,6 +986,12 @@ class DataSeeder:
 
             # Seed Change Order Audit Logs
             await self.seed_change_order_audit_logs(session)
+
+            # Seed AI Providers
+            await self.seed_ai_providers(session)
+
+            # Seed AI Assistants
+            await self.seed_ai_assistants(session)
 
             # Commit all changes (services usually commit internally for writes?
             # Or depend on session commit at end. If services use execute() they might depend on session commit.)

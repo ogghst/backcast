@@ -12,6 +12,8 @@ from pydantic import ValidationError
 
 # Include routers
 from app.api.routes import (
+    ai_chat,
+    ai_config,
     auth,
     change_orders,
     cost_element_types,
@@ -180,4 +182,14 @@ app.include_router(
     evm.router,
     prefix=f"{settings.API_V1_STR}/evm",
     tags=["EVM"],
+)
+app.include_router(
+    ai_config.router,
+    prefix=settings.API_V1_STR,
+    tags=["AI Configuration"],
+)
+app.include_router(
+    ai_chat.router,
+    prefix=settings.API_V1_STR,
+    tags=["AI Chat"],
 )

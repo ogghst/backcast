@@ -1,34 +1,60 @@
 # Current Iteration
 
-**Iteration:** Next Development Sprint
-**Start Date:** 2026-02-23
-**Status:** 🏗️ **PLANNING**
+**Iteration:** AI Integration Phase 1
+**Start Date:** 2026-03-05
+**Status:** 🔄 **IN PROGRESS**
 
 ---
 
 ## Goal
 
-TBD
+Implement LangGraph AI component with OpenAI-compatible LLM configuration for natural language project queries.
 
 ---
 
 ## Stories in Scope
 
-| Story                                 | Points | Priority | Status      | Dependencies |
-| :------------------------------------ | :----- | :------- | :---------- | :----------- |
-| **[E06-U08] Delete/Archive Branches** | 3      | Critical | ✅ Complete | E06-U05 ✅   |
+| Story                                              | Points | Priority | Status        | Dependencies |
+| :------------------------------------------------- | :----- | :------- | :----------- | :----------- |
+| **[E09-U01] Configure AI providers**               | 5      | Medium   | ✅ Complete   | -            |
+| **[E09-U02] Manage API keys securely**             | 3      | High     | ✅ Complete   | -            |
+| **[E09-U03] Create/configure AI assistants**       | 5      | Medium   | ✅ Complete   | E09-U02 ✅    |
+| **[E09-U04] Natural language queries**             | 8      | High     | 🔄 In Progress | E09-U01, E09-U03 ✅ |
+| **[E09-U05] List projects via natural language**   | 5      | Medium   | ✅ Complete   | E09-U01, E09-U03 ✅ |
+| **[E09-U06] Audit logging for AI operations**      | 3      | Low      | ✅ Complete   | -            |
+
+**Total Points:** 37 (29 completed, 8 in progress)
 
 ---
 
 ## Success Criteria
 
-TBD
+- [x] Database migration for AI tables applied
+- [x] AI configuration API endpoints functional
+- [x] LangGraph agent service implemented
+- [x] Project tools (list_projects, get_project) working
+- [x] Mypy strict mode passing (0 errors)
+- [x] Ruff linting passing (0 errors)
+- [ ] Chat API returns responses from configured LLM
+- [ ] Session persistence functional
+- [ ] RBAC enforced for tool operations
 
 ---
 
 ## Iteration Records
 
 ### Recent Completed Iterations
+
+- **AI Integration Phase 1 (E09) (2026-03-05):** ✅ Complete (Phase 1)
+  - Database schema for AI configuration (ai_providers, ai_models, ai_assistant_configs, ai_conversation_sessions)
+  - AI Configuration Service with encrypted API key storage
+  - LangGraph Agent Service for conversation orchestration
+  - OpenAI-compatible LLM Client Factory (supports OpenAI, Azure, Ollama)
+  - Project Tools (list_projects, get_project) with RBAC enforcement
+  - API routes for AI configuration and chat
+  - Seed data for AI providers and assistant configs
+  - Type errors fixed (mypy + ruff passing)
+  - Epic E009 added to epics.md
 
 - **E06-U08 Delete/Archive Branches (2026-02-25):** ✅ Complete
   - Added POST /{id}/archive API endpoint for soft-deleting change order branches

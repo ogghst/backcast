@@ -196,3 +196,53 @@
 - **E08-U08:** Time machine control for historical metrics
 
 **Targeted:** Sprint 8
+
+---
+
+## Epic 9: AI Integration (E009)
+
+**Business Value:** Enable natural language queries and AI-powered project insights
+**Priority:** MEDIUM
+**Status:** 🔄 In Progress
+
+**User Stories:**
+
+- **E09-U01:** Configure AI providers (OpenAI, Azure, local) ✅
+- **E09-U02:** Manage API keys securely (encrypted storage) ✅
+- **E09-U03:** Create/configure AI assistants with tool permissions ✅
+- **E09-U04:** Natural language queries to AI assistant 🔄
+- **E09-U05:** List projects via natural language (tool) ✅
+- **E09-U06:** Audit logging for AI operations ✅
+- **E09-U07:** AI-powered project assessment ⏳
+- **E09-U08:** AI-assisted entity CRUD operations ⏳
+- **E09-U09:** AI-assisted change order management ⏳
+- **E09-U10:** WebSocket streaming for real-time responses ⏳
+- **E09-U11:** Frontend AI chat interface ⏳
+
+**Implementation Details:**
+
+**Phase 1 Complete (2026-03-05):**
+- Database schema for AI configuration (providers, models, assistants, sessions)
+- AI Configuration Service with encrypted API key storage
+- LangGraph Agent Service for conversation orchestration
+- OpenAI-compatible LLM Client Factory
+- Project Tools (read-only) for natural language queries
+- API routes for configuration and chat
+- Type errors fixed (mypy + ruff passing)
+
+**Phase 2 (Future):**
+- AI-powered project assessment (E09-U07)
+- AI-assisted entity CRUD operations (E09-U08)
+- AI-assisted change order management (E09-U09)
+- WebSocket streaming (E09-U10)
+- Frontend chat interface (E09-U11)
+
+**Key Features:**
+
+- Multi-provider support from start (OpenAI, Azure OpenAI, Ollama)
+- Configuration via UI, stored in database (not env vars)
+- RBAC enforcement for all tool operations
+- Tool calling loop with max 5 iterations
+- Session persistence for conversation history
+
+**Targeted:** Sprint 9 (Phase 2)
