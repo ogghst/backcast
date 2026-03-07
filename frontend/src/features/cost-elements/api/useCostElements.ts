@@ -306,25 +306,29 @@ export const useDeleteCostElement = (
 /**
  * Hook to get a single cost element by ID.
  * @param costElementId - The cost element ID to fetch
- * @param branch - Branch to query (default: "main")
+ * @param branch - Branch to query (default: from TimeMachine context)
+ * @param options - Additional options for useQuery
  * @returns TanStack Query result with cost element data
  */
 export const useCostElement = (
   costElementId: string,
-  branch: string = "main",
+  branch?: string,
+  options?: Omit<UseQueryOptions<CostElementRead>, "queryKey" | "queryFn">,
 ) => {
-  const { asOf } = useTimeMachineParams();
+  const { branch: tmBranch, asOf } = useTimeMachineParams();
+  const effectiveBranch = branch || tmBranch || "main";
 
   return useQuery<CostElementRead>({
-    queryKey: queryKeys.costElements.detail(costElementId, { branch, asOf }),
+    queryKey: queryKeys.costElements.detail(costElementId, { branch: effectiveBranch, asOf }),
     queryFn: async () => {
       return await CostElementsService.getCostElement(
         costElementId,
-        branch,
+        effectiveBranch,
         asOf || undefined,
       );
     },
-    enabled: !!costElementId,
+    enabled: !!costElementId && (options?.enabled ?? true),
+    ...options,
   });
 };
 

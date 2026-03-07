@@ -459,7 +459,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         )
 
     async def get_by_id(
-        self, cost_element_id: UUID, branch: str = "main"
+        self, cost_element_id: UUID, branch: str = "main", branch_mode: BranchMode = BranchMode.MERGE
     ) -> CostElement | None:
         """Get cost element by root ID and branch with WBE name."""
         stmt = (
@@ -475,7 +475,27 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         )
         result = await self.session.execute(stmt)
         resolved = await self._resolve_relations(result.all())
-        return resolved[0] if resolved else None
+        
+        if resolved:
+            return resolved[0]
+            
+        if branch_mode == BranchMode.MERGE and branch != "main":
+            stmt_main = (
+                self._get_base_stmt()
+                .where(
+                    CostElement.cost_element_id == cost_element_id,
+                    CostElement.branch == "main",
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                )
+                .order_by(cast(Any, CostElement).valid_time.desc())
+                .limit(1)
+            )
+            result_main = await self.session.execute(stmt_main)
+            resolved_main = await self._resolve_relations(result_main.all())
+            return resolved_main[0] if resolved_main else None
+            
+        return None
 
     async def get_cost_elements(
         self,
@@ -717,7 +737,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         cost_element_id: UUID,
         as_of: datetime,
         branch: str = "main",
-        branch_mode: BranchMode | None = None,
+        branch_mode: BranchMode = BranchMode.MERGE,
     ) -> CostElement | None:
         """Get cost element as it was at specific timestamp.
 

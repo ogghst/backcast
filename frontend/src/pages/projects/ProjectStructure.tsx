@@ -1,9 +1,11 @@
 import { useState, useCallback, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, Tree, Empty, Spin, Alert, Typography } from "antd";
+import { FolderOutlined, AppstoreOutlined, PayCircleOutlined } from "@ant-design/icons";
 import type { DataNode, EventDataNode } from "antd/es/tree";
 import type { Key } from "react";
 import { useWBEs } from "@/features/wbes/api/useWBEs";
+import { useProject } from "@/features/projects/api/useProjects";
 import type { WBERead } from "@/api/generated";
 import type { CostElementRead } from "@/api/generated";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,7 +27,7 @@ const formatCurrency = (value: string | number | undefined): string => {
 
 interface TreeNodeData {
   id: string;
-  type: "wbe" | "cost_element";
+  type: "project" | "wbe" | "cost_element";
   name: string;
 }
 
@@ -55,6 +57,13 @@ export const ProjectStructure = () => {
 
   const [treeData, setTreeData] = useState<DataNode[]>([]);
 
+  // Fetch Project Details
+  const {
+    data: projectData,
+    isLoading: projectLoading,
+    error: projectError
+  } = useProject(projectId);
+
   // Fetch root WBEs (parent_wbe_id is null or undefined)
   const {
     data: wbesData,
@@ -66,12 +75,15 @@ export const ProjectStructure = () => {
   });
 
   useEffect(() => {
-    if (wbesData?.items) {
-      const roots = wbesData.items.map((wbe: WBERead) => ({
+    if (projectData && wbesData?.items) {
+      const wbeRoots = wbesData.items.map((wbe: WBERead) => ({
         key: `wbe-${wbe.wbe_id}`,
         title: (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-            <Text strong>{wbe.name}</Text>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <FolderOutlined style={{ color: "var(--ant-color-text-secondary)" }} />
+              <Text strong>{wbe.name}</Text>
+            </div>
             <Text type="secondary">{formatCurrency(wbe.budget_allocation)}</Text>
           </div>
         ),
@@ -82,11 +94,32 @@ export const ProjectStructure = () => {
           name: wbe.name,
         } as TreeNodeData,
       }));
-      setTreeData(roots);
+
+      // Wrap WBEs under a root Project node
+      const projectRoot: DataNode = {
+        key: `project-${projectData.project_id}`,
+        title: (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <AppstoreOutlined style={{ color: "var(--ant-color-primary)" }} />
+              <Text strong>{projectData.code} - {projectData.name}</Text>
+            </div>
+          </div>
+        ),
+        children: wbeRoots,
+        isLeaf: false, // The project is never a leaf if it can hold structure
+        data: {
+          id: projectData.project_id,
+          type: "project" as const,
+          name: projectData.name,
+        } as TreeNodeData,
+      };
+
+      setTreeData([projectRoot]);
     } else {
       setTreeData([]);
     }
-  }, [wbesData]);
+  }, [wbesData, projectData]);
 
   const onLoadData = useCallback(
     async (treeNode: EventDataNode<DataNode>) => {
@@ -162,8 +195,11 @@ export const ProjectStructure = () => {
         const childWBENodes: DataNode[] = childWBEs.map((wbe: WBERead) => ({
           key: `wbe-${wbe.wbe_id}`,
           title: (
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <Text>{wbe.name}</Text>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <FolderOutlined style={{ color: "var(--ant-color-text-secondary)" }} />
+                <Text>{wbe.name}</Text>
+              </div>
               <Text type="secondary">{formatCurrency(wbe.budget_allocation)}</Text>
             </div>
           ),
@@ -178,8 +214,11 @@ export const ProjectStructure = () => {
         const costElementNodes: DataNode[] = costElements.map((ce: CostElementRead) => ({
           key: `ce-${ce.cost_element_id}`,
           title: (
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <Text>{ce.name}</Text>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <PayCircleOutlined style={{ color: "var(--ant-color-success)" }} />
+                <Text>{ce.name}</Text>
+              </div>
               <Text type="secondary">{formatCurrency(ce.budget_amount)}</Text>
             </div>
           ),
@@ -207,7 +246,10 @@ export const ProjectStructure = () => {
     (_selectedKeys: Key[], info: { node: EventDataNode<DataNode> }) => {
       const nodeData = info.node.data as TreeNodeData;
 
-      if (nodeData.type === "wbe" && projectId) {
+      // Navigate based on node type
+      if (nodeData.type === "project" && projectId) {
+        navigate(`/projects/${projectId}/overview`);
+      } else if (nodeData.type === "wbe" && projectId) {
         navigate(`/projects/${projectId}/wbes/${nodeData.id}`);
       } else if (nodeData.type === "cost_element") {
         navigate(`/cost-elements/${nodeData.id}`);
@@ -216,7 +258,7 @@ export const ProjectStructure = () => {
     [navigate, projectId]
   );
 
-  if (wbesLoading && treeData.length === 0) {
+  if ((wbesLoading || projectLoading) && treeData.length === 0) {
     return (
       <Card>
         <div style={{ display: "flex", justifyContent: "center", padding: 40 }}>
@@ -226,12 +268,12 @@ export const ProjectStructure = () => {
     );
   }
 
-  if (wbesError) {
+  if (wbesError || projectError) {
     return (
       <Card>
         <Alert
           title="Error Loading Structure"
-          description={wbesError.message}
+          description={(wbesError || projectError)?.message}
           type="error"
           showIcon
         />
@@ -239,10 +281,10 @@ export const ProjectStructure = () => {
     );
   }
 
-  if (!wbesData?.items || wbesData.items.length === 0) {
+  if (!projectData) {
     return (
       <Card>
-        <Empty description="No Work Breakdown Elements found for this project." />
+        <Empty description="No Project found." />
       </Card>
     );
   }
@@ -252,8 +294,10 @@ export const ProjectStructure = () => {
       <Tree
         treeData={treeData}
         showLine
+        defaultExpandAll={true} // Since the root node is just one, let's expand it by default to reveal the first WBEs
         loadData={onLoadData}
         onSelect={handleSelect}
+        blockNode
       />
     </Card>
   );
