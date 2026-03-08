@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { Modal, Table, Button, Input, Space, Form, message, Tooltip } from "antd";
-import { PlusOutlined, DeleteOutlined, InfoCircleOutlined } from "@ant-design/icons";
+import { App, Modal, Table, Button, Input, Space, Form, Tooltip } from "antd";
+import { PlusOutlined, DeleteOutlined, EditOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import type { ColumnType } from "antd/es/table";
 import { useAIProviderConfigs, useSetAIProviderConfig, useDeleteAIProviderConfig } from "../api";
 import type { AIProviderConfigPublic } from "../types";
@@ -25,7 +25,8 @@ export const AIProviderConfigModal = ({
 }: AIProviderConfigModalProps) => {
   const [form] = Form.useForm<ConfigFormData>();
   const [showAddForm, setShowAddForm] = useState(false);
-  const { modal } = Modal.useModal();
+  const [editingConfig, setEditingConfig] = useState<AIProviderConfigPublic | null>(null);
+  const { modal } = App.useApp();
 
   const { data: configs, isLoading, refetch } = useAIProviderConfigs(providerId, {
     enabled: open,
@@ -35,6 +36,7 @@ export const AIProviderConfigModal = ({
     onSuccess: () => {
       form.resetFields();
       setShowAddForm(false);
+      setEditingConfig(null);
       refetch();
     },
   });
@@ -51,14 +53,34 @@ export const AIProviderConfigModal = ({
       setConfig({
         providerId,
         data: {
-          key: values.key,
+          key: editingConfig?.key || values.key,
           value: values.value,
           is_encrypted: true,
         },
       });
-    } catch (error) {
+    } catch {
       // Validation failed
     }
+  };
+
+  const handleEditConfig = (config: AIProviderConfigPublic) => {
+    setEditingConfig(config);
+    setShowAddForm(true);
+    form.setFieldsValue({
+      key: config.key,
+      value: "", // Don't pre-fill value for security - user must re-enter
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setShowAddForm(false);
+    setEditingConfig(null);
+    form.resetFields();
+  };
+
+  const handleModalCancel = () => {
+    handleCancelEdit();
+    onCancel();
   };
 
   const handleDeleteConfig = (key: string) => {
@@ -91,7 +113,7 @@ export const AIProviderConfigModal = ({
       dataIndex: "value",
       key: "value",
       render: (value, record) => {
-        if (record.is_encrypted && value === "***MASKED***") {
+        if (record.is_encrypted) {
           return "****";
         }
         return value;
@@ -101,12 +123,21 @@ export const AIProviderConfigModal = ({
       title: "Actions",
       key: "actions",
       render: (_, record) => (
-        <Button
-          danger
-          icon={<DeleteOutlined />}
-          onClick={() => handleDeleteConfig(record.key)}
-          aria-label="delete"
-        />
+        <Space>
+          <Button
+            icon={<EditOutlined />}
+            onClick={() => handleEditConfig(record)}
+            aria-label="edit"
+            title="Edit Config"
+          />
+          <Button
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => handleDeleteConfig(record.key)}
+            aria-label="delete"
+            title="Delete Config"
+          />
+        </Space>
       ),
     },
   ];
@@ -115,15 +146,23 @@ export const AIProviderConfigModal = ({
     <Modal
       title={`${providerName} - Configuration`}
       open={open}
-      onCancel={onCancel}
+      onCancel={handleModalCancel}
       footer={null}
       width={700}
+      destroyOnClose
     >
       <Space direction="vertical" style={{ width: "100%" }} size="large">
         <Button
           type="dashed"
           icon={<PlusOutlined />}
-          onClick={() => setShowAddForm(!showAddForm)}
+          onClick={() => {
+            if (showAddForm) {
+              handleCancelEdit();
+            } else {
+              setShowAddForm(true);
+              setEditingConfig(null);
+            }
+          }}
           block
         >
           {showAddForm ? "Cancel" : "Add Config"}
@@ -136,12 +175,15 @@ export const AIProviderConfigModal = ({
               label="Config Key"
               rules={[{ required: true, message: "Please enter a config key" }]}
             >
-              <Input placeholder="e.g., api_key" />
+              <Input
+                placeholder="e.g., api_key"
+                disabled={!!editingConfig}
+              />
             </Form.Item>
 
             <Form.Item
               name="value"
-              label="Config Value"
+              label={editingConfig ? "New Value" : "Config Value"}
               rules={[{ required: true, message: "Please enter a config value" }]}
               extra={
                 <Tooltip title="This value will be encrypted and stored securely.">
@@ -149,7 +191,9 @@ export const AIProviderConfigModal = ({
                 </Tooltip>
               }
             >
-              <Input.Password placeholder="Enter sensitive value" />
+              <Input.Password
+                placeholder={editingConfig ? "Enter new value" : "Enter sensitive value"}
+              />
             </Form.Item>
 
             <Form.Item>
@@ -159,7 +203,7 @@ export const AIProviderConfigModal = ({
                 loading={isSetting}
                 block
               >
-                Save Configuration
+                {editingConfig ? "Update Configuration" : "Save Configuration"}
               </Button>
             </Form.Item>
           </Form>

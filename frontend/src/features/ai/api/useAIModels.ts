@@ -95,8 +95,19 @@ export const useCreateAIModel = (
     mutationFn: ({ providerId, data }: { providerId: string; data: AIModelCreate }) =>
       modelApi.create(providerId, data),
     onSuccess: (data, variables) => {
+      // Invalidate models for this provider (both active and inactive)
       queryClient.invalidateQueries({
-        queryKey: queryKeys.ai.models.list(variables.providerId),
+        queryKey: queryKeys.ai.models.list(variables.providerId, true),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.ai.models.list(variables.providerId, false),
+      });
+      // Invalidate all models list
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.ai.models.list("all", true),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.ai.models.list("all", false),
       });
       toast.success("AI model created successfully");
       options?.onSuccess?.(data, variables, undefined);
@@ -128,8 +139,19 @@ export const useUpdateAIModel = (
     mutationFn: ({ providerId, modelId, data }) =>
       modelApi.update(providerId, modelId, data),
     onSuccess: (data, variables) => {
+      // Invalidate models for this provider (both active and inactive)
       queryClient.invalidateQueries({
-        queryKey: queryKeys.ai.models.list(variables.providerId),
+        queryKey: queryKeys.ai.models.list(variables.providerId, true),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.ai.models.list(variables.providerId, false),
+      });
+      // Invalidate all models list
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.ai.models.list("all", true),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.ai.models.list("all", false),
       });
       toast.success("AI model updated successfully");
       options?.onSuccess?.(data, variables, undefined);
@@ -157,8 +179,19 @@ export const useDeleteAIModel = (
     mutationFn: ({ providerId, modelId }: { providerId: string; modelId: string }) =>
       modelApi.delete(providerId, modelId),
     onSuccess: (_, variables) => {
+      // Invalidate models for this provider (both active and inactive)
       queryClient.invalidateQueries({
-        queryKey: queryKeys.ai.models.list(variables.providerId),
+        queryKey: queryKeys.ai.models.list(variables.providerId, true),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.ai.models.list(variables.providerId, false),
+      });
+      // Invalidate all models list
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.ai.models.list("all", true),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.ai.models.list("all", false),
       });
       toast.success("AI model deleted successfully");
       options?.onSuccess?.(_, variables, undefined);

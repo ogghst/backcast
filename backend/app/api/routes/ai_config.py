@@ -16,6 +16,7 @@ from app.models.schemas.ai import (
     AIAssistantConfigUpdate,
     AIModelCreate,
     AIModelPublic,
+    AIModelUpdate,
     AIProviderConfigCreate,
     AIProviderConfigPublic,
     AIProviderCreate,
@@ -204,6 +205,44 @@ async def create_model(
     model_data["provider_id"] = provider_id
     model = await service.create_model(AIModelCreate(**model_data))
     return AIModelPublic.model_validate(model)
+
+
+@router.put(
+    "/providers/{provider_id}/models/{model_id}",
+    response_model=AIModelPublic,
+    operation_id="update_ai_model",
+    dependencies=[Depends(RoleChecker(required_permission="ai-config-update"))],
+)
+async def update_model(
+    provider_id: UUID,
+    model_id: UUID,
+    model_in: AIModelUpdate,
+    service: AIConfigService = Depends(get_ai_config_service),
+) -> AIModelPublic:
+    """Update an AI model."""
+    try:
+        model = await service.update_model(model_id, model_in)
+        return AIModelPublic.model_validate(model)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.delete(
+    "/providers/{provider_id}/models/{model_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    operation_id="delete_ai_model",
+    dependencies=[Depends(RoleChecker(required_permission="ai-config-delete"))],
+)
+async def delete_model(
+    provider_id: UUID,
+    model_id: UUID,
+    service: AIConfigService = Depends(get_ai_config_service),
+) -> None:
+    """Delete an AI model."""
+    try:
+        await service.delete_model(model_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 # === Assistant Config Routes ===

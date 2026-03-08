@@ -26,6 +26,7 @@ from app.models.schemas.ai import (
     AIAssistantConfigCreate,
     AIAssistantConfigUpdate,
     AIModelCreate,
+    AIModelUpdate,
     AIProviderConfigCreate,
     AIProviderCreate,
     AIProviderUpdate,
@@ -228,18 +229,24 @@ class AIConfigService:
         await self.session.flush()
         return model
 
-    async def update_model(self, model_id: UUID, model_in: AIModelCreate) -> AIModel:
-        """Update an AI model."""
+    async def update_model(self, model_id: UUID, model_in: AIModelUpdate) -> AIModel:
+        """Update an AI model.
+
+        Supports partial updates - only fields present in the request will be modified.
+        """
         model = await self.session.get(AIModel, model_id)
         if not model:
             raise ValueError(f"Model {model_id} not found")
 
-        model.model_id = model_in.model_id
-        model.display_name = model_in.display_name
-        model.is_active = model_in.is_active
+        # Only update fields that were explicitly set in the request
+        update_data = model_in.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(model, key, value)
+
         await self.session.flush()
 
-        # Fetch fresh copy to get server-generated values
+        # Fetch fresh copy to get server-generated values (updated_at)
+        # This avoids lazy loading issues when Pydantic serializes the entity
         stmt = select(AIModel).where(AIModel.id == model_id)
         result = await self.session.execute(stmt)
         return result.scalar_one()

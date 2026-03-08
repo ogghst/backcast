@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # Provider Types
 PROVIDER_TYPE_OPENAI = "openai"
@@ -88,6 +88,7 @@ class AIProviderConfigUpdate(BaseModel):
     """Schema for updating a provider config."""
 
     value: str | None = None
+    is_encrypted: bool | None = None
 
 
 class AIProviderConfigPublic(BaseModel):
@@ -103,6 +104,18 @@ class AIProviderConfigPublic(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @model_validator(mode='after')
+    @classmethod
+    def mask_encrypted_value(cls, model: Any) -> Any:
+        """Mask encrypted values."""
+        if model.is_encrypted and model.value:
+            # Check if value looks like encrypted data (long base64 string)
+            # Fernet encrypted values are base64 and typically 100+ chars
+            if len(model.value) > 50:
+                # Create a new model with masked value
+                model.value = "***MASKED***"
+        return model
+
 
 # === Model Schemas ===
 
@@ -116,9 +129,21 @@ class AIModelBase(BaseModel):
 
 
 class AIModelCreate(AIModelBase):
-    """Schema for creating an AI model."""
+    """Schema for creating an AI model.
 
-    provider_id: UUID = Field(..., description="Provider ID (required)")
+    When creating via API endpoint, provider_id comes from the URL path
+    parameter and is injected by the route handler.
+    """
+
+    provider_id: UUID | None = Field(None, description="Provider ID (injected from path)")
+
+
+class AIModelUpdate(BaseModel):
+    """Schema for updating an AI model."""
+
+    model_id: str | None = Field(None, max_length=100)
+    display_name: str | None = Field(None, max_length=255)
+    is_active: bool | None = None
 
 
 class AIModelPublic(AIModelBase):

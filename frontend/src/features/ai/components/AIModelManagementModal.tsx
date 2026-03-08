@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal, Table, Button, Space, Switch, Tag } from "antd";
+import { App, Modal, Table, Button, Space, Switch, Tag } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import type { ColumnType } from "antd/es/table";
 import { useAIModels, useCreateAIModel, useUpdateAIModel, useDeleteAIModel } from "../api";
@@ -21,7 +21,7 @@ export const AIModelManagementModal = ({
 }: AIModelManagementModalProps) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<AIModelPublic | null>(null);
-  const { modal } = Modal.useModal();
+  const { modal } = App.useApp();
 
   const { data: models, isLoading, refetch } = useAIModels(providerId, true, {
     enabled: open,

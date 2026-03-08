@@ -6,8 +6,14 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.domain.ai import AIProvider
-from app.models.schemas.ai import AIProviderCreate, AIProviderPublic, AIProviderUpdate
+from app.models.schemas.ai import (
+    AIModelCreate,
+    AIModelPublic,
+    AIModelUpdate,
+    AIProviderCreate,
+    AIProviderPublic,
+    AIProviderUpdate,
+)
 from app.services.ai_config_service import AIConfigService
 
 
@@ -176,3 +182,121 @@ async def test_delete_provider(db_session: AsyncSession) -> None:
     # Verify it's gone
     result = await service.get_provider(provider_id)
     assert result is None
+
+
+# === Model Tests ===
+
+
+@pytest.mark.asyncio
+async def test_create_model(db_session: AsyncSession) -> None:
+    """Test creating a model."""
+    service = AIConfigService(db_session)
+
+    # Create a provider first
+    provider = await service.create_provider(
+        AIProviderCreate(
+            provider_type="openai",
+            name="Test Provider",
+            is_active=True,
+        )
+    )
+
+    # Create a model
+    model_in = AIModelCreate(
+        provider_id=provider.id,
+        model_id="gpt-4",
+        display_name="GPT-4",
+        is_active=True,
+    )
+
+    model = await service.create_model(model_in)
+
+    # Verify model was created
+    assert model.id is not None
+    assert model.provider_id == provider.id
+    assert model.model_id == "gpt-4"
+    assert model.display_name == "GPT-4"
+    assert model.is_active is True
+
+
+@pytest.mark.asyncio
+async def test_update_model_partial_is_active_only(db_session: AsyncSession) -> None:
+    """Test updating only the is_active field of a model (frontend toggle use case)."""
+    service = AIConfigService(db_session)
+
+    # Create a provider and model
+    provider = await service.create_provider(
+        AIProviderCreate(
+            provider_type="openai",
+            name="Test Provider",
+            is_active=True,
+        )
+    )
+
+    model = await service.create_model(
+        AIModelCreate(
+            provider_id=provider.id,
+            model_id="gpt-4",
+            display_name="GPT-4",
+            is_active=True,
+        )
+    )
+
+    # Update only is_active field (like frontend toggle)
+    model_update = AIModelUpdate(is_active=False)
+    updated_model = await service.update_model(model.id, model_update)
+
+    # Verify only is_active changed
+    assert updated_model.id == model.id
+    assert updated_model.model_id == "gpt-4"  # Unchanged
+    assert updated_model.display_name == "GPT-4"  # Unchanged
+    assert updated_model.is_active is False  # Changed
+
+    # Verify it can be serialized by Pydantic
+    model_public = AIModelPublic.model_validate(updated_model)
+    assert model_public.is_active is False
+
+
+@pytest.mark.asyncio
+async def test_update_model_multiple_fields(db_session: AsyncSession) -> None:
+    """Test updating multiple fields of a model."""
+    service = AIConfigService(db_session)
+
+    # Create a provider and model
+    provider = await service.create_provider(
+        AIProviderCreate(
+            provider_type="openai",
+            name="Test Provider",
+            is_active=True,
+        )
+    )
+
+    model = await service.create_model(
+        AIModelCreate(
+            provider_id=provider.id,
+            model_id="gpt-4",
+            display_name="GPT-4",
+            is_active=True,
+        )
+    )
+
+    # Update multiple fields
+    model_update = AIModelUpdate(
+        model_id="gpt-4-turbo",
+        display_name="GPT-4 Turbo",
+    )
+    updated_model = await service.update_model(model.id, model_update)
+
+    # Verify changes
+    assert updated_model.model_id == "gpt-4-turbo"
+    assert updated_model.display_name == "GPT-4 Turbo"
+    assert updated_model.is_active is True  # Unchanged
+
+
+@pytest.mark.asyncio
+async def test_update_model_not_found(db_session: AsyncSession) -> None:
+    """Test updating a non-existent model raises ValueError."""
+    service = AIConfigService(db_session)
+
+    with pytest.raises(ValueError, match="Model .* not found"):
+        await service.update_model(uuid4(), AIModelUpdate(is_active=False))
