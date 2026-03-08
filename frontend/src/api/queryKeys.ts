@@ -180,6 +180,34 @@ export const queryKeys = createQueryKeys("backcast-evs", {
       ["schedule-baselines", "pv", id, params] as const,
   },
 
+  // AI Configuration
+  ai: {
+    all: ["ai"] as const,
+    providers: {
+      all: ["ai", "providers"] as const,
+      lists: () => ["ai", "providers", "list"] as const,
+      list: (includeInactive?: boolean) =>
+        ["ai", "providers", "list", includeInactive] as const,
+      detail: (id: string) => ["ai", "providers", "detail", id] as const,
+    },
+    providerConfigs: {
+      list: (providerId: string) =>
+        ["ai", "providers", providerId, "configs"] as const,
+    },
+    models: {
+      list: (providerId: string, includeInactive?: boolean) =>
+        ["ai", "providers", providerId, "models", includeInactive] as const,
+      detail: (id: string) => ["ai", "models", "detail", id] as const,
+    },
+    assistants: {
+      all: ["ai", "assistants"] as const,
+      lists: () => ["ai", "assistants", "list"] as const,
+      list: (includeInactive?: boolean) =>
+        ["ai", "assistants", "list", includeInactive] as const,
+      detail: (id: string) => ["ai", "assistants", "detail", id] as const,
+    },
+  },
+
   // Users
   users: {
     all: ["users"] as const,

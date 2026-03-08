@@ -91,7 +91,7 @@ class AIConfigService:
         self, provider_id: UUID, provider_in: AIProviderUpdate
     ) -> AIProvider:
         """Update an AI provider."""
-        provider = await self.get_provider(provider_id)
+        provider = await self.session.get(AIProvider, provider_id)
         if not provider:
             raise ValueError(f"Provider {provider_id} not found")
 
@@ -100,7 +100,12 @@ class AIConfigService:
             setattr(provider, key, value)
 
         await self.session.flush()
-        return provider
+
+        # Fetch a fresh copy to get server-generated values (updated_at)
+        # This avoids lazy loading issues when Pydantic serializes the entity
+        stmt = select(AIProvider).where(AIProvider.id == provider_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
 
     async def delete_provider(self, provider_id: UUID) -> None:
         """Delete an AI provider and all its configs/models."""
@@ -150,7 +155,9 @@ class AIConfigService:
             existing.value = value
             existing.is_encrypted = config_in.is_encrypted
             await self.session.flush()
-            return existing
+            # Fetch fresh copy to get server-generated values
+            result = await self.session.execute(stmt)
+            return result.scalar_one()
         else:
             config = AIProviderConfig(
                 provider_id=provider_id,
@@ -160,7 +167,9 @@ class AIConfigService:
             )
             self.session.add(config)
             await self.session.flush()
-            return config
+            # Fetch fresh copy to get server-generated values
+            result = await self.session.execute(stmt)
+            return result.scalar_one()
 
     async def delete_provider_config(self, provider_id: UUID, key: str) -> None:
         """Delete a provider config."""
@@ -221,7 +230,7 @@ class AIConfigService:
 
     async def update_model(self, model_id: UUID, model_in: AIModelCreate) -> AIModel:
         """Update an AI model."""
-        model = await self.get_model(model_id)
+        model = await self.session.get(AIModel, model_id)
         if not model:
             raise ValueError(f"Model {model_id} not found")
 
@@ -229,7 +238,11 @@ class AIConfigService:
         model.display_name = model_in.display_name
         model.is_active = model_in.is_active
         await self.session.flush()
-        return model
+
+        # Fetch fresh copy to get server-generated values
+        stmt = select(AIModel).where(AIModel.id == model_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
 
     async def delete_model(self, model_id: UUID) -> None:
         """Delete an AI model."""
@@ -284,7 +297,7 @@ class AIConfigService:
         self, config_id: UUID, config_in: AIAssistantConfigUpdate
     ) -> AIAssistantConfig:
         """Update an assistant configuration."""
-        config = await self.get_assistant_config(config_id)
+        config = await self.session.get(AIAssistantConfig, config_id)
         if not config:
             raise ValueError(f"Assistant config {config_id} not found")
 
@@ -293,7 +306,11 @@ class AIConfigService:
             setattr(config, key, value)
 
         await self.session.flush()
-        return config
+
+        # Fetch fresh copy to get server-generated values
+        stmt = select(AIAssistantConfig).where(AIAssistantConfig.id == config_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
 
     async def delete_assistant_config(self, config_id: UUID) -> None:
         """Delete an assistant configuration."""

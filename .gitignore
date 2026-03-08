@@ -54,3 +54,5 @@ backend/logs
 .pytest_cache
 htmlcov/
 .playwright-mcp/
+.ruff_cache/
+.benchmarks

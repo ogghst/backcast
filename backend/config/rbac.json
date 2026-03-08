@@ -53,7 +53,12 @@
         "evm-read",
         "evm-create",
         "evm-update",
-        "evm-delete"
+        "evm-delete",
+        "ai-config-read",
+        "ai-config-create",
+        "ai-config-update",
+        "ai-config-delete",
+        "ai-chat"
       ]
     },
     "manager": {
@@ -94,7 +99,8 @@
         "evm-read",
         "evm-create",
         "evm-update",
-        "evm-delete"
+        "evm-delete",
+        "ai-chat"
       ]
     },
     "viewer": {

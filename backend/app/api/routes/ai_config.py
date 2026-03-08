@@ -156,6 +156,21 @@ async def delete_provider_config(
 
 
 @router.get(
+    "/models",
+    response_model=list[AIModelPublic],
+    operation_id="list_all_models",
+    dependencies=[Depends(RoleChecker(required_permission="ai-config-read"))],
+)
+async def list_all_models(
+    include_inactive: bool = False,
+    service: AIConfigService = Depends(get_ai_config_service),
+) -> list[AIModelPublic]:
+    """List all AI models across all providers."""
+    models = await service.list_models(None, include_inactive)
+    return [AIModelPublic.model_validate(m) for m in models]
+
+
+@router.get(
     "/providers/{provider_id}/models",
     response_model=list[AIModelPublic],
     operation_id="list_provider_models",

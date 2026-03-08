@@ -8,6 +8,8 @@ import {
   SettingOutlined,
   TeamOutlined,
   TagsOutlined,
+  RobotOutlined,
+  ApiOutlined,
 } from "@ant-design/icons";
 
 import { UserProfile } from "@/components/UserProfile";
@@ -106,6 +108,22 @@ const AppLayout: React.FC = () => {
           key: "/admin/cost-element-types",
           icon: <TagsOutlined />,
           label: "Cost Element Types",
+        });
+      }
+
+      if (can("ai-config-read")) {
+        adminItems.push({
+          key: "/admin/ai-providers",
+          icon: <RobotOutlined />,
+          label: "AI Providers",
+        });
+      }
+
+      if (can("ai-config-read")) {
+        adminItems.push({
+          key: "/admin/ai-assistants",
+          icon: <ApiOutlined />,
+          label: "AI Assistants",
         });
       }
 

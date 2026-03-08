@@ -61,6 +61,7 @@ class LLMClientFactory:
         if provider.provider_type == "azure":
             # Extract Azure-specific config
             azure_deployment = next(
+
                 (
                     str(cfg.value)
                     for cfg in config_values

@@ -210,6 +210,7 @@ class AgentService:
                 tools=tool_schemas if tool_schemas else None,  # type: ignore[arg-type]
                 temperature=float(temp) if temp is not None else DEFAULT_TEMPERATURE,
                 max_tokens=int(max_tok) if max_tok is not None else DEFAULT_MAX_TOKENS,
+
             )
 
             # Parse response
@@ -483,6 +484,7 @@ class AgentService:
         return result.scalar_one_or_none()
 
     async def _build_conversation_history(self, session_id: UUID) -> list[BaseMessage]:
+
         """Build conversation history from session messages.
 
         Context: Converts DB messages into LangChain message objects for context window.
