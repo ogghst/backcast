@@ -8,7 +8,6 @@ interface AIModelModalProps {
   onOk: (values: AIModelCreate) => void | Promise<void>;
   confirmLoading: boolean;
   initialValues?: AIModelPublic | null;
-  providerId: string;
 }
 
 export const AIModelModal = ({
@@ -17,7 +16,6 @@ export const AIModelModal = ({
   onOk,
   confirmLoading,
   initialValues,
-  providerId,
 }: AIModelModalProps) => {
   const [form] = Form.useForm();
   const isEdit = !!initialValues;

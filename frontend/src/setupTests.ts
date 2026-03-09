@@ -40,3 +40,18 @@ Object.defineProperty(window, "getComputedStyle", {
     getPropertyValue: () => "",
   }),
 });
+
+// Mock ProgressEvent for MSW (jsdom doesn't have it)
+if (typeof ProgressEvent === "undefined") {
+  global.ProgressEvent = class ProgressEvent extends Event {
+    constructor(type: string, eventInitDict?: ProgressEventInit) {
+      super(type, eventInitDict);
+      this.lengthComputable = eventInitDict?.lengthComputable ?? false;
+      this.loaded = eventInitDict?.loaded ?? 0;
+      this.total = eventInitDict?.total ?? 0;
+    }
+    lengthComputable: boolean;
+    loaded: number;
+    total: number;
+  };
+}

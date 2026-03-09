@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AIAssistantModal } from "../AIAssistantModal";
-import type { AIAssistantPublic, AIAssistantCreate, AIAssistantUpdate } from "../../types";
+import type { AIAssistantPublic, AIAssistantCreate } from "../../types";
 
 const mockModels = [
   { id: "model-1", model_id: "gpt-4", display_name: "GPT-4", is_active: true },

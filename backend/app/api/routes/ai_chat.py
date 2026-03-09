@@ -1,21 +1,37 @@
 """API routes for AI chat."""
 
+import logging
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
+from jose import JWTError, jwt
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agent_service import AgentService
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.core.config import settings
+from app.core.rbac import get_rbac_service
 from app.db.session import get_db
 from app.models.domain.user import User
 from app.models.schemas.ai import (
-    AIChatRequest,
-    AIChatResponse,
     AIConversationMessagePublic,
     AIConversationSessionPublic,
+    WSChatRequest,
+    WSErrorMessage,
 )
 from app.services.ai_config_service import AIConfigService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai/chat", tags=["AI Chat"])
 
@@ -23,44 +39,6 @@ router = APIRouter(prefix="/ai/chat", tags=["AI Chat"])
 def get_ai_config_service(session: AsyncSession = Depends(get_db)) -> AIConfigService:
     """Get AI configuration service."""
     return AIConfigService(session)
-
-
-def get_agent_service(session: AsyncSession = Depends(get_db)) -> AgentService:
-    """Get agent service."""
-    return AgentService(session)
-
-
-@router.post(
-    "/chat",
-    response_model=AIChatResponse,
-    operation_id="ai_chat",
-    dependencies=[Depends(RoleChecker(required_permission="ai-chat"))],
-)
-async def chat(
-    request: AIChatRequest,
-    current_user: User = Depends(get_current_active_user),
-    agent_service: AgentService = Depends(get_agent_service),
-    config_service: AIConfigService = Depends(get_ai_config_service),
-) -> AIChatResponse:
-    """Send a chat message using LangGraph agent."""
-    # Get assistant config - must be provided for new sessions
-    if not request.assistant_config_id:
-        raise HTTPException(status_code=400, detail="Assistant config is required")
-    assistant_config = await config_service.get_assistant_config(
-        request.assistant_config_id
-    )
-    if not assistant_config:
-        raise HTTPException(status_code=400, detail="Assistant config is required")
-    if not assistant_config.is_active:
-        raise HTTPException(status_code=400, detail="Assistant config is not active")
-    # Process chat using agent service
-    response = await agent_service.chat(
-        message=request.message,
-        assistant_config=assistant_config,
-        session_id=request.session_id,
-        user_id=current_user.user_id,
-    )
-    return response
 
 
 @router.get(
@@ -119,3 +97,191 @@ async def delete_session(
     if session.user_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Access denied")
     await config_service.delete_session(session_id)
+
+
+@router.websocket("/stream")
+async def chat_stream(
+    websocket: WebSocket,
+    token: Annotated[str, Query()],
+) -> None:
+    """WebSocket endpoint for streaming AI chat responses.
+
+    Authentication:
+        - JWT token must be provided via query parameter: ?token=<jwt_token>
+        - Token is validated and user is extracted before connection is accepted
+
+    Authorization:
+        - User must have 'ai-chat' permission
+        - Connection is closed with 1008 policy violation if unauthorized
+
+    Lifecycle:
+        1. Validate JWT token from query parameter
+        2. Check RBAC permission
+        3. Accept WebSocket connection
+        4. Receive WSChatRequest from client
+        5. Stream response via AgentService.chat_stream()
+        6. Handle disconnect and errors gracefully
+    """
+    from app.db.session import async_session_maker
+
+    user_id: UUID | None = None
+    db: AsyncSession | None = None
+
+    try:
+        # Accept the connection first (required before any other operations)
+        await websocket.accept()
+        logger.info("WebSocket connection accepted, validating token...")
+
+        # Create database session
+        db = async_session_maker()
+
+        # Step 1: Validate JWT token
+        try:
+            payload = jwt.decode(
+                token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            )
+            subject = payload.get("sub")
+            if subject is None:
+                await websocket.send_json(
+                    WSErrorMessage(
+                        type="error",
+                        message="Invalid token: missing subject",
+                        code=401,
+                    ).model_dump()
+                )
+                await websocket.close(code=1008, reason="Invalid token: missing subject")
+                logger.warning("WebSocket connection rejected: missing subject in token")
+                return
+            # Extract user_id from email subject (assuming sub is email)
+            from app.services.user import UserService
+            user_service = UserService(db)
+            user = await user_service.get_by_email(subject)
+            if user is None:
+                await websocket.send_json(
+                    WSErrorMessage(
+                        type="error",
+                        message="User not found",
+                        code=404,
+                    ).model_dump()
+                )
+                await websocket.close(code=1008, reason="User not found")
+                logger.warning(f"WebSocket connection rejected: user not found for email {subject}")
+                return
+            user_id = user.user_id
+
+        except (JWTError, ValidationError) as e:
+            await websocket.send_json(
+                WSErrorMessage(
+                    type="error",
+                    message=f"Invalid token: {str(e)}",
+                    code=401,
+                ).model_dump()
+            )
+            await websocket.close(code=1008, reason=f"Invalid token: {str(e)}")
+            logger.warning(f"WebSocket connection rejected: invalid token - {str(e)}")
+            return
+
+        # Step 2: Check RBAC permission
+        rbac_service = get_rbac_service()
+        if not rbac_service.has_permission(user.role, "ai-chat"):
+            await websocket.send_json(
+                WSErrorMessage(
+                    type="error",
+                    message="Insufficient permissions: ai-chat required",
+                    code=403,
+                ).model_dump()
+            )
+            await websocket.close(code=1008, reason="Insufficient permissions: ai-chat required")
+            logger.warning(f"WebSocket connection rejected: user {user_id} lacks ai-chat permission")
+            return
+
+        logger.info(f"WebSocket chat connection established for user {user_id}")
+
+        # Step 4: Keep the connection alive, processing messages in a loop.
+        # The loop exits when the client disconnects (WebSocketDisconnect is raised).
+        config_service = AIConfigService(db)
+        agent_service = AgentService(db)
+
+        while True:
+            data = await websocket.receive_json()
+            request = WSChatRequest.model_validate(data)
+
+            # Validate assistant config per message
+            if not request.assistant_config_id:
+                await websocket.send_json(
+                    WSErrorMessage(
+                        type="error",
+                        message="Assistant config is required for new sessions",
+                        code=400,
+                    ).model_dump()
+                )
+                continue
+
+            assistant_config = await config_service.get_assistant_config(
+                request.assistant_config_id
+            )
+            if not assistant_config:
+                await websocket.send_json(
+                    WSErrorMessage(
+                        type="error",
+                        message="Assistant config not found",
+                        code=404,
+                    ).model_dump()
+                )
+                continue
+
+            if not assistant_config.is_active:
+                await websocket.send_json(
+                    WSErrorMessage(
+                        type="error",
+                        message="Assistant config is not active",
+                        code=400,
+                    ).model_dump()
+                )
+                continue
+
+            # Process the message and stream the response
+            try:
+                await agent_service.chat_stream(
+                    message=request.message,
+                    assistant_config=assistant_config,
+                    session_id=request.session_id,
+                    user_id=user_id,
+                    websocket=websocket,
+                    db=db,
+                )
+                logger.info(f"WebSocket chat stream completed successfully for user {user_id}")
+            except Exception as stream_err:
+                err_msg = str(stream_err)
+                logger.error(f"Error in chat_stream for user {user_id}: {err_msg}", exc_info=True)
+                try:
+                    await websocket.send_json(
+                        WSErrorMessage(
+                            type="error",
+                            message=err_msg,
+                            code=500,
+                        ).model_dump()
+                    )
+                except Exception:
+                    pass  # WebSocket may already be closing
+
+    except WebSocketDisconnect as e:
+        logger.info(f"WebSocket disconnected normally for user {user_id}: code={e.code}, reason={e.reason}")
+    except Exception as e:
+        logger.error(f"WebSocket error for user {user_id}: {str(e)}", exc_info=True)
+        try:
+            await websocket.send_json(
+                WSErrorMessage(
+                    type="error",
+                    message=f"Internal server error: {str(e)}",
+                    code=500,
+                ).model_dump()
+            )
+        except Exception:
+            # WebSocket may already be closed
+            pass
+    finally:
+        # Ensure database session is closed
+        if db is not None:
+            await db.close()
+        logger.debug(f"WebSocket connection cleanup completed for user {user_id}")

@@ -139,3 +139,74 @@ export const TOOL_REGISTRY = [
 ] as const;
 
 export type ToolKey = (typeof TOOL_REGISTRY)[number]["key"];
+
+/**
+ * AI Chat Types
+ * Matches backend schemas in backend/app/models/schemas/ai.py
+ */
+
+export interface AIChatRequest {
+  message: string;
+  session_id?: string | null;
+  assistant_config_id?: string | null;
+}
+
+export interface AIChatResponse {
+  session_id: string;
+  message: AIConversationMessagePublic;
+  tool_calls?: ToolCall[];
+}
+
+export interface ToolCall {
+  id?: string;
+  name?: string;
+  arguments?: Record<string, unknown>;
+  function?: {
+    name?: string;
+    arguments?: string;
+  };
+}
+
+export interface AIConversationSessionPublic {
+  id: string;
+  user_id: string;
+  assistant_config_id: string;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AIConversationMessagePublic {
+  id: string;
+  session_id: string;
+  role: MessageRole;
+  content: string;
+  tool_calls?: ToolCall[];
+  tool_results?: Record<string, unknown>;
+  created_at: string;
+}
+
+/**
+ * Message role types
+ */
+export type MessageRole = "user" | "assistant" | "tool";
+
+/**
+ * Simplified types for UI components
+ */
+export interface ChatSession {
+  id: string;
+  title: string | null;
+  assistantId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: MessageRole;
+  content: string;
+  toolCalls?: ToolCall[];
+  toolResults?: Record<string, unknown>;
+  createdAt: string;
+}

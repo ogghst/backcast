@@ -20,6 +20,7 @@ import { ChangeOrderUnifiedPage } from "@/pages/projects/change-orders/ChangeOrd
 import { ChangeOrderImpactAnalysisPage } from "@/pages/projects/change-orders/ChangeOrderImpactAnalysisPage";
 import { CostElementDetailPage } from "@/pages/cost-elements/CostElementDetailPage";
 import { Profile } from "@/pages/Profile";
+import { ChatInterfacePage } from "@/pages/chat/ChatInterface";
 
 export const router = createBrowserRouter([
   {
@@ -73,6 +74,14 @@ export const router = createBrowserRouter([
       {
         path: "/admin/ai-assistants",
         element: <AIAssistantManagement />,
+      },
+      {
+        path: "/chat",
+        element: (
+          <ProtectedRoute permission="ai-chat">
+            <ChatInterfacePage />
+          </ProtectedRoute>
+        ),
       },
       {
         path: "/profile",

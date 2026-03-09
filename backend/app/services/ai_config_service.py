@@ -9,7 +9,7 @@ import logging
 from typing import Any
 from uuid import UUID
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -57,7 +57,13 @@ class AIConfigService:
 
     def _decrypt_value(self, encrypted_value: str) -> str:
         """Decrypt a sensitive value."""
-        return self._get_fernet().decrypt(encrypted_value.encode()).decode()
+        try:
+            return self._get_fernet().decrypt(encrypted_value.encode()).decode()
+        except InvalidToken as e:
+            raise ValueError(
+                "Provider API key cannot be decrypted — it was encrypted with a different "
+                "SECRET_KEY. Re-enter the API key in the AI Settings page."
+            ) from e
 
     # === Provider Operations ===
 
@@ -130,9 +136,22 @@ class AIConfigService:
         configs = list(result.scalars().all())
 
         if decrypt:
+            decrypted = []
             for config in configs:
                 if config.is_encrypted and config.value:
-                    config.value = self._decrypt_value(config.value)
+                    # Return a detached copy so we don't mutate the ORM object
+                    # in the session identity map (would corrupt subsequent calls).
+                    copy = AIProviderConfig(
+                        id=config.id,
+                        provider_id=config.provider_id,
+                        key=config.key,
+                        value=self._decrypt_value(config.value),
+                        is_encrypted=config.is_encrypted,
+                    )
+                    decrypted.append(copy)
+                else:
+                    decrypted.append(config)
+            return decrypted
 
         return configs
 

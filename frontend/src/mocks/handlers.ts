@@ -203,4 +203,97 @@ export const handlers = [
   http.delete("*/api/v1/wbes/:id", async () => {
     return new HttpResponse(null, { status: 204 });
   }),
+
+  // AI Assistant Handlers
+  http.get("*/api/v1/ai/config/assistants", async () => {
+    await delay(200);
+    return HttpResponse.json([
+      {
+        id: "assistant-1",
+        name: "Project Assistant",
+        description: "Helps with project management",
+        model_id: "model-1",
+        system_prompt: "You are a helpful assistant",
+        temperature: 0.7,
+        max_tokens: 2000,
+        allowed_tools: ["list_projects"],
+        is_active: true,
+        created_at: "2026-03-08T00:00:00Z",
+        updated_at: "2026-03-08T00:00:00Z",
+      },
+      {
+        id: "assistant-2",
+        name: "Cost Analyzer",
+        description: "Analyzes project costs",
+        model_id: "model-2",
+        system_prompt: "You analyze costs",
+        temperature: 0.5,
+        max_tokens: 1500,
+        allowed_tools: ["get_cost_element"],
+        is_active: true,
+        created_at: "2026-03-08T00:00:00Z",
+        updated_at: "2026-03-08T00:00:00Z",
+      },
+      {
+        id: "assistant-3",
+        name: "Inactive Assistant",
+        description: "This assistant is inactive",
+        model_id: "model-3",
+        system_prompt: "Inactive",
+        temperature: 0.7,
+        max_tokens: 2000,
+        allowed_tools: [],
+        is_active: false,
+        created_at: "2026-03-08T00:00:00Z",
+        updated_at: "2026-03-08T00:00:00Z",
+      },
+    ]);
+  }),
+
+  // AI Chat Session Handlers
+  http.get("*/api/v1/ai/chat/sessions", async () => {
+    await delay(200);
+    return HttpResponse.json([
+      {
+        id: "session-1",
+        user_id: "user-1",
+        assistant_config_id: "assistant-1",
+        title: "Project Analysis",
+        created_at: "2026-03-08T10:00:00Z",
+        updated_at: "2026-03-08T10:30:00Z",
+      },
+      {
+        id: "session-2",
+        user_id: "user-1",
+        assistant_config_id: "assistant-1",
+        title: "Cost Review",
+        created_at: "2026-03-07T14:00:00Z",
+        updated_at: "2026-03-07T14:15:00Z",
+      },
+    ]);
+  }),
+
+  http.get("*/api/v1/ai/chat/sessions/:sessionId/messages", async () => {
+    await delay(100);
+    return HttpResponse.json([
+      {
+        id: "msg-1",
+        session_id: "session-1",
+        role: "user",
+        content: "What is the project status?",
+        created_at: "2026-03-08T10:00:00Z",
+      },
+      {
+        id: "msg-2",
+        session_id: "session-1",
+        role: "assistant",
+        content: "The project is currently on track...",
+        created_at: "2026-03-08T10:00:05Z",
+      },
+    ]);
+  }),
+
+  http.delete("*/api/v1/ai/chat/sessions/:sessionId", async () => {
+    return new HttpResponse(null, { status: 204 });
+  }),
 ];

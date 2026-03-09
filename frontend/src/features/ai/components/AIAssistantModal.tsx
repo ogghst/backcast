@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Modal, Form, Input, Select, Slider, Switch, Checkbox, Space } from "antd";
 import type { AIAssistantPublic, AIAssistantCreate, AIAssistantUpdate } from "../types";
-import { PROVIDER_TYPES, TOOL_REGISTRY } from "../types";
+import { TOOL_REGISTRY } from "../types";
 
 interface AIAssistantModalProps {
   open: boolean;

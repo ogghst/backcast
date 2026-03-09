@@ -18,11 +18,56 @@ import React from "react";
 
 import { ProjectEVMAnalysis } from "./ProjectEVMAnalysis";
 
-// Mock the EVM hooks
+// Import the mocked hooks
+import { useEVMMetrics, useEVMTimeSeries } from "@/features/evm/api/useEVMMetrics";
 vi.mock("@/features/evm/api/useEVMMetrics", () => ({
   useEVMMetrics: vi.fn(),
   useEVMTimeSeries: vi.fn(),
 }));
+
+// Type alias for the mocked hooks
+type MockedUseEVMMetrics = {
+  data: {
+    entity_type: string;
+    entity_id: string;
+    bac: number;
+    pv: number;
+    ac: number;
+    ev: number;
+    cv: number;
+    sv: number;
+    cpi: number;
+    spi: number;
+    eac: number;
+    vac: number;
+    etc: number;
+    control_date: string;
+    branch: string;
+  } | undefined;
+  isLoading: boolean;
+  isError: boolean;
+};
+
+type MockedUseEVMTimeSeries = {
+  data: {
+    granularity: string;
+    points: Array<{
+      date: string;
+      pv: number;
+      ev: number;
+      ac: number;
+      forecast: number;
+      actual: number;
+      cpi: number;
+      spi: number;
+    }>;
+    start_date: string;
+    end_date: string;
+    total_points: number;
+  } | undefined;
+  isLoading: boolean;
+  isError: boolean;
+};
 
 // Mock ECharts to avoid canvas issues in tests
 vi.mock("echarts-for-react", () => ({
@@ -113,16 +158,16 @@ describe("ProjectEVMAnalysis", () => {
    */
   it("test_project_evm_analysis_renders_summary_view", () => {
     // Arrange
-    vi.mocked(evmHooks.useEVMMetrics).mockReturnValue({
+    vi.mocked(useEVMMetrics).mockReturnValue({
       data: mockMetrics,
       isLoading: false,
       isError: false,
-    });
-    vi.mocked(evmHooks.useEVMTimeSeries).mockReturnValue({
+    } as MockedUseEVMMetrics);
+    vi.mocked(useEVMTimeSeries).mockReturnValue({
       data: mockTimeSeries,
       isLoading: false,
       isError: false,
-    });
+    } as MockedUseEVMTimeSeries);
 
     // Act
     render(
@@ -146,17 +191,16 @@ describe("ProjectEVMAnalysis", () => {
    */
   it("test_project_evm_analysis_shows_loading_state", () => {
     // Arrange
-    const { useEVMMetrics, useEVMTimeSeries } = require("@/features/evm/api/useEVMMetrics");
-    useEVMMetrics.mockReturnValue({
+    vi.mocked(useEVMMetrics).mockReturnValue({
       data: undefined,
       isLoading: true,
       isError: false,
-    });
-    useEVMTimeSeries.mockReturnValue({
+    } as MockedUseEVMMetrics);
+    vi.mocked(useEVMTimeSeries).mockReturnValue({
       data: undefined,
       isLoading: true,
       isError: false,
-    });
+    } as MockedUseEVMTimeSeries);
 
     // Act
     render(
@@ -180,17 +224,16 @@ describe("ProjectEVMAnalysis", () => {
    */
   it("test_project_evm_analysis_handles_missing_project_id", () => {
     // Arrange
-    const { useEVMMetrics, useEVMTimeSeries } = require("@/features/evm/api/useEVMMetrics");
-    useEVMMetrics.mockReturnValue({
+    vi.mocked(useEVMMetrics).mockReturnValue({
       data: undefined,
       isLoading: false,
       isError: false,
-    });
-    useEVMTimeSeries.mockReturnValue({
+    } as MockedUseEVMMetrics);
+    vi.mocked(useEVMTimeSeries).mockReturnValue({
       data: undefined,
       isLoading: false,
       isError: false,
-    });
+    } as MockedUseEVMTimeSeries);
 
     // Act & Assert - Should not throw error
     expect(() => {

@@ -8,7 +8,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ConfigProvider, App } from "antd";
+import { App } from "antd";
 import { AIProviderConfigModal } from "../AIProviderConfigModal";
 import type { AIProviderConfigPublic } from "../../types";
 import { http, HttpResponse } from "msw";
@@ -42,8 +42,7 @@ const handlers = [
     return HttpResponse.json(mockConfigs);
   }),
 
-  http.post(`${API_BASE}/ai/config/providers/provider-1/configs/:key`, async ({ request }) => {
-    const data = await request.json();
+  http.post(`${API_BASE}/ai/config/providers/provider-1/configs/:key`, async () => {
     return HttpResponse.json({
       id: "3",
       provider_id: "provider-1",

@@ -475,10 +475,10 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         )
         result = await self.session.execute(stmt)
         resolved = await self._resolve_relations(result.all())
-        
+
         if resolved:
             return resolved[0]
-            
+
         if branch_mode == BranchMode.MERGE and branch != "main":
             stmt_main = (
                 self._get_base_stmt()
@@ -494,7 +494,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             result_main = await self.session.execute(stmt_main)
             resolved_main = await self._resolve_relations(result_main.all())
             return resolved_main[0] if resolved_main else None
-            
+
         return None
 
     async def get_cost_elements(

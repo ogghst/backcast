@@ -5,6 +5,7 @@ import sys
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+
 async def create_db_if_not_exists(original_url: str, test_url: str) -> None:
     db_name = test_url.rstrip("/").split("/")[-1]
     engine = create_async_engine(original_url, isolation_level="AUTOCOMMIT")
@@ -20,7 +21,7 @@ async def create_db_if_not_exists(original_url: str, test_url: str) -> None:
 async def wipe() -> None:
     db_url = os.environ.get("WIPE_DATABASE_URL")
     orig_url = os.environ.get("ORIGINAL_DATABASE_URL")
-    
+
     if not db_url:
         db_url = os.environ.get("DATABASE_URL")
 

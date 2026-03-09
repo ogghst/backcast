@@ -79,19 +79,6 @@ export const AIAssistantList = () => {
     model_id: model.model_id,
   })) || [];
 
-  const getProviderName = (providerType: string) => {
-    switch (providerType) {
-      case "openai":
-        return "OpenAI";
-      case "azure":
-        return "Azure OpenAI";
-      case "ollama":
-        return "Ollama";
-      default:
-        return providerType;
-    }
-  };
-
   const columns: ColumnType<AIAssistantPublic>[] = [
     {
       title: "Name",

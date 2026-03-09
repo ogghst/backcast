@@ -6,7 +6,8 @@ Provides schemas for:
 - AIAssistantConfig: Assistant configuration
 - AIConversationSession: Conversation sessions
 - AIConversationMessage: Messages
-- AIChatRequest/Response: Chat operations
+- AIChatResponse: Chat response (for non-streaming operations)
+- WebSocket messages: Streaming chat protocol
 """
 
 from datetime import datetime
@@ -190,6 +191,7 @@ class AIAssistantConfigUpdate(BaseModel):
     temperature: float | None = Field(None, ge=0, le=2)
     max_tokens: int | None = Field(None, ge=1, le=32000)
     allowed_tools: list[str] | None = None
+    model_id: UUID | None = None
     is_active: bool | None = None
 
 
@@ -243,19 +245,7 @@ class AIConversationMessagePublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# === Chat Request/Response Schemas ===
-
-
-class AIChatRequest(BaseModel):
-    """Schema for chat request."""
-
-    message: str = Field(..., min_length=1, max_length=10000)
-    session_id: UUID | None = Field(
-        None, description="Existing session ID or None to create new"
-    )
-    assistant_config_id: UUID | None = Field(
-        None, description="Assistant config to use (required for new sessions)"
-    )
+# === Chat Response Schema ===
 
 
 class AIChatResponse(BaseModel):
@@ -264,3 +254,81 @@ class AIChatResponse(BaseModel):
     session_id: UUID
     message: AIConversationMessagePublic
     tool_calls: list[dict[str, Any]] | None = None
+
+
+# === WebSocket Message Schemas ===
+
+
+class WSChatRequest(BaseModel):
+    """WebSocket chat message from client.
+
+    Client -> Server message format for initiating chat sessions.
+    """
+
+    type: str = Field(default="chat", description="Message type discriminator")
+    message: str = Field(..., min_length=1, max_length=10000, description="User message content")
+    session_id: UUID | None = Field(None, description="Existing session ID or None for new session")
+    assistant_config_id: UUID | None = Field(
+        None, description="Assistant config to use (required for new sessions)"
+    )
+
+
+class WSTokenMessage(BaseModel):
+    """WebSocket token streaming message from server.
+
+    Server -> Client message for streaming response tokens.
+    """
+
+    type: str = Field(default="token", description="Message type discriminator")
+    content: str = Field(..., description="Partial text token")
+    session_id: UUID = Field(..., description="Session identifier")
+
+
+class WSToolCallMessage(BaseModel):
+    """WebSocket tool call notification from server.
+
+    Server -> Client message indicating a tool is being called.
+    """
+
+    type: str = Field(default="tool_call", description="Message type discriminator")
+    tool: str = Field(..., description="Tool function name being called")
+    args: dict[str, Any] = Field(default_factory=dict, description="Tool arguments")
+
+
+class WSToolResultMessage(BaseModel):
+    """WebSocket tool result message from server.
+
+    Server -> Client message with tool execution results.
+    """
+
+    type: str = Field(default="tool_result", description="Message type discriminator")
+    tool: str = Field(..., description="Tool function name")
+    result: dict[str, Any] = Field(..., description="Tool execution result data")
+
+
+class WSCompleteMessage(BaseModel):
+    """WebSocket completion message from server.
+
+    Server -> Client message indicating response generation is complete.
+    """
+
+    type: str = Field(default="complete", description="Message type discriminator")
+    session_id: UUID = Field(..., description="Session identifier")
+    message_id: UUID = Field(..., description="Complete message identifier")
+
+
+class WSErrorMessage(BaseModel):
+    """WebSocket error message from server.
+
+    Server -> Client message for error reporting during streaming.
+    """
+
+    type: str = Field(default="error", description="Message type discriminator")
+    message: str = Field(..., description="Error details")
+    code: int | None = Field(None, description="Optional error code")
+
+
+# Union type for all server->client WebSocket messages
+WSMessage = (
+    WSTokenMessage | WSToolCallMessage | WSToolResultMessage | WSCompleteMessage | WSErrorMessage
+)

@@ -63,6 +63,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=settings.BACKEND_CORS_METHODS,
     allow_headers=settings.BACKEND_CORS_HEADERS,
+    expose_headers=["*"],
 )
 
 
@@ -193,3 +194,7 @@ app.include_router(
     prefix=settings.API_V1_STR,
     tags=["AI Chat"],
 )
+
+# Add WebSocket route directly to app (bypasses router for better CORS handling)
+# The WebSocket endpoint handles its own authentication via query parameter
+# This is already registered via the router, so we don't need to add it again

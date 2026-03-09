@@ -4,7 +4,7 @@
  * TDD Approach: RED-GREEN-REFACTOR
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -151,7 +151,6 @@ describe("AIProviderList", () => {
   });
 
   it("should open config modal when configure button clicked", async () => {
-    const user = userEvent.setup();
     render(<AIProviderList />, { wrapper });
 
     await waitFor(() => {
@@ -185,7 +184,6 @@ describe("AIProviderList", () => {
   });
 
   it("should toggle provider active status when switch clicked", async () => {
-    const user = userEvent.setup();
     render(<AIProviderList />, { wrapper });
 
     await waitFor(() => {

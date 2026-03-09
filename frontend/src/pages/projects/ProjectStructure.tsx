@@ -115,12 +115,13 @@ export const ProjectStructure = () => {
         } as TreeNodeData,
       };
 
+      // Derive tree data from query results - this is a valid use of setState in effect
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTreeData([projectRoot]);
     } else {
       setTreeData([]);
     }
   }, [wbesData, projectData]);
-
   const onLoadData = useCallback(
     async (treeNode: EventDataNode<DataNode>) => {
       const nodeData = treeNode.data as TreeNodeData;
@@ -187,10 +188,10 @@ export const ProjectStructure = () => {
 
         const childWBEs = Array.isArray(childWBEsResponse)
           ? childWBEsResponse
-          : (childWBEsResponse as any).items || [];
+          : (childWBEsResponse as { items?: typeof childWBEsResponse }).items || [];
         const costElements = Array.isArray(costElementsResponse)
           ? costElementsResponse
-          : (costElementsResponse as any).items || [];
+          : (costElementsResponse as { items?: typeof costElementsResponse }).items || [];
 
         const childWBENodes: DataNode[] = childWBEs.map((wbe: WBERead) => ({
           key: `wbe-${wbe.wbe_id}`,

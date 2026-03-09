@@ -9,17 +9,17 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    API_V1_STR: str = "/api/v1"
-    PROJECT_NAME: str = "Backcast EVS"
-    DEBUG: bool = False
+    API_V1_STR: str
+    PROJECT_NAME: str
+    DEBUG: bool
     SECRET_KEY: str
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    PORT: int = 8020
-    BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
-    BACKEND_CORS_METHODS: list[str] = ["*"]
-    BACKEND_CORS_HEADERS: list[str] = ["*"]
-    RBAC_POLICY_FILE: str = "config/rbac.json"
+    ALGORITHM: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
+    PORT: int
+    BACKEND_CORS_ORIGINS: list[str]
+    BACKEND_CORS_METHODS: list[str]
+    BACKEND_CORS_HEADERS: list[str]
+    RBAC_POLICY_FILE: str
 
     # Database
     DATABASE_URL: PostgresDsn
@@ -30,8 +30,8 @@ class Settings(BaseSettings):
         return self.DATABASE_URL
 
     # Logging
-    LOG_LEVEL: str = "INFO"
-    LOG_FILE: str = "logs/app.log"
+    LOG_LEVEL: str
+    LOG_FILE: str
     LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 

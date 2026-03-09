@@ -10,6 +10,7 @@ import {
   TagsOutlined,
   RobotOutlined,
   ApiOutlined,
+  MessageOutlined,
 } from "@ant-design/icons";
 
 import { UserProfile } from "@/components/UserProfile";
@@ -82,6 +83,15 @@ const AppLayout: React.FC = () => {
       icon: <ProjectOutlined />,
       label: "Projects",
     });
+
+    // AI Chat - available to users with ai-chat permission
+    if (can("ai-chat")) {
+      items.push({
+        key: "/chat",
+        icon: <MessageOutlined />,
+        label: "AI Chat",
+      });
+    }
 
     // Admin submenu - only visible to admins
     if (hasRole("admin")) {

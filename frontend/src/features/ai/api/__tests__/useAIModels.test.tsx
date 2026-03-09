@@ -9,7 +9,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useAIModels, useCreateAIModel } from "../useAIModels";
 import { useAIProviderConfigs, useSetAIProviderConfig, useDeleteAIProviderConfig } from "../useAIProviderConfigs";
-import { queryKeys } from "@/api/queryKeys";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 

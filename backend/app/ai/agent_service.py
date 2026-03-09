@@ -6,9 +6,10 @@ Uses LangGraph StateGraph for conversation flow with tool calling loop.
 import json
 import logging
 from collections.abc import Sequence
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
+from fastapi import WebSocket
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -23,7 +24,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing_extensions import TypedDict
 
-from app.ai.llm_client import LLMClientFactory
+from app.ai.llm_client import (
+    LLMClientFactory,
+    LLMStreamingError,
+    stream_with_error_handling,
+)
 from app.ai.tools import ToolContext, create_project_tools
 from app.models.domain.ai import (
     AIAssistantConfig,
@@ -33,6 +38,11 @@ from app.models.domain.ai import (
 from app.models.schemas.ai import (
     AIChatResponse,
     AIConversationMessagePublic,
+    WSCompleteMessage,
+    WSErrorMessage,
+    WSTokenMessage,
+    WSToolCallMessage,
+    WSToolResultMessage,
 )
 from app.services.ai_config_service import AIConfigService
 
@@ -349,6 +359,8 @@ class AgentService:
         db_session: AIConversationSession | None
         if session_id:
             db_session = await self._get_session(session_id)
+            if not db_session:
+                raise ValueError(f"Session {session_id} not found")
         else:
             # Create new session
             db_session = AIConversationSession(
@@ -461,6 +473,378 @@ class AgentService:
             session_id=session_id,
             message=AIConversationMessagePublic.model_validate(assistant_msg),
             tool_calls=tool_calls_data,
+        )
+
+    async def chat_stream(
+        self,
+        message: str,
+        assistant_config: AIAssistantConfig,
+        session_id: UUID | None,
+        user_id: UUID,
+        websocket: WebSocket,
+        db: AsyncSession,
+    ) -> None:
+        """Process a chat message using LangGraph with streaming response.
+
+        Context: Streaming variant of chat() that sends tokens via WebSocket as they arrive.
+                Handles tool calls by sending events before and after execution. Persists the
+                complete message to database after streaming completes.
+
+        Args:
+            message: The user's input message
+            assistant_config: Configuration defining the model and allowed tools
+            session_id: Optional existing session ID to continue. If None, a new session is created
+            user_id: ID of the user sending the message
+            websocket: WebSocket connection for streaming responses
+            db: Database session for persistence
+
+        Returns:
+            None (communicates via WebSocket)
+
+        Raises:
+            ValueError: If session creation fails
+        """
+        # Get or create session
+        db_session: AIConversationSession | None
+        if session_id:
+            db_session = await self._get_session(session_id)
+            if not db_session:
+                raise ValueError(f"Session {session_id} not found")
+        else:
+            # Create new session
+            db_session = AIConversationSession(
+                user_id=str(user_id),
+                assistant_config_id=str(assistant_config.id),
+            )
+            db.add(db_session)
+            await db.flush()
+            await db.refresh(db_session)
+            session_id = db_session.id
+        if not session_id:
+            raise ValueError("Failed to create session")
+
+        # Add user message to session
+        user_msg = AIConversationMessage(
+            session_id=str(session_id),
+            role="user",
+            content=message,
+        )
+        db.add(user_msg)
+        await db.flush()
+        await db.commit()
+
+        # Build conversation history
+        history = await self._build_conversation_history(session_id)
+
+        # Add system prompt
+        system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
+        history.insert(0, SystemMessage(content=system_prompt))
+
+        # Get LLM client
+        client, model_name = await self._get_llm_client(
+            UUID(str(assistant_config.model_id))
+        )
+
+        # Create tools
+        tool_context = ToolContext(db, str(user_id))
+        available_tools = create_project_tools(tool_context)
+        tools_dict = {tool.name: tool for tool in available_tools}
+
+        # Filter tools based on assistant config
+        if assistant_config.allowed_tools:
+            tools_dict = {
+                name: tool
+                for name, tool in tools_dict.items()
+                if name in assistant_config.allowed_tools
+            }
+
+        # Run the agent loop with streaming
+        current_state = AgentState(messages=history, tool_call_count=0)
+        accumulated_content = ""
+        all_tool_calls: list[dict[str, Any]] = []
+        all_tool_results: list[dict[str, Any]] = []
+        session_id_for_ws = session_id
+
+        try:
+            for iteration in range(MAX_TOOL_ITERATIONS + 1):
+                # Convert tools to OpenAI format
+                tool_schemas: list[dict[str, object]] = []
+                for tool in tools_dict.values():
+                    schema = (
+                        tool.args_schema.schema()
+                        if hasattr(tool.args_schema, "schema")
+                        else {}
+                    )
+                    tool_schemas.append(
+                        {
+                            "type": "function",
+                            "function": {
+                                "name": tool.name,
+                                "description": tool.description,
+                                "parameters": schema,
+                            },
+                        }
+                    )
+
+                # Build messages for OpenAI
+                openai_messages: list[dict[str, object]] = []
+                for m in current_state.messages:
+                    if isinstance(m, SystemMessage):
+                        openai_messages.append({"role": "system", "content": m.content})
+                    elif isinstance(m, HumanMessage):
+                        openai_messages.append({"role": "user", "content": m.content})
+                    elif isinstance(m, AIMessage) and not m.tool_calls:
+                        openai_messages.append(
+                            {"role": "assistant", "content": m.content}
+                        )
+
+                # Stream the response
+                temp = assistant_config.temperature or DEFAULT_TEMPERATURE
+                max_tok = assistant_config.max_tokens or DEFAULT_MAX_TOKENS
+
+                logger.info(
+                    f"Starting LLM stream for session {session_id_for_ws}, "
+                    f"iteration {iteration + 1}/{MAX_TOOL_ITERATIONS + 1}"
+                )
+
+                streamed_content = ""
+                tool_calls_in_response: list[dict[str, Any]] = []
+
+                async for chunk in stream_with_error_handling(
+                    client,
+                    model_name,
+                    openai_messages,
+                    tools=tool_schemas if tool_schemas else None,
+                    temperature=float(temp),
+                    max_tokens=int(max_tok),
+                ):
+                    try:
+                        # Extract delta content
+                        delta = chunk.choices[0].delta
+                        if delta.content:
+                            streamed_content += delta.content
+                            # Send token via WebSocket
+                            await websocket.send_json(
+                                WSTokenMessage(
+                                    type="token",
+                                    content=delta.content,
+                                    session_id=session_id_for_ws,
+                                ).model_dump(mode='json')
+                            )
+
+                        # Check for tool calls in the chunk
+                        if (
+                            hasattr(delta, "tool_calls")
+                            and delta.tool_calls
+                            and chunk.choices[0].finish_reason == "tool_calls"
+                        ):
+                            # Extract tool calls from the complete response
+                            response_message = chunk.choices[0].message
+                            if (
+                                hasattr(response_message, "tool_calls")
+                                and response_message.tool_calls
+                            ):
+                                for tc in response_message.tool_calls:
+                                    if hasattr(tc, "function") and tc.function:
+                                        tool_calls_in_response.append(
+                                            {
+                                                "id": tc.id,
+                                                "name": tc.function.name,
+                                                "args": json.loads(
+                                                    tc.function.arguments
+                                                ),
+                                            }
+                                        )
+
+                    except LLMStreamingError as e:
+                        logger.error(f"Streaming error: {e.message}")
+                        # Send error message via WebSocket
+                        try:
+                            await websocket.send_json(
+                                WSErrorMessage(
+                                    type="error",
+                                    message=e.message,
+                                    code=500,
+                                ).model_dump(mode='json')
+                            )
+                        except Exception:
+                            # WebSocket may be closed
+                            pass
+                        # Continue with partial content
+                        break
+                    except Exception as e:
+                        logger.error(f"Unexpected error during streaming: {type(e).__name__}: {e}", exc_info=True)
+                        break
+
+                accumulated_content += streamed_content
+
+                # Check if we have tool calls to execute
+                if tool_calls_in_response:
+                    # Record tool calls for database persistence
+                    all_tool_calls.extend(tool_calls_in_response)
+
+                    # Create AIMessage with tool calls
+                    ai_message = AIMessage(
+                        content=streamed_content or "",
+                        tool_calls=tool_calls_in_response,
+                    )
+                    current_state.messages.append(ai_message)
+                    current_state.tool_call_count += 1
+
+                    # Execute tools and send events
+                    for tool_call in tool_calls_in_response:
+                        tool_name = tool_call.get("name", "")
+                        tool_args = tool_call.get("args", {})
+
+                        # Send tool call event
+                        try:
+                            await websocket.send_json(
+                                WSToolCallMessage(
+                                    type="tool_call",
+                                    tool=tool_name,
+                                    args=tool_args,
+                                ).model_dump(mode='json')
+                            )
+                        except Exception:
+                            # WebSocket may be closed
+                            pass
+
+                        # Execute the tool
+                        tool_result: dict[str, Any] = {
+                            "tool": tool_name,
+                            "success": False,
+                            "result": None,
+                            "error": None,
+                        }
+
+                        if tool_name in tools_dict:
+                            try:
+                                tool = tools_dict[tool_name]
+                                result = await tool.ainvoke(tool_args)
+                                tool_result["success"] = True
+                                tool_result["result"] = result
+                                all_tool_results.append(tool_result)
+
+                                # Send tool result event
+                                try:
+                                    await websocket.send_json(
+                                        WSToolResultMessage(
+                                            type="tool_result",
+                                            tool=tool_name,
+                                            result=tool_result,
+                                        ).model_dump(mode='json')
+                                    )
+                                except Exception:
+                                    # WebSocket may be closed
+                                    pass
+
+                                # Add ToolMessage to state
+                                current_state.messages.append(
+                                    ToolMessage(
+                                        content=str(result),
+                                        tool_call_id=tool_call.get("id", ""),
+                                    )
+                                )
+                            except Exception as e:
+                                logger.error(f"Error executing tool {tool_name}: {e}")
+                                tool_result["error"] = str(e)
+                                all_tool_results.append(tool_result)
+
+                                # Send error result
+                                try:
+                                    await websocket.send_json(
+                                        WSToolResultMessage(
+                                            type="tool_result",
+                                            tool=tool_name,
+                                            result=tool_result,
+                                        ).model_dump(mode='json')
+                                    )
+                                except Exception:
+                                    # WebSocket may be closed
+                                    pass
+
+                                current_state.messages.append(
+                                    ToolMessage(
+                                        content=f"Error: {str(e)}",
+                                        tool_call_id=tool_call.get("id", ""),
+                                    )
+                                )
+                        else:
+                            error_msg = f"Tool '{tool_name}' not found"
+                            tool_result["error"] = error_msg
+                            all_tool_results.append(tool_result)
+
+                            try:
+                                await websocket.send_json(
+                                    WSToolResultMessage(
+                                        type="tool_result",
+                                        tool=tool_name,
+                                        result=tool_result,
+                                    ).model_dump()
+                                )
+                            except Exception:
+                                # WebSocket may be closed
+                                pass
+
+                            current_state.messages.append(
+                                ToolMessage(
+                                    content=error_msg,
+                                    tool_call_id=tool_call.get("id", ""),
+                                )
+                            )
+                else:
+                    # No tool calls, add AI message and break
+                    ai_message = AIMessage(content=streamed_content or "")
+                    current_state.messages.append(ai_message)
+                    break
+
+        except Exception as e:
+            logger.error(f"Error in chat_stream: {e}")
+            # Send error message via WebSocket
+            try:
+                await websocket.send_json(
+                    WSErrorMessage(
+                        type="error",
+                        message=f"An error occurred: {str(e)}",
+                        code=500,
+                    ).model_dump(mode='json')
+                )
+            except Exception:
+                # WebSocket may be closed
+                pass
+
+        # Extract final AI response content
+        final_content = accumulated_content
+
+        # Save assistant message to session
+        assistant_msg = AIConversationMessage(
+            session_id=str(session_id),
+            role="assistant",
+            content=final_content or "",
+            tool_calls=all_tool_calls if all_tool_calls else None,
+            tool_results=all_tool_results if all_tool_results else None,
+        )
+        db.add(assistant_msg)
+        await db.flush()
+        await db.refresh(assistant_msg)
+        await db.commit()
+
+        # Send complete message
+        try:
+            await websocket.send_json(
+                WSCompleteMessage(
+                    type="complete",
+                    session_id=session_id,
+                    message_id=assistant_msg.id,
+                ).model_dump(mode='json')
+            )
+        except Exception:
+            # WebSocket may be closed, but message is persisted
+            logger.warning("WebSocket closed before sending complete message")
+
+        logger.info(
+            f"Chat stream completed for session {session_id_for_ws}, "
+            f"message_id={assistant_msg.id}"
         )
 
     async def _get_session(self, session_id: UUID) -> AIConversationSession | None:
