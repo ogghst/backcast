@@ -13,7 +13,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
-from jose import JWTError, jwt
+from jose import ExpiredSignatureError, JWTError, jwt
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -108,32 +108,35 @@ async def chat_stream(
 
     Authentication:
         - JWT token must be provided via query parameter: ?token=<jwt_token>
-        - Token is validated and user is extracted before connection is accepted
+        - Token is validated BEFORE connection is accepted
+        - Expired tokens receive 4008 (custom auth expiration code)
 
     Authorization:
         - User must have 'ai-chat' permission
-        - Connection is closed with 1008 policy violation if unauthorized
+        - Connection is closed with 1008 (policy violation) if unauthorized
 
     Lifecycle:
-        1. Validate JWT token from query parameter
+        1. Validate JWT token from query parameter (before accepting connection)
         2. Check RBAC permission
         3. Accept WebSocket connection
         4. Receive WSChatRequest from client
         5. Stream response via AgentService.chat_stream()
         6. Handle disconnect and errors gracefully
+
+    WebSocket Close Codes:
+        - 4008: Authentication token expired (client should refresh and NOT reconnect)
+        - 1008: Policy violation (invalid token, insufficient permissions)
+        - 1000: Normal closure
     """
     from app.db.session import async_session_maker
 
     user_id: UUID | None = None
+    user: User | None = None
     db: AsyncSession | None = None
 
     try:
-        # Accept the connection first (required before any other operations)
-        await websocket.accept()
-        logger.info("WebSocket connection accepted, validating token...")
-
-        # Create database session
-        db = async_session_maker()
+        # Validate token BEFORE accepting the connection to prevent reconnection loops
+        # This ensures the frontend can distinguish between auth failures and connection issues
 
         # Step 1: Validate JWT token
         try:
@@ -142,59 +145,46 @@ async def chat_stream(
             )
             subject = payload.get("sub")
             if subject is None:
-                await websocket.send_json(
-                    WSErrorMessage(
-                        type="error",
-                        message="Invalid token: missing subject",
-                        code=401,
-                    ).model_dump()
-                )
-                await websocket.close(code=1008, reason="Invalid token: missing subject")
                 logger.warning("WebSocket connection rejected: missing subject in token")
+                # Close with policy violation without accepting - client will see error in onerror
+                await websocket.close(code=1008, reason="Invalid token: missing subject")
                 return
-            # Extract user_id from email subject (assuming sub is email)
-            from app.services.user import UserService
-            user_service = UserService(db)
-            user = await user_service.get_by_email(subject)
-            if user is None:
-                await websocket.send_json(
-                    WSErrorMessage(
-                        type="error",
-                        message="User not found",
-                        code=404,
-                    ).model_dump()
-                )
-                await websocket.close(code=1008, reason="User not found")
-                logger.warning(f"WebSocket connection rejected: user not found for email {subject}")
-                return
-            user_id = user.user_id
+
+        except ExpiredSignatureError:
+            logger.warning("WebSocket connection rejected: token signature has expired")
+            # Use custom close code 4008 to signal token expiration (4000-4999 range for app-specific codes)
+            # Frontend should detect this and NOT attempt reconnection, instead trigger re-authentication
+            await websocket.close(code=4008, reason="Token expired")
+            return
 
         except (JWTError, ValidationError) as e:
-            await websocket.send_json(
-                WSErrorMessage(
-                    type="error",
-                    message=f"Invalid token: {str(e)}",
-                    code=401,
-                ).model_dump()
-            )
-            await websocket.close(code=1008, reason=f"Invalid token: {str(e)}")
             logger.warning(f"WebSocket connection rejected: invalid token - {str(e)}")
+            await websocket.close(code=1008, reason=f"Invalid token: {str(e)}")
             return
+
+        # Create database session after token validation
+        db = async_session_maker()
+
+        # Extract user_id from email subject (assuming sub is email)
+        from app.services.user import UserService
+        user_service = UserService(db)
+        user = await user_service.get_by_email(subject)
+        if user is None:
+            logger.warning(f"WebSocket connection rejected: user not found for email {subject}")
+            await websocket.close(code=1008, reason="User not found")
+            return
+
+        user_id = user.user_id
 
         # Step 2: Check RBAC permission
         rbac_service = get_rbac_service()
         if not rbac_service.has_permission(user.role, "ai-chat"):
-            await websocket.send_json(
-                WSErrorMessage(
-                    type="error",
-                    message="Insufficient permissions: ai-chat required",
-                    code=403,
-                ).model_dump()
-            )
-            await websocket.close(code=1008, reason="Insufficient permissions: ai-chat required")
             logger.warning(f"WebSocket connection rejected: user {user_id} lacks ai-chat permission")
+            await websocket.close(code=1008, reason="Insufficient permissions: ai-chat required")
             return
 
+        # Step 3: Now accept the connection since authentication and authorization passed
+        await websocket.accept()
         logger.info(f"WebSocket chat connection established for user {user_id}")
 
         # Step 4: Keep the connection alive, processing messages in a loop.

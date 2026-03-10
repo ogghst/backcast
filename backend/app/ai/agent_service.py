@@ -13,19 +13,19 @@ from langchain_core.messages import (
     BaseMessage,
     HumanMessage,
     SystemMessage,
+    ToolMessage,
 )
 from langchain_openai import ChatOpenAI
-from openai import AsyncOpenAI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.graph import create_graph
-from app.ai.llm_client import LLMClientFactory
 from app.ai.tools import ToolContext, create_project_tools
 from app.models.domain.ai import (
     AIAssistantConfig,
     AIConversationMessage,
     AIConversationSession,
+    AIProvider,
 )
 from app.models.schemas.ai import (
     AIChatResponse,
@@ -37,6 +37,59 @@ from app.models.schemas.ai import (
     WSToolResultMessage,
 )
 from app.services.ai_config_service import AIConfigService
+
+
+async def _extract_client_config(
+    provider: AIProvider,
+    config: AIConfigService,
+) -> dict[str, Any]:
+    """Extract client configuration from provider for LangChain.
+
+    Context: Helper to extract configuration values that will be passed directly
+    to LangChain's ChatOpenAI, allowing LangChain to create its own client
+    instead of wrapping a pre-existing one.
+
+    Args:
+        provider: AI provider configuration definition
+        config: AI config service for getting decrypted config values
+
+    Returns:
+        Dictionary of configuration parameters for ChatOpenAI initialization
+    """
+    config_values = await config.list_provider_configs(provider.id, decrypt=True)
+
+    client_config: dict[str, Any] = {}
+
+    # Extract config values
+    for cfg in config_values:
+        if cfg.key == "api_key" and cfg.value is not None:
+            client_config["api_key"] = str(cfg.value)
+        elif cfg.key == "base_url" and cfg.value is not None:
+            client_config["base_url"] = str(cfg.value)
+        elif cfg.key == "timeout" and cfg.value is not None:
+            client_config["timeout"] = float(cfg.value)
+        elif cfg.key == "max_retries" and cfg.value is not None:
+            client_config["max_retries"] = int(cfg.value)
+
+    # Set base URL for provider if configured at provider level
+    if "base_url" not in client_config and provider.base_url:
+        client_config["base_url"] = str(provider.base_url)
+
+    # Handle Azure-specific configuration
+    if provider.provider_type == "azure":
+        azure_deployment = next(
+            (
+                str(cfg.value)
+                for cfg in config_values
+                if cfg.key == "azure_deployment" and cfg.value is not None
+            ),
+            None,
+        )
+        if azure_deployment:
+            # For Azure, we need to pass deployment info
+            client_config["model"] = azure_deployment
+
+    return client_config
 
 logger = logging.getLogger(__name__)
 
@@ -68,16 +121,18 @@ class AgentService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def _get_llm_client(self, model_id: UUID) -> tuple[AsyncOpenAI, str]:
-        """Get LLM client and model name for a model.
+    async def _get_llm_client_config(self, model_id: UUID) -> tuple[dict[str, Any], str]:
+        """Get LLM client configuration and model name for a model.
 
-        Context: Internal helper to resolve the client factory for the configured provider.
+        Context: Internal helper to resolve the configuration for LangChain's ChatOpenAI.
+        Returns configuration dict instead of a client to allow LangChain to create
+        its own properly initialized client.
 
         Args:
             model_id: UUID of the AI model to instantiate
 
         Returns:
-            A tuple containing the instantiated LLM client and the target model name
+            A tuple containing the client configuration dict and the target model name
 
         Raises:
             ValueError: If the model or its associated provider cannot be found
@@ -91,32 +146,35 @@ class AgentService:
         provider = await config_service.get_provider(UUID(str(model.provider_id)))
         if not provider:
             raise ValueError(f"Provider {model.provider_id} not found")
-        client = await LLMClientFactory.create_client(provider, config_service)
-        return client, str(model.model_id)
+
+        # Extract configuration for LangChain
+        client_config = await _extract_client_config(provider, config_service)
+        return client_config, str(model.model_id)
 
     async def _create_langchain_llm(
         self,
-        client: AsyncOpenAI,
+        client_config: dict[str, Any],
         model_name: str,
         temperature: float | None,
         max_tokens: int | None,
     ) -> ChatOpenAI:
-        """Create a LangChain ChatOpenAI wrapper from AsyncOpenAI client.
+        """Create a LangChain ChatOpenAI instance from client configuration.
 
-        Context: Converts the AsyncOpenAI client to a LangChain-compatible ChatOpenAI instance
-        for use with LangGraph's StateGraph.
+        Context: Creates a ChatOpenAI instance by passing configuration directly
+        to LangChain, allowing it to create and manage its own client properly.
+        This ensures compatibility with LangChain's streaming implementation.
 
         Args:
-            client: The AsyncOpenAI client to wrap
+            client_config: Configuration dictionary for the OpenAI client
             model_name: Model identifier to use
             temperature: Optional temperature setting
             max_tokens: Optional max tokens setting
 
         Returns:
-            ChatOpenAI instance configured with the provided client and parameters
+            ChatOpenAI instance configured with the provided parameters
         """
         return ChatOpenAI(
-            client=client,
+            **client_config,
             model=model_name,
             temperature=temperature or 0.0,
             max_tokens=max_tokens or 2000,
@@ -181,14 +239,14 @@ class AgentService:
         system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
         history.insert(0, SystemMessage(content=system_prompt))
 
-        # Get LLM client
-        client, model_name = await self._get_llm_client(
+        # Get LLM client configuration
+        client_config, model_name = await self._get_llm_client_config(
             UUID(str(assistant_config.model_id))
         )
 
         # Create LangChain LLM wrapper
         llm = await self._create_langchain_llm(
-            client,
+            client_config,
             model_name,
             assistant_config.temperature,
             assistant_config.max_tokens,
@@ -331,14 +389,14 @@ class AgentService:
         system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
         history.insert(0, SystemMessage(content=system_prompt))
 
-        # Get LLM client
-        client, model_name = await self._get_llm_client(
+        # Get LLM client configuration
+        client_config, model_name = await self._get_llm_client_config(
             UUID(str(assistant_config.model_id))
         )
 
         # Create LangChain LLM wrapper
         llm = await self._create_langchain_llm(
-            client,
+            client_config,
             model_name,
             assistant_config.temperature,
             assistant_config.max_tokens,
@@ -369,7 +427,7 @@ class AgentService:
             logger.info(f"Starting astream_events for session {session_id}")
 
             async for event in graph.astream_events(
-                input_state={
+                {
                     "messages": history,
                     "tool_call_count": 0,
                     "next": "agent",
@@ -382,22 +440,31 @@ class AgentService:
 
                 # Handle token streaming
                 if event_type == "on_chat_model_stream":
-                    chunk = data.get("chunk", {})
-                    content = chunk.get("content", "")
-                    if content:
-                        accumulated_content += content
-                        try:
-                            await websocket.send_json(
-                                WSTokenMessage(
-                                    type="token",
-                                    content=content,
-                                    session_id=session_id,
-                                ).model_dump(mode="json")
-                            )
-                        except Exception:
-                            # WebSocket may be closed
-                            logger.warning("Failed to send token, WebSocket may be closed")
-                            pass
+                    chunk = data.get("chunk")
+                    if chunk:
+                        # AIMessageChunk objects support .text attribute for simple text content
+                        # For more complex content with multiple blocks, we iterate through content_blocks
+                        content = ""
+                        if hasattr(chunk, "text"):
+                            content = chunk.text
+                        elif hasattr(chunk, "content"):
+                            # Fallback to content attribute if text is not available
+                            content = str(chunk.content)
+
+                        if content:
+                            accumulated_content += content
+                            try:
+                                await websocket.send_json(
+                                    WSTokenMessage(
+                                        type="token",
+                                        content=content,
+                                        session_id=session_id,
+                                    ).model_dump(mode="json")
+                                )
+                            except Exception:
+                                # WebSocket may be closed
+                                logger.warning("Failed to send token, WebSocket may be closed")
+                                pass
 
                 # Handle tool start
                 elif event_type == "on_tool_start":
@@ -421,14 +488,37 @@ class AgentService:
                     tool_name = data.get("name", "")
                     tool_output = data.get("output", "")
 
+                    # Extract content from ToolMessage if present
+                    result_content = tool_output
+                    if isinstance(tool_output, ToolMessage):
+                        # ToolMessage objects have a content attribute that may be str, list, or dict
+                        result_content = tool_output.content
+                    elif isinstance(tool_output, dict) and "content" in tool_output:
+                        # Sometimes output is a dict with content field
+                        result_content = tool_output["content"]
+
                     # Record tool result
                     tool_result: dict[str, Any] = {
                         "tool": tool_name,
                         "success": True,
-                        "result": tool_output,
+                        "result": result_content,
                         "error": None,
                     }
                     all_tool_results.append(tool_result)
+
+                # Handle tool error
+                elif event_type == "on_tool_error":
+                    tool_name = data.get("name", "")
+                    error = data.get("error")
+
+                    # Record tool error
+                    error_result: dict[str, Any] = {
+                        "tool": tool_name,
+                        "success": False,
+                        "result": None,
+                        "error": str(error) if error else "Unknown error",
+                    }
+                    all_tool_results.append(error_result)
 
                     try:
                         await websocket.send_json(

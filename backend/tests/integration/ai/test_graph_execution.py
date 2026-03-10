@@ -4,8 +4,9 @@ Tests end-to-end graph execution including ToolNode from langgraph.prebuilt.
 Follows TDD: Test first, then implement.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import tool
 
@@ -41,16 +42,17 @@ def simple_tool_2(number: int) -> str:
 class TestStateGraphCompilation:
     """Test suite for StateGraph compilation and execution."""
 
-    def test_stategraph_compilation_and_execution(self) -> None:
+    @pytest.mark.asyncio
+    async def test_stategraph_compilation_and_execution(self) -> None:
         """Test that StateGraph compiles and can be invoked."""
         # Arrange
         mock_llm = MagicMock()
-        mock_llm_with_tools = MagicMock()
+        mock_llm_with_tools = AsyncMock()
         mock_llm.bind_tools.return_value = mock_llm_with_tools
 
-        # Mock LLM response without tool calls
+        # Mock LLM response without tool calls - use ainvoke for async
         mock_response = AIMessage(content="Hello! How can I help you?")
-        mock_llm_with_tools.invoke.return_value = mock_response
+        mock_llm_with_tools.ainvoke.return_value = mock_response
 
         tools = [simple_tool]
 
@@ -59,11 +61,11 @@ class TestStateGraphCompilation:
 
         # Assert
         assert graph is not None
-        assert hasattr(graph, "invoke")
-        assert hasattr(graph, "stream")
+        assert hasattr(graph, "ainvoke")
+        assert hasattr(graph, "astream")
 
-        # Test invocation
-        result = graph.invoke(
+        # Test invocation - use ainvoke for async nodes
+        result = await graph.ainvoke(
             {
                 "messages": [HumanMessage(content="Hello")],
                 "tool_call_count": 0,
@@ -83,11 +85,12 @@ class TestStateGraphCompilation:
 class TestToolNodeExecution:
     """Test suite for ToolNode execution from langgraph.prebuilt."""
 
-    def test_tool_node_execution(self) -> None:
+    @pytest.mark.asyncio
+    async def test_tool_node_execution(self) -> None:
         """Test that ToolNode from langgraph.prebuilt executes tool calls."""
         # Arrange
         mock_llm = MagicMock()
-        mock_llm_with_tools = MagicMock()
+        mock_llm_with_tools = AsyncMock()
 
         # Create tools
         tools = [simple_tool, simple_tool_2]
@@ -110,7 +113,7 @@ class TestToolNodeExecution:
         )
 
         # First call returns tool calls, second call returns final response
-        mock_llm_with_tools.invoke.side_effect = [
+        mock_llm_with_tools.ainvoke.side_effect = [
             mock_response,
             AIMessage(content="Done with tools"),
         ]
@@ -120,7 +123,7 @@ class TestToolNodeExecution:
         # Act
         graph = create_graph(llm=mock_llm, tools=tools)
 
-        result = graph.invoke(
+        result = await graph.ainvoke(
             {
                 "messages": [HumanMessage(content="Use the tools")],
                 "tool_call_count": 0,
@@ -159,11 +162,12 @@ class TestToolNodeExecution:
         assert isinstance(messages[4], AIMessage)
         assert messages[4].content == "Done with tools"
 
-    def test_tool_node_handles_single_tool_call(self) -> None:
+    @pytest.mark.asyncio
+    async def test_tool_node_handles_single_tool_call(self) -> None:
         """Test that ToolNode handles a single tool call correctly."""
         # Arrange
         mock_llm = MagicMock()
-        mock_llm_with_tools = MagicMock()
+        mock_llm_with_tools = AsyncMock()
 
         tools = [simple_tool]
 
@@ -179,7 +183,7 @@ class TestToolNodeExecution:
             ],
         )
 
-        mock_llm_with_tools.invoke.side_effect = [
+        mock_llm_with_tools.ainvoke.side_effect = [
             mock_response,
             AIMessage(content="Tool executed"),
         ]
@@ -189,7 +193,7 @@ class TestToolNodeExecution:
         # Act
         graph = create_graph(llm=mock_llm, tools=tools)
 
-        result = graph.invoke(
+        result = await graph.ainvoke(
             {
                 "messages": [HumanMessage(content="Use one tool")],
                 "tool_call_count": 0,
@@ -206,16 +210,17 @@ class TestToolNodeExecution:
         assert isinstance(messages[2], ToolMessage)
         assert "Echo: single" in messages[2].content
 
-    def test_agent_tools_agent_flow(self) -> None:
+    @pytest.mark.asyncio
+    async def test_agent_tools_agent_flow(self) -> None:
         """Test the complete agent -> tools -> agent flow."""
         # Arrange
         mock_llm = MagicMock()
-        mock_llm_with_tools = MagicMock()
+        mock_llm_with_tools = AsyncMock()
 
         tools = [simple_tool]
 
         # Simulate multi-turn conversation
-        mock_llm_with_tools.invoke.side_effect = [
+        mock_llm_with_tools.ainvoke.side_effect = [
             # First turn: Request tool use
             AIMessage(
                 content="Let me check that for you",
@@ -236,7 +241,7 @@ class TestToolNodeExecution:
         # Act
         graph = create_graph(llm=mock_llm, tools=tools)
 
-        result = graph.invoke(
+        result = await graph.ainvoke(
             {
                 "messages": [HumanMessage(content="Start multi-turn")],
                 "tool_call_count": 0,
@@ -249,7 +254,7 @@ class TestToolNodeExecution:
         messages = result["messages"]
 
         # Verify agent was called twice (initial + after tool execution)
-        assert mock_llm_with_tools.invoke.call_count == 2
+        assert mock_llm_with_tools.ainvoke.call_count == 2
 
         # Verify tool_call_count was incremented
         assert result["tool_call_count"] == 1

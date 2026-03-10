@@ -239,7 +239,7 @@ class AIConversationMessagePublic(BaseModel):
     role: str
     content: str
     tool_calls: list[dict[str, Any]] | None = None
-    tool_results: dict[str, Any] | None = None
+    tool_results: list[dict[str, Any]] | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

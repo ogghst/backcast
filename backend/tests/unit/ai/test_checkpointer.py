@@ -4,8 +4,9 @@ Tests that the LangGraph checkpointer saves and restores state across graph invo
 Follows TDD: Test first, then implement.
 """
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import tool
 
@@ -28,16 +29,17 @@ def simple_tool(value: str) -> str:
 class TestStatePersistence:
     """Test suite for MemorySaver checkpointer state persistence."""
 
-    def test_state_persistence_and_restoration(self) -> None:
+    @pytest.mark.asyncio
+    async def test_state_persistence_and_restoration(self) -> None:
         """Test that state is saved and can be restored across graph invocations."""
         # Arrange
         mock_llm = MagicMock()
-        mock_llm_with_tools = MagicMock()
+        mock_llm_with_tools = AsyncMock()
 
         tools = [simple_tool]
 
         # First invocation - LLM responds without tool calls
-        mock_llm_with_tools.invoke.side_effect = [
+        mock_llm_with_tools.ainvoke.side_effect = [
             AIMessage(content="Hello! How can I help you?"),
         ]
         mock_llm.bind_tools.return_value = mock_llm_with_tools
@@ -52,7 +54,7 @@ class TestStatePersistence:
             "next": "agent",
         }
 
-        first_result = graph.invoke(
+        first_result = await graph.ainvoke(
             initial_state,
             config={"configurable": {"thread_id": thread_id}},
         )
@@ -65,12 +67,12 @@ class TestStatePersistence:
         assert first_result["tool_call_count"] == 0
 
         # Arrange - Second invocation with new mock response
-        mock_llm_with_tools.invoke.side_effect = [
+        mock_llm_with_tools.ainvoke.side_effect = [
             AIMessage(content="Goodbye!"),
         ]
 
         # Act - Second invocation (should restore previous state)
-        second_result = graph.invoke(
+        second_result = await graph.ainvoke(
             {
                 "messages": [HumanMessage(content="Goodbye")],
                 "tool_call_count": 0,
@@ -85,11 +87,12 @@ class TestStatePersistence:
         assert isinstance(second_result["messages"][-1], AIMessage)
         assert second_result["messages"][-1].content == "Goodbye!"
 
-    def test_state_persistence_with_tool_calls(self) -> None:
+    @pytest.mark.asyncio
+    async def test_state_persistence_with_tool_calls(self) -> None:
         """Test that state persists correctly across tool-calling invocations."""
         # Arrange
         mock_llm = MagicMock()
-        mock_llm_with_tools = MagicMock()
+        mock_llm_with_tools = AsyncMock()
 
         tools = [simple_tool]
 
@@ -107,7 +110,7 @@ class TestStatePersistence:
         # After tool execution, LLM provides final answer
         final_response = AIMessage(content="Tool executed successfully")
 
-        mock_llm_with_tools.invoke.side_effect = [
+        mock_llm_with_tools.ainvoke.side_effect = [
             tool_call_response,
             final_response,
         ]
@@ -117,7 +120,7 @@ class TestStatePersistence:
         thread_id = "test-thread-tool-persistence"
 
         # Act
-        result = graph.invoke(
+        result = await graph.ainvoke(
             {
                 "messages": [HumanMessage(content="Use the tool")],
                 "tool_call_count": 0,
@@ -141,16 +144,17 @@ class TestStatePersistence:
         assert isinstance(messages[3], AIMessage)
         assert messages[3].content == "Tool executed successfully"
 
-    def test_different_threads_have_separate_state(self) -> None:
+    @pytest.mark.asyncio
+    async def test_different_threads_have_separate_state(self) -> None:
         """Test that different thread_ids maintain separate state."""
         # Arrange
         mock_llm = MagicMock()
-        mock_llm_with_tools = MagicMock()
+        mock_llm_with_tools = AsyncMock()
 
         tools = [simple_tool]
 
         # Different responses for different threads
-        mock_llm_with_tools.invoke.side_effect = [
+        mock_llm_with_tools.ainvoke.side_effect = [
             AIMessage(content="Response for thread 1"),
             AIMessage(content="Response for thread 2"),
         ]
@@ -159,7 +163,7 @@ class TestStatePersistence:
         graph = create_graph(llm=mock_llm, tools=tools)
 
         # Act - Thread 1
-        result1 = graph.invoke(
+        result1 = await graph.ainvoke(
             {
                 "messages": [HumanMessage(content="Thread 1")],
                 "tool_call_count": 0,
@@ -169,7 +173,7 @@ class TestStatePersistence:
         )
 
         # Act - Thread 2
-        result2 = graph.invoke(
+        result2 = await graph.ainvoke(
             {
                 "messages": [HumanMessage(content="Thread 2")],
                 "tool_call_count": 0,

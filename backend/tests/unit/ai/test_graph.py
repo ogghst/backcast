@@ -4,12 +4,13 @@ Follows TDD: Test first, then implement.
 """
 
 from typing import Any, cast
-from unittest.mock import MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import BaseTool
 
-from app.ai.graph import agent_node, create_graph, should_continue
+from app.ai.graph import create_agent_node, create_graph, should_continue
 from app.ai.state import AgentState
 
 
@@ -165,13 +166,14 @@ class TestConditionalEdges:
 class TestAgentNodeBindTools:
     """Test suite for agent_node bind_tools() invocation."""
 
-    def test_agent_node_binds_tools_correctly(self) -> None:
+    @pytest.mark.asyncio
+    async def test_agent_node_binds_tools_correctly(self) -> None:
         """Test that agent_node calls llm.bind_tools() with the correct tool list."""
         # Arrange
         mock_llm = MagicMock()
-        mock_llm_with_tools = MagicMock()
+        mock_llm_with_tools = AsyncMock()
         mock_response = AIMessage(content="Test response")
-        mock_llm_with_tools.invoke.return_value = mock_response
+        mock_llm_with_tools.ainvoke.return_value = mock_response
         mock_llm.bind_tools.return_value = mock_llm_with_tools
 
         mock_tool = cast(BaseTool, Mock(name="test_tool"))
@@ -184,31 +186,33 @@ class TestAgentNodeBindTools:
         )
         config: dict[str, Any] = {}
 
-        # Act
-        result = agent_node(state, config, llm=mock_llm, tools=mock_tools)
+        # Act - create node function using the factory
+        node_fn = create_agent_node(mock_llm, mock_tools)
+        result = await node_fn(state, config)
 
         # Assert
         # Verify bind_tools was called with the exact tools list
         mock_llm.bind_tools.assert_called_once_with(mock_tools)
 
         # Verify the bound LLM was invoked with messages
-        mock_llm_with_tools.invoke.assert_called_once_with(state["messages"])
+        mock_llm_with_tools.ainvoke.assert_called_once_with(state["messages"])
 
         # Verify result contains updated messages
         assert "messages" in result
         assert result["messages"] == [mock_response]
         assert result["tool_call_count"] == 0
 
-    def test_agent_node_increments_tool_call_count(self) -> None:
+    @pytest.mark.asyncio
+    async def test_agent_node_increments_tool_call_count(self) -> None:
         """Test that agent_node increments tool_call_count when tool_calls present."""
         # Arrange
         mock_llm = MagicMock()
-        mock_llm_with_tools = MagicMock()
+        mock_llm_with_tools = AsyncMock()
         mock_response = AIMessage(
             content="I'll use a tool",
             tool_calls=[{"id": "1", "name": "test_tool", "args": {}}],
         )
-        mock_llm_with_tools.invoke.return_value = mock_response
+        mock_llm_with_tools.ainvoke.return_value = mock_response
         mock_llm.bind_tools.return_value = mock_llm_with_tools
 
         mock_tools: list[BaseTool] = []
@@ -220,19 +224,21 @@ class TestAgentNodeBindTools:
         )
         config: dict[str, Any] = {}
 
-        # Act
-        result = agent_node(state, config, llm=mock_llm, tools=mock_tools)
+        # Act - create node function using the factory
+        node_fn = create_agent_node(mock_llm, mock_tools)
+        result = await node_fn(state, config)
 
         # Assert
         assert result["tool_call_count"] == 3
 
-    def test_agent_node_does_not_increment_count_when_no_tool_calls(self) -> None:
+    @pytest.mark.asyncio
+    async def test_agent_node_does_not_increment_count_when_no_tool_calls(self) -> None:
         """Test that agent_node doesn't increment tool_call_count when no tool_calls."""
         # Arrange
         mock_llm = MagicMock()
-        mock_llm_with_tools = MagicMock()
+        mock_llm_with_tools = AsyncMock()
         mock_response = AIMessage(content="No tools needed")
-        mock_llm_with_tools.invoke.return_value = mock_response
+        mock_llm_with_tools.ainvoke.return_value = mock_response
         mock_llm.bind_tools.return_value = mock_llm_with_tools
 
         mock_tools: list[BaseTool] = []
@@ -244,8 +250,9 @@ class TestAgentNodeBindTools:
         )
         config: dict[str, Any] = {}
 
-        # Act
-        result = agent_node(state, config, llm=mock_llm, tools=mock_tools)
+        # Act - create node function using the factory
+        node_fn = create_agent_node(mock_llm, mock_tools)
+        result = await node_fn(state, config)
 
         # Assert
         assert result["tool_call_count"] == 2

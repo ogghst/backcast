@@ -4,6 +4,7 @@ Implements StateGraph with agent node, ToolNode, conditional edges, and MemorySa
 Follows LangGraph 1.0+ patterns with TypedDict state and bind_tools().
 """
 
+from collections.abc import Callable
 from typing import Any, Literal
 
 from langchain_core.language_models import BaseChatModel
@@ -68,53 +69,73 @@ def should_continue(state: AgentState) -> Literal["agent", "tools", "end"]:
     return "end"
 
 
-def agent_node(
-    state: AgentState,
-    config: dict[str, Any],
-    *,
-    llm: BaseChatModel,
-    tools: list[BaseTool],
-) -> dict[str, Any]:
-    """Agent node that calls the LLM with tools bound.
+def create_agent_node(
+    llm: BaseChatModel, tools: list[BaseTool]
+) -> Callable[..., Any]:  # Returns an async callable compatible with LangGraph
+    """Create a LangGraph-compatible agent node function with LLM and tools bound.
 
-    Context: Node function for StateGraph that invokes the LLM with
-    bind_tools() to enable tool calling. Updates messages and tool_call_count.
+    Context: Factory function that creates an async node function for LangGraph
+    with LLM and tools pre-bound via closure. This avoids functools.partial issues
+    with how LangGraph passes state and config to node functions.
 
     Args:
-        state: Current agent state
-        config: Configuration dict (may contain model parameters)
-        llm: The language model to use
-        tools: List of tools to bind to the LLM
+        llm: The language model to use for the agent
+        tools: List of tools available to the agent
 
     Returns:
-        Dictionary with updated state (messages list and tool_call_count)
+        An async function compatible with LangGraph's node API
 
     Examples:
+        >>> from langchain_openai import ChatOpenAI
+        >>> from app.ai.tools import create_project_tools
+        >>>
         >>> llm = ChatOpenAI(model="gpt-4")
-        >>> tools = [list_projects_tool]
-        >>> result = agent_node(state, {}, llm=llm, tools=tools)
-        >>> updated_messages = result["messages"]
+        >>> tools = create_project_tools(context)
+        >>> node_fn = create_agent_node(llm, tools)
+        >>>
+        >>> # Add to StateGraph
+        >>> workflow.add_node("agent", node_fn)
     """
-    messages = state["messages"]
-    tool_call_count = state["tool_call_count"]
 
-    # Bind tools to LLM
-    # This is the LangGraph 1.0+ way to enable tool calling
-    llm_with_tools = llm.bind_tools(tools)
+    async def agent_node(
+        state: AgentState,
+        config: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Agent node that calls the LLM with tools bound.
 
-    # Invoke the LLM
-    # The response will be an AIMessage, possibly with tool_calls
-    response_message: BaseMessage = llm_with_tools.invoke(messages)
+        Context: Node function for StateGraph that invokes the LLM with
+        bind_tools() to enable tool calling. Updates messages and tool_call_count.
+        LLM and tools are captured from the outer scope via closure.
 
-    # Update tool_call_count if tool calls were made
-    new_tool_call_count = tool_call_count
-    if isinstance(response_message, AIMessage) and response_message.tool_calls:
-        new_tool_call_count += 1
+        Args:
+            state: Current agent state
+            config: Optional configuration dict (may contain model parameters)
 
-    return {
-        "messages": [response_message],
-        "tool_call_count": new_tool_call_count,
-    }
+        Returns:
+            Dictionary with updated state (messages list and tool_call_count)
+        """
+        messages = state["messages"]
+        tool_call_count = state["tool_call_count"]
+
+        # Bind tools to LLM
+        # This is the LangGraph 1.0+ way to enable tool calling
+        llm_with_tools = llm.bind_tools(tools)
+
+        # Invoke the LLM asynchronously
+        # The response will be an AIMessage, possibly with tool_calls
+        response_message: BaseMessage = await llm_with_tools.ainvoke(messages)
+
+        # Update tool_call_count if tool calls were made
+        new_tool_call_count = tool_call_count
+        if isinstance(response_message, AIMessage) and response_message.tool_calls:
+            new_tool_call_count += 1
+
+        return {
+            "messages": [response_message],
+            "tool_call_count": new_tool_call_count,
+        }
+
+    return agent_node
 
 
 def create_graph(
@@ -153,16 +174,9 @@ def create_graph(
     workflow = StateGraph(AgentState)
 
     # Add agent node
-    # We use a lambda to pass llm and tools to the node function
-    workflow.add_node(
-        "agent",
-        lambda state, config: agent_node(
-            state,
-            config,
-            llm=llm,
-            tools=tools,
-        ),
-    )
+    # We use a factory function to create an async node with LLM and tools bound
+    # This ensures LangGraph properly detects and handles the async nature
+    workflow.add_node("agent", create_agent_node(llm, tools))
 
     # Add tools node using LangGraph's prebuilt ToolNode
     # ToolNode automatically handles tool execution and result formatting
