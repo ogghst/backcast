@@ -57,6 +57,25 @@ Production deployment guide using Docker, Traefik, and Let's Encrypt SSL.
 - System administrators
 - Developers deploying to staging/production
 
+### [AI Chat User Guide](./ai-chat-user-guide.md)
+
+End-user guide for interacting with the Backcast EVS AI Chat assistant using natural language.
+
+**Topics Covered:**
+- Getting started with AI Chat
+- Project information queries (list, search, filter)
+- Work Breakdown Structure (WBE) navigation and hierarchy
+- Cost element analysis and variance tracking
+- Change order draft generation and workflow
+- Earned Value Management (EVM) metrics and forecasting
+- Tips for better results and troubleshooting
+
+**Target Audience:**
+- Project managers using AI for project insights
+- Cost engineers performing analysis
+- Change managers managing change orders
+- Any end user interacting with the AI assistant
+
 ### [Frontend Navigation Patterns](./navigation-patterns.md)
 
 Guide to the navigation patterns used in the Backcast EVS frontend application.

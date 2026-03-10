@@ -3,10 +3,8 @@
 Uses LangGraph StateGraph for conversation flow with tool calling loop.
 """
 
-import json
 import logging
-from collections.abc import Sequence
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
 from fastapi import WebSocket
@@ -15,20 +13,14 @@ from langchain_core.messages import (
     BaseMessage,
     HumanMessage,
     SystemMessage,
-    ToolMessage,
 )
-from langchain_core.tools import StructuredTool
-from openai import AsyncOpenAI, BadRequestError
-from pydantic import BaseModel
+from langchain_openai import ChatOpenAI
+from openai import AsyncOpenAI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing_extensions import TypedDict
 
-from app.ai.llm_client import (
-    LLMClientFactory,
-    LLMStreamingError,
-    stream_with_error_handling,
-)
+from app.ai.graph import create_graph
+from app.ai.llm_client import LLMClientFactory
 from app.ai.tools import ToolContext, create_project_tools
 from app.models.domain.ai import (
     AIAssistantConfig,
@@ -50,7 +42,6 @@ logger = logging.getLogger(__name__)
 
 
 # Constants
-MAX_TOOL_ITERATIONS = 5
 DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant for the Backcast EVS project budget management system.
 
 You can help with:
@@ -69,29 +60,6 @@ When using tools:
 - For status filters, use three-letter codes like 'ACT', 'PLN', 'CLS'
 - Use search to find projects by code or name
 """
-DEFAULT_TEMPERATURE = 0.0
-DEFAULT_MAX_TOKENS = 2000
-
-
-class AgentState(BaseModel):
-    """State for LangGraph agent with tool call tracking."""
-
-    messages: list[BaseMessage]
-    tool_call_count: int = 0
-    next: Literal["agent", "tools", "end"] = "agent"
-
-
-class ModelResult(TypedDict):
-    """Return type for model execution."""
-
-    messages: Sequence[BaseMessage]
-    tool_call_count: int
-
-
-class ToolResult(TypedDict):
-    """Return type for tool execution."""
-
-    messages: Sequence[BaseMessage]
 
 
 class AgentService:
@@ -126,211 +94,33 @@ class AgentService:
         client = await LLMClientFactory.create_client(provider, config_service)
         return client, str(model.model_id)
 
-    def _should_continue(self, state: AgentState) -> Literal["agent", "tools", "end"]:
-        """Determine if we should continue tool calling.
-
-        Context: Agent loop condition to decide the next step based on the last message and tool iterations.
-
-        Args:
-            state: The current conversation state
-
-        Returns:
-            Next node step: "agent", "tools", or "end"
-        """
-        messages = state.messages
-        last_message = messages[-1] if messages else None
-
-        # If the last message is from a tool, continue to agent
-        if isinstance(last_message, ToolMessage):
-            return "agent"
-
-        # If the last message has tool calls, continue to tools
-        if isinstance(last_message, AIMessage) and last_message.tool_calls:
-            # Check iteration limit
-            if state.tool_call_count >= MAX_TOOL_ITERATIONS:
-                logger.warning(f"Max tool iterations ({MAX_TOOL_ITERATIONS}) reached")
-                return "end"
-            return "tools"
-
-        # Otherwise, end
-        return "end"
-
-    async def _call_model(
+    async def _create_langchain_llm(
         self,
-        state: AgentState,
         client: AsyncOpenAI,
         model_name: str,
-        tools: list[StructuredTool],
-        config: dict[str, float | int | None] | None = None,
-    ) -> ModelResult:
-        """Call the LLM with the current messages and tools.
+        temperature: float | None,
+        max_tokens: int | None,
+    ) -> ChatOpenAI:
+        """Create a LangChain ChatOpenAI wrapper from AsyncOpenAI client.
 
-        Context: Internal method called during the agent loop to generate a response or tool call request.
-
-        Args:
-            state: Current agent state containing conversation history
-            client: Configured AsyncOpenAI client
-            model_name: Model identifier to use for the completion
-            tools: List of tools available for the LLM to call
-            config: Optional configuration limits (temperature, max_tokens)
-
-        Returns:
-            Dictionary containing the generated AIMessage and the updated tool_call_count
-
-        Raises:
-            None (Exceptions are caught and returned as AIMessage errors)
-        """
-        messages = state.messages
-
-        # Convert tools to OpenAI format
-        tool_schemas: list[dict[str, object]] = []
-        for tool in tools:
-            schema = (
-                tool.args_schema.schema() if hasattr(tool.args_schema, "schema") else {}
-            )
-            tool_schemas.append(
-                {
-                    "type": "function",
-                    "function": {
-                        "name": tool.name,
-                        "description": tool.description,
-                        "parameters": schema,
-                    },
-                }
-            )
-
-        try:
-            temp = config.get("temperature") if config else None
-            max_tok = config.get("max_tokens") if config else None
-
-            # Build messages for OpenAI
-            openai_messages: list[dict[str, object]] = []
-            for m in messages:
-                if isinstance(m, SystemMessage):
-                    openai_messages.append({"role": "system", "content": m.content})
-                elif isinstance(m, HumanMessage):
-                    openai_messages.append({"role": "user", "content": m.content})
-                elif isinstance(m, AIMessage) and not m.tool_calls:
-                    openai_messages.append({"role": "assistant", "content": m.content})
-
-            # Call OpenAI API
-            response = await client.chat.completions.create(
-                model=model_name,
-                messages=openai_messages,  # type: ignore[arg-type]
-                tools=tool_schemas if tool_schemas else None,  # type: ignore[arg-type]
-                temperature=float(temp) if temp is not None else DEFAULT_TEMPERATURE,
-                max_tokens=int(max_tok) if max_tok is not None else DEFAULT_MAX_TOKENS,
-
-            )
-
-            # Parse response
-            message = response.choices[0].message
-            tool_calls = message.tool_calls or []
-
-            # Create AIMessage
-            ai_tool_calls: list[dict[str, object]] = []
-            for tc in tool_calls:
-                # Handle both function and custom tool calls
-                if hasattr(tc, "function") and tc.function:
-                    ai_tool_calls.append(
-                        {
-                            "id": tc.id,
-                            "name": tc.function.name,
-                            "args": json.loads(tc.function.arguments),
-                        }
-                    )
-                elif hasattr(tc, "name"):
-                    # Handle custom tool calls
-                    ai_tool_calls.append(
-                        {
-                            "id": tc.id,
-                            "name": str(tc.name) if tc.name else "",
-                            "args": {},
-                        }
-                    )
-
-            ai_message = AIMessage(
-                content=message.content or "",
-                tool_calls=ai_tool_calls,
-            )
-
-            # Update iteration count if tools were called
-            new_count = state.tool_call_count
-            if tool_calls:
-                new_count += 1
-
-            return {"messages": [ai_message], "tool_call_count": new_count}
-
-        except BadRequestError as e:
-            logger.error(f"OpenAI API error: {e}")
-            # Return error message
-            error_message = AIMessage(
-                content=f"I encountered an error processing your request: {str(e)}"
-            )
-            return {
-                "messages": [error_message],
-                "tool_call_count": state.tool_call_count,
-            }
-        except Exception as e:
-            logger.error(f"Unexpected error in _call_model: {e}")
-            error_message = AIMessage(
-                content="I encountered an unexpected error. Please try again."
-            )
-            return {
-                "messages": [error_message],
-                "tool_call_count": state.tool_call_count,
-            }
-
-    async def _execute_tools(
-        self,
-        state: AgentState,
-        tools: dict[str, StructuredTool],
-    ) -> ToolResult:
-        """Execute tool calls from the last message.
-
-        Context: Called when the model response contains tool calls that need execution.
+        Context: Converts the AsyncOpenAI client to a LangChain-compatible ChatOpenAI instance
+        for use with LangGraph's StateGraph.
 
         Args:
-            state: Current agent state containing the messages
-            tools: Dictionary of available initialized tools
+            client: The AsyncOpenAI client to wrap
+            model_name: Model identifier to use
+            temperature: Optional temperature setting
+            max_tokens: Optional max tokens setting
 
         Returns:
-            Dictionary containing the ToolMessages with execution results
-
-        Raises:
-            None (tool execution errors are caught and returned as ToolMessages)
+            ChatOpenAI instance configured with the provided client and parameters
         """
-        messages = state.messages
-        last_message = messages[-1] if messages else None
-
-        if not isinstance(last_message, AIMessage) or not last_message.tool_calls:
-            return {"messages": []}
-
-        tool_results = []
-        for tool_call in last_message.tool_calls:
-            tool_name = tool_call.get("name", "")
-            tool_args = tool_call.get("args", {})
-            tool_id = tool_call.get("id", "")
-
-            if tool_name not in tools:
-                result = f"Error: Tool '{tool_name}' not found"
-            else:
-                try:
-                    # Execute the tool
-                    tool = tools[tool_name]
-                    result = await tool.ainvoke(tool_args)
-                except Exception as e:
-                    logger.error(f"Error executing tool {tool_name}: {e}")
-                    result = f"Error executing tool: {str(e)}"
-
-            tool_results.append(
-                ToolMessage(
-                    content=str(result),
-                    tool_call_id=tool_id,
-                )
-            )
-
-        return {"messages": tool_results}
+        return ChatOpenAI(
+            client=client,
+            model=model_name,
+            temperature=temperature or 0.0,
+            max_tokens=max_tokens or 2000,
+        )
 
     async def chat(
         self,
@@ -341,7 +131,8 @@ class AgentService:
     ) -> AIChatResponse:
         """Process a chat message using LangGraph.
 
-        Context: Main entry point for the AI conversation. Manages the session, invokes the agent loop, and saves history.
+        Context: Main entry point for the AI conversation. Manages the session, invokes the graph, and saves history.
+                Uses the new StateGraph with ainvoke for non-streaming responses.
 
         Args:
             message: The user's input message
@@ -395,6 +186,14 @@ class AgentService:
             UUID(str(assistant_config.model_id))
         )
 
+        # Create LangChain LLM wrapper
+        llm = await self._create_langchain_llm(
+            client,
+            model_name,
+            assistant_config.temperature,
+            assistant_config.max_tokens,
+        )
+
         # Create tools
         tool_context = ToolContext(self.session, str(user_id))
         available_tools = create_project_tools(tool_context)
@@ -408,37 +207,23 @@ class AgentService:
                 if name in assistant_config.allowed_tools
             }
 
-        # Run the agent loop
-        current_state = AgentState(messages=history, tool_call_count=0)
+        # Create graph
+        graph = create_graph(llm=llm, tools=list(tools_dict.values()))
 
-        for _ in range(MAX_TOOL_ITERATIONS + 1):
-            # Call model
-            model_result = await self._call_model(
-                current_state,
-                client,
-                model_name,
-                list(tools_dict.values()),
-                {
-                    "temperature": assistant_config.temperature,
-                    "max_tokens": assistant_config.max_tokens,
-                },
-            )
-            current_state.messages.extend(model_result["messages"])
-            current_state.tool_call_count = model_result["tool_call_count"]
-
-            # Check if we should continue
-            last_message = current_state.messages[-1]
-            if isinstance(last_message, AIMessage) and last_message.tool_calls:
-                # Execute tools
-                tool_result = await self._execute_tools(current_state, tools_dict)
-                current_state.messages.extend(tool_result["messages"])
-            else:
-                # No more tool calls, break
-                break
+        # Invoke the graph
+        result = await graph.ainvoke(
+            input_state={
+                "messages": history,
+                "tool_call_count": 0,
+                "next": "agent",
+            },
+            config={"configurable": {"thread_id": str(session_id)}},
+        )
 
         # Extract final AI response
         final_message = None
-        for msg in reversed(current_state.messages):
+        messages = result.get("messages", [])
+        for msg in reversed(messages):
             if isinstance(msg, AIMessage) and not msg.tool_calls:
                 final_message = msg
                 break
@@ -446,24 +231,29 @@ class AgentService:
         if not final_message:
             raise ValueError("No assistant response generated")
 
-        # Save assistant message to session
-        tool_calls_data = None
-        if final_message.tool_calls:
-            tool_calls_data = [
-                {
-                    "id": tc.get("id", ""),
-                    "name": tc.get("name", ""),
-                    "args": tc.get("args", {}),
-                }
-                for tc in final_message.tool_calls
-            ]
+        # Collect tool calls and results
+        tool_calls_data: list[dict[str, Any]] = []
+        tool_results_data: list[dict[str, Any]] = []
 
+        for msg in messages:
+            if isinstance(msg, AIMessage) and msg.tool_calls:
+                # Convert ToolCall objects to dict format
+                for tc in msg.tool_calls:
+                    tool_calls_data.append({
+                        "id": tc.get("id", ""),
+                        "name": tc.get("name", ""),
+                        "args": tc.get("args", {}),
+                    })
+            # Note: Tool messages are not directly accessible from the result
+            # In a real implementation, you might want to track these separately
+
+        # Save assistant message to session
         assistant_msg = AIConversationMessage(
             session_id=str(session_id),
             role="assistant",
             content=final_message.content or "",
-            tool_calls=tool_calls_data,
-            tool_results=None,
+            tool_calls=tool_calls_data if tool_calls_data else None,
+            tool_results=tool_results_data if tool_results_data else None,
         )
         self.session.add(assistant_msg)
         await self.session.flush()
@@ -472,7 +262,7 @@ class AgentService:
         return AIChatResponse(
             session_id=session_id,
             message=AIConversationMessagePublic.model_validate(assistant_msg),
-            tool_calls=tool_calls_data,
+            tool_calls=tool_calls_data if tool_calls_data else None,
         )
 
     async def chat_stream(
@@ -487,8 +277,9 @@ class AgentService:
         """Process a chat message using LangGraph with streaming response.
 
         Context: Streaming variant of chat() that sends tokens via WebSocket as they arrive.
-                Handles tool calls by sending events before and after execution. Persists the
-                complete message to database after streaming completes.
+                Uses LangGraph's astream_events() for event-based streaming with proper
+                token, tool call, and tool result handling. Persists the complete message
+                to database after streaming completes.
 
         Args:
             message: The user's input message
@@ -545,6 +336,14 @@ class AgentService:
             UUID(str(assistant_config.model_id))
         )
 
+        # Create LangChain LLM wrapper
+        llm = await self._create_langchain_llm(
+            client,
+            model_name,
+            assistant_config.temperature,
+            assistant_config.max_tokens,
+        )
+
         # Create tools
         tool_context = ToolContext(db, str(user_id))
         available_tools = create_project_tools(tool_context)
@@ -558,248 +357,112 @@ class AgentService:
                 if name in assistant_config.allowed_tools
             }
 
-        # Run the agent loop with streaming
-        current_state = AgentState(messages=history, tool_call_count=0)
+        # Create graph
+        graph = create_graph(llm=llm, tools=list(tools_dict.values()))
+
+        # Stream using astream_events
         accumulated_content = ""
         all_tool_calls: list[dict[str, Any]] = []
         all_tool_results: list[dict[str, Any]] = []
-        session_id_for_ws = session_id
 
         try:
-            for iteration in range(MAX_TOOL_ITERATIONS + 1):
-                # Convert tools to OpenAI format
-                tool_schemas: list[dict[str, object]] = []
-                for tool in tools_dict.values():
-                    schema = (
-                        tool.args_schema.schema()
-                        if hasattr(tool.args_schema, "schema")
-                        else {}
-                    )
-                    tool_schemas.append(
-                        {
-                            "type": "function",
-                            "function": {
-                                "name": tool.name,
-                                "description": tool.description,
-                                "parameters": schema,
-                            },
-                        }
-                    )
+            logger.info(f"Starting astream_events for session {session_id}")
 
-                # Build messages for OpenAI
-                openai_messages: list[dict[str, object]] = []
-                for m in current_state.messages:
-                    if isinstance(m, SystemMessage):
-                        openai_messages.append({"role": "system", "content": m.content})
-                    elif isinstance(m, HumanMessage):
-                        openai_messages.append({"role": "user", "content": m.content})
-                    elif isinstance(m, AIMessage) and not m.tool_calls:
-                        openai_messages.append(
-                            {"role": "assistant", "content": m.content}
-                        )
+            async for event in graph.astream_events(
+                input_state={
+                    "messages": history,
+                    "tool_call_count": 0,
+                    "next": "agent",
+                },
+                config={"configurable": {"thread_id": str(session_id)}},
+                version="v1",
+            ):
+                event_type = event.get("event", "")
+                data = event.get("data", {})
 
-                # Stream the response
-                temp = assistant_config.temperature or DEFAULT_TEMPERATURE
-                max_tok = assistant_config.max_tokens or DEFAULT_MAX_TOKENS
-
-                logger.info(
-                    f"Starting LLM stream for session {session_id_for_ws}, "
-                    f"iteration {iteration + 1}/{MAX_TOOL_ITERATIONS + 1}"
-                )
-
-                streamed_content = ""
-                tool_calls_in_response: list[dict[str, Any]] = []
-
-                async for chunk in stream_with_error_handling(
-                    client,
-                    model_name,
-                    openai_messages,
-                    tools=tool_schemas if tool_schemas else None,
-                    temperature=float(temp),
-                    max_tokens=int(max_tok),
-                ):
-                    try:
-                        # Extract delta content
-                        delta = chunk.choices[0].delta
-                        if delta.content:
-                            streamed_content += delta.content
-                            # Send token via WebSocket
+                # Handle token streaming
+                if event_type == "on_chat_model_stream":
+                    chunk = data.get("chunk", {})
+                    content = chunk.get("content", "")
+                    if content:
+                        accumulated_content += content
+                        try:
                             await websocket.send_json(
                                 WSTokenMessage(
                                     type="token",
-                                    content=delta.content,
-                                    session_id=session_id_for_ws,
-                                ).model_dump(mode='json')
-                            )
-
-                        # Check for tool calls in the chunk
-                        if (
-                            hasattr(delta, "tool_calls")
-                            and delta.tool_calls
-                            and chunk.choices[0].finish_reason == "tool_calls"
-                        ):
-                            # Extract tool calls from the complete response
-                            response_message = chunk.choices[0].message
-                            if (
-                                hasattr(response_message, "tool_calls")
-                                and response_message.tool_calls
-                            ):
-                                for tc in response_message.tool_calls:
-                                    if hasattr(tc, "function") and tc.function:
-                                        tool_calls_in_response.append(
-                                            {
-                                                "id": tc.id,
-                                                "name": tc.function.name,
-                                                "args": json.loads(
-                                                    tc.function.arguments
-                                                ),
-                                            }
-                                        )
-
-                    except LLMStreamingError as e:
-                        logger.error(f"Streaming error: {e.message}")
-                        # Send error message via WebSocket
-                        try:
-                            await websocket.send_json(
-                                WSErrorMessage(
-                                    type="error",
-                                    message=e.message,
-                                    code=500,
-                                ).model_dump(mode='json')
+                                    content=content,
+                                    session_id=session_id,
+                                ).model_dump(mode="json")
                             )
                         except Exception:
                             # WebSocket may be closed
-                            pass
-                        # Continue with partial content
-                        break
-                    except Exception as e:
-                        logger.error(f"Unexpected error during streaming: {type(e).__name__}: {e}", exc_info=True)
-                        break
-
-                accumulated_content += streamed_content
-
-                # Check if we have tool calls to execute
-                if tool_calls_in_response:
-                    # Record tool calls for database persistence
-                    all_tool_calls.extend(tool_calls_in_response)
-
-                    # Create AIMessage with tool calls
-                    ai_message = AIMessage(
-                        content=streamed_content or "",
-                        tool_calls=tool_calls_in_response,
-                    )
-                    current_state.messages.append(ai_message)
-                    current_state.tool_call_count += 1
-
-                    # Execute tools and send events
-                    for tool_call in tool_calls_in_response:
-                        tool_name = tool_call.get("name", "")
-                        tool_args = tool_call.get("args", {})
-
-                        # Send tool call event
-                        try:
-                            await websocket.send_json(
-                                WSToolCallMessage(
-                                    type="tool_call",
-                                    tool=tool_name,
-                                    args=tool_args,
-                                ).model_dump(mode='json')
-                            )
-                        except Exception:
-                            # WebSocket may be closed
+                            logger.warning("Failed to send token, WebSocket may be closed")
                             pass
 
-                        # Execute the tool
-                        tool_result: dict[str, Any] = {
-                            "tool": tool_name,
-                            "success": False,
-                            "result": None,
-                            "error": None,
-                        }
+                # Handle tool start
+                elif event_type == "on_tool_start":
+                    tool_name = data.get("name", "")
+                    tool_input = data.get("input", {})
+                    try:
+                        await websocket.send_json(
+                            WSToolCallMessage(
+                                type="tool_call",
+                                tool=tool_name,
+                                args=tool_input,
+                            ).model_dump(mode="json")
+                        )
+                    except Exception:
+                        # WebSocket may be closed
+                        logger.warning("Failed to send tool_call, WebSocket may be closed")
+                        pass
 
-                        if tool_name in tools_dict:
-                            try:
-                                tool = tools_dict[tool_name]
-                                result = await tool.ainvoke(tool_args)
-                                tool_result["success"] = True
-                                tool_result["result"] = result
-                                all_tool_results.append(tool_result)
+                # Handle tool end
+                elif event_type == "on_tool_end":
+                    tool_name = data.get("name", "")
+                    tool_output = data.get("output", "")
 
-                                # Send tool result event
-                                try:
-                                    await websocket.send_json(
-                                        WSToolResultMessage(
-                                            type="tool_result",
-                                            tool=tool_name,
-                                            result=tool_result,
-                                        ).model_dump(mode='json')
-                                    )
-                                except Exception:
-                                    # WebSocket may be closed
-                                    pass
+                    # Record tool result
+                    tool_result: dict[str, Any] = {
+                        "tool": tool_name,
+                        "success": True,
+                        "result": tool_output,
+                        "error": None,
+                    }
+                    all_tool_results.append(tool_result)
 
-                                # Add ToolMessage to state
-                                current_state.messages.append(
-                                    ToolMessage(
-                                        content=str(result),
-                                        tool_call_id=tool_call.get("id", ""),
-                                    )
-                                )
-                            except Exception as e:
-                                logger.error(f"Error executing tool {tool_name}: {e}")
-                                tool_result["error"] = str(e)
-                                all_tool_results.append(tool_result)
+                    try:
+                        await websocket.send_json(
+                            WSToolResultMessage(
+                                type="tool_result",
+                                tool=tool_name,
+                                result=tool_result,
+                            ).model_dump(mode="json")
+                        )
+                    except Exception:
+                        # WebSocket may be closed
+                        logger.warning("Failed to send tool_result, WebSocket may be closed")
+                        pass
 
-                                # Send error result
-                                try:
-                                    await websocket.send_json(
-                                        WSToolResultMessage(
-                                            type="tool_result",
-                                            tool=tool_name,
-                                            result=tool_result,
-                                        ).model_dump(mode='json')
-                                    )
-                                except Exception:
-                                    # WebSocket may be closed
-                                    pass
+                # Handle completion
+                elif event_type == "on_end":
+                    output = data.get("output", {})
+                    messages = output.get("messages", [])
 
-                                current_state.messages.append(
-                                    ToolMessage(
-                                        content=f"Error: {str(e)}",
-                                        tool_call_id=tool_call.get("id", ""),
-                                    )
-                                )
-                        else:
-                            error_msg = f"Tool '{tool_name}' not found"
-                            tool_result["error"] = error_msg
-                            all_tool_results.append(tool_result)
+                    # Extract tool calls from the final messages
+                    for msg in messages:
+                        if isinstance(msg, AIMessage) and msg.tool_calls:
+                            # Convert ToolCall objects to dict format
+                            for tc in msg.tool_calls:
+                                all_tool_calls.append({
+                                    "id": tc.get("id", ""),
+                                    "name": tc.get("name", ""),
+                                    "args": tc.get("args", {}),
+                                })
 
-                            try:
-                                await websocket.send_json(
-                                    WSToolResultMessage(
-                                        type="tool_result",
-                                        tool=tool_name,
-                                        result=tool_result,
-                                    ).model_dump()
-                                )
-                            except Exception:
-                                # WebSocket may be closed
-                                pass
-
-                            current_state.messages.append(
-                                ToolMessage(
-                                    content=error_msg,
-                                    tool_call_id=tool_call.get("id", ""),
-                                )
-                            )
-                else:
-                    # No tool calls, add AI message and break
-                    ai_message = AIMessage(content=streamed_content or "")
-                    current_state.messages.append(ai_message)
-                    break
+                    logger.info(f"Graph execution completed for session {session_id}")
 
         except Exception as e:
-            logger.error(f"Error in chat_stream: {e}")
+            logger.error(f"Error in chat_stream astream_events: {e}", exc_info=True)
             # Send error message via WebSocket
             try:
                 await websocket.send_json(
@@ -807,20 +470,17 @@ class AgentService:
                         type="error",
                         message=f"An error occurred: {str(e)}",
                         code=500,
-                    ).model_dump(mode='json')
+                    ).model_dump(mode="json")
                 )
             except Exception:
                 # WebSocket may be closed
                 pass
 
-        # Extract final AI response content
-        final_content = accumulated_content
-
         # Save assistant message to session
         assistant_msg = AIConversationMessage(
             session_id=str(session_id),
             role="assistant",
-            content=final_content or "",
+            content=accumulated_content or "",
             tool_calls=all_tool_calls if all_tool_calls else None,
             tool_results=all_tool_results if all_tool_results else None,
         )
@@ -836,14 +496,14 @@ class AgentService:
                     type="complete",
                     session_id=session_id,
                     message_id=assistant_msg.id,
-                ).model_dump(mode='json')
+                ).model_dump(mode="json")
             )
         except Exception:
             # WebSocket may be closed, but message is persisted
             logger.warning("WebSocket closed before sending complete message")
 
         logger.info(
-            f"Chat stream completed for session {session_id_for_ws}, "
+            f"Chat stream completed for session {session_id}, "
             f"message_id={assistant_msg.id}"
         )
 
