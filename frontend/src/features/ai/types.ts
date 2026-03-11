@@ -167,6 +167,13 @@ export interface ToolCall {
   };
 }
 
+export interface ToolResult {
+  tool: string;
+  success: boolean;
+  result: unknown;
+  error: string | null;
+}
+
 export interface AIConversationSessionPublic {
   id: string;
   user_id: string;
@@ -182,7 +189,7 @@ export interface AIConversationMessagePublic {
   role: MessageRole;
   content: string;
   tool_calls?: ToolCall[];
-  tool_results?: Record<string, unknown>;
+  tool_results?: ToolResult[];
   created_at: string;
 }
 
@@ -207,6 +214,6 @@ export interface ChatMessage {
   role: MessageRole;
   content: string;
   toolCalls?: ToolCall[];
-  toolResults?: Record<string, unknown>;
+  toolResults?: ToolResult[];
   createdAt: string;
 }

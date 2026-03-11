@@ -20,6 +20,16 @@ import type { ChatMessage } from "../../types";
 const { Text } = Typography;
 
 /**
+ * Format tool name for display (convert snake_case to Title Case)
+ */
+const formatToolName = (toolName: string): string => {
+  return toolName
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
+
+/**
  * Props for the MessageList component
  */
 interface MessageListProps {
@@ -60,14 +70,6 @@ const StreamingMessage = ({
   activeToolCalls = [],
   token,
 }: StreamingMessageProps) => {
-  // Format tool name for display
-  const formatToolName = (toolName: string): string => {
-    return toolName
-      .split("_")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-  };
-
   return (
     <List.Item
       style={{
@@ -366,9 +368,23 @@ export const MessageList = ({
               {/* Tool results display */}
               {message.toolResults && (
                 <div style={{ marginTop: "0.5rem" }}>
-                  <Text style={{ fontSize: "0.85rem", opacity: 0.8 }}>
-                    Tool results available
+                  <Text style={{ fontSize: "0.85rem", opacity: 0.8, marginRight: "0.5rem" }}>
+                    Tool results:
                   </Text>
+                  {Array.isArray(message.toolResults) ? (
+                    message.toolResults.map((result, idx) => (
+                      <Tag
+                        key={idx}
+                        icon={<ToolOutlined />}
+                        color={result.success ? "success" : "error"}
+                        style={{ marginLeft: "0.25rem" }}
+                      >
+                        {formatToolName(result.tool || "Unknown")}
+                      </Tag>
+                    ))
+                  ) : (
+                    <Tag icon={<ToolOutlined />}>Results available</Tag>
+                  )}
                 </div>
               )}
             </div>

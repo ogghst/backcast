@@ -468,7 +468,7 @@ class AgentService:
 
                 # Handle tool start
                 elif event_type == "on_tool_start":
-                    tool_name = data.get("name", "")
+                    tool_name = event.get("name", "")
                     tool_input = data.get("input", {})
                     try:
                         await websocket.send_json(
@@ -485,7 +485,7 @@ class AgentService:
 
                 # Handle tool end
                 elif event_type == "on_tool_end":
-                    tool_name = data.get("name", "")
+                    tool_name = event.get("name", "")
                     tool_output = data.get("output", "")
 
                     # Extract content from ToolMessage if present
@@ -508,7 +508,7 @@ class AgentService:
 
                 # Handle tool error
                 elif event_type == "on_tool_error":
-                    tool_name = data.get("name", "")
+                    tool_name = event.get("name", "")
                     error = data.get("error")
 
                     # Record tool error
