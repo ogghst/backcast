@@ -99,7 +99,6 @@ export const ToolSelectorPanel = ({ value = [], onChange }: ToolSelectorPanelPro
     const categoryToolNames = catTools.map(t => t.name);
     const selectedCount = categoryToolNames.filter(name => value.includes(name)).length;
     const isAllSelected = selectedCount === catTools.length && catTools.length > 0;
-    const isIndeterminate = selectedCount > 0 && selectedCount < catTools.length;
 
     return {
       key: category,

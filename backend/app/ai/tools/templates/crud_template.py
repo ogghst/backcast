@@ -225,6 +225,7 @@ async def create_project(
         >>> print(f"Created project with ID: {result['id']}")
     """
     try:
+        from uuid import UUID
         from datetime import datetime
 
         service = context.project_service
@@ -239,8 +240,8 @@ async def create_project(
             end_date=datetime.fromisoformat(end_date) if end_date else None,
         )
 
-        # Call service method
-        project = await service.create(project_data)  # type: ignore[arg-type]
+        # Call service method (Entity-specific method handles EVCS root_id)
+        project = await service.create_project(project_data, actor_id=UUID(context.user_id))
 
         # Convert to AI-friendly format
         return {
@@ -314,7 +315,11 @@ async def update_project(
         )
 
         # Call service method
-        project = await service.update(UUID(project_id), update_data, branch="main")  # type: ignore[arg-type]
+        project = await service.update_project(
+            project_id=UUID(project_id),
+            project_in=update_data,
+            actor_id=UUID(context.user_id),
+        )
 
         # Convert to AI-friendly format
         return {
@@ -531,8 +536,8 @@ async def create_wbe(
             description=description,
         )
 
-        # Call service method
-        wbe = await service.create(wbe_data)  # type: ignore[arg-type]
+        # Call service method (Use specialized create_wbe method)
+        wbe = await service.create_wbe(wbe_data, actor_id=UUID(context.user_id))
 
         # Convert to AI-friendly format
         return {

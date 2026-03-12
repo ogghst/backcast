@@ -247,7 +247,10 @@ async def create_change_order(
         )
 
         # Call service method
-        change_order = await service.create(co_data)  # type: ignore[arg-type]
+        change_order = await service.create_change_order(
+            change_order_in=co_data,
+            actor_id=UUID(context.user_id),
+        )
 
         # Convert to AI-friendly format
         return {
@@ -383,7 +386,13 @@ async def submit_change_order_for_approval(
 
         # Update status to "Pending Approval"
         update_data = ChangeOrderUpdate(status="Pending Approval")
-        change_order = await service.update(UUID(change_order_id), update_data, branch="main")  # type: ignore[arg-type]
+        # Call service method
+        change_order = await service.update_change_order(
+            change_order_id=UUID(change_order_id),
+            change_order_in=update_data,
+            actor_id=UUID(context.user_id),
+            branch="main",
+        )
 
         # Convert to AI-friendly format
         return {
@@ -443,7 +452,13 @@ async def approve_change_order(
             status="Approved",
             approval_status="Approved",
         )
-        change_order = await service.update(UUID(change_order_id), update_data, branch="main")  # type: ignore[arg-type]
+        # Call service method
+        change_order = await service.update_change_order(
+            change_order_id=UUID(change_order_id),
+            change_order_in=update_data,
+            actor_id=UUID(context.user_id),
+            branch="main",
+        )
 
         # Convert to AI-friendly format
         return {
@@ -504,7 +519,13 @@ async def reject_change_order(
             approval_status="Rejected",
             rejection_reason=rejection_reason,
         )
-        change_order = await service.update(UUID(change_order_id), update_data, branch="main")  # type: ignore[arg-type]
+        # Call service method
+        change_order = await service.update_change_order(
+            change_order_id=UUID(change_order_id),
+            change_order_in=update_data,
+            actor_id=UUID(context.user_id),
+            branch="main",
+        )
 
         # Convert to AI-friendly format
         return {

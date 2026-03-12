@@ -86,34 +86,38 @@ async def calculate_evm_metrics(
     """
     try:
         from app.services.evm_service import EVMService
+        from app.models.schemas.evm import EntityType
 
         service = EVMService(context.session)
 
         # Parse date if provided
-        as_of = datetime.fromisoformat(as_of_date) if as_of_date else None
+        as_of = datetime.fromisoformat(as_of_date) if as_of_date else datetime.now()
 
         # Call service method to calculate EVM
-        # Note: Using placeholder implementation for template
-        # In production, this would call: evm_data = await service.calculate_evm_metrics(...)
-        evm_data = await service.calculate_evm_metrics(
-            project_id=UUID(project_id),
-            as_of=as_of,
+        # Use batch method for project-level metrics
+        evm_data = await service.calculate_evm_metrics_batch(
+            entity_type=EntityType.PROJECT,
+            entity_ids=[UUID(project_id)],
+            control_date=as_of,
         )
 
         # Convert to AI-friendly format
         return {
             "project_id": project_id,
-            "as_of_date": as_of_date or datetime.now().isoformat(),
-            "planned_value": float(evm_data.planned_value) if hasattr(evm_data, 'planned_value') and evm_data.planned_value else 0.0,
-            "earned_value": float(evm_data.earned_value) if hasattr(evm_data, 'earned_value') and evm_data.earned_value else 0.0,
-            "actual_cost": float(evm_data.actual_cost) if hasattr(evm_data, 'actual_cost') and evm_data.actual_cost else 0.0,
-            "cost_variance": float(evm_data.cost_variance) if hasattr(evm_data, 'cost_variance') and evm_data.cost_variance else 0.0,
-            "schedule_variance": float(evm_data.schedule_variance) if hasattr(evm_data, 'schedule_variance') and evm_data.schedule_variance else 0.0,
-            "cost_performance_index": float(evm_data.cpi) if hasattr(evm_data, 'cpi') and evm_data.cpi else 0.0,
-            "schedule_performance_index": float(evm_data.spi) if hasattr(evm_data, 'spi') and evm_data.spi else 0.0,
-            "variance_at_completion": float(evm_data.vac) if hasattr(evm_data, 'vac') and evm_data.vac else 0.0,
-            "estimate_to_complete": float(evm_data.etc) if hasattr(evm_data, 'etc') and evm_data.etc else 0.0,
-            "estimate_at_completion": float(evm_data.eac) if hasattr(evm_data, 'eac') and evm_data.eac else 0.0,
+            "as_of_date": as_of.isoformat(),
+            "planned_value": float(evm_data.pv),
+            "earned_value": float(evm_data.ev),
+            "actual_cost": float(evm_data.ac),
+            "cost_variance": float(evm_data.cv),
+            "schedule_variance": float(evm_data.sv),
+            "cost_performance_index": float(evm_data.cpi) if evm_data.cpi is not None else 0.0,
+            "schedule_performance_index": float(evm_data.spi) if evm_data.spi is not None else 0.0,
+            "variance_at_completion": float(evm_data.vac) if evm_data.vac is not None else 0.0,
+            "estimate_to_complete": float(evm_data.etc) if evm_data.etc is not None else 0.0,
+            "estimate_at_completion": float(evm_data.eac) if evm_data.eac is not None else 0.0,
+            "budget_at_completion": float(evm_data.bac),
+            "progress_percentage": float(evm_data.progress_percentage) if evm_data.progress_percentage is not None else 0.0,
+            "warning": evm_data.warning,
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -158,15 +162,20 @@ async def get_evm_performance_summary(
     """
     try:
         from app.services.evm_service import EVMService
+        from app.models.schemas.evm import EntityType
 
         service = EVMService(context.session)
 
         # Get EVM metrics
-        evm_data = await service.calculate_evm(project_id=UUID(project_id))  # type: ignore[attr-defined]
+        evm_data = await service.calculate_evm_metrics_batch(
+            entity_type=EntityType.PROJECT,
+            entity_ids=[UUID(project_id)],
+            control_date=datetime.now(),
+        )
 
         # Determine performance status
-        cpi = float(evm_data.cpi) if hasattr(evm_data, 'cpi') and evm_data.cpi else 0.0
-        spi = float(evm_data.spi) if hasattr(evm_data, 'spi') and evm_data.spi else 0.0
+        cpi = float(evm_data.cpi) if evm_data.cpi is not None else 0.0
+        spi = float(evm_data.spi) if evm_data.spi is not None else 0.0
 
         if cpi >= 0.95 and spi >= 0.95:
             performance_status = "On Track"
@@ -184,6 +193,9 @@ async def get_evm_performance_summary(
             "cost_performance_index": cpi,
             "schedule_performance_index": spi,
             "recommendation": recommendation,
+            "planned_value": float(evm_data.pv),
+            "earned_value": float(evm_data.ev),
+            "actual_cost": float(evm_data.ac),
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -229,27 +241,30 @@ async def analyze_cost_variance(
     """
     try:
         from app.services.evm_service import EVMService
+        from app.models.schemas.evm import EntityType
 
         service = EVMService(context.session)
 
         # Get cost variance analysis
-        variance_data = await service.analyze_cost_variance(project_id=UUID(project_id))  # type: ignore[attr-defined]
+        evm_data = await service.calculate_evm_metrics_batch(
+            entity_type=EntityType.PROJECT,
+            entity_ids=[UUID(project_id)],
+            control_date=datetime.now(),
+        )
+
+        bac = float(evm_data.bac)
+        cv = float(evm_data.cv)
+        variance_percentage = (cv / bac * 100) if bac > 0 else 0.0
 
         # Convert to AI-friendly format
         return {
             "project_id": project_id,
-            "total_variance": float(variance_data.total_variance) if hasattr(variance_data, 'total_variance') and variance_data.total_variance else 0.0,
-            "variance_percentage": variance_data.variance_percentage if hasattr(variance_data, 'variance_percentage') and variance_data.variance_percentage else 0.0,
-            "variance_by_wbe": [
-                {
-                    "wbe_id": str(v.wbe_id),
-                    "wbe_name": v.wbe_name,
-                    "variance": float(v.variance) if hasattr(v, 'variance') and v.variance else 0.0,
-                    "variance_percentage": v.variance_percentage if hasattr(v, 'variance_percentage') and v.variance_percentage else 0.0,
-                }
-                for v in variance_data.by_wbe
-            ] if hasattr(variance_data, 'by_wbe') and variance_data.by_wbe else [],
-            "root_causes": variance_data.root_causes if hasattr(variance_data, 'root_causes') and variance_data.root_causes else [],
+            "total_variance": cv,
+            "variance_percentage": variance_percentage,
+            "actual_cost": float(evm_data.ac),
+            "earned_value": float(evm_data.ev),
+            "status": "Under Budget" if cv >= 0 else "Over Budget",
+            "root_causes": ["Cost variance identified at project level. Further breakdown required for root cause analysis."],
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -294,26 +309,29 @@ async def analyze_schedule_variance(
     """
     try:
         from app.services.evm_service import EVMService
+        from app.models.schemas.evm import EntityType
 
         service = EVMService(context.session)
 
         # Get schedule variance analysis
-        variance_data = await service.analyze_schedule_variance(project_id=UUID(project_id))  # type: ignore[attr-defined]
+        evm_data = await service.calculate_evm_metrics_batch(
+            entity_type=EntityType.PROJECT,
+            entity_ids=[UUID(project_id)],
+            control_date=datetime.now(),
+        )
+
+        sv = float(evm_data.sv)
+        spi = float(evm_data.spi) if evm_data.spi is not None else 0.0
 
         # Convert to AI-friendly format
         return {
             "project_id": project_id,
-            "total_variance_days": variance_data.total_variance_days if hasattr(variance_data, 'total_variance_days') and variance_data.total_variance_days else 0,
-            "critical_path_delay_days": variance_data.critical_path_delay_days if hasattr(variance_data, 'critical_path_delay_days') and variance_data.critical_path_delay_days else 0,
-            "delayed_activities": [
-                {
-                    "activity_id": str(a.activity_id),
-                    "activity_name": a.activity_name,
-                    "delay_days": a.delay_days if hasattr(a, 'delay_days') and a.delay_days else 0,
-                }
-                for a in variance_data.delayed_activities
-            ] if hasattr(variance_data, 'delayed_activities') and variance_data.delayed_activities else [],
-            "schedule_risks": variance_data.schedule_risks if hasattr(variance_data, 'schedule_risks') and variance_data.schedule_risks else [],
+            "total_variance_value": sv,
+            "schedule_performance_index": spi,
+            "status": "Ahead of Schedule" if sv >= 0 else "Behind Schedule",
+            "warning": evm_data.warning,
+            "planned_value": float(evm_data.pv),
+            "earned_value": float(evm_data.ev),
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -368,25 +386,28 @@ async def generate_project_forecast(
         >>> print(f"Cost Variance at Completion: ${result['vac']}")
     """
     try:
-        from app.services.forecast_service import ForecastService
+        from app.services.evm_service import EVMService
+        from app.models.schemas.evm import EntityType
 
-        service = ForecastService(context.session)
+        service = EVMService(context.session)
 
-        # Generate forecast
-        forecast = await service.generate_forecast(  # type: ignore[attr-defined]
-            project_id=UUID(project_id),
-            method=forecast_method,
+        # Generate forecast via EVM metrics (EAC/ETC/VAC)
+        evm_data = await service.calculate_evm_metrics_batch(
+            entity_type=EntityType.PROJECT,
+            entity_ids=[UUID(project_id)],
+            control_date=datetime.now(),
         )
 
         # Convert to AI-friendly format
         return {
             "project_id": project_id,
             "forecast_method": forecast_method,
-            "estimated_final_cost": float(forecast.estimated_final_cost) if hasattr(forecast, 'estimated_final_cost') and forecast.estimated_final_cost else 0.0,
-            "estimated_completion_date": forecast.estimated_completion_date.isoformat() if hasattr(forecast, 'estimated_completion_date') and forecast.estimated_completion_date else None,
-            "cost_variance_at_completion": float(forecast.vac) if hasattr(forecast, 'vac') and forecast.vac else 0.0,
-            "schedule_variance_days": forecast.schedule_variance_days if hasattr(forecast, 'schedule_variance_days') and forecast.schedule_variance_days else 0,
-            "confidence_level": forecast.confidence_level if hasattr(forecast, 'confidence_level') and forecast.confidence_level else "Medium",
+            "estimated_final_cost": float(evm_data.eac) if evm_data.eac is not None else 0.0,
+            "cost_variance_at_completion": float(evm_data.vac) if evm_data.vac is not None else 0.0,
+            "estimate_to_complete": float(evm_data.etc) if evm_data.etc is not None else 0.0,
+            "budget_at_completion": float(evm_data.bac),
+            "actual_cost_to_date": float(evm_data.ac),
+            "confidence_level": "Medium (Based on current performance trends)",
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -428,34 +449,31 @@ async def compare_forecast_scenarios(
         ...     print(f"{scenario['method']}: ${scenario['estimated_final_cost']}")
     """
     try:
-        from app.services.forecast_service import ForecastService
+        from app.services.evm_service import EVMService
+        from app.models.schemas.evm import EntityType
 
-        service = ForecastService(context.session)
+        service = EVMService(context.session)
 
-        # Generate forecasts using different methods
-        methods = ["linear", "logarithmic", "gaussian"]
-        scenarios = []
+        # In current implementation, we only have one main forecast method based on linked forecast
+        # We'll return the current forecast as the 'recommended' and only scenario
+        evm_data = await service.calculate_evm_metrics_batch(
+            entity_type=EntityType.PROJECT,
+            entity_ids=[UUID(project_id)],
+            control_date=datetime.now(),
+        )
 
-        for method in methods:
-            try:
-                forecast = await service.generate_forecast(  # type: ignore[attr-defined]
-                    project_id=UUID(project_id),
-                    method=method,
-                )
-                scenarios.append({
-                    "method": method,
-                    "estimated_final_cost": float(forecast.estimated_final_cost) if hasattr(forecast, 'estimated_final_cost') and forecast.estimated_final_cost else 0.0,
-                    "estimated_completion_date": forecast.estimated_completion_date.isoformat() if hasattr(forecast, 'estimated_completion_date') and forecast.estimated_completion_date else None,
-                    "cost_variance_at_completion": float(forecast.vac) if hasattr(forecast, 'vac') and forecast.vac else 0.0,
-                })
-            except Exception:
-                # Skip methods that don't work for this project
-                pass
+        scenarios = [{
+            "method": "Current Trend",
+            "estimated_final_cost": float(evm_data.eac) if evm_data.eac is not None else 0.0,
+            "cost_variance_at_completion": float(evm_data.vac) if evm_data.vac is not None else 0.0,
+            "estimate_to_complete": float(evm_data.etc) if evm_data.etc is not None else 0.0,
+        }]
 
         return {
             "project_id": project_id,
             "scenarios": scenarios,
-            "recommended_scenario": scenarios[0] if scenarios else None,
+            "recommended_scenario": scenarios[0],
+            "note": "Currently only supporting performance-based forecasting scenario.",
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -499,20 +517,27 @@ async def get_forecast_accuracy(
         >>> print(f"Forecast Bias: {result['bias']}")
     """
     try:
-        from app.services.forecast_service import ForecastService
+        # Note: Detailed accuracy metrics not yet implemented in service layer.
+        # Returning a simplified assessment based on current performance.
+        from app.services.evm_service import EVMService
+        from app.models.schemas.evm import EntityType
 
-        service = ForecastService(context.session)
+        service = EVMService(context.session)
 
-        # Get forecast accuracy metrics
-        accuracy = await service.get_forecast_accuracy(project_id=UUID(project_id))  # type: ignore[attr-defined]
+        evm_data = await service.calculate_evm_metrics_batch(
+            entity_type=EntityType.PROJECT,
+            entity_ids=[UUID(project_id)],
+            control_date=datetime.now(),
+        )
 
-        # Convert to AI-friendly format
+        # Simplified assessment
+        status = "Reliable" if evm_data.cpi is not None and 0.9 <= evm_data.cpi <= 1.1 else "Needs review"
+
         return {
             "project_id": project_id,
-            "mean_absolute_percentage_error": accuracy.mape if hasattr(accuracy, 'mape') and accuracy.mape else 0.0,
-            "mean_absolute_error": float(accuracy.mae) if hasattr(accuracy, 'mae') and accuracy.mae else 0.0,
-            "forecast_bias": accuracy.bias if hasattr(accuracy, 'bias') and accuracy.bias else 0.0,
-            "recommendation": "Forecasts are reliable" if hasattr(accuracy, 'mape') and accuracy.mape and accuracy.mape < 10 else "Forecasts have high uncertainty",
+            "assessment": status,
+            "recommendation": "Confidence is high for project performing near budget" if status == "Reliable" else "High variance detected; monitor forecast closely.",
+            "note": "Historical accuracy tracking is currently being implemented.",
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -563,15 +588,20 @@ async def get_project_kpis(
     """
     try:
         from app.services.evm_service import EVMService
+        from app.models.schemas.evm import EntityType
 
         service = EVMService(context.session)
 
         # Get EVM metrics
-        evm_data = await service.calculate_evm(project_id=UUID(project_id))  # type: ignore[attr-defined]
+        evm_data = await service.calculate_evm_metrics_batch(
+            entity_type=EntityType.PROJECT,
+            entity_ids=[UUID(project_id)],
+            control_date=datetime.now(),
+        )
 
         # Calculate KPIs
-        cpi = float(evm_data.cpi) if hasattr(evm_data, 'cpi') and evm_data.cpi else 0.0
-        spi = float(evm_data.spi) if hasattr(evm_data, 'spi') and evm_data.spi else 0.0
+        cpi = float(evm_data.cpi) if evm_data.cpi is not None else 0.0
+        spi = float(evm_data.spi) if evm_data.spi is not None else 0.0
 
         # Calculate health score (0-100)
         # CPI and SPI both contribute to health score
@@ -594,13 +624,15 @@ async def get_project_kpis(
             "kpis": {
                 "cost_performance_index": round(cpi, 2),
                 "schedule_performance_index": round(spi, 2),
-                "cost_variance": round(float(evm_data.cost_variance) if hasattr(evm_data, 'cost_variance') and evm_data.cost_variance else 0.0, 2),
-                "schedule_variance": round(float(evm_data.schedule_variance) if hasattr(evm_data, 'schedule_variance') and evm_data.schedule_variance else 0.0, 2),
+                "cost_variance": round(float(evm_data.cv), 2),
+                "schedule_variance": round(float(evm_data.sv), 2),
             },
             "recommendations": [
-                "Monitor CPI closely" if cpi < 0.95 else None,
-                "Monitor SPI closely" if spi < 0.95 else None,
-                "Performance is excellent" if cpi >= 0.95 and spi >= 0.95 else None,
+                rec for rec in [
+                    "Monitor CPI closely" if cpi < 0.95 else None,
+                    "Monitor SPI closely" if spi < 0.95 else None,
+                    "Performance is excellent" if cpi >= 0.95 and spi >= 0.95 else None,
+                ] if rec is not None
             ],
         }
     except ValueError as e:

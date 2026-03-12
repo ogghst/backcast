@@ -95,7 +95,7 @@ logger = logging.getLogger(__name__)
 
 
 # Constants
-DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant for the Backcast EVS project budget management system.
+DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant for the Backcast project budget management system.
 
 You can help with:
 - Listing and viewing projects
