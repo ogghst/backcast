@@ -34,9 +34,10 @@ WORKDIR /app
 COPY backend/app ./app
 COPY backend/alembic ./alembic
 COPY backend/alembic.ini ./
+COPY backend/config ./config
 
 # Create necessary directories
-RUN mkdir -p /app/logs /app/config && \
+RUN mkdir -p /app/logs && \
     chown -R appuser:appuser /app
 
 # Copy entrypoint script
