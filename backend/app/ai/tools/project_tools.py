@@ -1,11 +1,13 @@
 """Project tools for AI agent.
 
-Migrated from backend/app/ai/tools/__init__.py to use @ai_tool decorator.
+Migrated from backend/app/ai/tools/__init__.py to use @ai_tool decorator
+with LangChain's native docstring parsing for parameter descriptions.
 """
 
 import logging
-from typing import Any
-from uuid import UUID
+from typing import Annotated, Any
+
+from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.types import ToolContext
@@ -15,8 +17,7 @@ logger = logging.getLogger(__name__)
 
 @ai_tool(
     name="list_projects",
-    description="List all projects in the system with optional search, status filter, and pagination. "
-                "Returns project code, name, status, budget, and dates.",
+    description="List all projects in the system with optional search, status filter, and pagination.",
     permissions=["project-read"],
     category="projects"
 )
@@ -27,25 +28,32 @@ async def list_projects(
     limit: int = 20,
     sort_field: str | None = None,
     sort_order: str = "asc",
-    context: ToolContext | None = None,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
-    """List all projects in the system.
+    """List all projects in the system with filtering and pagination.
+
+    Context: Provides database session and user context for executing the query.
 
     Args:
-        search: Search term for project code or name
-        status: Filter by status code (e.g., 'ACT', 'PLN')
-        skip: Number of records to skip for pagination
-        limit: Maximum number of records to return
-        sort_field: Field to sort by (e.g., 'name', 'code')
-        sort_order: Sort order (asc or desc)
+        search: Optional search term for project code or name
+        status: Optional status filter (e.g., 'ACT' for active, 'PLN' for planned)
+        skip: Number of records to skip for pagination (default 0)
+        limit: Maximum number of records to return (default 20)
+        sort_field: Optional field to sort by (e.g., 'name', 'code')
+        sort_order: Sort order, either 'asc' or 'desc' (default 'asc')
         context: Injected tool execution context
 
     Returns:
-        Dictionary with projects list, total count, skip, and limit
-    """
-    # Context is validated by decorator
-    assert context is not None
+        Dictionary containing:
+            - projects: List of project objects with id, code, name, status, budget, dates
+            - total: Total count of projects matching filters
+            - skip: Pagination skip value
+            - limit: Pagination limit value
 
+    Raises:
+        ValueError: If invalid filter parameters are provided
+    """
+    # Context is injected by decorator
     try:
         # Build filter string if status is provided
         filters = f"status:{status}" if status else None
@@ -85,28 +93,42 @@ async def list_projects(
 
 @ai_tool(
     name="get_project",
-    description="Get detailed information about a specific project by its ID. "
-                "Requires the project ID as a UUID string.",
+    description="Get detailed information about a specific project by its ID.",
     permissions=["project-read"],
     category="projects"
 )
 async def get_project(
     project_id: str,
-    context: ToolContext | None = None,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Get detailed information about a specific project.
+
+    Context: Provides database session and user context for retrieving project data.
 
     Args:
         project_id: Project ID as UUID string
         context: Injected tool execution context
 
     Returns:
-        Dictionary with detailed project information
-    """
-    # Context is validated by decorator
-    assert context is not None
+        Dictionary containing detailed project information:
+            - id: Project ID
+            - code: Project code
+            - name: Project name
+            - description: Project description
+            - status: Project status code
+            - budget: Project budget amount
+            - start_date: Project start date (ISO format)
+            - end_date: Project end date (ISO format)
+            - branch: Git branch for the project
 
+    Raises:
+        ValueError: If project_id is not a valid UUID format
+        KeyError: If project is not found
+    """
+    # Context is injected by decorator
     try:
+        from uuid import UUID
+
         project = await context.project_service.get_by_id(UUID(project_id))
 
         if not project:

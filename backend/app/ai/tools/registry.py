@@ -5,7 +5,7 @@ import inspect
 import logging
 from typing import Any
 
-from langchain_core.tools import StructuredTool
+from langchain_core.tools import BaseTool
 
 from app.ai.tools.types import ToolContext, ToolMetadata
 
@@ -19,7 +19,7 @@ class ToolRegistry:
     - Auto-discovery of @ai_tool decorated functions
     - Permission-based filtering
     - Category grouping
-    - LangChain StructuredTool conversion
+    - LangChain BaseTool conversion (typically StructuredTool)
     """
 
     def __init__(self) -> None:
@@ -81,19 +81,19 @@ class ToolRegistry:
         self,
         context: ToolContext,
         permissions: list[str] | None = None
-    ) -> list[StructuredTool]:
-        """Convert registered tools to LangChain StructuredTool instances.
+    ) -> list[BaseTool]:
+        """Convert registered tools to LangChain BaseTool instances.
 
         Args:
             context: Tool context for execution
             permissions: Optional permission filter (only include tools with these permissions)
 
         Returns:
-            List of LangChain StructuredTool instances
+            List of LangChain BaseTool instances (typically StructuredTool)
         """
         from app.ai.tools.decorator import to_langchain_tool
 
-        tools: list[StructuredTool] = []
+        tools: list[BaseTool] = []
         for name, func in self._tools.items():
             metadata = self._metadata[name]
 
@@ -187,14 +187,14 @@ def get_tools_by_category(category: str) -> list[ToolMetadata]:
 def as_langchain_tools(
     context: ToolContext,
     permissions: list[str] | None = None
-) -> list[StructuredTool]:
-    """Get all tools as LangChain StructuredTool instances.
+) -> list[BaseTool]:
+    """Get all tools as LangChain BaseTool instances.
 
     Args:
         context: Tool context
         permissions: Optional permission filter
 
     Returns:
-        List of LangChain StructuredTool instances
+        List of LangChain BaseTool instances (typically StructuredTool)
     """
     return _registry.as_langchain_tools(context, permissions)

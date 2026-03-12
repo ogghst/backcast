@@ -9,12 +9,15 @@ from typing import Any, Literal
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from app.ai.state import AgentState
+from app.ai.tools.rbac_tool_node import RBACToolNode
+from app.ai.tools.types import ToolContext
 
 # Constants
 MAX_TOOL_ITERATIONS = 5
@@ -99,7 +102,7 @@ def create_agent_node(
 
     async def agent_node(
         state: AgentState,
-        config: dict[str, Any] | None = None,
+        config: RunnableConfig | None = None,
     ) -> dict[str, Any]:
         """Agent node that calls the LLM with tools bound.
 
@@ -141,6 +144,7 @@ def create_agent_node(
 def create_graph(
     llm: BaseChatModel,
     tools: list[BaseTool],
+    context: ToolContext | None = None,
 ) -> Any:  # Returns CompiledStateGraph[AgentState]
     """Create and compile a StateGraph for agent orchestration.
 
@@ -151,6 +155,7 @@ def create_graph(
     Args:
         llm: The language model to use for the agent
         tools: List of tools available to the agent
+        context: Optional ToolContext for RBAC permission checking in RBACToolNode
 
     Returns:
         Compiled StateGraph ready for invocation
@@ -158,10 +163,12 @@ def create_graph(
     Examples:
         >>> from langchain_openai import ChatOpenAI
         >>> from app.ai.tools import create_project_tools
+        >>> from app.ai.tools.types import ToolContext
         >>>
         >>> llm = ChatOpenAI(model="gpt-4")
+        >>> context = ToolContext(session, user_id, user_role="admin")
         >>> tools = create_project_tools(context)
-        >>> graph = create_graph(llm, tools)
+        >>> graph = create_graph(llm, tools, context)
         >>>
         >>> # Invoke the graph
         >>> result = await graph.ainvoke({
@@ -178,9 +185,13 @@ def create_graph(
     # This ensures LangGraph properly detects and handles the async nature
     workflow.add_node("agent", create_agent_node(llm, tools))
 
-    # Add tools node using LangGraph's prebuilt ToolNode
-    # ToolNode automatically handles tool execution and result formatting
-    tool_node = ToolNode(tools)
+    # Add tools node using RBACToolNode for permission checking
+    # If context is provided, RBACToolNode will check permissions before execution
+    # Otherwise, falls back to standard ToolNode behavior
+    if context:
+        tool_node: RBACToolNode | ToolNode = RBACToolNode(tools, context)
+    else:
+        tool_node = ToolNode(tools)
     workflow.add_node("tools", tool_node)
 
     # Set entry point

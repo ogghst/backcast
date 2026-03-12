@@ -24,12 +24,17 @@ Usage:
     5. Return results in AI-friendly format
 """
 
-from typing import Any
+import logging
+from typing import Annotated, Any
+
+from langchain_core.tools import BaseTool, InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.types import ToolContext
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
 from app.models.schemas.wbe import WBECreate
+
+logger = logging.getLogger(__name__)
 
 # =============================================================================
 # PROJECT CRUD TOOLS
@@ -49,9 +54,11 @@ async def list_projects(
     limit: int = 100,
     sort_field: str | None = None,
     sort_order: str = "asc",
-    context: ToolContext = None,  # type: ignore[assignment]
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """List and search projects.
+
+    Context: Provides database session and project service for querying projects.
 
     Args:
         search: Optional search term to filter projects by name or code
@@ -60,7 +67,7 @@ async def list_projects(
         limit: Maximum number of records to return
         sort_field: Field to sort by (e.g., "name", "code", "budget")
         sort_order: Sort order ("asc" or "desc")
-        context: Tool context with database session and user info
+        context: Injected tool execution context
 
     Returns:
         Dictionary with:
@@ -69,41 +76,48 @@ async def list_projects(
         - skip: Number of records skipped
         - limit: Maximum records returned
 
+    Raises:
+        ValueError: If invalid filter parameters are provided
+
     Example:
         >>> result = await list_projects(search="Alpha", limit=10)
         >>> print(f"Found {result['total']} projects")
         >>> for project in result['projects']:
         ...     print(f"- {project['name']} ({project['code']})")
     """
-    # Use ProjectService from context
-    service = context.project_service
+    try:
+        # Use ProjectService from context
+        service = context.project_service
 
-    # Call service method (business logic is in the service)
-    projects, total = await service.get_projects(
-        search=search,
-        skip=skip,
-        limit=limit,
-        sort_field=sort_field,
-        sort_order=sort_order,
-    )
+        # Call service method (business logic is in the service)
+        projects, total = await service.get_projects(
+            search=search,
+            skip=skip,
+            limit=limit,
+            sort_field=sort_field,
+            sort_order=sort_order,
+        )
 
-    # Convert to AI-friendly format
-    return {
-        "projects": [
-            {
-                "id": str(p.project_id),
-                "name": p.name,
-                "code": p.code,
-                "description": p.description,
-                "status": p.status,
-                "budget": float(p.budget) if p.budget else None,
-            }
-            for p in projects
-        ],
-        "total": total,
-        "skip": skip,
-        "limit": limit,
-    }
+        # Convert to AI-friendly format
+        return {
+            "projects": [
+                {
+                    "id": str(p.project_id),
+                    "name": p.name,
+                    "code": p.code,
+                    "description": p.description,
+                    "status": p.status,
+                    "budget": float(p.budget) if p.budget else None,
+                }
+                for p in projects
+            ],
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+        }
+    except Exception as e:
+        logger.error(f"Error in list_projects: {e}")
+        return {"error": str(e)}
 
 
 @ai_tool(
@@ -115,16 +129,22 @@ async def list_projects(
 )
 async def get_project(
     project_id: str,
-    context: ToolContext = None,  # type: ignore[assignment]
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Get a single project by ID.
 
+    Context: Provides database session and project service for retrieving project data.
+
     Args:
         project_id: UUID of the project to retrieve
-        context: Tool context with database session and user info
+        context: Injected tool execution context
 
     Returns:
         Dictionary with project details or error if not found
+
+    Raises:
+        ValueError: If project_id is not a valid UUID format
+        KeyError: If project is not found
 
     Example:
         >>> result = await get_project("123e4567-e89b-12d3-a456-426614174000")
@@ -132,22 +152,33 @@ async def get_project(
         ...     print(f"Project: {result['name']}")
         ...     print(f"Budget: ${result['budget']}")
     """
-    service = context.project_service
+    try:
+        from uuid import UUID
 
-    # Call service method
-    project = await service.get_by_id(project_id)
+        service = context.project_service
 
-    # Convert to AI-friendly format
-    return {
-        "id": str(project.project_id),
-        "name": project.name,
-        "code": project.code,
-        "description": project.description,
-        "status": project.status,
-        "budget": float(project.budget) if project.budget else None,
-        "start_date": project.start_date.isoformat() if project.start_date else None,
-        "end_date": project.end_date.isoformat() if project.end_date else None,
-    }
+        # Call service method
+        project = await service.get_by_id(UUID(project_id))
+
+        if not project:
+            return {"error": f"Project {project_id} not found"}
+
+        # Convert to AI-friendly format
+        return {
+            "id": str(project.project_id),
+            "name": project.name,
+            "code": project.code,
+            "description": project.description,
+            "status": project.status,
+            "budget": float(project.budget) if project.budget else None,
+            "start_date": project.start_date.isoformat() if project.start_date else None,
+            "end_date": project.end_date.isoformat() if project.end_date else None,
+        }
+    except ValueError:
+        return {"error": f"Invalid project ID: {project_id}"}
+    except Exception as e:
+        logger.error(f"Error in get_project: {e}")
+        return {"error": str(e)}
 
 
 @ai_tool(
@@ -164,9 +195,11 @@ async def create_project(
     budget: float | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
-    context: ToolContext = None,  # type: ignore[assignment]
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Create a new project.
+
+    Context: Provides database session and project service for creating projects.
 
     Args:
         name: Project name
@@ -175,10 +208,13 @@ async def create_project(
         budget: Optional project budget
         start_date: Optional start date (ISO format string)
         end_date: Optional end date (ISO format string)
-        context: Tool context with database session and user info
+        context: Injected tool execution context
 
     Returns:
         Dictionary with created project details
+
+    Raises:
+        ValueError: If invalid date format or duplicate code
 
     Example:
         >>> result = await create_project(
@@ -188,32 +224,38 @@ async def create_project(
         ... )
         >>> print(f"Created project with ID: {result['id']}")
     """
-    service = context.project_service
+    try:
+        from datetime import datetime
 
-    # Create Pydantic schema for service call
-    from datetime import datetime
+        service = context.project_service
 
-    project_data = ProjectCreate(
-        name=name,
-        code=code,
-        description=description,
-        budget=budget,
-        start_date=datetime.fromisoformat(start_date) if start_date else None,
-        end_date=datetime.fromisoformat(end_date) if end_date else None,
-    )
+        # Create Pydantic schema for service call
+        project_data = ProjectCreate(
+            name=name,
+            code=code,
+            description=description,
+            budget=budget,
+            start_date=datetime.fromisoformat(start_date) if start_date else None,
+            end_date=datetime.fromisoformat(end_date) if end_date else None,
+        )
 
-    # Call service method
-    project = await service.create(project_data)
+        # Call service method
+        project = await service.create(project_data)  # type: ignore[arg-type]
 
-    # Convert to AI-friendly format
-    return {
-        "id": str(project.project_id),
-        "name": project.name,
-        "code": project.code,
-        "description": project.description,
-        "status": project.status,
-        "budget": float(project.budget) if project.budget else None,
-    }
+        # Convert to AI-friendly format
+        return {
+            "id": str(project.project_id),
+            "name": project.name,
+            "code": project.code,
+            "description": project.description,
+            "status": project.status,
+            "budget": float(project.budget) if project.budget else None,
+        }
+    except ValueError as e:
+        return {"error": f"Invalid input: {e}"}
+    except Exception as e:
+        logger.error(f"Error in create_project: {e}")
+        return {"error": str(e)}
 
 
 @ai_tool(
@@ -229,9 +271,11 @@ async def update_project(
     description: str | None = None,
     budget: float | None = None,
     status: str | None = None,
-    context: ToolContext = None,  # type: ignore[assignment]
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Update an existing project.
+
+    Context: Provides database session and project service for updating projects.
 
     Args:
         project_id: UUID of the project to update
@@ -239,10 +283,14 @@ async def update_project(
         description: New description (optional)
         budget: New budget (optional)
         status: New status (optional)
-        context: Tool context with database session and user info
+        context: Injected tool execution context
 
     Returns:
         Dictionary with updated project details
+
+    Raises:
+        ValueError: If project_id is invalid or no fields provided
+        KeyError: If project not found
 
     Example:
         >>> result = await update_project(
@@ -252,28 +300,38 @@ async def update_project(
         ... )
         >>> print(f"Updated project budget to: ${result['budget']}")
     """
-    service = context.project_service
+    try:
+        from uuid import UUID
 
-    # Create update schema with only provided fields
-    update_data = ProjectUpdate(
-        name=name,
-        description=description,
-        budget=budget,
-        status=status,
-    )
+        service = context.project_service
 
-    # Call service method
-    project = await service.update(project_id, update_data)
+        # Create update schema with only provided fields
+        update_data = ProjectUpdate(
+            name=name,
+            description=description,
+            budget=budget,
+            status=status,
+        )
 
-    # Convert to AI-friendly format
-    return {
-        "id": str(project.project_id),
-        "name": project.name,
-        "code": project.code,
-        "description": project.description,
-        "status": project.status,
-        "budget": float(project.budget) if project.budget else None,
-    }
+        # Call service method
+        project = await service.update(UUID(project_id), update_data, branch="main")  # type: ignore[arg-type]
+
+        # Convert to AI-friendly format
+        return {
+            "id": str(project.project_id),
+            "name": project.name,
+            "code": project.code,
+            "description": project.description,
+            "status": project.status,
+            "budget": float(project.budget) if project.budget else None,
+        }
+    except ValueError as e:
+        return {"error": f"Invalid input: {e}"}
+    except KeyError:
+        return {"error": f"Project {project_id} not found"}
+    except Exception as e:
+        logger.error(f"Error in update_project: {e}")
+        return {"error": str(e)}
 
 
 # =============================================================================
@@ -292,52 +350,68 @@ async def list_wbes(
     search: str | None = None,
     skip: int = 0,
     limit: int = 100,
-    context: ToolContext = None,  # type: ignore[assignment]
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """List WBEs with optional filtering.
+
+    Context: Provides database session and WBE service for querying WBEs.
 
     Args:
         project_id: Optional project ID to filter WBEs
         search: Optional search term
         skip: Number of records to skip
         limit: Maximum records to return
-        context: Tool context with database session and user info
+        context: Injected tool execution context
 
     Returns:
         Dictionary with WBE list and total count
+
+    Raises:
+        ValueError: If invalid filter parameters
 
     Example:
         >>> result = await list_wbes(project_id="...", limit=20)
         >>> print(f"Found {result['total']} WBEs")
     """
-    from app.services.wbe import WBEService
+    try:
+        from uuid import UUID
 
-    service = WBEService(context.session)
+        from app.services.wbe import WBEService
 
-    # Call service method
-    wbes, total = await service.get_wbes(
-        project_id=project_id,
-        search=search,
-        skip=skip,
-        limit=limit,
-    )
+        service = WBEService(context.session)
 
-    # Convert to AI-friendly format
-    return {
-        "wbes": [
-            {
-                "id": str(w.wbe_id),
-                "name": w.name,
-                "code": w.code,
-                "project_id": str(w.project_id),
-                "budget": float(w.budget) if w.budget else None,
-            }
-            for w in wbes
-        ],
-        "total": total,
-        "skip": skip,
-        "limit": limit,
-    }
+        # Convert project_id to UUID if provided
+        project_uuid = UUID(project_id) if project_id else None
+
+        # Call service method
+        wbes, total = await service.get_wbes(
+            project_id=project_uuid,
+            search=search,
+            skip=skip,
+            limit=limit,
+        )
+
+        # Convert to AI-friendly format
+        return {
+            "wbes": [
+                {
+                    "id": str(w.wbe_id),
+                    "name": w.name,
+                    "code": w.code,
+                    "project_id": str(w.project_id),
+                    "budget": float(w.budget) if hasattr(w, 'budget') and w.budget else None,
+                }
+                for w in wbes
+            ],
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+        }
+    except ValueError as e:
+        return {"error": f"Invalid input: {e}"}
+    except Exception as e:
+        logger.error(f"Error in list_wbes: {e}")
+        return {"error": str(e)}
 
 
 @ai_tool(
@@ -348,37 +422,56 @@ async def list_wbes(
 )
 async def get_wbe(
     wbe_id: str,
-    context: ToolContext = None,  # type: ignore[assignment]
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Get a single WBE by ID.
 
+    Context: Provides database session and WBE service for retrieving WBE data.
+
     Args:
         wbe_id: UUID of the WBE to retrieve
-        context: Tool context with database session and user info
+        context: Injected tool execution context
 
     Returns:
         Dictionary with WBE details
+
+    Raises:
+        ValueError: If wbe_id is not a valid UUID format
+        KeyError: If WBE not found
 
     Example:
         >>> result = await get_wbe("123e4567-e89b-12d3-a456-426614174000")
         >>> print(f"WBE: {result['name']} - Budget: ${result['budget']}")
     """
-    from app.services.wbe import WBEService
+    try:
+        from uuid import UUID
 
-    service = WBEService(context.session)
+        from app.services.wbe import WBEService
 
-    # Call service method
-    wbe = await service.get_by_id(wbe_id)
+        service = WBEService(context.session)
 
-    # Convert to AI-friendly format
-    return {
-        "id": str(wbe.wbe_id),
-        "name": wbe.name,
-        "code": wbe.code,
-        "project_id": str(wbe.project_id),
-        "budget": float(wbe.budget) if wbe.budget else None,
-        "description": wbe.description,
-    }
+        # Call service method
+        wbe = await service.get_by_id(UUID(wbe_id))
+
+        if not wbe:
+            return {"error": f"WBE {wbe_id} not found"}
+
+        # Convert to AI-friendly format
+        return {
+            "id": str(wbe.wbe_id),
+            "name": wbe.name,
+            "code": wbe.code,
+            "project_id": str(wbe.project_id),
+            "budget": float(wbe.budget) if hasattr(wbe, 'budget') and wbe.budget else None,
+            "description": wbe.description if hasattr(wbe, 'description') else None,
+        }
+    except ValueError:
+        return {"error": f"Invalid WBE ID: {wbe_id}"}
+    except KeyError:
+        return {"error": f"WBE {wbe_id} not found"}
+    except Exception as e:
+        logger.error(f"Error in get_wbe: {e}")
+        return {"error": str(e)}
 
 
 @ai_tool(
@@ -393,9 +486,11 @@ async def create_wbe(
     code: str,
     budget: float | None = None,
     description: str | None = None,
-    context: ToolContext = None,  # type: ignore[assignment]
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Create a new WBE.
+
+    Context: Provides database session and WBE service for creating WBEs.
 
     Args:
         project_id: UUID of the parent project
@@ -403,10 +498,13 @@ async def create_wbe(
         code: Unique WBE code
         budget: Optional budget allocation
         description: Optional description
-        context: Tool context with database session and user info
+        context: Injected tool execution context
 
     Returns:
         Dictionary with created WBE details
+
+    Raises:
+        ValueError: If invalid input or duplicate code
 
     Example:
         >>> result = await create_wbe(
@@ -417,31 +515,39 @@ async def create_wbe(
         ... )
         >>> print(f"Created WBE with ID: {result['id']}")
     """
-    from app.services.wbe import WBEService
+    try:
+        from uuid import UUID
 
-    service = WBEService(context.session)
+        from app.services.wbe import WBEService
 
-    # Create schema
-    wbe_data = WBECreate(
-        project_id=project_id,
-        name=name,
-        code=code,
-        budget=budget,
-        description=description,
-    )
+        service = WBEService(context.session)
 
-    # Call service method
-    wbe = await service.create(wbe_data)
+        # Create schema
+        wbe_data = WBECreate(
+            project_id=UUID(project_id),
+            name=name,
+            code=code,
+            budget=budget,
+            description=description,
+        )
 
-    # Convert to AI-friendly format
-    return {
-        "id": str(wbe.wbe_id),
-        "name": wbe.name,
-        "code": wbe.code,
-        "project_id": str(wbe.project_id),
-        "budget": float(wbe.budget) if wbe.budget else None,
-        "description": wbe.description,
-    }
+        # Call service method
+        wbe = await service.create(wbe_data)  # type: ignore[arg-type]
+
+        # Convert to AI-friendly format
+        return {
+            "id": str(wbe.wbe_id),
+            "name": wbe.name,
+            "code": wbe.code,
+            "project_id": str(wbe.project_id),
+            "budget": float(wbe.budget) if hasattr(wbe, 'budget') and wbe.budget else None,
+            "description": wbe.description if hasattr(wbe, 'description') else None,
+        }
+    except ValueError as e:
+        return {"error": f"Invalid input: {e}"}
+    except Exception as e:
+        logger.error(f"Error in create_wbe: {e}")
+        return {"error": str(e)}
 
 
 # =============================================================================
@@ -498,4 +604,3 @@ TESTING:
     - Validate output format
     - Test error handling
 """
-# type: ignore[misc]

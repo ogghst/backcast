@@ -253,7 +253,17 @@ class AgentService:
         )
 
         # Create tools
-        tool_context = ToolContext(self.session, str(user_id))
+        # Fetch user to get their role for RBAC
+        from sqlalchemy import select
+        from app.models.domain.user import User
+
+        user_result = await self.session.execute(
+            select(User).where(User.user_id == user_id)
+        )
+        user = user_result.scalar_one_or_none()
+        user_role = user.role if user else "guest"
+
+        tool_context = ToolContext(self.session, str(user_id), user_role=user_role)
         available_tools = create_project_tools(tool_context)
         tools_dict = {tool.name: tool for tool in available_tools}
 
@@ -265,8 +275,8 @@ class AgentService:
                 if name in assistant_config.allowed_tools
             }
 
-        # Create graph
-        graph = create_graph(llm=llm, tools=list(tools_dict.values()))
+        # Create graph with context for RBAC
+        graph = create_graph(llm=llm, tools=list(tools_dict.values()), context=tool_context)
 
         # Invoke the graph
         result = await graph.ainvoke(
@@ -403,7 +413,17 @@ class AgentService:
         )
 
         # Create tools
-        tool_context = ToolContext(db, str(user_id))
+        # Fetch user to get their role for RBAC
+        from sqlalchemy import select
+        from app.models.domain.user import User
+
+        user_result = await db.execute(
+            select(User).where(User.user_id == user_id)
+        )
+        user = user_result.scalar_one_or_none()
+        user_role = user.role if user else "guest"
+
+        tool_context = ToolContext(db, str(user_id), user_role=user_role)
         available_tools = create_project_tools(tool_context)
         tools_dict = {tool.name: tool for tool in available_tools}
 
@@ -415,8 +435,8 @@ class AgentService:
                 if name in assistant_config.allowed_tools
             }
 
-        # Create graph
-        graph = create_graph(llm=llm, tools=list(tools_dict.values()))
+        # Create graph with context for RBAC
+        graph = create_graph(llm=llm, tools=list(tools_dict.values()), context=tool_context)
 
         # Stream using astream_events
         accumulated_content = ""

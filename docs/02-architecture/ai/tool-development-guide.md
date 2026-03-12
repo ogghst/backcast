@@ -13,11 +13,15 @@ This guide explains how to create, test, and deploy AI tools for the Backcast EV
 ### What is an AI Tool?
 
 An AI tool is an async function decorated with `@ai_tool` that:
+
 - Wraps an existing service method (no business logic duplication)
 - Enforces RBAC permissions at the tool level
 - Receives context (database session, user ID) via dependency injection
 - Returns structured data that the LLM can use in responses
 - Is auto-discovered by the tool registry
+
+> [!NOTE]
+> The `@ai_tool` decorator converts the function into a LangChain `BaseTool` instance. To execute the tool in Python code (like in tests), you must use `.ainvoke()` instead of calling it directly.
 
 ### Key Principles
 
@@ -38,6 +42,9 @@ Create a new file in `app/ai/tools/` or add to an existing file:
 ```python
 # app/ai/tools/project_tools.py
 
+from typing import Annotated
+from langchain_core.tools import InjectedToolArg
+
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.types import ToolContext
 from app.services.project import ProjectService
@@ -50,7 +57,7 @@ from app.services.project import ProjectService
 )
 async def get_project_details(
     project_id: str,
-    context: ToolContext
+    context: Annotated[ToolContext, InjectedToolArg] = None,
 ) -> dict[str, object]:
     """Get detailed information for a project.
 
@@ -99,10 +106,10 @@ async def test_get_project_details_success():
     context.check_permission = AsyncMock(return_value=True)
 
     # Act
-    result = await get_project_details(
-        project_id="123e4567-e89b-12d3-a456-426614174000",
-        context=context
-    )
+    result = await get_project_details.ainvoke({
+        "project_id": "123e4567-e89b-12d3-a456-426614174000",
+        "context": context
+    })
 
     # Assert
     assert "error" not in result
@@ -148,7 +155,7 @@ The `@ai_tool` decorator provides:
 async def tool_function(
     param1: type1,         # Tool parameters (what LLM provides)
     param2: type2,
-    context: ToolContext,  # Always last parameter (injected automatically)
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # Always last parameter (injected automatically)
 ) -> dict[str, Any]:      # Return structured data
     """Docstring becomes tool description if not provided to decorator."""
     # Implementation
@@ -172,7 +179,7 @@ async def list_projects(
     search: str | None = None,
     status: str | None = None,
     limit: int = 100,
-    context: ToolContext
+    context: Annotated[ToolContext, InjectedToolArg] = None,
 ) -> list[dict[str, object]]:
     """List projects with optional search and status filter.
 
@@ -209,7 +216,7 @@ async def list_projects(
 )
 async def get_project(
     project_id: str,
-    context: ToolContext
+    context: Annotated[ToolContext, InjectedToolArg] = None,
 ) -> dict[str, object]:
     """Get detailed project information.
 
@@ -250,7 +257,7 @@ async def create_project(
     status: str = "PLN",
     budget: float | None = None,
     description: str | None = None,
-    context: ToolContext
+    context: Annotated[ToolContext, InjectedToolArg] = None,
 ) -> dict[str, object]:
     """Create a new project.
 
@@ -297,7 +304,7 @@ async def create_project(
 )
 async def calculate_evm_metrics(
     project_id: str,
-    context: ToolContext
+    context: Annotated[ToolContext, InjectedToolArg] = None,
 ) -> dict[str, float]:
     """Calculate EVM metrics for a project.
 
@@ -330,12 +337,14 @@ async def calculate_evm_metrics(
 ### 1. Service Wrapping
 
 ✅ **DO:** Wrap existing service methods
+
 ```python
 service = ProjectService(context.db_session)
 projects = await service.get_projects(search=search)
 ```
 
 ❌ **DON'T:** Duplicate business logic
+
 ```python
 # Bad: Direct database access
 from app.models.domain.project import Project
@@ -345,6 +354,7 @@ result = await context.db_session.execute(select(Project).where(...))
 ### 2. Error Handling
 
 ✅ **DO:** Let the decorator handle exceptions
+
 ```python
 project = await service.get_project(project_id)
 if not project:
@@ -353,6 +363,7 @@ return project.to_dict()
 ```
 
 ❌ **DON'T:** Swallow exceptions
+
 ```python
 try:
     project = await service.get_project(project_id)
@@ -363,14 +374,16 @@ except Exception as e:
 ### 3. Type Hints
 
 ✅ **DO:** Use precise type hints
+
 ```python
 async def get_project(
     project_id: str,
-    context: ToolContext
+    context: Annotated[ToolContext, InjectedToolArg] = None,
 ) -> dict[str, object]:
 ```
 
 ❌ **DON'T:** Use vague types
+
 ```python
 async def get_project(
     project_id: any,
@@ -381,6 +394,7 @@ async def get_project(
 ### 4. Permission Specification
 
 ✅ **DO:** Specify exact permissions needed
+
 ```python
 @ai_tool(
     permissions=["project-read", "evm-read"]  # Specific permissions
@@ -388,6 +402,7 @@ async def get_project(
 ```
 
 ❌ **DON'T:** Use overly broad permissions
+
 ```python
 @ai_tool(
     permissions=["admin"]  # Too broad
@@ -397,12 +412,14 @@ async def get_project(
 ### 5. Context Usage
 
 ✅ **DO:** Use context for database and user
+
 ```python
 service = ProjectService(context.db_session)
 user_id = context.user_id
 ```
 
 ❌ **DON'T:** Accept user_id as parameter (security risk)
+
 ```python
 async def bad_tool(user_id: str, context: ToolContext):
     # User could spoof user_id!
@@ -429,10 +446,10 @@ async def test_list_projects_filters_by_status():
     mock_service.get_projects = AsyncMock(return_value=[])
 
     # Act
-    result = await list_projects(
-        status="ACT",
-        context=context
-    )
+    result = await list_projects.ainvoke({
+        "status": "ACT",
+        "context": context
+    })
 
     # Assert
     assert isinstance(result, list)
@@ -453,7 +470,7 @@ async def test_list_projects_integration(test_db, authenticated_user):
     )
 
     # Act
-    result = await list_projects(context=context)
+    result = await list_projects.ainvoke({"context": context})
 
     # Assert
     assert isinstance(result, list)
@@ -471,7 +488,7 @@ async def test_tool_denied_without_permission():
     context.check_permission = AsyncMock(return_value=False)
 
     # Act
-    result = await secure_tool(context=context)
+    result = await secure_tool.ainvoke({"context": context})
 
     # Assert
     assert "error" in result
@@ -489,7 +506,9 @@ Tools are auto-discovered by the `@ai_tool` decorator. No manual registration ne
 ```python
 # app/ai/tools/__init__.py
 
-def get_all_tools() -> list[Callable]:
+from langchain_core.tools import BaseTool
+
+def get_all_tools() -> list[BaseTool]:
     """Get all registered tools."""
     # Auto-discovery happens via decorator
     # Tools with @_is_ai_tool attribute are collected
@@ -532,7 +551,7 @@ Use pagination for large result sets:
 async def list_projects(
     limit: int = 100,
     offset: int = 0,
-    context: ToolContext
+    context: Annotated[ToolContext, InjectedToolArg] = None,
 ) -> dict[str, Any]:
     projects = await service.get_projects(limit=limit, offset=offset)
     return {
@@ -582,7 +601,7 @@ Use `context.user_id` for filtering:
 projects = await service.get_projects(user_id=context.user_id)
 
 # Bad: Accept user_id as parameter
-async def list_projects(user_id: str, context: ToolContext):
+async def list_projects(user_id: str, context: Annotated[ToolContext, InjectedToolArg] = None):
     # User could impersonate others!
 ```
 
@@ -591,7 +610,7 @@ async def list_projects(user_id: str, context: ToolContext):
 Validate inputs:
 
 ```python
-async def get_project(project_id: str, context: ToolContext):
+async def get_project(project_id: str, context: Annotated[ToolContext, InjectedToolArg] = None):
     # Validate UUID format
     try:
         UUID(project_id)
@@ -636,10 +655,13 @@ context.check_permission = AsyncMock(return_value=True)
 
 ```python
 # ✅ Correct
-async def tool(param1: str, context: ToolContext):
+async def tool(param1: str, context: Annotated[ToolContext, InjectedToolArg] = None):
 
 # ❌ Wrong
 async def tool(context: ToolContext, param1: str):
+
+# ❌ Wrong (missing InjectedToolArg)
+async def tool(param1: str, context: ToolContext):
 ```
 
 ---

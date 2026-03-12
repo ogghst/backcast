@@ -181,6 +181,14 @@ class TestToolRegistry:
         """Test converting to LangChain tools."""
         @ai_tool(name="test_tool", description="Test description")
         async def test_func(value: str) -> dict:
+            '''Test function description.
+
+            Args:
+                value: Input value to process
+
+            Returns:
+                Dictionary with result
+            '''
             return {"result": value}
 
         registry = ToolRegistry()
@@ -203,10 +211,20 @@ class TestToolRegistry:
         """Test converting to LangChain tools with permission filter."""
         @ai_tool(name="tool1", description="Tool 1", permissions=["read"])
         async def func1() -> dict:
+            '''First test function.
+
+            Returns:
+                Empty dictionary
+            '''
             return {}
 
         @ai_tool(name="tool2", description="Tool 2", permissions=["admin"])
         async def func2() -> dict:
+            '''Second test function.
+
+            Returns:
+                Empty dictionary
+            '''
             return {}
 
         registry = ToolRegistry()

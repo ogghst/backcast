@@ -18,11 +18,13 @@ class ToolContext:
     Attributes:
         session: Async database session
         user_id: Authenticated user ID
+        user_role: User's role for RBAC authorization (e.g., "admin", "viewer")
         _permission_cache: Cache for permission checks
     """
 
     session: AsyncSession
     user_id: str
+    user_role: str = "guest"
     _permission_cache: dict[str, bool] = field(default_factory=dict)
 
     @property

@@ -15,7 +15,7 @@ def convert_range_to_list(v: Any) -> list[datetime | None] | None:
         return None
     if hasattr(v, "lower") and hasattr(v, "upper"):
         return [v.lower, v.upper]
-    return v  # type: ignore[no-any-return]
+    return v
 
 
 # Type alias for range fields that need conversion

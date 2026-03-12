@@ -1,228 +1,107 @@
 """AI Tools for natural language queries.
 
 Provides tools that can be used by LangGraph agents.
+Tools are decorated with @ai_tool and return LangChain BaseTool instances.
 """
 
 import logging
-from typing import Any
 
-from langchain_core.tools import StructuredTool
-from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
+from langchain_core.tools import BaseTool
 
-from app.services.project import ProjectService
+from app.ai.tools.project_tools import get_project, list_projects
+from app.ai.tools.types import ToolContext
 
 logger = logging.getLogger(__name__)
 
 
-class ProjectListInput(BaseModel):
-    """Input for list_projects tool."""
+def create_project_tools(context: ToolContext) -> list[BaseTool]:
+    """Create LangChain BaseTool instances for all available AI operations.
 
-    search: str | None = Field(None, description="Search term for project code or name")
-    status: str | None = Field(
-        None, description="Filter by status code (e.g., 'ACT', 'PLN')"
-    )
-    skip: int = Field(0, ge=0, description="Number of records to skip")
-    limit: int = Field(
-        20, ge=1, le=100, description="Maximum number of records to return"
-    )
-    sort_field: str | None = Field(
-        None, description="Field to sort by (e.g., 'name', 'code')"
-    )
-    sort_order: str = Field("asc", description="Sort order (asc or desc)")
-
-
-class ProjectGetInput(BaseModel):
-    """Input for get_project tool."""
-
-    project_id: str = Field(..., description="Project ID as UUID string")
-
-
-class ToolContext:
-    """Context for tool execution with RBAC enforcement."""
-
-    def __init__(self, session: AsyncSession, user_id: str) -> None:
-        self.session = session
-        self.user_id = user_id
-        self.project_service = ProjectService(session)
-
-    async def check_permission(self, permission: str) -> bool:
-        """Check if user has the permission."""
-        # In a real implementation, this would check against the user's roles
-        # For now, we'll just return True for authenticated users
-        return True
-
-
-async def list_projects(
-    search: str | None = None,
-    status: str | None = None,
-    skip: int = 0,
-    limit: int = 20,
-    sort_field: str | None = None,
-    sort_order: str = "asc",
-    context: ToolContext | None = None,
-) -> dict[str, object]:
-    """List all projects in the system.
-
-    Context: LangGraph tool used by the AI agent to search and retrieve paginated projects list.
-
-    Args:
-        search: Search term for project code or name
-        status: Filter by status code (e.g., 'ACT', 'PLN')
-        skip: Number of records to skip for pagination
-        limit: Maximum number of records to return
-        sort_field: Field to sort by (e.g., 'name', 'code')
-        sort_order: Sort order (asc or desc)
-        context: Injected tool execution context with user claims
-
-    Returns:
-        Dictionary with projects list, total count, skip, and limit values.
-        Returns an 'error' key if permission is denied or context is missing.
-
-    Raises:
-        None (errors are caught and returned as dict)
-    """
-    if context is None:
-        return {"error": "Tool context not provided"}
-
-    # Check permission
-    if not await context.check_permission("project-read"):
-        return {"error": "Permission denied: project-read required"}
-
-    try:
-        # Build filter string if status is provided
-        filters = f"status:{status}" if status else None
-
-        projects, total = await context.project_service.get_projects(
-            skip=skip,
-            limit=limit,
-            search=search,
-            filters=filters,
-            sort_field=sort_field,
-            sort_order=sort_order,
-            branch="main",
-        )
-
-        return {
-            "projects": [
-                {
-                    "id": str(p.project_id),
-                    "code": p.code,
-                    "name": p.name,
-                    "description": p.description,
-                    "status": p.status,
-                    "budget": float(p.budget) if p.budget else None,
-                    "start_date": p.start_date.isoformat() if p.start_date else None,
-                    "end_date": p.end_date.isoformat() if p.end_date else None,
-                }
-                for p in projects
-            ],
-            "total": total,
-            "skip": skip,
-            "limit": limit,
-        }
-    except Exception as e:
-        logger.error(f"Error in list_projects: {e}")
-        return {"error": str(e)}
-
-
-async def get_project(
-    project_id: str, context: ToolContext | None = None
-) -> dict[str, object]:
-    """Get detailed information about a specific project.
-
-    Context: LangGraph tool used by the AI agent to retrieve details for a specific project.
-
-    Args:
-        project_id: Project ID as UUID string
-        context: Injected tool execution context with user claims
-
-    Returns:
-        Dictionary with detailed project information.
-        Returns an 'error' key if project is not found or context is missing.
-
-    Raises:
-        None (errors like invalid UUID are caught and returned as dict)
-    """
-    if context is None:
-        return {"error": "Tool context not provided"}
-
-    # Check permission
-    if not await context.check_permission("project-read"):
-        return {"error": "Permission denied: project-read required"}
-
-    try:
-        from uuid import UUID
-
-        project = await context.project_service.get_by_id(UUID(project_id))
-
-        if not project:
-            return {"error": f"Project {project_id} not found"}
-
-        return {
-            "id": str(project.project_id),
-            "code": project.code,
-            "name": project.name,
-            "description": project.description,
-            "status": project.status,
-            "budget": float(project.budget) if project.budget else None,
-            "start_date": project.start_date.isoformat()
-            if project.start_date
-            else None,
-            "end_date": project.end_date.isoformat() if project.end_date else None,
-            "branch": project.branch,
-        }
-    except ValueError:
-        return {"error": f"Invalid project ID: {project_id}"}
-    except Exception as e:
-        logger.error(f"Error in get_project: {e}")
-        return {"error": str(e)}
-
-
-# LangGraph StructuredTool instances
-def create_project_tools(context: ToolContext) -> list[StructuredTool]:
-    """Create LangGraph StructuredTool instances for project operations.
-
-    Context: AgentService uses this to retrieve available tools bound to the current user's session context.
+    Note: This function collects tools from multiple modules. Tools are already
+    BaseTool instances from the @ai_tool decorator.
 
     Args:
         context: Tool context initialized with the authenticated user's session and ID
 
     Returns:
-        List of initialized StructuredTool instances ready to be bound to LangGraph agents
+        List of BaseTool instances ready to be bound to LangGraph agents
+
+    Example:
+        ```python
+        from app.ai.tools import create_project_tools
+        from app.ai.tools.types import ToolContext
+
+        context = ToolContext(session, user_id, user_role="admin")
+        tools = create_project_tools(context)
+
+        # Tools can be used directly in LangGraph
+        graph = create_graph(llm, tools)
+        ```
     """
+    # Import tool modules
+    from app.ai.tools import project_tools
+    from app.ai.tools.templates import (
+        analysis_template,
+        change_order_template,
+        crud_template,
+    )
 
-    async def wrapped_list_projects(**kwargs: Any) -> str:
-        """Wrapped list_projects that includes context."""
-        result = await list_projects(context=context, **kwargs)
-        import json
-
-        return json.dumps(result)
-
-    async def wrapped_get_project(**kwargs: Any) -> str:
-        """Wrapped get_project that includes context."""
-        result = await get_project(context=context, **kwargs)
-        import json
-
-        return json.dumps(result)
-
-    return [
-        StructuredTool.from_function(
-            coroutine=wrapped_list_projects,
-            name="list_projects",
-            description="List all projects in the system with optional search, status filter, and pagination. "
-            "Returns project code, name, status, budget, and dates.",
-            args_schema=ProjectListInput,
-        ),
-        StructuredTool.from_function(
-            coroutine=wrapped_get_project,
-            name="get_project",
-            description="Get detailed information about a specific project by its ID. "
-            "Requires the project ID as a UUID string.",
-            args_schema=ProjectGetInput,
-        ),
+    # Collect all tools from project_tools (production tools)
+    tools: list[BaseTool] = [
+        project_tools.list_projects,
+        project_tools.get_project,
     ]
 
+    # Add tools from crud_template (Project and WBE CRUD operations)
+    # Note: list_projects and get_project are duplicates, so we only add unique ones
+    crud_tools = [
+        crud_template.create_project,
+        crud_template.update_project,
+        crud_template.list_wbes,
+        crud_template.get_wbe,
+        crud_template.create_wbe,
+    ]
+    tools.extend(crud_tools)
 
-# Export for use in agent
-PROJECT_TOOLS: list[StructuredTool] = []  # Will be populated at runtime with context
+    # Add tools from analysis_template (EVM and Forecasting)
+    analysis_tools = [
+        analysis_template.calculate_evm_metrics,
+        analysis_template.get_evm_performance_summary,
+        analysis_template.analyze_cost_variance,
+        analysis_template.analyze_schedule_variance,
+        analysis_template.generate_project_forecast,
+        analysis_template.compare_forecast_scenarios,
+        analysis_template.get_forecast_accuracy,
+        analysis_template.get_project_kpis,
+    ]
+    tools.extend(analysis_tools)
+
+    # Add tools from change_order_template (Change Order management)
+    change_order_tools = [
+        change_order_template.list_change_orders,
+        change_order_template.get_change_order,
+        change_order_template.create_change_order,
+        change_order_template.generate_change_order_draft,
+        change_order_template.submit_change_order_for_approval,
+        change_order_template.approve_change_order,
+        change_order_template.reject_change_order,
+        change_order_template.analyze_change_order_impact,
+    ]
+    tools.extend(change_order_tools)
+
+    # Filter to only BaseTool instances
+    base_tools: list[BaseTool] = [
+        tool for tool in tools if isinstance(tool, BaseTool)
+    ]
+
+    logger.info(f"Created {len(base_tools)} tools for AI chat")
+    return base_tools
+
+
+# Re-export for backwards compatibility
+__all__ = [
+    "create_project_tools",
+    "ToolContext",
+    "list_projects",
+    "get_project",
+]
