@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { Modal, Form, Input, Select, Slider, Switch, Checkbox, Space } from "antd";
+import { Modal, Form, Input, Select, Slider, Switch } from "antd";
 import type { AIAssistantPublic, AIAssistantCreate, AIAssistantUpdate } from "../types";
-import { TOOL_REGISTRY } from "../types";
+import { ToolSelectorPanel } from "./ToolSelectorPanel";
 
 interface AIAssistantModalProps {
   open: boolean;
@@ -9,7 +9,7 @@ interface AIAssistantModalProps {
   onOk: (values: AIAssistantCreate | AIAssistantUpdate) => void | Promise<void>;
   confirmLoading: boolean;
   initialValues?: AIAssistantPublic | null;
-  availableModels?: Array<{ id: string; display_name: string; provider_name: string }>;
+  models?: Array<{ id: string; display_name: string; provider_name?: string }>;
 }
 
 export const AIAssistantModal = ({
@@ -18,7 +18,7 @@ export const AIAssistantModal = ({
   onOk,
   confirmLoading,
   initialValues,
-  availableModels = [],
+  models = [],
 }: AIAssistantModalProps) => {
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
@@ -89,9 +89,9 @@ export const AIAssistantModal = ({
           rules={[{ required: true, message: "Please select a model" }]}
         >
           <Select placeholder="Select a model">
-            {availableModels.map((model) => (
+            {models.map((model) => (
               <Select.Option key={model.id} value={model.id}>
-                {model.display_name} ({model.provider_name})
+                {model.display_name} {model.provider_name ? `(${model.provider_name})` : ""}
               </Select.Option>
             ))}
           </Select>
@@ -124,21 +124,7 @@ export const AIAssistantModal = ({
         </Form.Item>
 
         <Form.Item name="allowed_tools" label="Allowed Tools">
-          <Checkbox.Group style={{ width: "100%" }}>
-            <Space direction="vertical" style={{ width: "100%" }}>
-              {TOOL_REGISTRY.map((tool) => (
-                <Checkbox
-                  key={tool.key}
-                  value={tool.key}
-                  disabled={!tool.implemented}
-                  style={{ width: "100%" }}
-                >
-                  {tool.label}
-                  {!tool.implemented && " (Coming Soon)"}
-                </Checkbox>
-              ))}
-            </Space>
-          </Checkbox.Group>
+          <ToolSelectorPanel />
         </Form.Item>
 
         {isEdit && (

@@ -22,6 +22,7 @@ from app.models.schemas.ai import (
     AIProviderCreate,
     AIProviderPublic,
     AIProviderUpdate,
+    AIToolPublic,
 )
 from app.services.ai_config_service import AIConfigService
 
@@ -333,3 +334,38 @@ async def delete_assistant_config(
         await service.delete_assistant_config(assistant_config_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+# === Tool Routes ===
+
+
+@router.get(
+    "/tools",
+    response_model=list[AIToolPublic],
+    operation_id="list_ai_tools",
+    dependencies=[Depends(RoleChecker(required_permission="ai-config-read"))],
+)
+async def list_ai_tools() -> list[AIToolPublic]:
+    """List all available AI tools.
+
+    Imports and registers all tool templates before querying the registry.
+    """
+    from app.ai.tools.registry import get_all_tools
+
+    # Import tools to ensure they are registered
+    from app.ai.tools import project_tools  # noqa: F401
+    from app.ai.tools.templates import (
+        analysis_template,  # noqa: F401
+        change_order_template,  # noqa: F401
+        crud_template,  # noqa: F401
+    )
+
+    tools = get_all_tools()
+    
+    # Sort tools by category, then by name
+    sorted_tools = sorted(
+        tools,
+        key=lambda t: (t.category or "uncategorized", t.name)
+    )
+    
+    return [AIToolPublic.model_validate(t.to_dict()) for t in sorted_tools]

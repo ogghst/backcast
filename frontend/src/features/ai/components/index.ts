@@ -9,3 +9,5 @@ export * from "./AIModelManagementModal";
 export * from "./AIProviderList";
 export * from "./AIAssistantModal";
 export * from "./AIAssistantList";
+export * from "./ToolDetailModal";
+export * from "./ToolSelectorPanel";

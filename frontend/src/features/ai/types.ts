@@ -124,6 +124,7 @@ export const PROVIDER_TYPES = [
 /**
  * Tool Registry (for assistant configuration)
  * These tools are available for AI assistants to use
+ * @deprecated Use dynamic tools from `useAITools` instead.
  */
 export const TOOL_REGISTRY = [
   { key: "list_projects", label: "List Projects", implemented: true },
@@ -139,6 +140,17 @@ export const TOOL_REGISTRY = [
 ] as const;
 
 export type ToolKey = (typeof TOOL_REGISTRY)[number]["key"];
+
+/**
+ * Public AI Tool schema corresponding to backend AIToolPublic
+ */
+export interface AIToolPublic {
+  name: string;
+  description: string;
+  permissions: string[];
+  category: string | null;
+  version: string;
+}
 
 /**
  * AI Chat Types

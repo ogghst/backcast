@@ -72,7 +72,7 @@ Refactor the AI agent to use LangGraph's StateGraph pattern and establish a stan
 | **⚠️ Partially Implemented** | | |
 | LangGraph Agent | Gap | Custom implementation, not using `StateGraph` |
 | Session Context | Gap | No project/branch association in model |
-| Tool Layer | Gap | Only 2 read-only project tools (need 15+) |
+| Tool Layer | Partial | Core templates built, tool registry populated dynamically in frontend. Full coverage pending. |
 | Markdown Output | Gap | Text storage only, no rendering pipeline |
 | **❌ Not Implemented** | Priority | |
 | Multimodal Input | Medium | No image/file attachment support |
@@ -86,9 +86,9 @@ Refactor the AI agent to use LangGraph's StateGraph pattern and establish a stan
 
 **Phase 3B: Tool Layer Expansion (E09-U08) - 8 points**
 
-1. Implement create/update/delete tools for Projects
-2. Implement create/update/delete tools for WBEs
-3. Implement create/update/delete tools for Cost Elements
+1. [x] Migrate existing Project/WBE/Analysis tools to the new decorator pattern
+2. [x] Implement dynamic AI tool selector in frontend
+3. [ ] Implement create/update/delete tools for Cost Elements
 4. Implement Schedule Baseline tools
 5. Implement Change Order tools
 6. Implement Department/User management tools

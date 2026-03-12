@@ -205,6 +205,18 @@ class AIAssistantConfigPublic(AIAssistantConfigBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AIToolPublic(BaseModel):
+    """Schema for returning AI tool metadata."""
+
+    name: str
+    description: str
+    permissions: list[str]
+    category: str | None = None
+    version: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # === Conversation Session Schemas ===
 
 

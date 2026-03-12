@@ -1,0 +1,53 @@
+import { Modal, Tag, Typography, Divider, Space } from "antd";
+import type { AIToolPublic } from "../types";
+
+const { Text, Title, Paragraph } = Typography;
+
+interface ToolDetailModalProps {
+  tool: AIToolPublic | null;
+  open: boolean;
+  onClose: () => void;
+}
+
+/**
+ * A read-only modal to display detailed metadata about an AI Tool.
+ */
+export const ToolDetailModal = ({ tool, open, onClose }: ToolDetailModalProps) => {
+  if (!tool) return null;
+
+  return (
+    <Modal
+      title={
+        <Space size="middle">
+          <span>{tool.name}</span>
+          {tool.category && <Tag color="blue">{tool.category}</Tag>}
+          <Tag bordered={false}>v{tool.version}</Tag>
+        </Space>
+      }
+      open={open}
+      onCancel={onClose}
+      footer={null}
+      width={600}
+    >
+      <div className="py-2">
+        <Title level={5}>Description</Title>
+        <Paragraph>{tool.description}</Paragraph>
+
+        <Divider className="my-4" />
+
+        <Title level={5}>Required Permissions</Title>
+        {tool.permissions && tool.permissions.length > 0 ? (
+          <Space size={[0, 8]} wrap>
+            {tool.permissions.map((p) => (
+              <Tag key={p} color="volcano">
+                {p}
+              </Tag>
+            ))}
+          </Space>
+        ) : (
+          <Text type="secondary">None</Text>
+        )}
+      </div>
+    </Modal>
+  );
+};
