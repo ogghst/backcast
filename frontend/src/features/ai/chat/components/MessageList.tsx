@@ -16,6 +16,8 @@ import {
   LoadingOutlined,
 } from "@ant-design/icons";
 import type { ChatMessage } from "../../types";
+import { useThemeTokens } from "@/hooks/useThemeTokens";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 const { Text } = Typography;
 
@@ -70,34 +72,36 @@ const StreamingMessage = ({
   activeToolCalls = [],
   token,
 }: StreamingMessageProps) => {
+  const { spacing, typography, borderRadius } = useThemeTokens();
+
   return (
     <List.Item
       style={{
         border: "none",
         display: "flex",
         justifyContent: "center",
-        padding: "0.5rem 1rem",
+        padding: `${spacing.sm}px ${spacing.md}px`,
       }}
     >
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: "0.5rem",
+          gap: spacing.sm,
           backgroundColor: token.colorFillTertiary,
           color: token.colorText,
           marginRight: "auto",
           maxWidth: "70%",
-          borderRadius: "8px",
-          padding: "0.75rem 1rem",
+          borderRadius: borderRadius.lg,
+          padding: `${spacing.sm * 0.75}px ${spacing.md}px`,
           wordBreak: "break-word",
           position: "relative",
         }}
       >
         {/* Message header with role and typing indicator */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: spacing.sm }}>
           <RobotOutlined />
-          <Text strong style={{ fontSize: "0.85rem" }}>
+          <Text strong style={{ fontSize: typography.sizes.sm }}>
             Assistant
           </Text>
           {isStreaming && (
@@ -105,36 +109,27 @@ const StreamingMessage = ({
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "0.25rem",
-                marginLeft: "0.5rem",
+                gap: spacing.xs,
+                marginLeft: spacing.sm,
               }}
             >
-              <LoadingOutlined spin style={{ fontSize: "0.8rem" }} />
-              <Text style={{ fontSize: "0.75rem", opacity: 0.7 }}>
+              <LoadingOutlined spin style={{ fontSize: typography.sizes.xs }} />
+              <Text style={{ fontSize: typography.sizes.xs, opacity: 0.7 }}>
                 generating
               </Text>
             </span>
           )}
         </div>
 
-        {/* Streaming content with fade-in animation for new content */}
+        {/* Streaming content with markdown rendering */}
         {content && (
-          <Text
-            style={{
-              whiteSpace: "pre-wrap",
-              fontSize: "0.95rem",
-              color: "inherit",
-              animation: isStreaming ? "fadeIn 0.3s ease-in" : "none",
-            }}
-          >
-            {content}
-          </Text>
+          <MarkdownRenderer content={content} isStreaming={isStreaming} />
         )}
 
         {/* Active tool calls */}
         {activeToolCalls.length > 0 && (
-          <div style={{ marginTop: "0.5rem" }}>
-            <Text style={{ fontSize: "0.85rem", opacity: 0.8, marginRight: "0.5rem" }}>
+          <div style={{ marginTop: spacing.sm }}>
+            <Text style={{ fontSize: typography.sizes.sm, opacity: 0.8, marginRight: spacing.sm }}>
               Using tools:
             </Text>
             {activeToolCalls.map((tool, idx) => (
@@ -142,7 +137,7 @@ const StreamingMessage = ({
                 key={idx}
                 icon={<ToolOutlined />}
                 color="processing"
-                style={{ marginLeft: "0.25rem" }}
+                style={{ marginLeft: spacing.xs }}
               >
                 {formatToolName(tool.name)}
               </Tag>
@@ -152,7 +147,7 @@ const StreamingMessage = ({
 
         {/* Typing indicator dots when streaming with no content yet */}
         {isStreaming && !content && (
-          <div style={{ display: "flex", gap: "0.25rem", padding: "0.5rem 0" }}>
+          <div style={{ display: "flex", gap: spacing.xs, padding: `${spacing.sm}px 0` }}>
             <span className="typing-dot" />
             <span className="typing-dot" />
             <span className="typing-dot" />
@@ -256,6 +251,7 @@ export const MessageList = ({
   activeToolCalls = [],
 }: MessageListProps) => {
   const { token } = theme.useToken();
+  const { spacing, typography, borderRadius } = useThemeTokens();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Combine regular messages with streaming message for display
@@ -282,7 +278,7 @@ export const MessageList = ({
 
   if (loading && messages.length === 0) {
     return (
-      <div style={{ textAlign: "center", padding: "2rem" }}>
+      <div style={{ textAlign: "center", padding: spacing.xl }}>
         <Spin size="large" />
       </div>
     );
@@ -292,7 +288,7 @@ export const MessageList = ({
     return (
       <Empty
         description="Start a conversation by sending a message"
-        style={{ marginTop: "3rem" }}
+        style={{ marginTop: spacing.xxl }}
       />
     );
   }
@@ -310,24 +306,24 @@ export const MessageList = ({
               border: "none",
               display: "flex",
               justifyContent: "center",
-              padding: "0.5rem 1rem",
+              padding: `${spacing.sm}px ${spacing.md}px`,
             }}
           >
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: "0.25rem",
+                gap: spacing.xs,
                 ...getMessageStyle(message.role, token),
-                borderRadius: "8px",
-                padding: "0.75rem 1rem",
+                borderRadius: borderRadius.lg,
+                padding: `${spacing.sm * 0.75}px ${spacing.md}px`,
                 wordBreak: "break-word",
               }}
             >
               {/* Message header with role */}
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: spacing.sm }}>
                 {getMessageIcon(message.role)}
-                <Text strong style={{ fontSize: "0.85rem" }}>
+                <Text strong style={{ fontSize: typography.sizes.sm }}>
                   {message.role === "user"
                     ? "You"
                     : message.role === "assistant"
@@ -337,27 +333,33 @@ export const MessageList = ({
               </div>
 
               {/* Message content */}
-              <Text
-                style={{
-                  whiteSpace: "pre-wrap",
-                  fontSize: "0.95rem",
-                  color: "inherit",
-                }}
-              >
-                {message.content}
-              </Text>
+              {message.role === "user" ? (
+                // User messages remain as plain text
+                <Text
+                  style={{
+                    whiteSpace: "pre-wrap",
+                    fontSize: typography.sizes.md,
+                    color: "inherit",
+                  }}
+                >
+                  {message.content}
+                </Text>
+              ) : (
+                // Assistant and tool messages render markdown
+                <MarkdownRenderer content={message.content} />
+              )}
 
               {/* Tool calls display */}
               {message.toolCalls && message.toolCalls.length > 0 && (
-                <div style={{ marginTop: "0.5rem" }}>
-                  <Text style={{ fontSize: "0.85rem", opacity: 0.8 }}>
+                <div style={{ marginTop: spacing.sm }}>
+                  <Text style={{ fontSize: typography.sizes.sm, opacity: 0.8 }}>
                     Tools used:
                   </Text>
                   {message.toolCalls.map((tool, idx) => (
                     <Tag
                       key={idx}
                       icon={<ToolOutlined />}
-                      style={{ marginLeft: "0.25rem" }}
+                      style={{ marginLeft: spacing.xs }}
                     >
                       {tool.name || tool.function?.name || "Unknown tool"}
                     </Tag>
@@ -367,8 +369,8 @@ export const MessageList = ({
 
               {/* Tool results display */}
               {message.toolResults && (
-                <div style={{ marginTop: "0.5rem" }}>
-                  <Text style={{ fontSize: "0.85rem", opacity: 0.8, marginRight: "0.5rem" }}>
+                <div style={{ marginTop: spacing.sm }}>
+                  <Text style={{ fontSize: typography.sizes.sm, opacity: 0.8, marginRight: spacing.sm }}>
                     Tool results:
                   </Text>
                   {Array.isArray(message.toolResults) ? (
@@ -377,7 +379,7 @@ export const MessageList = ({
                         key={idx}
                         icon={<ToolOutlined />}
                         color={result.success ? "success" : "error"}
-                        style={{ marginLeft: "0.25rem" }}
+                        style={{ marginLeft: spacing.xs }}
                       >
                         {formatToolName(result.tool || "Unknown")}
                       </Tag>
