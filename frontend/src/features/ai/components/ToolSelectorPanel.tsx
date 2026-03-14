@@ -1,9 +1,10 @@
 import { useState, useMemo } from "react";
-import { Collapse, Checkbox, Tag, Space, Spin, Alert, Button, Typography, Tooltip } from "antd";
+import { Collapse, Checkbox, Tag, Space, Spin, Alert, Button, Typography, Tooltip, theme } from "antd";
 import { InfoCircleOutlined, ApiOutlined } from "@ant-design/icons";
 import { useAITools } from "../api";
 import { ToolDetailModal } from "./ToolDetailModal";
 import type { AIToolPublic } from "../types";
+import { useThemeTokens } from "@/hooks/useThemeTokens";
 
 const { Text } = Typography;
 
@@ -19,6 +20,8 @@ interface ToolSelectorPanelProps {
 export const ToolSelectorPanel = ({ value = [], onChange }: ToolSelectorPanelProps) => {
   const { data: tools, isLoading, isError, error } = useAITools();
   const [selectedTool, setSelectedTool] = useState<AIToolPublic | null>(null);
+  const { token } = theme.useToken();
+  const { spacing, typography, borderRadius, colors } = useThemeTokens();
 
   // Group tools by category
   const categorizedTools = useMemo(() => {
@@ -65,7 +68,14 @@ export const ToolSelectorPanel = ({ value = [], onChange }: ToolSelectorPanelPro
 
   if (isLoading) {
     return (
-      <div className="p-4 flex justify-center items-center border rounded border-gray-200">
+      <div style={{
+        padding: spacing.md,
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        border: `1px solid ${token.colorBorderSecondary}`,
+        borderRadius: borderRadius.md
+      }}>
         <Spin tip="Loading available tools..." />
       </div>
     );
@@ -103,19 +113,32 @@ export const ToolSelectorPanel = ({ value = [], onChange }: ToolSelectorPanelPro
     return {
       key: category,
       label: (
-        <div className="flex justify-between items-center w-full pr-4">
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          width: "100%",
+          paddingRight: spacing.md
+        }}>
           <Space>
             <ApiOutlined />
-            <Text strong className="capitalize">{category.replace(/-/g, " ")}</Text>
-            <Tag color={selectedCount > 0 ? "blue" : "default"} className="ml-2">
+            <Text strong style={{ textTransform: "capitalize" }}>
+              {category.replace(/-/g, " ")}
+            </Text>
+            <Tag color={selectedCount > 0 ? "blue" : "default"} style={{ marginLeft: spacing.sm }}>
               {selectedCount} / {catTools.length}
             </Tag>
           </Space>
           <div onClick={(e) => e.stopPropagation()}>
-            <Button 
-              type="text" 
+            <Button
+              type="text"
               size="small"
-              className="text-xs text-blue-500 hover:text-blue-700 h-auto py-1 px-2"
+              style={{
+                fontSize: typography.sizes.xs,
+                color: colors.primary,
+                height: "auto",
+                padding: `${spacing.xs}px ${spacing.sm}px`
+              }}
               onClick={() => handleSelectAllCategory(category, !isAllSelected)}
             >
               {isAllSelected ? "Deselect All" : "Select All"}
@@ -124,23 +147,48 @@ export const ToolSelectorPanel = ({ value = [], onChange }: ToolSelectorPanelPro
         </div>
       ),
       children: (
-        <div className="flex flex-col gap-2">
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: spacing.sm
+        }}>
           {catTools.map((tool) => (
-            <div 
-              key={tool.name} 
-              className="flex justify-between items-center py-1 px-2 hover:bg-gray-50 rounded"
+            <div
+              key={tool.name}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: `${spacing.xs}px ${spacing.sm}px`,
+                borderRadius: borderRadius.sm,
+                transition: "background-color 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = token.colorFillQuaternary;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
             >
               <Checkbox
                 checked={value.includes(tool.name)}
                 onChange={(e) => handleCheckboxChange(tool.name, e.target.checked)}
               >
-                <code className="text-sm bg-gray-100 px-1 rounded mx-1">{tool.name}</code>
+                <code style={{
+                  fontSize: typography.sizes.sm,
+                  backgroundColor: token.colorFillTertiary,
+                  padding: `0 ${spacing.xs}px`,
+                  borderRadius: borderRadius.xs,
+                  margin: `0 ${spacing.xs}px`
+                }}>
+                  {tool.name}
+                </code>
               </Checkbox>
-              
+
               <Tooltip title="View tool details">
                 <Button
                   type="text"
-                  icon={<InfoCircleOutlined className="text-gray-400" />}
+                  icon={<InfoCircleOutlined style={{ color: token.colorTextTertiary }} />}
                   size="small"
                   onClick={() => setSelectedTool(tool)}
                 />
@@ -154,10 +202,10 @@ export const ToolSelectorPanel = ({ value = [], onChange }: ToolSelectorPanelPro
 
   return (
     <>
-      <Collapse 
-        items={collapseItems} 
+      <Collapse
+        items={collapseItems}
         size="small"
-        className="bg-white"
+        style={{ backgroundColor: token.colorBgContainer }}
         defaultActiveKey={Object.keys(categorizedTools)}
       />
       

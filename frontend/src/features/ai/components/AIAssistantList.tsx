@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { App, Button, Space, Tag, Switch, Typography, Tooltip } from "antd";
+import { App, Button, Space, Tag, theme } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
-  ToolOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
 } from "@ant-design/icons";
 import type { ColumnType } from "antd/es/table";
 import { useAIAssistants, useUpdateAIAssistant, useDeleteAIAssistant, useCreateAIAssistant, useAllAIModels } from "../api";
@@ -14,14 +15,16 @@ import { useTableParams } from "@/hooks/useTableParams";
 import { Can } from "@/components/auth/Can";
 import type { AIAssistantPublic, AIAssistantCreate } from "../types";
 import { useAIProviders } from "../api";
+import { useThemeTokens } from "@/hooks/useThemeTokens";
 
-const { Text } = Typography;
 
 export const AIAssistantList = () => {
   const { tableParams, handleTableChange } = useTableParams<AIAssistantPublic>();
   const { data: assistants, isLoading, refetch } = useAIAssistants(true);
   const { data: providers } = useAIProviders(true);
   const { data: models } = useAllAIModels(true);
+  const { token } = theme.useToken();
+  const { typography } = useThemeTokens();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedAssistant, setSelectedAssistant] = useState<AIAssistantPublic | null>(null);
@@ -58,13 +61,6 @@ export const AIAssistantList = () => {
     });
   };
 
-  const handleToggleActive = (assistant: AIAssistantPublic, checked: boolean) => {
-    updateAssistant({
-      id: assistant.id,
-      data: { is_active: checked },
-    });
-  };
-
   // Build a map of provider IDs to provider names
   const providerNameMap = providers?.reduce((acc, provider) => {
     acc[provider.id] = provider.name;
@@ -87,57 +83,24 @@ export const AIAssistantList = () => {
       sorter: true,
     },
     {
-      title: "Description",
-      dataIndex: "description",
-      key: "description",
-      render: (desc: string | null) =>
-        desc ? (
-          <Text ellipsis style={{ maxWidth: 200 }}>
-            {desc}
-          </Text>
-        ) : (
-          <Text type="secondary">-</Text>
-        ),
-    },
-    {
       title: "Model",
       dataIndex: "model_id",
       key: "model_id",
-      render: (modelId: string) => <Tag>{modelId}</Tag>,
-    },
-    {
-      title: "Tools",
-      dataIndex: "allowed_tools",
-      key: "allowed_tools",
-      render: (tools: string[] | null) =>
-        tools && tools.length > 0 ? (
-          <Tooltip title={tools.join(", ")}>
-            <Space>
-              <ToolOutlined />
-              <Text>{tools.length} tool{tools.length !== 1 ? "s" : ""}</Text>
-            </Space>
-          </Tooltip>
-        ) : (
-          <Text type="secondary">None</Text>
-        ),
-    },
-    {
-      title: "Temperature",
-      dataIndex: "temperature",
-      key: "temperature",
-      render: (temp: number) => <Tag>{temp?.toFixed(1) || "-"}</Tag>,
+      render: (modelId: string) => {
+        const model = availableModels.find(m => m.id === modelId);
+        return <Tag>{model?.display_name || modelId}</Tag>;
+      },
     },
     {
       title: "Active",
       dataIndex: "is_active",
       key: "is_active",
-      render: (isActive: boolean, record) => (
-        <Switch
-          checked={isActive}
-          onChange={(checked) => handleToggleActive(record, checked)}
-          disabled={!isActive && !record.is_active}
-        />
-      ),
+      render: (isActive: boolean) =>
+        isActive ? (
+          <CheckCircleOutlined style={{ color: token.colorSuccess, fontSize: typography.sizes.xl }} />
+        ) : (
+          <CloseCircleOutlined style={{ color: token.colorTextTertiary, fontSize: typography.sizes.xl }} />
+        ),
     },
     {
       title: "Actions",
@@ -186,7 +149,7 @@ export const AIAssistantList = () => {
               alignItems: "center",
             }}
           >
-            <div style={{ fontSize: "16px", fontWeight: "bold" }}>
+            <div style={{ fontSize: typography.sizes.xl, fontWeight: typography.weights.bold }}>
               AI Assistants
             </div>
             <Can permission="ai-config-create">

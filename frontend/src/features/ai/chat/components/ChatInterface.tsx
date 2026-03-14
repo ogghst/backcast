@@ -9,12 +9,13 @@
 import { useState, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
-import { Layout, Alert, Drawer, Button, Badge, Typography, theme } from "antd";
+import { Layout, Alert, Drawer, Button, Badge, Typography, theme, Space, Tooltip } from "antd";
 import {
   MenuOutlined,
   RobotOutlined,
   WifiOutlined,
   LoadingOutlined,
+  PlusOutlined,
 } from "@ant-design/icons";
 import {
   useChatSessions,
@@ -28,6 +29,8 @@ import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import type { ChatMessage } from "../../types";
 import { WSConnectionState } from "../types";
+import { useThemeTokens } from "@/hooks/useThemeTokens";
+import { generateSessionTitle } from "../utils/sessionTitle";
 
 const { Sider, Content, Header } = Layout;
 const { Text } = Typography;
@@ -189,10 +192,13 @@ export const ChatInterface = ({
         return;
       }
 
+      // Generate title for new sessions (when no current session exists)
+      const title = currentSessionId ? undefined : generateSessionTitle(messageContent);
+
       // Send message via streaming hook
-      streamingChat.sendMessage(messageContent);
+      streamingChat.sendMessage(messageContent, title ?? undefined);
     },
-    [selectedAssistantId, streamingChat]
+    [selectedAssistantId, streamingChat, currentSessionId]
   );
 
   // Handle canceling the current stream
@@ -238,6 +244,7 @@ export const ChatInterface = ({
 
   const connectionStatus = getConnectionStatus();
   const { token } = theme.useToken();
+  const { spacing, typography } = useThemeTokens();
 
   return (
     <Layout style={{ height: "calc(100vh - 300px)", minHeight: 400 }}>
@@ -263,6 +270,7 @@ export const ChatInterface = ({
             onNewChat={handleNewChat}
             onDeleteSession={handleDeleteSession}
             loading={sessionsLoading}
+            hideNewChatButton
           />
         )}
       </Sider>
@@ -283,6 +291,7 @@ export const ChatInterface = ({
           onNewChat={handleNewChat}
           onDeleteSession={handleDeleteSession}
           loading={sessionsLoading}
+          hideNewChatButton
         />
       </Drawer>
 
@@ -290,12 +299,12 @@ export const ChatInterface = ({
       <Layout>
         <Header
           style={{
-            padding: "0 1rem",
+            padding: `0 ${spacing.md}px`,
             backgroundColor: token.colorBgContainer,
             borderBottom: `1px solid ${token.colorBorderSecondary}`,
             display: "flex",
             alignItems: "center",
-            gap: "0.5rem",
+            gap: spacing.sm,
           }}
         >
           {/* Mobile menu button */}
@@ -306,8 +315,8 @@ export const ChatInterface = ({
             style={{ display: window.innerWidth < 768 ? "block" : "none" }}
           />
 
-          <RobotOutlined style={{ fontSize: "1.2rem", color: token.colorPrimary }} />
-          <span style={{ fontWeight: 600 }}>AI Chat</span>
+          <RobotOutlined style={{ fontSize: typography.sizes.lg, color: token.colorPrimary }} />
+          <span style={{ fontWeight: typography.weights.semiBold }}>AI Chat</span>
 
           <div style={{ flex: 1 }} />
 
@@ -316,29 +325,48 @@ export const ChatInterface = ({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "0.25rem",
-              marginRight: "1rem",
+              gap: spacing.xs,
+              marginRight: spacing.md,
             }}
           >
             {connectionStatus.icon}
             <Badge
               status={connectionStatus.color}
               text={
-                <Text type="secondary" style={{ fontSize: "0.85rem" }}>
+                <Text type="secondary" style={{ fontSize: typography.sizes.sm }}>
                   {connectionStatus.text}
                 </Text>
               }
             />
           </div>
 
-          {/* Assistant Selector */}
-          <div style={{ minWidth: 200, maxWidth: 400 }}>
-            <AssistantSelector
-              value={selectedAssistantId}
-              onChange={setSelectedAssistantId}
-              disabled={!!currentSessionId}
-            />
-          </div>
+          {/* Assistant Selector with New Chat button */}
+          <Space size="small">
+            <div style={{ minWidth: 200, maxWidth: 400 }}>
+              <AssistantSelector
+                value={selectedAssistantId}
+                onChange={setSelectedAssistantId}
+                disabled={!!currentSessionId}
+                locked={!!currentSessionId}
+              />
+            </div>
+            {currentSessionId && (
+              <Tooltip title="Start a new conversation with a different assistant">
+                <Button
+                  type="text"
+                  icon={<PlusOutlined />}
+                  onClick={handleNewChat}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: spacing.xs,
+                  }}
+                >
+                  <span style={{ fontSize: typography.sizes.sm }}>New Chat</span>
+                </Button>
+              </Tooltip>
+            )}
+          </Space>
         </Header>
 
         <Content
@@ -357,7 +385,7 @@ export const ChatInterface = ({
               message={error}
               closable
               onClose={() => setError(null)}
-              style={{ margin: "1rem" }}
+              style={{ margin: spacing.md }}
             />
           )}
 

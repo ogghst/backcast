@@ -15,12 +15,14 @@ import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
 import { Can } from "@/components/auth/Can";
 import type { AIProviderPublic, AIProviderCreate } from "../types";
+import { useThemeTokens } from "@/hooks/useThemeTokens";
 
 const { Text } = Typography;
 
 export const AIProviderList = () => {
   const { tableParams, handleTableChange } = useTableParams<AIProviderPublic>();
   const { data: providers, isLoading, refetch } = useAIProviders(true);
+  const { typography } = useThemeTokens();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [configModalOpen, setConfigModalOpen] = useState(false);
@@ -183,7 +185,7 @@ export const AIProviderList = () => {
               alignItems: "center",
             }}
           >
-            <div style={{ fontSize: "16px", fontWeight: "bold" }}>
+            <div style={{ fontSize: typography.sizes.xl, fontWeight: typography.weights.bold }}>
               AI Providers
             </div>
             <Can permission="ai-config-create">

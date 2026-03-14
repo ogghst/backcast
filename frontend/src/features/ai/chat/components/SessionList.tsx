@@ -12,6 +12,7 @@ import {
   MessageOutlined,
 } from "@ant-design/icons";
 import type { AIConversationSessionPublic } from "../../types";
+import { useThemeTokens } from "@/hooks/useThemeTokens";
 
 const { Text } = Typography;
 
@@ -22,6 +23,8 @@ interface SessionListProps {
   onNewChat: () => void;
   onDeleteSession: (sessionId: string) => void;
   loading?: boolean;
+  /** Hide the "New Chat" button in the header (useful when embedded in ChatInterface) */
+  hideNewChatButton?: boolean;
 }
 
 const formatSessionTitle = (
@@ -65,8 +68,10 @@ export const SessionList = ({
   onNewChat,
   onDeleteSession,
   loading = false,
+  hideNewChatButton = false,
 }: SessionListProps) => {
   const { token } = theme.useToken();
+  const { spacing, typography, borderRadius } = useThemeTokens();
 
   return (
     <div
@@ -78,22 +83,24 @@ export const SessionList = ({
         backgroundColor: token.colorBgContainer,
       }}
     >
-      {/* Header */}
-      <div
-        style={{
-          padding: "1rem",
-          borderBottom: `1px solid ${token.colorBorderSecondary}`,
-        }}
-      >
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={onNewChat}
-          block
+      {/* Header - only show if not hiding the New Chat button */}
+      {!hideNewChatButton && (
+        <div
+          style={{
+            padding: spacing.md,
+            borderBottom: `1px solid ${token.colorBorderSecondary}`,
+          }}
         >
-          New Chat
-        </Button>
-      </div>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={onNewChat}
+            block
+          >
+            New Chat
+          </Button>
+        </div>
+      )}
 
       {/* Sessions List */}
       <div style={{ flex: 1, overflow: "auto" }}>
@@ -101,7 +108,7 @@ export const SessionList = ({
           <Empty
             description="No conversations yet"
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            style={{ marginTop: "2rem" }}
+            style={{ marginTop: spacing.xl }}
           />
         ) : (
           <List
@@ -110,9 +117,9 @@ export const SessionList = ({
             renderItem={(session) => (
               <List.Item
                 style={{
-                  padding: "0.75rem 1rem",
-                  margin: "0.25rem 0.5rem",
-                  borderRadius: "6px",
+                  padding: `${spacing.sm * 0.75}px ${spacing.md}px`,
+                  margin: `${spacing.xs}px ${spacing.sm}px`,
+                  borderRadius: borderRadius.md,
                   cursor: "pointer",
                   backgroundColor:
                     session.id === currentSessionId ? token.colorPrimaryBg : "transparent",
@@ -154,7 +161,7 @@ export const SessionList = ({
                       minWidth: 0,
                       display: "flex",
                       alignItems: "center",
-                      gap: "0.5rem",
+                      gap: spacing.sm,
                     }}
                   >
                     <MessageOutlined style={{ color: token.colorPrimary }} />
@@ -166,7 +173,7 @@ export const SessionList = ({
                         {formatSessionTitle(session)}
                       </Text>
                       <div>
-                        <Text type="secondary" style={{ fontSize: "0.75rem" }}>
+                        <Text type="secondary" style={{ fontSize: typography.sizes.xs }}>
                           {formatSessionTime(session.updated_at)}
                         </Text>
                       </div>
@@ -190,7 +197,7 @@ export const SessionList = ({
                       size="small"
                       className="delete-btn"
                       onClick={(e) => e.stopPropagation()}
-                      style={{ padding: "0 0.5rem" }}
+                      style={{ padding: `0 ${spacing.sm}px` }}
                     />
                   </Popconfirm>
                 </div>

@@ -4,6 +4,7 @@ import { PlusOutlined, DeleteOutlined, EditOutlined, InfoCircleOutlined } from "
 import type { ColumnType } from "antd/es/table";
 import { useAIProviderConfigs, useSetAIProviderConfig, useDeleteAIProviderConfig } from "../api";
 import type { AIProviderConfigPublic } from "../types";
+import { useThemeTokens } from "@/hooks/useThemeTokens";
 
 interface AIProviderConfigModalProps {
   open: boolean;
@@ -27,6 +28,7 @@ export const AIProviderConfigModal = ({
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingConfig, setEditingConfig] = useState<AIProviderConfigPublic | null>(null);
   const { modal } = App.useApp();
+  const { spacing } = useThemeTokens();
 
   const { data: configs, isLoading, refetch } = useAIProviderConfigs(providerId, {
     enabled: open,
@@ -169,7 +171,7 @@ export const AIProviderConfigModal = ({
         </Button>
 
         {showAddForm && (
-          <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+          <Form form={form} layout="vertical" style={{ marginTop: spacing.md }}>
             <Form.Item
               name="key"
               label="Config Key"

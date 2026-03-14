@@ -27,6 +27,7 @@ export interface WSChatRequest {
   message: string;
   session_id: string | null;
   assistant_config_id: string;
+  title?: string; // Optional session title (for new sessions)
 }
 
 /**

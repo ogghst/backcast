@@ -9,6 +9,7 @@
 import { useState, useCallback } from "react";
 import { Input, Button, Space, Typography, theme } from "antd";
 import { SendOutlined, StopOutlined } from "@ant-design/icons";
+import { useThemeTokens } from "@/hooks/useThemeTokens";
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -37,6 +38,7 @@ export const MessageInput = ({
   onCancel,
 }: MessageInputProps) => {
   const { token } = theme.useToken();
+  const { spacing, typography } = useThemeTokens();
   const [message, setMessage] = useState("");
 
   const handleSend = useCallback(() => {
@@ -70,7 +72,7 @@ export const MessageInput = ({
   return (
     <div
       style={{
-        padding: "1rem",
+        padding: spacing.md,
         borderTop: `1px solid ${token.colorBorderSecondary}`,
         backgroundColor: token.colorBgContainer,
       }}
@@ -93,7 +95,7 @@ export const MessageInput = ({
             alignItems: "center",
           }}
         >
-          <Text type="secondary" style={{ fontSize: "0.75rem" }}>
+          <Text type="secondary" style={{ fontSize: typography.sizes.xs }}>
             {message.length} / {maxLength}
           </Text>
           {isStreaming ? (

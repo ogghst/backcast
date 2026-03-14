@@ -49,7 +49,7 @@ export interface UseStreamingChatConfig {
  */
 export interface UseStreamingChatReturn {
   /** Send a message to start/restart streaming */
-  sendMessage: (message: string) => void;
+  sendMessage: (message: string, title?: string) => void;
   /** Cancel the current request and close the connection */
   cancel: () => void;
   /** Current WebSocket connection state */
@@ -199,7 +199,7 @@ export const useStreamingChat = (
    * Send a message to start streaming
    */
   const sendMessage = useCallback(
-    (message: string) => {
+    (message: string, title?: string) => {
       const ws = wsRef.current;
 
       if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -219,6 +219,7 @@ export const useStreamingChat = (
         message,
         session_id: sessionId ?? null,
         assistant_config_id: assistantId,
+        title, // Pass title for new sessions
       };
 
       try {
