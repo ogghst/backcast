@@ -100,6 +100,28 @@ type CustomTokenConfig = {
   borderRadiusXL?: number;
 };
 
+// Dark mode token overrides
+type DarkModeTokens = {
+  colorBgContainer?: string;
+  colorBgElevated?: string;
+  colorBgLayout?: string;
+  colorText?: string;
+  colorTextSecondary?: string;
+  colorTextTertiary?: string;
+  colorTextQuaternary?: string;
+  colorBorder?: string;
+  colorBorderSecondary?: string;
+  colorSuccess?: string;
+  colorWarning?: string;
+  colorError?: string;
+  colorInfo?: string;
+  colorChartPV?: string;
+  colorChartEV?: string;
+  colorChartAC?: string;
+  colorChartForecast?: string;
+  colorChartActual?: string;
+};
+
 /**
  * Soft Light Color Scheme
  *
@@ -112,7 +134,7 @@ type CustomTokenConfig = {
  * - Sophisticated accent colors that guide attention
  * - Harmonious relationships between elements
  */
-export const theme: ThemeConfig & { token: CustomTokenConfig } = {
+export const theme: ThemeConfig & { token: CustomTokenConfig; darkModeTokens?: DarkModeTokens } = {
   token: {
     // === Brand & Typography ===
     colorPrimary: "#4a7c91", // Soft teal-blue - sophisticated primary
@@ -180,5 +202,48 @@ export const theme: ThemeConfig & { token: CustomTokenConfig } = {
     borderRadiusSM: 4,
     borderRadiusLG: 12,
     borderRadiusXL: 16,
+  },
+  /**
+   * Dark Mode Tokens
+   *
+   * These tokens override the light mode values when dark mode is enabled.
+   * Applied via the ConfigProvider's darkAlgorithm combined with these overrides.
+   *
+   * Color Philosophy for Dark Mode:
+   * - Backgrounds: Deep grays (#141414 - #262626) instead of pure black for reduced eye strain
+   * - Text: High contrast light grays (#e8e8e8) meeting WCAG AA standards
+   * - Borders: Subtle medium grays (#404040) for visible but not distracting separation
+   * - Status Colors: Brighter versions of light mode colors to maintain visibility on dark backgrounds
+   * - Chart Colors: Same as light mode - designed to work on both backgrounds
+   */
+  darkModeTokens: {
+    // === Background Colors (Dark) ===
+    colorBgContainer: "#1f1f1f", // Dark gray for cards/containers
+    colorBgElevated: "#262626", // Elevated dark
+    colorBgLayout: "#141414", // Nearly black for layout
+
+    // === Text Colors (Inverted for dark) ===
+    colorText: "#e8e8e8", // Light gray for primary text
+    colorTextSecondary: "#a6a6a6", // Muted light gray
+    colorTextTertiary: "#737373", // Even more muted
+    colorTextQuaternary: "#525252", // Very muted (disabled)
+
+    // === Border Colors (Dark) ===
+    colorBorder: "#404040", // Medium gray border
+    colorBorderSecondary: "#262626", // Darker border
+
+    // === Status Colors (Adjusted for dark backgrounds) ===
+    colorSuccess: "#73d13d", // Brighter green for visibility
+    colorWarning: "#ffc53d", // Brighter amber
+    colorError: "#ff7875", // Brighter red
+    colorInfo: "#69b1ff", // Brighter blue
+
+    // === Chart Colors (Slightly adjusted for dark mode) ===
+    // Same as light mode - these work on both backgrounds
+    colorChartPV: "#6b9ac4", // Soft blue - Planned Value
+    colorChartEV: "#7bc49a", // Muted mint - Earned Value
+    colorChartAC: "#8b7b94", // Soft lavender-gray - Actual Cost
+    colorChartForecast: "#d4a549", // Warm amber - Forecast
+    colorChartActual: "#c95d5f", // Soft red - Actual
   },
 };
