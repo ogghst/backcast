@@ -1,8 +1,8 @@
 # Technical Debt Register
 
 **Last Updated:** 2026-03-14
-**Total Open Items:** 7
-**Total Estimated Effort:** 106 hours
+**Total Open Items:** 6
+**Total Estimated Effort:** 102 hours
 
 ---
 
@@ -29,23 +29,6 @@ This file tracks active technical debt items. For completed/closed debt, see [te
   - [ ] Update coding standards
   - [ ] Schedule implementation iteration
 - **References:** ADR-005 Bitemporal Versioning, CO-2026-003 recovery
-
----
-
-### [TD-069] Failing Time Machine Store Tests
-
-- **Source:** React Best Practices Review (2026-02-21)
-- **Description:** 3 failing tests in `src/stores/useTimeMachineStore.test.ts` related to time machine state management.
-- **Impact:** Code quality regression risk; time machine functionality may not work correctly
-- **Estimated Effort:** 4 hours
-- **Target Date:** 2026-02-28
-- **Status:** 🔴 Open
-- **Owner:** Frontend Developer
-- **Priority:** High
-- **Action Items:**
-  - [ ] Investigate test failures
-  - [ ] Fix state management logic
-  - [ ] Add regression tests
 
 ---
 
@@ -131,10 +114,10 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
-| High (P0-P1) | 3 | 24-28 hours |
+| High (P0-P1) | 2 | 20-24 hours |
 | Medium (P2-P3) | 4 | 66-76 hours |
 | Low (P4+) | 0 | 0 hours |
-| **Total** | **7** | **~106 hours** |
+| **Total** | **6** | **~102 hours** |
 
 ## Summary
 
