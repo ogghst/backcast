@@ -2,7 +2,7 @@
 name: frontend-ui-test
 description: Automated frontend UI testing using Playwright MCP in headless mode. Navigates pages, interacts with elements, captures screenshots, and analyzes UI behavior. Use for browser testing, UI verification, accessibility checks, visual regression, or when user mentions "UI test", "browser test", "screenshot", "click", "navigate", "playwright".
 argument-hint: "[URL or test description]"
-allowed-tools: [mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_click, mcp__playwright__browser_type, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_press_key, mcp__playwright__browser_hover, mcp__playwright__browser_wait_for, mcp__playwright__browser_evaluate, mcp__playwright__browser_console_messages, mcp__playwright__browser_network_requests, mcp__playwright__browser_close, mcp__playwright__browser_tabs, mcp__playwright__browser_select_option, mcp__playwright__browser_drag, AskUserQuestion]
+allowed-tools: [mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_click, mcp__playwright__browser_type, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_press_key, mcp__playwright__browser_hover, mcp__playwright__browser_wait_for, mcp__playwright__browser_evaluate, mcp__playwright__browser_console_messages, mcp__playwright__browser_network_requests, mcp__playwright__browser_close, mcp__playwright__browser_tabs, mcp__playwright__browser_select_option, mcp__playwright__browser_drag, mcp__postgres__query, Agent, AskUserQuestion]
 ---
 
 # Frontend UI Testing with Playwright MCP
@@ -49,9 +49,10 @@ If the request is not related to UI testing, politely refuse and suggest the app
 | Setting          | Value                      |
 | ---------------- | -------------------------- |
 | Frontend URL     | `http://localhost:5173`    |
-| Backend API URL  | `http://localhost:8000`    |
-| API Docs         | `http://localhost:8000/docs` |
-| User             | user `admin@backcast.org`, password `adminadmin` |
+| Backend API URL  | `http://localhost:8020`    |
+| API Docs         | `http://localhost:8020/docs` |
+| User             | `admin@backcast.org` / `adminadmin` |
+| Database         | PostgreSQL via `mcp__postgres__query` |
 | snapshot folder  | `snapshot`, create if not present |
 
 ## Analysis Methods
@@ -76,6 +77,48 @@ Use `browser_take_screenshot` when:
 Use for debugging:
 - `browser_console_messages` - Check for JS errors
 - `browser_network_requests` - Verify API calls
+
+### Database Verification
+
+Use `mcp__postgres__query` to verify data consistency:
+- Verify UI data matches database state
+- Check for orphaned or missing records
+- Validate relationships between entities
+- Confirm data after CRUD operations
+
+Example queries:
+```sql
+-- Check projects count
+SELECT COUNT(*) FROM projects;
+
+-- Verify WBE exists with correct properties
+SELECT id, name, status FROM work_breakdown_elements WHERE id = 'uuid';
+
+-- Check user roles
+SELECT u.email, r.name FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON ur.role_id = r.id;
+```
+
+### Code Modification Delegation
+
+When UI tests reveal bugs or issues requiring code changes:
+
+1. **Frontend issues** (React components, TypeScript, UI behavior):
+   - Use `Agent` tool with `subagent_type: "frontend-developer"`
+   - Describe the issue and provide context
+   - Include relevant component files and error details
+
+2. **Backend issues** (API endpoints, services, models):
+   - Use `Agent` tool with `subagent_type: "backend-developer"`
+   - Describe the API behavior issue
+   - Include network request/response details
+
+Example:
+```
+Spawning frontend-developer agent to fix:
+- Component: AIAssistantList.tsx
+- Issue: Model column shows UUID instead of display name
+- Expected: Should show human-readable model names
+```
 
 ## Common Testing Patterns
 
@@ -106,11 +149,13 @@ Use for debugging:
 4. browser_navigate_back if needed
 ```
 
-### Login Flow (if applicable)
+### Login Flow
 
 ```
-1. browser_navigate to login page
-2. browser_fill_form with credentials
+1. browser_navigate to login page (or app root if it redirects)
+2. browser_fill_form with:
+   - Email: admin@backcast.org
+   - Password: adminadmin
 3. browser_click login button
 4. browser_wait_for redirect or success element
 5. browser_snapshot to verify authenticated state
@@ -166,6 +211,8 @@ Before reporting findings:
 - [ ] Performed requested interactions
 - [ ] Checked for console errors
 - [ ] Verified expected outcomes
+- [ ] Database state verified (if applicable)
+- [ ] Bugs delegated to appropriate developer agent (if found)
 - [ ] Browser closed
 
 ## Example Usage
@@ -175,18 +222,44 @@ Before reporting findings:
 
 /frontend-ui-test Take a screenshot of the WBE creation form at localhost:5173/projects/1/wbes/new
 
-/frontend-ui-test Fill the login form with test credentials and verify login succeeds
+/frontend-ui-test Login with admin@backcast.org/adminadmin and verify the dashboard loads
 
-/frontend-ui-test Check for console errors on the dashboard page
+/frontend-ui-test Check for console errors on the AI Assistants page and verify data matches database
+
+/frontend-ui-test Test the project creation flow and verify the new project exists in the database
 ```
+
+## End-to-End Testing Example
+
+When testing a feature that requires database verification:
+
+1. **Navigate and perform UI actions:**
+   - Login with admin credentials
+   - Navigate to target page
+   - Perform the action (create, update, delete)
+   - Capture UI state
+
+2. **Verify database state:**
+   - Query the database to confirm changes
+   - Compare UI display with database values
+   - Check for data consistency
+
+3. **Handle issues:**
+   - If bugs found, spawn appropriate developer agent:
+     - `frontend-developer` for UI/React issues
+     - `backend-developer` for API/service issues
+   - Provide context: error details, screenshots, expected vs actual behavior
 
 ## Out of Scope
 
-This skill does NOT:
-
-- Write or modify production code
-- Run backend tests (use pytest)
-- Run unit tests (use Vitest)
+This skill does NOT directly:
+- Write or modify production code yourself (DELEGATE to specialist agents instead)
+- Run backend unit tests (use pytest)
+- Run frontend unit tests (use Vitest)
 - Create test files
-- Perform API testing directly
-- Execute database operations
+- Perform database mutations (only read-only queries via `mcp__postgres__query`)
+
+This skill CAN:
+- Delegate code fixes to `frontend-developer` or `backend-developer` agents
+- Verify UI data against database state using read-only SQL queries
+- Report issues and coordinate fixes through specialized agents

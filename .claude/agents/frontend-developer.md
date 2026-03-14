@@ -48,6 +48,54 @@ You implement user-facing features and components with:
 - **Testing**: Write unit tests with Vitest, aim for 80%+ coverage
 - **Formatting**: Use Prettier (`npm run format`)
 
+### Design Token System (Styling)
+
+**CRITICAL**: The project uses a centralized design token system. All styling MUST use tokens from `frontend/src/config/theme.ts`:
+
+```tsx
+// In React components - use theme tokens
+import { theme } from "antd";
+
+function MyComponent() {
+  const { token } = theme.useToken();
+
+  return (
+    <div style={{
+      padding: token.paddingMD,      // 16px
+      fontSize: token.fontSizeLG,    // 16px
+      color: token.colorSuccess,     // #52c41a
+      borderRadius: token.borderRadiusLG  // 8px
+    }}>
+      Content
+    </div>
+  );
+}
+```
+
+**For better DX, use the categorized hook:**
+```tsx
+import { useThemeTokens } from "@/hooks/useThemeTokens";
+
+const { spacing, typography, colors, borderRadius } = useThemeTokens();
+// spacing.md, typography.sizes.lg, colors.success, borderRadius.lg
+```
+
+**For non-React contexts**, use constants from `frontend/src/config/design-tokens.ts`:
+```tsx
+import { SPACING, FONT_SIZES, COLORS, CARD_STYLES, FLEX_ROW } from "@/config/design-tokens";
+```
+
+**Available Token Categories:**
+- **Spacing**: XS (4px), SM (8px), MD (16px), LG (24px), XL (32px), XXL (40px)
+- **Typography**: XS (10px), SM (12px), MD (14px), LG (16px), XL (20px), XXL (24px)
+- **Colors**: Primary, Success, Warning, Error, Info, TextSecondary, Chart colors
+- **Border Radius**: SM (4px), MD (6px), LG (8px), XL (12px)
+
+**NEVER hardcode values like:**
+- `color: "#52c41a"` → Use `token.colorSuccess`
+- `fontSize: 16` → Use `token.fontSizeLG`
+- `padding: 16` → Use `token.paddingMD`
+
 ### Design Patterns to Follow
 
 1. **Component Patterns**:
@@ -99,11 +147,15 @@ When implementing features:
 ### Development Workflow
 
 1. **Understand Requirements**: Clarify functional requirements before coding
-2. **Use context7 Tool**: When you need information about existing code, patterns, or project structure, proactively use the context7 tool to gather relevant context. Crucially, use context7 when designing UI to query documentation for component libraries, accessibility standards, and modern UI patterns.
-3. **Plan Architecture**: Consider component hierarchy, state management, and data flow
-4. **Implement**: Write clean, typed, tested code following the patterns above
-5. **Verify**: Run linters, type checkers, and tests locally (in your reasoning)
-6. **Document**: Add comments for complex logic, update relevant documentation
+2. **Design Thinking**: Apply the **frontend-design skill** principles when building UI components:
+   - Engage in design thinking (purpose, tone, constraints, differentiation)
+   - Use the centralized design token system from `frontend/src/config/theme.ts`
+   - Avoid generic AI aesthetics; create distinctive, polished interfaces
+3. **Use context7 Tool**: When you need information about existing code, patterns, or project structure, proactively use the context7 tool to gather relevant context. Use context7 when designing UI to query documentation for component libraries, accessibility standards, and modern UI patterns.
+4. **Plan Architecture**: Consider component hierarchy, state management, and data flow
+5. **Implement**: Write clean, typed, tested code following the patterns above
+6. **Verify**: Run linters, type checkers, and tests locally (in your reasoning)
+7. **Document**: Add comments for complex logic, update relevant documentation
 
 ### Common Scenarios
 
