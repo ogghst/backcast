@@ -252,6 +252,7 @@ async def test_concurrent_requests_scaling(mock_fast_llm):
         graph.ainvoke(
             initial_state,
             config={"configurable": {"thread_id": f"perf-test-concurrent-{i}"}}
+        )
         for i in range(concurrency)
     ]
     await asyncio.gather(*tasks)

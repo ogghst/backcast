@@ -283,6 +283,7 @@ class WSChatRequest(BaseModel):
     assistant_config_id: UUID | None = Field(
         None, description="Assistant config to use (required for new sessions)"
     )
+    title: str | None = Field(None, max_length=255, description="Optional session title (for new sessions)")
 
 
 class WSTokenMessage(BaseModel):

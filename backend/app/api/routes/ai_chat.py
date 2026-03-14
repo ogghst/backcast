@@ -239,6 +239,7 @@ async def chat_stream(
                     user_id=user_id,
                     websocket=websocket,
                     db=db,
+                    title=request.title,
                 )
                 logger.info(f"WebSocket chat stream completed successfully for user {user_id}")
             except Exception as stream_err:

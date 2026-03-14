@@ -341,6 +341,7 @@ class AgentService:
         user_id: UUID,
         websocket: WebSocket,
         db: AsyncSession,
+        title: str | None = None,
     ) -> None:
         """Process a chat message using LangGraph with streaming response.
 
@@ -356,6 +357,7 @@ class AgentService:
             user_id: ID of the user sending the message
             websocket: WebSocket connection for streaming responses
             db: Database session for persistence
+            title: Optional title for the session (only used when creating a new session)
 
         Returns:
             None (communicates via WebSocket)
@@ -374,6 +376,7 @@ class AgentService:
             db_session = AIConversationSession(
                 user_id=str(user_id),
                 assistant_config_id=str(assistant_config.id),
+                title=title,
             )
             db.add(db_session)
             await db.flush()

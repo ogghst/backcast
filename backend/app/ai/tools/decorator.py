@@ -196,9 +196,9 @@ def to_langchain_tool(
         result = await func(context=context, **kwargs)
         return json.dumps(result)
 
+    # Set function attributes for tool decorator to pick up
+    wrapped.__name__ = metadata.name if metadata else func.__name__
+    wrapped.__doc__ = metadata.description if metadata else func.__doc__ or ""
+
     # Note: tool() decorator returns Any, but we know it's BaseTool
-    # Type ignore needed for deprecated function - complex overload signatures
-    return tool(  # type: ignore[call-overload]
-        name=metadata.name if metadata else func.__name__,
-        description=metadata.description if metadata else func.__doc__ or "",
-    )(wrapped)
+    return tool(wrapped)
