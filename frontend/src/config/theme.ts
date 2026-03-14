@@ -100,13 +100,40 @@ type CustomTokenConfig = {
   borderRadiusXL?: number;
 };
 
+/**
+ * Soft Light Color Scheme
+ *
+ * A refined, polished palette with soft backgrounds and easy-to-read typography.
+ * Designed for comfort and clarity in extended use sessions.
+ *
+ * Color Philosophy:
+ * - Warm undertones for reduced eye strain
+ * - High contrast ratios (WCAG AA compliant)
+ * - Sophisticated accent colors that guide attention
+ * - Harmonious relationships between elements
+ */
 export const theme: ThemeConfig & { token: CustomTokenConfig } = {
   token: {
-    // === Existing Tokens ===
-    colorPrimary: "#1677ff",
-    borderRadius: 6,
+    // === Brand & Typography ===
+    colorPrimary: "#4a7c91", // Soft teal-blue - sophisticated primary
+    borderRadius: 8,
     fontFamily:
-      'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+      'Ubuntu, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+
+    // === Background Colors (Soft Light) ===
+    colorBgContainer: "#faf9f7", // Warm off-white for cards/containers
+    colorBgElevated: "#ffffff", // Pure white for elevated elements
+    colorBgLayout: "#f5f3f0", // Soft cream for layout background
+
+    // === Text Colors (High Contrast) ===
+    colorText: "#2a2a2a", // Deep charcoal for primary text
+    colorTextSecondary: "#6b6b6b", // Medium gray for secondary text
+    colorTextTertiary: "#9a9a9a", // Light gray for tertiary text
+    colorTextQuaternary: "#d4d4d4", // Very light gray for disabled text
+
+    // === Border Colors (Subtle) ===
+    colorBorder: "#e8e6e3", // Soft warm gray
+    colorBorderSecondary: "#f0eee9", // Lighter border for subtle separation
 
     // === Spacing Scale ===
     marginXS: 4,
@@ -135,28 +162,23 @@ export const theme: ThemeConfig & { token: CustomTokenConfig } = {
     fontWeightSemiBold: 600,
     fontWeightBold: 700,
 
-    // === Status Colors ===
-    colorSuccess: "#52c41a",
-    colorWarning: "#faad14",
-    colorError: "#ff4d4f",
-    colorInfo: "#1677ff",
+    // === Status Colors (Softened) ===
+    colorSuccess: "#5da572", // Muted green
+    colorWarning: "#d4a549", // Warm amber
+    colorError: "#c95d5f", // Soft red
+    colorInfo: "#5d8ba8", // Muted blue
 
-    // === Semantic Colors ===
-    colorTextSecondary: "#8c8c8c",
-    colorTextTertiary: "#bfbfbf",
-    colorBorderSecondary: "#d9d9d9",
-
-    // === Chart Colors ===
+    // === Chart Colors (Refined) ===
     // Used for EVM and other data visualizations
-    colorChartPV: "#5b8ff9", // Blue - Planned Value
-    colorChartEV: "#5ad8a6", // Green - Earned Value
-    colorChartAC: "#5d7092", // Gray - Actual Cost
-    colorChartForecast: "#faad14", // Orange - Forecast
-    colorChartActual: "#ff4d4f", // Red - Actual
+    colorChartPV: "#6b9ac4", // Soft blue - Planned Value
+    colorChartEV: "#7bc49a", // Muted mint - Earned Value
+    colorChartAC: "#8b7b94", // Soft lavender-gray - Actual Cost
+    colorChartForecast: "#d4a549", // Warm amber - Forecast
+    colorChartActual: "#c95d5f", // Soft red - Actual
 
     // === Border Radius Variants ===
     borderRadiusSM: 4,
-    borderRadiusLG: 8,
-    borderRadiusXL: 12,
+    borderRadiusLG: 12,
+    borderRadiusXL: 16,
   },
 };
