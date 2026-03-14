@@ -1,8 +1,8 @@
 # Technical Debt Register
 
 **Last Updated:** 2026-03-14
-**Total Open Items:** 8
-**Total Estimated Effort:** 107 hours
+**Total Open Items:** 7
+**Total Estimated Effort:** 106 hours
 
 ---
 
@@ -127,18 +127,14 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-## Low Severity (P4+)
+## Summary
 
-### [TD-059] WBE Hierarchical Filter API Response Format
-
-- **Source:** Backend Test Suite Run (2026-01-14)
-- **Description:** `test_get_wbes_param_filter` fails when querying `/api/v1/wbes?parent_wbe_id=null`.
-- **Impact:** Hierarchical WBE filtering returns incorrect response format
-- **Estimated Effort:** 1 hour
-- **Status:** 🔴 Open
-- **Owner:** Backend Developer
-
----
+| Priority | Count | Total Effort |
+|----------|-------|--------------|
+| High (P0-P1) | 3 | 24-28 hours |
+| Medium (P2-P3) | 4 | 66-76 hours |
+| Low (P4+) | 0 | 0 hours |
+| **Total** | **7** | **~106 hours** |
 
 ## Summary
 

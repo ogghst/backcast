@@ -128,14 +128,10 @@ async def read_wbes(
         )
         return [WBEPublic.model_validate(w) for w in wbes]
 
-    # General Listing AND Parent Filtering (Paginated)
+    # General Listing (Paginated)
     skip = (page - 1) * per_page
 
     try:
-        # Determine if we should apply the parent filter
-        # We apply it if a specific ID is parsed OR if it was an explicit "null" query (root only)
-        apply_parent_filter = (parsed_parent_id is not None) or is_root_query
-
         wbes, total = await service.get_wbes(
             skip=skip,
             limit=per_page,
@@ -146,8 +142,6 @@ async def read_wbes(
             sort_field=sort_field,
             sort_order=sort_order,
             project_id=project_id,
-            parent_wbe_id=parsed_parent_id,
-            apply_parent_filter=apply_parent_filter,
             as_of=as_of,
         )
 

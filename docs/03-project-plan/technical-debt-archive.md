@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
 **Last Updated:** 2026-03-14
-**Total Archived Items:** 27
+**Total Archived Items:** 28
 
 ---
 
@@ -136,13 +136,37 @@ This file contains all completed, closed, or resolved technical debt items. For 
 - **Resolution:** Timeout configuration implemented
 - **References:** Change Order Workflow Recovery iteration
 
+#### [TD-059] WBE Hierarchical Filter API Response Format
+
+- **Source:** Backend Test Suite Run (2026-01-14)
+- **Description:** `test_get_wbes_param_filter` fails when querying `/api/v1/wbes?parent_wbe_id=null`.
+- **Status:** ✅ Complete (2026-03-14)
+- **Owner:** Backend Developer
+- **Priority:** Low (P4)
+- **Resolution:** API already correctly returns list (not paginated) for hierarchical filters. Removed dead code that was setting unused `apply_parent_filter` parameter.
+- **Actual Effort:** 0.5 hours (less than estimated)
+- **Files Modified:**
+  - `backend/app/api/routes/wbes.py` - Removed dead code for unused parent filter parameters
+- **Action Items:**
+  - [x] Verified test passes: `test_get_wbes_param_filter`
+  - [x] Confirmed API returns list (not paginated) for `parent_wbe_id` filters
+  - [x] Removed dead code: `apply_parent_filter` and `parent_wbe_id` parameters in paginated path
+  - [x] Ran quality checks: ruff, mypy, pytest all pass
+- **API Behavior Verified:**
+  - `GET /api/v1/wbes?parent_wbe_id=null` returns list of root WBEs (not paginated)
+  - `GET /api/v1/wbes?parent_wbe_id=<uuid>` returns list of child WBEs (not paginated)
+  - `GET /api/v1/wbes` (no parent filter) returns paginated response with `.items`
+- **References:**
+  - **Test:** `tests/api/routes/wbes/test_wbes.py::test_get_wbes_param_filter`
+  - **Related:** Hierarchical navigation implementation
+
 ---
 
 ## Summary by Year
 
 ### 2026
-- **Q1:** 5 items closed (TD-072, TD-073, TD-057, TD-062, TD-068)
-- **Total Archived:** 5 items
+- **Q1:** 6 items closed (TD-072, TD-073, TD-057, TD-062, TD-068, TD-059)
+- **Total Archived:** 6 items
 
 ### 2025
 - **Q4:** 15 items closed
@@ -154,7 +178,7 @@ This file contains all completed, closed, or resolved technical debt items. For 
 
 | Status | Count |
 |--------|-------|
-| Complete | 4 |
+| Complete | 5 |
 | Closed - Not Needed | 1 |
-| **Total (2026)** | **5** |
-| **Total (All Time)** | **26** |
+| **Total (2026)** | **6** |
+| **Total (All Time)** | **28** |
