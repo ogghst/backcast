@@ -1,5 +1,5 @@
 import { Button, Space, Modal } from "antd";
-import { SendOutlined, CheckOutlined, CloseOutlined, MergeOutlined, ExclamationCircleOutlined, DeleteOutlined } from "@ant-design/icons";
+import { SendOutlined, CheckOutlined, CloseOutlined, MergeOutlined, ExclamationCircleOutlined, DeleteOutlined, UndoOutlined } from "@ant-design/icons";
 import { useState } from "react";
 import type { ChangeOrderPublic } from "@/api/generated";
 import {
@@ -38,6 +38,7 @@ export function WorkflowButtons({
     submit,
     approve,
     reject,
+    reopen,
     merge,
     archive,
     isLoading,
@@ -56,6 +57,7 @@ export function WorkflowButtons({
   const canSubmit = isActionAvailable("SUBMIT", availableTransitions);
   const canApprove = isActionAvailable("APPROVE", availableTransitions);
   const canReject = true; // Reject is always available as a workflow action
+  const canReopen = isActionAvailable("REOPEN", availableTransitions);
   const canMerge = isActionAvailable("MERGE", availableTransitions);
   const canArchive = isActionAvailable("ARCHIVE", availableTransitions);
 
@@ -142,6 +144,17 @@ export function WorkflowButtons({
             disabled={isLoading}
           >
             {WORKFLOW_ACTIONS.REJECT.label}
+          </Button>
+        )}
+
+        {/* Reopen button - visible for Rejected change orders */}
+        {canReopen && (
+          <Button
+            icon={<UndoOutlined />}
+            onClick={() => reopen()}
+            loading={isLoading}
+          >
+            {WORKFLOW_ACTIONS.REOPEN.label}
           </Button>
         )}
 

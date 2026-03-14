@@ -31,6 +31,7 @@ export const WORKFLOW_ACTIONS = {
   REVIEW: { label: "Put Under Review", status: "Under Review" },
   APPROVE: { label: "Approve", status: "Approved" },
   REJECT: { label: "Reject", status: "Rejected" },
+  REOPEN: { label: "Reopen", status: "Draft" },
   MERGE: { label: "Merge to Main", status: "Implemented" },
   ARCHIVE: { label: "Archive Branch", status: "Archived" },
 } as const;
@@ -173,11 +174,28 @@ export function useWorkflowActions(changeOrderId: string, options?: WorkflowActi
     [changeOrderId, archiveMutation]
   );
 
+  /**
+   * Reopen the Change Order (Rejected → Draft)
+   *
+   * Returns a rejected change order to Draft status for further editing.
+   */
+  const reopen = useCallback(
+    async (comment?: string) => {
+      const data: ChangeOrderUpdate = {
+        status: WORKFLOW_ACTIONS.REOPEN.status,
+        comment,
+      };
+      return updateMutation.mutateAsync({ id: changeOrderId, data });
+    },
+    [changeOrderId, updateMutation]
+  );
+
   return {
     submit,
     review,
     approve,
     reject,
+    reopen,
     merge,
     archive,
     isLoading: updateMutation.isPending || approveMutation.isPending || rejectMutation.isPending || mergeMutation.isPending || archiveMutation.isPending,

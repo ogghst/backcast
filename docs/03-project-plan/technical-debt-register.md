@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-03-09
-**Total Open Items:** 9
-**Total Estimated Effort:** 108 hours
+**Last Updated:** 2026-03-14
+**Total Open Items:** 8
+**Total Estimated Effort:** 107 hours
 
 ---
 
@@ -127,19 +127,6 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-083] Missing Reopen Action for Rejected Change Orders
-
-- **Source:** Change Order Workflow UI Test (2026-02-25)
-- **Description:** Documentation specifies `Rejected → Draft (Reopen)` transition, but UI doesn't support it.
-- **Impact:** Users cannot return rejected change order to Draft for modifications
-- **Estimated Effort:** 1 hour
-- **Target Date:** 2026-03-15
-- **Status:** 🔴 Open
-- **Owner:** Frontend Developer
-- **Priority:** Medium
-
----
-
 ## Low Severity (P4+)
 
 ### [TD-059] WBE Hierarchical Filter API Response Format
@@ -158,14 +145,14 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
 | High (P0-P1) | 3 | 24-28 hours |
-| Medium (P2-P3) | 5 | 68-78 hours |
+| Medium (P2-P3) | 4 | 66-76 hours |
 | Low (P4+) | 1 | 1 hour |
-| **Total** | **9** | **~108 hours** |
+| **Total** | **8** | **~107 hours** |
 
 ---
 
 ## Links
 
-- [Technical Debt Archive](./technical-debt-archive.md) - Completed debt items (26 items)
+- [Technical Debt Archive](./technical-debt-archive.md) - Completed debt items (27 items)
 - [Sprint Backlog](./sprint-backlog.md) - Current iteration
 - [Product Backlog](./product-backlog.md) - All pending work

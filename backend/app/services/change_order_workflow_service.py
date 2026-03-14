@@ -47,7 +47,7 @@ class ChangeOrderWorkflowService:
         "Draft": ["Submitted for Approval"],
         "Submitted for Approval": ["Under Review", "Approved", "Rejected"],
         "Under Review": ["Approved", "Rejected"],
-        "Rejected": ["Submitted for Approval"],
+        "Rejected": ["Draft", "Submitted for Approval"],
         "Approved": ["Implemented"],
         "Implemented": [],  # Terminal state
     }

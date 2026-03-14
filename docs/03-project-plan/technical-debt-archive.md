@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
-**Last Updated:** 2026-03-09
-**Total Archived Items:** 26
+**Last Updated:** 2026-03-14
+**Total Archived Items:** 27
 
 ---
 
@@ -68,11 +68,39 @@ This file contains all completed, closed, or resolved technical debt items. For 
 - **References:**
   - **Iteration:** 2026-03-08-websocket-streaming
 
+#### [TD-083] Missing Reopen Action for Rejected Change Orders
+
+- **Source:** Change Order Workflow UI Test (2026-02-25)
+- **Description:** Documentation specifies `Rejected → Draft (Reopen)` transition, but UI doesn't support it.
+- **Status:** ✅ Complete (2026-03-14)
+- **Owner:** Frontend Developer
+- **Priority:** Medium (P2)
+- **Resolution:** Added "Reopen" action to change order workflow. Backend now allows Rejected → Draft transition, and frontend includes a Reopen button with UndoOutlined icon.
+- **Actual Effort:** 1 hour (as estimated)
+- **Files Modified:**
+  - `backend/app/services/change_order_workflow_service.py` - Added "Draft" to Rejected transitions
+  - `frontend/src/features/change-orders/hooks/useWorkflowActions.ts` - Added REOPEN action and reopen() method
+  - `frontend/src/features/change-orders/components/WorkflowButtons.tsx` - Added Reopen button
+- **Action Items:**
+  - [x] Update backend workflow transitions to allow Rejected → Draft
+  - [x] Add REOPEN action constant to frontend workflow actions
+  - [x] Add reopen() method to useWorkflowActions hook
+  - [x] Add Reopen button to WorkflowButtons component
+- **References:**
+  - **Technical Debt ID:** TD-083
+
 ---
 
 ## Recently Archived (2026)
 
 ### March 2026
+
+#### [TD-083] Missing Reopen Action for Rejected Change Orders
+
+- **Status:** ✅ Complete (2026-03-14)
+- **Resolution:** Added "Reopen" action allowing Rejected → Draft transition
+- **Actual Effort:** 1 hour (as estimated)
+- **Changes:** Backend workflow + frontend button
 
 #### [TD-072] WebSocket CORS Middleware Missing
 
