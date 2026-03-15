@@ -131,6 +131,13 @@ export interface ColorTokens {
   /** Secondary border color (#d9d9d9) */
   borderSecondary: string;
 
+  /** Background container color (respects dark mode) */
+  bgContainer: string;
+  /** Background elevated color for cards (respects dark mode) */
+  bgElevated: string;
+  /** Background layout color (respects dark mode) */
+  bgLayout: string;
+
   /** Chart: Planned Value (Blue) */
   chartPV: string;
   /** Chart: Earned Value (Green) */
@@ -230,6 +237,9 @@ export function useThemeTokens(): ThemeTokens {
     colorTextSecondary: string;
     colorTextTertiary: string;
     colorBorderSecondary: string;
+    colorBgContainer: string;
+    colorBgElevated: string;
+    colorBgLayout: string;
     colorChartPV: string;
     colorChartEV: string;
     colorChartAC: string;
@@ -277,6 +287,9 @@ export function useThemeTokens(): ThemeTokens {
         textTertiary: customToken.colorTextTertiary,
         border: customToken.colorBorder,
         borderSecondary: customToken.colorBorderSecondary,
+        bgContainer: customToken.colorBgContainer,
+        bgElevated: customToken.colorBgElevated,
+        bgLayout: customToken.colorBgLayout,
         chartPV: customToken.colorChartPV,
         chartEV: customToken.colorChartEV,
         chartAC: customToken.colorChartAC,
@@ -317,6 +330,9 @@ export function useThemeTokens(): ThemeTokens {
       customToken.colorTextTertiary,
       customToken.colorBorder,
       customToken.colorBorderSecondary,
+      customToken.colorBgContainer,
+      customToken.colorBgElevated,
+      customToken.colorBgLayout,
       customToken.colorChartPV,
       customToken.colorChartEV,
       customToken.colorChartAC,

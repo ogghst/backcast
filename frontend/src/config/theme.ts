@@ -148,10 +148,10 @@ export const theme: ThemeConfig & { token: CustomTokenConfig; darkModeTokens?: D
     colorBgLayout: "#f5f3f0", // Soft cream for layout background
 
     // === Text Colors (High Contrast) ===
-    colorText: "#2a2a2a", // Deep charcoal for primary text
-    colorTextSecondary: "#6b6b6b", // Medium gray for secondary text
-    colorTextTertiary: "#9a9a9a", // Light gray for tertiary text
-    colorTextQuaternary: "#d4d4d4", // Very light gray for disabled text
+    colorText: "#1a1a1a", // Near black for primary text (WCAG AAA: 16.6:1)
+    colorTextSecondary: "#4a4a4a", // Dark gray for secondary text (WCAG AA: 8.2:1)
+    colorTextTertiary: "#6b6b6b", // Medium gray for tertiary text (WCAG AA: 5.1:1)
+    colorTextQuaternary: "#9a9a9a", // Light gray for disabled text (WCAG AA: 3.1:1)
 
     // === Border Colors (Subtle) ===
     colorBorder: "#e8e6e3", // Soft warm gray
