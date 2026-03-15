@@ -6,17 +6,20 @@ Satisfies BranchableProtocol via structural subtyping.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, NUMERIC, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base.base import EntityBase
 from app.models.mixins import BranchableMixin, VersionableMixin
+
+if TYPE_CHECKING:
+    from app.models.domain.project import Project
 
 
 class ImpactLevel:
@@ -147,6 +150,15 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
         NUMERIC(10, 2),
         nullable=True,
         comment="Impact severity score (weighted calculation)",
+    )
+
+    # Relationships
+    # Note: relationship to Project uses root ID join and is view-only
+    project: Mapped["Project"] = relationship(
+        "Project",
+        primaryjoin="ChangeOrder.project_id == Project.project_id",
+        foreign_keys=[project_id],
+        viewonly=True,
     )
 
     # Temporal and branching fields inherited from mixins:

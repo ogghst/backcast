@@ -49,6 +49,12 @@ export const queryKeys = createQueryKeys("backcast-evs", {
       ["time-machine", { asOf, branch, mode }] as const,
   },
 
+  // Dashboard
+  dashboard: {
+    all: ["dashboard"] as const,
+    recentActivity: ["dashboard", "recent-activity"] as const,
+  },
+
   // Projects
   projects: {
     all: ["projects"] as const,

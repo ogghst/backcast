@@ -7,6 +7,7 @@ import {
 } from "@ant-design/icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import { usePermission } from "@/hooks/usePermission";
+import { useAuth } from "@/hooks/useAuth";
 
 interface HeaderNavigationProps {
   className?: string;
@@ -23,6 +24,7 @@ export const HeaderNavigation: React.FC<HeaderNavigationProps> = ({
   const navigate = useNavigate();
   const location = useLocation();
   const { can } = usePermission();
+  const { isLoadingUser } = useAuth();
   const [iconOnly, setIconOnly] = useState(false);
 
   // Check screen width and update icon-only mode
@@ -39,6 +41,11 @@ export const HeaderNavigation: React.FC<HeaderNavigationProps> = ({
 
     return () => window.removeEventListener("resize", checkWidth);
   }, []);
+
+  // Don't render menu items until user data is loaded
+  if (isLoadingUser) {
+    return null;
+  }
 
   // Build menu items based on permissions and screen size
   const menuItems: MenuProps["items"] = [

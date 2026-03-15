@@ -1179,3 +1179,47 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
                 wbe_id, branch=wbe.branch
             )
         return wbe
+
+    async def get_recently_updated(
+        self,
+        user_id: UUID | None = None,
+        limit: int = 10,
+        branch: str = "main",
+        eager_load_project: bool = False,
+    ) -> list[WBE]:
+        """Get recently updated WBEs, optionally filtered by user.
+
+        Args:
+            user_id: Optional user ID to filter by (only WBEs updated by this user)
+            limit: Maximum number of WBEs to return
+            branch: Branch name to query (default: "main")
+            eager_load_project: If True, preload the project relationship to avoid N+1 queries
+
+        Returns:
+            List of recently updated WBEs ordered by transaction_time descending
+        """
+        from typing import Any, cast
+
+        from sqlalchemy import desc
+        from sqlalchemy.orm import selectinload
+
+        stmt = select(WBE).where(WBE.branch == branch)
+
+        if user_id:
+            stmt = stmt.where(cast(Any, WBE).created_by == user_id)
+
+        # Get current versions (not deleted)
+        stmt = stmt.where(
+            func.upper(cast(Any, WBE).valid_time).is_(None),
+            cast(Any, WBE).deleted_at.is_(None),
+        )
+
+        # Eager load project relationship if requested (for dashboard optimization)
+        if eager_load_project:
+            stmt = stmt.options(selectinload(WBE.project))
+
+        # Order by transaction_time descending (most recent first)
+        stmt = stmt.order_by(desc(cast(Any, WBE).transaction_time)).limit(limit)
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

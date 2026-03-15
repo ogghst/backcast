@@ -30,6 +30,16 @@ export default defineConfig(({ mode }) => {
       coverage: {
         provider: "v8",
         reporter: ["text", "json", "html"],
+        exclude: [
+          "node_modules/**",
+          "dist/**",
+          "**/*.d.ts",
+          "**/*.config.*",
+          "**/stories/**",  // Storybook stories and assets
+          "**/*.test.ts",    // Test files themselves
+          "**/*.test.tsx",   // Test files themselves
+          "src/setupTests.ts",  // Test setup file
+        ],
       },
     },
   };

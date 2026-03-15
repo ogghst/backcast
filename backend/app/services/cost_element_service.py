@@ -20,6 +20,9 @@ from app.models.domain.wbe import WBE
 from app.models.protocols import VersionableProtocol
 from app.models.schemas.cost_element import CostElementCreate, CostElementUpdate
 
+# Import list as builtin_list to avoid shadowing by the list() method
+builtin_list = list
+
 
 class CostElementService(BranchableService[CostElement]):  # type: ignore[type-var,unused-ignore]
     """Service for Cost Element management (branchable + versionable)."""
@@ -116,7 +119,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
 
     async def _resolve_relations(
         self, query_results: Sequence[Any]
-    ) -> list[CostElement]:
+    ) -> builtin_list[CostElement]:
         """Helper to resolve related names for a list of results."""
         resolved = []
         for item in query_results:
@@ -509,7 +512,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         sort_field: str | None = None,
         sort_order: str = "asc",
         as_of: datetime | None = None,
-    ) -> tuple[list[CostElement], int]:
+    ) -> tuple[builtin_list[CostElement], int]:
         """Get all cost elements with search, filtering, and sorting.
 
         Args:
@@ -630,7 +633,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         branch: str = "main",
         skip: int = 0,
         limit: int = 100000,
-    ) -> list[CostElement]:
+    ) -> builtin_list[CostElement]:
         """Alias for get_cost_elements() to maintain backward compatibility.
 
         Note: Returns only items, not total count. Use get_cost_elements() for pagination.
@@ -965,3 +968,47 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 "name": current_element.name,
             },
         }
+
+    async def get_recently_updated(
+        self,
+        user_id: UUID | None = None,
+        limit: int = 10,
+        branch: str = "main",
+        eager_load_wbe_and_project: bool = False,
+    ) -> builtin_list[CostElement]:
+        """Get recently updated cost elements, optionally filtered by user.
+
+        Args:
+            user_id: Optional user ID to filter by (only cost elements updated by this user)
+            limit: Maximum number of cost elements to return
+            branch: Branch name to query (default: "main")
+            eager_load_wbe_and_project: If True, preload WBE and project relationships to avoid N+1 queries
+
+        Returns:
+            List of recently updated cost elements ordered by transaction_time descending
+        """
+        from sqlalchemy import desc
+        from sqlalchemy.orm import selectinload
+
+        stmt = select(CostElement).where(CostElement.branch == branch)
+
+        if user_id:
+            stmt = stmt.where(cast(Any, CostElement).created_by == user_id)
+
+        # Get current versions (not deleted)
+        stmt = stmt.where(
+            func.upper(cast(Any, CostElement).valid_time).is_(None),
+            cast(Any, CostElement).deleted_at.is_(None),
+        )
+
+        # Eager load WBE and project relationships if requested (for dashboard optimization)
+        if eager_load_wbe_and_project:
+            stmt = stmt.options(
+                selectinload(CostElement.wbe).selectinload(WBE.project)
+            )
+
+        # Order by transaction_time descending (most recent first)
+        stmt = stmt.order_by(desc(cast(Any, CostElement).transaction_time)).limit(limit)
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

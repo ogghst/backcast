@@ -296,4 +296,83 @@ export const handlers = [
   http.delete("*/api/v1/ai/chat/sessions/:sessionId", async () => {
     return new HttpResponse(null, { status: 204 });
   }),
+
+  // Dashboard Handlers
+  http.get("*/api/v1/dashboard/recent-activity", async () => {
+    await delay(200);
+    return HttpResponse.json({
+      last_edited_project: {
+        project_id: "proj-dashboard-1",
+        project_name: "Dashboard Test Project",
+        project_code: "DASH-001",
+        last_activity: "2026-03-15T10:00:00Z",
+        metrics: {
+          total_budget: 500000,
+          total_wbes: 5,
+          total_cost_elements: 25,
+          active_change_orders: 2,
+          ev_status: "on_track",
+        },
+        branch: "main",
+      },
+      recent_activity: {
+        projects: [
+          {
+            entity_id: "proj-dashboard-1",
+            entity_name: "Dashboard Test Project",
+            entity_type: "project",
+            action: "updated",
+            timestamp: "2026-03-15T10:00:00Z",
+            actor_id: "user-1",
+            actor_name: "Test User",
+            project_id: null,
+            project_name: null,
+            branch: "main",
+          },
+        ],
+        wbes: [
+          {
+            entity_id: "wbe-dashboard-1",
+            entity_name: "Design Phase",
+            entity_type: "wbe",
+            action: "created",
+            timestamp: "2026-03-15T09:30:00Z",
+            actor_id: "user-1",
+            actor_name: "Test User",
+            project_id: "proj-dashboard-1",
+            project_name: "Dashboard Test Project",
+            branch: "main",
+          },
+        ],
+        cost_elements: [
+          {
+            entity_id: "ce-dashboard-1",
+            entity_name: "Material Cost",
+            entity_type: "cost_element",
+            action: "updated",
+            timestamp: "2026-03-15T09:00:00Z",
+            actor_id: "user-1",
+            actor_name: "Test User",
+            project_id: "proj-dashboard-1",
+            project_name: "Dashboard Test Project",
+            branch: "main",
+          },
+        ],
+        change_orders: [
+          {
+            entity_id: "co-dashboard-1",
+            entity_name: "Scope Change",
+            entity_type: "change_order",
+            action: "created",
+            timestamp: "2026-03-15T08:30:00Z",
+            actor_id: "user-1",
+            actor_name: "Test User",
+            project_id: "proj-dashboard-1",
+            project_name: "Dashboard Test Project",
+            branch: "main",
+          },
+        ],
+      },
+    });
+  }),
 ];

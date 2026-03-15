@@ -1881,3 +1881,47 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
             conflicts.extend(ce_conflicts)
 
         return conflicts
+
+    async def get_recently_updated(
+        self,
+        user_id: UUID | None = None,
+        limit: int = 10,
+        branch: str = "main",
+        eager_load_project: bool = False,
+    ) -> list[ChangeOrder]:
+        """Get recently updated change orders, optionally filtered by user.
+
+        Args:
+            user_id: Optional user ID to filter by (only change orders updated by this user)
+            limit: Maximum number of change orders to return
+            branch: Branch name to query (default: "main")
+            eager_load_project: If True, preload the project relationship to avoid N+1 queries
+
+        Returns:
+            List of recently updated change orders ordered by transaction_time descending
+        """
+        from typing import Any, cast
+
+        from sqlalchemy import desc
+        from sqlalchemy.orm import selectinload
+
+        stmt = select(ChangeOrder).where(ChangeOrder.branch == branch)
+
+        if user_id:
+            stmt = stmt.where(cast(Any, ChangeOrder).created_by == user_id)
+
+        # Get current versions (not deleted)
+        stmt = stmt.where(
+            func.upper(cast(Any, ChangeOrder).valid_time).is_(None),
+            cast(Any, ChangeOrder).deleted_at.is_(None),
+        )
+
+        # Eager load project relationship if requested (for dashboard optimization)
+        if eager_load_project:
+            stmt = stmt.options(selectinload(ChangeOrder.project))
+
+        # Order by transaction_time descending (most recent first)
+        stmt = stmt.order_by(desc(cast(Any, ChangeOrder).transaction_time)).limit(limit)
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

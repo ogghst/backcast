@@ -19,6 +19,7 @@ from app.api.routes import (
     cost_element_types,
     cost_elements,
     cost_registrations,
+    dashboard,
     departments,
     evm,
     forecasts,
@@ -193,6 +194,11 @@ app.include_router(
     ai_chat.router,
     prefix=settings.API_V1_STR,
     tags=["AI Chat"],
+)
+app.include_router(
+    dashboard.router,
+    prefix=f"{settings.API_V1_STR}/dashboard",
+    tags=["Dashboard"],
 )
 
 # Add WebSocket route directly to app (bypasses router for better CORS handling)
