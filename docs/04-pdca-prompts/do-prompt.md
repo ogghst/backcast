@@ -71,7 +71,7 @@ If the task is not found in the plan, notify the user and ask for clarification.
 1. Write the **minimum code** to make the test pass
 2. Resist adding functionality beyond the test scope
 3. "Ugly" code is acceptable—we refactor next
-4. Run all tests—confirm new test passes, no regressions
+4. Run relevant tests—confirm new test passes, no regressions in scope
 
 ### 🔵 REFACTOR: Improve Design While Staying Green
 
@@ -80,7 +80,7 @@ If the task is not found in the plan, notify the user and ask for clarification.
    - Rename for clarity
    - Apply patterns (Service, Repository, Command)
    - Ensure SOLID principles
-2. Run tests after **each small change**
+2. Run relevant tests after **each small change**
 3. Document significant refactoring decisions
 
 ---
@@ -98,7 +98,7 @@ For each task mentioned in the user prompt:
          ↓
 4. Implement minimal code (GREEN)
          ↓
-5. Verify all tests pass
+5. Verify scoped tests pass
          ↓
 6. Refactor if needed (BLUE)
          ↓
@@ -194,3 +194,19 @@ Update continuously with daily entries. Track running totals:
 3. **Continuous Refactoring**: Improve design while tests stay green
 4. **Document Progress**: Log every cycle for traceability
 5. **Quality Gates**: Pass mypy/ruff/eslint before CHECK phase
+6. **Scoped Testing**: Run only tests relevant to current work for efficiency
+7. **MCP Tools**: Use Postgres MCP for database inspection, Context7 for docs, Playwright for UI testing
+
+---
+
+## Lessons Learned from Past Iterations
+
+Key patterns from previous iterations are now integrated into architecture docs:
+
+| Lesson | Reference |
+|--------|-----------|
+| API Contract Verification | [API Conventions: Contract Coordination](../../02-architecture/cross-cutting/api-conventions.md) |
+| Unused Imports | [Code Review Checklist: Lint Clean](../../02-architecture/code-review-checklist.md) |
+| Parallel Development | [Code Review Checklist: Parallel Development](../../02-architecture/code-review-checklist.md) |
+
+**Before completing DO phase**, verify these cross-cutting concerns.

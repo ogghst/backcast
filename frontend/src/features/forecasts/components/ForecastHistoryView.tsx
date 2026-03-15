@@ -21,7 +21,6 @@ import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { useForecasts } from "../api";
-import type { ForecastRead } from "@/api/generated";
 
 const { RangePicker } = DatePicker;
 

@@ -5,17 +5,18 @@ Revises: 6c5c73b28e2e
 Create Date: 2026-01-31 00:25:44.197702
 
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '6ca38f4c2cdc'
-down_revision: Union[str, Sequence[str], None] = '6c5c73b28e2e'
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+revision: str = "6ca38f4c2cdc"
+down_revision: str | Sequence[str] | None = "6c5c73b28e2e"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -24,18 +25,18 @@ def upgrade() -> None:
     # This handles both fresh installs (table won't exist yet) and upgrades (columns need dropping)
     conn = op.get_bind()
     inspector = sa.inspect(conn)
-    
+
     # Check if the table exists
-    if 'progress_entry' in inspector.get_table_names():
+    if "progress_entry" in inspector.get_table_names():
         # Get existing columns
-        columns = [col['name'] for col in inspector.get_columns('progress_entry')]
-        
+        columns = [col["name"] for col in inspector.get_columns("progress_entry")]
+
         # Drop columns only if they exist
-        if 'reported_by_user_id' in columns:
-            op.drop_column('progress_entry', 'reported_by_user_id')
-        
-        if 'reported_date' in columns:
-            op.drop_column('progress_entry', 'reported_date')
+        if "reported_by_user_id" in columns:
+            op.drop_column("progress_entry", "reported_by_user_id")
+
+        if "reported_date" in columns:
+            op.drop_column("progress_entry", "reported_date")
     # If table doesn't exist, it will be created by earlier migrations without these columns
     # ### end Alembic commands ###
 
@@ -45,14 +46,22 @@ def downgrade() -> None:
     # Add back the columns for rollback only if table exists
     conn = op.get_bind()
     inspector = sa.inspect(conn)
-    
-    if 'progress_entry' in inspector.get_table_names():
-        columns = [col['name'] for col in inspector.get_columns('progress_entry')]
-        
-        if 'reported_date' not in columns:
-            op.add_column('progress_entry', sa.Column('reported_date', sa.TIMESTAMP(timezone=True), nullable=False))
-        
-        if 'reported_by_user_id' not in columns:
-            op.add_column('progress_entry', sa.Column('reported_by_user_id', sa.UUID(), nullable=False))
-            op.create_foreign_key(None, 'progress_entry', 'user', ['reported_by_user_id'], ['user_id'])
+
+    if "progress_entry" in inspector.get_table_names():
+        columns = [col["name"] for col in inspector.get_columns("progress_entry")]
+
+        if "reported_date" not in columns:
+            op.add_column(
+                "progress_entry",
+                sa.Column("reported_date", sa.TIMESTAMP(timezone=True), nullable=False),
+            )
+
+        if "reported_by_user_id" not in columns:
+            op.add_column(
+                "progress_entry",
+                sa.Column("reported_by_user_id", sa.UUID(), nullable=False),
+            )
+            op.create_foreign_key(
+                None, "progress_entry", "user", ["reported_by_user_id"], ["user_id"]
+            )
     # ### end Alembic commands ###

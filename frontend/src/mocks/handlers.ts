@@ -203,4 +203,176 @@ export const handlers = [
   http.delete("*/api/v1/wbes/:id", async () => {
     return new HttpResponse(null, { status: 204 });
   }),
+
+  // AI Assistant Handlers
+  http.get("*/api/v1/ai/config/assistants", async () => {
+    await delay(200);
+    return HttpResponse.json([
+      {
+        id: "assistant-1",
+        name: "Project Assistant",
+        description: "Helps with project management",
+        model_id: "model-1",
+        system_prompt: "You are a helpful assistant",
+        temperature: 0.7,
+        max_tokens: 2000,
+        allowed_tools: ["list_projects"],
+        is_active: true,
+        created_at: "2026-03-08T00:00:00Z",
+        updated_at: "2026-03-08T00:00:00Z",
+      },
+      {
+        id: "assistant-2",
+        name: "Cost Analyzer",
+        description: "Analyzes project costs",
+        model_id: "model-2",
+        system_prompt: "You analyze costs",
+        temperature: 0.5,
+        max_tokens: 1500,
+        allowed_tools: ["get_cost_element"],
+        is_active: true,
+        created_at: "2026-03-08T00:00:00Z",
+        updated_at: "2026-03-08T00:00:00Z",
+      },
+      {
+        id: "assistant-3",
+        name: "Inactive Assistant",
+        description: "This assistant is inactive",
+        model_id: "model-3",
+        system_prompt: "Inactive",
+        temperature: 0.7,
+        max_tokens: 2000,
+        allowed_tools: [],
+        is_active: false,
+        created_at: "2026-03-08T00:00:00Z",
+        updated_at: "2026-03-08T00:00:00Z",
+      },
+    ]);
+  }),
+
+  // AI Chat Session Handlers
+  http.get("*/api/v1/ai/chat/sessions", async () => {
+    await delay(200);
+    return HttpResponse.json([
+      {
+        id: "session-1",
+        user_id: "user-1",
+        assistant_config_id: "assistant-1",
+        title: "Project Analysis",
+        created_at: "2026-03-08T10:00:00Z",
+        updated_at: "2026-03-08T10:30:00Z",
+      },
+      {
+        id: "session-2",
+        user_id: "user-1",
+        assistant_config_id: "assistant-1",
+        title: "Cost Review",
+        created_at: "2026-03-07T14:00:00Z",
+        updated_at: "2026-03-07T14:15:00Z",
+      },
+    ]);
+  }),
+
+  http.get("*/api/v1/ai/chat/sessions/:sessionId/messages", async () => {
+    await delay(100);
+    return HttpResponse.json([
+      {
+        id: "msg-1",
+        session_id: "session-1",
+        role: "user",
+        content: "What is the project status?",
+        created_at: "2026-03-08T10:00:00Z",
+      },
+      {
+        id: "msg-2",
+        session_id: "session-1",
+        role: "assistant",
+        content: "The project is currently on track...",
+        created_at: "2026-03-08T10:00:05Z",
+      },
+    ]);
+  }),
+
+  http.delete("*/api/v1/ai/chat/sessions/:sessionId", async () => {
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Dashboard Handlers
+  http.get("*/api/v1/dashboard/recent-activity", async () => {
+    await delay(200);
+    return HttpResponse.json({
+      last_edited_project: {
+        project_id: "proj-dashboard-1",
+        project_name: "Dashboard Test Project",
+        project_code: "DASH-001",
+        last_activity: "2026-03-15T10:00:00Z",
+        metrics: {
+          total_budget: 500000,
+          total_wbes: 5,
+          total_cost_elements: 25,
+          active_change_orders: 2,
+          ev_status: "on_track",
+        },
+        branch: "main",
+      },
+      recent_activity: {
+        projects: [
+          {
+            entity_id: "proj-dashboard-1",
+            entity_name: "Dashboard Test Project",
+            entity_type: "project",
+            action: "updated",
+            timestamp: "2026-03-15T10:00:00Z",
+            actor_id: "user-1",
+            actor_name: "Test User",
+            project_id: null,
+            project_name: null,
+            branch: "main",
+          },
+        ],
+        wbes: [
+          {
+            entity_id: "wbe-dashboard-1",
+            entity_name: "Design Phase",
+            entity_type: "wbe",
+            action: "created",
+            timestamp: "2026-03-15T09:30:00Z",
+            actor_id: "user-1",
+            actor_name: "Test User",
+            project_id: "proj-dashboard-1",
+            project_name: "Dashboard Test Project",
+            branch: "main",
+          },
+        ],
+        cost_elements: [
+          {
+            entity_id: "ce-dashboard-1",
+            entity_name: "Material Cost",
+            entity_type: "cost_element",
+            action: "updated",
+            timestamp: "2026-03-15T09:00:00Z",
+            actor_id: "user-1",
+            actor_name: "Test User",
+            project_id: "proj-dashboard-1",
+            project_name: "Dashboard Test Project",
+            branch: "main",
+          },
+        ],
+        change_orders: [
+          {
+            entity_id: "co-dashboard-1",
+            entity_name: "Scope Change",
+            entity_type: "change_order",
+            action: "created",
+            timestamp: "2026-03-15T08:30:00Z",
+            actor_id: "user-1",
+            actor_name: "Test User",
+            project_id: "proj-dashboard-1",
+            project_name: "Dashboard Test Project",
+            branch: "main",
+          },
+        ],
+      },
+    });
+  }),
 ];

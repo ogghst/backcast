@@ -25,7 +25,8 @@ vi.mock("@/contexts/TimeMachineContext", () => ({
     mode: "current",
     branch: "main",
   }),
-  TimeMachineProvider: ({ children }: { children: React.ReactNode }) => children,
+  TimeMachineProvider: ({ children }: { children: React.ReactNode }) =>
+    children,
 }));
 
 // Mock the OpenAPI request function
@@ -50,9 +51,12 @@ const createWrapper = () => {
     },
   });
 
-  // eslint-disable-next-line @typescript-eslint/ban-types
   return ({ children }: { children: React.ReactNode }) => {
-    return React.createElement(QueryClientProvider, { client: queryClient }, children);
+    return React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children,
+    );
   };
 };
 
@@ -81,7 +85,7 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
 
       const { result } = renderHook(
         () => useCostElementScheduleBaseline("ce-123", "main"),
-        { wrapper: createWrapper() }
+        { wrapper: createWrapper() },
       );
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -92,7 +96,7 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
           method: "GET",
           url: "/api/v1/cost-elements/ce-123/schedule-baseline",
           query: { branch: "main", as_of: undefined },
-        })
+        }),
       );
 
       expect(result.current.data).toEqual(mockBaseline);
@@ -100,12 +104,12 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
 
     it("should handle 404 when baseline not found", async () => {
       const error = new Error("Not Found");
-      (error as any).status = 404;
+      (error as { status?: number }).status = 404;
       vi.mocked(__request).mockRejectedValue(error);
 
       const { result } = renderHook(
         () => useCostElementScheduleBaseline("ce-123", "main"),
-        { wrapper: createWrapper() }
+        { wrapper: createWrapper() },
       );
 
       await waitFor(() => expect(result.current.isError).toBe(true));
@@ -117,7 +121,7 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
 
       const { result } = renderHook(
         () => useCostElementScheduleBaseline("ce-123", "feature-branch"),
-        { wrapper: createWrapper() }
+        { wrapper: createWrapper() },
       );
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -126,7 +130,7 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
         OpenAPI,
         expect.objectContaining({
           query: { branch: "feature-branch", as_of: undefined },
-        })
+        }),
       );
     });
   });
@@ -148,7 +152,7 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
 
       const { result } = renderHook(
         () => useCreateCostElementScheduleBaseline(),
-        { wrapper: createWrapper() }
+        { wrapper: createWrapper() },
       );
 
       const createData = {
@@ -176,18 +180,18 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
             branch: "main",
             control_date: null,
           }),
-        })
+        }),
       );
     });
 
     it("should handle duplicate baseline error (400)", async () => {
       const error = new Error("Baseline already exists");
-      (error as any).status = 400;
+      (error as { status?: number }).status = 400;
       vi.mocked(__request).mockRejectedValue(error);
 
       const { result } = renderHook(
         () => useCreateCostElementScheduleBaseline(),
-        { wrapper: createWrapper() }
+        { wrapper: createWrapper() },
       );
 
       result.current.mutate({
@@ -219,7 +223,7 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
 
       const { result } = renderHook(
         () => useUpdateCostElementScheduleBaseline(),
-        { wrapper: createWrapper() }
+        { wrapper: createWrapper() },
       );
 
       const updateData = {
@@ -248,7 +252,7 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
             branch: "main",
             control_date: null,
           }),
-        })
+        }),
       );
     });
 
@@ -268,7 +272,7 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
 
       const { result } = renderHook(
         () => useUpdateCostElementScheduleBaseline(),
-        { wrapper: createWrapper() }
+        { wrapper: createWrapper() },
       );
 
       const updateData = {
@@ -291,7 +295,7 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
             branch: "main",
             control_date: null,
           }),
-        })
+        }),
       );
     });
   });
@@ -302,7 +306,7 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
 
       const { result } = renderHook(
         () => useDeleteCostElementScheduleBaseline(),
-        { wrapper: createWrapper() }
+        { wrapper: createWrapper() },
       );
 
       const deleteData = {
@@ -320,18 +324,18 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
           method: "DELETE",
           url: "/api/v1/cost-elements/ce-123/schedule-baseline/baseline-123",
           query: { branch: "main", control_date: undefined },
-        })
+        }),
       );
     });
 
     it("should handle 404 when baseline not found", async () => {
       const error = new Error("Baseline not found");
-      (error as any).status = 404;
+      (error as { status?: number }).status = 404;
       vi.mocked(__request).mockRejectedValue(error);
 
       const { result } = renderHook(
         () => useDeleteCostElementScheduleBaseline(),
-        { wrapper: createWrapper() }
+        { wrapper: createWrapper() },
       );
 
       result.current.mutate({
@@ -350,7 +354,7 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
 
       const { result: getResult } = renderHook(
         () => useCostElementScheduleBaseline("ce-123", "feature-branch"),
-        { wrapper: createWrapper() }
+        { wrapper: createWrapper() },
       );
 
       await waitFor(() => expect(getResult.current.isSuccess).toBe(true));
@@ -358,14 +362,14 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
         OpenAPI,
         expect.objectContaining({
           query: { branch: "feature-branch", as_of: undefined },
-        })
+        }),
       );
 
       vi.clearAllMocks();
 
       const { result: createResult } = renderHook(
         () => useCreateCostElementScheduleBaseline(),
-        { wrapper: createWrapper() }
+        { wrapper: createWrapper() },
       );
 
       createResult.current.mutate({
@@ -383,7 +387,7 @@ describe("useCostElementScheduleBaseline - Nested API Hooks", () => {
           body: expect.objectContaining({
             branch: "feature-branch",
           }),
-        })
+        }),
       );
     });
   });

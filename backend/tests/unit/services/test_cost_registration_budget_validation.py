@@ -54,7 +54,9 @@ class TestBudgetValidation:
         actor_id = uuid4()
 
         # Act
-        result = await service.create(registration_in, actor_id=actor_id)
+        result = await service.create_cost_registration(
+            registration_in, actor_id=actor_id
+        )
 
         # Assert
         assert result.amount == Decimal("500.00")
@@ -79,7 +81,7 @@ class TestBudgetValidation:
 
         # Create costs totaling 700 (70%)
         for _ in range(7):
-            await service.create(
+            await service.create_cost_registration(
                 CostRegistrationCreate(
                     cost_element_id=cost_element.cost_element_id,
                     amount=Decimal("100.00"),
@@ -96,7 +98,9 @@ class TestBudgetValidation:
 
         # Act - Should either return warning or be verified via separate check
         # For now, we'll create and verify it succeeds
-        result = await service.create(registration_in, actor_id=actor_id)
+        result = await service.create_cost_registration(
+            registration_in, actor_id=actor_id
+        )
 
         # Assert - Registration succeeds even at warning threshold
         assert result.amount == Decimal("100.00")
@@ -117,7 +121,7 @@ class TestBudgetValidation:
 
         # Create costs totaling 1000 (full budget)
         for _ in range(10):
-            await service.create(
+            await service.create_cost_registration(
                 CostRegistrationCreate(
                     cost_element_id=cost_element.cost_element_id,
                     amount=Decimal("100.00"),
@@ -133,11 +137,12 @@ class TestBudgetValidation:
         actor_id = uuid4()
 
         # Act
-        result = await service.create(registration_in, actor_id=actor_id)
+        result = await service.create_cost_registration(
+            registration_in, actor_id=actor_id
+        )
 
         # Assert
         assert result.amount == Decimal("1.00")
-
 
     @pytest.mark.asyncio
     async def test_get_budget_status_returns_used_remaining_percentage(
@@ -157,7 +162,7 @@ class TestBudgetValidation:
 
         # Create costs totaling 500 (50%)
         for _ in range(5):
-            await service.create(
+            await service.create_cost_registration(
                 CostRegistrationCreate(
                     cost_element_id=cost_element.cost_element_id,
                     amount=Decimal("100.00"),
@@ -215,14 +220,14 @@ class TestBudgetValidation:
         cost_element = sample_cost_element_with_budget
 
         # Create multiple registrations
-        await service.create(
+        await service.create_cost_registration(
             CostRegistrationCreate(
                 cost_element_id=cost_element.cost_element_id,
                 amount=Decimal("100.00"),
             ),
             actor_id=uuid4(),
         )
-        await service.create(
+        await service.create_cost_registration(
             CostRegistrationCreate(
                 cost_element_id=cost_element.cost_element_id,
                 amount=Decimal("250.00"),
@@ -252,7 +257,7 @@ class TestBudgetValidation:
         cost_element = sample_cost_element_with_budget
 
         # Create and then delete a registration
-        reg = await service.create(
+        reg = await service.create_cost_registration(
             CostRegistrationCreate(
                 cost_element_id=cost_element.cost_element_id,
                 amount=Decimal("200.00"),
@@ -262,7 +267,7 @@ class TestBudgetValidation:
         await service.soft_delete(reg.cost_registration_id, actor_id=uuid4())
 
         # Create another active registration
-        await service.create(
+        await service.create_cost_registration(
             CostRegistrationCreate(
                 cost_element_id=cost_element.cost_element_id,
                 amount=Decimal("150.00"),

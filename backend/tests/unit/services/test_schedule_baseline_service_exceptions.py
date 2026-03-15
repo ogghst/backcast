@@ -102,9 +102,7 @@ async def test_schedule_baseline_service_raises_baseline_already_exists_error(
     # (This will be implemented in Task 6)
     # For now, just verify the exception exists
     with pytest.raises(BaselineAlreadyExistsError) as exc_info:
-        raise BaselineAlreadyExistsError(
-            cost_element_id=cost_element_id, branch="main"
-        )
+        raise BaselineAlreadyExistsError(cost_element_id=cost_element_id, branch="main")
 
     assert exc_info.value.cost_element_id == cost_element_id
 
@@ -115,9 +113,7 @@ async def test_baseline_already_exists_error_attributes():
     cost_element_id = uuid4()
     branch = "change-order-1"
 
-    error = BaselineAlreadyExistsError(
-        cost_element_id=cost_element_id, branch=branch
-    )
+    error = BaselineAlreadyExistsError(cost_element_id=cost_element_id, branch=branch)
 
     assert error.cost_element_id == cost_element_id
     assert error.branch == branch

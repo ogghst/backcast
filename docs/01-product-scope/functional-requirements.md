@@ -58,7 +58,9 @@ For each cost element, the system must support the definition of planned revenue
 
 The system shall allow users to establish initial budgets at the cost element level, representing the Budget at Completion (BAC) for each department's scope of work. Budget allocation must be performed for each cost element within each WBE, with the ability to define time-phased budget consumption plans.
 
-The system must maintain the integrity of budget allocations and provide warnings when total allocated budgets exceed available project budgets or when WBE budgets exceed allocated revenues.
+**Single Source of Truth:** Budget exists ONLY at the Cost Element level. WBE budgets are computed on-the-fly as the sum of their child cost element budgets. This eliminates ambiguity and ensures data consistency.
+
+The system must maintain the integrity of budget allocations and provide warnings when total allocated budgets exceed available project budgets or when computed WBE budgets exceed allocated revenues.
 
 ### 6.1.1 Cost Element Schedule Baseline
 
@@ -182,79 +184,30 @@ Calculate forecast stability as the standard deviation of EAC changes over time.
 
 ## 8. Change Order Management Requirements
 
+> **For detailed change order workflows and user stories**, see: [Change Management User Stories](./change-management-user-stories.md)
+
 ### 8.1 Change Order Processing
 
 The system shall provide comprehensive change order management capabilities to handle scope changes, contract modifications, and customer-requested additions. Each change order must be created with a unique identifier, description of the change, requesting party, justification, and proposed effective date. When a change order is created, the system shall automatically spawn a dedicated change order branch from the selected source branch (default: main). The branch name shall follow the pattern `BR-{change_order_id}`.
 
-Change orders must support modifications to both costs and revenues. When a change order is approved and implemented, the system shall update the affected WBE budgets, cost element allocations, and revenue assignments accordingly. The system must maintain the original baseline data while clearly tracking the impact of approved changes on current budgets and forecasts.
+Change orders must support modifications to both costs and revenues. When a change order is approved and implemented, the system shall update the affected WBE budgets, cost element allocations, and revenue assignments accordingly.
 
 ### 8.2 Change Order Impact Analysis
 
-Before finalizing change orders, the system shall provide impact analysis showing the effect on project budgets, WBE allocations, cost element budgets, revenue recognition, schedule implications, and EVM performance indices. Users must be able to model change order impacts before formal approval.
+Before finalizing change orders, the system shall provide impact analysis showing the effect on project budgets, WBE allocations, cost element budgets, revenue recognition, schedule implications, and EVM performance indices.
 
-### 8.3 Change Order Approval Workflow
+### 8.3 Approval Workflow
 
-The system shall track change order status through defined workflow states. Each status transition must be recorded with timestamp and responsible user information.
-
-**Workflow States:**
-
-1. **Draft** - Initial state when change order is created
-   - Creator can edit all fields
-   - Not visible to approvers
-   - Can be deleted or submitted
-
-2. **Submitted** - Change order submitted for approval
-   - Read-only except for withdraw action
-   - Assigned to approver based on impact level
-   - Notification sent to approver
-
-3. **Under Review** - Approver is actively reviewing
-   - Approver can request clarification
-   - Branch is locked for editing
-   - Impact analysis generated
-
-4. **Approved** - Change order approved for implementation
-   - Branch is unlocked for implementation
-   - Changes can be merged to main
-   - Notification sent to stakeholders
-
-5. **Implemented** - Changes have been merged to main branch
-   - Change order is closed
-   - Final impact analysis captured
-   - Read-only historical record
-
-6. **Rejected** - Change order not approved
-   - Reason for rejection recorded
-   - Branch archived but not deleted
-   - Can be resubmitted with modifications
-
-7. **Archived** - Change order closed without implementation
-   - Withdrawn by creator
-   - Superseded by another change
-   - No longer relevant
+The system shall track change order status through defined workflow states: Draft → Submitted → Under Review → Approved/Rejected → Implemented → Archived.
 
 **Approval Matrix:**
 
-| Impact Level | Financial Impact | Approver | Approval SLA | Branch Behavior |
-|--------------|------------------|----------|--------------|-----------------|
-| Low          | < €10K           | Project Manager   | 2 business days | No locking during review |
-| Medium       | €10K - €50K      | Department Head   | 5 business days | Locked during review |
-| High         | > €50K           | Director          | 10 business days| Locked during review |
-| Critical     | > €100K          | Executive Committee| 15 business days| Locked, requires sign-off |
-
-**Notification Mechanisms:**
-
-- Email notifications for state transitions
-- In-app notifications for assigned actions
-- Daily digest for pending approvals
-- Escalation notifications when SLA approaching
-
-**Rollback Procedures:**
-
-- Approved changes can be rolled back within 24 hours
-- Rollback creates new change order automatically
-- Requires justification and approval
-- Full audit trail maintained
+| Impact Level | Financial Impact | Approver | Approval SLA |
+|--------------|------------------|----------|--------------|
+| Low          | < €10K           | Project Manager   | 2 business days |
+| Medium       | €10K - €50K      | Department Head   | 5 business days |
+| High         | > €50K           | Director          | 10 business days|
+| Critical     | > €100K          | Executive Committee| 15 business days|
 
 ### 8.4 Branching and Versioning System
 
@@ -750,9 +703,13 @@ EAC = AC + ETC
 - System tracks which method was used for audit trail
 - Historical ETC values preserved for trend analysis
 
-### 12.6 AI-Powered Project Assessment
+### 12.6 AI Integration
 
-The system shall be able to collect all project metrics at a control date or from a baseline and generate a comprehensive assessment using an AI endpoint. This capability is provided by the AI/ML Integration bounded context (see [Architecture: Bounded Contexts](../../02-architecture/01-bounded-contexts.md#10-aiml-integration)).
+The system provides comprehensive AI integration capabilities for project analysis, natural language interaction, and AI-assisted data operations. These capabilities are provided by the AI/ML Integration bounded context (see [Architecture: Bounded Contexts](../../02-architecture/01-bounded-contexts.md#10-aiml-integration)).
+
+#### 12.6.1 AI-Powered Project Assessment
+
+The system shall be able to collect all project metrics at a control date or from a baseline and generate a comprehensive assessment using an AI endpoint.
 
 **Assessment Content:**
 The AI-generated assessment shall include:
@@ -763,19 +720,83 @@ The AI-generated assessment shall include:
 - Recommendations for improvement
 - Comparison to similar projects (anonymized)
 
-**Usage:**
+#### 12.6.2 Natural Language Query Interface
 
-- Triggered on-demand by authorized users
-- Requires explicit user confirmation before generation
-- Results stored for historical reference
-- No write access to project data (read-only analysis)
+The system shall provide a natural language interface for querying project data.
 
-**Privacy and Security:**
+**Capabilities:**
 
-- Project data anonymized before sending to external AI services
+- Query any project data using natural language (e.g., "Show me the budget for machine X")
+- Receive contextual responses with references to source data
+- Drill down from summaries to detailed data
+- Export query results in standard formats
+
+**Examples:**
+
+- "What is the current CPI for project X?"
+- "Show me all change orders pending approval"
+- "Which cost elements are over budget?"
+- "Compare actual costs vs planned for Q1"
+
+#### 12.6.3 AI-Assisted Entity Operations
+
+The system shall support AI-assisted CRUD operations on all entities via natural language.
+
+**Supported Operations:**
+
+- **Create**: All entity types (Projects, WBEs, CostElements, ChangeOrders, Departments, etc.)
+- **Read**: Query any entity data via natural language
+- **Update**: Modify entity attributes via conversational interface
+- **Delete**: Soft delete entities (EVCS soft delete pattern)
+
+**Entity Types Covered:**
+
+- Project hierarchy (Projects, WBEs, CostElements)
+- Financial data (ScheduleBaselines, CostRegistrations, Forecasts)
+- Change management (ChangeOrders, BranchOperations)
+- Organizational (Departments, CostElementTypes, Users)
+- Quality (QualityEvents, RootCauses, PreventiveActions)
+
+**Confirmation Workflow:**
+
+- AI proposes operations with preview of changes
+- User reviews and explicitly confirms before execution
+- All changes follow standard EVCS versioning
+- User permissions are enforced (RBAC)
+- Soft deletes can be undone via EVCS version history
+
+#### 12.6.4 AI-Assisted Change Order Management
+
+The system shall support AI-assisted creation and management of change orders.
+
+**Capabilities:**
+
+- Generate change order drafts from natural language requirements
+- Describe impact of change orders in plain language
+- Suggest optimal approval paths based on impact level
+- Summarize branch differences for stakeholder review
+- Generate justification text based on impact analysis
+
+**Workflow Integration:**
+
+- AI-generated change orders follow standard workflow
+- Draft AI change orders require explicit user confirmation
+- All AI-assisted operations are audit logged
+
+#### 12.6.5 Privacy and Security
+
+**Data Protection:**
+
+- Project data anonymized before sending to external AI services for analysis
 - No PII sent to external services
-- AI usage audit logged
+- AI usage audit logged with user attribution
+
+**Operational Controls:**
+
+- All AI-initiated write operations require explicit user confirmation
+- User permissions (RBAC) enforced for all operations
 - Users can opt-out of AI features per organizational policy
+- AI operations respect branch isolation and locking
 
 ## 13. Reporting and Analytics Requirements
 
@@ -843,8 +864,9 @@ The system shall enforce data integrity through comprehensive validation rules:
 
 **Budget Allocation Validation:**
 
-- Total WBE budgets ≤ Project budget (warning at 90%, error at 100%)
-- Total cost element budgets ≤ WBE budget (warning at 90%, error at 100%)
+- Budget is defined at the Cost Element level only (single source of truth)
+- WBE budget is computed on-the-fly as sum of child cost element budgets
+- Total cost element budgets ≤ Project budget (warning at 90%, error at 100%)
 - Revenue allocations = Total project contract value (exact match required)
 - Budget values > 0 (positive values only)
 
@@ -865,7 +887,7 @@ The system shall enforce data integrity through comprehensive validation rules:
 
 **Hierarchical Consistency:**
 
-- Child WBE budgets ≤ Parent WBE budget
+- WBE budget is computed from child cost elements (not stored)
 - Cannot delete parent WBE without deleting or reassigning child WBEs
 - WBE must belong to exactly one project
 - Cost element must belong to exactly one WBE

@@ -8,12 +8,20 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import tests.unit.fixtures.cost_element_fixtures as _fixtures
 from app.models.domain.cost_registration import CostRegistration
 from app.models.schemas.cost_registration import (
     CostRegistrationCreate,
     CostRegistrationUpdate,
 )
 from app.services.cost_registration_service import CostRegistrationService
+from tests.unit.fixtures.cost_element_fixtures import (  # noqa: F401
+    sample_cost_element_type,
+    sample_department,
+    sample_wbe,
+)
+
+sample_cost_element_with_budget = _fixtures.sample_cost_element_with_budget  # noqa: F401
 
 
 class TestCostRegistrationServiceCreate:
@@ -21,7 +29,7 @@ class TestCostRegistrationServiceCreate:
 
     @pytest.mark.asyncio
     async def test_create_cost_registration_success(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, sample_cost_element_with_budget
     ) -> None:
         """Test successfully creating a cost registration.
 
@@ -35,7 +43,7 @@ class TestCostRegistrationServiceCreate:
         """
         # Arrange
         service = CostRegistrationService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
         registration_in = CostRegistrationCreate(
             cost_element_id=cost_element_id,
             amount=Decimal("100.00"),
@@ -44,7 +52,9 @@ class TestCostRegistrationServiceCreate:
         actor_id = uuid4()
 
         # Act
-        created_registration = await service.create(registration_in, actor_id=actor_id)
+        created_registration = await service.create_cost_registration(
+            registration_in, actor_id=actor_id
+        )
 
         # Assert
         assert created_registration is not None
@@ -58,7 +68,7 @@ class TestCostRegistrationServiceCreate:
 
     @pytest.mark.asyncio
     async def test_create_cost_registration_with_all_fields(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, sample_cost_element_with_budget
     ) -> None:
         """Test creating a cost registration with all optional fields.
 
@@ -69,7 +79,7 @@ class TestCostRegistrationServiceCreate:
         """
         # Arrange
         service = CostRegistrationService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
         registration_in = CostRegistrationCreate(
             cost_element_id=cost_element_id,
             amount=Decimal("250.00"),
@@ -83,7 +93,9 @@ class TestCostRegistrationServiceCreate:
         actor_id = uuid4()
 
         # Act
-        created_registration = await service.create(registration_in, actor_id=actor_id)
+        created_registration = await service.create_cost_registration(
+            registration_in, actor_id=actor_id
+        )
 
         # Assert
         assert created_registration.amount == Decimal("250.00")
@@ -94,7 +106,7 @@ class TestCostRegistrationServiceCreate:
 
     @pytest.mark.asyncio
     async def test_create_without_registration_date_defaults_to_now(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, sample_cost_element_with_budget
     ) -> None:
         """Test that registration_date defaults to current datetime when not provided.
 
@@ -105,7 +117,7 @@ class TestCostRegistrationServiceCreate:
         """
         # Arrange
         service = CostRegistrationService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
         registration_in = CostRegistrationCreate(
             cost_element_id=cost_element_id,
             amount=Decimal("100.00"),
@@ -114,7 +126,9 @@ class TestCostRegistrationServiceCreate:
         actor_id = uuid4()
 
         # Act
-        created_registration = await service.create(registration_in, actor_id=actor_id)
+        created_registration = await service.create_cost_registration(
+            registration_in, actor_id=actor_id
+        )
 
         # Assert
         assert created_registration.registration_date is not None
@@ -131,7 +145,9 @@ class TestCostRegistrationServiceUpdate:
     """Test CostRegistrationService.update() method."""
 
     @pytest.mark.asyncio
-    async def test_update_creates_new_version(self, db_session: AsyncSession) -> None:
+    async def test_update_creates_new_version(
+        self, db_session: AsyncSession, sample_cost_element_with_budget
+    ) -> None:
         """Test updating a cost registration creates a new version.
 
         Acceptance Criteria:
@@ -144,7 +160,7 @@ class TestCostRegistrationServiceUpdate:
         """
         # Arrange
         service = CostRegistrationService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
 
         # Create initial version
         registration_in = CostRegistrationCreate(
@@ -153,7 +169,7 @@ class TestCostRegistrationServiceUpdate:
             quantity=Decimal("10.0"),
             description="Original description",
         )
-        v1 = await service.create(registration_in, actor_id=uuid4())
+        v1 = await service.create_cost_registration(registration_in, actor_id=uuid4())
         registration_id = v1.cost_registration_id
         v1_id = v1.id  # Capture ID before update
 
@@ -164,7 +180,9 @@ class TestCostRegistrationServiceUpdate:
             description="Updated description",
         )
         actor_id_2 = uuid4()
-        v2 = await service.update(registration_id, update_in, actor_id=actor_id_2)
+        v2 = await service.update_cost_registration(
+            registration_id, update_in, actor_id=actor_id_2
+        )
 
         # Assert
         await db_session.refresh(v2)  # Ensure v2 is loaded
@@ -187,7 +205,7 @@ class TestCostRegistrationServiceDelete:
 
     @pytest.mark.asyncio
     async def test_soft_delete_cost_registration(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, sample_cost_element_with_budget
     ) -> None:
         """Test soft deleting a cost registration.
 
@@ -200,14 +218,16 @@ class TestCostRegistrationServiceDelete:
         """
         # Arrange
         service = CostRegistrationService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
 
         registration_in = CostRegistrationCreate(
             cost_element_id=cost_element_id,
             amount=Decimal("100.00"),
             description="To be deleted",
         )
-        created_registration = await service.create(registration_in, actor_id=uuid4())
+        created_registration = await service.create_cost_registration(
+            registration_in, actor_id=uuid4()
+        )
         registration_id = created_registration.cost_registration_id
 
         # Act
@@ -233,7 +253,7 @@ class TestCostRegistrationServiceGetById:
 
     @pytest.mark.asyncio
     async def test_get_by_id_returns_current_version(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, sample_cost_element_with_budget
     ) -> None:
         """Test getting a cost registration by root ID returns current version.
 
@@ -246,14 +266,16 @@ class TestCostRegistrationServiceGetById:
         """
         # Arrange
         service = CostRegistrationService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
 
         registration_in = CostRegistrationCreate(
             cost_element_id=cost_element_id,
             amount=Decimal("100.00"),
             description="Test registration",
         )
-        created = await service.create(registration_in, actor_id=uuid4())
+        created = await service.create_cost_registration(
+            registration_in, actor_id=uuid4()
+        )
         registration_id = created.cost_registration_id
 
         # Act
@@ -267,7 +289,7 @@ class TestCostRegistrationServiceGetById:
 
     @pytest.mark.asyncio
     async def test_get_by_id_returns_none_for_deleted(
-        self, db_session: AsyncSession
+        self, db_session: AsyncSession, sample_cost_element_with_budget
     ) -> None:
         """Test getting a soft-deleted registration returns None.
 
@@ -278,13 +300,15 @@ class TestCostRegistrationServiceGetById:
         """
         # Arrange
         service = CostRegistrationService(db_session)
-        cost_element_id = uuid4()
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
 
         registration_in = CostRegistrationCreate(
             cost_element_id=cost_element_id,
             amount=Decimal("100.00"),
         )
-        created = await service.create(registration_in, actor_id=uuid4())
+        created = await service.create_cost_registration(
+            registration_in, actor_id=uuid4()
+        )
         registration_id = created.cost_registration_id
 
         # Soft delete it

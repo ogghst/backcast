@@ -70,8 +70,12 @@ def main():
     print("WBE DISTRIBUTION VERIFICATION")
     print("=" * 70)
 
-    main_wbes = [w for w in wbes if not w.get("branch") or w.get("branch") in ["", "main"]]
-    branch_wbes = [w for w in wbes if w.get("branch") and w.get("branch") not in ["", "main"]]
+    main_wbes = [
+        w for w in wbes if not w.get("branch") or w.get("branch") in ["", "main"]
+    ]
+    branch_wbes = [
+        w for w in wbes if w.get("branch") and w.get("branch") not in ["", "main"]
+    ]
 
     print(f"  Main Branch WBEs: {len(main_wbes)}")
     for branch in sorted(branch_names):
@@ -79,7 +83,9 @@ def main():
         print(f"  {branch[:30]}... WBEs: {branch_wbe_count}")
 
     print()
-    print(f"✅ Total WBEs: {len(wbes)} ({len(main_wbes)} main + {len(branch_wbes)} branch)")
+    print(
+        f"✅ Total WBEs: {len(wbes)} ({len(main_wbes)} main + {len(branch_wbes)} branch)"
+    )
     print()
 
     # Verify cost element distribution
@@ -87,16 +93,28 @@ def main():
     print("COST ELEMENT DISTRIBUTION VERIFICATION")
     print("=" * 70)
 
-    main_ces = [ce for ce in cost_elements if not ce.get("branch") or ce.get("branch") in ["", "main"]]
-    branch_ces = [ce for ce in cost_elements if ce.get("branch") and ce.get("branch") not in ["", "main"]]
+    main_ces = [
+        ce
+        for ce in cost_elements
+        if not ce.get("branch") or ce.get("branch") in ["", "main"]
+    ]
+    branch_ces = [
+        ce
+        for ce in cost_elements
+        if ce.get("branch") and ce.get("branch") not in ["", "main"]
+    ]
 
     print(f"  Main Branch CEs: {len(main_ces)}")
     for branch in sorted(branch_names):
-        branch_ce_count = len([ce for ce in cost_elements if ce.get("branch") == branch])
+        branch_ce_count = len(
+            [ce for ce in cost_elements if ce.get("branch") == branch]
+        )
         print(f"  {branch[:30]}... CEs: {branch_ce_count}")
 
     print()
-    print(f"✅ Total Cost Elements: {len(cost_elements)} ({len(main_ces)} main + {len(branch_ces)} branch)")
+    print(
+        f"✅ Total Cost Elements: {len(cost_elements)} ({len(main_ces)} main + {len(branch_ces)} branch)"
+    )
     print()
 
     # Verify schedule baseline distribution
@@ -104,16 +122,28 @@ def main():
     print("SCHEDULE BASELINE DISTRIBUTION VERIFICATION")
     print("=" * 70)
 
-    main_sbs = [sb for sb in schedule_baselines if not sb.get("branch") or sb.get("branch") in ["", "main"]]
-    branch_sbs = [sb for sb in schedule_baselines if sb.get("branch") and sb.get("branch") not in ["", "main"]]
+    main_sbs = [
+        sb
+        for sb in schedule_baselines
+        if not sb.get("branch") or sb.get("branch") in ["", "main"]
+    ]
+    branch_sbs = [
+        sb
+        for sb in schedule_baselines
+        if sb.get("branch") and sb.get("branch") not in ["", "main"]
+    ]
 
     print(f"  Main Branch SBs: {len(main_sbs)}")
     for branch in sorted(branch_names):
-        branch_sb_count = len([sb for sb in schedule_baselines if sb.get("branch") == branch])
+        branch_sb_count = len(
+            [sb for sb in schedule_baselines if sb.get("branch") == branch]
+        )
         print(f"  {branch[:30]}... SBs: {branch_sb_count}")
 
     print()
-    print(f"✅ Total Schedule Baselines: {len(schedule_baselines)} ({len(main_sbs)} main + {len(branch_sbs)} branch)")
+    print(
+        f"✅ Total Schedule Baselines: {len(schedule_baselines)} ({len(main_sbs)} main + {len(branch_sbs)} branch)"
+    )
     print()
 
     # Verify 1:1 relationship
@@ -122,9 +152,13 @@ def main():
     print("=" * 70)
 
     ce_with_baseline = [ce for ce in cost_elements if ce.get("schedule_baseline_id")]
-    ce_without_baseline = [ce for ce in cost_elements if not ce.get("schedule_baseline_id")]
+    ce_without_baseline = [
+        ce for ce in cost_elements if not ce.get("schedule_baseline_id")
+    ]
 
-    print(f"  Cost Elements with schedule_baseline_id: {len(ce_with_baseline)}/{len(cost_elements)}")
+    print(
+        f"  Cost Elements with schedule_baseline_id: {len(ce_with_baseline)}/{len(cost_elements)}"
+    )
     print(f"  Cost Elements without schedule_baseline_id: {len(ce_without_baseline)}")
 
     if ce_without_baseline:
@@ -134,7 +168,11 @@ def main():
             print(f"    - {ce['code']}: {ce.get('schedule_baseline_id', 'None')}")
 
     # Check for duplicate schedule_baseline_id (expected for branch versions)
-    baseline_ids = [ce["schedule_baseline_id"] for ce in cost_elements if ce.get("schedule_baseline_id")]
+    baseline_ids = [
+        ce["schedule_baseline_id"]
+        for ce in cost_elements
+        if ce.get("schedule_baseline_id")
+    ]
     unique_baseline_ids = set(baseline_ids)
     duplicate_count = len(baseline_ids) - len(unique_baseline_ids)
 
@@ -143,7 +181,7 @@ def main():
     print(f"  Duplicate references (branch versions): {duplicate_count}")
 
     # Verify all schedule baselines exist
-    sb_ids = set([sb["schedule_baseline_id"] for sb in schedule_baselines])
+    sb_ids = {sb["schedule_baseline_id"] for sb in schedule_baselines}
     ce_baseline_ids = set(baseline_ids)
     missing_baselines = ce_baseline_ids - sb_ids
 
@@ -206,15 +244,23 @@ def main():
         ("CO-D", "BR-CO-2026-003", "Schedule Only", 0, 0, 5),
         ("CO-E", "BR-CO-2026-004", "Cost Reallocation", 0, 5, 0),
         ("CO-F", "BR-CO-2026-005", "Critical Addition", 5, 25, 25),
+        ("CO-G", "BR-CO-2026-007", "Structural Support", 1, 2, 2),
+        ("CO-H", "BR-CO-2026-008", "Layout Adjustment", 2, 10, 10),
     ]
 
     all_scenarios_valid = True
     for co_code, branch_id, scenario, exp_wbes, exp_ces, exp_sbs in scenarios:
         wbe_count = len([w for w in wbes if w.get("branch") == branch_id])
         ce_count = len([ce for ce in cost_elements if ce.get("branch") == branch_id])
-        sb_count = len([sb for sb in schedule_baselines if sb.get("branch") == branch_id])
+        sb_count = len(
+            [sb for sb in schedule_baselines if sb.get("branch") == branch_id]
+        )
 
-        status = "✅" if (wbe_count == exp_wbes and ce_count == exp_ces and sb_count == exp_sbs) else "⚠️"
+        status = (
+            "✅"
+            if (wbe_count == exp_wbes and ce_count == exp_ces and sb_count == exp_sbs)
+            else "⚠️"
+        )
         print(f"  {status} {co_code}: {scenario}")
         print(f"     WBEs: {wbe_count} (expected: {exp_wbes})")
         print(f"     CEs: {ce_count} (expected: {exp_ces})")
@@ -258,9 +304,12 @@ def main():
 
     print()
     print("=" * 70)
-    if (all_valid and all_scenarios_valid and
-        len(ce_with_baseline) == len(cost_elements) and
-        len(missing_baselines) == 0):
+    if (
+        all_valid
+        and all_scenarios_valid
+        and len(ce_with_baseline) == len(cost_elements)
+        and len(missing_baselines) == 0
+    ):
         print("OVERALL STATUS: ✅ ALL VERIFICATIONS PASSED")
     else:
         print("OVERALL STATUS: ⚠️ SOME ISSUES FOUND")

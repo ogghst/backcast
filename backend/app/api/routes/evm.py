@@ -127,16 +127,20 @@ async def get_evm_metrics(
         elif entity_type in (EntityType.WBE, EntityType.PROJECT):
             # Validate entity exists before calculating metrics
             if entity_type == EntityType.WBE:
-                wbe = await service.wbe_service.get_by_root_id(
-                    root_id=entity_id,
+                wbe = await service.wbe_service.get_as_of(
+                    entity_id=entity_id,
+                    as_of=control_date,
                     branch=branch,
+                    branch_mode=branch_mode,
                 )
                 if wbe is None:
                     raise ValueError(f"WBE with ID {entity_id} not found")
             elif entity_type == EntityType.PROJECT:
-                project = await service.project_service.get_by_root_id(
-                    root_id=entity_id,
+                project = await service.project_service.get_as_of(
+                    entity_id=entity_id,
+                    as_of=control_date,
                     branch=branch,
+                    branch_mode=branch_mode,
                 )
                 if project is None:
                     raise ValueError(f"Project with ID {entity_id} not found")

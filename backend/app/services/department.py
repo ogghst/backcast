@@ -4,9 +4,10 @@ Provides Department-specific operations on top of generic temporal service.
 """
 
 from datetime import datetime
+from typing import cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.commands import (
@@ -47,7 +48,7 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var,u
         Returns:
             Tuple of (list of departments, total count)
         """
-        from typing import Any, cast
+        from typing import Any
 
         from sqlalchemy import and_, func, or_
 
@@ -116,6 +117,8 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var,u
     ) -> Department:
         """Create new department using CreateVersionCommand."""
         dept_data = dept_in.model_dump(exclude_unset=True)
+        root_id = dept_in.department_id or uuid4()
+        dept_data["department_id"] = root_id
 
         # Extract control_date from schema if present (for seeding)
         control_date = getattr(dept_in, "control_date", None)
@@ -123,9 +126,21 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var,u
         # Remove control_date from data to avoid duplicate kwarg error
         dept_data.pop("control_date", None)
 
-        # Use provided department_id (for seeding) or generate new one
-        root_id = dept_in.department_id or uuid4()
-        dept_data["department_id"] = root_id
+        # 1. Validate Manager (User) existence (Application-level Integrity)
+        if dept_in.manager_id:
+            from app.models.domain.user import User
+
+            user_exists = await self.session.execute(
+                select(User.id)
+                .where(
+                    User.user_id == dept_in.manager_id,
+                    func.upper(User.valid_time).is_(None),
+                    User.deleted_at.is_(None),
+                )
+                .limit(1)
+            )
+            if not user_exists.scalar_one_or_none():
+                raise ValueError(f"Manager (User) {dept_in.manager_id} not found")
 
         cmd = CreateVersionCommand(
             entity_class=Department,  # type: ignore[type-var,unused-ignore]
@@ -135,7 +150,6 @@ class DepartmentService(TemporalService[Department]):  # type: ignore[type-var,u
             **dept_data,
         )
         return await cmd.execute(self.session)
-
 
     async def update_department(
         self, department_id: UUID, dept_in: DepartmentUpdate, actor_id: UUID

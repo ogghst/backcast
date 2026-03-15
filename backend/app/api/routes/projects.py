@@ -84,6 +84,7 @@ async def read_projects(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     try:
@@ -179,14 +180,14 @@ async def read_project(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     if as_of:
         # Time travel query
         project = await service.get_project_as_of(project_id, as_of, branch=branch)
     else:
-        # Current version
-        project = await service.get_by_root_id(project_id, branch=branch)
+        project = await service.get_as_of(project_id, branch=branch)
 
     if not project:
         raise HTTPException(
@@ -290,6 +291,7 @@ async def read_project_branches(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     return await service.get_project_branches(project_id, as_of=as_of)

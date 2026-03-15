@@ -7,10 +7,11 @@ from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
+from typing import cast as typing_cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import cast as sql_cast
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -19,6 +20,7 @@ from app.core.branching.commands import UpdateCommand
 from app.core.branching.service import BranchableService
 from app.core.versioning.commands import CreateVersionCommand
 from app.core.versioning.enums import BranchMode
+from app.models.domain.cost_element import CostElement
 from app.models.domain.user import User
 from app.models.domain.wbe import WBE
 from app.models.schemas.wbe import WBECreate, WBEUpdate
@@ -64,10 +66,12 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
 
         from app.models.domain.project import Project
 
-        # Get project contract value
+        # Get project contract value from main branch (projects are always in main)
         project_stmt = select(Project.contract_value).where(
             Project.project_id == project_id,
-            Project.branch == branch,
+            Project.branch == "main",  # Projects always exist in main branch
+            func.upper(cast(Any, Project).valid_time).is_(None),  # Only current version
+            cast(Any, Project).deleted_at.is_(None),  # Not deleted
         )
         project_result = await self.session.execute(project_stmt)
         contract_value = project_result.scalar_one_or_none()
@@ -109,28 +113,108 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
                 f"Over-allocation: €{difference:,.2f}"
             )
 
-    async def get_current(self, root_id: UUID, branch: str = "main") -> WBE | None:
-        """Get the current active version for a root entity on a specific branch.
+    async def _compute_wbe_budget(self, wbe_id: UUID, branch: str = "main") -> Decimal:
+        """Compute WBE budget as sum of cost element budgets in full hierarchy.
 
-        Override parent method to use 'wbe_id' field instead of
-        the auto-generated field name.
+        Budget includes all CostElements attached to this WBE AND all descendant WBEs.
+        Uses recursive CTE for efficient single-query calculation.
+
+        Args:
+            wbe_id: Root WBE ID
+            branch: Branch name (default: "main")
+
+        Returns:
+            Sum of all cost element budgets in the WBE hierarchy
         """
-        from typing import cast as type_cast
+        from sqlalchemy import literal_column
 
-
-        stmt = (
-            select(WBE)
-            .where(
-                WBE.wbe_id == root_id,
-                WBE.branch == branch,
-                func.upper(type_cast(Any, WBE).valid_time).is_(None),
-                type_cast(Any, WBE).deleted_at.is_(None),
+        # Build recursive CTE to get all WBE IDs in hierarchy (including root)
+        # Base case: the root WBE itself
+        wbe_hierarchy = (
+            select(
+                WBE.wbe_id,
+                literal_column("0").label("depth"),
             )
-            .order_by(type_cast(Any, WBE).valid_time.desc())
-            .limit(1)
+            .where(
+                WBE.wbe_id == wbe_id,
+                WBE.branch == branch,
+                func.upper(typing_cast(Any, WBE).valid_time).is_(None),
+                typing_cast(Any, WBE).deleted_at.is_(None),
+            )
+            .cte(name="wbe_hierarchy", recursive=True)
         )
+
+        # Recursive case: child WBEs
+        child_wbe = aliased(WBE, name="child_wbe")
+        wbe_hierarchy = wbe_hierarchy.union_all(
+            select(
+                child_wbe.wbe_id,
+                (wbe_hierarchy.c.depth + 1).label("depth"),
+            ).where(
+                child_wbe.parent_wbe_id == wbe_hierarchy.c.wbe_id,
+                child_wbe.branch == branch,
+                func.upper(typing_cast(Any, child_wbe).valid_time).is_(None),
+                typing_cast(Any, child_wbe).deleted_at.is_(None),
+            )
+        )
+
+        # Sum all cost elements in the hierarchy
+        stmt = (
+            select(func.coalesce(func.sum(CostElement.budget_amount), Decimal("0")))
+            .select_from(wbe_hierarchy)
+            .join(CostElement, CostElement.wbe_id == wbe_hierarchy.c.wbe_id)
+            .where(
+                CostElement.branch == branch,
+                func.upper(typing_cast(Any, CostElement).valid_time).is_(None),
+                typing_cast(Any, CostElement).deleted_at.is_(None),
+            )
+        )
+
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        return result.scalar() or Decimal("0")
+
+    async def _populate_computed_budgets(
+        self, wbes: list[WBE], branch: str = "main"
+    ) -> list[WBE]:
+        """Populate computed budget_allocation for a list of WBEs.
+
+        Budget includes all cost elements in the WBE hierarchy (direct + descendants).
+
+        Args:
+            wbes: List of WBE objects to populate
+            branch: Branch name for budget computation
+
+        Returns:
+            Same list with budget_allocation populated on each WBE
+        """
+        for wbe in wbes:
+            wbe.budget_allocation = await self._compute_wbe_budget(
+                wbe.wbe_id, branch=wbe.branch
+            )
+        return wbes
+
+    async def get_as_of(
+        self,
+        entity_id: UUID,
+        as_of: datetime | None = None,
+        branch: str = "main",
+        branch_mode: BranchMode | None = None,
+    ) -> WBE | None:
+        """Get the active version of a WBE as of a specific date.
+
+        Override parent method to compute and attach `budget_allocation`.
+        """
+        wbe = await super().get_as_of(
+            entity_id=entity_id,
+            as_of=as_of,
+            branch=branch,
+            branch_mode=branch_mode,
+        )
+        if wbe:
+            wbe.budget_allocation = await self._compute_wbe_budget(
+                entity_id, branch=branch
+            )
+        return wbe
 
     async def create_root(
         self,
@@ -207,7 +291,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import Any, cast
 
-
         Parent = aliased(WBE, name="parent_wbe")
 
         # Build WHERE clauses for parent name resolution
@@ -219,8 +302,12 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         if as_of:
             # Get parent version valid at as_of time
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            parent_where_clauses.append(cast(Any, Parent).valid_time.op("@>")(as_of_tstz))
-            parent_where_clauses.append(func.lower(cast(Any, Parent).valid_time) <= as_of_tstz)
+            parent_where_clauses.append(
+                cast(Any, Parent).valid_time.op("@>")(as_of_tstz)
+            )
+            parent_where_clauses.append(
+                func.lower(cast(Any, Parent).valid_time) <= as_of_tstz
+            )
         else:
             # Get current parent version
             parent_where_clauses.append(
@@ -230,10 +317,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         # Scalar subquery for parent name (correlated subquery)
         # This avoids cartesian product by executing once per row instead of FROM/FROM join
         parent_name_subq = (
-            select(Parent.name)
-            .where(*parent_where_clauses)
-            .limit(1)
-            .scalar_subquery()
+            select(Parent.name).where(*parent_where_clauses).limit(1).scalar_subquery()
         )
 
         return select(WBE, parent_name_subq.label("parent_name"))
@@ -361,12 +445,14 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         result = await self.session.execute(stmt)
         wbes = await self._resolve_parent_names(result.all())
 
+        # Populate computed budgets
+        wbes = await self._populate_computed_budgets(wbes, branch=branch)
+
         return wbes, total
 
     async def get_by_project(self, project_id: UUID, branch: str = "main") -> list[WBE]:
         """Get all WBEs for a specific project (current versions)."""
         from typing import Any, cast
-
 
         stmt = (
             self._get_base_stmt()
@@ -379,7 +465,8 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             .order_by(WBE.code)
         )
         result = await self.session.execute(stmt)
-        return await self._resolve_parent_names(result.all())
+        wbes = await self._resolve_parent_names(result.all())
+        return await self._populate_computed_budgets(wbes, branch=branch)
 
     async def get_by_parent(
         self,
@@ -402,7 +489,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             List of WBEs matching the parent filter
         """
         from typing import Any, cast
-
 
         # Build base statement with parent name join
         stmt = self._get_base_stmt(as_of=as_of)
@@ -435,14 +521,14 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
 
         stmt = stmt.order_by(WBE.code)
         result = await self.session.execute(stmt)
-        return await self._resolve_parent_names(result.all())
+        wbes = await self._resolve_parent_names(result.all())
+        return await self._populate_computed_budgets(wbes, branch=branch)
 
     async def get_by_code(
         self, code: str, project_id: UUID, branch: str = "main"
     ) -> WBE | None:
         """Get WBE by code within a project (current version)."""
         from typing import Any, cast
-
 
         stmt = (
             self._get_base_stmt()
@@ -457,11 +543,12 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         )
         result = await self.session.execute(stmt)
         resolved = await self._resolve_parent_names(result.all())
-        return resolved[0] if resolved else None
+        if resolved:
+            resolved = await self._populate_computed_budgets(resolved, branch=branch)
+            return resolved[0]
+        return None
 
-    async def create_wbe(
-        self, wbe_in: WBECreate, actor_id: UUID
-    ) -> WBE:
+    async def create_wbe(self, wbe_in: WBECreate, actor_id: UUID) -> WBE:
         """Create new WBE using CreateVersionCommand.
 
         Context: Main entry point for WBE creation. Validates revenue
@@ -490,18 +577,37 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         root_id = wbe_in.wbe_id or uuid4()
         wbe_data["wbe_id"] = root_id
 
+        # 1. Validate Parent Project existence (Application-level Integrity)
+        from typing import Any, cast
+
+        from app.models.domain.project import Project
+
+        project_exists = await self.session.execute(
+            select(Project.id)
+            .where(
+                Project.project_id == wbe_in.project_id,
+                func.upper(cast(Any, Project).valid_time).is_(None),
+                cast(Any, Project).deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        if not project_exists.scalar_one_or_none():
+            raise ValueError(f"Project {wbe_in.project_id} not found or inactive")
+
         # Infer level from parent
         if wbe_in.parent_wbe_id:
             # Get the branch for this WBE to lookup parent on same branch
             branch = wbe_data.get("branch", "main")
-            parent = await self.get_by_root_id(wbe_in.parent_wbe_id, branch=branch)
-            
+            parent = await self.get_as_of(wbe_in.parent_wbe_id, branch=branch)
+
             # Fallback to main if parent not found on specific branch
             if not parent and branch != "main":
-                parent = await self.get_by_root_id(wbe_in.parent_wbe_id, branch="main")
-            
+                parent = await self.get_as_of(wbe_in.parent_wbe_id, branch="main")
+
             if not parent:
-                raise ValueError(f"Parent WBE {wbe_in.parent_wbe_id} not found on branch {branch}")
+                raise ValueError(
+                    f"Parent WBE {wbe_in.parent_wbe_id} not found on branch {branch}"
+                )
             wbe_data["level"] = parent.level + 1
         else:
             wbe_data["level"] = 1
@@ -525,8 +631,11 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             branch=wbe_data.get("branch", "main"),
         )
 
+        # Set computed budget on returned WBE
+        wbe.budget_allocation = await self._compute_wbe_budget(
+            root_id, branch=wbe_data.get("branch", "main")
+        )
         return wbe
-
 
     async def update_wbe(
         self,
@@ -556,7 +665,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         update_data.pop("control_date", None)
 
         # Extract control_date and branch from schema early
-        # We need branch BEFORE calling get_by_root_id to find the WBE on the correct branch
+        # We need branch BEFORE calling get_current to find the WBE on the correct branch
         control_date = wbe_in.control_date
         branch = wbe_in.branch or "main"
 
@@ -567,11 +676,11 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         # Get current WBE to retrieve project_id for validation
         # CRITICAL: Pass branch parameter to find WBE on the correct branch
         # Note: UpdateCommand will handle fallback to main if needed
-        current_wbe = await self.get_by_root_id(wbe_id, branch=branch)
+        current_wbe = await self.get_as_of(wbe_id, branch=branch)
         if not current_wbe:
             # Try main branch as fallback for change order branches
             if branch != "main":
-                current_wbe = await self.get_by_root_id(wbe_id, branch="main")
+                current_wbe = await self.get_as_of(wbe_id, branch="main")
             if not current_wbe:
                 raise ValueError(f"WBE {wbe_id} not found")
 
@@ -583,14 +692,16 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             new_parent_id = update_data["parent_wbe_id"]
             if new_parent_id:
                 # CRITICAL: Use the same branch when looking up parent WBE
-                parent = await self.get_by_root_id(new_parent_id, branch=branch)
-                
+                parent = await self.get_as_of(new_parent_id, branch=branch)
+
                 # Fallback to main if parent not found on specific branch
                 if not parent and branch != "main":
-                    parent = await self.get_by_root_id(new_parent_id, branch="main")
+                    parent = await self.get_as_of(new_parent_id, branch="main")
 
                 if not parent:
-                    raise ValueError(f"Parent WBE {new_parent_id} not found on branch {branch}")
+                    raise ValueError(
+                        f"Parent WBE {new_parent_id} not found on branch {branch}"
+                    )
                 update_data["level"] = parent.level + 1
             else:
                 # Setting to root
@@ -616,6 +727,10 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             branch=branch,
         )
 
+        # Set computed budget on returned WBE
+        updated_wbe.budget_allocation = await self._compute_wbe_budget(
+            wbe_id, branch=branch
+        )
         return updated_wbe
 
     async def delete_wbe(
@@ -639,7 +754,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
 
         # First, check if WBE exists and get current children count
-        wbe = await self.get_by_root_id(wbe_id)
+        wbe = await self.get_as_of(wbe_id)
         if not wbe:
             raise ValueError(f"WBE with id {wbe_id} not found")
 
@@ -726,7 +841,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         # Fetch full WBE objects for each descendant
         descendant_list = []
         for row in descendant_rows:
-            descendant = await self.get_by_root_id(row.wbe_id)
+            descendant = await self.get_as_of(row.wbe_id)
             if descendant:
                 descendant_list.append(descendant)
 
@@ -788,8 +903,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         """
         from typing import Any, cast
 
-        from sqlalchemy import literal_column, select
-        from sqlalchemy.orm import aliased
+        from sqlalchemy import select
 
         from app.models.domain.project import Project
 
@@ -797,7 +911,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         if as_of:
             current_wbe = await self.get_wbe_as_of(wbe_id, as_of, branch=branch)
         else:
-            current_wbe = await self.get_by_root_id(wbe_id, branch=branch)
+            current_wbe = await self.get_as_of(wbe_id, branch=branch)
 
         if not current_wbe:
             raise ValueError(f"WBE with id {wbe_id} not found")
@@ -835,7 +949,11 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         project = project_result.scalar_one_or_none()
 
         # Strategy 2: If not found on current branch and in MERGE mode, try main
-        if not project and branch_mode == BranchMode.MERGE and current_wbe.branch != "main":
+        if (
+            not project
+            and branch_mode == BranchMode.MERGE
+            and current_wbe.branch != "main"
+        ):
             project_stmt = select(Project).where(
                 Project.project_id == current_wbe.project_id,
                 Project.branch == "main",
@@ -861,61 +979,85 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         if not project:
             raise ValueError(f"Project {current_wbe.project_id} not found")
 
-        # Build recursive CTE to get all ancestors
-        # Base case: current WBE
-        base_cte_stmt = select(
-            WBE.id,
-            WBE.wbe_id,
-            WBE.code,
-            WBE.name,
-            WBE.parent_wbe_id,
-            literal_column("0").label("depth"),
-        ).where(
-            WBE.wbe_id == wbe_id,
-            WBE.branch == current_wbe.branch,
-            cast(Any, WBE).deleted_at.is_(None),
-        )
+        # Build recursive CTE using raw SQL for reliable behavior
+        # Using LATERAL JOIN ensures exactly ONE parent per recursive iteration
+        # This fixes the duplicate breadcrumb issue caused by SQLAlchemy's
+        # DISTINCT ON not working as expected in recursive CTEs
 
+        # Build the time-travel filter condition
+        # Pre-format the as_of timestamp for PostgreSQL timestamptz
         if as_of:
-            base_cte_stmt = self._apply_bitemporal_filter_for_time_travel(
-                base_cte_stmt, as_of
-            )
+            # For time-travel queries, the WBE must be valid at the as_of timestamp
+            # Use isoformat() which already includes timezone info
+            as_of_ts = as_of.isoformat()
+            time_filter = f"AND valid_time @> '{as_of_ts}'::timestamptz AND lower(valid_time) <= '{as_of_ts}'::timestamptz"
         else:
-            base_cte_stmt = base_cte_stmt.where(
-                func.upper(cast(Any, WBE).valid_time).is_(None)
-            )
+            # For current version, get the version with open upper bound
+            time_filter = "AND upper(valid_time) IS NULL"
 
-        wbe_cte = base_cte_stmt.cte(name="wbe_ancestors", recursive=True)
-
-        # Recursive case: get parent WBEs
-        wbe_alias = aliased(WBE, name="wbe_parent")
-        recursive_stmt = select(
-            wbe_alias.id,
-            wbe_alias.wbe_id,
-            wbe_alias.code,
-            wbe_alias.name,
-            wbe_alias.parent_wbe_id,
-            (wbe_cte.c.depth + 1).label("depth"),
-        ).where(
-            wbe_alias.wbe_id == wbe_cte.c.parent_wbe_id,
-            wbe_alias.branch == current_wbe.branch,
-            cast(Any, wbe_alias).deleted_at.is_(None),
-        )
-
-        if as_of:
-            recursive_stmt = self._apply_bitemporal_filter_for_time_travel(
-                recursive_stmt, as_of
-            )
+        # Build the branch filter based on mode
+        if branch_mode == BranchMode.MERGE and current_wbe.branch != "main":
+            # MERGE mode: look in both current branch and main
+            # Use LATERAL JOIN with branch priority ordering
+            # For MERGE mode, we build a custom SELECT clause that references the LATERAL subquery
+            recursive_sql = f"""
+                -- Recursive case: get parent WBEs using LATERAL
+                SELECT best_parent.id, best_parent.wbe_id, best_parent.code, best_parent.name, best_parent.parent_wbe_id, wa.depth + 1
+                FROM wbe_ancestors wa
+                , LATERAL (
+                    SELECT id, wbe_id, code, name, parent_wbe_id
+                    FROM wbes w
+                    WHERE w.wbe_id = wa.parent_wbe_id
+                        AND branch IN (:current_branch, 'main')
+                        AND w.deleted_at IS NULL
+                        {time_filter}
+                    ORDER BY
+                        CASE WHEN branch = :current_branch THEN 0
+                             WHEN branch = 'main' THEN 1 ELSE 2 END
+                    LIMIT 1
+                ) best_parent
+            """
         else:
-            recursive_stmt = recursive_stmt.where(
-                func.upper(cast(Any, wbe_alias).valid_time).is_(None)
+            # STRICT mode or main branch: only look on current branch
+            # Regular JOIN for STRICT mode (no LATERAL needed)
+            recursive_sql = f"""
+                -- Recursive case: get parent WBEs using regular JOIN
+                SELECT w.id, w.wbe_id, w.code, w.name, w.parent_wbe_id, wa.depth + 1
+                FROM wbe_ancestors wa
+                INNER JOIN wbes w ON w.wbe_id = wa.parent_wbe_id
+                    AND w.branch = :current_branch
+                    AND w.deleted_at IS NULL
+                    {time_filter}
+            """
+
+        # Build the complete raw SQL query
+        raw_sql = text(f"""
+            WITH RECURSIVE wbe_ancestors AS (
+                -- Base case: current WBE
+                SELECT id, wbe_id, code, name, parent_wbe_id, 0 as depth
+                FROM wbes
+                WHERE wbe_id = :wbe_id
+                    AND branch = :current_branch
+                    AND deleted_at IS NULL
+                    {time_filter}
+
+                UNION ALL
+
+                {recursive_sql}
             )
+            SELECT id, wbe_id, code, name
+            FROM wbe_ancestors
+            ORDER BY depth DESC
+        """)
 
-        wbe_cte = wbe_cte.union_all(recursive_stmt)
+        # Build parameters for the query
+        params = {
+            "wbe_id": str(wbe_id),
+            "current_branch": current_wbe.branch,
+        }
 
-        # Execute CTE query ordered by depth (root first)
-        ancestors_stmt = select(wbe_cte).order_by(wbe_cte.c.depth.desc())
-        ancestors_result = await self.session.execute(ancestors_stmt)
+        # Execute the raw SQL query
+        ancestors_result = await self.session.execute(raw_sql, params)
         ancestors = ancestors_result.all()
 
         # Build breadcrumb response
@@ -936,41 +1078,6 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
                 for ancestor in ancestors
             ],
         }
-
-    async def get_by_root_id(
-        self, root_id: UUID, branch: str = "main", as_of: datetime | None = None
-    ) -> WBE | None:
-        """Override to include parent_name.
-
-        Args:
-            root_id: Root WBE identifier
-            branch: Branch name (default: "main")
-            as_of: Optional timestamp for time-travel query
-
-        Returns:
-            WBE with parent_name attached, or None if not found
-        """
-        from typing import Any, cast
-
-
-        stmt = (
-            self._get_base_stmt(as_of=as_of)
-            .where(
-                WBE.wbe_id == root_id,
-                WBE.branch == branch,
-                func.upper(cast(Any, WBE).valid_time).is_(None),
-                cast(Any, WBE).deleted_at.is_(None),
-            )
-            .limit(1)
-        )
-        result = await self.session.execute(stmt)
-        row = result.first()
-        if not row:
-            return None
-
-        wbe, parent_name = row
-        wbe.parent_name = parent_name
-        return cast(WBE, wbe)
 
     async def get_wbe_history(self, wbe_id: UUID) -> list[WBE]:
         """Get all versions of a WBE by root wbe_id (with creator and parent name).
@@ -1023,6 +1130,11 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             wbe, creator_name, parent_name = row
             wbe.created_by_name = creator_name
             wbe.parent_name = parent_name
+            # Note: Historical budget is computed from current cost elements
+            # For true historical budget, we'd need time-travel on cost elements too
+            wbe.budget_allocation = await self._compute_wbe_budget(
+                wbe_id, branch=wbe.branch
+            )
             history.append(wbe)
 
         return history
@@ -1060,4 +1172,54 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             ...     as_of=as_of
             ... )
         """
-        return await self.get_as_of(wbe_id, as_of, branch, branch_mode)
+        wbe = await self.get_as_of(wbe_id, as_of, branch, branch_mode)
+        if wbe:
+            # Populate computed budget
+            wbe.budget_allocation = await self._compute_wbe_budget(
+                wbe_id, branch=wbe.branch
+            )
+        return wbe
+
+    async def get_recently_updated(
+        self,
+        user_id: UUID | None = None,
+        limit: int = 10,
+        branch: str = "main",
+        eager_load_project: bool = False,
+    ) -> list[WBE]:
+        """Get recently updated WBEs, optionally filtered by user.
+
+        Args:
+            user_id: Optional user ID to filter by (only WBEs updated by this user)
+            limit: Maximum number of WBEs to return
+            branch: Branch name to query (default: "main")
+            eager_load_project: If True, preload the project relationship to avoid N+1 queries
+
+        Returns:
+            List of recently updated WBEs ordered by transaction_time descending
+        """
+        from typing import Any, cast
+
+        from sqlalchemy import desc
+        from sqlalchemy.orm import selectinload
+
+        stmt = select(WBE).where(WBE.branch == branch)
+
+        if user_id:
+            stmt = stmt.where(cast(Any, WBE).created_by == user_id)
+
+        # Get current versions (not deleted)
+        stmt = stmt.where(
+            func.upper(cast(Any, WBE).valid_time).is_(None),
+            cast(Any, WBE).deleted_at.is_(None),
+        )
+
+        # Eager load project relationship if requested (for dashboard optimization)
+        if eager_load_project:
+            stmt = stmt.options(selectinload(WBE.project))
+
+        # Order by transaction_time descending (most recent first)
+        stmt = stmt.order_by(desc(cast(Any, WBE).transaction_time)).limit(limit)
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

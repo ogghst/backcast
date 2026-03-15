@@ -1,4 +1,4 @@
-import { App, Button, Input, Space } from "antd";
+import { App, Button, Input, Space, theme } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -82,6 +82,7 @@ const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<
 import { DepartmentFilters } from "@/types/filters";
 
 export const DepartmentManagement = () => {
+  const { token } = theme.useToken();
   const { tableParams, handleTableChange, handleSearch } = useTableParams<
     DepartmentRead,
     DepartmentFilters
@@ -142,7 +143,7 @@ export const DepartmentManagement = () => {
       confirm,
       clearFilters,
     }) => (
-      <div style={{ padding: 8 }}>
+      <div style={{ padding: token.paddingSM }}>
         <Input
           placeholder={`Search ${dataIndex}`}
           value={selectedKeys[0]}
@@ -150,7 +151,7 @@ export const DepartmentManagement = () => {
             setSelectedKeys(e.target.value ? [e.target.value] : [])
           }
           onPressEnter={() => confirm()}
-          style={{ width: 188, marginBottom: 8, display: "block" }}
+          style={{ width: 188, marginBottom: token.marginSM, display: "block" }}
         />
         <Space>
           <Button
@@ -173,7 +174,9 @@ export const DepartmentManagement = () => {
       </div>
     ),
     filterIcon: (filtered: boolean) => (
-      <SearchOutlined style={{ color: filtered ? "#1890ff" : undefined }} />
+      <SearchOutlined
+        style={{ color: filtered ? token.colorPrimary : undefined }}
+      />
     ),
     onFilter: (value, record) => {
       const fieldVal = record[dataIndex];
@@ -266,7 +269,7 @@ export const DepartmentManagement = () => {
               alignItems: "center",
             }}
           >
-            <div style={{ fontSize: "16px", fontWeight: "bold" }}>
+            <div style={{ fontSize: token.fontSizeLG, fontWeight: "bold" }}>
               Department Management
             </div>
             <Can permission="department-create">

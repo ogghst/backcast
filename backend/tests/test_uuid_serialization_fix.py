@@ -92,7 +92,7 @@ class TestUUIDSerializationFix:
         )
 
         # Act - Dump with mode='json' to convert UUIDs to strings
-        impact_dict = impact_response.model_dump(mode='json')
+        impact_dict = impact_response.model_dump(mode="json")
 
         # Assert - UUID should be converted to string
         assert isinstance(impact_dict["change_order_id"], str)

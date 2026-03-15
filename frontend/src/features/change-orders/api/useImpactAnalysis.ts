@@ -27,7 +27,7 @@ export const useImpactAnalysis = (
   const { asOf } = useTimeMachineParams();
 
   return useQuery({
-    queryKey: queryKeys.changeOrders.impact(changeOrderId, branchName, mode),
+    queryKey: queryKeys.changeOrders.impact(changeOrderId, branchName, mode, { asOf }),
     queryFn: async () => {
       if (!changeOrderId) throw new Error("Change Order ID is required");
       if (!branchName) throw new Error("Branch name is required for impact analysis");
@@ -38,7 +38,7 @@ export const useImpactAnalysis = (
         query: {
           branch_name: branchName,
           mode: mode,
-          as_of: asOf || undefined,
+          as_of: asOf || new Date().toISOString(),
         },
       }) as Promise<ImpactAnalysisResponse>;
     },

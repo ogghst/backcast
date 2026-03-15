@@ -19,6 +19,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain.change_order import ChangeOrder, ImpactLevel
+from app.models.domain.cost_element import CostElement
 
 
 class FinancialImpactService:
@@ -48,9 +49,7 @@ class FinancialImpactService:
         """
         self._db = db_session
 
-    async def calculate_impact_level(
-        self, change_order_id: UUID
-    ) -> str:
+    async def calculate_impact_level(self, change_order_id: UUID) -> str:
         """Calculate the financial impact level for a change order.
 
         Compares budget deltas between main branch and change order branch
@@ -104,24 +103,39 @@ class FinancialImpactService:
         project_id = change_order.project_id
         branch_name = f"BR-{change_order.code}"
 
-        # Calculate total budget from main branch
-        main_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
-            WBE.project_id == project_id,
-            WBE.branch == "main",
-            typing_cast(Any, WBE).valid_time.op("@>")(as_of_tstz),
-            func.lower(typing_cast(Any, WBE).valid_time) <= as_of_tstz,
-            typing_cast(Any, WBE).deleted_at.is_(None),
+        # Calculate total budget from main branch using CostElement budgets
+        # Budget is now stored in CostElement.budget_amount, not WBE.budget_allocation
+        main_budget_stmt = (
+            select(func.sum(CostElement.budget_amount))
+            .select_from(CostElement)
+            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id == project_id,
+                CostElement.branch == "main",
+                WBE.branch == "main",
+                typing_cast(Any, CostElement).valid_time.op("@>")(as_of_tstz),
+                func.lower(typing_cast(Any, CostElement).valid_time) <= as_of_tstz,
+                typing_cast(Any, CostElement).deleted_at.is_(None),
+                typing_cast(Any, WBE).deleted_at.is_(None),
+            )
         )
         main_budget_result = await self._db.execute(main_budget_stmt)
         main_budget = main_budget_result.scalar() or Decimal("0")
 
-        # Calculate total budget from change branch
-        change_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
-            WBE.project_id == project_id,
-            WBE.branch == branch_name,
-            typing_cast(Any, WBE).valid_time.op("@>")(as_of_tstz),
-            func.lower(typing_cast(Any, WBE).valid_time) <= as_of_tstz,
-            typing_cast(Any, WBE).deleted_at.is_(None),
+        # Calculate total budget from change branch using CostElement budgets
+        change_budget_stmt = (
+            select(func.sum(CostElement.budget_amount))
+            .select_from(CostElement)
+            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id == project_id,
+                CostElement.branch == branch_name,
+                WBE.branch == branch_name,
+                typing_cast(Any, CostElement).valid_time.op("@>")(as_of_tstz),
+                func.lower(typing_cast(Any, CostElement).valid_time) <= as_of_tstz,
+                typing_cast(Any, CostElement).deleted_at.is_(None),
+                typing_cast(Any, WBE).deleted_at.is_(None),
+            )
         )
         change_budget_result = await self._db.execute(change_budget_stmt)
         change_budget = change_budget_result.scalar() or Decimal("0")
@@ -203,23 +217,37 @@ class FinancialImpactService:
         project_id = change_order.project_id
         branch_name = f"BR-{change_order.code}"
 
-        # Calculate budgets
-        main_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
-            WBE.project_id == project_id,
-            WBE.branch == "main",
-            typing_cast(Any, WBE).valid_time.op("@>")(as_of_tstz),
-            func.lower(typing_cast(Any, WBE).valid_time) <= as_of_tstz,
-            typing_cast(Any, WBE).deleted_at.is_(None),
+        # Calculate budgets using CostElement.budget_amount (not WBE.budget_allocation)
+        main_budget_stmt = (
+            select(func.sum(CostElement.budget_amount))
+            .select_from(CostElement)
+            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id == project_id,
+                CostElement.branch == "main",
+                WBE.branch == "main",
+                typing_cast(Any, CostElement).valid_time.op("@>")(as_of_tstz),
+                func.lower(typing_cast(Any, CostElement).valid_time) <= as_of_tstz,
+                typing_cast(Any, CostElement).deleted_at.is_(None),
+                typing_cast(Any, WBE).deleted_at.is_(None),
+            )
         )
         main_budget_result = await self._db.execute(main_budget_stmt)
         main_budget = main_budget_result.scalar() or Decimal("0")
 
-        change_budget_stmt = select(func.sum(WBE.budget_allocation)).where(
-            WBE.project_id == project_id,
-            WBE.branch == branch_name,
-            typing_cast(Any, WBE).valid_time.op("@>")(as_of_tstz),
-            func.lower(typing_cast(Any, WBE).valid_time) <= as_of_tstz,
-            typing_cast(Any, WBE).deleted_at.is_(None),
+        change_budget_stmt = (
+            select(func.sum(CostElement.budget_amount))
+            .select_from(CostElement)
+            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id == project_id,
+                CostElement.branch == branch_name,
+                WBE.branch == branch_name,
+                typing_cast(Any, CostElement).valid_time.op("@>")(as_of_tstz),
+                func.lower(typing_cast(Any, CostElement).valid_time) <= as_of_tstz,
+                typing_cast(Any, CostElement).deleted_at.is_(None),
+                typing_cast(Any, WBE).deleted_at.is_(None),
+            )
         )
         change_budget_result = await self._db.execute(change_budget_stmt)
         change_budget = change_budget_result.scalar() or Decimal("0")

@@ -81,7 +81,7 @@ async def get_my_preferences(
     Requires read permission.
     """
     try:
-        prefs = await service.get_user_preferences(current_user.id)
+        prefs = await service.get_user_preferences(current_user.user_id)
         return UserPreferenceResponse(**prefs) if prefs else UserPreferenceResponse()
     except ValueError:
         # User not found, return default
@@ -106,7 +106,7 @@ async def update_my_preferences(
     try:
         # Use exclude_unset to only include fields that were actually provided
         updated_prefs = await service.update_user_preferences(
-            current_user.id, pref_in.model_dump(exclude_unset=True)
+            current_user.user_id, pref_in.model_dump(exclude_unset=True)
         )
         return UserPreferenceResponse(**updated_prefs)
     except ValueError as e:
@@ -133,7 +133,7 @@ async def read_user(
     Requires read permission.
     """
     # Additional authorization: non-admins can only read themselves
-    if current_user.role != "admin" and current_user.id != user_id:
+    if current_user.role != "admin" and current_user.user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to view this user",
@@ -166,7 +166,7 @@ async def update_user(
     Requires update permission.
     """
     # Additional authorization: non-admins can only update themselves
-    if current_user.role != "admin" and current_user.id != user_id:
+    if current_user.role != "admin" and current_user.user_id != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to update this user",

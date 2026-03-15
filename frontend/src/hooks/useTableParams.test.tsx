@@ -44,7 +44,7 @@ describe("useTableParams", () => {
       result.current.handleTableChange({ current: 2, pageSize: 20 }, {}, {
         field: "name",
         order: "ascend",
-      } as any);
+      } as unknown as SorterResult<unknown>);
     });
 
     expect(result.current.tableParams.pagination?.current).toBe(2);
@@ -63,19 +63,19 @@ describe("useTableParams", () => {
         const params = useURLParams();
         return { tableParams, handleTableChange, params };
       },
-      { wrapper }
+      { wrapper },
     );
 
     act(() => {
       result.current.handleTableChange(
         { current: 1, pageSize: 10 },
         { role: ["admin", "user"], status: ["active"] },
-        {}
+        {},
       );
     });
 
     expect(result.current.params.get("filters")).toBe(
-      "role:admin,user;status:active"
+      "role:admin,user;status:active",
     );
     expect(result.current.tableParams.filters).toEqual({
       role: ["admin", "user"],
@@ -94,7 +94,7 @@ describe("useTableParams", () => {
         const params = useURLParams();
         return { tableParams, handleSearch, params };
       },
-      { wrapper }
+      { wrapper },
     );
 
     act(() => {
@@ -121,7 +121,7 @@ describe("useTableParams", () => {
 
     const { result } = renderHook(
       () => useTableParams<TestEntity, TestFilters>(),
-      { wrapper }
+      { wrapper },
     );
 
     act(() => {
@@ -130,7 +130,7 @@ describe("useTableParams", () => {
       result.current.handleTableChange(
         {},
         { status: ["active"] }, // Valid filter
-        {}
+        {},
       );
     });
 

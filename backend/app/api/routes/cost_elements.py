@@ -156,6 +156,11 @@ async def create_cost_element(
 async def read_cost_element(
     cost_element_id: UUID,
     branch: str = Query("main", description="Branch to query"),
+    mode: str = Query(
+        "merged",
+        pattern="^(merged|isolated)$",
+        description="Branch mode: merged (combine with main) or isolated (current branch only)",
+    ),
     as_of: datetime | None = Query(
         None,
         description="Time travel: get cost element state as of this timestamp (ISO 8601)",
@@ -171,12 +176,15 @@ async def read_cost_element(
     if as_of is None:
         as_of = datetime.now(tz=UTC)
 
+    from app.core.versioning.enums import BranchMode
+    branch_mode = BranchMode.MERGE if mode == "merged" else BranchMode.STRICT
+
     if as_of:
         # Time travel query
-        item = await service.get_cost_element_as_of(cost_element_id, as_of)
+        item = await service.get_cost_element_as_of(cost_element_id, as_of, branch=branch, branch_mode=branch_mode)
     else:
         # Current version
-        item = await service.get_by_id(cost_element_id, branch=branch)
+        item = await service.get_by_id(cost_element_id, branch=branch, branch_mode=branch_mode)
 
     if not item:
         raise HTTPException(
@@ -468,7 +476,10 @@ async def update_cost_element_schedule_baseline(
         if isinstance(end_date, str):
             end_date = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
         update_data["end_date"] = end_date
-    if "progression_type" in baseline_in and baseline_in["progression_type"] is not None:
+    if (
+        "progression_type" in baseline_in
+        and baseline_in["progression_type"] is not None
+    ):
         update_data["progression_type"] = baseline_in["progression_type"]
     if "description" in baseline_in:
         update_data["description"] = baseline_in["description"]
@@ -477,9 +488,7 @@ async def update_cost_element_schedule_baseline(
     from app.models.schemas.schedule_baseline import ScheduleBaselineUpdate
 
     update_schema = ScheduleBaselineUpdate(
-        branch=branch,
-        control_date=control_date,
-        **update_data
+        branch=branch, control_date=control_date, **update_data
     )
 
     # Update baseline
@@ -644,9 +653,11 @@ async def read_evm_history(
             detail=str(e),
         ) from e
 
+
 # ============================================================================
 # Forecast Endpoints (1:1 Relationship with Cost Elements)
 # ============================================================================
+
 
 @router.get(
     "/{cost_element_id}/forecast",
@@ -712,8 +723,7 @@ async def get_cost_element_forecast(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Forecast not found for cost element {cost_element_id} "
-            f"in branch '{branch}'"
-            + (f" as of {as_of}" if as_of else ""),
+            f"in branch '{branch}'" + (f" as of {as_of}" if as_of else ""),
         )
 
     # Get forecast using the service layer
@@ -734,8 +744,7 @@ async def get_cost_element_forecast(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Forecast not found for cost element {cost_element_id} "
-            f"in branch '{branch}'"
-            + (f" as of {as_of}" if as_of else ""),
+            f"in branch '{branch}'" + (f" as of {as_of}" if as_of else ""),
         )
 
     # Convert to dict with cost element details
@@ -825,7 +834,9 @@ async def update_cost_element_forecast(
             )
             ce_result = await forecast_service.session.execute(ce_stmt)
             ce_row = ce_result.first()
-            create_data["eac_amount"] = ce_row.budget_amount if ce_row else Decimal("0.00")
+            create_data["eac_amount"] = (
+                ce_row.budget_amount if ce_row else Decimal("0.00")
+            )
 
         if forecast_in.basis_of_estimate is not None:
             create_data["basis_of_estimate"] = forecast_in.basis_of_estimate

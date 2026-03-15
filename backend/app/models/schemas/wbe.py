@@ -13,9 +13,8 @@ class WBEBase(BaseModel):
     project_id: UUID = Field(..., description="Parent project root ID")
     code: str = Field(..., max_length=50, description="WBS code (e.g., 1.2.3)")
     name: str = Field(..., max_length=255, description="WBE name")
-    budget_allocation: Decimal = Field(
-        Decimal(0), ge=0, description="Budget allocation"
-    )
+    # NOTE: budget_allocation removed from input schemas
+    # Budget is now computed from child CostElement.budget_amount values
     revenue_allocation: Decimal | None = Field(
         None, ge=0, description="Revenue allocation from project contract value"
     )
@@ -45,7 +44,7 @@ class WBEUpdate(BaseModel):
     """Schema for updating an existing WBE."""
 
     name: str | None = Field(None, max_length=255)
-    budget_allocation: Decimal | None = Field(None, ge=0)
+    # NOTE: budget_allocation removed - budget is computed from cost elements
     revenue_allocation: Decimal | None = Field(None, ge=0)
     level: int | None = Field(None, ge=1)
     parent_wbe_id: UUID | None = None
@@ -58,11 +57,25 @@ class WBEUpdate(BaseModel):
     )
 
 
-class WBERead(WBEBase):
+class WBERead(BaseModel):
     """Schema for reading WBE data."""
 
     id: UUID
     wbe_id: UUID
+    project_id: UUID
+    code: str
+    name: str
+    # NOTE: budget_allocation is computed from cost elements in the full hierarchy, not stored
+    budget_allocation: Decimal = Field(
+        Decimal(0),
+        description="Computed budget (sum of cost element budgets in full WBE hierarchy)",
+    )
+    revenue_allocation: Decimal | None = Field(
+        None, ge=0, description="Revenue allocation from project contract value"
+    )
+    level: int
+    parent_wbe_id: UUID | None = None
+    description: str | None = None
     branch: str
     created_at: datetime | None = None
     created_by: UUID

@@ -95,6 +95,7 @@ async def read_wbes(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     # Parse parent_wbe_id
@@ -127,14 +128,10 @@ async def read_wbes(
         )
         return [WBEPublic.model_validate(w) for w in wbes]
 
-    # General Listing AND Parent Filtering (Paginated)
+    # General Listing (Paginated)
     skip = (page - 1) * per_page
 
     try:
-        # Determine if we should apply the parent filter
-        # We apply it if a specific ID is parsed OR if it was an explicit "null" query (root only)
-        apply_parent_filter = (parsed_parent_id is not None) or is_root_query
-
         wbes, total = await service.get_wbes(
             skip=skip,
             limit=per_page,
@@ -145,8 +142,6 @@ async def read_wbes(
             sort_field=sort_field,
             sort_order=sort_order,
             project_id=project_id,
-            parent_wbe_id=parsed_parent_id,
-            apply_parent_filter=apply_parent_filter,
             as_of=as_of,
         )
 
@@ -189,7 +184,6 @@ async def create_wbe(
         # treats it separate, OR we let the service handle it.
         # WBEService.create_wbe takes control_date as explicit arg.
         # So we explicitly extract it.
-        control_date = wbe_in.control_date
 
         # Check if WBE code already exists in the project
         existing = await service.get_by_code(
@@ -201,9 +195,7 @@ async def create_wbe(
                 detail=f"WBE with code '{wbe_in.code}' already exists in this project",
             )
 
-        wbe = await service.create_wbe(
-            wbe_in=wbe_in, actor_id=current_user.user_id
-        )
+        wbe = await service.create_wbe(wbe_in=wbe_in, actor_id=current_user.user_id)
         return wbe
     except ValueError as e:
         raise HTTPException(
@@ -235,6 +227,7 @@ async def read_wbe(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     if as_of:
@@ -325,10 +318,13 @@ async def read_wbe_breadcrumb(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     try:
-        return await service.get_breadcrumb(wbe_id, branch=branch, branch_mode=branch_mode, as_of=as_of)
+        return await service.get_breadcrumb(
+            wbe_id, branch=branch, branch_mode=branch_mode, as_of=as_of
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

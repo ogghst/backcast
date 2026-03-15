@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Button, Card } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import { Button, Card, Tabs, Collapse, Space, theme } from "antd";
+import { PlusOutlined, LineChartOutlined } from "@ant-design/icons";
 
 import {
   useWBE,
@@ -23,14 +23,23 @@ import { Can } from "@/components/auth/Can";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { WbEsService } from "@/api/generated";
 
+import {
+  useEVMMetrics,
+  useEVMTimeSeries,
+} from "@/features/evm/api/useEVMMetrics";
+import { EVMSummaryView } from "@/features/evm/components/EVMSummaryView";
+import { EVMTimeSeriesChart } from "@/features/evm/components/EVMTimeSeriesChart";
+import { EVMAnalyzerModal } from "@/features/evm/components/EVMAnalyzerModal";
+import { EVMTimeSeriesGranularity, EntityType } from "@/features/evm/types";
+
 export const WBEDetailPage = () => {
   const { projectId, wbeId } = useParams<{
     projectId: string;
     wbeId: string;
   }>();
   const navigate = useNavigate();
+  const { token } = theme.useToken();
 
-  // Fetch WBE details
   // Pagination State
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
 
@@ -52,10 +61,21 @@ export const WBEDetailPage = () => {
   });
   const childWbes = data?.items || [];
 
+  // EVM State & Queries
+  const [evmGranularity, setEvmGranularity] =
+    useState<EVMTimeSeriesGranularity>(EVMTimeSeriesGranularity.WEEK);
+  const { data: evmMetrics } = useEVMMetrics(EntityType.WBE, wbeId!);
+  const { data: timeSeries, isLoading: timeSeriesLoading } = useEVMTimeSeries(
+    EntityType.WBE,
+    wbeId!,
+    evmGranularity,
+  );
+
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedWBE, setSelectedWBE] = useState<WBERead | null>(null);
   const [isCreatingChild, setIsCreatingChild] = useState(false);
+  const [isEVMModalOpen, setIsEVMModalOpen] = useState(false);
 
   // Delete Modal State
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -70,7 +90,7 @@ export const WBEDetailPage = () => {
       entityId: wbeId,
       fetchFn: (id) => WbEsService.getWbeHistory(id),
       enabled: historyOpen,
-    }
+    },
   );
 
   // Mutations
@@ -134,7 +154,7 @@ export const WBEDetailPage = () => {
 
   if (!wbe && !wbeLoading) {
     return (
-      <div style={{ padding: 24 }}>
+      <div style={{ padding: token.paddingXL }}>
         <h1>WBE Not Found</h1>
         <p>The requested Work Breakdown Element could not be found.</p>
         <Button onClick={() => navigate(`/projects/${projectId}`)}>
@@ -144,14 +164,12 @@ export const WBEDetailPage = () => {
     );
   }
 
-  return (
-    <div style={{ padding: 24 }}>
-      {/* Breadcrumb Navigation */}
-      <BreadcrumbBuilder breadcrumb={breadcrumb} loading={breadcrumbLoading} />
-
-      {/* Page Title */}
-      <h1 style={{ marginBottom: 16 }}>WBE Details</h1>
-
+  const overviewTabContent = (
+    <Space
+      direction="vertical"
+      size="middle"
+      style={{ width: "100%", marginTop: token.paddingMD }}
+    >
       {/* WBE Summary */}
       {wbe && (
         <WBESummaryCard
@@ -167,7 +185,6 @@ export const WBEDetailPage = () => {
       {/* Child WBEs Section */}
       <Card
         title="Child WBEs"
-        style={{ marginBottom: 16 }}
         extra={
           <Can permission="wbe-create">
             <Button
@@ -196,7 +213,13 @@ export const WBEDetailPage = () => {
             }}
           />
         ) : (
-          <div style={{ textAlign: "center", padding: 24, color: "#999" }}>
+          <div
+            style={{
+              textAlign: "center",
+              padding: token.paddingXL,
+              color: token.colorTextTertiary,
+            }}
+          >
             {childrenLoading
               ? "Loading..."
               : "No child WBEs. Click 'Add Child WBE' to create one."}
@@ -205,9 +228,94 @@ export const WBEDetailPage = () => {
       </Card>
 
       {/* Cost Elements Section */}
-      <Card title="Cost Elements" style={{ marginBottom: 16 }}>
+      <Card title="Cost Elements">
         {wbeId && <CostElementManagement wbeId={wbeId} wbeName={wbe?.name} />}
       </Card>
+    </Space>
+  );
+
+  const evmTabContent = (
+    <Space
+      direction="vertical"
+      size="large"
+      style={{ width: "100%", marginTop: token.paddingMD }}
+    >
+      {evmMetrics && (
+        <EVMSummaryView
+          metrics={evmMetrics}
+          onAdvanced={() => setIsEVMModalOpen(true)}
+        />
+      )}
+
+      <Collapse
+        defaultActiveKey={["historical-trends"]}
+        bordered
+        style={{ backgroundColor: "transparent" }}
+        items={[
+          {
+            key: "historical-trends",
+            label: (
+              <Space>
+                <LineChartOutlined />
+                <span>Historical Trends</span>
+              </Space>
+            ),
+            children: (
+              <div
+                style={{
+                  backgroundColor: token.colorBgContainer,
+                  padding: token.paddingMD,
+                  borderRadius: token.borderRadiusLG,
+                }}
+              >
+                <EVMTimeSeriesChart
+                  timeSeries={timeSeries}
+                  loading={timeSeriesLoading}
+                  onGranularityChange={setEvmGranularity}
+                  currentGranularity={evmGranularity}
+                  headless={true}
+                  height={400}
+                />
+              </div>
+            ),
+          },
+        ]}
+      />
+    </Space>
+  );
+
+  return (
+    <div style={{ padding: token.paddingXL }}>
+      {/* Breadcrumb Navigation */}
+      <BreadcrumbBuilder breadcrumb={breadcrumb} loading={breadcrumbLoading} />
+
+      {/* Page Title */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: token.paddingMD,
+        }}
+      >
+        <h1 style={{ margin: 0 }}>WBE Details</h1>
+      </div>
+
+      <Tabs
+        defaultActiveKey="overview"
+        items={[
+          {
+            key: "overview",
+            label: "Overview",
+            children: overviewTabContent,
+          },
+          {
+            key: "evm",
+            label: "EVM Analysis",
+            children: evmTabContent,
+          },
+        ]}
+      />
 
       {deleteModalOpen && (
         <DeleteWBEModal
@@ -227,7 +335,7 @@ export const WBEDetailPage = () => {
                 // Navigate back to parent
                 if (wbeToDelete.parent_wbe_id) {
                   navigate(
-                    `/projects/${projectId}/wbes/${wbeToDelete.parent_wbe_id}`
+                    `/projects/${projectId}/wbes/${wbeToDelete.parent_wbe_id}`,
                   );
                 } else {
                   navigate(`/projects/${projectId}`);
@@ -255,7 +363,7 @@ export const WBEDetailPage = () => {
               if (clean) start = clean.trim();
             } else if (
               Array.isArray(
-                (version as unknown as { valid_time: string[] }).valid_time
+                (version as unknown as { valid_time: string[] }).valid_time,
               )
             ) {
               start = (version as unknown as { valid_time: string[] })
@@ -302,6 +410,15 @@ export const WBEDetailPage = () => {
         projectId={projectId}
         parentWbeId={isCreatingChild ? wbe?.wbe_id : selectedWBE?.parent_wbe_id}
         parentName={isCreatingChild ? wbe?.name : selectedWBE?.parent_name}
+      />
+
+      <EVMAnalyzerModal
+        open={isEVMModalOpen}
+        onClose={() => setIsEVMModalOpen(false)}
+        evmMetrics={evmMetrics}
+        timeSeries={timeSeries}
+        loading={timeSeriesLoading}
+        onGranularityChange={setEvmGranularity}
       />
     </div>
   );

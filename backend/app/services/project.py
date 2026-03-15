@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.branching.commands import UpdateCommand
@@ -186,7 +186,7 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         project_data = project_in.model_dump(exclude_unset=True)
 
         # Extract control_date from schema if present (for seeding/time-travel)
-        control_date = getattr(project_in, 'control_date', None)
+        control_date = getattr(project_in, "control_date", None)
 
         # Remove control_date from data to avoid duplicate kwarg error
         project_data.pop("control_date", None)
@@ -203,7 +203,6 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             **project_data,
         )
         return await cmd.execute(self.session)
-
 
     async def update_project(
         self,
@@ -395,3 +394,40 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             )
 
         return branches
+
+    async def get_recently_updated(
+        self,
+        user_id: UUID | None = None,
+        limit: int = 10,
+        branch: str = "main",
+    ) -> list[Project]:
+        """Get recently updated projects, optionally filtered by user.
+
+        Args:
+            user_id: Optional user ID to filter by (only projects updated by this user)
+            limit: Maximum number of projects to return
+            branch: Branch name to query (default: "main")
+
+        Returns:
+            List of recently updated projects ordered by transaction_time descending
+        """
+        from typing import Any, cast
+
+        from sqlalchemy import desc
+
+        stmt = select(Project).where(Project.branch == branch)
+
+        if user_id:
+            stmt = stmt.where(cast(Any, Project).created_by == user_id)
+
+        # Get current versions (not deleted)
+        stmt = stmt.where(
+            func.upper(cast(Any, Project).valid_time).is_(None),
+            cast(Any, Project).deleted_at.is_(None),
+        )
+
+        # Order by transaction_time descending (most recent first)
+        stmt = stmt.order_by(desc(cast(Any, Project).transaction_time)).limit(limit)
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
-import { useAuth } from "@/hooks/useAuth";
+
 import {
   ProgressEntriesService,
   type ProgressEntryRead,
@@ -36,11 +36,13 @@ interface ProgressEntryListParams {
  * Progress entries are NOT branchable but support time-travel queries.
  */
 export const useProgressEntries = (params?: ProgressEntryListParams) => {
-  const { asOf } = useTimeMachineParams();
+  const { asOf, branch, mode } = useTimeMachineParams();
 
   return useQuery<PaginatedResponse<ProgressEntryRead>>({
     queryKey: queryKeys.progressEntries.list(params?.cost_element_id || "", {
       asOf: params?.asOf || asOf,
+      branch,
+      mode,
     }),
     queryFn: async () => {
       const { cost_element_id, page = 1, perPage = 20 } = params || {};
@@ -48,6 +50,8 @@ export const useProgressEntries = (params?: ProgressEntryListParams) => {
       const res = await ProgressEntriesService.getProgressEntries(
         page,
         perPage,
+        branch,
+        mode,
         cost_element_id,
         params?.asOf || asOf || undefined,
       );
@@ -153,7 +157,6 @@ export const useCreateProgressEntry = (
   >,
 ) => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   const { asOf } = useTimeMachineParams();
 
   return useMutation<ProgressEntryRead, Error, ProgressEntryCreate>({

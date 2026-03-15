@@ -7,9 +7,9 @@
  * FE-010: Integration tests for cache invalidation
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { ReactNode } from "react";
 import { queryKeys } from "@/api/queryKeys";
 
@@ -89,7 +89,7 @@ describe("Cache Invalidation Integration Tests", () => {
       vi.mocked(CostElementsService.createCostElement).mockResolvedValue({
         id: "test-id",
         name: "Test Cost Element",
-      } as any);
+      } as unknown as Record<string, unknown>);
 
       await result.current.mutateAsync({
         name: "Test Cost Element",
@@ -102,7 +102,7 @@ describe("Cache Invalidation Integration Tests", () => {
       expect(invalidateQueriesSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           queryKey: queryKeys.forecasts.all,
-        })
+        }),
       );
     });
 
@@ -119,7 +119,7 @@ describe("Cache Invalidation Integration Tests", () => {
       vi.mocked(CostElementsService.createCostElement).mockResolvedValue({
         id: "test-id",
         name: "Test Cost Element",
-      } as any);
+      } as unknown as Record<string, unknown>);
 
       await result.current.mutateAsync({
         name: "Test Cost Element",
@@ -132,7 +132,7 @@ describe("Cache Invalidation Integration Tests", () => {
       expect(invalidateQueriesSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           queryKey: queryKeys.costElements.lists(),
-        })
+        }),
       );
     });
   });
@@ -141,15 +141,19 @@ describe("Cache Invalidation Integration Tests", () => {
     it("should invalidate forecast queries when creating a cost registration", async () => {
       const { queryClient, wrapper } = createQueryClientWrapper();
 
-      const { result } = renderHook(() => useCreateCostRegistration(), { wrapper });
+      const { result } = renderHook(() => useCreateCostRegistration(), {
+        wrapper,
+      });
 
       const invalidateQueriesSpy = vi.spyOn(queryClient, "invalidateQueries");
 
       const { CostRegistrationsService } = await import("@/api/generated");
-      vi.mocked(CostRegistrationsService.createCostRegistration).mockResolvedValue({
+      vi.mocked(
+        CostRegistrationsService.createCostRegistration,
+      ).mockResolvedValue({
         id: "test-id",
         amount: 1000,
-      } as any);
+      } as unknown as Record<string, unknown>);
 
       await result.current.mutateAsync({
         cost_element_id: "ce-1",
@@ -161,22 +165,26 @@ describe("Cache Invalidation Integration Tests", () => {
       expect(invalidateQueriesSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           queryKey: queryKeys.forecasts.all,
-        })
+        }),
       );
     });
 
     it("should invalidate budget status when creating a cost registration", async () => {
       const { queryClient, wrapper } = createQueryClientWrapper();
 
-      const { result } = renderHook(() => useCreateCostRegistration(), { wrapper });
+      const { result } = renderHook(() => useCreateCostRegistration(), {
+        wrapper,
+      });
 
       const invalidateQueriesSpy = vi.spyOn(queryClient, "invalidateQueries");
 
       const { CostRegistrationsService } = await import("@/api/generated");
-      vi.mocked(CostRegistrationsService.createCostRegistration).mockResolvedValue({
+      vi.mocked(
+        CostRegistrationsService.createCostRegistration,
+      ).mockResolvedValue({
         id: "test-id",
         amount: 1000,
-      } as any);
+      } as unknown as Record<string, unknown>);
 
       await result.current.mutateAsync({
         cost_element_id: "ce-1",
@@ -188,7 +196,7 @@ describe("Cache Invalidation Integration Tests", () => {
       expect(invalidateQueriesSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           queryKey: queryKeys.costRegistrations.all,
-        })
+        }),
       );
     });
   });
@@ -197,15 +205,19 @@ describe("Cache Invalidation Integration Tests", () => {
     it("should invalidate forecast queries when creating a schedule baseline", async () => {
       const { queryClient, wrapper } = createQueryClientWrapper();
 
-      const { result } = renderHook(() => useCreateScheduleBaseline(), { wrapper });
+      const { result } = renderHook(() => useCreateScheduleBaseline(), {
+        wrapper,
+      });
 
       const invalidateQueriesSpy = vi.spyOn(queryClient, "invalidateQueries");
 
       const { ScheduleBaselinesService } = await import("@/api/generated");
-      vi.mocked(ScheduleBaselinesService.createScheduleBaseline).mockResolvedValue({
+      vi.mocked(
+        ScheduleBaselinesService.createScheduleBaseline,
+      ).mockResolvedValue({
         id: "test-id",
         name: "Test Baseline",
-      } as any);
+      } as unknown as Record<string, unknown>);
 
       await result.current.mutateAsync({
         project_id: "proj-1",
@@ -217,22 +229,26 @@ describe("Cache Invalidation Integration Tests", () => {
       expect(invalidateQueriesSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           queryKey: queryKeys.forecasts.all,
-        })
+        }),
       );
     });
 
     it("should invalidate schedule baselines when creating a schedule baseline", async () => {
       const { queryClient, wrapper } = createQueryClientWrapper();
 
-      const { result } = renderHook(() => useCreateScheduleBaseline(), { wrapper });
+      const { result } = renderHook(() => useCreateScheduleBaseline(), {
+        wrapper,
+      });
 
       const invalidateQueriesSpy = vi.spyOn(queryClient, "invalidateQueries");
 
       const { ScheduleBaselinesService } = await import("@/api/generated");
-      vi.mocked(ScheduleBaselinesService.createScheduleBaseline).mockResolvedValue({
+      vi.mocked(
+        ScheduleBaselinesService.createScheduleBaseline,
+      ).mockResolvedValue({
         id: "test-id",
         name: "Test Baseline",
-      } as any);
+      } as unknown as Record<string, unknown>);
 
       await result.current.mutateAsync({
         project_id: "proj-1",
@@ -244,7 +260,7 @@ describe("Cache Invalidation Integration Tests", () => {
       expect(invalidateQueriesSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           queryKey: queryKeys.scheduleBaselines.all,
-        })
+        }),
       );
     });
   });
@@ -270,7 +286,9 @@ describe("Cache Invalidation Integration Tests", () => {
       expect(queryKeys.changeOrders.all).toBeDefined();
 
       // Verify they include context parameters
-      const listKey = queryKeys.changeOrders.list("proj-1", { asOf: "2024-01-01" });
+      const listKey = queryKeys.changeOrders.list("proj-1", {
+        asOf: "2024-01-01",
+      });
       expect(listKey).toBeDefined();
       expect(listKey).toContain("proj-1");
     });
@@ -279,12 +297,15 @@ describe("Cache Invalidation Integration Tests", () => {
   describe("Context Isolation", () => {
     it("should include context parameters in versioned entity query keys", () => {
       // Cost elements - includes context
-      const ceDetailKey = queryKeys.costElements.detail("ce-1", { branch: "main", asOf: "2024-01-01" });
+      const ceDetailKey = queryKeys.costElements.detail("ce-1", {
+        branch: "main",
+        asOf: "2024-01-01",
+      });
       expect(ceDetailKey).toEqual([
         "cost-elements",
         "detail",
         "ce-1",
-        { branch: "main", asOf: "2024-01-01" }
+        { branch: "main", asOf: "2024-01-01" },
       ]);
 
       // WBEs - detail key doesn't include context (by design)
@@ -292,16 +313,21 @@ describe("Cache Invalidation Integration Tests", () => {
       expect(wbeDetailKey).toEqual(["wbes", "detail", "wbe-1"]);
 
       // Forecasts - includes context
-      const forecastKey = queryKeys.forecasts.list("ce-1", { branch: "main", asOf: "2024-01-01" });
+      const forecastKey = queryKeys.forecasts.list("ce-1", {
+        branch: "main",
+        asOf: "2024-01-01",
+      });
       expect(forecastKey).toEqual([
         "forecasts",
         "list",
         "ce-1",
-        { branch: "main", asOf: "2024-01-01" }
+        { branch: "main", asOf: "2024-01-01" },
       ]);
 
       // Change orders - includes context
-      const coListKey = queryKeys.changeOrders.list("proj-1", { asOf: "2024-01-01" });
+      const coListKey = queryKeys.changeOrders.list("proj-1", {
+        asOf: "2024-01-01",
+      });
       expect(coListKey).toBeDefined();
       expect(coListKey).toContain("proj-1");
     });

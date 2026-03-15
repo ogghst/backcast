@@ -6,8 +6,22 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 
+async def create_db_if_not_exists(original_url: str, test_url: str) -> None:
+    db_name = test_url.rstrip("/").split("/")[-1]
+    engine = create_async_engine(original_url, isolation_level="AUTOCOMMIT")
+    async with engine.connect() as conn:
+        result = await conn.execute(text(f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'"))
+        exists = result.scalar() is not None
+        if not exists:
+            print(f"Creating test database: {db_name}")
+            await conn.execute(text(f"CREATE DATABASE {db_name}"))
+    await engine.dispose()
+
+
 async def wipe() -> None:
     db_url = os.environ.get("WIPE_DATABASE_URL")
+    orig_url = os.environ.get("ORIGINAL_DATABASE_URL")
+
     if not db_url:
         db_url = os.environ.get("DATABASE_URL")
 
@@ -15,6 +29,9 @@ async def wipe() -> None:
         print("Error: WIPE_DATABASE_URL (or DATABASE_URL) not set")
         print(f"Env keys available: {list(os.environ.keys())}")
         sys.exit(1)
+
+    if orig_url and orig_url != db_url:
+        await create_db_if_not_exists(orig_url, db_url)
 
     print(f"Wiping DB: {db_url}")
     engine = create_async_engine(db_url)
@@ -35,9 +52,9 @@ async def wipe() -> None:
             try:
                 await conn.execute(text("DROP TABLE IF EXISTS alembic_version CASCADE"))
                 # List all tables and drop them
-                result = await conn.execute(text(
-                    "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
-                ))
+                result = await conn.execute(
+                    text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+                )
                 tables = [row[0] for row in result]
                 for table in tables:
                     await conn.execute(text(f'DROP TABLE IF EXISTS "{table}" CASCADE'))

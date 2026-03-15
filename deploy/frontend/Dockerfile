@@ -22,6 +22,8 @@ ENV VITE_API_URL=${VITE_API_URL}
 ENV VITE_WEBSOCKET_URL=${VITE_WEBSOCKET_URL}
 
 # Build the application (skip TypeScript check)
+# Increase Node.js heap size to prevent out of memory errors
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npx vite build --mode production
 
 # Production stage with nginx

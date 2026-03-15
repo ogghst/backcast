@@ -9,7 +9,7 @@ import {
 import { ProjectSummaryCard } from "@/components/hierarchy/ProjectSummaryCard";
 import { WBETable } from "@/components/hierarchy/WBETable";
 import { WBECreate, WBERead, WBEUpdate } from "@/api/generated";
-import { Button, Breadcrumb, Skeleton, Card } from "antd";
+import { Button, Breadcrumb, Skeleton, Card, theme } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { useState } from "react";
 import { WBEModal } from "@/features/wbes/components/WBEModal";
@@ -26,6 +26,7 @@ import { ProjectsService } from "@/api/generated";
  * Change orders have been moved to a separate tab/page.
  */
 export const ProjectOverview = () => {
+  const { token } = theme.useToken();
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
 
@@ -93,21 +94,21 @@ export const ProjectOverview = () => {
   };
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: token.paddingXL }}>
       <Breadcrumb
         items={[
           { title: <Link to="/">Home</Link> },
           { title: <Link to="/projects">Projects</Link> },
           { title: project?.code || "Project" },
         ]}
-        style={{ marginBottom: 16 }}
+        style={{ marginBottom: token.paddingMD }}
       />
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: 16,
+          marginBottom: token.paddingMD,
         }}
       >
         <h1 style={{ margin: 0 }}>Project Details</h1>
@@ -127,7 +128,7 @@ export const ProjectOverview = () => {
 
           <Card
             title="Root Work Breakdown Elements"
-            style={{ marginTop: 16 }}
+            style={{ marginTop: token.paddingMD }}
             extra={
               <Can permission="wbe-create">
                 <Button

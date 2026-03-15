@@ -186,9 +186,7 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
             # Fall back to main branch to get the current version
             current = await self._get_current_on_branch(session, "main")
             if not current:
-                raise ValueError(
-                    f"No active version on main branch for {self.root_id}"
-                )
+                raise ValueError(f"No active version on main branch for {self.root_id}")
             # The updates will create a new version on the change order branch
         elif not current:
             raise ValueError(
@@ -243,17 +241,22 @@ class UpdateCommand(BranchCommandABC[TBranchable]):
         # If current was converted to remainder above, we need to refresh it first
         if current is None:
             current = await session.get(self.entity_class, current_id)
+        if current is None:
+            raise ValueError(f"Entity {current_id} not found for update")
         # CRITICAL: Always set branch to self.branch to ensure new version is on correct branch
         # This is essential when current is from main but we're updating on a change order branch
         new_version = cast(
             TBranchable,
-            current.clone(branch=self.branch, **self.updates, parent_id=current_id)
+            current.clone(branch=self.branch, **self.updates, parent_id=current_id),
         )
 
         # 3. Close current (only if not already closed as remainder)
         if current is not None:
             await self._close_version(
-                session, current, close_at_valid_time=self.control_date
+                session,
+                current,
+                close_at_valid_time=self.control_date,
+                close_at_transaction_time=update_timestamp,
             )
 
         # CRITICAL FIX: Use the same update_timestamp for both ranges to avoid empty ranges
@@ -359,9 +362,7 @@ class MergeBranchCommand(BranchCommandABC[TBranchable]):
         )
 
         # 5. Close Target
-        await self._close_version(
-            session, target, close_at_valid_time=merge_timestamp
-        )
+        await self._close_version(session, target, close_at_valid_time=merge_timestamp)
         session.add(merged)
         await session.flush()  # Get ID assigned
 

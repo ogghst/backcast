@@ -37,6 +37,7 @@ class TestChangeOrderMergeOrchestration:
         mock_co.code = "123"
         mock_co.status = "Approved"
         mock_co.change_order_id = change_order_id
+        mock_co.project_id = uuid4()  # Add project_id for budget recalculation
 
         # Mock the service methods
         service.get_current = AsyncMock(return_value=mock_co)
@@ -46,11 +47,15 @@ class TestChangeOrderMergeOrchestration:
         db_session.flush = AsyncMock()
         db_session.refresh = AsyncMock()
 
-        with patch(
-            "app.services.change_order_service.EntityDiscoveryService"
-        ) as MockDiscoveryService, patch(
-            "app.services.change_order_service.UpdateChangeOrderStatusCommand"
-        ) as MockStatusCommand:
+        with (
+            patch(
+                "app.services.change_order_service.EntityDiscoveryService"
+            ) as MockDiscoveryService,
+            patch(
+                "app.services.change_order_service.UpdateChangeOrderStatusCommand"
+            ) as MockStatusCommand,
+            patch("app.services.project.ProjectService") as MockProjectService,
+        ):
             mock_discovery = AsyncMock()
             MockDiscoveryService.return_value = mock_discovery
 
@@ -58,6 +63,16 @@ class TestChangeOrderMergeOrchestration:
             mock_status_cmd = AsyncMock()
             MockStatusCommand.return_value = mock_status_cmd
             mock_status_cmd.execute = AsyncMock()
+
+            # Mock ProjectService for budget update
+            mock_project_service = AsyncMock()
+            MockProjectService.return_value = mock_project_service
+            mock_project_service.update_project = AsyncMock()
+
+            # Mock session.execute to return a budget sum
+            mock_budget_result = MagicMock()
+            mock_budget_result.scalar_one.return_value = 100000
+            db_session.execute = AsyncMock(return_value=mock_budget_result)
 
             # Configure discovery to return empty lists
             mock_discovery.discover_all_wbes.return_value = []
@@ -98,6 +113,7 @@ class TestChangeOrderMergeOrchestration:
         mock_co.code = "456"
         mock_co.status = "Approved"
         mock_co.change_order_id = change_order_id
+        mock_co.project_id = uuid4()  # Add project_id for budget recalculation
 
         # Create mock WBEs (not deleted)
         mock_wbe1 = MagicMock()
@@ -115,13 +131,16 @@ class TestChangeOrderMergeOrchestration:
         db_session.flush = AsyncMock()
         db_session.refresh = AsyncMock()
 
-        with patch(
-            "app.services.change_order_service.EntityDiscoveryService"
-        ) as MockDiscoveryService, patch(
-            "app.services.change_order_service.WBEService"
-        ) as MockWBEService, patch(
-            "app.services.change_order_service.UpdateChangeOrderStatusCommand"
-        ) as MockStatusCommand:
+        with (
+            patch(
+                "app.services.change_order_service.EntityDiscoveryService"
+            ) as MockDiscoveryService,
+            patch("app.services.change_order_service.WBEService") as MockWBEService,
+            patch(
+                "app.services.change_order_service.UpdateChangeOrderStatusCommand"
+            ) as MockStatusCommand,
+            patch("app.services.project.ProjectService") as MockProjectService,
+        ):
             mock_discovery = AsyncMock()
             MockDiscoveryService.return_value = mock_discovery
 
@@ -129,6 +148,16 @@ class TestChangeOrderMergeOrchestration:
             mock_status_cmd = AsyncMock()
             MockStatusCommand.return_value = mock_status_cmd
             mock_status_cmd.execute = AsyncMock()
+
+            # Mock ProjectService for budget update
+            mock_project_service = AsyncMock()
+            MockProjectService.return_value = mock_project_service
+            mock_project_service.update_project = AsyncMock()
+
+            # Mock session.execute to return a budget sum
+            mock_budget_result = MagicMock()
+            mock_budget_result.scalar_one.return_value = 100000
+            db_session.execute = AsyncMock(return_value=mock_budget_result)
 
             # Configure discovery to return 2 WBEs
             mock_discovery.discover_all_wbes.return_value = [mock_wbe1, mock_wbe2]
@@ -187,6 +216,7 @@ class TestChangeOrderMergeOrchestration:
         mock_co.code = "789"
         mock_co.status = "Approved"
         mock_co.change_order_id = change_order_id
+        mock_co.project_id = uuid4()  # Add project_id for budget recalculation
 
         service.get_current = AsyncMock(return_value=mock_co)
 
@@ -195,18 +225,33 @@ class TestChangeOrderMergeOrchestration:
         db_session.flush = AsyncMock()
         db_session.refresh = AsyncMock()
 
-        with patch(
-            "app.services.change_order_service.EntityDiscoveryService"
-        ) as MockDiscoveryService, patch(
-            "app.services.change_order_service.UpdateChangeOrderStatusCommand"
-        ) as MockStatusCommand:
+        with (
+            patch(
+                "app.services.change_order_service.EntityDiscoveryService"
+            ) as MockDiscoveryService,
+            patch(
+                "app.services.change_order_service.UpdateChangeOrderStatusCommand"
+            ) as MockStatusCommand,
+            patch("app.services.project.ProjectService") as MockProjectService,
+        ):
             mock_discovery = AsyncMock()
             MockDiscoveryService.return_value = mock_discovery
 
-            # Mock command execution
+            # Mock command execution - execute returns the updated change order
             mock_status_cmd = AsyncMock()
             MockStatusCommand.return_value = mock_status_cmd
-            mock_status_cmd.execute = AsyncMock()
+            mock_updated_co = MagicMock(spec=ChangeOrder)
+            mock_status_cmd.execute = AsyncMock(return_value=mock_updated_co)
+
+            # Mock ProjectService for budget update
+            mock_project_service = AsyncMock()
+            MockProjectService.return_value = mock_project_service
+            mock_project_service.update_project = AsyncMock()
+
+            # Mock session.execute to return a budget sum
+            mock_budget_result = MagicMock()
+            mock_budget_result.scalar_one.return_value = 100000
+            db_session.execute = AsyncMock(return_value=mock_budget_result)
 
             # Configure discovery to return empty lists
             mock_discovery.discover_all_wbes.return_value = []
@@ -229,12 +274,14 @@ class TestChangeOrderMergeOrchestration:
             MockStatusCommand.assert_called_once_with(
                 change_order_id=change_order_id,
                 new_status="Implemented",
+                actor_id=actor_id,
                 branch=target_branch,
+                control_date=None,
             )
             mock_status_cmd.execute.assert_called_once_with(db_session)
-            
-            # Verify refresh was called
-            db_session.refresh.assert_called_with(mock_co)
+
+            # Verify refresh was called on the returned updated CO
+            db_session.refresh.assert_called_with(mock_updated_co)
 
     @pytest.mark.asyncio
     async def test_merge_rolls_back_on_failure(self, db_session: AsyncSession):
@@ -266,11 +313,12 @@ class TestChangeOrderMergeOrchestration:
         db_session.flush = AsyncMock()
         db_session.refresh = AsyncMock()
 
-        with patch(
-            "app.services.change_order_service.EntityDiscoveryService"
-        ) as MockDiscoveryService, patch(
-            "app.services.change_order_service.WBEService"
-        ) as MockWBEService:
+        with (
+            patch(
+                "app.services.change_order_service.EntityDiscoveryService"
+            ) as MockDiscoveryService,
+            patch("app.services.change_order_service.WBEService") as MockWBEService,
+        ):
             mock_discovery = AsyncMock()
             MockDiscoveryService.return_value = mock_discovery
 

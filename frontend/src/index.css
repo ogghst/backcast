@@ -1,0 +1,65 @@
+/**
+ * Global Styles - Soft Light Theme
+ *
+ * Base styles for the application with soft light color scheme.
+ */
+
+/* Body background - soft cream */
+body {
+  background-color: #f5f3f0;
+  color: #1a1a1a;
+  margin: 0;
+  padding: 0;
+  font-family: 'Ubuntu', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Smooth transitions for theme changes */
+* {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Remove transitions for specific properties that should be instant */
+* [data-no-transition] {
+  transition: none !important;
+}
+
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f0eee9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d4d2cd;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #c5c3be;
+}
+
+/* Focus states for accessibility */
+:focus-visible {
+  outline: 2px solid #4a7c91;
+  outline-offset: 2px;
+}
+
+/* Hide scrollbar for horizontal navigation menu (icon-only mode) */
+.ant-menu-horizontal.header-navigation-menu::-webkit-scrollbar {
+  display: none;
+}
+
+.ant-menu-horizontal.header-navigation-menu {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}

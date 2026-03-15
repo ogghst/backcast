@@ -27,7 +27,7 @@ const costElementTypeApi = {
   list: async (params?: {
     pagination?: { current?: number; pageSize?: number };
     search?: string;
-    filters?: Record<string, any>;
+    filters?: Record<string, unknown>;
     sortField?: string;
     sortOrder?: string;
   }) => {
@@ -62,23 +62,23 @@ const costElementTypeApi = {
       search,
       filterString,
       sortField,
-      serverSortOrder
+      serverSortOrder,
     );
 
     return Array.isArray(res) ? res : res.items;
   },
   detail: (id: string) =>
     CostElementTypesService.getCostElementType(
-      id
+      id,
     ) as Promise<CostElementTypeRead>,
   create: (data: CostElementTypeCreate) =>
     CostElementTypesService.createCostElementType(
-      data
+      data,
     ) as Promise<CostElementTypeRead>,
   update: (id: string, data: CostElementTypeUpdate) =>
     CostElementTypesService.updateCostElementType(
       id,
-      data
+      data,
     ) as Promise<CostElementTypeRead>,
   delete: (id: string) => CostElementTypesService.deleteCostElementType(id),
 };
@@ -100,7 +100,7 @@ export const CostElementTypeManagement = () => {
 
   // Department map for display
   const [departmentMap, setDepartmentMap] = useState<Record<string, string>>(
-    {}
+    {},
   );
 
   useEffect(() => {
@@ -116,7 +116,7 @@ export const CostElementTypeManagement = () => {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<CostElementTypeRead | null>(
-    null
+    null,
   );
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -127,7 +127,7 @@ export const CostElementTypeManagement = () => {
       entityId: selectedType?.cost_element_type_id,
       fetchFn: (id) => CostElementTypesService.getCostElementTypeHistory(id),
       enabled: historyOpen,
-    }
+    },
   );
 
   const { mutateAsync: createType } = useCreate({

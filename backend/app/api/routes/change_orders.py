@@ -24,7 +24,9 @@ from app.models.schemas.change_order import (
     ChangeOrderUpdate,
     MergeRequest,
 )
+from app.models.schemas.change_order_reporting import ChangeOrderStatsResponse
 from app.models.schemas.impact_analysis import ImpactAnalysisResponse
+from app.services.change_order_reporting_service import ChangeOrderReportingService
 from app.services.change_order_service import ChangeOrderService
 from app.services.impact_analysis_service import ImpactAnalysisService
 
@@ -54,6 +56,61 @@ def get_approval_matrix_service(
     return ApprovalMatrixService(session)
 
 
+def get_reporting_service(
+    session: AsyncSession = Depends(get_db),
+) -> ChangeOrderReportingService:
+    """Get ChangeOrderReportingService instance."""
+    return ChangeOrderReportingService(session)
+
+
+@router.get(
+    "/stats",
+    response_model=ChangeOrderStatsResponse,
+    operation_id="get_change_order_stats",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-read"))],
+)
+async def get_change_order_stats(
+    project_id: UUID = Query(..., description="Project ID"),
+    branch: str = Query("main", description="Branch name"),
+    as_of: datetime | None = Query(None, description="Time travel timestamp"),
+    aging_threshold_days: int = Query(
+        7, ge=1, le=30, description="Aging threshold in days"
+    ),
+    service: ChangeOrderReportingService = Depends(get_reporting_service),
+) -> ChangeOrderStatsResponse:
+    """Get aggregated statistics for change orders in a project.
+
+    Returns comprehensive analytics including:
+    - Summary KPIs (total count, cost exposure, pending/approved values)
+    - Distribution by status and impact level
+    - Cumulative cost trend over time
+    - Approval workload by approver
+    - Aging items (stuck/overdue change orders)
+
+    Requires change-order-read permission.
+    """
+    from datetime import UTC
+
+    # Default to current time if as_of is not provided
+    if as_of is None:
+        as_of = datetime.now(UTC)
+
+    try:
+        stats = await service.get_change_order_stats(
+            project_id=project_id,
+            branch=branch,
+            as_of=as_of,
+            aging_threshold_days=aging_threshold_days,
+        )
+        return stats
+    except Exception as e:
+        logger.error(f"Error getting change order stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving change order statistics: {str(e)}",
+        ) from e
+
+
 @router.get(
     "",
     response_model=None,  # Will be PaginatedResponse[ChangeOrderPublic]
@@ -74,7 +131,7 @@ async def read_change_orders(
     filters: str | None = Query(
         None,
         description="Filters in format 'column:value;column:value1,value2'",
-        examples={"status_filter": {"value": "status:Draft"}},
+        examples=["status:Draft"],
     ),
     sort_field: str | None = Query(None, description="Field to sort by"),
     sort_order: str = Query(
@@ -110,6 +167,7 @@ async def read_change_orders(
         # Default to current time if as_of is not provided
         if as_of is None:
             from datetime import UTC
+
             as_of = datetime.now(tz=UTC)
 
         # Get change orders for the project
@@ -172,12 +230,17 @@ async def create_change_order(
     try:
         # Check if change order code already exists (on main branch)
         existing = await service.get_current_by_code(
-            change_order_in.code, branch="main"
+            change_order_in.code, branch="main", as_of=change_order_in.control_date
         )
         if existing:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Change Order with code '{change_order_in.code}' already exists",
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error_type": "DUPLICATE_CODE",
+                    "message": f"Change Order with code '{change_order_in.code}' already exists",
+                    "code": change_order_in.code,
+                    "suggestion": "Please fetch a new suggested code.",
+                },
             )
 
         change_order = await service.create_change_order(
@@ -192,6 +255,29 @@ async def create_change_order(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         ) from e
+
+
+@router.get(
+    "/next-code",
+    operation_id="get_next_change_order_code",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-read"))],
+)
+async def get_next_change_order_code(
+    project_id: UUID = Query(..., description="Project ID to scope the code"),
+    year: int | None = Query(
+        None, description="Year for the code (defaults to current year)"
+    ),
+    service: ChangeOrderService = Depends(get_change_order_service),
+) -> dict[str, str]:
+    """Get the next available change order code.
+
+    Returns the next sequential code in format CO-YYYY-NNN.
+    Codes are scoped to the project and year.
+
+    Requires read permission.
+    """
+    next_code = await service.get_next_code(project_id, year)
+    return {"code": next_code}
 
 
 @router.get(
@@ -219,6 +305,7 @@ async def read_change_order(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     if as_of:
@@ -420,7 +507,7 @@ async def merge_change_order(
     """
     try:
         # Get current CO to find source branch
-        current = await service.get_current(
+        current = await service.get_as_of(
             change_order_id, branch=merge_request.target_branch
         )
         if not current:
@@ -429,24 +516,10 @@ async def merge_change_order(
                 detail=f"Change Order {change_order_id} not found",
             )
 
-        source_branch = f"BR-{current.code}"
-
-        # Check for conflicts
-        conflicts = await service._detect_merge_conflicts(
-            root_id=change_order_id,
-            source_branch=source_branch,
-            target_branch=merge_request.target_branch,
-        )
-
-        if conflicts:
-            # Return 409 with conflict details
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={
-                    "message": "Merge blocked by conflicts",
-                    "conflicts": conflicts,
-                },
-            )
+        # NOTE: Change Orders exist only on the main branch and are not branched.
+        # The merge_change_order method below already calls _detect_all_merge_conflicts
+        # which properly checks conflicts for all child entities (WBEs, CostElements)
+        # that are actually branched to the source branch.
 
         # Perform merge
         merged_co = await service.merge_change_order(
@@ -585,6 +658,9 @@ async def submit_change_order_for_approval(
     change_order_id: UUID,
     branch: str = Query("main", description="Branch name"),
     comment: str | None = Query(None, description="Optional comment for audit log"),
+    control_date: datetime | None = Query(
+        None, description="Control date for the operation (defaults to now)"
+    ),
     current_user: User = Depends(get_current_active_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ChangeOrderPublic:
@@ -600,14 +676,24 @@ async def submit_change_order_for_approval(
 
     Requires update permission.
     """
+    from app.services.change_order_workflow_validation import (
+        ControlDateSequenceViolationError,
+    )
+
     try:
         submitted_co = await service.submit_for_approval(
             change_order_id=change_order_id,
             actor_id=current_user.user_id,
             branch=branch,
             comment=comment,
+            control_date=control_date,
         )
         return await service._to_public(submitted_co)
+    except ControlDateSequenceViolationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -625,6 +711,9 @@ async def approve_change_order(
     change_order_id: UUID,
     approval: ChangeOrderApproval,
     branch: str = Query("main", description="Branch name"),
+    control_date: datetime | None = Query(
+        None, description="Control date for the operation (defaults to now)"
+    ),
     current_user: User = Depends(get_current_active_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ChangeOrderPublic:
@@ -636,6 +725,10 @@ async def approve_change_order(
 
     Requires approve permission.
     """
+    from app.services.change_order_workflow_validation import (
+        ControlDateSequenceViolationError,
+    )
+
     try:
         approved_co = await service.approve_change_order(
             change_order_id=change_order_id,
@@ -643,8 +736,14 @@ async def approve_change_order(
             actor_id=current_user.user_id,
             branch=branch,
             comments=approval.comments,
+            control_date=approval.control_date or control_date,
         )
         return await service._to_public(approved_co)
+    except ControlDateSequenceViolationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -662,6 +761,9 @@ async def reject_change_order(
     change_order_id: UUID,
     approval: ChangeOrderApproval,
     branch: str = Query("main", description="Branch name"),
+    control_date: datetime | None = Query(
+        None, description="Control date for the operation (defaults to now)"
+    ),
     current_user: User = Depends(get_current_active_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ChangeOrderPublic:
@@ -673,6 +775,10 @@ async def reject_change_order(
 
     Requires approve permission.
     """
+    from app.services.change_order_workflow_validation import (
+        ControlDateSequenceViolationError,
+    )
+
     try:
         rejected_co = await service.reject_change_order(
             change_order_id=change_order_id,
@@ -680,12 +786,73 @@ async def reject_change_order(
             actor_id=current_user.user_id,
             branch=branch,
             comments=approval.comments,
+            control_date=approval.control_date or control_date,
         )
         return await service._to_public(rejected_co)
+    except ControlDateSequenceViolationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
+        ) from e
+
+
+@router.post(
+    "/{change_order_id}/archive",
+    response_model=ChangeOrderPublic,
+    operation_id="archive_change_order_branch",
+    dependencies=[Depends(RoleChecker(required_permission="change-order-update"))],
+)
+async def archive_change_order_branch(
+    change_order_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    service: ChangeOrderService = Depends(get_change_order_service),
+) -> ChangeOrderPublic:
+    """Archive (soft-delete) a Change Order's branch.
+
+    Only allowed for Change Orders in "Implemented" or "Rejected" status.
+    Hides the branch from active lists while preserving history for
+    time-travel queries.
+
+    Requires update permission.
+
+    Args:
+        change_order_id: UUID of the change order
+
+    Returns:
+        Updated ChangeOrderPublic with current state
+
+    Raises:
+        HTTPException: 400 if status is not Implemented/Rejected, 404 if not found
+    """
+    try:
+        await service.archive_change_order_branch(
+            change_order_id=change_order_id,
+            actor_id=current_user.user_id,
+        )
+        # Return updated CO
+        co = await service.get_as_of(change_order_id)
+        if not co:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Change Order {change_order_id} not found",
+            )
+        return await service._to_public(co)
+    except ValueError as e:
+        error_message = str(e)
+        # Return 404 if not found, 400 for other validation errors
+        if "not found" in error_message.lower():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=error_message,
+            ) from e
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_message,
         ) from e
 
 
@@ -699,6 +866,9 @@ async def recover_change_order(
     change_order_id: UUID,
     recovery_data: ChangeOrderRecoveryRequest,
     branch: str = Query("main", description="Branch name"),
+    control_date: datetime | None = Query(
+        None, description="Control date for the operation (defaults to now)"
+    ),
     current_user: User = Depends(get_current_active_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ChangeOrderPublic:
@@ -713,6 +883,7 @@ async def recover_change_order(
     Args:
         change_order_id: UUID of the stuck change order
         recovery_data: Recovery request with impact level, approver, and reason
+        control_date: Optional control date for the operation (defaults to now)
 
     Returns:
         Updated ChangeOrder with recovered workflow state
@@ -720,6 +891,10 @@ async def recover_change_order(
     Raises:
         HTTPException: If change order not stuck, invalid data, or not authorized
     """
+    from app.services.change_order_workflow_validation import (
+        ControlDateSequenceViolationError,
+    )
+
     try:
         recovered_co = await service.recover_change_order(
             change_order_id=change_order_id,
@@ -727,10 +902,16 @@ async def recover_change_order(
             assigned_approver_id=recovery_data.assigned_approver_id,
             skip_impact_analysis=recovery_data.skip_impact_analysis,
             recovery_reason=recovery_data.recovery_reason,
-            actor_id=current_user.id,  # Use User.id, not User.user_id for FK
+            actor_id=current_user.user_id,  # Use User.user_id (root ID) for FK
             branch=branch,
+            control_date=recovery_data.control_date or control_date,
         )
         return await service._to_public(recovered_co)
+    except ControlDateSequenceViolationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -747,6 +928,10 @@ async def recover_change_order(
 async def get_change_order_approval_info(
     change_order_id: UUID,
     branch: str = Query("main", description="Branch name"),
+    as_of: datetime | None = Query(
+        None,
+        description="Time travel: get approval info as of this timestamp (ISO 8601)",
+    ),
     current_user: User = Depends(get_current_active_user),
     service: ChangeOrderService = Depends(get_change_order_service),
 ) -> ApprovalInfoPublic:
@@ -765,8 +950,11 @@ async def get_change_order_approval_info(
     from app.services.impact_analysis_service import ImpactAnalysisService
 
     try:
-        # Get change order
-        co = await service.get_current(change_order_id, branch=branch)
+        # Get change order (supports time travel with as_of)
+        if as_of:
+            co = await service.get_as_of(change_order_id, as_of=as_of, branch=branch)
+        else:
+            co = await service.get_as_of(change_order_id, branch=branch)
         if not co:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

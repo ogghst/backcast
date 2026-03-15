@@ -13,9 +13,9 @@ This script adds all 6 change order scenarios to the existing seed data:
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from uuid import uuid4, UUID
+from uuid import uuid4
 
-SEED_DIR = Path(__file__).parent
+SEED_DIR = Path(__file__).parent.parent
 
 # Change order branch IDs
 # Change order branch IDs (using BR-{code} format to match ChangeOrderService behavior)
@@ -25,6 +25,8 @@ BRANCH_CO_C = "BR-CO-2026-006"
 BRANCH_CO_D = "BR-CO-2026-003"
 BRANCH_CO_E = "BR-CO-2026-004"
 BRANCH_CO_F = "BR-CO-2026-005"
+BRANCH_CO_G = "BR-CO-2026-007"
+BRANCH_CO_H = "BR-CO-2026-008"
 
 # Project IDs
 PROJECT_1_ID = "d54fbbe6-f3df-51db-9c3e-9408700442be"
@@ -51,22 +53,26 @@ def save_json(filename: str, data: list[dict]) -> None:
     print(f"  Updated {filename}: {len(data)} records")
 
 
-def add_co_a_scope_addition(wbes: list[dict], cost_elements: list[dict],
-                             schedule_baselines: list[dict]) -> None:
+def add_co_a_scope_addition(
+    wbes: list[dict], cost_elements: list[dict], schedule_baselines: list[dict]
+) -> None:
     """CO-A: Add 2 new L3 WBEs + 5 CEs + 5 SBs."""
     print("\n=== CO-A: Scope Addition (+$150K, +3 months) ===")
 
     # Get parent WBE for new L3 WBEs
-    parent_wbe = next(w for w in wbes if w["code"] == "PRJ-DEMO-001-L1-1-L2-1"
-                      and w.get("branch") != BRANCH_CO_A)
+    parent_wbe = next(
+        w
+        for w in wbes
+        if w["code"] == "PRJ-DEMO-001-L1-1-L2-1" and w.get("branch") != BRANCH_CO_A
+    )
 
     # Create 2 new L3 WBEs
+    # NOTE: budget_allocation removed - budgets are now in CostElement.budget_amount
     new_wbe_1 = {
         "id": str(uuid4()),
         "wbe_id": str(uuid4()),
         "code": "PRJ-DEMO-001-L1-1-L2-1-L3-2",
         "name": "L3 WBE 1.1.2 (NEW - Secondary Conveyor)",
-        "budget_allocation": 30000.0,
         "level": 3,
         "description": "New L3 WBE for secondary conveyor system (CO-A)",
         "project_id": PROJECT_1_ID,
@@ -81,7 +87,6 @@ def add_co_a_scope_addition(wbes: list[dict], cost_elements: list[dict],
         "wbe_id": str(uuid4()),
         "code": "PRJ-DEMO-001-L1-1-L2-1-L3-3",
         "name": "L3 WBE 1.1.3 (NEW - Conveyor Controls)",
-        "budget_allocation": 30000.0,
         "level": 3,
         "description": "New L3 WBE for conveyor control system (CO-A)",
         "project_id": PROJECT_1_ID,
@@ -102,9 +107,9 @@ def add_co_a_scope_addition(wbes: list[dict], cost_elements: list[dict],
     new_schedule_baselines = []
 
     # 3 cost elements for new_wbe_1
-    for idx, (cet_id, cet_code) in enumerate([
-        (CET_LAB, "LAB"), (CET_MAT, "MAT"), (CET_EQP, "EQP")
-    ], 1):
+    for idx, (cet_id, cet_code) in enumerate(
+        [(CET_LAB, "LAB"), (CET_MAT, "MAT"), (CET_EQP, "EQP")], 1
+    ):
         ce_id = str(uuid4())
         sb_id = str(uuid4())
 
@@ -144,9 +149,7 @@ def add_co_a_scope_addition(wbes: list[dict], cost_elements: list[dict],
         new_schedule_baselines.append(sb)
 
     # 2 cost elements for new_wbe_2
-    for idx, (cet_id, cet_code) in enumerate([
-        (CET_SUB, "SUB"), (CET_TRV, "TRV")
-    ], 4):
+    for idx, (cet_id, cet_code) in enumerate([(CET_SUB, "SUB"), (CET_TRV, "TRV")], 4):
         ce_id = str(uuid4())
         sb_id = str(uuid4())
 
@@ -188,33 +191,42 @@ def add_co_a_scope_addition(wbes: list[dict], cost_elements: list[dict],
     cost_elements.extend(new_cost_elements)
     schedule_baselines.extend(new_schedule_baselines)
 
-    print(f"  Added 5 new cost elements (total budget: +$150,000)")
-    print(f"  Added 5 new schedule baselines (extended timeline to 2026-06-30)")
+    print("  Added 5 new cost elements (total budget: +$150,000)")
+    print("  Added 5 new schedule baselines (extended timeline to 2026-06-30)")
 
 
-def add_co_b_scope_modification(wbes: list[dict], cost_elements: list[dict],
-                                 schedule_baselines: list[dict]) -> None:
+def add_co_b_scope_modification(
+    wbes: list[dict], cost_elements: list[dict], schedule_baselines: list[dict]
+) -> None:
     """CO-B: Modify 3 existing WBEs + 3 CEs + 3 SBs."""
     print("\n=== CO-B: Scope Modification (+$45K, +2 weeks) ===")
 
     # Find 3 existing WBEs to modify (from main branch)
     # Note: existing WBEs don't have 'id' field - wbe_id is the root ID
-    wbes_to_modify = [w for w in wbes if not w.get("branch") or w.get("branch") in ["", "main"]][:3]
+    wbes_to_modify = [
+        w for w in wbes if not w.get("branch") or w.get("branch") in ["", "main"]
+    ][:3]
 
-    for idx, main_wbe in enumerate(wbes_to_modify, 1):
+    for _idx, main_wbe in enumerate(wbes_to_modify, 1):
         # Clone WBE to CO-B branch
         cloned_wbe = main_wbe.copy()
         cloned_wbe["id"] = str(uuid4())  # New version ID
         cloned_wbe["wbe_id"] = main_wbe["wbe_id"]  # Same root ID
         cloned_wbe["branch"] = BRANCH_CO_B
         cloned_wbe["parent_id"] = None  # Will be set by seeder based on wbe_id
-        cloned_wbe["description"] = f"{main_wbe['description']} (MODIFIED - Safety Upgrades)"
+        cloned_wbe["description"] = (
+            f"{main_wbe['description']} (MODIFIED - Safety Upgrades)"
+        )
         cloned_wbe["control_date"] = "2026-02-01T00:00:00"
 
         wbes.append(cloned_wbe)
 
     # Find 3 cost elements to modify
-    ces_to_modify = [ce for ce in cost_elements if not ce.get("branch") or ce.get("branch") in ["", "main"]][:3]
+    ces_to_modify = [
+        ce
+        for ce in cost_elements
+        if not ce.get("branch") or ce.get("branch") in ["", "main"]
+    ][:3]
 
     for main_ce in ces_to_modify:
         # Clone cost element with +10% budget
@@ -230,13 +242,21 @@ def add_co_b_scope_modification(wbes: list[dict], cost_elements: list[dict],
         cost_elements.append(cloned_ce)
 
         # Clone and extend schedule baseline by 2 weeks
-        main_sb = next((sb for sb in schedule_baselines
-                        if sb["cost_element_id"] == main_ce["cost_element_id"]
-                        and (not sb.get("branch") or sb.get("branch") in ["", "main"])), None)
+        main_sb = next(
+            (
+                sb
+                for sb in schedule_baselines
+                if sb["cost_element_id"] == main_ce["cost_element_id"]
+                and (not sb.get("branch") or sb.get("branch") in ["", "main"])
+            ),
+            None,
+        )
         if main_sb:
             cloned_sb = main_sb.copy()
             cloned_sb["id"] = str(uuid4())  # New version ID
-            cloned_sb["schedule_baseline_id"] = main_sb["schedule_baseline_id"]  # Same root ID
+            cloned_sb["schedule_baseline_id"] = main_sb[
+                "schedule_baseline_id"
+            ]  # Same root ID
             cloned_sb["branch"] = BRANCH_CO_B
             cloned_sb["parent_id"] = None  # Will be set by seeder
 
@@ -252,17 +272,20 @@ def add_co_b_scope_modification(wbes: list[dict], cost_elements: list[dict],
             schedule_baselines.append(cloned_sb)
 
     print(f"  Modified 3 WBEs on branch {BRANCH_CO_B[:20]}...")
-    print(f"  Modified 3 cost elements (+10% budget each)")
-    print(f"  Modified 3 schedule baselines (extended +2 weeks)")
+    print("  Modified 3 cost elements (+10% budget each)")
+    print("  Modified 3 schedule baselines (extended +2 weeks)")
 
 
-def add_co_c_scope_reduction(wbes: list[dict], cost_elements: list[dict],
-                              schedule_baselines: list[dict]) -> None:
+def add_co_c_scope_reduction(
+    wbes: list[dict], cost_elements: list[dict], schedule_baselines: list[dict]
+) -> None:
     """CO-C: Soft-delete 2 WBEs + 2 CEs + 2 SBs."""
     print("\n=== CO-C: Scope Reduction (-$125K, REJECTED) ===")
 
     # Find 2 existing WBEs to soft-delete
-    wbes_to_delete = [w for w in wbes if not w.get("branch") or w.get("branch") in ["", "main"]][:2]
+    wbes_to_delete = [
+        w for w in wbes if not w.get("branch") or w.get("branch") in ["", "main"]
+    ][:2]
 
     for main_wbe in wbes_to_delete:
         # Clone WBE with deleted_at timestamp
@@ -277,7 +300,11 @@ def add_co_c_scope_reduction(wbes: list[dict], cost_elements: list[dict],
         wbes.append(deleted_wbe)
 
     # Find 2 cost elements to soft-delete
-    ces_to_delete = [ce for ce in cost_elements if not ce.get("branch") or ce.get("branch") in ["", "main"]][:2]
+    ces_to_delete = [
+        ce
+        for ce in cost_elements
+        if not ce.get("branch") or ce.get("branch") in ["", "main"]
+    ][:2]
 
     for main_ce in ces_to_delete:
         # Clone cost element with deleted_at
@@ -292,13 +319,21 @@ def add_co_c_scope_reduction(wbes: list[dict], cost_elements: list[dict],
         cost_elements.append(deleted_ce)
 
         # Clone schedule baseline with deleted_at
-        main_sb = next((sb for sb in schedule_baselines
-                        if sb["cost_element_id"] == main_ce["cost_element_id"]
-                        and (not sb.get("branch") or sb.get("branch") in ["", "main"])), None)
+        main_sb = next(
+            (
+                sb
+                for sb in schedule_baselines
+                if sb["cost_element_id"] == main_ce["cost_element_id"]
+                and (not sb.get("branch") or sb.get("branch") in ["", "main"])
+            ),
+            None,
+        )
         if main_sb:
             deleted_sb = main_sb.copy()
             deleted_sb["id"] = str(uuid4())  # New version ID
-            deleted_sb["schedule_baseline_id"] = main_sb["schedule_baseline_id"]  # Same root ID
+            deleted_sb["schedule_baseline_id"] = main_sb[
+                "schedule_baseline_id"
+            ]  # Same root ID
             deleted_sb["branch"] = BRANCH_CO_C
             deleted_sb["parent_id"] = None  # Will be set by seeder
             deleted_sb["deleted_at"] = "2026-02-01T00:00:00"
@@ -308,9 +343,9 @@ def add_co_c_scope_reduction(wbes: list[dict], cost_elements: list[dict],
             schedule_baselines.append(deleted_sb)
 
     print(f"  Soft-deleted 2 WBEs on branch {BRANCH_CO_C[:20]}...")
-    print(f"  Soft-deleted 2 cost elements")
-    print(f"  Soft-deleted 2 schedule baselines")
-    print(f"  Status: REJECTED (data preserved for analysis)")
+    print("  Soft-deleted 2 cost elements")
+    print("  Soft-deleted 2 schedule baselines")
+    print("  Status: REJECTED (data preserved for analysis)")
 
 
 def add_co_d_schedule_only(schedule_baselines: list[dict]) -> None:
@@ -318,17 +353,24 @@ def add_co_d_schedule_only(schedule_baselines: list[dict]) -> None:
     print("\n=== CO-D: Schedule Adjustment Only ($0, progression change) ===")
 
     # Find 5 LINEAR baselines to convert to GAUSSIAN
-    linear_sbs = [sb for sb in schedule_baselines
-                  if sb.get("progression_type") == "LINEAR"
-                  and (not sb.get("branch") or sb.get("branch") in ["", "main"])][:5]
+    linear_sbs = [
+        sb
+        for sb in schedule_baselines
+        if sb.get("progression_type") == "LINEAR"
+        and (not sb.get("branch") or sb.get("branch") in ["", "main"])
+    ][:5]
 
     for main_sb in linear_sbs:
         # Clone schedule baseline with changed progression type
         cloned_sb = main_sb.copy()
         cloned_sb["id"] = str(uuid4())  # New version ID
-        cloned_sb["schedule_baseline_id"] = main_sb["schedule_baseline_id"]  # Same root ID
+        cloned_sb["schedule_baseline_id"] = main_sb[
+            "schedule_baseline_id"
+        ]  # Same root ID
         cloned_sb["branch"] = BRANCH_CO_D
-        cloned_sb["parent_id"] = None  # Will be set by seeder based on schedule_baseline_id
+        cloned_sb["parent_id"] = (
+            None  # Will be set by seeder based on schedule_baseline_id
+        )
         cloned_sb["progression_type"] = "GAUSSIAN"  # Change from LINEAR
         cloned_sb["description"] = f"{main_sb['description']} (CHANGED to GAUSSIAN)"
         cloned_sb["valid_time"] = "[2026-02-01T00:00:00, infinity)"
@@ -337,8 +379,8 @@ def add_co_d_schedule_only(schedule_baselines: list[dict]) -> None:
         schedule_baselines.append(cloned_sb)
 
     print(f"  Modified 5 schedule baselines on branch {BRANCH_CO_D[:20]}...")
-    print(f"  Changed progression type: LINEAR → GAUSSIAN")
-    print(f"  No WBE or cost element changes")
+    print("  Changed progression type: LINEAR → GAUSSIAN")
+    print("  No WBE or cost element changes")
 
 
 def add_co_e_cost_reallocation(cost_elements: list[dict]) -> None:
@@ -346,9 +388,12 @@ def add_co_e_cost_reallocation(cost_elements: list[dict]) -> None:
     print("\n=== CO-E: Cost Reallocation ($0 net, LAB +$40K, MAT -$40K) ===")
 
     # Find 2 LAB cost elements to increase
-    lab_ces = [ce for ce in cost_elements
-               if ce["cost_element_type_id"] == CET_LAB
-               and (not ce.get("branch") or ce.get("branch") in ["", "main"])][:2]
+    lab_ces = [
+        ce
+        for ce in cost_elements
+        if ce["cost_element_type_id"] == CET_LAB
+        and (not ce.get("branch") or ce.get("branch") in ["", "main"])
+    ][:2]
 
     for main_ce in lab_ces:
         cloned_ce = main_ce.copy()
@@ -356,16 +401,21 @@ def add_co_e_cost_reallocation(cost_elements: list[dict]) -> None:
         cloned_ce["cost_element_id"] = main_ce["cost_element_id"]  # Same root ID
         cloned_ce["branch"] = BRANCH_CO_E
         cloned_ce["parent_id"] = None  # Will be set by seeder based on cost_element_id
-        cloned_ce["budget_amount"] = float(main_ce["budget_amount"]) + 20000.0  # +$20K each
+        cloned_ce["budget_amount"] = (
+            float(main_ce["budget_amount"]) + 20000.0
+        )  # +$20K each
         cloned_ce["description"] = f"{main_ce['description']} (REALLOCATED +$20K)"
         cloned_ce["control_date"] = "2026-02-01T00:00:00"
 
         cost_elements.append(cloned_ce)
 
     # Find 3 MAT cost elements to decrease
-    mat_ces = [ce for ce in cost_elements
-               if ce["cost_element_type_id"] == CET_MAT
-               and (not ce.get("branch") or ce.get("branch") in ["", "main"])][:3]
+    mat_ces = [
+        ce
+        for ce in cost_elements
+        if ce["cost_element_type_id"] == CET_MAT
+        and (not ce.get("branch") or ce.get("branch") in ["", "main"])
+    ][:3]
 
     for main_ce in mat_ces:
         cloned_ce = main_ce.copy()
@@ -377,32 +427,35 @@ def add_co_e_cost_reallocation(cost_elements: list[dict]) -> None:
         # Ensure non-negative
         if new_amount < 0:
             new_amount = 0.0
-            
+
         cloned_ce["budget_amount"] = new_amount
-        cloned_ce["description"] = f"{main_ce['description']} (REALLOCATED -$13.33K or to zero)"
+        cloned_ce["description"] = (
+            f"{main_ce['description']} (REALLOCATED -$13.33K or to zero)"
+        )
         cloned_ce["control_date"] = "2026-02-01T00:00:00"
 
         cost_elements.append(cloned_ce)
 
     print(f"  Modified 5 cost elements on branch {BRANCH_CO_E[:20]}...")
-    print(f"  LAB cost elements: +$20K × 2 = +$40K")
-    print(f"  MAT cost elements: -$13.33K × 3 = -$40K")
-    print(f"  Net change: $0 (internal reallocation)")
+    print("  LAB cost elements: +$20K × 2 = +$40K")
+    print("  MAT cost elements: -$13.33K × 3 = -$40K")
+    print("  Net change: $0 (internal reallocation)")
 
 
-def add_co_f_critical_addition(wbes: list[dict], cost_elements: list[dict],
-                                schedule_baselines: list[dict]) -> None:
+def add_co_f_critical_addition(
+    wbes: list[dict], cost_elements: list[dict], schedule_baselines: list[dict]
+) -> None:
     """CO-F: Add complete 5-WBE hierarchy (1 L1, 2 L2, 2 L3) + 25 CEs + 25 SBs."""
     print("\n=== CO-F: Critical Scope Addition (+$375K, +6 months) ===")
 
     # Create complete WBE hierarchy for robot cell integration
     # L1 WBE
+    # NOTE: budget_allocation removed - budgets are now in CostElement.budget_amount
     l1_wbe = {
         "id": str(uuid4()),
         "wbe_id": str(uuid4()),
         "code": "PRJ-DEMO-002-L1-3",
         "name": "L1 WBE 3 (NEW - Robot Cell)",
-        "budget_allocation": 150000.0,
         "level": 1,
         "description": "New L1 WBE for robot cell integration (CO-F)",
         "project_id": PROJECT_2_ID,
@@ -421,7 +474,6 @@ def add_co_f_critical_addition(wbes: list[dict], cost_elements: list[dict],
             "wbe_id": str(uuid4()),
             "code": f"PRJ-DEMO-002-L1-3-L2-{idx}",
             "name": f"L2 WBE 3.{idx} (NEW - Robot Cell)",
-            "budget_allocation": 75000.0,
             "level": 2,
             "description": f"New L2 WBE {idx} for robot cell (CO-F)",
             "project_id": PROJECT_2_ID,
@@ -441,7 +493,6 @@ def add_co_f_critical_addition(wbes: list[dict], cost_elements: list[dict],
             "wbe_id": str(uuid4()),
             "code": f"PRJ-DEMO-002-L1-3-L2-{idx}-L3-1",
             "name": f"L3 WBE 3.{idx}.1 (NEW - Robot Cell)",
-            "budget_allocation": 37500.0,
             "level": 3,
             "description": f"New L3 WBE {idx} for robot cell (CO-F)",
             "project_id": PROJECT_2_ID,
@@ -458,11 +509,17 @@ def add_co_f_critical_addition(wbes: list[dict], cost_elements: list[dict],
     new_cost_elements = []
     new_schedule_baselines = []
 
-    for wbe_idx, wbe in enumerate(all_wbes, 1):
-        for cet_idx, (cet_id, cet_code) in enumerate([
-            (CET_LAB, "LAB"), (CET_MAT, "MAT"), (CET_EQP, "EQP"),
-            (CET_SUB, "SUB"), (CET_TRV, "TRV")
-        ], 1):
+    for _wbe_idx, wbe in enumerate(all_wbes, 1):
+        for cet_idx, (cet_id, cet_code) in enumerate(
+            [
+                (CET_LAB, "LAB"),
+                (CET_MAT, "MAT"),
+                (CET_EQP, "EQP"),
+                (CET_SUB, "SUB"),
+                (CET_TRV, "TRV"),
+            ],
+            1,
+        ):
             ce_id = str(uuid4())
             sb_id = str(uuid4())
 
@@ -505,9 +562,218 @@ def add_co_f_critical_addition(wbes: list[dict], cost_elements: list[dict],
     schedule_baselines.extend(new_schedule_baselines)
 
     print(f"  Added 5 new WBEs (1 L1, 2 L2, 2 L3) on branch {BRANCH_CO_F[:20]}...")
-    print(f"  Added 25 new cost elements (5 per WBE)")
-    print(f"  Added 25 new schedule baselines (7-month timeline to 2026-08-31)")
-    print(f"  Total budget impact: +$375,000")
+    print("  Added 25 new cost elements (5 per WBE)")
+    print("  Added 25 new schedule baselines (7-month timeline to 2026-08-31)")
+    print("  Total budget impact: +$375,000")
+
+
+def add_co_g_mixed_addition(
+    wbes: list[dict], cost_elements: list[dict], schedule_baselines: list[dict]
+) -> None:
+    """CO-G: Structural Support Addition (+$210K, +4 months)."""
+    print("\n=== CO-G: Structural Support Addition (+$210K, +4 months) ===")
+
+    # Add a new L2 WBE under PRJ-DEMO-001-L1-2 (which is wbe_id 8271f58b...)
+    l1_wbe = next(
+        w
+        for w in wbes
+        if w["code"] == "PRJ-DEMO-001-L1-2"
+        and (not w.get("branch") or w.get("branch") in ["", "main"])
+    )
+
+    new_wbe = {
+        "id": str(uuid4()),
+        "wbe_id": str(uuid4()),
+        "code": "PRJ-DEMO-001-L1-2-L2-3",
+        "name": "L2 WBE 2.3 (NEW - Structural Support)",
+        # NOTE: budget_allocation removed - budgets are now in CostElement.budget_amount
+        "level": 2,
+        "description": "New L2 WBE for structural reinforcements (CO-G)",
+        "project_id": PROJECT_1_ID,
+        "parent_wbe_id": l1_wbe["wbe_id"],
+        "control_date": "2026-02-01T00:00:00",
+        "branch": BRANCH_CO_G,
+        "parent_id": None,
+    }
+    wbes.append(new_wbe)
+
+    # Add 2 cost elements
+    for idx, (cet_id, cet_code) in enumerate([(CET_MAT, "MAT"), (CET_SUB, "SUB")], 1):
+        ce_id = str(uuid4())
+        sb_id = str(uuid4())
+
+        ce = {
+            "id": str(uuid4()),
+            "cost_element_id": ce_id,
+            "wbe_id": new_wbe["wbe_id"],
+            "cost_element_type_id": str(cet_id),
+            "code": f"PRJ-DEMO-001-L1-2-L2-3-CE-{idx}",
+            "name": f"Cost Element {idx}",
+            "budget_amount": 105000.0,
+            "description": f"Cost element of type {cet_code} (CO-G new)",
+            "schedule_baseline_id": sb_id,
+            "control_date": "2026-02-01T00:00:00",
+            "branch": BRANCH_CO_G,
+            "parent_id": None,
+        }
+        cost_elements.append(ce)
+
+        sb = {
+            "id": str(uuid4()),
+            "schedule_baseline_id": sb_id,
+            "cost_element_id": ce_id,
+            "name": f"Baseline for PRJ-DEMO-001-L1-2-L2-3-CE-{idx}",
+            "start_date": "2026-02-01T00:00:00",
+            "end_date": "2026-07-31T23:59:59",
+            "progression_type": "LINEAR",
+            "description": f"Linear progression for {cet_code} cost element (CO-G)",
+            "valid_time": "[2026-02-01T00:00:00, infinity)",
+            "transaction_time": "[2026-02-01T00:00:00, infinity)",
+            "branch": BRANCH_CO_G,
+            "parent_id": None,
+            "deleted_at": None,
+            "created_by": "00000000-0000-0000-0000-000000000001",
+            "deleted_by": None,
+        }
+        schedule_baselines.append(sb)
+
+    print(f"  Added 1 new WBE on branch {BRANCH_CO_G[:20]}...")
+    print("  Added 2 new cost elements (+210K budget)")
+    print("  Added 2 new schedule baselines (extended timeline to 2026-07-31)")
+
+
+def add_co_h_mixed_update_removal(
+    wbes: list[dict], cost_elements: list[dict], schedule_baselines: list[dict]
+) -> None:
+    """CO-H: Layout Adjustment & Demolition (Net +$65K)."""
+    print("\n=== CO-H: Layout Adjustment & Demolition (Net +$65K) ===")
+
+    # 1. Soft delete an existing WBE and its entities
+    wbe_to_delete = next(
+        w
+        for w in wbes
+        if w["code"] == "PRJ-DEMO-001-L1-1-L2-2-L3-1"
+        and (not w.get("branch") or w.get("branch") in ["", "main"])
+    )
+
+    del_wbe = wbe_to_delete.copy()
+    del_wbe["id"] = str(uuid4())
+    del_wbe["wbe_id"] = wbe_to_delete["wbe_id"]
+    del_wbe["branch"] = BRANCH_CO_H
+    del_wbe["parent_id"] = None
+    del_wbe["deleted_at"] = "2026-02-01T00:00:00"
+    del_wbe["control_date"] = "2026-02-01T00:00:00"
+    wbes.append(del_wbe)
+
+    ces_to_delete = [
+        ce
+        for ce in cost_elements
+        if ce["wbe_id"] == wbe_to_delete["wbe_id"]
+        and (not ce.get("branch") or ce.get("branch") in ["", "main"])
+    ]
+
+    deleted_budget = sum(float(ce["budget_amount"]) for ce in ces_to_delete)
+
+    for main_ce in ces_to_delete:
+        del_ce = main_ce.copy()
+        del_ce["id"] = str(uuid4())
+        del_ce["cost_element_id"] = main_ce["cost_element_id"]
+        del_ce["branch"] = BRANCH_CO_H
+        del_ce["parent_id"] = None
+        del_ce["deleted_at"] = "2026-02-01T00:00:00"
+        del_ce["control_date"] = "2026-02-01T00:00:00"
+        cost_elements.append(del_ce)
+
+        main_sb = next(
+            (
+                sb
+                for sb in schedule_baselines
+                if sb["cost_element_id"] == main_ce["cost_element_id"]
+                and (not sb.get("branch") or sb.get("branch") in ["", "main"])
+            ),
+            None,
+        )
+        if main_sb:
+            del_sb = main_sb.copy()
+            del_sb["id"] = str(uuid4())
+            del_sb["schedule_baseline_id"] = main_sb["schedule_baseline_id"]
+            del_sb["branch"] = BRANCH_CO_H
+            del_sb["parent_id"] = None
+            del_sb["deleted_at"] = "2026-02-01T00:00:00"
+            del_sb["valid_time"] = "[2026-02-01T00:00:00, infinity)"
+            del_sb["transaction_time"] = "[2026-02-01T00:00:00, infinity)"
+            schedule_baselines.append(del_sb)
+
+    # 2. Update another WBE (increase budget by deleted_budget + $65K)
+    wbe_to_update = next(
+        w
+        for w in wbes
+        if w["code"] == "PRJ-DEMO-001-L1-2-L2-1-L3-1"
+        and (not w.get("branch") or w.get("branch") in ["", "main"])
+    )
+
+    upd_wbe = wbe_to_update.copy()
+    upd_wbe["id"] = str(uuid4())
+    upd_wbe["wbe_id"] = wbe_to_update["wbe_id"]
+    upd_wbe["branch"] = BRANCH_CO_H
+    upd_wbe["parent_id"] = None
+    upd_wbe["description"] = (
+        f"{wbe_to_update['description']} (MODIFIED - Layout Adjusted)"
+    )
+    upd_wbe["control_date"] = "2026-02-01T00:00:00"
+    wbes.append(upd_wbe)
+
+    ces_to_update = [
+        ce
+        for ce in cost_elements
+        if ce["wbe_id"] == wbe_to_update["wbe_id"]
+        and (not ce.get("branch") or ce.get("branch") in ["", "main"])
+    ]
+
+    # We distribute the addition among the cost elements
+    if ces_to_update:
+        addition_per_ce = (deleted_budget + 65000.0) / len(ces_to_update)
+        for main_ce in ces_to_update:
+            upd_ce = main_ce.copy()
+            upd_ce["id"] = str(uuid4())
+            upd_ce["cost_element_id"] = main_ce["cost_element_id"]
+            upd_ce["branch"] = BRANCH_CO_H
+            upd_ce["parent_id"] = None
+            upd_ce["budget_amount"] = float(main_ce["budget_amount"]) + addition_per_ce
+            upd_ce["description"] = (
+                f"{main_ce['description']} (MODIFIED - Reallocated Layout)"
+            )
+            upd_ce["control_date"] = "2026-02-01T00:00:00"
+            cost_elements.append(upd_ce)
+
+            # clone the schedule baseline without changes (apart from branch info)
+            main_sb = next(
+                (
+                    sb
+                    for sb in schedule_baselines
+                    if sb["cost_element_id"] == main_ce["cost_element_id"]
+                    and (not sb.get("branch") or sb.get("branch") in ["", "main"])
+                ),
+                None,
+            )
+            if main_sb:
+                upd_sb = main_sb.copy()
+                upd_sb["id"] = str(uuid4())
+                upd_sb["schedule_baseline_id"] = main_sb["schedule_baseline_id"]
+                upd_sb["branch"] = BRANCH_CO_H
+                upd_sb["parent_id"] = None
+                upd_sb["valid_time"] = "[2026-02-01T00:00:00, infinity)"
+                upd_sb["transaction_time"] = "[2026-02-01T00:00:00, infinity)"
+                schedule_baselines.append(upd_sb)
+
+    print(f"  Modified WBEs on branch {BRANCH_CO_H[:20]}...")
+    print(
+        f"  Soft-deleted 1 WBE and its {len(ces_to_delete)} CEs (-${deleted_budget:,.2f})"
+    )
+    print(
+        f"  Updated 1 WBE and its {len(ces_to_update)} CEs (+${deleted_budget + 65000.0:,.2f})"
+    )
+    print("  Net budget change: +$65,000")
 
 
 def main():
@@ -522,9 +788,22 @@ def main():
     cost_elements = load_json("cost_elements.json")
     schedule_baselines = load_json("schedule_baselines.json")
 
-    print(f"  WBEs: {len(wbes)}")
-    print(f"  Cost Elements: {len(cost_elements)}")
-    print(f"  Schedule Baselines: {len(schedule_baselines)}")
+    # Filter out any existing branch versions to ensure idempotency
+    wbes = [w for w in wbes if not w.get("branch") or w.get("branch") in ["", "main"]]
+    cost_elements = [
+        ce
+        for ce in cost_elements
+        if not ce.get("branch") or ce.get("branch") in ["", "main"]
+    ]
+    schedule_baselines = [
+        sb
+        for sb in schedule_baselines
+        if not sb.get("branch") or sb.get("branch") in ["", "main"]
+    ]
+
+    print(f"  WBEs (Main): {len(wbes)}")
+    print(f"  Cost Elements (Main): {len(cost_elements)}")
+    print(f"  Schedule Baselines (Main): {len(schedule_baselines)}")
 
     # Add all change order scenarios
     add_co_a_scope_addition(wbes, cost_elements, schedule_baselines)
@@ -533,6 +812,8 @@ def main():
     add_co_d_schedule_only(schedule_baselines)
     add_co_e_cost_reallocation(cost_elements)
     add_co_f_critical_addition(wbes, cost_elements, schedule_baselines)
+    add_co_g_mixed_addition(wbes, cost_elements, schedule_baselines)
+    add_co_h_mixed_update_removal(wbes, cost_elements, schedule_baselines)
 
     # Save enhanced data
     print("\n" + "=" * 70)
@@ -546,9 +827,9 @@ def main():
     print("\n" + "=" * 70)
     print("SUMMARY")
     print("=" * 70)
-    print(f"Total WBEs: {len(wbes)} (20 main + 9 branch versions)")
-    print(f"Total Cost Elements: {len(cost_elements)} (100 main + 18 branch versions)")
-    print(f"Total Schedule Baselines: {len(schedule_baselines)} (100 main + 18 branch versions)")
+    print(f"Total WBEs: {len(wbes)}")
+    print(f"Total Cost Elements: {len(cost_elements)}")
+    print(f"Total Schedule Baselines: {len(schedule_baselines)}")
     print()
     print("Change Order Scenarios Added:")
     print("  CO-A: Scope Addition (+$150K, +3 months)")
@@ -557,6 +838,8 @@ def main():
     print("  CO-D: Schedule Adjustment Only ($0, progression change)")
     print("  CO-E: Cost Reallocation ($0 net, LAB +$40K, MAT -$40K)")
     print("  CO-F: Critical Addition (+$375K, +6 months)")
+    print("  CO-G: Structural Support Addition (+$210K, +4 months)")
+    print("  CO-H: Layout Adjustment & Demolition (Net +$65K)")
     print()
     print("All change order scenarios successfully implemented!")
     print("=" * 70)

@@ -93,6 +93,15 @@ Track all documentation requiring updates:
 | [API Contracts]    | [Update endpoint] | High/Med/Low | ✅/🔄/❌ |
 | [Coding Standards] | [Add guideline]   | High/Med/Low | ✅/🔄/❌ |
 
+### Lessons Learned Registry
+
+- [ ] **Update Registry**: Add new lessons to `docs/03-project-plan/lessons-learned.md`
+- [ ] **Categorize**: Place in appropriate section (Backend/Frontend/Testing/Architecture/Process)
+- [ ] **Format**: Include Iteration, Problem, Learning, Solution, Best Practice
+- [ ] **Update Stats**: Increment summary statistics
+
+**Reference:** [Lessons Learned Registry](../lessons-learned.md)
+
 ### Specific Documentation Actions
 
 - [ ] Update `docs/02-architecture/contexts/{name}/architecture.md`

@@ -7,6 +7,7 @@ This context handles the visual presentation, user interaction, and aesthetics o
 ## 2. Technology Stack
 
 - **Component Library**: Ant Design 6 (Top-tier enterprise UI)
+- **AI Chat Components**: Ant Design X (Enterprise AI interface components)
 - **Styling**: CSS-in-JS (Ant Design Token System)
 - **Forms**: Ant Design Form + Zod (Schema Validation)
 - **Notifications**: Sonner
@@ -42,14 +43,13 @@ We rely on **Ant Design's** design language but customized via `ConfigProvider`.
 
 - **dayjs**: Lightweight immutable date library (replaces Moment.js).
 - **echarts**: For data visualization (EVM graphs).
-- **@chatscope/chat-ui-kit-react**: For chat with data experience
+- **@ant-design/x**: For AI chat interface supporting natural language queries, AI-assisted data operations, multimodal input/output, Markdown and Mermaid rendering
 - **react-dnd**: For drag and drop functionality
 - **zustand/middleware/immer**: For immutable state updates
 - **@tanstack/react-virtual**: For virtualized lists and tables
 - **react-error-boundary**: For error handling
 - **auth/core**: For authentication
 - **Vitest + Testing Library**: For unit and integration testing
-- **Socket.IO**: For real-time communication
 
 ### 3.5 State Management
 
@@ -59,3 +59,24 @@ We rely on **Ant Design's** design language but customized via `ConfigProvider`.
 ### 3.6 Data Tables
 
 Data tables are implemented using Ant Design's `Table` component with a custom wrapper `DataTable` in `src/components`. they must implement filtering, sorting, and pagination. Each table layout shall be stored and retrieved in `localStorage` and in backend via user preferences.
+
+### 3.7 AI Chatbot Interface
+
+The AI chatbot interface uses **Ant Design X** (`@ant-design/x`) for a seamless integration with the existing Ant Design design system.
+
+**Component**: `src/features/ai-chat/`
+
+**Capabilities:**
+
+- **Streaming responses**: Real-time message streaming via WebSocket
+- **Multimodal input**: Support for text, images, and file attachments
+- **Markdown rendering**: Rich text formatting in responses
+- **Mermaid diagrams**: Visual diagrams for project hierarchies, workflows, timelines
+- **Tool call visualization**: Display AI tool invocations and confirmation requests
+- **Session management**: Multiple concurrent conversations with history
+
+**Integration:**
+
+- WebSocket connection for real-time streaming (managed via `useWebSocket` hook)
+- Zustand store for session state (`useAIChatStore`)
+- Ant Design tokens for consistent theming with the rest of the application

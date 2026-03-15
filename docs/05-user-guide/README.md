@@ -4,6 +4,23 @@ This directory contains user-facing documentation for working with the Backcast 
 
 ## Available Guides
 
+### [Change Order Workflow & Architecture Guide](./change-order-workflow-guide.md)
+
+Comprehensive documentation of the Change Order workflow and backend logic.
+
+**Topics Covered:**
+- Entity model and relationships
+- Workflow state machine and transitions
+- Branch isolation and merge operations
+- Impact analysis and approval matrix
+- API endpoints and usage examples
+- Debugging common issues
+
+**Target Audience:**
+- Backend developers working with change orders
+- System administrators debugging workflow issues
+- Technical users understanding the approval process
+
 ### [EVCS User Guide: Working with Versioned Entities](./evcs-wbe-user-guide.md)
 
 A comprehensive guide to the Entity Versioning Control System (EVCS) using the WBE (Work Breakdown Element) entity as the primary example.
@@ -39,6 +56,25 @@ Production deployment guide using Docker, Traefik, and Let's Encrypt SSL.
 - DevOps engineers
 - System administrators
 - Developers deploying to staging/production
+
+### [AI Chat User Guide](./ai-chat-user-guide.md)
+
+End-user guide for interacting with the Backcast EVS AI Chat assistant using natural language.
+
+**Topics Covered:**
+- Getting started with AI Chat
+- Project information queries (list, search, filter)
+- Work Breakdown Structure (WBE) navigation and hierarchy
+- Cost element analysis and variance tracking
+- Change order draft generation and workflow
+- Earned Value Management (EVM) metrics and forecasting
+- Tips for better results and troubleshooting
+
+**Target Audience:**
+- Project managers using AI for project insights
+- Cost engineers performing analysis
+- Change managers managing change orders
+- Any end user interacting with the AI assistant
 
 ### [Frontend Navigation Patterns](./navigation-patterns.md)
 

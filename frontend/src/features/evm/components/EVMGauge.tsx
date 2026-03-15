@@ -15,7 +15,7 @@
  */
 
 import React from "react";
-import { Typography } from "antd";
+import { Typography, theme } from "antd";
 import { EChartsGauge } from "./charts/EChartsGauge";
 
 const { Text } = Typography;
@@ -59,9 +59,10 @@ export const EVMGauge: React.FC<EVMGaugeProps> = ({
   size = 200,
   // strokeWidth: Accepted for API compatibility but not used in ECharts version
 }) => {
+  const { token } = theme.useToken();
   return (
     <div style={{ textAlign: "center" }}>
-      <Text strong style={{ fontSize: 14, display: "block", marginBottom: 8 }}>
+      <Text strong style={{ fontSize: token.fontSize, display: "block", marginBottom: token.marginSM }}>
         {label}
       </Text>
       <EChartsGauge

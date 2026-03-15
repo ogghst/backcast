@@ -93,7 +93,9 @@ async def test_unique_constraint_on_schedule_baseline_id(db_session: AsyncSessio
     )
     index = result.fetchone()
 
-    assert index is None, "Unique index should NOT exist on schedule_baseline_id (removed for versioning support)"
+    assert index is None, (
+        "Unique index should NOT exist on schedule_baseline_id (removed for versioning support)"
+    )
 
 
 @pytest.mark.asyncio
@@ -120,7 +122,9 @@ async def test_foreign_key_constraint_on_schedule_baseline_id(db_session: AsyncS
     )
     index = result.fetchone()
 
-    assert index is None, "Unique index should NOT exist (removed for versioning support)"
+    assert index is None, (
+        "Unique index should NOT exist (removed for versioning support)"
+    )
 
     # Verify that regular index exists for query performance
     result = await db_session.execute(
@@ -153,8 +157,9 @@ async def test_index_exists_on_schedule_baseline_id(db_session: AsyncSession):
     schedule_baseline_indexes = [
         idx for idx in indexes if "schedule_baseline" in idx[0].lower()
     ]
-    assert len(schedule_baseline_indexes) > 0, \
+    assert len(schedule_baseline_indexes) > 0, (
         "Should have index on schedule_baseline_id"
+    )
 
 
 @pytest.mark.asyncio
@@ -187,8 +192,9 @@ async def test_migration_preserves_existing_data(db_session: AsyncSession):
         cost_element_id, code, schedule_baseline_id, baseline_id, baseline_name = row
         # If schedule_baseline_id is set, we should find the baseline
         if schedule_baseline_id is not None:
-            assert baseline_id is not None, \
+            assert baseline_id is not None, (
                 f"Cost element {code} has schedule_baseline_id but baseline not found"
+            )
 
 
 @pytest.mark.asyncio
@@ -229,8 +235,8 @@ async def test_enforces_1to1_relationship_at_db_level(db_session: AsyncSession):
             "end_date": datetime.utcnow() + timedelta(days=90),
             "progression_type": "LINEAR",
             "created_by": uuid4(),
-            "branch": "main"
-        }
+            "branch": "main",
+        },
     )
     await db_session.commit()
 
@@ -263,8 +269,8 @@ async def test_enforces_1to1_relationship_at_db_level(db_session: AsyncSession):
             "budget_amount": 100000,
             "schedule_baseline_id": baseline_id,
             "created_by": uuid4(),
-            "branch": "main"
-        }
+            "branch": "main",
+        },
     )
     await db_session.commit()
 
@@ -293,8 +299,8 @@ async def test_enforces_1to1_relationship_at_db_level(db_session: AsyncSession):
             "budget_amount": 200000,
             "schedule_baseline_id": baseline_id,  # Same baseline!
             "created_by": uuid4(),
-            "branch": "main"
-        }
+            "branch": "main",
+        },
     )
     await db_session.commit()
 
@@ -306,17 +312,21 @@ async def test_enforces_1to1_relationship_at_db_level(db_session: AsyncSession):
             WHERE schedule_baseline_id = :baseline_id
             AND deleted_at IS NULL
         """),
-        {"baseline_id": baseline_id}
+        {"baseline_id": baseline_id},
     )
     rows = result.fetchall()
 
     # Database allows multiple cost elements to reference the same baseline
     # The 1:1 constraint is enforced at the application layer
-    assert len(rows) == 2, "Database should allow multiple cost elements to reference the same baseline"
+    assert len(rows) == 2, (
+        "Database should allow multiple cost elements to reference the same baseline"
+    )
 
 
 @pytest.mark.asyncio
-async def test_cost_element_can_have_null_schedule_baseline_id(db_session: AsyncSession):
+async def test_cost_element_can_have_null_schedule_baseline_id(
+    db_session: AsyncSession,
+):
     """Test that cost_elements.schedule_baseline_id is nullable (for migration)."""
     # Create a cost element without a schedule baseline
     ce_id = uuid4()
@@ -343,8 +353,8 @@ async def test_cost_element_can_have_null_schedule_baseline_id(db_session: Async
             "name": "Cost Element Without Baseline",
             "budget_amount": 100000,
             "created_by": uuid4(),
-            "branch": "main"
-        }
+            "branch": "main",
+        },
     )
     await db_session.commit()
 
@@ -355,7 +365,7 @@ async def test_cost_element_can_have_null_schedule_baseline_id(db_session: Async
             FROM cost_elements
             WHERE cost_element_id = :ce_id
         """),
-        {"ce_id": ce_id}
+        {"ce_id": ce_id},
     )
     schedule_baseline_id = result.scalar_one()
 

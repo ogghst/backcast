@@ -17,7 +17,7 @@ import {
   useCostElementForecast,
 } from "@/features/cost-elements/api/useCostElements";
 import { CostElementModal } from "@/features/cost-elements/components/CostElementModal";
-import { EVMTimeHistoryChart } from "@/features/cost-elements/components/EVMTimeHistoryChart";
+// import { EVMTimeHistoryChart } from "@/features/cost-elements/components/EVMTimeHistoryChart";
 import { ForecastComparisonCard } from "@/features/forecasts/components";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
@@ -106,7 +106,7 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
     statusText = "Monitoring";
   }
 
-  const handleUpdate = (values: any) => {
+  const handleUpdate = (values: Record<string, unknown>) => {
     updateMutation.mutate({
       id: costElement.cost_element_id,
       data: {

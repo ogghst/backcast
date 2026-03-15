@@ -47,11 +47,10 @@ async def test_assignment_persistence_across_versions(
         email=f"approver_{uuid4()}@example.com",
         full_name="Approver V1",
         password="password123",
-        role="approver"
+        role="approver",
     )
     approver_v1 = await user_service.create_user(
-        user_in=approver_data,
-        actor_id=admin_actor_id
+        user_in=approver_data, actor_id=admin_actor_id
     )
 
     assert approver_v1.full_name == "Approver V1"
@@ -66,9 +65,7 @@ async def test_assignment_persistence_across_versions(
     )
 
     change_order = await change_order_service.create_change_order(
-        change_order_in=co_data,
-        actor_id=admin_actor_id,
-        control_date=datetime.now(UTC)
+        change_order_in=co_data, actor_id=admin_actor_id, control_date=datetime.now(UTC)
     )
 
     # 3. Manually assign the Change Order to the User
@@ -84,8 +81,9 @@ async def test_assignment_persistence_across_versions(
     await db_session.refresh(stored_co)
 
     # Verify immediate assignment
-    assert stored_co.assigned_approver_id == approver_v1.user_id, \
+    assert stored_co.assigned_approver_id == approver_v1.user_id, (
         f"Stored ID {stored_co.assigned_approver_id} should match User Business ID {approver_v1.user_id}"
+    )
 
     # Commit to persist the assignment
     await db_session.commit()
@@ -93,14 +91,16 @@ async def test_assignment_persistence_across_versions(
     # 4. Update User to V2 (creates new id, keeps same user_id)
     update_data = UserUpdate(full_name="Approver V2")
     approver_v2 = await user_service.update_user(
-        user_id=approver_v1.user_id,
-        user_in=update_data,
-        actor_id=admin_actor_id
+        user_id=approver_v1.user_id, user_in=update_data, actor_id=admin_actor_id
     )
 
     assert approver_v2.full_name == "Approver V2"
-    assert approver_v2.user_id == approver_v1.user_id, "Business Key should be preserved"
-    assert approver_v2.id != approver_v1.id, "New version should have different Version ID"
+    assert approver_v2.user_id == approver_v1.user_id, (
+        "Business Key should be preserved"
+    )
+    assert approver_v2.id != approver_v1.id, (
+        "New version should have different Version ID"
+    )
 
     # 5. Fetch Change Order again and verify persistence
     refetched_co = await change_order_service.get_current(change_order.change_order_id)
@@ -108,10 +108,12 @@ async def test_assignment_persistence_across_versions(
 
     # CRITICAL ASSERTION: Assignment persists across user updates
     # Because we stored user_id (stable), not id (changes with each version)
-    assert refetched_co.assigned_approver_id == approver_v1.user_id, \
+    assert refetched_co.assigned_approver_id == approver_v1.user_id, (
         f"Assignment {refetched_co.assigned_approver_id} should match Business ID {approver_v1.user_id}"
-    assert refetched_co.assigned_approver_id == approver_v2.user_id, \
+    )
+    assert refetched_co.assigned_approver_id == approver_v2.user_id, (
         "Assignment should still point to the User Business ID after user update"
+    )
 
 
 @pytest.mark.asyncio
@@ -143,9 +145,7 @@ async def test_assignment_to_non_existent_user(
     )
 
     change_order = await change_order_service.create_change_order(
-        change_order_in=co_data,
-        actor_id=admin_actor_id,
-        control_date=datetime.now(UTC)
+        change_order_in=co_data, actor_id=admin_actor_id, control_date=datetime.now(UTC)
     )
 
     stored_co = await change_order_service.get_current(change_order.change_order_id)

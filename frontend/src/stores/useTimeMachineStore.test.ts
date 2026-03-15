@@ -310,5 +310,165 @@ describe("useTimeMachineStore", () => {
       expect(state.getSelectedBranch()).toBe("main");
       expect(state.getViewMode()).toBe("merged");
     });
+
+    it("handles clearing settings for one project without affecting others", () => {
+      const date1 = new Date("2024-01-01");
+      const date2 = new Date("2025-12-31");
+
+      // Set up both projects
+      act(() => {
+        useTimeMachineStore.getState().setCurrentProject("project-1");
+        useTimeMachineStore.getState().selectTime(date1);
+        useTimeMachineStore.getState().selectBranch("main");
+
+        useTimeMachineStore.getState().setCurrentProject("project-2");
+        useTimeMachineStore.getState().selectTime(date2);
+        useTimeMachineStore.getState().selectBranch("feature");
+      });
+
+      // Clear project-1 settings
+      act(() => {
+        useTimeMachineStore.getState().clearProjectSettings("project-1");
+      });
+
+      // Verify project-1 settings are gone
+      expect(
+        useTimeMachineStore.getState().projectSettings["project-1"]
+      ).toBeUndefined();
+
+      // Verify project-2 settings are preserved
+      expect(
+        useTimeMachineStore.getState().projectSettings["project-2"]
+      ).toBeDefined();
+    });
+
+    it("initializes with default settings for new projects", () => {
+      act(() => {
+        useTimeMachineStore.getState().setCurrentProject("new-project");
+      });
+
+      const state = useTimeMachineStore.getState();
+      expect(state.projectSettings["new-project"]).toEqual({
+        selectedTime: null,
+        selectedBranch: "main",
+        viewMode: "merged",
+      });
+    });
+  });
+
+  describe("Edge Cases and Regression Tests", () => {
+    it("handles time selection before project is set", () => {
+      // Try to select time without setting project first
+      act(() => {
+        useTimeMachineStore.getState().selectTime(new Date("2025-01-01"));
+      });
+
+      // Should not crash and should return null
+      const state = useTimeMachineStore.getState();
+      expect(state.getSelectedTime()).toBeNull();
+    });
+
+    it("handles branch selection before project is set", () => {
+      // Try to select branch without setting project first
+      act(() => {
+        useTimeMachineStore.getState().selectBranch("test-branch");
+      });
+
+      // Should not crash and should return default
+      const state = useTimeMachineStore.getState();
+      expect(state.getSelectedBranch()).toBe("main");
+    });
+
+    it("handles view mode selection before project is set", () => {
+      // Try to select view mode without setting project first
+      act(() => {
+        useTimeMachineStore.getState().selectViewMode("isolated");
+      });
+
+      // Should not crash and should return default
+      const state = useTimeMachineStore.getState();
+      expect(state.getViewMode()).toBe("merged");
+    });
+
+    it("handles resetting to now without project set", () => {
+      // Try to reset without setting project first
+      act(() => {
+        useTimeMachineStore.getState().resetToNow();
+      });
+
+      // Should not crash
+      const state = useTimeMachineStore.getState();
+      expect(state.getSelectedTime()).toBeNull();
+    });
+
+    it("handles rapid time changes", () => {
+      const date1 = new Date("2025-01-01");
+      const date2 = new Date("2025-06-15");
+      const date3 = new Date("2025-12-31");
+
+      act(() => {
+        useTimeMachineStore.getState().setCurrentProject("project-1");
+        useTimeMachineStore.getState().selectTime(date1);
+        useTimeMachineStore.getState().selectTime(date2);
+        useTimeMachineStore.getState().selectTime(date3);
+      });
+
+      const state = useTimeMachineStore.getState();
+      expect(state.getSelectedTime()).toBe(date3.toISOString());
+    });
+
+    it("handles setting same project multiple times", () => {
+      act(() => {
+        useTimeMachineStore.getState().setCurrentProject("project-1");
+      });
+
+      const initialSettings = useTimeMachineStore.getState().projectSettings["project-1"];
+
+      // Set same project again
+      act(() => {
+        useTimeMachineStore.getState().setCurrentProject("project-1");
+      });
+
+      // Settings should not change
+      const finalSettings = useTimeMachineStore.getState().projectSettings["project-1"];
+      expect(finalSettings).toEqual(initialSettings);
+    });
+
+    it("handles null time selection explicitly", () => {
+      const date = new Date("2025-01-01");
+
+      act(() => {
+        useTimeMachineStore.getState().setCurrentProject("project-1");
+        useTimeMachineStore.getState().selectTime(date);
+        expect(useTimeMachineStore.getState().getSelectedTime()).toBe(
+          date.toISOString()
+        );
+
+        // Reset to now
+        useTimeMachineStore.getState().selectTime(null);
+      });
+
+      const state = useTimeMachineStore.getState();
+      expect(state.getSelectedTime()).toBeNull();
+    });
+
+    it("handles multiple rapid project switches", () => {
+      const date1 = new Date("2024-01-01");
+      const date2 = new Date("2025-06-15");
+
+      act(() => {
+        useTimeMachineStore.getState().setCurrentProject("project-1");
+        useTimeMachineStore.getState().selectTime(date1);
+
+        useTimeMachineStore.getState().setCurrentProject("project-2");
+        useTimeMachineStore.getState().selectTime(date2);
+
+        useTimeMachineStore.getState().setCurrentProject("project-1");
+      });
+
+      const state = useTimeMachineStore.getState();
+      expect(state.getSelectedTime()).toBe(date1.toISOString());
+      expect(state.currentProjectId).toBe("project-1");
+    });
   });
 });

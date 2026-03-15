@@ -6,7 +6,6 @@ branchable entities (WBEs, CostElements).
 Follows RED-GREEN-REFACTOR TDD methodology.
 """
 
-
 from uuid import uuid4
 
 import pytest
@@ -15,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.domain.wbe import WBE
 from app.services.change_order_service import ChangeOrderService
 from app.services.cost_element_service import CostElementService
+from app.services.project import ProjectService
 from app.services.wbe import WBEService
 
 
@@ -23,9 +23,7 @@ class TestChangeOrderFullMerge:
     """Integration test suite for full Change Order merge workflow."""
 
     @pytest.mark.asyncio
-    async def test_merge_happy_path(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_merge_happy_path(self, db_session: AsyncSession) -> None:
         """Test successful merge of CO with WBEs and CostElements.
 
         Expected: All entities merged from BR-{code} branch to main branch.
@@ -39,6 +37,16 @@ class TestChangeOrderFullMerge:
         co_service = ChangeOrderService(db_session)
         wbe_service = WBEService(db_session)
         ce_service = CostElementService(db_session)
+        project_service = ProjectService(db_session)
+
+        # Create Project first
+        await project_service.create_root(
+            root_id=project_id,
+            actor_id=actor_id,
+            branch="main",
+            code="PRJ-1",
+            name="Test Project",
+        )
 
         # Create CO on main branch
         await co_service.create_root(
@@ -148,9 +156,7 @@ class TestChangeOrderFullMerge:
         assert len(wbes_main[0]) >= 2
 
     @pytest.mark.asyncio
-    async def test_merge_creates_new_entities(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_merge_creates_new_entities(self, db_session: AsyncSession) -> None:
         """Test that source branch versions overwrite target branch versions.
 
         Expected: WBEs from source branch overwrite versions on main.
@@ -163,6 +169,16 @@ class TestChangeOrderFullMerge:
 
         co_service = ChangeOrderService(db_session)
         wbe_service = WBEService(db_session)
+        project_service = ProjectService(db_session)
+
+        # Create Project first
+        await project_service.create_root(
+            root_id=project_id,
+            actor_id=actor_id,
+            branch="main",
+            code="PRJ-2",
+            name="Test Project 2",
+        )
 
         # Create CO on main branch
         await co_service.create_root(
@@ -189,7 +205,7 @@ class TestChangeOrderFullMerge:
         )
 
         # Get WBE before merge
-        wbe_before = await wbe_service.get_by_root_id(wbe_id, branch="main")
+        wbe_before = await wbe_service.get_current(wbe_id, branch="main")
         assert wbe_before.name == "Original WBE"
 
         # Create CO version on source branch
@@ -224,14 +240,12 @@ class TestChangeOrderFullMerge:
         )
 
         # Assert
-        wbe_after = await wbe_service.get_by_root_id(wbe_id, branch="main")
+        wbe_after = await wbe_service.get_current(wbe_id, branch="main")
         assert wbe_after is not None
         assert wbe_after.name == "Modified WBE"
 
     @pytest.mark.asyncio
-    async def test_merge_with_empty_branch(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_merge_with_empty_branch(self, db_session: AsyncSession) -> None:
         """Test merge when source branch has no WBEs or CostElements.
 
         Expected: Merge succeeds, only CO entity is merged.
@@ -243,6 +257,16 @@ class TestChangeOrderFullMerge:
         co_code = "789"
 
         co_service = ChangeOrderService(db_session)
+        project_service = ProjectService(db_session)
+
+        # Create Project first
+        await project_service.create_root(
+            root_id=project_id,
+            actor_id=actor_id,
+            branch="main",
+            code="PRJ-3",
+            name="Test Project 3",
+        )
 
         # Create CO on main branch
         await co_service.create_root(
@@ -280,9 +304,7 @@ class TestChangeOrderFullMerge:
         assert result.status == "Implemented"
 
     @pytest.mark.asyncio
-    async def test_merge_soft_deletes_entities(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_merge_soft_deletes_entities(self, db_session: AsyncSession) -> None:
         """Test that soft-deleted entities propagate correctly during merge.
 
         Expected: Entity soft-deleted on source branch is also soft-deleted on main after merge.
@@ -295,6 +317,16 @@ class TestChangeOrderFullMerge:
 
         co_service = ChangeOrderService(db_session)
         wbe_service = WBEService(db_session)
+        project_service = ProjectService(db_session)
+
+        # Create Project first
+        await project_service.create_root(
+            root_id=project_id,
+            actor_id=actor_id,
+            branch="main",
+            code="PRJ-4",
+            name="Test Project 4",
+        )
 
         # Create CO on main branch
         await co_service.create_root(
@@ -321,7 +353,7 @@ class TestChangeOrderFullMerge:
         )
 
         # Verify WBE exists and is not deleted on main
-        wbe_before = await wbe_service.get_by_root_id(wbe_id, branch="main")
+        wbe_before = await wbe_service.get_current(wbe_id, branch="main")
         assert wbe_before is not None
         assert wbe_before.deleted_at is None
 
@@ -379,4 +411,6 @@ class TestChangeOrderFullMerge:
         wbe_after = result.scalar_one_or_none()
 
         assert wbe_after is not None, "WBE should exist on main after merge"
-        assert wbe_after.deleted_at is not None, "WBE should be soft-deleted on main after merge"
+        assert wbe_after.deleted_at is not None, (
+            "WBE should be soft-deleted on main after merge"
+        )

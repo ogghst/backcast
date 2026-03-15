@@ -7,7 +7,7 @@ They enable cost standardization and cross-project comparability.
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -53,9 +53,9 @@ class CostElementType(EntityBase, VersionableMixin):
     # Department ownership
     department_id: Mapped[UUID] = mapped_column(
         PG_UUID,
-        ForeignKey("departments.department_id"),
         nullable=False,
         index=True,
+        # NOTE: No database-level ForeignKey constraint because department_id is a root ID.
     )
 
     # Identity

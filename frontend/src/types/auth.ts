@@ -46,7 +46,12 @@ export type Permission =
   | "change-order-create"
   | "change-order-update"
   | "change-order-delete"
-  | "change-order-recover";
+  | "change-order-recover"
+  | "ai-config-read"
+  | "ai-config-create"
+  | "ai-config-update"
+  | "ai-config-delete"
+  | "ai-chat";
 
 // Type alias for role strings
 export type Role = "admin" | "manager" | "viewer";

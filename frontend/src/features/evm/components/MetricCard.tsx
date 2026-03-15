@@ -38,15 +38,6 @@ const SIZE_CONFIGS: Record<"small" | "medium" | "large", SizeConfig> = {
   },
 };
 
-/**
- * Status color mapping for EVM metric indicators.
- */
-const STATUS_COLORS: Record<"good" | "warning" | "bad", string> = {
-  good: "#52c41a", // green
-  warning: "#faad14", // orange
-  bad: "#ff4d4f", // red
-};
-
 export interface MetricCardProps {
   /** Metadata for the metric */
   metadata: MetricMetadata;
@@ -134,7 +125,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   const { token } = theme.useToken();
 
   const formattedValue = formatValue(value, metadata.format);
-  const statusColor = STATUS_COLORS[status];
+  const statusColor = status === "good" ? token.colorSuccess : status === "warning" ? token.colorWarning : token.colorError;
   const sizeConfig = SIZE_CONFIGS[size];
 
   return (

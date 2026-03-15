@@ -53,3 +53,16 @@ backend/logs
 .mypy_cache
 .pytest_cache
 htmlcov/
+.playwright-mcp/
+.ruff_cache/
+.benchmarks
+
+# Claude Code skills (external dependencies)
+.claude/skills/
+skills-lock.json
+
+# Test screenshots (temporary artifacts)
+markdown-rendering.png
+mermaid-fix-test.png
+mermaid-rendering.png
+frontend-screenshots/

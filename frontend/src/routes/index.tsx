@@ -6,16 +6,21 @@ import Login from "@/pages/Login";
 import { UserList } from "@/pages/admin/UserList";
 import { DepartmentManagement } from "@/pages/admin/DepartmentManagement";
 import { CostElementTypeManagement } from "@/pages/admin/CostElementTypeManagement";
+import { AIProviderManagement } from "@/pages/admin/AIProviderManagement";
+import { AIAssistantManagement } from "@/pages/admin/AIAssistantManagement";
 import { ProjectList } from "@/pages/projects/ProjectList";
 import { ProjectLayout } from "@/pages/projects/ProjectLayout";
 import { ProjectOverview } from "@/pages/projects/ProjectOverview";
+import { ProjectStructure } from "@/pages/projects/ProjectStructure";
 import { ProjectChangeOrdersPage } from "@/pages/projects/ProjectChangeOrdersPage";
+import { ProjectEVMAnalysis } from "@/pages/projects/ProjectEVMAnalysis";
 import { WBEList } from "@/pages/wbes/WBEList";
 import { WBEDetailPage } from "@/pages/wbes/WBEDetailPage";
 import { ChangeOrderUnifiedPage } from "@/pages/projects/change-orders/ChangeOrderUnifiedPage";
 import { ChangeOrderImpactAnalysisPage } from "@/pages/projects/change-orders/ChangeOrderImpactAnalysisPage";
 import { CostElementDetailPage } from "@/pages/cost-elements/CostElementDetailPage";
 import { Profile } from "@/pages/Profile";
+import { ChatInterfacePage } from "@/pages/chat/ChatInterface";
 
 export const router = createBrowserRouter([
   {
@@ -63,6 +68,22 @@ export const router = createBrowserRouter([
         element: <CostElementTypeManagement />,
       },
       {
+        path: "/admin/ai-providers",
+        element: <AIProviderManagement />,
+      },
+      {
+        path: "/admin/ai-assistants",
+        element: <AIAssistantManagement />,
+      },
+      {
+        path: "/chat",
+        element: (
+          <ProtectedRoute permission="ai-chat">
+            <ChatInterfacePage />
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: "/profile",
         element: <Profile />,
       },
@@ -76,8 +97,16 @@ export const router = createBrowserRouter([
             element: <ProjectOverview />,
           },
           {
+            path: "structure",
+            element: <ProjectStructure />,
+          },
+          {
             path: "change-orders",
             element: <ProjectChangeOrdersPage />,
+          },
+          {
+            path: "evm-analysis",
+            element: <ProjectEVMAnalysis />,
           },
         ],
       },

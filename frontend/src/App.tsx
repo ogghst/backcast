@@ -16,6 +16,11 @@ export const App = () => {
           themeMode === "dark"
             ? antTheme.darkAlgorithm
             : antTheme.defaultAlgorithm,
+        // Apply dark mode tokens when dark mode is enabled
+        token:
+          themeMode === "dark"
+            ? { ...theme.token, ...theme.darkModeTokens }
+            : theme.token,
       }}
     >
       <AntApp>

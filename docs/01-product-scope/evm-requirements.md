@@ -198,6 +198,13 @@ Using management judgment factors when appropriate
 - Generate assessment using artificial intelligence endpoint
 - Provide insights on project health, risks, trends
 
+### 6.2 Natural Language Interface
+- Query EVM metrics using natural language
+- Request explanations of variance analysis
+- Ask for trend interpretations and predictions
+
+See [Functional Requirements 12.6](functional-requirements.md#126-ai-integration) for full AI integration capabilities.
+
 ---
 
 ## 7. Standard EVM Reports

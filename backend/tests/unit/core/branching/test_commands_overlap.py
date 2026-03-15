@@ -446,7 +446,7 @@ async def test_deleted_entity_recreation(
         project_id=uuid4(),
         level=1,
     )
-    v1 = await cmd_v1.execute(db_session)
+    await cmd_v1.execute(db_session)
 
     # Soft-delete V1
     feb_1 = datetime(2026, 2, 1, tzinfo=UTC)

@@ -93,8 +93,6 @@ def upgrade() -> None:
         """
     )
 
-
-
     # Create GIST index on valid_time for range queries
     op.execute(
         """

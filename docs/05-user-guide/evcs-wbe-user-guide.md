@@ -282,7 +282,9 @@ graph TB
 
 ### Scenario
 
-You are setting up a new project and need to create the initial WBE (Work Breakdown Element) hierarchy. This includes creating parent WBEs, child WBEs, updating budget allocations, and querying WBEs by project.
+You are setting up a new project and need to create the initial WBE (Work Breakdown Element) hierarchy. This includes creating parent WBEs, child WBEs, and querying WBEs by project.
+
+**Note:** Budget allocation is no longer stored directly on WBEs. Instead, budgets are allocated at the Cost Element level, and WBE `budget_allocation` is computed on-the-fly as the sum of child cost element budgets.
 
 ### Step-by-Step Example
 
@@ -298,7 +300,6 @@ Content-Type: application/json
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
   "code": "1.0",
   "name": "Phase 1 - Foundation",
-  "budget_allocation": 100000.00,
   "level": 1,
   "description": "Initial foundation work for the building"
 }
@@ -313,7 +314,7 @@ Content-Type: application/json
   "project_id": "550e8400-e29b-41d4-a716-446655440000",
   "code": "1.0",
   "name": "Phase 1 - Foundation",
-  "budget_allocation": "100000.00",
+  "budget_allocation": "0.00",
   "level": 1,
   "description": "Initial foundation work for the building",
   "branch": "main",
@@ -328,6 +329,7 @@ Content-Type: application/json
 
 - `id` is the version-specific UUID (changes on updates)
 - `wbe_id` is the root UUID (stable across all versions)
+- `budget_allocation` is computed from child cost elements (0 until cost elements are added)
 - `valid_time` and `transaction_time` are open-ended (current version)
 - `parent_id` is `null` (first version has no parent)
 
@@ -344,7 +346,6 @@ Content-Type: application/json
   "parent_wbe_id": "wbe-root-789",
   "code": "1.1",
   "name": "Site Preparation",
-  "budget_allocation": 30000.00,
   "level": 2
 }
 ```
@@ -358,7 +359,7 @@ Content-Type: application/json
   "parent_wbe_id": "wbe-root-789",
   "code": "1.1",
   "name": "Site Preparation",
-  "budget_allocation": "30000.00",
+  "budget_allocation": "0.00",
   "level": 2,
   "branch": "main",
   "parent_id": null
@@ -376,21 +377,19 @@ Content-Type: application/json
   "parent_wbe_id": "wbe-root-789",
   "code": "1.2",
   "name": "Foundation Pouring",
-  "budget_allocation": 70000.00,
   "level": 2
 }
 ```
 
-#### Step 3: Update WBE Budget Allocation
+#### Step 3: Update WBE Description
 
-Increase the budget for the parent WBE:
+Update the description for the parent WBE:
 
 ```bash
 PUT /api/v1/wbes/wbe-root-789
 Content-Type: application/json
 
 {
-  "budget_allocation": 120000.00,
   "description": "Updated foundation scope including additional excavation"
 }
 ```
@@ -401,7 +400,7 @@ Content-Type: application/json
 {
   "id": "wbe-v2-ghi-789",
   "wbe_id": "wbe-root-789",
-  "budget_allocation": "120000.00",
+  "budget_allocation": "0.00",
   "description": "Updated foundation scope including additional excavation",
   "branch": "main",
   "parent_id": "wbe-v1-abc-123",
@@ -416,6 +415,7 @@ Content-Type: application/json
 - `parent_id` now points to the previous version
 - The original version (v1) is still in the database for historical tracking
 - `valid_time` and `transaction_time` have been updated
+- `budget_allocation` is computed from child cost elements (add cost elements to set budget)
 
 #### Step 4: Query WBEs by Project
 

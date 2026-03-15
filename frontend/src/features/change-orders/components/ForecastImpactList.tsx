@@ -1,16 +1,21 @@
 import { Card, Table, Tag, Typography, Empty, Space, Tooltip, theme } from "antd";
 import { InfoCircleOutlined, ArrowUpOutlined, ArrowDownOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import type { ForecastRead } from "@/api/generated";
 
 const { Title, Text } = Typography;
+
+interface ForecastRead {
+  eac_amount: number;
+}
 
 interface ForecastComparison {
   costElementId: string;
   costElementCode: string;
   costElementName: string;
   budgetAmount: number;
+  mainEac?: number;
   mainForecast?: ForecastRead;
+  changeEac?: number;
   branchForecast?: ForecastRead;
 }
 
@@ -107,7 +112,7 @@ export const ForecastImpactList = ({
       render: (_, record) => {
         const eac = record.mainForecast
           ? Number(record.mainForecast.eac_amount)
-          : null;
+          : (record.mainEac ?? null);
         if (eac === null) {
           return <span style={{ color: token.colorTextSecondary }}>-</span>;
         }
@@ -138,7 +143,7 @@ export const ForecastImpactList = ({
       render: (_, record) => {
         const eac = record.branchForecast
           ? Number(record.branchForecast.eac_amount)
-          : null;
+          : (record.changeEac ?? null);
         if (eac === null) {
           return <span style={{ color: token.colorTextSecondary }}>-</span>;
         }
@@ -162,10 +167,10 @@ export const ForecastImpactList = ({
       render: (_, record) => {
         const mainEAC = record.mainForecast
           ? Number(record.mainForecast.eac_amount)
-          : null;
+          : (record.mainEac ?? null);
         const branchEAC = record.branchForecast
           ? Number(record.branchForecast.eac_amount)
-          : null;
+          : (record.changeEac ?? null);
 
         if (mainEAC === null && branchEAC === null) {
           return <span style={{ color: token.colorTextSecondary }}>-</span>;
@@ -222,10 +227,10 @@ export const ForecastImpactList = ({
       render: (_, record) => {
         const mainEAC = record.mainForecast
           ? Number(record.mainForecast.eac_amount)
-          : null;
+          : (record.mainEac ?? null);
         const branchEAC = record.branchForecast
           ? Number(record.branchForecast.eac_amount)
-          : null;
+          : (record.changeEac ?? null);
 
         if (mainEAC === null || branchEAC === null) {
           return <span style={{ color: token.colorTextSecondary }}>-</span>;
@@ -261,17 +266,17 @@ export const ForecastImpactList = ({
 
   // Calculate summary statistics
   const totalMainEAC = activeForecasts.reduce((sum, f) => {
-    return sum + (f.mainForecast ? Number(f.mainForecast.eac_amount) : 0);
+    return sum + (f.mainForecast ? Number(f.mainForecast.eac_amount) : (f.mainEac ?? 0));
   }, 0);
 
   const totalBranchEAC = activeForecasts.reduce((sum, f) => {
-    return sum + (f.branchForecast ? Number(f.branchForecast.eac_amount) : 0);
+    return sum + (f.branchForecast ? Number(f.branchForecast.eac_amount) : (f.changeEac ?? 0));
   }, 0);
 
   const totalDelta = totalBranchEAC - totalMainEAC;
   const deltaPercent = totalMainEAC > 0 ? (totalDelta / totalMainEAC) * 100 : 0;
 
-  const forecasterAddedCount = activeForecasts.filter(
+  const forecastAddedCount = activeForecasts.filter(
     (f) => !f.mainForecast && f.branchForecast
   ).length;
   const forecastsRemovedCount = activeForecasts.filter(
@@ -327,7 +332,7 @@ export const ForecastImpactList = ({
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${token.colorBorderSecondary}` }}>
           <Space>
             <Tag color="blue">Total: {activeForecasts.length}</Tag>
-            <Tag color="green">Added: {forecasterAddedCount}</Tag>
+            <Tag color="green">Added: {forecastAddedCount}</Tag>
             <Tag color="red">Removed: {forecastsRemovedCount}</Tag>
             <Tag color="orange">Modified: {forecastsModifiedCount}</Tag>
           </Space>

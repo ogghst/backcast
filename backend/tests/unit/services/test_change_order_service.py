@@ -81,9 +81,7 @@ class TestChangeOrderServiceCreate:
         )
 
         # Act
-        created_co = await service.create_change_order(
-            co_in, actor_id=actor_id
-        )
+        created_co = await service.create_change_order(co_in, actor_id=actor_id)
 
         # Assert
         stmt = text(
@@ -229,7 +227,9 @@ class TestChangeOrderServiceGetCurrent:
         assert found.change_order_id == created.change_order_id
 
         # Assert - Verify get_current_by_code also works
-        found_by_code = await service.get_current_by_code("CO-2026-FUTURE", branch="main")
+        found_by_code = await service.get_current_by_code(
+            "CO-2026-FUTURE", branch="main"
+        )
         assert found_by_code is not None
         assert found_by_code.change_order_id == created.change_order_id
 
@@ -362,7 +362,9 @@ class TestChangeOrderServiceImpactAnalysis:
             "completed",
             "skipped",
             "failed",  # Also acceptable if project has no data yet
-        ], f"Expected impact_analysis_status to be 'completed', 'skipped', or 'failed', got {created_co.impact_analysis_status}"
+        ], (
+            f"Expected impact_analysis_status to be 'completed', 'skipped', or 'failed', got {created_co.impact_analysis_status}"
+        )
 
         # If completed, verify results structure
         if created_co.impact_analysis_status == "completed":
@@ -424,7 +426,9 @@ class TestChangeOrderServiceImpactScore:
     """Test impact score calculation and impact level assignment (Task #2)."""
 
     @pytest.mark.asyncio
-    async def test_calculate_impact_score_low_impact(self, db_session: AsyncSession) -> None:
+    async def test_calculate_impact_score_low_impact(
+        self, db_session: AsyncSession
+    ) -> None:
         """Test impact score calculation for low impact change.
 
         Acceptance Criteria:
@@ -448,14 +452,54 @@ class TestChangeOrderServiceImpactScore:
 
         # Create minimal impact analysis with low values
         kpi_scorecard = KPIScorecard(
-            bac=KPIMetric(main_value=Decimal("100000"), change_value=Decimal("105000"), delta=Decimal("5000"), delta_percent=5.0),
-            budget_delta=KPIMetric(main_value=Decimal("100000"), change_value=Decimal("105000"), delta=Decimal("5000"), delta_percent=5.0),
-            gross_margin=KPIMetric(main_value=Decimal("20000"), change_value=Decimal("21000"), delta=Decimal("1000"), delta_percent=5.0),
-            actual_costs=KPIMetric(main_value=Decimal("50000"), change_value=Decimal("50000"), delta=Decimal("0"), delta_percent=0.0),
-            revenue_delta=KPIMetric(main_value=Decimal("150000"), change_value=Decimal("150000"), delta=Decimal("0"), delta_percent=0.0),
-            schedule_duration=KPIMetric(main_value=Decimal("30"), change_value=Decimal("31"), delta=Decimal("1"), delta_percent=3.33),
-            cpi=KPIMetric(main_value=Decimal("1.0"), change_value=Decimal("1.0"), delta=Decimal("0"), delta_percent=0.0),
-            spi=KPIMetric(main_value=Decimal("1.0"), change_value=Decimal("1.0"), delta=Decimal("0"), delta_percent=0.0),
+            bac=KPIMetric(
+                main_value=Decimal("100000"),
+                change_value=Decimal("105000"),
+                delta=Decimal("5000"),
+                delta_percent=5.0,
+            ),
+            budget_delta=KPIMetric(
+                main_value=Decimal("100000"),
+                change_value=Decimal("105000"),
+                delta=Decimal("5000"),
+                delta_percent=5.0,
+            ),
+            gross_margin=KPIMetric(
+                main_value=Decimal("20000"),
+                change_value=Decimal("21000"),
+                delta=Decimal("1000"),
+                delta_percent=5.0,
+            ),
+            actual_costs=KPIMetric(
+                main_value=Decimal("50000"),
+                change_value=Decimal("50000"),
+                delta=Decimal("0"),
+                delta_percent=0.0,
+            ),
+            revenue_delta=KPIMetric(
+                main_value=Decimal("150000"),
+                change_value=Decimal("150000"),
+                delta=Decimal("0"),
+                delta_percent=0.0,
+            ),
+            schedule_duration=KPIMetric(
+                main_value=Decimal("30"),
+                change_value=Decimal("31"),
+                delta=Decimal("1"),
+                delta_percent=3.33,
+            ),
+            cpi=KPIMetric(
+                main_value=Decimal("1.0"),
+                change_value=Decimal("1.0"),
+                delta=Decimal("0"),
+                delta_percent=0.0,
+            ),
+            spi=KPIMetric(
+                main_value=Decimal("1.0"),
+                change_value=Decimal("1.0"),
+                delta=Decimal("0"),
+                delta_percent=0.0,
+            ),
         )
 
         impact_analysis = ImpactAnalysisResponse(
@@ -463,7 +507,9 @@ class TestChangeOrderServiceImpactScore:
             branch_name="BR-TEST-001",
             main_branch_name="main",
             kpi_scorecard=kpi_scorecard,
-            entity_changes=EntityChanges(wbes=[], cost_elements=[], cost_registrations=[]),
+            entity_changes=EntityChanges(
+                wbes=[], cost_elements=[], cost_registrations=[]
+            ),
             waterfall=[],
             time_series=[],
         )
@@ -481,7 +527,9 @@ class TestChangeOrderServiceImpactScore:
         assert score == expected_score, f"Expected score {expected_score}, got {score}"
 
     @pytest.mark.asyncio
-    async def test_calculate_impact_score_medium_impact(self, db_session: AsyncSession) -> None:
+    async def test_calculate_impact_score_medium_impact(
+        self, db_session: AsyncSession
+    ) -> None:
         """Test impact score calculation for medium impact change.
 
         Acceptance Criteria:
@@ -503,14 +551,54 @@ class TestChangeOrderServiceImpactScore:
         service = ChangeOrderService(db_session)
 
         kpi_scorecard = KPIScorecard(
-            bac=KPIMetric(main_value=Decimal("100000"), change_value=Decimal("120000"), delta=Decimal("20000"), delta_percent=20.0),
-            budget_delta=KPIMetric(main_value=Decimal("100000"), change_value=Decimal("120000"), delta=Decimal("20000"), delta_percent=20.0),
-            gross_margin=KPIMetric(main_value=Decimal("20000"), change_value=Decimal("24000"), delta=Decimal("4000"), delta_percent=20.0),
-            actual_costs=KPIMetric(main_value=Decimal("50000"), change_value=Decimal("50000"), delta=Decimal("0"), delta_percent=0.0),
-            revenue_delta=KPIMetric(main_value=Decimal("150000"), change_value=Decimal("150000"), delta=Decimal("0"), delta_percent=0.0),
-            schedule_duration=KPIMetric(main_value=Decimal("30"), change_value=Decimal("36"), delta=Decimal("6"), delta_percent=20.0),
-            cpi=KPIMetric(main_value=Decimal("1.0"), change_value=Decimal("0.9"), delta=Decimal("-0.1"), delta_percent=-10.0),
-            spi=KPIMetric(main_value=Decimal("1.0"), change_value=Decimal("1.0"), delta=Decimal("0"), delta_percent=0.0),
+            bac=KPIMetric(
+                main_value=Decimal("100000"),
+                change_value=Decimal("120000"),
+                delta=Decimal("20000"),
+                delta_percent=20.0,
+            ),
+            budget_delta=KPIMetric(
+                main_value=Decimal("100000"),
+                change_value=Decimal("120000"),
+                delta=Decimal("20000"),
+                delta_percent=20.0,
+            ),
+            gross_margin=KPIMetric(
+                main_value=Decimal("20000"),
+                change_value=Decimal("24000"),
+                delta=Decimal("4000"),
+                delta_percent=20.0,
+            ),
+            actual_costs=KPIMetric(
+                main_value=Decimal("50000"),
+                change_value=Decimal("50000"),
+                delta=Decimal("0"),
+                delta_percent=0.0,
+            ),
+            revenue_delta=KPIMetric(
+                main_value=Decimal("150000"),
+                change_value=Decimal("150000"),
+                delta=Decimal("0"),
+                delta_percent=0.0,
+            ),
+            schedule_duration=KPIMetric(
+                main_value=Decimal("30"),
+                change_value=Decimal("36"),
+                delta=Decimal("6"),
+                delta_percent=20.0,
+            ),
+            cpi=KPIMetric(
+                main_value=Decimal("1.0"),
+                change_value=Decimal("0.9"),
+                delta=Decimal("-0.1"),
+                delta_percent=-10.0,
+            ),
+            spi=KPIMetric(
+                main_value=Decimal("1.0"),
+                change_value=Decimal("1.0"),
+                delta=Decimal("0"),
+                delta_percent=0.0,
+            ),
         )
 
         impact_analysis = ImpactAnalysisResponse(
@@ -518,7 +606,9 @@ class TestChangeOrderServiceImpactScore:
             branch_name="BR-TEST-002",
             main_branch_name="main",
             kpi_scorecard=kpi_scorecard,
-            entity_changes=EntityChanges(wbes=[], cost_elements=[], cost_registrations=[]),
+            entity_changes=EntityChanges(
+                wbes=[], cost_elements=[], cost_registrations=[]
+            ),
             waterfall=[],
             time_series=[],
         )
@@ -537,10 +627,14 @@ class TestChangeOrderServiceImpactScore:
         # Total: 14.01
         expected_score = Decimal("14.01")
         # Allow small floating point differences
-        assert abs(score - expected_score) < Decimal("0.1"), f"Expected score ~{expected_score}, got {score}"
+        assert abs(score - expected_score) < Decimal("0.1"), (
+            f"Expected score ~{expected_score}, got {score}"
+        )
 
     @pytest.mark.asyncio
-    async def test_calculate_impact_score_high_impact(self, db_session: AsyncSession) -> None:
+    async def test_calculate_impact_score_high_impact(
+        self, db_session: AsyncSession
+    ) -> None:
         """Test impact score calculation for high impact change.
 
         Acceptance Criteria:
@@ -562,14 +656,54 @@ class TestChangeOrderServiceImpactScore:
         service = ChangeOrderService(db_session)
 
         kpi_scorecard = KPIScorecard(
-            bac=KPIMetric(main_value=Decimal("100000"), change_value=Decimal("140000"), delta=Decimal("40000"), delta_percent=40.0),
-            budget_delta=KPIMetric(main_value=Decimal("100000"), change_value=Decimal("140000"), delta=Decimal("40000"), delta_percent=40.0),
-            gross_margin=KPIMetric(main_value=Decimal("20000"), change_value=Decimal("28000"), delta=Decimal("8000"), delta_percent=40.0),
-            actual_costs=KPIMetric(main_value=Decimal("50000"), change_value=Decimal("50000"), delta=Decimal("0"), delta_percent=0.0),
-            revenue_delta=KPIMetric(main_value=Decimal("150000"), change_value=Decimal("120000"), delta=Decimal("-30000"), delta_percent=-20.0),
-            schedule_duration=KPIMetric(main_value=Decimal("30"), change_value=Decimal("42"), delta=Decimal("12"), delta_percent=40.0),
-            cpi=KPIMetric(main_value=Decimal("1.0"), change_value=Decimal("0.7"), delta=Decimal("-0.3"), delta_percent=-30.0),
-            spi=KPIMetric(main_value=Decimal("1.0"), change_value=Decimal("0.8"), delta=Decimal("-0.2"), delta_percent=-20.0),
+            bac=KPIMetric(
+                main_value=Decimal("100000"),
+                change_value=Decimal("140000"),
+                delta=Decimal("40000"),
+                delta_percent=40.0,
+            ),
+            budget_delta=KPIMetric(
+                main_value=Decimal("100000"),
+                change_value=Decimal("140000"),
+                delta=Decimal("40000"),
+                delta_percent=40.0,
+            ),
+            gross_margin=KPIMetric(
+                main_value=Decimal("20000"),
+                change_value=Decimal("28000"),
+                delta=Decimal("8000"),
+                delta_percent=40.0,
+            ),
+            actual_costs=KPIMetric(
+                main_value=Decimal("50000"),
+                change_value=Decimal("50000"),
+                delta=Decimal("0"),
+                delta_percent=0.0,
+            ),
+            revenue_delta=KPIMetric(
+                main_value=Decimal("150000"),
+                change_value=Decimal("120000"),
+                delta=Decimal("-30000"),
+                delta_percent=-20.0,
+            ),
+            schedule_duration=KPIMetric(
+                main_value=Decimal("30"),
+                change_value=Decimal("42"),
+                delta=Decimal("12"),
+                delta_percent=40.0,
+            ),
+            cpi=KPIMetric(
+                main_value=Decimal("1.0"),
+                change_value=Decimal("0.7"),
+                delta=Decimal("-0.3"),
+                delta_percent=-30.0,
+            ),
+            spi=KPIMetric(
+                main_value=Decimal("1.0"),
+                change_value=Decimal("0.8"),
+                delta=Decimal("-0.2"),
+                delta_percent=-20.0,
+            ),
         )
 
         impact_analysis = ImpactAnalysisResponse(
@@ -577,7 +711,9 @@ class TestChangeOrderServiceImpactScore:
             branch_name="BR-TEST-003",
             main_branch_name="main",
             kpi_scorecard=kpi_scorecard,
-            entity_changes=EntityChanges(wbes=[], cost_elements=[], cost_registrations=[]),
+            entity_changes=EntityChanges(
+                wbes=[], cost_elements=[], cost_registrations=[]
+            ),
             waterfall=[],
             time_series=[],
         )
@@ -593,7 +729,9 @@ class TestChangeOrderServiceImpactScore:
         # Total: 32.05
         expected_score = Decimal("32.05")
         # Allow small floating point differences
-        assert abs(score - expected_score) < Decimal("0.1"), f"Expected score ~{expected_score}, got {score}"
+        assert abs(score - expected_score) < Decimal("0.1"), (
+            f"Expected score ~{expected_score}, got {score}"
+        )
 
     @pytest.mark.asyncio
     async def test_map_score_to_impact_level(self, db_session: AsyncSession) -> None:
@@ -687,7 +825,6 @@ class TestChangeOrderServiceApproverAssignment:
         Context: Phase 6 Task #3 - Approver assignment
         """
         # Arrange
-
 
         service = ChangeOrderService(db_session)
         project_id = uuid4()
@@ -834,7 +971,9 @@ class TestChangeOrderServiceApproverAssignment:
         await db_session.refresh(created_co)
 
         # Act & Assert - Verify impact_level was cleared
-        assert created_co.impact_level is None, "Setup failed: impact_level should be None"
+        assert created_co.impact_level is None, (
+            "Setup failed: impact_level should be None"
+        )
 
         # Try to submit for approval when impact_level is not set
         with pytest.raises(ValueError) as exc_info:
@@ -847,9 +986,9 @@ class TestChangeOrderServiceApproverAssignment:
         # Verify error message mentions impact level
         error_msg = str(exc_info.value).lower()
         assert (
-            "impact level" in error_msg or
-            "impact_level" in error_msg or
-            "calculated" in error_msg
+            "impact level" in error_msg
+            or "impact_level" in error_msg
+            or "calculated" in error_msg
         ), f"Error should mention impact level requirement, got: {exc_info.value}"
 
     @pytest.mark.asyncio
@@ -903,8 +1042,12 @@ class TestChangeOrderServiceApproverAssignment:
         await db_session.refresh(created_co)
 
         # Act & Assert - Verify approver was cleared
-        assert created_co.assigned_approver_id is None, "Setup failed: assigned_approver_id should be None"
-        assert created_co.impact_level == "HIGH", "Setup failed: impact_level should be HIGH"
+        assert created_co.assigned_approver_id is None, (
+            "Setup failed: assigned_approver_id should be None"
+        )
+        assert created_co.impact_level == "HIGH", (
+            "Setup failed: impact_level should be HIGH"
+        )
 
         # Try to submit for approval when no approver is assigned
         with pytest.raises(ValueError) as exc_info:
@@ -916,9 +1059,10 @@ class TestChangeOrderServiceApproverAssignment:
 
         # Verify error message mentions approver assignment
         error_msg = str(exc_info.value).lower()
-        assert (
-            "approver" in error_msg and
-            ("assigned" in error_msg or "not assigned" in error_msg or "no approver" in error_msg)
+        assert "approver" in error_msg and (
+            "assigned" in error_msg
+            or "not assigned" in error_msg
+            or "no approver" in error_msg
         ), f"Error should mention approver requirement, got: {exc_info.value}"
 
     @pytest.mark.asyncio
@@ -952,14 +1096,54 @@ class TestChangeOrderServiceApproverAssignment:
 
         # Create test impact analysis
         kpi_scorecard = KPIScorecard(
-            bac=KPIMetric(main_value=Decimal("100000"), change_value=Decimal("105000"), delta=Decimal("5000"), delta_percent=5.0),
-            budget_delta=KPIMetric(main_value=Decimal("100000"), change_value=Decimal("105000"), delta=Decimal("5000"), delta_percent=5.0),
-            gross_margin=KPIMetric(main_value=Decimal("20000"), change_value=Decimal("21000"), delta=Decimal("1000"), delta_percent=5.0),
-            actual_costs=KPIMetric(main_value=Decimal("50000"), change_value=Decimal("50000"), delta=Decimal("0"), delta_percent=0.0),
-            revenue_delta=KPIMetric(main_value=Decimal("150000"), change_value=Decimal("150000"), delta=Decimal("0"), delta_percent=0.0),
-            schedule_duration=KPIMetric(main_value=Decimal("30"), change_value=Decimal("31"), delta=Decimal("1"), delta_percent=3.33),
-            cpi=KPIMetric(main_value=Decimal("1.0"), change_value=Decimal("1.0"), delta=Decimal("0"), delta_percent=0.0),
-            spi=KPIMetric(main_value=Decimal("1.0"), change_value=Decimal("1.0"), delta=Decimal("0"), delta_percent=0.0),
+            bac=KPIMetric(
+                main_value=Decimal("100000"),
+                change_value=Decimal("105000"),
+                delta=Decimal("5000"),
+                delta_percent=5.0,
+            ),
+            budget_delta=KPIMetric(
+                main_value=Decimal("100000"),
+                change_value=Decimal("105000"),
+                delta=Decimal("5000"),
+                delta_percent=5.0,
+            ),
+            gross_margin=KPIMetric(
+                main_value=Decimal("20000"),
+                change_value=Decimal("21000"),
+                delta=Decimal("1000"),
+                delta_percent=5.0,
+            ),
+            actual_costs=KPIMetric(
+                main_value=Decimal("50000"),
+                change_value=Decimal("50000"),
+                delta=Decimal("0"),
+                delta_percent=0.0,
+            ),
+            revenue_delta=KPIMetric(
+                main_value=Decimal("150000"),
+                change_value=Decimal("150000"),
+                delta=Decimal("0"),
+                delta_percent=0.0,
+            ),
+            schedule_duration=KPIMetric(
+                main_value=Decimal("30"),
+                change_value=Decimal("31"),
+                delta=Decimal("1"),
+                delta_percent=3.33,
+            ),
+            cpi=KPIMetric(
+                main_value=Decimal("1.0"),
+                change_value=Decimal("1.0"),
+                delta=Decimal("0"),
+                delta_percent=0.0,
+            ),
+            spi=KPIMetric(
+                main_value=Decimal("1.0"),
+                change_value=Decimal("1.0"),
+                delta=Decimal("0"),
+                delta_percent=0.0,
+            ),
         )
 
         impact_analysis = ImpactAnalysisResponse(
@@ -967,7 +1151,9 @@ class TestChangeOrderServiceApproverAssignment:
             branch_name="BR-TEST-APPR",
             main_branch_name="main",
             kpi_scorecard=kpi_scorecard,
-            entity_changes=EntityChanges(wbes=[], cost_elements=[], cost_registrations=[]),
+            entity_changes=EntityChanges(
+                wbes=[], cost_elements=[], cost_registrations=[]
+            ),
             waterfall=[],
             time_series=[],
         )
@@ -979,3 +1165,183 @@ class TestChangeOrderServiceApproverAssignment:
         # Assert - Score and level calculation works correctly
         assert score < 10, f"Expected LOW impact score < 10, got {score}"
         assert level == "LOW", f"Expected LOW impact level, got {level}"
+
+
+class TestChangeOrderServiceGetNextCode:
+    """Test ChangeOrderService.get_next_code() method."""
+
+    @pytest.mark.asyncio
+    async def test_get_next_code_no_existing_codes(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Test get_next_code returns CO-YYYY-001 when no codes exist.
+
+        Acceptance Criteria:
+        - Returns CO-{current_year}-001 when project has no change orders
+        """
+        # Arrange
+        from datetime import UTC
+
+        service = ChangeOrderService(db_session)
+        project_id = uuid4()
+        current_year = datetime.now(UTC).year
+
+        # Act
+        next_code = await service.get_next_code(project_id)
+
+        # Assert
+        expected = f"CO-{current_year}-001"
+        assert next_code == expected, f"Expected {expected}, got {next_code}"
+
+    @pytest.mark.asyncio
+    async def test_get_next_code_with_existing_codes(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Test get_next_code returns max + 1 when codes exist.
+
+        Acceptance Criteria:
+        - Returns next sequential code (max + 1)
+        - Correctly zero-pads the number
+        """
+        # Arrange
+        from datetime import UTC
+
+        service = ChangeOrderService(db_session)
+        project_id = uuid4()
+        actor_id = uuid4()
+        current_year = datetime.now(UTC).year
+
+        # Create existing change orders
+        for i in range(1, 4):
+            co_in = ChangeOrderCreate(
+                project_id=project_id,
+                code=f"CO-{current_year}-{str(i).zfill(3)}",
+                title=f"Change Order {i}",
+                description=f"Description {i}",
+            )
+            await service.create_change_order(co_in, actor_id=actor_id)
+
+        # Act
+        next_code = await service.get_next_code(project_id)
+
+        # Assert
+        expected = f"CO-{current_year}-004"
+        assert next_code == expected, f"Expected {expected}, got {next_code}"
+
+    @pytest.mark.asyncio
+    async def test_get_next_code_different_years_independent(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Test that codes for different years are independent.
+
+        Acceptance Criteria:
+        - Codes from previous year don't affect current year's sequence
+        - Each year starts from 001
+        """
+        # Arrange
+        service = ChangeOrderService(db_session)
+        project_id = uuid4()
+        actor_id = uuid4()
+
+        # Create a CO for 2025
+        co_in = ChangeOrderCreate(
+            project_id=project_id,
+            code="CO-2025-005",
+            title="Previous Year CO",
+            description="Description",
+        )
+        await service.create_change_order(co_in, actor_id=actor_id)
+
+        # Act - Get next code for 2026
+        next_code = await service.get_next_code(project_id, year=2026)
+
+        # Assert - Should start from 001, not affected by 2025 codes
+        expected = "CO-2026-001"
+        assert next_code == expected, f"Expected {expected}, got {next_code}"
+
+    @pytest.mark.asyncio
+    async def test_get_next_code_scoped_to_project(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Test that codes are scoped to project.
+
+        Acceptance Criteria:
+        - Codes from other projects don't affect this project's sequence
+        - Each project has independent numbering
+        """
+        # Arrange
+        service = ChangeOrderService(db_session)
+        project_id_1 = uuid4()
+        project_id_2 = uuid4()
+        actor_id = uuid4()
+        current_year = datetime.now(UTC).year
+
+        # Create CO in project 1
+        co_in = ChangeOrderCreate(
+            project_id=project_id_1,
+            code=f"CO-{current_year}-003",
+            title="Project 1 CO",
+            description="Description",
+        )
+        await service.create_change_order(co_in, actor_id=actor_id)
+
+        # Act - Get next code for project 2 (should start from 001)
+        next_code = await service.get_next_code(project_id_2)
+
+        # Assert
+        expected = f"CO-{current_year}-001"
+        assert next_code == expected, f"Expected {expected}, got {next_code}"
+
+    @pytest.mark.asyncio
+    async def test_get_next_code_ignores_deleted_codes(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Test that soft-deleted codes are not considered.
+
+        Acceptance Criteria:
+        - Soft-deleted change orders don't affect next code calculation
+        """
+        # Arrange
+        from datetime import UTC
+
+        service = ChangeOrderService(db_session)
+        project_id = uuid4()
+        actor_id = uuid4()
+        current_year = datetime.now(UTC).year
+
+        # Create and delete a change order
+        co_in = ChangeOrderCreate(
+            project_id=project_id,
+            code=f"CO-{current_year}-001",
+            title="To Be Deleted",
+            description="Description",
+        )
+        created = await service.create_change_order(co_in, actor_id=actor_id)
+        await service.delete_change_order(created.change_order_id, actor_id=actor_id)
+
+        # Act - Should return 001 since 001 was deleted
+        next_code = await service.get_next_code(project_id)
+
+        # Assert
+        expected = f"CO-{current_year}-001"
+        assert next_code == expected, f"Expected {expected}, got {next_code}"
+
+    @pytest.mark.asyncio
+    async def test_get_next_code_with_explicit_year(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Test get_next_code with explicit year parameter.
+
+        Acceptance Criteria:
+        - Explicitly passed year is used instead of current year
+        """
+        # Arrange
+        service = ChangeOrderService(db_session)
+        project_id = uuid4()
+
+        # Act
+        next_code = await service.get_next_code(project_id, year=2027)
+
+        # Assert
+        expected = "CO-2027-001"
+        assert next_code == expected, f"Expected {expected}, got {next_code}"

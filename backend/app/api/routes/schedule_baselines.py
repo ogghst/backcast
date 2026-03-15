@@ -70,14 +70,13 @@ async def read_schedule_baselines(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     skip = (page - 1) * per_page
 
     # Build base statement
-    stmt = select(ScheduleBaseline).where(
-        cast(Any, ScheduleBaseline).deleted_at.is_(None),
-    )
+    stmt = select(ScheduleBaseline)
 
     # Build query with branch and mode support
     # In MERGE mode, query both current branch and main
@@ -90,18 +89,29 @@ async def read_schedule_baselines(
         stmt = stmt.where(ScheduleBaseline.branch == branch)
 
     # Apply time-travel filter if as_of is provided
+    # CRITICAL: Use proper zombie protection for time-travel queries
+    # per temporal-query-reference.md
+    from sqlalchemy import or_
+
     if as_of:
         # Cast as_of to TIMESTAMP(timezone=True) for proper timezone handling with TSTZRANGE
         from sqlalchemy import cast as sql_cast
+
         as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
         stmt = stmt.where(
             cast(Any, ScheduleBaseline).valid_time.op("@>")(as_of_tstz),
             func.lower(cast(Any, ScheduleBaseline).valid_time) <= as_of_tstz,
+            # ZOMBIE PROTECTION: Entity visible if not deleted, or deleted AFTER as_of
+            or_(
+                cast(Any, ScheduleBaseline).deleted_at.is_(None),
+                cast(Any, ScheduleBaseline).deleted_at > as_of_tstz,
+            ),
         )
     else:
-        # Current version only
+        # Current version only (no as_of provided - should not reach here due to default)
         stmt = stmt.where(
-            func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None)
+            func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None),
+            cast(Any, ScheduleBaseline).deleted_at.is_(None),
         )
 
     # Apply optional filters
@@ -151,11 +161,9 @@ async def create_schedule_baseline(
     """Create a new schedule baseline in specified branch."""
     try:
         # Extract branch and control_date from request body
-        # Note: Schema defaults branch to "main", but we enforce it here per "create on main first" policy
-        branch = "main"  # Always create on main first
-        control_date = baseline_in.control_date
+        branch = baseline_in.branch or "main"
 
-        return await service.create(
+        return await service.create_schedule_baseline(
             create_schema=baseline_in,
             actor_id=current_user.user_id,
             branch=branch,
@@ -190,6 +198,7 @@ async def read_schedule_baseline(
     # Default to current time if as_of is not provided
     if as_of is None:
         from datetime import UTC
+
         as_of = datetime.now(tz=UTC)
 
     if as_of:
@@ -239,12 +248,16 @@ async def update_schedule_baseline(
             )
 
         # Convert ScheduleBaselineUpdate to dict for update, excluding branch and control_date
-        update_data = baseline_in.model_dump(exclude_unset=True, exclude={"branch", "control_date"})
+        update_data = baseline_in.model_dump(
+            exclude_unset=True, exclude={"branch", "control_date"}
+        )
 
         return await service.update(
             root_id=schedule_baseline_id,
-            baseline_in=baseline_in,
             actor_id=current_user.user_id,
+            branch=branch,
+            control_date=control_date,
+            **update_data,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e

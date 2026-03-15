@@ -37,6 +37,8 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
     ) -> CostElementType:
         """Create new cost element type using CreateVersionCommand."""
         type_data = type_in.model_dump(exclude_unset=True)
+        root_id = type_in.cost_element_type_id or uuid4()
+        type_data["cost_element_type_id"] = root_id
 
         # Extract control_date from schema if present (for seeding)
         control_date = getattr(type_in, "control_date", None)
@@ -44,9 +46,20 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
         # Remove control_date from data to avoid duplicate kwarg error
         type_data.pop("control_date", None)
 
-        # Use provided cost_element_type_id (for seeding) or generate new one
-        root_id = type_in.cost_element_type_id or uuid4()
-        type_data["cost_element_type_id"] = root_id
+        # 1. Validate Department existence (Application-level Integrity)
+        from app.models.domain.department import Department
+
+        dept_exists = await self.session.execute(
+            select(Department.id)
+            .where(
+                Department.department_id == type_in.department_id,
+                func.upper(Department.valid_time).is_(None),
+                Department.deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        if not dept_exists.scalar_one_or_none():
+            raise ValueError(f"Department {type_in.department_id} not found")
 
         cmd = CreateVersionCommand(
             entity_class=CostElementType,  # type: ignore[type-var,unused-ignore]
@@ -56,7 +69,6 @@ class CostElementTypeService(TemporalService[CostElementType]):  # type: ignore[
             **type_data,
         )
         return await cmd.execute(self.session)
-
 
     async def update(  # type: ignore[override]
         self,

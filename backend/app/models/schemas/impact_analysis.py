@@ -19,6 +19,8 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import TypedDict
 
+from app.models.schemas.forecast import ForecastRead
+
 # Type alias for entity change types
 type EntityChangeType = Literal["added", "modified", "removed"]
 
@@ -218,6 +220,69 @@ class TimeSeriesData(BaseModel):
     )
 
 
+class ForecastComparison(BaseModel):
+    """Comparison of a single forecast between main and change branch.
+
+    Matches frontend ForecastImpactList expectations with mainForecast and branchForecast
+    objects containing full ForecastRead data.
+
+    Field names use camelCase to match frontend TypeScript interface.
+    """
+
+    model_config = ConfigDict(
+        strict=True,
+        populate_by_name=True,  # Allow both camelCase and snake_case
+    )
+
+    cost_element_id: UUID = Field(
+        serialization_alias="costElementId",
+        description="Cost Element ID",
+    )
+    cost_element_code: str = Field(
+        serialization_alias="costElementCode",
+        description="Cost Element code",
+    )
+    cost_element_name: str = Field(
+        serialization_alias="costElementName",
+        description="Cost Element name",
+    )
+    budget_amount: Decimal = Field(
+        serialization_alias="budgetAmount",
+        description="BAC from CostElement",
+    )
+    main_eac: Decimal | None = Field(
+        default=None,
+        serialization_alias="mainEac",
+        description="EAC in main branch (deprecated, use mainForecast)",
+    )
+    main_forecast: ForecastRead | None = Field(
+        default=None,
+        serialization_alias="mainForecast",
+        description="Full Forecast object from main branch",
+    )
+    change_eac: Decimal | None = Field(
+        default=None,
+        serialization_alias="changeEac",
+        description="EAC in change branch (deprecated, use branchForecast)",
+    )
+    branch_forecast: ForecastRead | None = Field(
+        default=None,
+        serialization_alias="branchForecast",
+        description="Full Forecast object from change branch",
+    )
+
+
+class ForecastChanges(BaseModel):
+    """Forecast changes for impact analysis."""
+
+    model_config = ConfigDict(strict=True)
+
+    forecasts: list[ForecastComparison] = Field(
+        default_factory=list,
+        description="Forecast comparisons between main and change branch",
+    )
+
+
 class ImpactAnalysisResponse(BaseModel):
     """Complete impact analysis response for a change order."""
 
@@ -237,4 +302,8 @@ class ImpactAnalysisResponse(BaseModel):
     time_series: list[TimeSeriesData] = Field(
         default_factory=list,
         description="S-curve comparison data",
+    )
+    forecast_changes: ForecastChanges | None = Field(
+        default=None,
+        description="Forecast impact analysis (EAC comparisons)",
     )

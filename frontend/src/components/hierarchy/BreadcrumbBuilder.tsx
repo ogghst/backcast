@@ -20,6 +20,20 @@ export const BreadcrumbBuilder = ({
     return null;
   }
 
+  const projectItem = {
+    title: (
+      <Link to={`/projects/${breadcrumb.project.project_id}`}>
+        {breadcrumb.project.code}
+      </Link>
+    ),
+  };
+
+  // Dedup: if the first WBE in the path has the same code as the project,
+  // we can rely on the WBE breadcrumb item for navigation and skip the project-level item
+  // to avoid "ProjectCode / ProjectCode / ..."
+  const firstWbeCode = breadcrumb.wbe_path[0]?.code;
+  const showProjectItem = firstWbeCode !== breadcrumb.project.code;
+
   const items = [
     {
       title: (
@@ -31,13 +45,7 @@ export const BreadcrumbBuilder = ({
     {
       title: <Link to="/projects">Projects</Link>,
     },
-    {
-      title: (
-        <Link to={`/projects/${breadcrumb.project.project_id}`}>
-          {breadcrumb.project.code}
-        </Link>
-      ),
-    },
+    ...(showProjectItem ? [projectItem] : []),
     // WBE path items
     ...breadcrumb.wbe_path.map((wbe, idx) => {
       const isLast = idx === breadcrumb.wbe_path.length - 1;

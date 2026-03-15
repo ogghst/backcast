@@ -6,7 +6,6 @@
  */
 
 import { Form, Input, InputNumber, DatePicker, Select, Switch } from "antd";
-import { useController } from "react-hook-form";
 import type { Rule } from "antd/es/form";
 import type { Dayjs } from "dayjs";
 
@@ -271,6 +270,7 @@ export const FormNumber = ({
   );
 };
 
+/* eslint-disable react-refresh/only-export-components */
 /**
  * Common validation rules
  */

@@ -1,4 +1,4 @@
-import { App, Button, Space, Select, Tag, Input } from "antd";
+import { App, Button, Space, Tag, Input } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -67,7 +67,7 @@ export const CostElementManagement = ({
     CostElementRead,
     CostElementFilters
   >();
-  const { branch, mode: branchMode, asOf } = useTimeMachineParams();
+  const { branch } = useTimeMachineParams();
 
   // Build query params, including wbeId filter if provided
   const queryParams = useMemo((): CostElementApiParams => {

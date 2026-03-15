@@ -63,9 +63,10 @@ describe("WBEModal", () => {
       // Revenue Allocation label should NOT be present
       expect(screen.queryByText(/Revenue Allocation/i)).not.toBeInTheDocument();
 
-      // Should only have 1 spinbutton (budget only)
-      const spinbuttons = screen.getAllByRole("spinbutton");
-      expect(spinbuttons).toHaveLength(1);
+      // Budget allocation input field is no longer present (computed from cost elements)
+      // No spinbuttons for budget input
+      const spinbuttons = screen.queryAllByRole("spinbutton");
+      expect(spinbuttons).toHaveLength(0);
     });
 
     it("shows revenue_allocation field in change order branch", () => {
@@ -83,7 +84,7 @@ describe("WBEModal", () => {
       const mockWBE: WBERead = {
         id: "wbe-123",
         wbe_id: "wbe-123",
-        project_id: mockProjectId as any,
+        project_id: mockProjectId,
         code: "1.1",
         name: "Test WBE",
         budget_allocation: 50000,
@@ -93,7 +94,7 @@ describe("WBEModal", () => {
         description: null,
         branch: "main",
         created_at: "2025-01-01T00:00:00Z",
-        created_by: "user-123" as any,
+        created_by: "user-123",
         created_by_name: null,
         parent_name: null,
         deleted_by: null,
@@ -101,14 +102,16 @@ describe("WBEModal", () => {
         transaction_time: null,
       };
 
-      render(<WBEModal {...defaultProps} initialValues={mockWBE} />, { wrapper });
+      render(<WBEModal {...defaultProps} initialValues={mockWBE} />, {
+        wrapper,
+      });
 
       // In main branch, revenue field should not be visible
       expect(screen.queryByText(/Revenue Allocation/i)).not.toBeInTheDocument();
 
-      // Should only have budget input (1 spinbutton)
-      const spinbuttons = screen.getAllByRole("spinbutton");
-      expect(spinbuttons).toHaveLength(1);
+      // Budget allocation is computed from cost elements, not an input field
+      const spinbuttons = screen.queryAllByRole("spinbutton");
+      expect(spinbuttons).toHaveLength(0);
     });
   });
 
@@ -124,9 +127,9 @@ describe("WBEModal", () => {
       // In main branch, revenue field is not rendered
       render(<WBEModal {...defaultProps} />, { wrapper });
 
-      // Should only have budget input (1 spinbutton)
-      const spinbuttons = screen.getAllByRole("spinbutton");
-      expect(spinbuttons).toHaveLength(1);
+      // Budget allocation is computed from cost elements, not an input field
+      const spinbuttons = screen.queryAllByRole("spinbutton");
+      expect(spinbuttons).toHaveLength(0);
 
       // Note: When in CO branch, revenue field would be visible and accept values
       // Testing CO branch behavior requires mocking TimeMachine store state
@@ -153,9 +156,13 @@ describe("WBEModal", () => {
    */
   describe("T-F003: Backend validation error display", () => {
     it("displays error when backend validation fails", async () => {
-      const mockOnOk = vi.fn().mockRejectedValue(
-        new Error("Total revenue allocation (€150,000) does not match project contract value (€160,000)")
-      );
+      const mockOnOk = vi
+        .fn()
+        .mockRejectedValue(
+          new Error(
+            "Total revenue allocation (€150,000) does not match project contract value (€160,000)",
+          ),
+        );
 
       render(<WBEModal {...defaultProps} onOk={mockOnOk} />, { wrapper });
 
@@ -181,11 +188,14 @@ describe("WBEModal", () => {
     });
 
     it("clears errors when modal is reopened", async () => {
-      const mockOnOk = vi.fn().mockRejectedValueOnce(
-        new Error("Validation failed")
-      );
+      const mockOnOk = vi
+        .fn()
+        .mockRejectedValueOnce(new Error("Validation failed"));
 
-      const { rerender } = render(<WBEModal {...defaultProps} onOk={mockOnOk} />, { wrapper });
+      const { rerender } = render(
+        <WBEModal {...defaultProps} onOk={mockOnOk} />,
+        { wrapper },
+      );
 
       // Trigger error - fill all required fields
       fireEvent.change(screen.getByLabelText(/WBE Name/i), {
@@ -213,16 +223,18 @@ describe("WBEModal", () => {
 
   /**
    * Additional tests for complete coverage
+   * NOTE: Budget allocation is now computed from cost elements, not an input field
    */
-  describe("Budget allocation field (existing functionality)", () => {
-    it("renders budget_allocation field", () => {
+  describe("Budget allocation (computed from cost elements)", () => {
+    it("does not render budget_allocation input field (computed from cost elements)", () => {
       render(<WBEModal {...defaultProps} />, { wrapper });
 
-      expect(screen.getByText(/Budget Allocation/i)).toBeInTheDocument();
+      // Budget allocation input field is no longer rendered
+      expect(screen.queryByText(/Budget Allocation/i)).not.toBeInTheDocument();
 
-      // First spinbutton should be budget
-      const budgetInput = screen.getAllByRole("spinbutton")[0];
-      expect(budgetInput).toBeDefined();
+      // No budget input spinbutton
+      const spinbuttons = screen.queryAllByRole("spinbutton");
+      expect(spinbuttons).toHaveLength(0);
     });
   });
 
@@ -250,7 +262,7 @@ describe("WBEModal", () => {
             name: "Test WBE",
             code: "1.1",
             // revenue_allocation is undefined in main branch (field not visible)
-          })
+          }),
         );
       });
     });

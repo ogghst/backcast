@@ -357,7 +357,8 @@ export const CostRegistrationsTab = ({
             });
           } else {
             // Filter out undefined values and ensure required fields are present
-            const { amount, cost_element_id, ...rest } = values;
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { amount, cost_element_id: _cost_element_id, ...rest } = values;
             const createData: Parameters<typeof createCostRegistration>[0] = {
               cost_element_id: costElement.cost_element_id,
               amount: amount ?? 0,

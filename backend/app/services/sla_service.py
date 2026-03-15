@@ -172,9 +172,7 @@ class SLAService:
 
         return business_days
 
-    def _add_business_days(
-        self, start_date: datetime, business_days: int
-    ) -> datetime:
+    def _add_business_days(self, start_date: datetime, business_days: int) -> datetime:
         """Add business days to a date, skipping weekends.
 
         Args:
@@ -193,9 +191,7 @@ class SLAService:
                 days_added += 1
 
         # Combine with the time from start_date
-        return datetime.combine(
-            current, start_date.time(), tzinfo=start_date.tzinfo
-        )
+        return datetime.combine(current, start_date.time(), tzinfo=start_date.tzinfo)
 
     def _is_business_day(self, check_date: date) -> bool:
         """Check if a date is a business day (Monday-Friday).
@@ -227,9 +223,7 @@ class SLAService:
 
         return input_date + timedelta(days=days)
 
-    async def update_sla_status_for_change_order(
-        self, change_order_id: str
-    ) -> str:
+    async def update_sla_status_for_change_order(self, change_order_id: str) -> str:
         """Update SLA status for a change order based on current time.
 
         This method is intended to be called by a background job that

@@ -15,7 +15,7 @@ import type { EVMTimeSeriesResponse } from "../types";
  */
 export interface TransformedSeries {
   name: string;
-  data: Array<[string, number]>;
+  data: Array<[string, number | null]>;
   color?: string;
 }
 
@@ -26,7 +26,9 @@ export interface TransformedSeries {
  * @param timeSeries - Time series data from API
  * @returns Array of series objects with PV, EV, and AC data
  */
-export function transformEVMProgressionData(timeSeries: EVMTimeSeriesResponse): TransformedSeries[] {
+export function transformEVMProgressionData(
+  timeSeries: EVMTimeSeriesResponse,
+): TransformedSeries[] {
   const points = timeSeries.points ?? [];
 
   return [
@@ -58,25 +60,20 @@ export function transformEVMProgressionData(timeSeries: EVMTimeSeriesResponse): 
  * @returns Array of series objects with CPI and SPI data
  */
 export function transformPerformanceIndicesData(
-  timeSeries: EVMTimeSeriesResponse
+  timeSeries: EVMTimeSeriesResponse,
 ): TransformedSeries[] {
   const points = timeSeries.points ?? [];
-
-  // Filter out points where CPI or SPI are null
-  const validPoints = points.filter(
-    (p) => p.cpi !== null && p.spi !== null
-  );
 
   return [
     {
       name: "CPI",
       color: "#5b8ff9", // Blue
-      data: validPoints.map((p) => [p.date, p.cpi!] as [string, number]),
+      data: points.map((p) => [p.date, p.cpi]),
     },
     {
       name: "SPI",
       color: "#5ad8a6", // Green
-      data: validPoints.map((p) => [p.date, p.spi!] as [string, number]),
+      data: points.map((p) => [p.date, p.spi]),
     },
   ];
 }
@@ -87,7 +84,9 @@ export function transformPerformanceIndicesData(
  * @param timeSeries - Time series data from API
  * @returns Array of series objects with Forecast and Actual data
  */
-export function transformCostComparisonData(timeSeries: EVMTimeSeriesResponse): TransformedSeries[] {
+export function transformCostComparisonData(
+  timeSeries: EVMTimeSeriesResponse,
+): TransformedSeries[] {
   const points = timeSeries.points ?? [];
 
   return [
@@ -131,10 +130,10 @@ export function transformAllTimeSeriesData(timeSeries: EVMTimeSeriesResponse): {
  * @returns Filtered data array
  */
 export function filterDataByDateRange(
-  data: Array<[string, number]>,
+  data: Array<[string, number | null]>,
   startDate: string | Date,
   endDate: string | Date,
-): Array<[string, number]> {
+): Array<[string, number | null]> {
   const start = new Date(startDate);
   const end = new Date(endDate);
 
@@ -159,7 +158,9 @@ export function getDateRangeFromSeries(series: TransformedSeries[]): {
     return null;
   }
 
-  const allDates = series.flatMap((s) => s.data.map(([date]) => new Date(date).getTime()));
+  const allDates = series.flatMap((s) =>
+    s.data.map(([date]) => new Date(date).getTime()),
+  );
   const min = Math.min(...allDates);
   const max = Math.max(...allDates);
 
@@ -176,7 +177,7 @@ export function getDateRangeFromSeries(series: TransformedSeries[]): {
  * @param data - Array of [date, value] tuples
  * @returns Object with min, max, avg, and latest values
  */
-export function calculateSeriesStats(data: Array<[string, number]>): {
+export function calculateSeriesStats(data: Array<[string, number | null]>): {
   min: number;
   max: number;
   avg: number;
@@ -185,14 +186,19 @@ export function calculateSeriesStats(data: Array<[string, number]>): {
 } | null {
   if (data.length === 0) return null;
 
-  const values = data.map(([, v]) => v);
+  const validValues = data.filter(([, v]) => v !== null) as Array<
+    [string, number]
+  >;
+  if (validValues.length === 0) return null;
+
+  const values = validValues.map(([, v]) => v);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const sum = values.reduce((a, b) => a + b, 0);
   const avg = sum / values.length;
 
-  // Last data point
-  const [latestDate, latest] = data[data.length - 1];
+  // Last valid data point
+  const [latestDate, latest] = validValues[validValues.length - 1];
 
   return { min, max, avg, latest, latestDate };
 }
@@ -204,7 +210,9 @@ export function calculateSeriesStats(data: Array<[string, number]>): {
  * @param data - Array of [date, value] tuples
  * @returns Cleaned data array with forward-filled values
  */
-export function forwardFillNulls(data: Array<[string, number | null]>): Array<[string, number]> {
+export function forwardFillNulls(
+  data: Array<[string, number | null]>,
+): Array<[string, number]> {
   const result: Array<[string, number]> = [];
   let lastValid: number | null = null;
 
@@ -232,9 +240,9 @@ export function forwardFillNulls(data: Array<[string, number | null]>): Array<[s
  * @returns Aggregated data array
  */
 export function aggregateToGranularity(
-  data: Array<[string, number]>,
+  data: Array<[string, number | null]>,
   targetGranularity: "week" | "month",
-): Array<[string, number]> {
+): Array<[string, number | null]> {
   if (data.length === 0) return [];
 
   const aggregationMap = new Map<string, number[]>();
@@ -255,14 +263,22 @@ export function aggregateToGranularity(
       key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-01`;
     }
 
-    if (!aggregationMap.has(key)) {
-      aggregationMap.set(key, []);
+    if (value !== null) {
+      if (!aggregationMap.has(key)) {
+        aggregationMap.set(key, []);
+      }
+      aggregationMap.get(key)!.push(value);
     }
-    aggregationMap.get(key)!.push(value);
   }
 
   // Calculate sum for each period
   return Array.from(aggregationMap.entries())
-    .map(([date, values]) => [date, values.reduce((a, b) => a + b, 0)] as [string, number])
+    .map(
+      ([date, values]) =>
+        [
+          date,
+          values.length > 0 ? values.reduce((a, b) => a + b, 0) : null,
+        ] as [string, number | null],
+    )
     .sort((a, b) => a[0].localeCompare(b[0]));
 }

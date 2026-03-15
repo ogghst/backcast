@@ -18,5 +18,6 @@ def main():
 
     print(f"Schema written to {output_path}")
 
+
 if __name__ == "__main__":
     main()

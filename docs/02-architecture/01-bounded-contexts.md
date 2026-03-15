@@ -108,13 +108,15 @@ Cost Element Types are organizational reference data that enable:
 
 - `Project` - Top-level container for financial data
 - `WBE` (Work Breakdown Element) - Individual machines/deliverables within projects
+  - `budget_allocation` is a **computed attribute** (sum of child CostElement.budget_amount)
+  - See [ADR-013: Computed Budget Attribute Pattern](decisions/ADR-013-computed-budget-attribute.md)
 
 **Key Files:**
 
 - `app/models/domain/project.py` - Project model
-- `app/models/domain/wbe.py` - WBE model
+- `app/models/domain/wbe.py` - WBE model (with computed budget_allocation)
 - `app/services/project_service.py` - ProjectService with EVCS support
-- `app/services/wbe_service.py` - WBEService with EVCS support
+- `app/services/wbe_service.py` - WBEService with budget computation
 - `app/api/routes/projects.py` - Project endpoints
 - `app/api/routes/wbes.py` - WBE endpoints
 
@@ -130,11 +132,17 @@ Cost Element Types are organizational reference data that enable:
 **Description:**
 Cost Elements are the leaf level of the project hierarchy where budgets are allocated and costs are tracked.
 
+**Budget Architecture (Single Source of Truth):**
+- `CostElement.budget_amount` is the **sole storage location** for all budget data
+- WBE budgets are computed on-the-fly from child CostElements
+- See [ADR-013: Computed Budget Attribute Pattern](decisions/ADR-013-computed-budget-attribute.md)
+
 **Key Entities:**
 
 - `CostElement` - Project-specific instance of a Cost Element Type
   - Branchable (supports change orders)
   - Has 1:1 relationship with ScheduleBaseline
+  - **Sole source of budget data** via `budget_amount` field
   - Satisfies: `BranchableProtocol`
   - Auto-creates default schedule baseline on creation
 
@@ -166,7 +174,7 @@ Cost Elements are the leaf level of the project hierarchy where budgets are allo
 
 **Responsibility:** Branch creation, modification, comparison, merging
 **Owner:** Backend Team
-**Status:** Planned
+**Status:** Implemented
 **Versioning:** Uses EVCS Core branching capabilities
 
 **Key Operations:**
@@ -177,7 +185,9 @@ Cost Elements are the leaf level of the project hierarchy where budgets are allo
 - Branch merge for approved change orders
 - Branch locking/unlocking
 
-**Documentation:** [Time Travel & Branching Architecture](cross-cutting/temporal-query-reference.md)
+> **For workflow states, approval matrix, and user stories**, see: [Change Management User Stories](../../01-product-scope/change-management-user-stories.md)
+>
+> **For technical implementation**, see: [Time Travel & Branching Architecture](cross-cutting/temporal-query-reference.md)
 
 ---
 
@@ -242,45 +252,90 @@ Quality events capture costs associated with rework, defects, warranty claims, a
 
 ### 10. AI/ML Integration
 
-**Responsibility:** Provide intelligent analysis and predictive capabilities for project management
+**Responsibility:** Provide intelligent analysis, natural language interaction, and AI-assisted data operations
 **Owner:** Backend Team
 **Status:** Planned
-**Versioning:** Not versioned (read-only analysis)
+**Versioning:** AI operations are logged; entity changes follow EVCS versioning
 
 **Description:**
-AI/ML Integration provides intelligent insights without write access to core data, maintaining data integrity while offering predictive analytics.
+AI/ML Integration provides a generalistic conversational AI interface built on LangGraph, enabling natural language interaction and AI-assisted CRUD operations with controlled write access through explicit user confirmation workflows.
 
-**Key Entities:**
+**Architecture Components:**
 
-- `AIAssessmentRequest` - Assessment job tracking (project_id, control_date, status)
-- `AIAssessmentResult` - Generated insights (summary, risks, recommendations)
-- `PredictionModel` - Model metadata (version, accuracy, training_date)
-- `AnomalyDetection` - Deviation alerts (metric, threshold, detected_date)
+- **LangGraph Agent Graph**: Core orchestration layer managing conversation flow, tool invocation, and state management
+- **OpenAI Provider**: Configurable connector to OpenAI-compatible endpoints (supports OpenAI, Azure OpenAI, self-hosted models)
+- **WebSocket Streamer**: Real-time bidirectional communication for streaming conversations to frontend
+- **Tool Layer**: Backend services exposed as LangGraph tools for entity operations
 
 **Key Responsibilities:**
 
+**Session Management:**
+- Support multiple concurrent sessions per user
+- Maintain conversation history and context per session
+- Associate sessions with project/branch context
+- Handle session persistence and resumption
+
+**Multimodal Input/Output:**
+- Accept text input from users
+- Accept image input (screenshots, diagrams, documents)
+- Accept file attachments (PDFs, spreadsheets, etc.)
+- Output text with Markdown formatting
+- Output Mermaid diagrams for visualizations
+- Stream responses in real-time via WebSocket
+
+**Tool Integration (Backend Services as Tools):**
+- Project & WBE Management tools (CRUD operations)
+- Cost Element & Financial Tracking tools
+- EVM Calculations & Reporting tools
+- Change Order Processing tools
+- Quality Event Management tools
+- Department & Cost Element Type tools
+- User Management tools (admin operations)
+
+**AI-Assisted Operations:**
+- Full CRUD operations on all entities via natural language
+- Create Projects, WBEs, Cost Elements from descriptions
+- Update any entity attributes via conversational interface
+- Soft delete entities (with confirmation workflow)
+- Generate change order drafts from user requirements
+- Suggest budget allocations based on project context
+- Assist with schedule baseline configuration
+
+**Analysis & Insights:**
 - Generate project assessments using AI (Section 12.6 of FR)
 - Detect anomalies in EVM metrics
 - Predict cost/schedule overruns
 - Suggest optimization opportunities
 - Analyze forecast accuracy trends
-- Provide natural language query interface (future)
+
+**Output Formatting:**
+- Markdown rendering for structured text responses
+- Mermaid diagram generation for:
+  - Project hierarchy visualization
+  - Workflow diagrams
+  - Timeline/Gantt charts
+  - Entity relationship diagrams
 
 **Dependencies:**
 
-- EVM Calculations & Reporting (metric sources)
-- Cost Element & Financial Tracking (data access)
-- External AI Services (OpenAI, Claude, etc.)
+- All bounded contexts (full CRUD access via tools)
+- LangGraph (agent orchestration)
+- OpenAI SDK (LLM provider)
+- WebSocket infrastructure (real-time streaming)
+- Authentication & Authorization (RBAC enforcement for tool calls)
 
 **Boundaries:**
 
 - Does NOT replace human decision-making
-- Does NOT have write access to core data
-- All AI suggestions require user confirmation
-- AI usage is audit logged
-- Project data anonymized before sending to external services
+- All AI-initiated write operations require explicit user confirmation
+- AI operations are fully audit logged with user attribution
+- Project data anonymized before sending to external AI services for analysis
+- Entity changes made via AI follow standard EVCS versioning and approval workflows
+- AI cannot bypass RBAC - user permissions are enforced for all tool operations
+- AI-generated change orders follow the same workflow as manually created ones
+- LLM endpoint is configurable (not locked to specific provider)
 
-**Documentation:** [Functional Requirements Section 12.6](../../01-product-scope/functional-requirements.md#126-ai-powered-project-assessment)
+**Documentation:** [Functional Requirements Section 12.6](../../01-product-scope/functional-requirements.md#126-ai-integration)
 
 ---
 

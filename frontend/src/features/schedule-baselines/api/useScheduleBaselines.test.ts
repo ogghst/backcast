@@ -22,7 +22,8 @@ vi.mock("@/contexts/TimeMachineContext", () => ({
     mode: "current",
     branch: "main",
   }),
-  TimeMachineProvider: ({ children }: { children: React.ReactNode }) => children,
+  TimeMachineProvider: ({ children }: { children: React.ReactNode }) =>
+    children,
 }));
 
 // Mock the ScheduleBaselinesService
@@ -46,9 +47,12 @@ const createWrapper = () => {
     },
   });
 
-  // eslint-disable-next-line @typescript-eslint/ban-types
   return ({ children }: { children: React.ReactNode }) => {
-    return React.createElement(QueryClientProvider, { client: queryClient }, children);
+    return React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children,
+    );
   };
 };
 
@@ -70,7 +74,9 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
         created_by: "user-123",
       };
 
-      vi.mocked(ScheduleBaselinesService.createScheduleBaseline).mockResolvedValue(mockBaseline);
+      vi.mocked(
+        ScheduleBaselinesService.createScheduleBaseline,
+      ).mockResolvedValue(mockBaseline);
 
       const { result } = renderHook(() => useCreateScheduleBaseline(), {
         wrapper: createWrapper(),
@@ -88,13 +94,15 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(ScheduleBaselinesService.createScheduleBaseline).toHaveBeenCalledWith(
+      expect(
+        ScheduleBaselinesService.createScheduleBaseline,
+      ).toHaveBeenCalledWith(
         expect.objectContaining({
           name: "New Schedule",
           branch: "main",
           control_date: undefined,
           cost_element_id: "ce-123",
-        })
+        }),
       );
     });
 
@@ -110,7 +118,9 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
         created_by: "user-123",
       };
 
-      vi.mocked(ScheduleBaselinesService.createScheduleBaseline).mockResolvedValue(mockBaseline);
+      vi.mocked(
+        ScheduleBaselinesService.createScheduleBaseline,
+      ).mockResolvedValue(mockBaseline);
 
       const { result } = renderHook(() => useCreateScheduleBaseline(), {
         wrapper: createWrapper(),
@@ -126,10 +136,12 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(ScheduleBaselinesService.createScheduleBaseline).toHaveBeenCalledWith(
+      expect(
+        ScheduleBaselinesService.createScheduleBaseline,
+      ).toHaveBeenCalledWith(
         expect.objectContaining({
           branch: "feature-branch",
-        })
+        }),
       );
     });
   });
@@ -147,7 +159,9 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
         created_by: "user-123",
       };
 
-      vi.mocked(ScheduleBaselinesService.updateScheduleBaseline).mockResolvedValue(mockBaseline);
+      vi.mocked(
+        ScheduleBaselinesService.updateScheduleBaseline,
+      ).mockResolvedValue(mockBaseline);
 
       const { result } = renderHook(() => useUpdateScheduleBaseline(), {
         wrapper: createWrapper(),
@@ -163,14 +177,16 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(ScheduleBaselinesService.updateScheduleBaseline).toHaveBeenCalledWith(
+      expect(
+        ScheduleBaselinesService.updateScheduleBaseline,
+      ).toHaveBeenCalledWith(
         "baseline-123",
         expect.objectContaining({
           name: "Updated Schedule",
           progression_type: "GAUSSIAN",
           branch: "main",
           control_date: undefined,
-        })
+        }),
       );
     });
 
@@ -186,7 +202,9 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
         created_by: "user-123",
       };
 
-      vi.mocked(ScheduleBaselinesService.updateScheduleBaseline).mockResolvedValue(mockBaseline);
+      vi.mocked(
+        ScheduleBaselinesService.updateScheduleBaseline,
+      ).mockResolvedValue(mockBaseline);
 
       const { result } = renderHook(() => useUpdateScheduleBaseline(), {
         wrapper: createWrapper(),
@@ -202,18 +220,22 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(ScheduleBaselinesService.updateScheduleBaseline).toHaveBeenCalledWith(
+      expect(
+        ScheduleBaselinesService.updateScheduleBaseline,
+      ).toHaveBeenCalledWith(
         "baseline-123",
         expect.objectContaining({
           branch: "feature-branch",
-        })
+        }),
       );
     });
   });
 
   describe("useDeleteScheduleBaseline - DELETE", () => {
     it("should delete schedule baseline with control_date query param", async () => {
-      vi.mocked(ScheduleBaselinesService.deleteScheduleBaseline).mockResolvedValue(undefined);
+      vi.mocked(
+        ScheduleBaselinesService.deleteScheduleBaseline,
+      ).mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useDeleteScheduleBaseline(), {
         wrapper: createWrapper(),
@@ -226,15 +248,15 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(ScheduleBaselinesService.deleteScheduleBaseline).toHaveBeenCalledWith(
-        "baseline-123",
-        "main",
-        undefined
-      );
+      expect(
+        ScheduleBaselinesService.deleteScheduleBaseline,
+      ).toHaveBeenCalledWith("baseline-123", "main", undefined);
     });
 
     it("should include custom branch in delete call", async () => {
-      vi.mocked(ScheduleBaselinesService.deleteScheduleBaseline).mockResolvedValue(undefined);
+      vi.mocked(
+        ScheduleBaselinesService.deleteScheduleBaseline,
+      ).mockResolvedValue(undefined);
 
       const { result } = renderHook(() => useDeleteScheduleBaseline(), {
         wrapper: createWrapper(),
@@ -247,11 +269,9 @@ describe("useScheduleBaselines - Direct API Hooks", () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(ScheduleBaselinesService.deleteScheduleBaseline).toHaveBeenCalledWith(
-        "baseline-123",
-        "feature-branch",
-        undefined
-      );
+      expect(
+        ScheduleBaselinesService.deleteScheduleBaseline,
+      ).toHaveBeenCalledWith("baseline-123", "feature-branch", undefined);
     });
   });
 });

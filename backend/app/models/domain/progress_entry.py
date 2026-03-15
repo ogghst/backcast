@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Numeric, Text
+from sqlalchemy import Numeric, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -34,7 +34,7 @@ class ProgressEntry(EntityBase, VersionableMixin):
         cost_element_id: Reference to the cost element being tracked.
         progress_percentage: Progress value (0.00 to 100.00).
         notes: Optional notes about progress (e.g., justification for decrease).
-        
+
     Temporal fields (from VersionableMixin):
         valid_time: When progress was measured (business time).
         created_by: User who reported the progress.
@@ -49,24 +49,20 @@ class ProgressEntry(EntityBase, VersionableMixin):
     __tablename__ = "progress_entries"
 
     # Root ID (stable identity across versions)
-    progress_entry_id: Mapped[UUID] = mapped_column(
-        PG_UUID, nullable=False, index=True
-    )
+    progress_entry_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
 
     # Foreign key to cost element
     cost_element_id: Mapped[UUID] = mapped_column(
         PG_UUID,
-        ForeignKey("cost_elements.cost_element_id"),
         nullable=False,
         index=True,
+        # NOTE: No database-level ForeignKey constraint on root ID.
     )
 
     # Progress percentage (decimal with 2 decimal places, range 0.00 to 100.00)
     progress_percentage: Mapped[Decimal] = mapped_column(
         Numeric(precision=5, scale=2), nullable=False
     )
-
-
 
     # Optional notes (e.g., justification for progress decrease)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

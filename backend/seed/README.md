@@ -116,38 +116,77 @@ This seed data demonstrates 6 different change order scenarios with complete bit
 
 **Use Case:** Testing large-scale scope addition and complete hierarchy creation.
 
+---
+
+### CO-2026-007: Structural Support Addition
+
+**Branch:** `BR-07c7b7a7-d0e1-4f6a-3b4c-5d6e7f8a9b07`
+**Status:** Draft
+**Impact:** HIGH
+
+**Changes:**
+
+- Adds 1 new L2 WBE (Structural Support)
+- Adds 2 new cost elements
+- Adds 2 new schedule baselines
+- Budget Impact: +$210,000 (+21%)
+- Timeline Impact: +4 months (extended to 2026-07-31)
+
+**Use Case:** Testing addition of new WBE components to existing tree.
+
+---
+
+### CO-2026-008: Layout Adjustment & Demolition
+
+**Branch:** `BR-08c8b8a8-d0e1-4f6a-3b4c-5d6e7f8a9b08`
+**Status:** Draft
+**Impact:** MEDIUM
+
+**Changes:**
+
+- Soft-deletes 1 L3 WBE and its 5 CEs (-$5,000)
+- Updates 1 L3 WBE and its 5 CEs (+$70,000)
+- Budget Impact: +$65,000 (+6.5%)
+- Timeline Impact: None
+
+**Use Case:** Testing combined removal and updates in same branch.
+
 ## Entity Counts
 
-| Entity Type | Main Branch | Branch Versions | Total |
-|-------------|-------------|------------------|-------|
-| **WBEs** | 20 | 12 | 32 |
-| **Cost Elements** | 100 | 40 | 140 |
-| **Schedule Baselines** | 100 | 40 | 140 |
-| **Branches** | - | 6 | 6 |
+| Entity Type            | Main Branch | Branch Versions | Total |
+| ---------------------- | ----------- | --------------- | ----- |
+| **WBEs**               | 19          | 15              | 34    |
+| **Cost Elements**      | 100         | 52              | 152   |
+| **Schedule Baselines** | 100         | 52              | 152   |
+| **Branches**           | -           | 8               | 8     |
 
 ## Budget Impact Summary
 
-| Change Order | Original | Modified | Delta | % Change |
-|--------------|----------|----------|-------|----------|
-| **Main** | $1,000,000 | $1,000,000 | $0 | 0% |
-| **CO-A** | $1,000,000 | $1,150,000 | +$150,000 | +15% |
-| **CO-B** | $1,000,000 | $1,045,000 | +$45,000 | +4.5% |
-| **CO-C** | $1,000,000 | $875,000 | -$125,000 | -12.5% |
-| **CO-D** | $1,000,000 | $1,000,000 | $0 | 0% |
-| **CO-E** | $1,000,000 | $1,000,000 | $0 | 0% (realloc) |
-| **CO-F** | $1,000,000 | $1,375,000 | +$375,000 | +37.5% |
+| Change Order | Original   | Modified   | Delta     | % Change     |
+| ------------ | ---------- | ---------- | --------- | ------------ |
+| **Main**     | $1,000,000 | $1,000,000 | $0        | 0%           |
+| **CO-A**     | $1,000,000 | $1,150,000 | +$150,000 | +15%         |
+| **CO-B**     | $1,000,000 | $1,045,000 | +$45,000  | +4.5%        |
+| **CO-C**     | $1,000,000 | $875,000   | -$125,000 | -12.5%       |
+| **CO-D**     | $1,000,000 | $1,000,000 | $0        | 0%           |
+| **CO-E**     | $1,000,000 | $1,000,000 | $0        | 0% (realloc) |
+| **CO-F**     | $1,000,000 | $1,375,000 | +$375,000 | +37.5%       |
+| **CO-G**     | $1,000,000 | $1,210,000 | +$210,000 | +21%         |
+| **CO-H**     | $1,000,000 | $1,065,000 | +$65,000  | +6.5%        |
 
 ## Timeline Impact Summary
 
-| Change Order | Original Duration | Modified Duration | Delta | Impact Type |
-|--------------|-------------------|-------------------|-------|-------------|
-| **Main** | 12 months | 12 months | 0 days | - |
-| **CO-A** | 12 months | 15 months | +90 days | Extension |
-| **CO-B** | 12 months | 12.5 months | +14 days | Minor Extension |
-| **CO-C** | 12 months | 11 months | -30 days | Reduction (rejected) |
-| **CO-D** | 12 months | 12 months | 0 days | Progression Change |
-| **CO-E** | 12 months | 12 months | 0 days | No Change |
-| **CO-F** | 12 months | 18 months | +180 days | Major Extension |
+| Change Order | Original Duration | Modified Duration | Delta     | Impact Type          |
+| ------------ | ----------------- | ----------------- | --------- | -------------------- |
+| **Main**     | 12 months         | 12 months         | 0 days    | -                    |
+| **CO-A**     | 12 months         | 15 months         | +90 days  | Extension            |
+| **CO-B**     | 12 months         | 12.5 months       | +14 days  | Minor Extension      |
+| **CO-C**     | 12 months         | 11 months         | -30 days  | Reduction (rejected) |
+| **CO-D**     | 12 months         | 12 months         | 0 days    | Progression Change   |
+| **CO-E**     | 12 months         | 12 months         | 0 days    | No Change            |
+| **CO-F**     | 12 months         | 18 months         | +180 days | Major Extension      |
+| **CO-G**     | 12 months         | 16 months         | +120 days | Extension            |
+| **CO-H**     | 12 months         | 12 months         | 0 days    | No Change            |
 
 ## EVCS Architecture Compliance
 
@@ -443,11 +482,28 @@ print(f"Increase: ${co_budget - main_budget:,.2f}")
 - New Cost Elements: 25
 - New Schedule Baselines: 25
 
+### CO-G (Structural Support)
+
+- Budget: +$210,000
+- Timeline: +120 days
+- New WBEs: 1
+- New Cost Elements: 2
+- New Schedule Baselines: 2
+
+### CO-H (Layout Adjustment)
+
+- Budget: +$65,000
+- Timeline: 0 days
+- Soft-deleted WBEs: 1
+- Soft-deleted Cost Elements: 5
+- Modified WBEs: 1
+- Modified Cost Elements: 5
+
 ## Success Metrics
 
 ✅ **Data Quality**: All UUIDs unique, FKs valid, dates consistent
 ✅ **EVCS Compliance**: TemporalBase pattern followed, branches isolated
-✅ **Test Coverage**: All 6 change order types represented
+✅ **Test Coverage**: All 8 change order types represented
 ✅ **Documentation**: Clear usage examples and expected results
 ✅ **Realism**: Business values reflect actual scenarios
 

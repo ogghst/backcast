@@ -1,90 +1,139 @@
-import { Select, Badge, Space } from "antd";
+import { Spin, theme } from "antd";
 import { BranchesOutlined } from "@ant-design/icons";
+import React from "react";
+import { useProjectBranches } from "@/features/projects/api/useProjects";
+import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import type { BranchOption } from "./types";
 
 interface BranchSelectorProps {
-  /** Currently selected branch */
-  value: string;
-  /** Available branches */
-  branches: BranchOption[];
-  /** Called when branch selection changes */
-  onChange: (branch: string) => void;
+  /** Project ID to fetch branches for */
+  projectId: string;
+  /** Called when branch selection changes (optional) */
+  onChange?: (branch: string) => void;
   /** Disable selector */
   disabled?: boolean;
   /** Compact mode for header */
   compact?: boolean;
 }
 
-// Status dot colors for change order branches
-const STATUS_DOT_COLOR: Record<string, string> = {
-  Draft: "#faad14", // Amber
-  Submitted: "#1890ff", // Blue
-  "Under Review": "#52c41a", // Green
-  Approved: "#52c41a", // Green
-  Rejected: "#ff4d4f", // Red
-  Implemented: "#722ed1", // Purple
-  Closed: "#8c8c8c", // Gray
-};
-
 /**
- * Branch selector dropdown for switching between branches.
+ * Project-aware Branch selector dropdown for switching between branches.
+ *
+ * Fetches branches automatically for the given projectId and persists
+ * selection to the TimeMachineStore.
  *
  * Displays status badges for change order branches (BR-{code} pattern).
  *
  * @example
  * ```tsx
- * <BranchSelector
- *   value="main"
- *   branches={[
- *     { value: 'main', label: 'main', isDefault: true },
- *     { value: 'BR-CO-2026-001', label: 'BR-CO-2026-001', isChangeOrderBranch: true, changeOrderStatus: 'Draft' },
- *   ]}
- *   onChange={handleBranchChange}
- * />
+ * <BranchSelector projectId="proj-123" />
  * ```
  */
 export function BranchSelector({
-  value,
-  branches,
+  projectId,
   onChange,
   disabled = false,
   compact = false,
 }: BranchSelectorProps) {
+  const { token } = theme.useToken();
+
+  // Fetch branches for this project
+  const { data: branches = [], isLoading } = useProjectBranches(projectId);
+
+  // Get selected branch and action from store
+  const selectedBranch = useTimeMachineStore(
+    (state) => state.projectSettings[projectId]?.selectedBranch ?? "main",
+  );
+  const selectBranch = useTimeMachineStore((state) => state.selectBranch);
+
+  const handleBranchChange = (value: string) => {
+    selectBranch(value);
+    if (onChange) {
+      onChange(value);
+    }
+  };
+
+  const options: BranchOption[] = branches.map((b) => ({
+    value: b.name,
+    label: b.name,
+    isDefault: b.is_default,
+    isChangeOrderBranch: b.type === "change_order",
+    changeOrderStatus:
+      b.change_order_status as BranchOption["changeOrderStatus"],
+  }));
+
   return (
-    <Select
-      value={value}
-      onChange={onChange}
-      disabled={disabled}
-      style={{ minWidth: compact ? 120 : 180 }}
-      size={compact ? "small" : "middle"}
-      suffixIcon={<BranchesOutlined />}
-      options={branches.map((branch) => ({
-        value: branch.value,
-        label: (
-          <Space size="small">
-            {branch.isChangeOrderBranch ? (
-              <Badge
-                color={STATUS_DOT_COLOR[branch.changeOrderStatus || "Draft"]}
-                text={
-                  <span style={{ fontSize: compact ? 12 : 13 }}>
-                    {branch.label}
-                  </span>
-                }
-              />
-            ) : (
-              <span style={{ fontSize: compact ? 12 : 13 }}>
-                {branch.label}
-              </span>
-            )}
-            {branch.isDefault && (
-              <span style={{ color: "#888", marginLeft: 4, fontSize: 11 }}>
-                (default)
-              </span>
-            )}
-          </Space>
-        ),
-      }))}
-    />
+    <div
+      className="tm-branch-selector"
+      style={{
+        position: "relative",
+        minWidth: compact ? 160 : 200,
+      }}
+    >
+      <select
+        value={selectedBranch}
+        onChange={(e) => handleBranchChange(e.target.value)}
+        disabled={disabled || isLoading}
+        aria-label="Select branch"
+        style={{
+          width: "100%",
+          height: compact ? 32 : 36,
+          padding: `0 ${token.paddingSM}px`,
+          border: `1px solid ${token.colorBorder}`,
+          borderRadius: token.borderRadiusSM,
+          background: token.colorBgContainer,
+          color: token.colorText,
+          fontSize: compact ? token.fontSizeSM : 13,
+          fontWeight: 500,
+          cursor: "pointer",
+          transition: "all 150ms ease",
+          appearance: "none",
+          WebkitAppearance: "none",
+        }}
+        onMouseEnter={(e) => {
+          if (!disabled && !isLoading) {
+            e.currentTarget.style.borderColor = token.colorPrimary;
+          }
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = token.colorBorder;
+        }}
+      >
+        {options.map((branch) => (
+          <option key={branch.value} value={branch.value}>
+            {branch.isChangeOrderBranch && branch.changeOrderStatus
+              ? `[${branch.changeOrderStatus}] ${branch.label}`
+              : branch.label}
+            {branch.isDefault ? " (default)" : ""}
+          </option>
+        ))}
+      </select>
+      {isLoading && options.length === 0 && (
+        <Spin
+          size="small"
+          style={{
+            position: "absolute",
+            right: 16,
+            top: "50%",
+            transform: "translateY(-50%)",
+          }}
+        />
+      )}
+      {!isLoading && (
+        <BranchesOutlined
+          className="tm-branch-icon"
+          style={{
+            position: "absolute",
+            right: token.paddingSM,
+            top: "50%",
+            transform: "translateY(-50%)",
+            pointerEvents: "none",
+            color: token.colorTextQuaternary,
+            fontSize: 12,
+          }}
+        />
+      )}
+    </div>
   );
 }
 

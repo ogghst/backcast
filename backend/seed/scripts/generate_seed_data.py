@@ -12,12 +12,12 @@ impact analysis testing, including:
 """
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from uuid import uuid4, UUID
+from uuid import UUID, uuid4
 
 # Constants
-SEED_DIR = Path(__file__).parent
+SEED_DIR = Path(__file__).parent.parent
 PROJECT_1_ID = UUID("d54fbbe6-f3df-51db-9c3e-9408700442be")
 PROJECT_2_ID = UUID("877c4cba-b30e-54c1-b25d-c73fb364019d")
 
@@ -29,6 +29,8 @@ BRANCH_CO_C = "BR-CO-2026-006"
 BRANCH_CO_D = "BR-CO-2026-003"
 BRANCH_CO_E = "BR-CO-2026-004"
 BRANCH_CO_F = "BR-CO-2026-005"
+BRANCH_CO_G = "BR-CO-2026-007"
+BRANCH_CO_H = "BR-CO-2026-008"
 
 # Progression types
 PROGRESSION_TYPES = ["LINEAR", "GAUSSIAN", "LOGARITHMIC"]
@@ -64,11 +66,19 @@ def save_json(filename: str, data: list[dict]) -> None:
 def generate_schedule_baselines() -> list[dict]:
     """Generate 135 schedule baselines (100 main + 35 branch versions)."""
     cost_elements = load_json("cost_elements.json")
+
+    # Filter to only main branch elements to avoid generating baselines for existing branch CEs
+    cost_elements = [
+        ce
+        for ce in cost_elements
+        if not ce.get("branch") or ce.get("branch") in ["", "main"]
+    ]
+
     baselines = []
     baseline_counter = 1
 
     # Generate baselines for each cost element
-    for idx, ce in enumerate(cost_elements, 1):
+    for _idx, ce in enumerate(cost_elements, 1):
         ce_id = UUID(ce["cost_element_id"])
 
         # Determine date range based on WBE level
@@ -102,7 +112,7 @@ def generate_schedule_baselines() -> list[dict]:
         # Main branch baseline
         # Use existing baseline ID if available (to preserve links from cost_elements.json)
         baseline_id = ce.get("schedule_baseline_id") or str(uuid4())
-        
+
         baseline = {
             "id": str(uuid4()),
             "schedule_baseline_id": baseline_id,
@@ -173,18 +183,34 @@ def generate_branches() -> list[dict]:
             "change_order_id": UUID("e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b"),
             "locked": False,
         },
+        {
+            "branch_id": BRANCH_CO_G,
+            "name": "CO-2026-007 - Structural Support Addition",
+            "project_id": PROJECT_1_ID,
+            "change_order_id": UUID("07c7b7a7-d0e1-4f6a-3b4c-5d6e7f8a9b07"),
+            "locked": False,
+        },
+        {
+            "branch_id": BRANCH_CO_H,
+            "name": "CO-2026-008 - Layout Adjustment & Demolition",
+            "project_id": PROJECT_1_ID,
+            "change_order_id": UUID("08c8b8a8-d0e1-4f6a-3b4c-5d6e7f8a9b08"),
+            "locked": False,
+        },
     ]
 
     for branch in branch_data:
-        branches.append({
-            "id": str(uuid4()),
-            "branch_id": str(branch["branch_id"]),
-            "name": branch["name"],
-            "project_id": str(branch["project_id"]),
-            "change_order_id": str(branch["change_order_id"]),
-            "locked": branch["locked"],
-            "created_at": "2026-02-01T00:00:00",
-        })
+        branches.append(
+            {
+                "id": str(uuid4()),
+                "branch_id": str(branch["branch_id"]),
+                "name": branch["name"],
+                "project_id": str(branch["project_id"]),
+                "change_order_id": str(branch["change_order_id"]),
+                "locked": branch["locked"],
+                "created_at": "2026-02-01T00:00:00",
+            }
+        )
 
     return branches
 

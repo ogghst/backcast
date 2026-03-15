@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, UseMutationOptions, UseQueryOptions } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { request as __request } from "@/api/generated/core/request";
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
@@ -347,5 +347,62 @@ export const usePendingApprovals = (
       }) as Promise<PaginatedResponse<ChangeOrderPublic>>;
     },
     ...queryOptions,
+  });
+};
+
+/**
+ * Custom hook for archiving a change order branch.
+ *
+ * Context: Archives (soft-deletes) a change order's branch after it has been
+ * Implemented or Rejected. The branch will no longer appear in active lists
+ * but remains accessible via time-travel queries.
+ *
+ * Features:
+ * - Invalidates change order queries on success
+ * - Invalidates branches query to update branch selector
+ * - Shows success/error toast notifications
+ *
+ * @param mutationOptions - Optional mutation callbacks
+ * @returns Mutation object for archiving change order branch
+ */
+export const useArchiveChangeOrder = (
+  mutationOptions?: Omit<
+    UseMutationOptions<ChangeOrderPublic, Error, { id: string }>,
+    "mutationFn"
+  >
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      return __request(OpenAPI, {
+        method: "POST",
+        url: `/api/v1/change-orders/${id}/archive`,
+      }) as Promise<ChangeOrderPublic>;
+    },
+    onSuccess: async (data, ...args) => {
+      // Invalidate change order queries
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.changeOrders.all,
+      });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.changeOrders.detail(data.change_order_id),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.changeOrders.listsInProject(data.project_id.toString()),
+      });
+      // Invalidate branches query to update branch selector (remove archived branch)
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.projects.branches(data.project_id.toString()),
+      });
+
+      toast.success(`Branch BR-${data.code} archived successfully`);
+      mutationOptions?.onSuccess?.(data, ...args);
+    },
+    onError: (error, ...args) => {
+      toast.error(`Error archiving branch: ${error.message}`);
+      mutationOptions?.onError?.(error, ...args);
+    },
+    ...mutationOptions,
   });
 };

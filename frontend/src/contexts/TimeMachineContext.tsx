@@ -79,6 +79,7 @@ export function TimeMachineProvider({ children }: TimeMachineProviderProps) {
     queryClient.invalidateQueries({ queryKey: queryKeys.wbes.all });
     queryClient.invalidateQueries({ queryKey: queryKeys.costElements.all });
     queryClient.invalidateQueries({ queryKey: queryKeys.costElementTypes.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
   }, [queryClient]);
 
   const value = useMemo<TimeMachineContextValue>(
@@ -123,6 +124,7 @@ export function TimeMachineProvider({ children }: TimeMachineProviderProps) {
  * }
  * ```
  */
+/* eslint-disable react-refresh/only-export-components */
 export function useTimeMachine(): TimeMachineContextValue {
   const context = useContext(TimeMachineContext);
   if (!context) {

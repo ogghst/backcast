@@ -188,7 +188,9 @@ class TestEntityDiscoveryService:
         )
         # Manually soft delete the second WBE by setting deleted_at
         # (since delete_wbe queries main branch by default)
-        stmt = select(WBE).where(WBE.wbe_id == deleted_wbe_id, WBE.branch == branch_name)
+        stmt = select(WBE).where(
+            WBE.wbe_id == deleted_wbe_id, WBE.branch == branch_name
+        )
         result = await db_session.execute(stmt)
         deleted_wbe = result.scalar_one()
         deleted_wbe.deleted_at = datetime.now(UTC)
@@ -203,7 +205,9 @@ class TestEntityDiscoveryService:
         assert result[0].deleted_at is None
 
     @pytest.mark.asyncio
-    async def test_discover_wbes_excludes_other_branches(self, db_session: AsyncSession):
+    async def test_discover_wbes_excludes_other_branches(
+        self, db_session: AsyncSession
+    ):
         """Test that discovery only returns entities from the specified branch.
 
         Expected: WBEs from other branches are not included.

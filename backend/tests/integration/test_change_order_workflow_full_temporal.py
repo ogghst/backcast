@@ -62,7 +62,7 @@ class TestChangeOrderWorkflowFullTemporal:
         wbe_service = WBEService(db_session)
         ce_service = CostElementService(db_session)
         sb_service = ScheduleBaselineService(db_session)
-        forecast_service = ForecastService(db_session)
+        ForecastService(db_session)
         progress_service = ProgressEntryService(db_session)
         cost_reg_service = CostRegistrationService(db_session)
         co_service = ChangeOrderService(db_session)
@@ -94,8 +94,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Create Project
         project_id = uuid4()
-        project = await project_service.create(
-
+        await project_service.create(
             root_id=project_id,
             actor_id=actor_id,
             control_date=T0,
@@ -131,7 +130,7 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Create 2 CostElements (auto-creates ScheduleBaseline and Forecast)
         ce1_id = uuid4()
-        ce1 = await ce_service.create_cost_element(
+        await ce_service.create_cost_element(
             element_in=CostElementCreate(
                 cost_element_id=ce1_id,
                 wbe_id=wbe1_id,
@@ -146,7 +145,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         ce2_id = uuid4()
-        ce2 = await ce_service.create_cost_element(
+        await ce_service.create_cost_element(
             element_in=CostElementCreate(
                 cost_element_id=ce2_id,
                 wbe_id=wbe2_id,
@@ -167,7 +166,7 @@ class TestChangeOrderWorkflowFullTemporal:
         assert sb2 is not None
 
         # Update schedule baselines with dates
-        sb1_updated = await sb_service.update(
+        await sb_service.update(
             root_id=sb1.schedule_baseline_id,
             actor_id=actor_id,
             branch="main",
@@ -177,7 +176,7 @@ class TestChangeOrderWorkflowFullTemporal:
             progression_type="LINEAR",
         )
 
-        sb2_updated = await sb_service.update(
+        await sb_service.update(
             root_id=sb2.schedule_baseline_id,
             actor_id=actor_id,
             branch="main",
@@ -243,7 +242,6 @@ class TestChangeOrderWorkflowFullTemporal:
         T1 = datetime(2026, 1, 8, 12, 0, 0, tzinfo=UTC)
         T1_before = datetime(2026, 1, 7, 12, 0, 0, tzinfo=UTC)
         T1_after = datetime(2026, 1, 9, 12, 0, 0, tzinfo=UTC)
-
 
         co = await co_service.create_change_order(
             change_order_in=ChangeOrderCreate(
@@ -333,7 +331,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Create new versions of CostElement1 on CO branch (budget increase)
-        ce1_updated = await ce_service.create_cost_element(
+        await ce_service.create_cost_element(
             element_in=CostElementCreate(
                 cost_element_id=ce1_id,
                 wbe_id=wbe1_id,
@@ -388,9 +386,9 @@ class TestChangeOrderWorkflowFullTemporal:
             branch="main",
             branch_mode=BranchMode.STRICT,
         )
-        assert ce1_main.budget_amount == Decimal(
-            "100000.00"
-        ), "Main branch budget should be unchanged"
+        assert ce1_main.budget_amount == Decimal("100000.00"), (
+            "Main branch budget should be unchanged"
+        )
 
         # Verify CO branch has changes
         wbe1_co = await wbe_service.get_as_of(
@@ -511,9 +509,9 @@ class TestChangeOrderWorkflowFullTemporal:
         main_versions = [v for v in history if v.branch == "main"]
         for version in main_versions:
             if version.valid_time.upper is not None:
-                assert (
-                    version.valid_time.lower < version.valid_time.upper
-                ), f"Version {version.id} has empty valid_time range"
+                assert version.valid_time.lower < version.valid_time.upper, (
+                    f"Version {version.id} has empty valid_time range"
+                )
 
     @pytest.mark.asyncio
     async def test_temporal_boundary_co_creation(
@@ -539,7 +537,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Create project
         await project_service.create(
-
             root_id=project_id,
             actor_id=actor_id,
             control_date=T0,
@@ -564,7 +561,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Zombie check: before T1
         co_before = await co_service.get_as_of(
-
             entity_id=co_id,
             as_of=T1_before,
             branch="main",
@@ -574,7 +570,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # At T1
         co_at = await co_service.get_as_of(
-
             entity_id=co_id,
             as_of=T1,
             branch="main",
@@ -585,7 +580,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # After T1
         co_after = await co_service.get_as_of(
-
             entity_id=co_id,
             as_of=T1_after,
             branch="main",
@@ -621,7 +615,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Create project
         await project_service.create(
-
             root_id=project_id,
             actor_id=actor_id,
             control_date=T0,
@@ -632,7 +625,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Create WBE on main
         await wbe_service.create_root(
-
             root_id=wbe_id,
             actor_id=actor_id,
             control_date=T0,
@@ -659,7 +651,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # STRICT mode: WBE not on CO branch
         wbe_strict = await wbe_service.get_as_of(
-
             entity_id=wbe_id,
             as_of=T1,
             branch=source_branch,
@@ -669,7 +660,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # MERGE mode: falls back to main
         wbe_merge = await wbe_service.get_as_of(
-
             entity_id=wbe_id,
             as_of=T1,
             branch=source_branch,
@@ -680,7 +670,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Modify WBE on CO branch
         await wbe_service.create_root(
-
             root_id=wbe_id,
             actor_id=actor_id,
             control_date=T1,
@@ -693,7 +682,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # STRICT mode now returns the modified version
         wbe_strict_after = await wbe_service.get_as_of(
-
             entity_id=wbe_id,
             as_of=T1,
             branch=source_branch,
@@ -729,7 +717,11 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Create dependency chain
         dept = await dept_service.create(
-            root_id=uuid4(), actor_id=actor_id, control_date=T0, code="ENG", name="Engineering"
+            root_id=uuid4(),
+            actor_id=actor_id,
+            control_date=T0,
+            code="ENG",
+            name="Engineering",
         )
 
         cet = await cet_service.create(
@@ -744,7 +736,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         project_id = uuid4()
         await project_service.create(
-
             root_id=project_id,
             actor_id=actor_id,
             control_date=T0,
@@ -755,7 +746,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         wbe_id = uuid4()
         await wbe_service.create_root(
-
             root_id=wbe_id,
             actor_id=actor_id,
             control_date=T0,
@@ -767,7 +757,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         ce_id = uuid4()
-        ce = await ce_service.create_cost_element(
+        await ce_service.create_cost_element(
             element_in=CostElementCreate(
                 cost_element_id=ce_id,
                 wbe_id=wbe_id,
@@ -866,7 +856,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Verify CE merged
         ce_merged = await ce_service.get_as_of(
-
             entity_id=ce_id,
             as_of=T1,
             branch="main",
@@ -875,9 +864,7 @@ class TestChangeOrderWorkflowFullTemporal:
         assert ce_merged.budget_amount == Decimal("75000.00")
 
     @pytest.mark.asyncio
-    async def test_merge_temporal_consistency(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_merge_temporal_consistency(self, db_session: AsyncSession) -> None:
         """Test that merge maintains temporal consistency.
 
         Scenario:
@@ -902,7 +889,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Create project and WBE
         await project_service.create(
-
             root_id=project_id,
             actor_id=actor_id,
             control_date=T0,
@@ -912,7 +898,6 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         await wbe_service.create_root(
-
             root_id=wbe_id,
             actor_id=actor_id,
             control_date=T0,
@@ -938,7 +923,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # Modify on CO branch
         await wbe_service.create_root(
-
             root_id=wbe_id,
             actor_id=actor_id,
             control_date=T2,
@@ -983,7 +967,6 @@ class TestChangeOrderWorkflowFullTemporal:
         # Verify temporal consistency
         # At T0: original state
         wbe_t0 = await wbe_service.get_as_of(
-
             entity_id=wbe_id,
             as_of=T0,
             branch="main",
@@ -993,7 +976,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # At T1: still original state
         wbe_t1 = await wbe_service.get_as_of(
-
             entity_id=wbe_id,
             as_of=T1,
             branch="main",
@@ -1003,7 +985,6 @@ class TestChangeOrderWorkflowFullTemporal:
 
         # At T3: merged state
         wbe_t3 = await wbe_service.get_as_of(
-
             entity_id=wbe_id,
             as_of=T3,
             branch="main",
@@ -1015,6 +996,6 @@ class TestChangeOrderWorkflowFullTemporal:
         history = await wbe_service.get_history(root_id=wbe_id)
         for version in history:
             if version.valid_time.upper is not None:
-                assert (
-                    version.valid_time.lower < version.valid_time.upper
-                ), f"Version {version.id} has empty valid_time range"
+                assert version.valid_time.lower < version.valid_time.upper, (
+                    f"Version {version.id} has empty valid_time range"
+                )

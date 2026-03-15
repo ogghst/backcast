@@ -89,7 +89,9 @@ export async function handleListOptimisticUpdate<TData, TVariables>({
 
   queryClient.setQueryData<TData[]>(queryKey, (old = []) =>
     old.map((item) => {
-      const id = (item as any).id || (item as any).project_id || (item as any).wbe_id;
+      const id = (item as { id?: string; project_id?: string; wbe_id?: string }).id ||
+                  (item as { id?: string; project_id?: string; wbe_id?: string }).project_id ||
+                  (item as { id?: string; project_id?: string; wbe_id?: string }).wbe_id;
       return id === itemId ? updateFn(item, undefined as unknown as TVariables) : item;
     })
   );
@@ -115,7 +117,9 @@ export async function handleOptimisticDelete<TData>({
 
   queryClient.setQueryData<TData[]>(queryKey, (old = []) =>
     old.filter((item) => {
-      const id = (item as any).id || (item as any).project_id || (item as any).wbe_id;
+      const id = (item as { id?: string; project_id?: string; wbe_id?: string }).id ||
+                  (item as { id?: string; project_id?: string; wbe_id?: string }).project_id ||
+                  (item as { id?: string; project_id?: string; wbe_id?: string }).wbe_id;
       return id !== itemId;
     })
   );

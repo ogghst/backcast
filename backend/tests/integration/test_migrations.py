@@ -68,14 +68,16 @@ async def test_progress_entries_columns_correct(db_session):
     }
 
     for col_name, expected in required_columns.items():
-        assert col_name in columns, f"Column '{col_name}' not found in progress_entries table"
+        assert col_name in columns, (
+            f"Column '{col_name}' not found in progress_entries table"
+        )
         actual = columns[col_name]
-        assert (
-            actual["type"] == expected["type"]
-        ), f"Column '{col_name}' has wrong type: {actual['type']} != {expected['type']}"
-        assert (
-            actual["nullable"] == expected["nullable"]
-        ), f"Column '{col_name}' has wrong nullable: {actual['nullable']} != {expected['nullable']}"
+        assert actual["type"] == expected["type"], (
+            f"Column '{col_name}' has wrong type: {actual['type']} != {expected['type']}"
+        )
+        assert actual["nullable"] == expected["nullable"], (
+            f"Column '{col_name}' has wrong nullable: {actual['nullable']} != {expected['nullable']}"
+        )
 
 
 @pytest.mark.asyncio
@@ -108,9 +110,9 @@ async def test_progress_entries_indexes_exist(db_session):
     }
 
     missing_indexes = required_indexes - actual_indexes
-    assert (
-        not missing_indexes
-    ), f"Missing indexes on progress_entries table: {missing_indexes}"
+    assert not missing_indexes, (
+        f"Missing indexes on progress_entries table: {missing_indexes}"
+    )
 
 
 @pytest.mark.asyncio
@@ -137,8 +139,7 @@ async def test_progress_entries_gist_indexes_use_btree_gist(db_session):
 
     # Verify GIST indexes on temporal columns
     assert "ix_progress_entries_valid_time" in gist_indexes, (
-        "GIST index on valid_time not found. "
-        "btree_gist extension may not be enabled."
+        "GIST index on valid_time not found. btree_gist extension may not be enabled."
     )
     assert "USING gist (valid_time)" in gist_indexes["ix_progress_entries_valid_time"]
 
@@ -146,7 +147,10 @@ async def test_progress_entries_gist_indexes_use_btree_gist(db_session):
         "GIST index on transaction_time not found. "
         "btree_gist extension may not be enabled."
     )
-    assert "USING gist (transaction_time)" in gist_indexes["ix_progress_entries_transaction_time"]
+    assert (
+        "USING gist (transaction_time)"
+        in gist_indexes["ix_progress_entries_transaction_time"]
+    )
 
 
 @pytest.mark.asyncio
@@ -235,10 +239,10 @@ async def test_progress_entries_exclusion_constraint_overlap(db_session):
     )
     constraint = result.first()
 
-    assert constraint is not None, "Exclusion constraint for overlap prevention not found"
-    assert "EXCLUDE USING gist" in constraint[1], (
-        "Exclusion constraint should use GIST"
+    assert constraint is not None, (
+        "Exclusion constraint for overlap prevention not found"
     )
+    assert "EXCLUDE USING gist" in constraint[1], "Exclusion constraint should use GIST"
     assert "progress_entry_id WITH =" in constraint[1], (
         "Exclusion constraint should check progress_entry_id equality"
     )

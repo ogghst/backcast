@@ -35,8 +35,28 @@ export type ChangeOrderCreate = {
      */
     status?: string;
     /**
+     * Financial impact level
+     */
+    impact_level?: (string | null);
+    /**
      * Control date for bitemporal operations
      */
     control_date?: (string | null);
+    /**
+     * Assigned approver
+     */
+    assigned_approver_id?: (string | null);
+    /**
+     * SLA assigned timestamp
+     */
+    sla_assigned_at?: (string | null);
+    /**
+     * SLA due date
+     */
+    sla_due_date?: (string | null);
+    /**
+     * SLA status
+     */
+    sla_status?: (string | null);
 };
 

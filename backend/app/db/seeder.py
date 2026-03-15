@@ -351,7 +351,9 @@ class DataSeeder:
                         item["branch"] = "main"
 
                     ce_in = CostElementCreate(**item)
-                    await ce_service.create_cost_element(ce_in, actor_id)
+                    await ce_service.create_cost_element(
+                        ce_in, actor_id, branch=item["branch"]
+                    )
                     created_count += 1
                     logger.info(f"Created Cost Element: {ce_in.code}")
 
@@ -396,7 +398,9 @@ class DataSeeder:
                         item["branch"] = "main"
 
                     cr_in = CostRegistrationCreate(**item)
-                    await cr_service.create_cost_registration(cr_in, actor_id)
+                    await cr_service.create_cost_registration(
+                        cr_in, actor_id, branch=item["branch"]
+                    )
                     created_count += 1
                     logger.info(f"Created Cost Registration: {cr_in.amount}")
 
@@ -443,11 +447,11 @@ class DataSeeder:
                         item["branch"] = "main"
 
                     pe_in = ProgressEntryCreate(**item)
-                    await pe_service.create_progress_entry(pe_in, actor_id)
-                    created_count += 1
-                    logger.info(
-                        f"Created Progress Entry: {pe_in.progress_percentage}%"
+                    await pe_service.create(
+                        actor_id=actor_id, progress_in=pe_in, branch=item["branch"]
                     )
+                    created_count += 1
+                    logger.info(f"Created Progress Entry: {pe_in.progress_percentage}%")
 
                 except Exception as e:
                     logger.error(
@@ -488,8 +492,11 @@ class DataSeeder:
             logger.info(f"Using admin user {actor_id} for Change Order seeding")
         else:
             from uuid import uuid4
+
             actor_id = uuid4()
-            logger.warning("Admin user not found, using random UUID for actor_id (approvals may fail)")
+            logger.warning(
+                "Admin user not found, using random UUID for actor_id (approvals may fail)"
+            )
 
         created_count = 0
         skipped_count = 0
@@ -501,9 +508,13 @@ class DataSeeder:
                     co_in = ChangeOrderCreate(**item)
 
                     # Check if change order already exists
-                    existing_co = await co_service.get_current_by_code(co_in.code, branch="main")
+                    existing_co = await co_service.get_current_by_code(
+                        co_in.code, branch="main"
+                    )
                     if existing_co:
-                        logger.debug(f"Change Order {co_in.code} already exists, skipping")
+                        logger.debug(
+                            f"Change Order {co_in.code} already exists, skipping"
+                        )
                         skipped_count += 1
                         continue
 
@@ -512,7 +523,12 @@ class DataSeeder:
 
                     # Store workflow state fields for direct update after creation
                     workflow_fields = {}
-                    for field in ["assigned_approver_id", "sla_assigned_at", "sla_due_date", "sla_status"]:
+                    for field in [
+                        "assigned_approver_id",
+                        "sla_assigned_at",
+                        "sla_due_date",
+                        "sla_status",
+                    ]:
                         if field in item:
                             workflow_fields[field] = item[field]
 
@@ -520,8 +536,15 @@ class DataSeeder:
                     # so it defaults to "Draft" and only includes valid model fields
                     create_data = item.copy()
                     # Fields to remove from create_data
-                    fields_to_remove = ["status", "assigned_approver_id", "sla_assigned_at",
-                                     "sla_due_date", "sla_status", "priority", "estimated_cost"]
+                    fields_to_remove = [
+                        "status",
+                        "assigned_approver_id",
+                        "sla_assigned_at",
+                        "sla_due_date",
+                        "sla_status",
+                        "priority",
+                        "estimated_cost",
+                    ]
                     for field in fields_to_remove:
                         create_data.pop(field, None)
 
@@ -534,6 +557,54 @@ class DataSeeder:
                     )
                     created_count += 1
                     logger.info(f"Created Change Order: {co_in.code} - {co_in.title}")
+
+                    # Verify impact analysis completed - retry if needed
+                    max_retries = 3
+                    impact_analysis_completed = False
+                    for retry in range(max_retries):
+                        await session.refresh(created_co)
+                        if created_co.impact_analysis_status == "completed":
+                            logger.info(f"  → Impact analysis completed: {co_in.code}")
+                            impact_analysis_completed = True
+                            break
+                        elif created_co.impact_analysis_status in ("failed", "skipped"):
+                            logger.warning(
+                                f"  → Impact analysis {created_co.impact_analysis_status}, "
+                                f"retrying ({retry + 1}/{max_retries}): {co_in.code}"
+                            )
+                            # Re-run impact analysis
+                            if created_co.branch_name:
+                                try:
+                                    await co_service._run_impact_analysis(
+                                        created_co, created_co.branch_name
+                                    )
+                                    await session.commit()
+                                except Exception as e:
+                                    logger.warning(
+                                        f"  → Impact analysis retry failed: {e}"
+                                    )
+                                    await session.rollback()
+                                    await asyncio.sleep(2)  # Wait before retry
+                            else:
+                                logger.warning(
+                                    "  → Cannot retry impact analysis: branch_name is None"
+                                )
+                                break
+                        else:
+                            # Still in progress, wait
+                            logger.info("  → Impact analysis in progress, waiting...")
+                            await asyncio.sleep(2)
+
+                    # After retry loop, check final status
+                    if not impact_analysis_completed:
+                        await session.refresh(created_co)
+                        if created_co.impact_analysis_status != "completed":
+                            logger.warning(
+                                f"  → Impact analysis not completed after {max_retries} retries, "
+                                f"skipping workflow transitions for {co_in.code}"
+                            )
+                            # Skip workflow transitions but keep the CO in Draft status
+                            continue
 
                     # Prevent timestamp overlap for subsequent updates
                     await asyncio.sleep(1)
@@ -578,7 +649,9 @@ class DataSeeder:
 
                                 # Then transition to Under Review by updating status
                                 # Note: This is a direct status update for seeding purposes
-                                under_review_update = ChangeOrderUpdate(status="Under Review")
+                                under_review_update = ChangeOrderUpdate(
+                                    status="Under Review"
+                                )
                                 await co_service.update_change_order(
                                     change_order_id=co_id,
                                     change_order_in=under_review_update,
@@ -598,7 +671,9 @@ class DataSeeder:
                                 )
 
                                 # Then transition to Under Review
-                                under_review_update = ChangeOrderUpdate(status="Under Review")
+                                under_review_update = ChangeOrderUpdate(
+                                    status="Under Review"
+                                )
                                 await co_service.update_change_order(
                                     change_order_id=co_id,
                                     change_order_in=under_review_update,
@@ -627,7 +702,9 @@ class DataSeeder:
                                 )
 
                                 # Then transition to Under Review
-                                under_review_update = ChangeOrderUpdate(status="Under Review")
+                                under_review_update = ChangeOrderUpdate(
+                                    status="Under Review"
+                                )
                                 await co_service.update_change_order(
                                     change_order_id=co_id,
                                     change_order_in=under_review_update,
@@ -699,9 +776,14 @@ class DataSeeder:
                     # Insert audit log entry
                     # Parse datetime strings to datetime objects
                     from datetime import datetime
+
                     item_copy = item.copy()
-                    if 'changed_at' in item_copy and isinstance(item_copy['changed_at'], str):
-                        item_copy['changed_at'] = datetime.fromisoformat(item_copy['changed_at'])
+                    if "changed_at" in item_copy and isinstance(
+                        item_copy["changed_at"], str
+                    ):
+                        item_copy["changed_at"] = datetime.fromisoformat(
+                            item_copy["changed_at"]
+                        )
 
                     await session.execute(
                         insert(ChangeOrderAuditLog).values(**item_copy)
@@ -716,6 +798,162 @@ class DataSeeder:
 
         logger.info(
             f"Change Order Audit Log seeding complete: {created_count} created, {skipped_count} skipped/failed"
+        )
+
+    async def seed_ai_providers(self, session: AsyncSession) -> None:
+        """Seed AI providers from ai_providers.json file.
+
+        Args:
+            session: Database session
+        """
+        from sqlalchemy import select as sql_select
+
+        from app.models.domain.ai import AIModel, AIProvider, AIProviderConfig
+
+        logger.info("Starting AI provider seeding...")
+        provider_data = self.load_seed_file("ai_providers.json")
+
+        if not provider_data:
+            logger.info("No AI provider seed data found or file is empty")
+            return
+
+        created_count = 0
+        skipped_count = 0
+
+        with seed_operation():  # Allow explicit IDs from seed data
+            for idx, provider_dict in enumerate(provider_data):
+                try:
+                    provider_id = provider_dict.get("id")
+                    provider_configs = provider_dict.pop("configs", [])
+                    provider_models = provider_dict.pop("models", [])
+
+                    # Check if provider already exists
+                    stmt = sql_select(AIProvider).where(
+                        AIProvider.id == UUID(provider_id)
+                    )
+                    result = await session.execute(stmt)
+                    existing = result.scalar_one_or_none()
+
+                    if existing:
+                        logger.debug(
+                            f"AI Provider {provider_dict.get('name')} already exists, skipping"
+                        )
+                        skipped_count += 1
+                        continue
+
+                    # Create provider with explicit ID
+                    provider = AIProvider(
+                        id=UUID(provider_id) if provider_id else None,
+                        provider_type=provider_dict["provider_type"],
+                        name=provider_dict["name"],
+                        base_url=provider_dict.get("base_url"),
+                        is_active=provider_dict.get("is_active", True),
+                    )
+                    session.add(provider)
+                    await session.flush()
+
+                    # Add configs
+                    for config_dict in provider_configs:
+                        config_id = config_dict.pop("id", None)
+                        config = AIProviderConfig(
+                            id=UUID(config_id) if config_id else None,
+                            provider_id=str(provider.id),
+                            key=config_dict["key"],
+                            value=config_dict.get("value"),
+                            is_encrypted=config_dict.get("is_encrypted", False),
+                        )
+                        session.add(config)
+                        await session.flush()
+
+                    # Add models
+                    for model_dict in provider_models:
+                        model_id = model_dict.pop("id", None)
+                        model = AIModel(
+                            id=UUID(model_id) if model_id else None,
+                            provider_id=str(provider.id),
+                            model_id=model_dict["model_id"],
+                            display_name=model_dict["display_name"],
+                            is_active=model_dict.get("is_active", True),
+                        )
+                        session.add(model)
+                        await session.flush()
+
+                    created_count += 1
+                    logger.info(f"Created AI Provider: {provider.name}")
+
+                except Exception as e:
+                    logger.error(f"Failed to seed AI provider at index {idx}: {e}")
+                    skipped_count += 1
+                    continue
+
+        logger.info(
+            f"AI Provider seeding complete: {created_count} created, {skipped_count} skipped/failed"
+        )
+
+    async def seed_ai_assistants(self, session: AsyncSession) -> None:
+        """Seed AI assistant configs from ai_assistant_configs.json file.
+
+        Args:
+            session: Database session
+        """
+        from sqlalchemy import select as sql_select
+
+        from app.models.domain.ai import AIAssistantConfig
+
+        logger.info("Starting AI assistant seeding...")
+        assistant_data = self.load_seed_file("ai_assistant_configs.json")
+
+        if not assistant_data:
+            logger.info("No AI assistant seed data found or file is empty")
+            return
+
+        created_count = 0
+        skipped_count = 0
+
+        with seed_operation():  # Allow explicit IDs from seed data
+            for idx, assistant_dict in enumerate(assistant_data):
+                try:
+                    assistant_id = assistant_dict.get("id")
+
+                    # Check if assistant already exists
+                    stmt = sql_select(AIAssistantConfig).where(
+                        AIAssistantConfig.id == UUID(assistant_id)
+                    )
+                    result = await session.execute(stmt)
+                    existing = result.scalar_one_or_none()
+
+                    if existing:
+                        logger.debug(
+                            f"AI Assistant {assistant_dict.get('name')} already exists, skipping"
+                        )
+                        skipped_count += 1
+                        continue
+
+                    # Create assistant with explicit ID
+                    assistant = AIAssistantConfig(
+                        id=UUID(assistant_id) if assistant_id else None,
+                        name=assistant_dict["name"],
+                        description=assistant_dict.get("description"),
+                        model_id=str(assistant_dict["model_id"]),
+                        system_prompt=assistant_dict.get("system_prompt"),
+                        temperature=assistant_dict.get("temperature"),
+                        max_tokens=assistant_dict.get("max_tokens"),
+                        allowed_tools=assistant_dict.get("allowed_tools"),
+                        is_active=assistant_dict.get("is_active", True),
+                    )
+                    session.add(assistant)
+                    await session.flush()
+
+                    created_count += 1
+                    logger.info(f"Created AI Assistant: {assistant.name}")
+
+                except Exception as e:
+                    logger.error(f"Failed to seed AI assistant at index {idx}: {e}")
+                    skipped_count += 1
+                    continue
+
+        logger.info(
+            f"AI Assistant seeding complete: {created_count} created, {skipped_count} skipped/failed"
         )
 
     async def seed_all(self, session: AsyncSession) -> None:
@@ -756,6 +994,12 @@ class DataSeeder:
 
             # Seed Change Order Audit Logs
             await self.seed_change_order_audit_logs(session)
+
+            # Seed AI Providers
+            await self.seed_ai_providers(session)
+
+            # Seed AI Assistants
+            await self.seed_ai_assistants(session)
 
             # Commit all changes (services usually commit internally for writes?
             # Or depend on session commit at end. If services use execute() they might depend on session commit.)

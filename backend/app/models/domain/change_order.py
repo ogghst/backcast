@@ -6,17 +6,20 @@ Satisfies BranchableProtocol via structural subtyping.
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, NUMERIC, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base.base import EntityBase
 from app.models.mixins import BranchableMixin, VersionableMixin
+
+if TYPE_CHECKING:
+    from app.models.domain.project import Project
 
 
 class ImpactLevel:
@@ -149,6 +152,15 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
         comment="Impact severity score (weighted calculation)",
     )
 
+    # Relationships
+    # Note: relationship to Project uses root ID join and is view-only
+    project: Mapped["Project"] = relationship(
+        "Project",
+        primaryjoin="ChangeOrder.project_id == Project.project_id",
+        foreign_keys=[project_id],
+        viewonly=True,
+    )
+
     # Temporal and branching fields inherited from mixins:
     # - valid_time: TSTZRANGE (from VersionableMixin)
     # - transaction_time: TSTZRANGE (from VersionableMixin)
@@ -164,7 +176,7 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
         """Derive created_at from transaction_time.lower for API compatibility."""
         if self.transaction_time is not None:
             # Cast to Any to access PostgreSQL range lower bound
-            lower_bound = getattr(self.transaction_time, 'lower', None)
+            lower_bound = getattr(self.transaction_time, "lower", None)
             if isinstance(lower_bound, datetime):
                 return lower_bound
         return None

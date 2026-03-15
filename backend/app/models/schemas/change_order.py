@@ -109,6 +109,10 @@ class ChangeOrderPublic(ChangeOrderBase):
     updated_by: UUID | None = Field(None, description="User who last updated")
     updated_at: datetime | None = Field(None, description="When last updated")
     branch: str = Field(..., description="Branch name")
+    branch_name: str | None = Field(
+        None,
+        description="Change branch name for impact analysis (e.g., BR-CO-2026-001)",
+    )
     parent_id: UUID | None = Field(None, description="Parent version ID")
     deleted_at: datetime | None = Field(None, description="Soft delete timestamp")
 
@@ -203,6 +207,10 @@ class ChangeOrderApproval(BaseModel):
         None,
         description="Optional comments explaining the approval/rejection decision",
     )
+    control_date: datetime | None = Field(
+        None,
+        description="Control date for the workflow operation (defaults to now)",
+    )
 
 
 # Response schemas for list endpoints
@@ -220,6 +228,7 @@ class ChangeOrderRecoveryRequest(BaseModel):
         assigned_approver_id: User to assign as approver
         skip_impact_analysis: Skip impact analysis and use manual values
         recovery_reason: Explanation for recovery (10-500 chars)
+        control_date: Optional control date for the operation (defaults to now)
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -242,4 +251,8 @@ class ChangeOrderRecoveryRequest(BaseModel):
         min_length=10,
         max_length=500,
         description="Explanation for recovery (required for audit)",
+    )
+    control_date: datetime | None = Field(
+        None,
+        description="Control date for the workflow operation (defaults to now)",
     )

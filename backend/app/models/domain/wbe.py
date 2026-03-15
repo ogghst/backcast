@@ -10,15 +10,15 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import DECIMAL, ForeignKey, String, Text
+from sqlalchemy import DECIMAL, String, Text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.base.base import EntityBase
 from app.models.mixins import BranchableMixin, VersionableMixin
 
 if TYPE_CHECKING:
-    pass
+    from app.models.domain.project import Project
 
 
 class WBE(EntityBase, VersionableMixin, BranchableMixin):
@@ -32,22 +32,33 @@ class WBE(EntityBase, VersionableMixin, BranchableMixin):
         code: WBS code (e.g., "1.2.3").
         name: WBE name.
         description: Optional description.
-        budget_allocation: Budget allocated to this WBE.
+        revenue_allocation: Revenue allocated to this WBE from project contract value.
         level: Hierarchy level (1 for top-level, 2+ for children).
         parent_wbe_id: Parent WBE root ID for hierarchy (optional).
+        budget_allocation: Computed budget (sum of cost element budgets in full WBE hierarchy).
+            Not stored in database; computed on-the-fly.
+
+    Note: Budget is computed from CostElement.budget_amount values in the full WBE hierarchy
+    (direct cost elements + all descendant WBEs' cost elements).
     """
 
     __tablename__ = "wbes"
+    __allow_unmapped__ = True  # Allow non-mapped attributes like budget_allocation
 
     # Root ID (stable identity across versions and branches)
     wbe_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
 
+    # Computed attribute (not stored in DB, populated by service layer)
+    # This is set dynamically by WBEService._populate_computed_budgets()
+    budget_allocation: Decimal | None = None
+
     # Parent relationship - links to Project's root project_id
     project_id: Mapped[UUID] = mapped_column(
         PG_UUID,
-        ForeignKey("projects.project_id"),
         nullable=False,
         index=True,
+        # NOTE: No database-level ForeignKey constraint because project_id is a root ID
+        # that is not unique across versions. Integrity is enforced at application level.
     )
 
     # WBE hierarchy - parent WBE root ID
@@ -62,7 +73,8 @@ class WBE(EntityBase, VersionableMixin, BranchableMixin):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
 
     # Financial
-    budget_allocation: Mapped[Decimal] = mapped_column(DECIMAL(15, 2), default=0)
+    # NOTE: budget_allocation removed - budgets now exist only in CostElement.budget_amount
+    # WBE budget is computed on-the-fly as sum of child cost element budgets
     revenue_allocation: Mapped[Decimal | None] = mapped_column(
         DECIMAL(15, 2), nullable=True, default=None
     )
@@ -72,12 +84,13 @@ class WBE(EntityBase, VersionableMixin, BranchableMixin):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
-    # Note: relationship to Project uses back_populates, defined in Project model
-    # project: Mapped["Project"] = relationship(
-    #     "Project",
-    #     foreign_keys=[project_id],
-    #     back_populates="wbes"
-    # )
+    # Note: relationship to Project uses root ID join and is view-only
+    project: Mapped["Project"] = relationship(
+        "Project",
+        primaryjoin="WBE.project_id == Project.project_id",
+        foreign_keys=[project_id],
+        viewonly=True,
+    )
 
     # Temporal and branching fields inherited from mixins:
     # - valid_time: TSTZRANGE (from VersionableMixin)

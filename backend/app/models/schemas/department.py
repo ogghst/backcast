@@ -34,7 +34,6 @@ class DepartmentCreate(DepartmentBase):
     )
 
 
-
 class DepartmentUpdate(BaseModel):
     name: str | None = Field(None, max_length=255)
     code: str | None = Field(None, max_length=50, pattern="^[A-Z0-9_-]+$")

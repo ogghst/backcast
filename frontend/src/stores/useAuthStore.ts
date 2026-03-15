@@ -59,7 +59,13 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: !!user,
           }),
 
-        setToken: (token) => set({ token, isAuthenticated: !!token }),
+        setToken: (token) =>
+          set((state) => ({
+            token,
+            isAuthenticated: !!token,
+            // Populate permissions from stored user if available
+            ...(token && state.user ? { permissions: state.user.permissions || [] } : {}),
+          })),
 
         logout: () =>
           set({

@@ -9,7 +9,7 @@ Note: Branching commands have been moved to app.core.branching.commands.
 
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
-from typing import Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 from uuid import UUID, uuid4
 
 import sqlalchemy
@@ -18,6 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.versioning.exceptions import OverlappingVersionError
 from app.models.protocols import VersionableProtocol
+
+if TYPE_CHECKING:
+    from app.models.domain.change_order import ChangeOrder
 
 TVersionable = TypeVar("TVersionable", bound=VersionableProtocol)
 
@@ -70,6 +73,7 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
         session: AsyncSession,
         version: TVersionable,
         close_at_valid_time: datetime | None = None,
+        close_at_transaction_time: datetime | None = None,
     ) -> None:
         """Close a version by setting upper bound on BOTH temporal dimensions.
 
@@ -88,7 +92,7 @@ class VersionedCommandABC[TVersionable: VersionableProtocol](ABC):
         # CRITICAL FIX: Generate closing timestamps in Python to avoid identical timestamps
         # When calling clock_timestamp() twice in SQL, PostgreSQL returns the same microsecond
         # value if both calls execute within the same microsecond, creating empty ranges [t, t)
-        closing_timestamp = datetime.now(UTC)
+        closing_timestamp = close_at_transaction_time or datetime.now(UTC)
 
         # Determine closing times
         # If control_date (close_at_valid_time) is provided, use it for valid_time.
@@ -172,7 +176,8 @@ class CreateVersionCommand(VersionedCommandABC[TVersionable]):
             # Check for overlap starting at control_date
             stmt_check = stmt_check.where(
                 or_(
-                    func.upper(cast(Any, self.entity_class).valid_time) > self.control_date,
+                    func.upper(cast(Any, self.entity_class).valid_time)
+                    > self.control_date,
                     func.upper(cast(Any, self.entity_class).valid_time).is_(None),
                 )
             )
@@ -250,10 +255,16 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
         if not current:
             raise ValueError(f"No active version found for {self.root_id}")
 
+        # Generate universal timestamp for this update operation to ensure tx_lower >= tx_upper exactly
+        update_time = datetime.now(UTC)
+
         # CRITICAL FIX: Close current version FIRST to get its upper bound
         # This ensures we know exactly when the closed version ends
         await self._close_version(
-            session, current, close_at_valid_time=self.control_date
+            session,
+            current,
+            close_at_valid_time=self.control_date,
+            close_at_transaction_time=update_time,
         )
 
         # Refresh to get the updated valid_time (now closed)
@@ -328,11 +339,13 @@ class UpdateVersionCommand(VersionedCommandABC[TVersionable]):
         stmt = text(
             f"""
             INSERT INTO {tablename} ({cols_str}, valid_time, transaction_time)
-            VALUES ({placeholders_str}, tstzrange(:valid_lower, NULL, '[]'), tstzrange(clock_timestamp(), NULL, '[]'))
+            VALUES ({placeholders_str}, tstzrange(:valid_lower, NULL, '[]'), tstzrange(:tx_lower, NULL, '[]'))
             RETURNING id
             """
         )
-        result = await session.execute(stmt, {**values, "valid_lower": new_valid_lower})
+        result = await session.execute(
+            stmt, {**values, "valid_lower": new_valid_lower, "tx_lower": update_time}
+        )
         new_version_id = result.scalar_one()
 
         # Fetch the newly created version from the database
@@ -435,6 +448,7 @@ class CreateChangeOrderAuditLogCommand:
         new_status: New status value
         actor_id: User who made the change
         comment: Optional comment explaining the transition
+        control_date: Control date for the workflow operation (defaults to now)
     """
 
     def __init__(
@@ -444,12 +458,14 @@ class CreateChangeOrderAuditLogCommand:
         new_status: str,
         actor_id: UUID,
         comment: str | None = None,
+        control_date: datetime | None = None,
     ) -> None:
         self.change_order_id = change_order_id
         self.old_status = old_status
         self.new_status = new_status
         self.actor_id = actor_id
         self.comment = comment
+        self.control_date = control_date or datetime.now(UTC)
 
     async def execute(self, session: AsyncSession) -> None:
         """Create and persist the audit log entry.
@@ -465,13 +481,14 @@ class CreateChangeOrderAuditLogCommand:
                 f"Cannot create audit log: status unchanged ({self.old_status})"
             )
 
-        # Create audit log entry
+        # Create audit log entry with control_date
         audit_entry = ChangeOrderAuditLog(
             change_order_id=self.change_order_id,
             old_status=self.old_status,
             new_status=self.new_status,
             comment=self.comment,
             changed_by=self.actor_id,
+            control_date=self.control_date,
         )
         session.add(audit_entry)
         await session.flush()
@@ -541,10 +558,13 @@ class LinkCostElementCommand:
 
 
 class UpdateChangeOrderStatusCommand:
-    """Command to update a Change Order's status.
+    """Command to update a Change Order's status with proper versioning.
 
-    Encapsulates status transitions for Change Orders.
+    Encapsulates status transitions for Change Orders with bitemporal tracking.
     This enforces the RSC pattern by isolating status update logic.
+
+    CRITICAL: This command creates a new version with proper valid_time based on
+    control_date, ensuring status is consistent with temporal queries.
 
     Note: This command does NOT create audit logs - that's the responsibility
     of CreateChangeOrderAuditLogCommand. Services should orchestrate both commands.
@@ -552,31 +572,52 @@ class UpdateChangeOrderStatusCommand:
     Attributes:
         change_order_id: Root UUID of the Change Order
         new_status: New status value
+        actor_id: UUID of user performing the update
         branch: Branch to update on
+        control_date: Optional control date for valid_time (defaults to now)
+        additional_updates: Optional dict of additional fields to update
     """
 
     def __init__(
         self,
         change_order_id: UUID,
         new_status: str,
+        actor_id: UUID,
         branch: str = "main",
+        control_date: datetime | None = None,
+        additional_updates: dict[str, Any] | None = None,
     ) -> None:
         self.change_order_id = change_order_id
         self.new_status = new_status
+        self.actor_id = actor_id
         self.branch = branch
+        self.control_date = control_date
+        self.additional_updates = additional_updates or {}
 
-    async def execute(self, session: AsyncSession) -> None:
-        """Update the Change Order's status field.
+    async def execute(self, session: AsyncSession) -> "ChangeOrder":
+        """Update the Change Order's status with proper versioning.
 
-        Uses raw SQL UPDATE to modify the status of the current version.
+        Closes the current version at control_date and creates a new version
+        with the updated status, ensuring bitemporal consistency.
+
+        Returns:
+            The updated ChangeOrder entity with new status
+
+        Raises:
+            ValueError: If change order not found
         """
         from sqlalchemy import text
 
-        # Use raw SQL to update the status
+        from app.models.domain.change_order import ChangeOrder
+
+        # Build updates dict
+        updates = {"status": self.new_status, **self.additional_updates}
+
+        # Get current version
         stmt = text(
             """
-            UPDATE change_orders
-            SET status = :new_status
+            SELECT id, valid_time
+            FROM change_orders
             WHERE change_order_id = :change_order_id
             AND branch = :branch
             AND upper(valid_time) IS NULL
@@ -586,17 +627,80 @@ class UpdateChangeOrderStatusCommand:
         result = await session.execute(
             stmt,
             {
-                "new_status": self.new_status,
                 "change_order_id": self.change_order_id,
                 "branch": self.branch,
             },
         )
-        await session.flush()
+        row = result.fetchone()
 
-        # Verify the update affected a row
-        if result.rowcount == 0:  # type: ignore[attr-defined]
+        if row is None:
             raise ValueError(
                 f"No active Change Order found with ID {self.change_order_id} "
                 f"on branch {self.branch}"
             )
 
+        current_id = row.id
+        current_valid_time = row.valid_time
+        current_lower = current_valid_time.lower if current_valid_time else None
+
+        # Determine control_date for valid_time
+        update_timestamp = datetime.now(UTC)
+        if self.control_date is None:
+            self.control_date = update_timestamp
+
+        # Close current version at control_date (create remainder if there's a time gap)
+        if current_lower and self.control_date > current_lower:
+            # Create remainder: close current version at control_date
+            close_stmt = text(
+                """
+                UPDATE change_orders
+                SET
+                    valid_time = tstzrange(:lower, :upper, '[)'),
+                    transaction_time = tstzrange(:tx_lower, :tx_upper, '[)')
+                WHERE id = :version_id
+                """
+            )
+            await session.execute(
+                close_stmt,
+                {
+                    "lower": current_lower,
+                    "upper": self.control_date,
+                    "tx_lower": current_valid_time.lower
+                    if current_valid_time
+                    else update_timestamp,
+                    "tx_upper": update_timestamp,
+                    "version_id": current_id,
+                },
+            )
+            await session.flush()
+
+        # Get the current entity to clone
+        current = await session.get(ChangeOrder, current_id)
+        if current is None:
+            raise ValueError(f"Change Order version {current_id} not found")
+
+        # Create new version with updated status
+        new_version = current.clone(created_by=self.actor_id, **updates)
+        new_version.parent_id = current_id
+        session.add(new_version)
+        await session.flush()
+
+        # Set valid_time to control_date, transaction_time to clock_timestamp()
+        set_time_stmt = text(
+            """
+            UPDATE change_orders
+            SET
+                valid_time = tstzrange(:control_date, NULL, '[]'),
+                transaction_time = tstzrange(clock_timestamp(), NULL, '[]')
+            WHERE id = :version_id
+            """
+        )
+        await session.execute(
+            set_time_stmt,
+            {"control_date": self.control_date, "version_id": new_version.id},
+        )
+        await session.flush()
+        await session.refresh(new_version)
+
+        # Cast to ChangeOrder for proper type hinting
+        return cast("ChangeOrder", new_version)

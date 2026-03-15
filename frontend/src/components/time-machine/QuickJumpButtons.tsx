@@ -1,4 +1,4 @@
-import { Button, Space, Tooltip } from "antd";
+import { Tooltip, theme } from "antd";
 import type { QuickJumpPreset } from "./types";
 
 interface QuickJumpButtonsProps {
@@ -34,11 +34,13 @@ export function QuickJumpButtons({
   maxDate,
   disabled = false,
 }: QuickJumpButtonsProps) {
+  const { token } = theme.useToken();
+
   // Use current date or now as reference
   const baseDate = currentDate || new Date();
 
   return (
-    <Space size="small">
+    <div className="tm-quick-jumps">
       {PRESETS.map(({ key, label, tooltip }) => {
         // Check if jump would go out of bounds
         const targetDate = calculateDateFromPreset(key, baseDate);
@@ -47,22 +49,64 @@ export function QuickJumpButtons({
         if (minDate && targetDate < minDate) isOutOfRange = true;
         if (maxDate && targetDate > maxDate) isOutOfRange = true;
 
+        const isBaseDateNow = !currentDate;
+
         return (
           <Tooltip key={key} title={isOutOfRange ? "Out of range" : tooltip}>
-            <Button
-              size="small"
+            <button
+              className="tm-quick-jump-button"
               onClick={() => onJump(key)}
               disabled={disabled || isOutOfRange}
+              type="button"
+              aria-label={tooltip}
+              style={{
+                height: 30,
+                minWidth: 40,
+                padding: `0 ${token.paddingSM}px`,
+                border: "none",
+                background:
+                  isBaseDateNow && label.startsWith("+")
+                    ? token.colorFillTertiary
+                    : token.colorFillSecondary,
+                color: token.colorText,
+                fontSize: 12,
+                fontWeight: 600,
+                borderRadius: token.borderRadiusSM,
+                cursor:
+                  disabled || isOutOfRange ? "not-allowed" : "pointer",
+                transition: "all 150ms ease",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                letterSpacing: "0.02em",
+                opacity:
+                  isBaseDateNow && label.startsWith("+") ? 0.35 : undefined,
+              }}
+              onMouseEnter={(e) => {
+                if (!disabled && !isOutOfRange && !(isBaseDateNow && label.startsWith("+"))) {
+                  e.currentTarget.style.background = token.colorFill;
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (isBaseDateNow && label.startsWith("+")) {
+                  e.currentTarget.style.background = token.colorFillTertiary;
+                } else {
+                  e.currentTarget.style.background = token.colorFillSecondary;
+                }
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
             >
               {label}
-            </Button>
+            </button>
           </Tooltip>
         );
       })}
-    </Space>
+    </div>
   );
 }
 
+/* eslint-disable react-refresh/only-export-components */
 /**
  * Calculate a date based on quick jump preset relative to a base date.
  *

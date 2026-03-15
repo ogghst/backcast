@@ -17,7 +17,11 @@ from app.core.versioning.enums import BranchMode
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_element_type import CostElementType
 from app.models.domain.wbe import WBE
+from app.models.protocols import VersionableProtocol
 from app.models.schemas.cost_element import CostElementCreate, CostElementUpdate
+
+# Import list as builtin_list to avoid shadowing by the list() method
+builtin_list = list
 
 
 class CostElementService(BranchableService[CostElement]):  # type: ignore[type-var,unused-ignore]
@@ -30,28 +34,6 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             db: Async database session
         """
         super().__init__(CostElement, db)
-
-    async def get_current(
-        self, root_id: UUID, branch: str = "main"
-    ) -> CostElement | None:
-        """Get the current active version for a root entity on a specific branch.
-
-        Override parent method to use 'cost_element_id' field instead of
-        the auto-generated field name.
-        """
-        stmt = (
-            select(CostElement)
-            .where(
-                CostElement.cost_element_id == root_id,
-                CostElement.branch == branch,
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
-            )
-            .order_by(cast(Any, CostElement).valid_time.desc())
-            .limit(1)
-        )
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
 
     async def create_root(
         self,
@@ -79,14 +61,14 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         data["cost_element_id"] = root_id
 
         cmd = CreateVersionCommand(
-            entity_class=CostElement,
+            entity_class=cast(type[VersionableProtocol], CostElement),
             root_id=root_id,
             actor_id=actor_id,
             control_date=control_date,
             branch=branch,
             **data,
         )
-        return await cmd.execute(self.session)
+        return cast(CostElement, await cmd.execute(self.session))
 
     def _get_base_stmt(self) -> Any:
         """Get base select statement with WBE name and CostElementType joins."""
@@ -98,10 +80,12 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         # Subquery for current WBE versions
         wbe_subq = (
             select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
+            .distinct(WBEAlias.wbe_id)
             .where(
                 func.upper(cast(Any, WBEAlias).valid_time).is_(None),
                 cast(Any, WBEAlias).deleted_at.is_(None),
             )
+            .order_by(WBEAlias.wbe_id, cast(Any, WBEAlias).transaction_time.desc())
             .subquery("wbe_lookup_subq")
         )
 
@@ -135,7 +119,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
 
     async def _resolve_relations(
         self, query_results: Sequence[Any]
-    ) -> list[CostElement]:
+    ) -> builtin_list[CostElement]:
         """Helper to resolve related names for a list of results."""
         resolved = []
         for item in query_results:
@@ -172,7 +156,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         element_data = element_in.model_dump(exclude_unset=True)
 
         # Extract control_date from schema if present (for seeding/time-travel)
-        control_date = getattr(element_in, 'control_date', None)
+        control_date = getattr(element_in, "control_date", None)
 
         # Remove control_date from data to avoid duplicate kwarg error
         element_data.pop("control_date", None)
@@ -185,6 +169,49 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         target_branch = branch or "main"
         if "branch" not in element_data or element_data["branch"] == "main":
             element_data["branch"] = target_branch
+
+        # 1. Validate Parent WBE existence (Application-level Integrity)
+        wbe_exists = await self.session.execute(
+            select(WBE.id)
+            .where(
+                WBE.wbe_id == element_in.wbe_id,
+                WBE.branch == target_branch,
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        if not wbe_exists.scalar_one_or_none():
+            # Fallback to main branch for parent WBE
+            wbe_exists_main = await self.session.execute(
+                select(WBE.id)
+                .where(
+                    WBE.wbe_id == element_in.wbe_id,
+                    WBE.branch == "main",
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None),
+                )
+                .limit(1)
+            )
+            if not wbe_exists_main.scalar_one_or_none():
+                raise ValueError(
+                    f"Parent WBE {element_in.wbe_id} not found on branch {target_branch} or main"
+                )
+
+        # 2. Validate Cost Element Type existence
+        type_exists = await self.session.execute(
+            select(CostElementType.id)
+            .where(
+                CostElementType.cost_element_type_id == element_in.cost_element_type_id,
+                func.upper(cast(Any, CostElementType).valid_time).is_(None),
+                cast(Any, CostElementType).deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        if not type_exists.scalar_one_or_none():
+            raise ValueError(
+                f"Cost Element Type {element_in.cost_element_type_id} not found"
+            )
 
         # Create the cost element
         cmd = CreateVersionCommand(
@@ -227,7 +254,6 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         await self.session.flush()
 
         return cost_element
-
 
     async def update(  # type: ignore[override]
         self,
@@ -436,7 +462,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         )
 
     async def get_by_id(
-        self, cost_element_id: UUID, branch: str = "main"
+        self, cost_element_id: UUID, branch: str = "main", branch_mode: BranchMode = BranchMode.MERGE
     ) -> CostElement | None:
         """Get cost element by root ID and branch with WBE name."""
         stmt = (
@@ -452,7 +478,27 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         )
         result = await self.session.execute(stmt)
         resolved = await self._resolve_relations(result.all())
-        return resolved[0] if resolved else None
+
+        if resolved:
+            return resolved[0]
+
+        if branch_mode == BranchMode.MERGE and branch != "main":
+            stmt_main = (
+                self._get_base_stmt()
+                .where(
+                    CostElement.cost_element_id == cost_element_id,
+                    CostElement.branch == "main",
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                )
+                .order_by(cast(Any, CostElement).valid_time.desc())
+                .limit(1)
+            )
+            result_main = await self.session.execute(stmt_main)
+            resolved_main = await self._resolve_relations(result_main.all())
+            return resolved_main[0] if resolved_main else None
+
+        return None
 
     async def get_cost_elements(
         self,
@@ -466,7 +512,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         sort_field: str | None = None,
         sort_order: str = "asc",
         as_of: datetime | None = None,
-    ) -> tuple[list[CostElement], int]:
+    ) -> tuple[builtin_list[CostElement], int]:
         """Get all cost elements with search, filtering, and sorting.
 
         Args:
@@ -587,7 +633,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         branch: str = "main",
         skip: int = 0,
         limit: int = 100000,
-    ) -> list[CostElement]:
+    ) -> builtin_list[CostElement]:
         """Alias for get_cost_elements() to maintain backward compatibility.
 
         Note: Returns only items, not total count. Use get_cost_elements() for pagination.
@@ -631,10 +677,12 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         WBEAlias = aliased(WBE, name="wbe_history_lookup")
         wbe_subq = (
             select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
+            .distinct(WBEAlias.wbe_id)
             .where(
                 func.upper(cast(Any, WBEAlias).valid_time).is_(None),
                 cast(Any, WBEAlias).deleted_at.is_(None),
             )
+            .order_by(WBEAlias.wbe_id, cast(Any, WBEAlias).transaction_time.desc())
             .subquery("wbe_history_lookup_subq")
         )
 
@@ -692,7 +740,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         cost_element_id: UUID,
         as_of: datetime,
         branch: str = "main",
-        branch_mode: BranchMode | None = None,
+        branch_mode: BranchMode = BranchMode.MERGE,
     ) -> CostElement | None:
         """Get cost element as it was at specific timestamp.
 
@@ -730,8 +778,12 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
         wbe_where_clauses = [cast(Any, WBEAlias).deleted_at.is_(None)]
         if as_of:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            wbe_where_clauses.append(cast(Any, WBEAlias).valid_time.op("@>")(as_of_tstz))
-            wbe_where_clauses.append(func.lower(cast(Any, WBEAlias).valid_time) <= as_of_tstz)
+            wbe_where_clauses.append(
+                cast(Any, WBEAlias).valid_time.op("@>")(as_of_tstz)
+            )
+            wbe_where_clauses.append(
+                func.lower(cast(Any, WBEAlias).valid_time) <= as_of_tstz
+            )
         else:
             wbe_where_clauses.append(
                 func.upper(cast(Any, WBEAlias).valid_time).is_(None)
@@ -739,15 +791,21 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
 
         wbe_subq = (
             select(WBEAlias.wbe_id, WBEAlias.name.label("wbe_name"))
+            .distinct(WBEAlias.wbe_id)
             .where(*wbe_where_clauses)
+            .order_by(WBEAlias.wbe_id, cast(Any, WBEAlias).transaction_time.desc())
             .subquery("wbe_lookup_subq")
         )
 
         type_where_clauses = [cast(Any, TypeAlias).deleted_at.is_(None)]
         if as_of:
             as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
-            type_where_clauses.append(cast(Any, TypeAlias).valid_time.op("@>")(as_of_tstz))
-            type_where_clauses.append(func.lower(cast(Any, TypeAlias).valid_time) <= as_of_tstz)
+            type_where_clauses.append(
+                cast(Any, TypeAlias).valid_time.op("@>")(as_of_tstz)
+            )
+            type_where_clauses.append(
+                func.lower(cast(Any, TypeAlias).valid_time) <= as_of_tstz
+            )
         else:
             type_where_clauses.append(
                 func.upper(cast(Any, TypeAlias).valid_time).is_(None)
@@ -807,7 +865,8 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 .outerjoin(wbe_subq, CostElement.wbe_id == wbe_subq.c.wbe_id)
                 .outerjoin(
                     type_subq,
-                    CostElement.cost_element_type_id == type_subq.c.cost_element_type_id,
+                    CostElement.cost_element_type_id
+                    == type_subq.c.cost_element_type_id,
                 )
                 .where(
                     CostElement.cost_element_id == cost_element_id,
@@ -909,3 +968,47 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
                 "name": current_element.name,
             },
         }
+
+    async def get_recently_updated(
+        self,
+        user_id: UUID | None = None,
+        limit: int = 10,
+        branch: str = "main",
+        eager_load_wbe_and_project: bool = False,
+    ) -> builtin_list[CostElement]:
+        """Get recently updated cost elements, optionally filtered by user.
+
+        Args:
+            user_id: Optional user ID to filter by (only cost elements updated by this user)
+            limit: Maximum number of cost elements to return
+            branch: Branch name to query (default: "main")
+            eager_load_wbe_and_project: If True, preload WBE and project relationships to avoid N+1 queries
+
+        Returns:
+            List of recently updated cost elements ordered by transaction_time descending
+        """
+        from sqlalchemy import desc
+        from sqlalchemy.orm import selectinload
+
+        stmt = select(CostElement).where(CostElement.branch == branch)
+
+        if user_id:
+            stmt = stmt.where(cast(Any, CostElement).created_by == user_id)
+
+        # Get current versions (not deleted)
+        stmt = stmt.where(
+            func.upper(cast(Any, CostElement).valid_time).is_(None),
+            cast(Any, CostElement).deleted_at.is_(None),
+        )
+
+        # Eager load WBE and project relationships if requested (for dashboard optimization)
+        if eager_load_wbe_and_project:
+            stmt = stmt.options(
+                selectinload(CostElement.wbe).selectinload(WBE.project)
+            )
+
+        # Order by transaction_time descending (most recent first)
+        stmt = stmt.order_by(desc(cast(Any, CostElement).transaction_time)).limit(limit)
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

@@ -1,6 +1,16 @@
 # API Conventions
 
-**Last Updated:** 2026-01-18
+**Last Updated:** 2026-03-02
+
+> **This is the authoritative reference** for API patterns in Backcast EVS.
+>
+> Other documents should link here for:
+> - Branch/context parameters (`branch`, `mode`, `as_of`, `control_date`)
+> - Pagination patterns
+> - Error handling
+> - Temporal query patterns
+
+---
 
 ## REST Principles
 
@@ -379,6 +389,35 @@ FastAPI automatically generates:
 - All endpoints must have description
 - All request/response models documented via Pydantic schemas
 - Examples provided for complex endpoints
+
+---
+
+## Backend-Frontend Contract Coordination
+
+When implementing features that span backend and frontend:
+
+### Contract Definition
+
+- Define API paths in a shared location (e.g., constants file or OpenAPI spec)
+- Document request/response shapes before implementation
+- Use OpenAPI-generated types on frontend
+
+### Verification Checklist
+
+Before completing implementation:
+
+- [ ] Backend endpoint path matches frontend API call
+- [ ] Request/response schemas are synchronized
+- [ ] At least one test verifies actual endpoint path (not just mocked)
+- [ ] OpenAPI client regenerated if backend changed
+
+### Quick Verification
+
+```
+Backend: /api/v1/change-orders/{id}/archive
+Frontend: /api/v1/change-orders/${id}/archive
+                              ^^^^^^^^ MATCH?
+```
 
 ---
 

@@ -309,7 +309,9 @@ class TestImpactAnalysisServiceRevenueImpact:
         assert result.revenue_delta.main_value == main_revenue
         assert result.revenue_delta.change_value == change_revenue
         assert result.revenue_delta.delta == Decimal("25000.00")  # 175k - 150k
-        assert result.revenue_delta.delta_percent == pytest.approx(16.6667, rel=0.001)  # 25k / 150k * 100
+        assert result.revenue_delta.delta_percent == pytest.approx(
+            16.6667, rel=0.001
+        )  # 25k / 150k * 100
 
     @pytest.mark.asyncio
     async def test_compare_kpis_revenue_zero_main(
@@ -422,7 +424,7 @@ class TestImpactAnalysisServiceRevenueImpact:
         assert len(changes) == 1
         assert changes[0].change_type == "modified"
         assert changes[0].revenue_delta == Decimal("10000.00")  # 70k - 60k
-        assert changes[0].budget_delta == Decimal("5000.00")  # 55k - 50k
+        assert changes[0].budget_delta is None  # WBE budget comes from CostElements now
 
     @pytest.mark.asyncio
     async def test_compare_wbe_revenue_delta_removed(
@@ -459,7 +461,9 @@ class TestImpactAnalysisServiceRevenueImpact:
         assert len(changes) == 1
         assert changes[0].change_type == "removed"
         assert changes[0].revenue_delta == Decimal("-40000.00")  # Lost revenue
-        assert changes[0].budget_delta == Decimal("-30000.00")  # Lost budget
+        assert changes[0].budget_delta == Decimal(
+            "0.00"
+        )  # WBE budget comes from CostElements now
 
 
 class TestImpactAnalysisServiceScheduleBaselineComparison:
@@ -792,9 +796,7 @@ class TestImpactAnalysisServiceVACProjections:
     """
 
     @pytest.mark.asyncio
-    async def test_compare_vac_no_variance(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_compare_vac_no_variance(self, db_session: AsyncSession) -> None:
         """Test VAC comparison when both branches are on budget.
 
         Acceptance Criteria:
@@ -825,9 +827,7 @@ class TestImpactAnalysisServiceVACProjections:
         assert result["change_vac"] == Decimal("0")
 
     @pytest.mark.asyncio
-    async def test_compare_vac_over_budget(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_compare_vac_over_budget(self, db_session: AsyncSession) -> None:
         """Test VAC comparison when change branch is over budget.
 
         Acceptance Criteria:
@@ -859,9 +859,7 @@ class TestImpactAnalysisServiceVACProjections:
         assert result["change_vac"] == Decimal("-10000.00")
 
     @pytest.mark.asyncio
-    async def test_compare_vac_under_budget(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_compare_vac_under_budget(self, db_session: AsyncSession) -> None:
         """Test VAC comparison when change branch is under budget.
 
         Acceptance Criteria:

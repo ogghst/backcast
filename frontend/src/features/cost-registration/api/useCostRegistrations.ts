@@ -77,7 +77,9 @@ export const useCostRegistrations = (params?: CostRegistrationListParams) => {
       const result = await CostRegistrationsService.getCostRegistrations(
         page,
         perPage,
-        cost_element_id,
+        "main", // branch - default value
+        "merged", // mode - default value
+        cost_element_id, // costElementId - correct position
         search || null,
         null, // filters string - can be enhanced later
         sortField || null,

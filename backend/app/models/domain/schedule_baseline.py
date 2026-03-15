@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, String, Text
 from sqlalchemy.dialects.postgresql import ENUM as PG_ENUM
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -83,9 +83,9 @@ class ScheduleBaseline(EntityBase, VersionableMixin, BranchableMixin):
     # (cost_elements.schedule_baseline_id FK). It will be removed in a future migration.
     cost_element_id: Mapped[UUID | None] = mapped_column(
         PG_UUID,
-        ForeignKey("cost_elements.cost_element_id"),
         nullable=True,  # Now nullable (migration in progress)
         index=True,
+        # NOTE: No database-level ForeignKey constraint on root ID.
         comment="DEPRECATED: Use cost_elements.schedule_baseline_id instead",
     )
 

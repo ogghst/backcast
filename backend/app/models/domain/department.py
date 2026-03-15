@@ -7,7 +7,7 @@ Satisfies VersionableProtocol.
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Boolean, ForeignKey, String
+from sqlalchemy import Boolean, String
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -42,7 +42,10 @@ class Department(EntityBase, VersionableMixin):
     # Profile (versioned)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     manager_id: Mapped[UUID | None] = mapped_column(
-        PG_UUID, ForeignKey("users.user_id"), nullable=True
+        PG_UUID,
+        nullable=True,
+        # NOTE: No database-level ForeignKey constraint because manager_id references
+        # users.user_id (root ID) which is not unique across versions.
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     description: Mapped[str | None] = mapped_column(String(5000), nullable=True)
@@ -54,7 +57,10 @@ class Department(EntityBase, VersionableMixin):
 
     # Relationships
     manager: Mapped["User"] = relationship(
-        "app.models.domain.user.User", foreign_keys=[manager_id]
+        "app.models.domain.user.User",
+        primaryjoin="Department.manager_id == User.user_id",
+        foreign_keys=[manager_id],
+        viewonly=True,
     )
 
     def __repr__(self) -> str:

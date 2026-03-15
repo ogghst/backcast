@@ -12,6 +12,7 @@ import {
 import {
   useApproveChangeOrder,
   useRejectChangeOrder,
+  useArchiveChangeOrder,
 } from "../api/useApprovals";
 import { queryKeys } from "@/api/queryKeys";
 
@@ -30,7 +31,9 @@ export const WORKFLOW_ACTIONS = {
   REVIEW: { label: "Put Under Review", status: "Under Review" },
   APPROVE: { label: "Approve", status: "Approved" },
   REJECT: { label: "Reject", status: "Rejected" },
+  REOPEN: { label: "Reopen", status: "Draft" },
   MERGE: { label: "Merge to Main", status: "Implemented" },
+  ARCHIVE: { label: "Archive Branch", status: "Archived" },
 } as const;
 
 export type WorkflowActionKey = keyof typeof WORKFLOW_ACTIONS;
@@ -76,6 +79,14 @@ export function useWorkflowActions(changeOrderId: string, options?: WorkflowActi
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.changeOrders.branches });
+      options?.onSuccess?.(data);
+    },
+    onError: options?.onError,
+  });
+
+  // Archive mutation
+  const archiveMutation = useArchiveChangeOrder({
+    onSuccess: (data) => {
       options?.onSuccess?.(data);
     },
     onError: options?.onError,
@@ -150,13 +161,44 @@ export function useWorkflowActions(changeOrderId: string, options?: WorkflowActi
     [changeOrderId, mergeMutation]
   );
 
+  /**
+   * Archive the Change Order branch (Implemented/Rejected → Archived)
+   *
+   * Soft-deletes the branch, making it invisible in active lists but
+   * still accessible via time-travel queries.
+   */
+  const archive = useCallback(
+    async () => {
+      return archiveMutation.mutateAsync({ id: changeOrderId });
+    },
+    [changeOrderId, archiveMutation]
+  );
+
+  /**
+   * Reopen the Change Order (Rejected → Draft)
+   *
+   * Returns a rejected change order to Draft status for further editing.
+   */
+  const reopen = useCallback(
+    async (comment?: string) => {
+      const data: ChangeOrderUpdate = {
+        status: WORKFLOW_ACTIONS.REOPEN.status,
+        comment,
+      };
+      return updateMutation.mutateAsync({ id: changeOrderId, data });
+    },
+    [changeOrderId, updateMutation]
+  );
+
   return {
     submit,
     review,
     approve,
     reject,
+    reopen,
     merge,
-    isLoading: updateMutation.isPending || approveMutation.isPending || rejectMutation.isPending || mergeMutation.isPending,
+    archive,
+    isLoading: updateMutation.isPending || approveMutation.isPending || rejectMutation.isPending || mergeMutation.isPending || archiveMutation.isPending,
     mutation: updateMutation,
   };
 }

@@ -30,17 +30,13 @@ import { QueryKey } from "@tanstack/react-query";
  * Simple helper to create typed query keys
  * This provides type safety for the query key factory pattern
  */
-function createQueryKeys<T extends Record<string, any>>(
+function createQueryKeys<T extends Record<string, unknown>>(
   prefix: string,
   keys: T,
 ) {
   return keys;
 }
-import type {
-  ProjectListParams,
-  PaginatedResponse,
-  ProjectRead,
-} from "@/types";
+import type { ProjectListParams } from "@/types";
 
 /**
  * Hierarchical query key structure for type safety and autocomplete
@@ -53,6 +49,12 @@ export const queryKeys = createQueryKeys("backcast-evs", {
       ["time-machine", { asOf, branch, mode }] as const,
   },
 
+  // Dashboard
+  dashboard: {
+    all: ["dashboard"] as const,
+    recentActivity: ["dashboard", "recent-activity"] as const,
+  },
+
   // Projects
   projects: {
     all: ["projects"] as const,
@@ -60,7 +62,7 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     list: (params: ProjectListParams) => ["projects", "list", params] as const,
     details: () => ["projects", "detail"] as const,
     detail: (id: string) => ["projects", "detail", id] as const,
-    branches: (projectId: string, context?: any) =>
+    branches: (projectId: string, context?: unknown) =>
       ["projects", projectId, "branches", context] as const,
     history: (projectId: string) => ["projects", projectId, "history"] as const,
   },
@@ -69,13 +71,13 @@ export const queryKeys = createQueryKeys("backcast-evs", {
   wbes: {
     all: ["wbes"] as const,
     lists: () => ["wbes", "list"] as const,
-    list: (projectId: string, params?: any) =>
+    list: (projectId: string, params?: unknown) =>
       ["wbes", "list", projectId, params] as const,
     details: () => ["wbes", "detail"] as const,
     detail: (id: string) => ["wbes", "detail", id] as const,
     history: (wbeId: string) => ["wbes", wbeId, "history"] as const,
     tree: (projectId: string) => ["wbes", "tree", projectId] as const,
-    breadcrumb: (wbeId: string, context?: any) =>
+    breadcrumb: (wbeId: string, context?: unknown) =>
       ["wbes", wbeId, "breadcrumb", context] as const,
   },
 
@@ -83,13 +85,13 @@ export const queryKeys = createQueryKeys("backcast-evs", {
   costElements: {
     all: ["cost-elements"] as const,
     lists: () => ["cost-elements", "list"] as const,
-    list: (params?: any) => ["cost-elements", "list", params] as const,
+    list: (params?: unknown) => ["cost-elements", "list", params] as const,
     details: () => ["cost-elements", "detail"] as const,
-    detail: (id: string, context?: any) =>
+    detail: (id: string, context?: unknown) =>
       ["cost-elements", "detail", id, context] as const,
     breadcrumb: (costElementId: string) =>
       ["cost_element_breadcrumb", costElementId] as const,
-    evmMetrics: (costElementId: string, context?: any) =>
+    evmMetrics: (costElementId: string, context?: unknown) =>
       ["cost-elements", "evm", costElementId, context] as const,
   },
 
@@ -97,12 +99,12 @@ export const queryKeys = createQueryKeys("backcast-evs", {
   costRegistrations: {
     all: ["cost-registrations"] as const,
     lists: () => ["cost-registrations", "list"] as const,
-    list: (costElementId: string, params?: any) =>
+    list: (costElementId: string, params?: unknown) =>
       ["cost-registrations", "list", costElementId, params] as const,
     details: () => ["cost-registrations", "detail"] as const,
     detail: (id: string) => ["cost-registrations", "detail", id] as const,
     history: (id: string) => ["cost-registrations", "history", id] as const,
-    budgetStatus: (costElementId: string, context?: any) =>
+    budgetStatus: (costElementId: string, context?: unknown) =>
       ["budget-status", costElementId, context] as const,
   },
 
@@ -110,14 +112,14 @@ export const queryKeys = createQueryKeys("backcast-evs", {
   progressEntries: {
     all: ["progress-entries"] as const,
     lists: () => ["progress-entries", "list"] as const,
-    list: (costElementId: string, context?: any) =>
+    list: (costElementId: string, context?: unknown) =>
       ["progress-entries", "list", costElementId, context] as const,
     details: () => ["progress-entries", "detail"] as const,
-    detail: (id: string, context?: any) =>
+    detail: (id: string, context?: unknown) =>
       ["progress-entries", "detail", id, context] as const,
     history: (costElementId: string) =>
       ["progress-entries", "history", costElementId] as const,
-    latest: (costElementId: string, context?: any) =>
+    latest: (costElementId: string, context?: unknown) =>
       ["progress-entries", "latest", costElementId, context] as const,
   },
 
@@ -127,13 +129,15 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     lists: () => ["change-orders", "list"] as const,
     listsInProject: (projectId: string) =>
       ["change-orders", "list", projectId] as const,
-    list: (projectId: string, params?: any) =>
+    list: (projectId: string, params?: unknown) =>
       ["change-orders", "list", projectId, params] as const,
     details: () => ["change-orders", "detail"] as const,
-    detail: (id: string, context?: any) =>
+    detail: (id: string, context?: unknown) =>
       ["change-orders", "detail", id, context] as const,
-    impact: (id: string, branchName?: string, mode?: string) =>
-      ["change-orders", id, "impact", branchName, mode] as const,
+    nextCode: (projectId: string, year?: number) =>
+      ["change-orders", "next-code", projectId, year] as const,
+    impact: (id: string, branchName?: string, mode?: string, context?: unknown) =>
+      ["change-orders", id, "impact", branchName, mode, context] as const,
     mergeConflicts: (
       changeOrderId: string,
       sourceBranch: string,
@@ -147,37 +151,78 @@ export const queryKeys = createQueryKeys("backcast-evs", {
         targetBranch,
       ] as const,
     branches: ["change-orders", "branches"] as const,
-    approvalInfo: (id: string) =>
-      ["change-orders", id, "approval-info"] as const,
-    pendingApprovals: (params?: any) =>
+    approvalInfo: (id: string, context?: unknown) =>
+      ["change-orders", id, "approval-info", context] as const,
+    pendingApprovals: (params?: unknown) =>
       ["pending-approvals", params] as const,
+    stats: (projectId: string, context?: unknown) =>
+      ["change-orders", "stats", projectId, context] as const,
   },
 
   // Forecasts
   forecasts: {
     all: ["forecasts"] as const,
-    list: (costElementId?: string, context?: any) =>
+    list: (costElementId?: string, context?: unknown) =>
       ["forecasts", "list", costElementId, context] as const,
-    detail: (id: string, context?: any) =>
+    detail: (id: string, context?: unknown) =>
       ["forecasts", "detail", id, context] as const,
-    comparison: (id: string, branch?: string, context?: any) =>
+    comparison: (id: string, branch?: string, context?: unknown) =>
       ["forecast_comparison", id, branch, context] as const,
-    byCostElement: (costElementId: string, branch?: string, context?: any) =>
+    byCostElement: (costElementId: string, branch?: string, context?: unknown) =>
       ["cost-element-forecast", costElementId, branch, context] as const,
   },
 
   // Schedule Baselines
   scheduleBaselines: {
     all: ["schedule-baselines"] as const,
-    list: (projectId: string, params?: any) =>
+    list: (projectId: string, params?: unknown) =>
       ["schedule-baselines", "list", projectId, params] as const,
-    detail: (id: string, context?: any) =>
+    detail: (id: string, context?: unknown) =>
       ["schedule-baselines", "detail", id, context] as const,
-    byCostElement: (costElementId: string, context?: any) =>
+    byCostElement: (costElementId: string, context?: unknown) =>
       ["schedule-baselines", "cost-element", costElementId, context] as const,
     history: (id: string) => ["schedule-baselines", "history", id] as const,
-    pv: (id: string, params: any) =>
+    pv: (id: string, params: unknown) =>
       ["schedule-baselines", "pv", id, params] as const,
+  },
+
+  // AI Configuration
+  ai: {
+    all: ["ai"] as const,
+    providers: {
+      all: ["ai", "providers"] as const,
+      lists: () => ["ai", "providers", "list"] as const,
+      list: (includeInactive?: boolean) =>
+        ["ai", "providers", "list", includeInactive] as const,
+      detail: (id: string) => ["ai", "providers", "detail", id] as const,
+    },
+    providerConfigs: {
+      list: (providerId: string) =>
+        ["ai", "providers", providerId, "configs"] as const,
+    },
+    models: {
+      list: (providerId: string, includeInactive?: boolean) =>
+        ["ai", "providers", providerId, "models", includeInactive] as const,
+      detail: (id: string) => ["ai", "models", "detail", id] as const,
+    },
+    assistants: {
+      all: ["ai", "assistants"] as const,
+      lists: () => ["ai", "assistants", "list"] as const,
+      list: (includeInactive?: boolean) =>
+        ["ai", "assistants", "list", includeInactive] as const,
+      detail: (id: string) => ["ai", "assistants", "detail", id] as const,
+    },
+    chat: {
+      all: ["ai", "chat"] as const,
+      sessions: () => ["ai", "chat", "sessions"] as const,
+      session: (id: string) => ["ai", "chat", "sessions", id] as const,
+      messages: (sessionId: string) =>
+        ["ai", "chat", "sessions", sessionId, "messages"] as const,
+    },
+    tools: {
+      all: ["ai", "tools"] as const,
+      lists: () => ["ai", "tools", "list"] as const,
+    },
   },
 
   // Users
@@ -206,20 +251,20 @@ export const queryKeys = createQueryKeys("backcast-evs", {
   testResource: {
     all: ["test-resource"] as const,
     lists: () => ["test-resource", "list"] as const,
-    list: (params?: any) => ["test-resource", "list", params] as const,
+    list: (params?: unknown) => ["test-resource", "list", params] as const,
     details: () => ["test-resource", "detail"] as const,
-    detail: (id: string, context?: any) =>
+    detail: (id: string, context?: unknown) =>
       ["test-resource", "detail", id, context] as const,
   },
 
   // EVM (Earned Value Management)
   evm: {
     all: ["evm"] as const,
-    metrics: (entityType: string, entityId: string, context?: any) =>
+    metrics: (entityType: string, entityId: string, context?: unknown) =>
       ["evm", "metrics", entityType, entityId, context] as const,
-    timeSeries: (entityType: string, entityId: string, context?: any) =>
+    timeSeries: (entityType: string, entityId: string, context?: unknown) =>
       ["evm", "timeseries", entityType, entityId, context] as const,
-    batch: (entityType: string, entityIds: string[], context?: any) =>
+    batch: (entityType: string, entityIds: string[], context?: unknown) =>
       ["evm", "batch", entityType, entityIds, context] as const,
   },
 });

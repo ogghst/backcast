@@ -1,6 +1,6 @@
 # Epics and User Stories
 
-**Last Updated:** 2026-01-14
+**Last Updated:** 2026-03-07
 **Status:** Live
 
 ---
@@ -123,25 +123,26 @@
 
 **Business Value:** Enable isolated change order development
 **Priority:** CRITICAL
-**Status:** 🔄 In Progress (Phase 1 Complete)
+**Status:** ✅ Complete (All Phases)
 
 **User Stories:**
 
 - **E06-U01:** Create change orders ✅
 - **E06-U02:** Automatic branch creation for change orders (`BR-{id}`) ✅
-- **E06-U03:** Modify entities in branch (isolated from main) 🔄
+- **E06-U03:** Modify entities in branch (isolated from main) ✅
 - **E06-U04:** Compare branch to main (impact analysis) ✅
-- **E06-U05:** Merge approved change orders ⏳
-- **E06-U06:** Lock/unlock branches ⏳
+- **E06-U05:** Merge approved change orders ✅
+- **E06-U06:** Lock/unlock branches ✅
 - **E06-U07:** Merged view showing main + branch changes ✅
-- **E06-U08:** Delete/archive branches ⏳
+- **E06-U08:** Delete/archive branches ✅
 
 **Implementation Details:**
 
 - **Phase 1 Complete (2026-01-12):** Change Order creation, auto-branch creation, BranchableSoftDeleteCommand
-- **Phase 2 In Progress:** In-branch editing, workflow states (DRAFT/SUBMITTED/APPROVED/REJECTED)
+- **Phase 2 Complete:** In-branch editing, workflow states (DRAFT/SUBMITTED/APPROVED/REJECTED)
 - **Phase 3 Complete (2026-02-07):** Impact analysis, branch comparison, side-by-side diff, hierarchical diff view
-- **Phase 4 Pending:** Merge workflows, approval processes
+- **Phase 4 Complete (2026-01-26):** Merge workflows, conflict detection, status transitions
+- **Phase 5 Complete (2026-02-25):** Archive branch functionality (E06-U08)
 
 **Key Features:**
 
@@ -195,3 +196,66 @@
 - **E08-U08:** Time machine control for historical metrics
 
 **Targeted:** Sprint 8
+
+---
+
+## Epic 9: AI Integration (E009)
+
+**Business Value:** Enable natural language queries and AI-powered project insights
+**Priority:** MEDIUM
+**Status:** 🔄 In Progress (Phase 2 Complete)
+
+**User Stories:**
+
+- **E09-U01:** Configure AI providers (OpenAI, Azure, local) ✅
+- **E09-U02:** Manage API keys securely (encrypted storage) ✅
+- **E09-U03:** Create/configure AI assistants with tool permissions ✅
+- **E09-U04:** Natural language queries to AI assistant 🔄
+- **E09-U05:** List projects via natural language (tool) ✅
+- **E09-U06:** Audit logging for AI operations ✅
+- **E09-U07:** AI-powered project assessment ⏳
+- **E09-U08:** AI-assisted entity CRUD operations ⏳
+- **E09-U09:** AI-assisted change order management ⏳
+- **E09-U10:** WebSocket streaming for real-time responses ⏳
+- **E09-U11:** Frontend AI chat interface 🔄
+
+**Implementation Details:**
+
+**Phase 1 Complete (2026-03-05):** Backend AI Configuration
+- Database schema for AI configuration (providers, models, assistants, sessions)
+- AI Configuration Service with encrypted API key storage
+- LangGraph Agent Service for conversation orchestration
+- OpenAI-compatible LLM Client Factory
+- Project Tools (read-only) for natural language queries
+- API routes for configuration and chat
+- Type errors fixed (mypy + ruff passing)
+
+**Phase 2 Complete (2026-03-07):** Frontend AI Configuration UI
+- Admin pages for AI provider management (/admin/ai-providers)
+- Admin pages for AI assistant management (/admin/ai-assistants)
+- Components: AIProviderList, AIProviderModal, AIProviderConfigModal, AIModelModal, AIAssistantList, AIAssistantModal
+- API hooks: useAIProviders, useAIModels, useAIAssistants, useAIProviderConfigs
+- TanStack Query integration with proper caching
+- RBAC enforcement (ai-config-read/write/delete)
+- 17/17 functional acceptance criteria met
+- TypeScript strict mode passing (0 errors)
+- Test infrastructure: Modal.useModal() App wrapper pattern documented
+- Known issues: Test environment instability (vitest hanging on component tests)
+
+**Phase 2 (Future):**
+
+- AI-powered project assessment (E09-U07)
+- AI-assisted entity CRUD operations (E09-U08)
+- AI-assisted change order management (E09-U09)
+- WebSocket streaming (E09-U10)
+- Frontend chat interface (E09-U11)
+
+**Key Features:**
+
+- Multi-provider support from start (OpenAI, Azure OpenAI, Ollama)
+- Configuration via UI, stored in database (not env vars)
+- RBAC enforcement for all tool operations
+- Tool calling loop with max 5 iterations
+- Session persistence for conversation history
+
+**Targeted:** Sprint 9 (Phase 2)

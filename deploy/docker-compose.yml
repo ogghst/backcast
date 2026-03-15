@@ -71,6 +71,19 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       SECRET_KEY: ${SECRET_KEY}
       DEBUG: "false"
+      API_V1_STR: ${API_V1_STR}
+      PROJECT_NAME: ${PROJECT_NAME}
+      ALGORITHM: ${ALGORITHM}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
+      PORT: ${PORT}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS}
+      BACKEND_CORS_METHODS: ${BACKEND_CORS_METHODS}
+      BACKEND_CORS_HEADERS: ${BACKEND_CORS_HEADERS}
+      RBAC_POLICY_FILE: ${RBAC_POLICY_FILE}
+      LOG_LEVEL: ${LOG_LEVEL}
+      LOG_FILE: ${LOG_FILE}
+    env_file:
+      - .env.production
     depends_on:
       postgres:
         condition: service_healthy

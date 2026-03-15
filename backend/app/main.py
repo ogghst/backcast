@@ -12,11 +12,14 @@ from pydantic import ValidationError
 
 # Include routers
 from app.api.routes import (
+    ai_chat,
+    ai_config,
     auth,
     change_orders,
     cost_element_types,
     cost_elements,
     cost_registrations,
+    dashboard,
     departments,
     evm,
     forecasts,
@@ -61,6 +64,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=settings.BACKEND_CORS_METHODS,
     allow_headers=settings.BACKEND_CORS_HEADERS,
+    expose_headers=["*"],
 )
 
 
@@ -181,3 +185,22 @@ app.include_router(
     prefix=f"{settings.API_V1_STR}/evm",
     tags=["EVM"],
 )
+app.include_router(
+    ai_config.router,
+    prefix=settings.API_V1_STR,
+    tags=["AI Configuration"],
+)
+app.include_router(
+    ai_chat.router,
+    prefix=settings.API_V1_STR,
+    tags=["AI Chat"],
+)
+app.include_router(
+    dashboard.router,
+    prefix=f"{settings.API_V1_STR}/dashboard",
+    tags=["Dashboard"],
+)
+
+# Add WebSocket route directly to app (bypasses router for better CORS handling)
+# The WebSocket endpoint handles its own authentication via query parameter
+# This is already registered via the router, so we don't need to add it again

@@ -1,6 +1,6 @@
 # Backcast EVS Documentation
 
-**Last Updated:** 2025-12-29  
+**Last Updated:** 2026-03-02
 **Status:** Active Development - Sprint 2
 
 ## Quick Start
@@ -9,6 +9,7 @@
 - **Need architecture overview?** Read [System Map](../02-architecture/00-system-map.md)
 - **Working on current iteration?** Check [Sprint Backlog](../03-project-plan/sprint-backlog.md)
 - **Looking for specific context?** See [Bounded Contexts](../02-architecture/01-bounded-contexts.md)
+- **Maintaining documentation?** See [Documentation Ownership](DOCUMENTATION_OWNERSHIP.md)
 
 ## Philosophy
 
@@ -20,6 +21,7 @@ Our documentation follows a **bounded context** approach to minimize context rot
 2. **Findability:** Use this guide to locate information quickly
 3. **Staleness Indicators:** Each doc shows last-updated date
 4. **Immutable Decisions:** ADRs capture decisions at a point in time
+5. **Single Source of Truth:** Link to authoritative sources, don't duplicate
 
 ## Documentation Structure
 

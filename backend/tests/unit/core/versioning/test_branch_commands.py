@@ -299,11 +299,15 @@ class TestBranchCommands:
         await db_session.commit()
 
         # 3. Fetch ALL versions for this root_id to verify no duplicates
-        stmt_all = select(Project).where(
-            Project.project_id == root_id,
-            Project.branch == "main",
-            Project.deleted_at.is_(None),
-        ).order_by(Project.transaction_time.asc())
+        stmt_all = (
+            select(Project)
+            .where(
+                Project.project_id == root_id,
+                Project.branch == "main",
+                Project.deleted_at.is_(None),
+            )
+            .order_by(Project.transaction_time.asc())
+        )
         result = await db_session.execute(stmt_all)
         all_versions = list(result.scalars().all())
 
@@ -318,27 +322,41 @@ class TestBranchCommands:
 
         # 4. Verify remainder (v1 modified in-place)
         remainder = all_versions[0]
-        assert remainder.id == v1_id, "Remainder should be the original v1 modified in-place"
-        assert remainder.name == "Initial Version", "Remainder should keep original data"
-        assert remainder.valid_time.lower == t0, "Remainder valid_time should start at T0"
+        assert remainder.id == v1_id, (
+            "Remainder should be the original v1 modified in-place"
+        )
+        assert remainder.name == "Initial Version", (
+            "Remainder should keep original data"
+        )
+        assert remainder.valid_time.lower == t0, (
+            "Remainder valid_time should start at T0"
+        )
         assert remainder.valid_time.upper == t1, "Remainder valid_time should end at T1"
-        assert remainder.transaction_time.upper is not None, "Remainder transaction_time should be closed"
+        assert remainder.transaction_time.upper is not None, (
+            "Remainder transaction_time should be closed"
+        )
 
         # 5. Verify new version (v2)
         new_version = all_versions[1]
         assert new_version.id == v2_id, "New version should be v2"
-        assert new_version.name == "Updated Version", "New version should have updated data"
-        assert new_version.valid_time.lower == t1, "New version valid_time should start at T1"
-        assert new_version.valid_time.upper is None, "New version valid_time should be open-ended"
+        assert new_version.name == "Updated Version", (
+            "New version should have updated data"
+        )
+        assert new_version.valid_time.lower == t1, (
+            "New version valid_time should start at T1"
+        )
+        assert new_version.valid_time.upper is None, (
+            "New version valid_time should be open-ended"
+        )
         assert new_version.parent_id == v1_id, "New version should parent to remainder"
 
         # 6. Verify temporal ranges don't overlap (EVCS requirement)
         for i in range(len(all_versions) - 1):
             v_current = all_versions[i]
             v_next = all_versions[i + 1]
-            assert (
-                v_current.valid_time.upper == v_next.valid_time.lower
-            ), f"Version {i} valid_time.upper should equal version {i+1} valid_time.lower"
+            assert v_current.valid_time.upper == v_next.valid_time.lower, (
+                f"Version {i} valid_time.upper should equal version {i + 1} valid_time.lower"
+            )
 
         # 7. Verify no duplicate valid_time ranges
         valid_ranges = [(v.valid_time.lower, v.valid_time.upper) for v in all_versions]
@@ -348,7 +366,9 @@ class TestBranchCommands:
         )
 
         # 8. Verify no duplicate transaction_time ranges
-        tx_ranges = [(v.transaction_time.lower, v.transaction_time.upper) for v in all_versions]
+        tx_ranges = [
+            (v.transaction_time.lower, v.transaction_time.upper) for v in all_versions
+        ]
         assert len(tx_ranges) == len(set(tx_ranges)), (
             "All versions should have unique transaction_time ranges. "
             "Duplicate ranges indicate incorrect closure handling."
@@ -396,15 +416,19 @@ class TestBranchCommands:
             branch="main",
             control_date=t0,  # Same as original lower bound
         )
-        v2 = await update_cmd.execute(db_session)
+        await update_cmd.execute(db_session)
         await db_session.commit()
 
         # 3. Verify exactly 2 versions exist
-        stmt_all = select(Project).where(
-            Project.project_id == root_id,
-            Project.branch == "main",
-            Project.deleted_at.is_(None),
-        ).order_by(Project.transaction_time.asc())
+        stmt_all = (
+            select(Project)
+            .where(
+                Project.project_id == root_id,
+                Project.branch == "main",
+                Project.deleted_at.is_(None),
+            )
+            .order_by(Project.transaction_time.asc())
+        )
         result = await db_session.execute(stmt_all)
         all_versions = list(result.scalars().all())
 
@@ -422,7 +446,7 @@ class TestBranchCommands:
         )
         # Empty range - both bounds are None in PostgreSQL
         # The Range object has an `empty` attribute
-        assert closed_version.valid_time.empty == True, (
+        assert closed_version.valid_time.empty, (
             "Closed version should have empty valid_time range"
         )
 
@@ -466,15 +490,19 @@ class TestBranchCommands:
             updates={"name": "Updated Normally"},
             branch="main",
         )
-        v2 = await update_cmd.execute(db_session)
+        await update_cmd.execute(db_session)
         await db_session.commit()
 
         # 3. Verify exactly 2 versions exist
-        stmt_all = select(Project).where(
-            Project.project_id == root_id,
-            Project.branch == "main",
-            Project.deleted_at.is_(None),
-        ).order_by(Project.transaction_time.asc())
+        stmt_all = (
+            select(Project)
+            .where(
+                Project.project_id == root_id,
+                Project.branch == "main",
+                Project.deleted_at.is_(None),
+            )
+            .order_by(Project.transaction_time.asc())
+        )
         result = await db_session.execute(stmt_all)
         all_versions = list(result.scalars().all())
 
@@ -486,7 +514,9 @@ class TestBranchCommands:
         closed_v1 = all_versions[0]
         assert closed_v1.id == v1_id
         assert closed_v1.valid_time.upper is not None, "v1 should be closed"
-        assert closed_v1.transaction_time.upper is not None, "v1 transaction_time should be closed"
+        assert closed_v1.transaction_time.upper is not None, (
+            "v1 transaction_time should be closed"
+        )
 
         # 5. Verify v2 is the new version
         new_v2 = all_versions[1]

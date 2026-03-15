@@ -18,15 +18,6 @@
     "changed_at": "2026-01-10T09:00:00"
   },
   {
-    "id": "9fbc6e6e-7e63-4c3b-8124-8322dc4ebb03",
-    "change_order_id": "c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f",
-    "old_status": "Submitted for Approval",
-    "new_status": "Approved",
-    "comment": "Approved. Low cost ergonomic improvement with clear operator benefit.",
-    "changed_by": "e03556f3-4385-5d68-a685-af307fc8af5c",
-    "changed_at": "2026-01-12T14:30:00"
-  },
-  {
     "id": "f4182078-f4dc-4afe-8e2f-49616273e9fd",
     "change_order_id": "e5f6a7b8-c9d0-4e5f-2a3b-4c5d6e7f8a9b",
     "old_status": "Draft",

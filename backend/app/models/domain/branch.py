@@ -26,7 +26,7 @@ class Branch(EntityBase, VersionableMixin):
         type: Branch type ('main' or 'change_order')
         locked: Whether branch is locked (prevents writes)
         branch_metadata: Additional branch information (JSONB)
-        
+
     Inherited from VersionableMixin:
         valid_time: When the data is/was effective
         transaction_time: When the record was created/modified

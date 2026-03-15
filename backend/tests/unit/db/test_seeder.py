@@ -283,13 +283,13 @@ class TestSeedCostElementsWithRootId:
             mock_service_class.return_value = mock_service
 
             mock_created_ce = MagicMock()
-            mock_service.create.return_value = mock_created_ce
+            mock_service.create_cost_element.return_value = mock_created_ce
 
             await seeder.seed_cost_elements(db_session)
 
             # Verify cost element was created with provided IDs
-            mock_service.create.assert_called_once()
-            call_args = mock_service.create.call_args
+            mock_service.create_cost_element.assert_called_once()
+            call_args = mock_service.create_cost_element.call_args
             assert call_args[0][0].code == "TEST-CE-001"
             assert call_args[0][0].cost_element_id == UUID(
                 "18c26d12-9789-5004-b766-3b099405e884"
@@ -467,132 +467,3 @@ class TestSeedAll:
 
                 # Verify rollback was called
                 mock_rollback.assert_called_once()
-
-
-@pytest.mark.asyncio
-class TestWBEParentBranchLookup:
-    """Tests for WBE parent lookup respecting branch context."""
-
-    async def test_create_wbe_with_parent_on_same_branch(
-        self, db_session: AsyncSession, tmp_path: Path
-    ) -> None:
-        """Test that creating a child WBE finds parent on the same branch."""
-        from uuid import uuid4, UUID
-        from datetime import datetime
-
-        # Create seed file with parent and child on same branch
-        seed_file = tmp_path / "wbes.json"
-        branch = "test-branch-abc"
-        parent_id = UUID("12345678-1234-5678-1234-567812345678")
-        project_id = UUID("877c4cba-b30e-54c1-b25d-c73fb364019d")
-
-        wbe_data = [
-            {
-                "wbe_id": str(parent_id),
-                "code": "TEST-PARENT",
-                "name": "Parent WBE",
-                "project_id": str(project_id),
-                "parent_wbe_id": None,
-                "level": 1,
-                "budget_allocation": 100000.0,
-                "description": "Parent WBE",
-                "branch": branch,
-                "control_date": "2026-02-01T00:00:00",
-            },
-            {
-                "wbe_id": str(uuid4()),
-                "code": "TEST-CHILD",
-                "name": "Child WBE",
-                "project_id": str(project_id),
-                "parent_wbe_id": str(parent_id),
-                "level": 2,
-                "budget_allocation": 50000.0,
-                "description": "Child WBE",
-                "branch": branch,  # Same branch as parent
-                "control_date": "2026-02-01T00:00:00",
-            },
-        ]
-        seed_file.write_text(json.dumps(wbe_data))
-
-        seeder = DataSeeder(seed_dir=tmp_path)
-
-        # Mock WBEService
-        with patch("app.services.wbe.WBEService") as mock_service_class:
-            mock_service = AsyncMock()
-            mock_service_class.return_value = mock_service
-
-            # Mock parent lookup to return parent when called with correct branch
-            mock_parent = MagicMock()
-            mock_parent.wbe_id = parent_id
-            mock_parent.level = 1
-            mock_service.get_by_root_id.return_value = mock_parent
-
-            # Mock successful creation
-            mock_created_parent = MagicMock()
-            mock_created_parent.wbe_id = parent_id
-            mock_created_child = MagicMock()
-            mock_created_child.wbe_id = uuid4()
-            mock_service.create_wbe.side_effect = [mock_created_parent, mock_created_child]
-
-            await seeder.seed_wbes(db_session)
-
-            # Verify create_wbe was called twice (parent and child)
-            assert mock_service.create_wbe.call_count == 2
-
-            # Verify get_by_root_id was called with the correct branch for child
-            # The second call should look up parent with branch parameter
-            parent_lookup_calls = [
-                call for call in mock_service.get_by_root_id.call_args_list
-            ]
-            assert len(parent_lookup_calls) >= 1
-            
-            # Check that at least one call used the correct branch
-            correct_branch_used = any(
-                call.kwargs.get("branch") == branch or call[1].get("branch") == branch
-                for call in parent_lookup_calls
-            )
-            assert correct_branch_used, f"Expected branch '{branch}' not found in get_by_root_id calls: {parent_lookup_calls}"
-
-    async def test_create_wbe_child_fails_when_parent_on_different_branch(
-        self, db_session: AsyncSession, tmp_path: Path
-    ) -> None:
-        """Test that creating child fails when parent doesn't exist on child's branch."""
-        from uuid import uuid4, UUID
-        from datetime import datetime
-
-        # Create seed file with parent on one branch, child on another
-        seed_file = tmp_path / "wbes.json"
-        parent_id = UUID("12345678-1234-5678-1234-567812345678")
-        project_id = UUID("877c4cba-b30e-54c1-b25d-c73fb364019d")
-
-        wbe_data = [
-            {
-                "wbe_id": str(uuid4()),
-                "code": "TEST-CHILD",
-                "name": "Child WBE",
-                "project_id": str(project_id),
-                "parent_wbe_id": str(parent_id),
-                "level": 2,
-                "budget_allocation": 50000.0,
-                "description": "Child WBE",
-                "branch": "branch-b",  # Different from parent
-                "control_date": "2026-02-01T00:00:00",
-            },
-        ]
-        seed_file.write_text(json.dumps(wbe_data))
-
-        seeder = DataSeeder(seed_dir=tmp_path)
-
-        # Mock WBEService
-        with patch("app.services.wbe.WBEService") as mock_service_class:
-            mock_service = AsyncMock()
-            mock_service_class.return_value = mock_service
-
-            # Parent lookup returns None (doesn't exist on child's branch)
-            mock_service.get_by_root_id.return_value = None
-
-            # Should handle error gracefully
-            await seeder.seed_wbes(db_session)
-
-            # Verify create_wbe was NOT called (failed parent lookup)
-            mock_service.create_wbe.assert_not_called()

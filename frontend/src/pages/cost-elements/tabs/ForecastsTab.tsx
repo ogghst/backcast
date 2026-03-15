@@ -48,7 +48,7 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
   const [showHistoryView, setShowHistoryView] = useState(false);
 
   // Fetch the single forecast for this cost element (1:1 relationship)
-  const { data: forecastData, isLoading, error, isError } = useCostElementForecast(
+  const { data: forecastData, isLoading, isError } = useCostElementForecast(
     costElement.cost_element_id,
     currentBranch
   );
@@ -74,7 +74,7 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
     },
   });
 
-  const handleCreate = (values: any) => {
+  const handleCreate = (values: Record<string, unknown>) => {
     // For 1:1 relationship, we use the update endpoint which creates if doesn't exist
     updateMutation.mutate({
       costElementId: costElement.cost_element_id,
@@ -84,7 +84,7 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
     setIsCreateModalOpen(false);
   };
 
-  const handleUpdate = (values: any) => {
+  const handleUpdate = (values: Record<string, unknown>) => {
     if (!editingForecast) return;
     updateMutation.mutate({
       costElementId: costElement.cost_element_id,

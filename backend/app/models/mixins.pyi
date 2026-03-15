@@ -8,7 +8,6 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy.dialects.postgresql import TSTZRANGE as PG_TSTZRANGE
 from sqlalchemy.orm import Mapped
 
 class VersionableMixin:
@@ -22,11 +21,8 @@ class VersionableMixin:
 
     @property
     def is_deleted(self) -> bool: ...
-
     def soft_delete(self) -> None: ...
-
     def undelete(self) -> None: ...
-
     def clone(self, **overrides: Any) -> Any: ...
 
 class BranchableMixin:

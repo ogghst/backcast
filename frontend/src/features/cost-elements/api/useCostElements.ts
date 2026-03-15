@@ -195,7 +195,8 @@ export const useUpdateCostElement = (
     { previousElement?: CostElementRead }
   >({
     mutationFn: ({ id, data }: { id: string; data: UpdateWithBranch }) => {
-      const { branch, ...rest } = data;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { branch: _branch, ...rest } = data;
       // Inject control_date
       const payload: CostElementUpdate = {
         ...rest,
@@ -241,7 +242,7 @@ export const useUpdateCostElement = (
       toast.success("Updated successfully");
       mutationOptions?.onSuccess?.(...args);
     },
-    onError: (error, variables, context: any) => {
+    onError: (error, variables, context: unknown) => {
       // Rollback
       if (context?.previousElement) {
         const branch = variables.data.branch || tmBranch;
@@ -305,25 +306,29 @@ export const useDeleteCostElement = (
 /**
  * Hook to get a single cost element by ID.
  * @param costElementId - The cost element ID to fetch
- * @param branch - Branch to query (default: "main")
+ * @param branch - Branch to query (default: from TimeMachine context)
+ * @param options - Additional options for useQuery
  * @returns TanStack Query result with cost element data
  */
 export const useCostElement = (
   costElementId: string,
-  branch: string = "main",
+  branch?: string,
+  options?: Omit<UseQueryOptions<CostElementRead>, "queryKey" | "queryFn">,
 ) => {
-  const { asOf } = useTimeMachineParams();
+  const { branch: tmBranch, asOf } = useTimeMachineParams();
+  const effectiveBranch = branch || tmBranch || "main";
 
   return useQuery<CostElementRead>({
-    queryKey: queryKeys.costElements.detail(costElementId, { branch, asOf }),
+    queryKey: queryKeys.costElements.detail(costElementId, { branch: effectiveBranch, asOf }),
     queryFn: async () => {
       return await CostElementsService.getCostElement(
         costElementId,
-        branch,
+        effectiveBranch,
         asOf || undefined,
       );
     },
-    enabled: !!costElementId,
+    enabled: !!costElementId && (options?.enabled ?? true),
+    ...options,
   });
 };
 
@@ -385,9 +390,9 @@ export const useCostElementForecast = (
 export const useUpdateCostElementForecast = (
   mutationOptions?: Omit<
     UseMutationOptions<
-      Record<string, any>,
+      Record<string, unknown>,
       Error,
-      { costElementId: string; data: Record<string, any>; branch?: string }
+      { costElementId: string; data: Record<string, unknown>; branch?: string }
     >,
     "mutationFn"
   >,
@@ -402,7 +407,7 @@ export const useUpdateCostElementForecast = (
       branch,
     }: {
       costElementId: string;
-      data: Record<string, any>;
+      data: Record<string, unknown>;
       branch?: string;
     }) => {
       // Include branch and control_date in request body (as per API conventions for write operations)

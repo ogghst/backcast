@@ -182,7 +182,9 @@ async def setup_wbe_evm_data(client: AsyncClient) -> dict[str, Any]:
             },
         )
         # Ensure progress entry was created successfully
-        assert progress_res.status_code in (200, 201), f"Failed to create progress entry for CE {i}: {progress_res.text}"
+        assert progress_res.status_code in (200, 201), (
+            f"Failed to create progress entry for CE {i}: {progress_res.text}"
+        )
 
         # 8. Cost Registrations (different amounts for each)
         await client.post(
@@ -681,7 +683,11 @@ class TestCostElementEntityEVM:
 
         proj_res = await client.post(
             "/api/v1/projects",
-            json={"code": f"P-{uuid4().hex[:4].upper()}", "name": "Batch CE Proj", "budget": 300000},
+            json={
+                "code": f"P-{uuid4().hex[:4].upper()}",
+                "name": "Batch CE Proj",
+                "budget": 300000,
+            },
         )
         proj_id = proj_res.json()["project_id"]
 
@@ -780,7 +786,10 @@ class TestCostElementEntityEVM:
         # Arrange - Create cost element without progress
         dept_res = await client.post(
             "/api/v1/departments",
-            json={"code": f"D-{uuid4().hex[:4].upper()}", "name": "No Progress CE Dept"},
+            json={
+                "code": f"D-{uuid4().hex[:4].upper()}",
+                "name": "No Progress CE Dept",
+            },
         )
         dept_id = dept_res.json()["department_id"]
 
@@ -796,7 +805,11 @@ class TestCostElementEntityEVM:
 
         proj_res = await client.post(
             "/api/v1/projects",
-            json={"code": f"P-{uuid4().hex[:4].upper()}", "name": "No Progress CE Proj", "budget": 100000},
+            json={
+                "code": f"P-{uuid4().hex[:4].upper()}",
+                "name": "No Progress CE Proj",
+                "budget": 100000,
+            },
         )
         proj_id = proj_res.json()["project_id"]
 
@@ -835,9 +848,7 @@ class TestCostElementEntityEVM:
         )
 
         # Act
-        response = await client.get(
-            f"/api/v1/evm/cost_element/{ce_id}/metrics"
-        )
+        response = await client.get(f"/api/v1/evm/cost_element/{ce_id}/metrics")
 
         # Assert
         assert response.status_code == 200
@@ -881,7 +892,11 @@ class TestCostElementEntityEVM:
 
         proj_res = await client.post(
             "/api/v1/projects",
-            json={"code": f"P-{uuid4().hex[:4].upper()}", "name": "Zero AC CE Proj", "budget": 100000},
+            json={
+                "code": f"P-{uuid4().hex[:4].upper()}",
+                "name": "Zero AC CE Proj",
+                "budget": 100000,
+            },
         )
         proj_id = proj_res.json()["project_id"]
 
@@ -931,9 +946,7 @@ class TestCostElementEntityEVM:
         )
 
         # Act
-        response = await client.get(
-            f"/api/v1/evm/cost_element/{ce_id}/metrics"
-        )
+        response = await client.get(f"/api/v1/evm/cost_element/{ce_id}/metrics")
 
         # Assert
         assert response.status_code == 200
@@ -980,9 +993,7 @@ class TestWBEEntityEVM:
         wbe_id = setup_wbe_evm_data["wbe_id"]
 
         # Act
-        response = await client.get(
-            f"/api/v1/evm/wbe/{wbe_id}/metrics"
-        )
+        response = await client.get(f"/api/v1/evm/wbe/{wbe_id}/metrics")
 
         # Assert
         assert response.status_code == 200
@@ -1009,7 +1020,9 @@ class TestWBEEntityEVM:
         assert float(data["ev"]) == expected_ev
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="WBE entity type not yet supported in API routes (BE-009)")
+    @pytest.mark.xfail(
+        reason="WBE entity type not yet supported in API routes (BE-009)"
+    )
     async def test_get_wbe_metrics_with_no_children_returns_zero(
         self, client: AsyncClient
     ) -> None:
@@ -1026,11 +1039,15 @@ class TestWBEEntityEVM:
             "/api/v1/departments",
             json={"code": f"D-{uuid4().hex[:4].upper()}", "name": "Empty Dept"},
         )
-        dept_id = dept_res.json()["department_id"]
+        dept_res.json()["department_id"]
 
         proj_res = await client.post(
             "/api/v1/projects",
-            json={"code": f"P-{uuid4().hex[:4].upper()}", "name": "Empty Proj", "budget": 100000},
+            json={
+                "code": f"P-{uuid4().hex[:4].upper()}",
+                "name": "Empty Proj",
+                "budget": 100000,
+            },
         )
         proj_id = proj_res.json()["project_id"]
 
@@ -1046,9 +1063,7 @@ class TestWBEEntityEVM:
         wbe_id = wbe_res.json()["wbe_id"]
 
         # Act
-        response = await client.get(
-            f"/api/v1/evm/wbe/{wbe_id}/metrics"
-        )
+        response = await client.get(f"/api/v1/evm/wbe/{wbe_id}/metrics")
 
         # Assert
         assert response.status_code == 200
@@ -1072,7 +1087,9 @@ class TestProjectEntityEVM:
     """
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="Project entity type not yet supported in API routes (BE-009)")
+    @pytest.mark.xfail(
+        reason="Project entity type not yet supported in API routes (BE-009)"
+    )
     async def test_get_project_metrics_aggregates_child_wbes(
         self, client: AsyncClient, setup_project_evm_data: dict[str, Any]
     ) -> None:
@@ -1090,9 +1107,7 @@ class TestProjectEntityEVM:
         project_id = setup_project_evm_data["project_id"]
 
         # Act
-        response = await client.get(
-            f"/api/v1/evm/project/{project_id}/metrics"
-        )
+        response = await client.get(f"/api/v1/evm/project/{project_id}/metrics")
 
         # Assert
         assert response.status_code == 200
@@ -1149,7 +1164,11 @@ class TestEVMMultiEntityAggregation:
 
         proj_res = await client.post(
             "/api/v1/projects",
-            json={"code": f"P-{uuid4().hex[:4].upper()}", "name": "Batch Proj", "budget": 500000},
+            json={
+                "code": f"P-{uuid4().hex[:4].upper()}",
+                "name": "Batch Proj",
+                "budget": 500000,
+            },
         )
         proj_id = proj_res.json()["project_id"]
 
@@ -1347,7 +1366,9 @@ class TestEVMTimeTravel:
     """
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="WBE entity type not yet supported in API routes (BE-009)")
+    @pytest.mark.xfail(
+        reason="WBE entity type not yet supported in API routes (BE-009)"
+    )
     async def test_wbe_time_travel_with_past_control_date(
         self, client: AsyncClient, setup_wbe_evm_data: dict[str, Any]
     ) -> None:
@@ -1381,7 +1402,9 @@ class TestEVMTimeTravel:
         assert "control_date" in data
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="WBE entity type not yet supported in API routes (BE-009)")
+    @pytest.mark.xfail(
+        reason="WBE entity type not yet supported in API routes (BE-009)"
+    )
     async def test_wbe_time_travel_with_future_control_date(
         self, client: AsyncClient, setup_wbe_evm_data: dict[str, Any]
     ) -> None:
@@ -1457,7 +1480,9 @@ class TestEVMBranching:
     """
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="WBE entity type not yet supported in API routes (BE-009)")
+    @pytest.mark.xfail(
+        reason="WBE entity type not yet supported in API routes (BE-009)"
+    )
     async def test_wbe_metrics_with_isolated_branch_mode(
         self, client: AsyncClient, setup_wbe_evm_data: dict[str, Any]
     ) -> None:
@@ -1490,7 +1515,9 @@ class TestEVMBranching:
         # Note: branch_mode is returned as BranchMode enum value
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="WBE entity type not yet supported in API routes (BE-009)")
+    @pytest.mark.xfail(
+        reason="WBE entity type not yet supported in API routes (BE-009)"
+    )
     async def test_wbe_metrics_with_merge_branch_mode(
         self, client: AsyncClient, setup_wbe_evm_data: dict[str, Any]
     ) -> None:
@@ -1565,7 +1592,9 @@ class TestEVMTimeSeries:
     """
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="WBE entity type not yet supported in API routes (BE-009)")
+    @pytest.mark.xfail(
+        reason="WBE entity type not yet supported in API routes (BE-009)"
+    )
     async def test_wbe_timeseries_with_daily_granularity(
         self, client: AsyncClient, setup_wbe_evm_data: dict[str, Any]
     ) -> None:
@@ -1609,7 +1638,9 @@ class TestEVMTimeSeries:
             assert "actual" in point
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="WBE entity type not yet supported in API routes (BE-009)")
+    @pytest.mark.xfail(
+        reason="WBE entity type not yet supported in API routes (BE-009)"
+    )
     async def test_wbe_timeseries_with_weekly_granularity(
         self, client: AsyncClient, setup_wbe_evm_data: dict[str, Any]
     ) -> None:
@@ -1638,7 +1669,9 @@ class TestEVMTimeSeries:
         assert "points" in data
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="WBE entity type not yet supported in API routes (BE-009)")
+    @pytest.mark.xfail(
+        reason="WBE entity type not yet supported in API routes (BE-009)"
+    )
     async def test_wbe_timeseries_with_monthly_granularity(
         self, client: AsyncClient, setup_wbe_evm_data: dict[str, Any]
     ) -> None:
@@ -1668,7 +1701,9 @@ class TestEVMTimeSeries:
         assert "points" in data
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="Project entity type not yet supported in API routes (BE-009)")
+    @pytest.mark.xfail(
+        reason="Project entity type not yet supported in API routes (BE-009)"
+    )
     async def test_project_timeseries_aggregates_child_wbes(
         self, client: AsyncClient, setup_project_evm_data: dict[str, Any]
     ) -> None:
@@ -1725,9 +1760,7 @@ class TestEVMErrorHandling:
         fake_id = uuid4()
 
         # Act
-        response = await client.get(
-            f"/api/v1/evm/wbe/{fake_id}/metrics"
-        )
+        response = await client.get(f"/api/v1/evm/wbe/{fake_id}/metrics")
 
         # Assert
         assert response.status_code == 404
@@ -1747,15 +1780,15 @@ class TestEVMErrorHandling:
         fake_id = uuid4()
 
         # Act
-        response = await client.get(
-            f"/api/v1/evm/project/{fake_id}/metrics"
-        )
+        response = await client.get(f"/api/v1/evm/project/{fake_id}/metrics")
 
         # Assert
         assert response.status_code == 404
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="WBE entity type not yet supported in API routes (BE-009)")
+    @pytest.mark.xfail(
+        reason="WBE entity type not yet supported in API routes (BE-009)"
+    )
     async def test_wbe_timeseries_with_invalid_id_returns_404(
         self, client: AsyncClient
     ) -> None:
@@ -1770,9 +1803,7 @@ class TestEVMErrorHandling:
         fake_id = uuid4()
 
         # Act
-        response = await client.get(
-            f"/api/v1/evm/wbe/{fake_id}/timeseries"
-        )
+        response = await client.get(f"/api/v1/evm/wbe/{fake_id}/timeseries")
 
         # Assert
         assert response.status_code == 404
@@ -1843,7 +1874,9 @@ class TestEVMEdgeCases:
     """
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="WBE entity type not yet supported in API routes (BE-009)")
+    @pytest.mark.xfail(
+        reason="WBE entity type not yet supported in API routes (BE-009)"
+    )
     async def test_wbe_metrics_with_no_progress_returns_warning(
         self, client: AsyncClient
     ) -> None:
@@ -1874,7 +1907,11 @@ class TestEVMEdgeCases:
 
         proj_res = await client.post(
             "/api/v1/projects",
-            json={"code": f"P-{uuid4().hex[:4].upper()}", "name": "No Progress Proj", "budget": 100000},
+            json={
+                "code": f"P-{uuid4().hex[:4].upper()}",
+                "name": "No Progress Proj",
+                "budget": 100000,
+            },
         )
         proj_id = proj_res.json()["project_id"]
 
@@ -1913,9 +1950,7 @@ class TestEVMEdgeCases:
         )
 
         # Act
-        response = await client.get(
-            f"/api/v1/evm/wbe/{wbe_id}/metrics"
-        )
+        response = await client.get(f"/api/v1/evm/wbe/{wbe_id}/metrics")
 
         # Assert
         assert response.status_code == 200
@@ -1928,7 +1963,9 @@ class TestEVMEdgeCases:
         assert data.get("warning") is not None
 
     @pytest.mark.asyncio
-    @pytest.mark.xfail(reason="WBE entity type not yet supported in API routes (BE-009)")
+    @pytest.mark.xfail(
+        reason="WBE entity type not yet supported in API routes (BE-009)"
+    )
     async def test_wbe_metrics_with_zero_ac_returns_none_for_cpi(
         self, client: AsyncClient
     ) -> None:
@@ -1959,7 +1996,11 @@ class TestEVMEdgeCases:
 
         proj_res = await client.post(
             "/api/v1/projects",
-            json={"code": f"P-{uuid4().hex[:4].upper()}", "name": "Zero AC Proj", "budget": 100000},
+            json={
+                "code": f"P-{uuid4().hex[:4].upper()}",
+                "name": "Zero AC Proj",
+                "budget": 100000,
+            },
         )
         proj_id = proj_res.json()["project_id"]
 
@@ -2009,9 +2050,7 @@ class TestEVMEdgeCases:
         )
 
         # Act
-        response = await client.get(
-            f"/api/v1/evm/wbe/{wbe_id}/metrics"
-        )
+        response = await client.get(f"/api/v1/evm/wbe/{wbe_id}/metrics")
 
         # Assert
         assert response.status_code == 200

@@ -77,7 +77,7 @@ async def cost_element_setup(db_session: AsyncSession):
         description="Phase 1 mechanical installation",
         branch="main",
     )
-    cost_element = await element_service.create(
+    cost_element = await element_service.create_cost_element(
         element_in, actor_id=uuid4(), branch="main"
     )
 
@@ -124,6 +124,7 @@ class TestForecastServiceCreate:
         if auto_created:
             # Soft delete the auto-created forecast
             from app.core.versioning.commands import SoftDeleteCommand
+
             delete_cmd = SoftDeleteCommand(
                 entity_class=Forecast,
                 root_id=auto_created.forecast_id,
@@ -135,6 +136,7 @@ class TestForecastServiceCreate:
             # Clear the forecast_id on the cost element
 
             from sqlalchemy import func, select
+
             ce_stmt = (
                 select(type(cost_element))
                 .where(
@@ -174,9 +176,11 @@ class TestForecastServiceCreate:
         assert created_forecast.forecast_id is not None
 
         # Verify cost element's forecast_id was set
+        # Verify cost element's forecast_id was set
         from sqlalchemy import func, select
+
         ce_stmt = (
-            select(type(cost_element))
+            select(type(cost_element).forecast_id)
             .where(
                 type(cost_element).cost_element_id == cost_element.cost_element_id,
                 type(cost_element).branch == "main",
@@ -186,10 +190,9 @@ class TestForecastServiceCreate:
             .order_by(type(cost_element).valid_time.desc())
             .limit(1)
         )
-        ce_result = await db_session.execute(ce_stmt)
-        current_ce = ce_result.scalar_one_or_none()
-        assert current_ce is not None
-        assert current_ce.forecast_id == created_forecast.forecast_id
+        forecast_id_result = await db_session.scalar(ce_stmt)
+        assert forecast_id_result is not None
+        assert forecast_id_result == created_forecast.forecast_id
 
     @pytest.mark.asyncio
     async def test_create_forecast_on_feature_branch(
@@ -261,7 +264,7 @@ class TestForecastServiceGet:
             eac_amount=Decimal("95000.00"),
             basis_of_estimate="Main branch forecast",
         )
-        main_forecast = await service.create(
+        main_forecast = await service.create_forecast(
             forecast_in, actor_id=uuid4(), branch="main"
         )
         forecast_id = main_forecast.forecast_id
@@ -315,7 +318,9 @@ class TestForecastCalculations:
             eac_amount=Decimal("80000.00"),  # EAC = 80,000
             basis_of_estimate="Improved efficiency",
         )
-        created = await service.create(forecast_in, actor_id=uuid4(), branch="main")
+        created = await service.create_forecast(
+            forecast_in, actor_id=uuid4(), branch="main"
+        )
 
         # Act - Calculate VAC
         vac = bac - created.eac_amount  # VAC = BAC - EAC
@@ -354,7 +359,9 @@ class TestForecastCalculations:
             eac_amount=Decimal("120000.00"),  # EAC = 120,000
             basis_of_estimate="Cost overruns expected",
         )
-        created = await service.create(forecast_in, actor_id=uuid4(), branch="main")
+        created = await service.create_forecast(
+            forecast_in, actor_id=uuid4(), branch="main"
+        )
 
         # Act - Calculate VAC
         vac = bac - created.eac_amount  # VAC = BAC - EAC
@@ -394,7 +401,9 @@ class TestForecastCalculations:
             eac_amount=Decimal("120000.00"),  # EAC = 120,000
             basis_of_estimate="Cost overruns expected",
         )
-        created = await service.create(forecast_in, actor_id=uuid4(), branch="main")
+        created = await service.create_forecast(
+            forecast_in, actor_id=uuid4(), branch="main"
+        )
 
         # Act - Calculate ETC
         etc = created.eac_amount - ac  # ETC = EAC - AC
@@ -418,9 +427,7 @@ class TestForecastService1to1Relationship:
         from app.services.forecast_service import ForecastAlreadyExistsError
 
         # Arrange & Act
-        error = ForecastAlreadyExistsError(
-            cost_element_id=str(uuid4()), branch="main"
-        )
+        error = ForecastAlreadyExistsError(cost_element_id=str(uuid4()), branch="main")
 
         # Assert
         assert "already exists" in str(error)
@@ -474,6 +481,7 @@ class TestForecastService1to1Relationship:
 
         # Soft delete the forecast
         from app.core.versioning.commands import SoftDeleteCommand
+
         delete_cmd = SoftDeleteCommand(
             entity_class=Forecast,
             root_id=auto_created.forecast_id,
@@ -485,6 +493,7 @@ class TestForecastService1to1Relationship:
         # Also need to clear the forecast_id on the cost element
 
         from sqlalchemy import func, select
+
         ce_stmt = (
             select(type(cost_element))
             .where(
@@ -587,7 +596,7 @@ class TestForecastService1to1Relationship:
             eac_amount=Decimal("100000.00"),
             basis_of_estimate="Initial forecast",
         )
-        existing_forecast = await service.create(
+        existing_forecast = await service.create_forecast(
             forecast_in, actor_id=uuid4(), branch="main"
         )
 

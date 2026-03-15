@@ -63,7 +63,7 @@ export interface CrudOptions {
  * This interface allows the old adapter pattern to continue working.
  */
 export interface LegacyApiMethods<T, TCreate, TUpdate, TList = T[]> {
-  getUsers?: (filters?: any) => Promise<TList>;
+  getUsers?: (filters?: unknown) => Promise<TList>;
   getUser?: (id: string) => Promise<T>;
   createUser?: (data: TCreate) => Promise<T>;
   updateUser?: (id: string, data: TUpdate) => Promise<T>;
@@ -75,7 +75,7 @@ export interface LegacyApiMethods<T, TCreate, TUpdate, TList = T[]> {
  * This interface allows direct usage of service methods without adapters.
  */
 export interface NamedApiMethods<T, TCreate, TUpdate, TList = T[]> {
-  list?: (filters?: any) => Promise<TList>;
+  list?: (filters?: unknown) => Promise<TList>;
   detail?: (id: string) => Promise<T>;
   create?: (data: TCreate) => Promise<T>;
   update?: (id: string, data: TUpdate) => Promise<T>;
@@ -94,7 +94,7 @@ export type ApiMethods<T, TCreate, TUpdate, TList = T[]> =
 export const createResourceHooks = <T, TCreate, TUpdate, TList = T[]>(
   queryKey: string,
   api: ApiMethods<T, TCreate, TUpdate, TList>,
-  options?: CrudOptions
+  options?: CrudOptions,
 ) => {
   // Normalize invalidation arrays
   const getInvalidationKeys = (type: "create" | "update" | "delete") => {
@@ -107,7 +107,7 @@ export const createResourceHooks = <T, TCreate, TUpdate, TList = T[]>(
 
   const useList = (
     filters?: unknown,
-    queryOptions?: Omit<UseQueryOptions<TList, Error>, "queryKey">
+    queryOptions?: Omit<UseQueryOptions<TList, Error>, "queryKey">,
   ) => {
     return useQuery({
       queryKey: [queryKey, "list", filters],
@@ -124,7 +124,7 @@ export const createResourceHooks = <T, TCreate, TUpdate, TList = T[]>(
 
   const useDetail = (
     id: string,
-    queryOptions?: Omit<UseQueryOptions<T, Error>, "queryKey">
+    queryOptions?: Omit<UseQueryOptions<T, Error>, "queryKey">,
   ) => {
     return useQuery({
       queryKey: [queryKey, "detail", id],
@@ -141,7 +141,7 @@ export const createResourceHooks = <T, TCreate, TUpdate, TList = T[]>(
   };
 
   const useCreate = (
-    mutationOptions?: Omit<UseMutationOptions<T, Error, TCreate>, "mutationFn">
+    mutationOptions?: Omit<UseMutationOptions<T, Error, TCreate>, "mutationFn">,
   ) => {
     const queryClient = useQueryClient();
     return useMutation({
@@ -155,7 +155,7 @@ export const createResourceHooks = <T, TCreate, TUpdate, TList = T[]>(
       onSuccess: (...args) => {
         const keys = getInvalidationKeys("create");
         keys.forEach((key) =>
-          queryClient.invalidateQueries({ queryKey: [key] })
+          queryClient.invalidateQueries({ queryKey: [key] }),
         );
         toast.success(`Created successfully`);
         mutationOptions?.onSuccess?.(...args);
@@ -172,7 +172,7 @@ export const createResourceHooks = <T, TCreate, TUpdate, TList = T[]>(
     mutationOptions?: Omit<
       UseMutationOptions<T, Error, { id: string; data: TUpdate }>,
       "mutationFn"
-    >
+    >,
   ) => {
     const queryClient = useQueryClient();
     return useMutation({
@@ -186,7 +186,7 @@ export const createResourceHooks = <T, TCreate, TUpdate, TList = T[]>(
       onSuccess: (...args) => {
         const keys = getInvalidationKeys("update");
         keys.forEach((key) =>
-          queryClient.invalidateQueries({ queryKey: [key] })
+          queryClient.invalidateQueries({ queryKey: [key] }),
         );
         toast.success(`Updated successfully`);
         mutationOptions?.onSuccess?.(...args);
@@ -203,7 +203,7 @@ export const createResourceHooks = <T, TCreate, TUpdate, TList = T[]>(
     mutationOptions?: Omit<
       UseMutationOptions<void, Error, string>,
       "mutationFn"
-    >
+    >,
   ) => {
     const queryClient = useQueryClient();
     return useMutation({
@@ -217,7 +217,7 @@ export const createResourceHooks = <T, TCreate, TUpdate, TList = T[]>(
       onSuccess: (...args) => {
         const keys = getInvalidationKeys("delete");
         keys.forEach((key) =>
-          queryClient.invalidateQueries({ queryKey: [key] })
+          queryClient.invalidateQueries({ queryKey: [key] }),
         );
         toast.success(`Deleted successfully`);
         mutationOptions?.onSuccess?.(...args);

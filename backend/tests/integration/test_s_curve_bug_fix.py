@@ -173,7 +173,9 @@ async def test_s_curve_shows_differences_when_wbe_budget_changes(
                 if abs(ratio - Decimal("1.5")) > Decimal("0.01"):
                     # This is expected - they should be different
                     differences_found = True
-                    print(f"Week {point.week_start}: main={main_val}, change={change_val}, ratio={ratio}")
+                    print(
+                        f"Week {point.week_start}: main={main_val}, change={change_val}, ratio={ratio}"
+                    )
                     break
 
     # Verify that curves are NOT identical
@@ -190,5 +192,9 @@ async def test_s_curve_shows_differences_when_wbe_budget_changes(
     )
 
     # Final verification
-    assert final_main == Decimal("100000.00"), f"Main final value should be $100k, got {final_main}"
-    assert final_change == Decimal("150000.00"), f"Change final value should be $150k, got {final_change}"
+    assert final_main == Decimal("100000.00"), (
+        f"Main final value should be $100k, got {final_main}"
+    )
+    assert final_change == Decimal("150000.00"), (
+        f"Change final value should be $150k, got {final_change}"
+    )

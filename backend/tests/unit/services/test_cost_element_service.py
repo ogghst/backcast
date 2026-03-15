@@ -91,7 +91,7 @@ class TestCostElementServiceCreate:
         actor_id = uuid4()
 
         # Act
-        created_element = await service.create(
+        created_element = await service.create_cost_element(
             element_in, actor_id=actor_id, branch="main"
         )
 
@@ -135,7 +135,7 @@ class TestCostElementServiceCreate:
         actor_id = uuid4()
 
         # Act
-        created_element = await service.create(
+        created_element = await service.create_cost_element(
             element_in, actor_id=actor_id, branch="main"
         )
 
@@ -167,7 +167,9 @@ class TestCostElementServiceUpdate:
             budget_amount=Decimal("10000.00"),
             branch="main",
         )
-        v1 = await service.create(element_in, actor_id=uuid4(), branch="main")
+        v1 = await service.create_cost_element(
+            element_in, actor_id=uuid4(), branch="main"
+        )
         element_id = v1.cost_element_id
         v1_id = v1.id
 
@@ -217,7 +219,7 @@ class TestCostElementServiceDelete:
             budget_amount=Decimal("5000.00"),
             branch="main",
         )
-        created_element = await service.create(
+        created_element = await service.create_cost_element(
             element_in, actor_id=uuid4(), branch="main"
         )
         element_id = created_element.cost_element_id
@@ -263,7 +265,9 @@ class TestCostElementServiceList:
                 budget_amount=Decimal(f"{(i + 1) * 1000}.00"),
                 branch="main",
             )
-            await service.create(element_in, actor_id=uuid4(), branch="main")
+            await service.create_cost_element(
+                element_in, actor_id=uuid4(), branch="main"
+            )
 
         # Act
         wbe_elements = await service.list(
@@ -306,7 +310,9 @@ class TestCostElementServiceList:
                 budget_amount=Decimal("1000.00"),
                 branch="main",
             )
-            await service.create(element_in, actor_id=uuid4(), branch="main")
+            await service.create_cost_element(
+                element_in, actor_id=uuid4(), branch="main"
+            )
 
         # 1 element of type 2
         element_in = CostElementCreate(
@@ -317,7 +323,7 @@ class TestCostElementServiceList:
             budget_amount=Decimal("2000.00"),
             branch="main",
         )
-        await service.create(element_in, actor_id=uuid4(), branch="main")
+        await service.create_cost_element(element_in, actor_id=uuid4(), branch="main")
 
         # Act - Filter by type 1
         await service.list(
@@ -358,7 +364,9 @@ class TestCostElementServiceBranching:
             budget_amount=Decimal("10000.00"),
             branch="main",
         )
-        main_element = await service.create(element_in, actor_id=uuid4(), branch="main")
+        main_element = await service.create_cost_element(
+            element_in, actor_id=uuid4(), branch="main"
+        )
         element_id = main_element.cost_element_id
 
         # Act - Update in a different branch (BR-123)
@@ -401,7 +409,9 @@ class TestCostElementServiceBranching:
             budget_amount=Decimal("5000.00"),
             branch="main",
         )
-        main_element = await service.create(element_in, actor_id=uuid4(), branch="main")
+        main_element = await service.create_cost_element(
+            element_in, actor_id=uuid4(), branch="main"
+        )
 
         # Create element in branch BR-999
         element_in2 = CostElementCreate(
@@ -412,7 +422,7 @@ class TestCostElementServiceBranching:
             budget_amount=Decimal("7000.00"),
             branch="BR-999",
         )
-        branch_element = await service.create(
+        branch_element = await service.create_cost_element(
             element_in2, actor_id=uuid4(), branch="BR-999"
         )
 

@@ -35,6 +35,10 @@ export type ChangeOrderPublic = {
      */
     status?: string;
     /**
+     * Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)
+     */
+    impact_level?: (string | null);
+    /**
      * Root UUID identifier
      */
     change_order_id: string;
@@ -63,6 +67,10 @@ export type ChangeOrderPublic = {
      */
     branch: string;
     /**
+     * Change branch name for impact analysis (e.g., BR-CO-2026-001)
+     */
+    branch_name?: (string | null);
+    /**
      * Parent version ID
      */
     parent_id?: (string | null);
@@ -82,10 +90,6 @@ export type ChangeOrderPublic = {
      * Whether the associated branch is locked
      */
     branch_locked?: boolean;
-    /**
-     * Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)
-     */
-    impact_level?: (string | null);
     /**
      * User ID assigned to approve this change order
      */

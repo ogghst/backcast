@@ -15,7 +15,7 @@ def convert_range_to_list(v: Any) -> list[datetime | None] | None:
         return None
     if hasattr(v, "lower") and hasattr(v, "upper"):
         return [v.lower, v.upper]
-    return v  # type: ignore[no-any-return]
+    return v
 
 
 # Type alias for range fields that need conversion
@@ -49,7 +49,6 @@ class UserRegister(UserBase):
     control_date: datetime | None = Field(
         None, description="Optional control date for creation (valid_time start)"
     )
-
 
 
 # Properties to receive via API on update

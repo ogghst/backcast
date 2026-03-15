@@ -152,8 +152,12 @@ class TestMergePerformance:
         main_ces = await discovery.discover_cost_elements("main")
 
         # All entities should be on main branch
-        assert len(main_wbes) >= 50, f"Expected at least 50 WBEs on main, got {len(main_wbes)}"
-        assert len(main_ces) >= 50, f"Expected at least 50 CostElements on main, got {len(main_ces)}"
+        assert len(main_wbes) >= 50, (
+            f"Expected at least 50 WBEs on main, got {len(main_wbes)}"
+        )
+        assert len(main_ces) >= 50, (
+            f"Expected at least 50 CostElements on main, got {len(main_ces)}"
+        )
 
     @pytest.mark.asyncio
     async def test_merge_100_wbes_under_5_seconds(
@@ -248,4 +252,6 @@ class TestMergePerformance:
         discovery = EntityDiscoveryService(db_session)
         main_wbes = await discovery.discover_wbes("main")
 
-        assert len(main_wbes) >= 100, f"Expected at least 100 WBEs on main, got {len(main_wbes)}"
+        assert len(main_wbes) >= 100, (
+            f"Expected at least 100 WBEs on main, got {len(main_wbes)}"
+        )

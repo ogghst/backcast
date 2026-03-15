@@ -21,8 +21,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
  */
 
 // Mock data storage for flexible test configuration
-const mockChangeOrderData: any = undefined;
-const mockChangeOrdersData: any = { items: [], total: 0 };
+const mockChangeOrderData: unknown = undefined;
+const mockChangeOrdersData: unknown = { items: [], total: 0 };
 
 // Mock the change order API hooks
 vi.mock("@/features/change-orders/api/useChangeOrders", () => ({

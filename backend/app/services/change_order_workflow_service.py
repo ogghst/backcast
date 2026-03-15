@@ -47,7 +47,7 @@ class ChangeOrderWorkflowService:
         "Draft": ["Submitted for Approval"],
         "Submitted for Approval": ["Under Review", "Approved", "Rejected"],
         "Under Review": ["Approved", "Rejected"],
-        "Rejected": ["Submitted for Approval"],
+        "Rejected": ["Draft", "Submitted for Approval"],
         "Approved": ["Implemented"],
         "Implemented": [],  # Terminal state
     }
@@ -182,7 +182,7 @@ class ChangeOrderWorkflowService:
         co_service = ChangeOrderService(db_session)
 
         # Get current version of change order
-        current_co = await co_service.get_current(change_order_id, branch="main")
+        current_co = await co_service.get_as_of(change_order_id, branch="main")
         if current_co is None:
             raise ValueError(f"Change order {change_order_id} not found")
 
@@ -291,7 +291,7 @@ class ChangeOrderWorkflowService:
         co_service = ChangeOrderService(db_session)
 
         # Get current version of change order
-        current_co = await co_service.get_current(change_order_id, branch="main")
+        current_co = await co_service.get_as_of(change_order_id, branch="main")
         if current_co is None:
             raise ValueError(f"Change order {change_order_id} not found")
 
@@ -412,7 +412,7 @@ class ChangeOrderWorkflowService:
         co_service = ChangeOrderService(db_session)
 
         # Get current version of change order
-        current_co = await co_service.get_current(change_order_id, branch="main")
+        current_co = await co_service.get_as_of(change_order_id, branch="main")
         if current_co is None:
             raise ValueError(f"Change order {change_order_id} not found")
 

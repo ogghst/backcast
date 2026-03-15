@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Layout, Typography } from "antd";
+import { Layout, Typography, theme } from "antd";
 
 const { Content } = Layout;
 const { Title } = Typography;
@@ -14,6 +14,8 @@ interface AuthLayoutProps {
  * Updated: 2026-02-07
  */
 export const AuthLayout = ({ children }: AuthLayoutProps) => {
+  const { token } = theme.useToken();
+
   return (
     <Layout style={{ minHeight: "100vh", background: "#f0f2f5" }}>
       <Content
@@ -22,7 +24,7 @@ export const AuthLayout = ({ children }: AuthLayoutProps) => {
           flexDirection: "column",
           justifyContent: "center",
           alignItems: "center",
-          padding: "24px",
+          padding: token.paddingXL,
         }}
       >
         <div
@@ -30,22 +32,30 @@ export const AuthLayout = ({ children }: AuthLayoutProps) => {
             width: "100%",
             maxWidth: "400px",
             background: "#fff",
-            padding: "40px",
-            borderRadius: "8px",
+            padding: 40,
+            borderRadius: token.borderRadiusLG,
             boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
           }}
         >
-          <div style={{ textAlign: "center", marginBottom: "40px" }}>
+          <div
+            style={{
+              textAlign: "center",
+              marginBottom: 40,
+            }}
+          >
             <img
               src="/assets/images/backcast-logo.svg"
               alt="Backcast"
               style={{
                 width: "120px",
                 height: "auto",
-                marginBottom: "16px",
+                marginBottom: token.paddingMD,
               }}
             />
-            <Title level={2} style={{ marginBottom: "4px", marginTop: "8px" }}>
+            <Title
+              level={2}
+              style={{ marginBottom: token.marginXS, marginTop: token.marginSM }}
+            >
               Backcast
             </Title>
             <Typography.Text type="secondary">

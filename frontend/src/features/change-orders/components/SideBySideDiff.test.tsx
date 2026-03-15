@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { SideBySideDiff } from "./SideBySideDiff";
 
 describe("SideBySideDiff", () => {
@@ -84,7 +84,7 @@ describe("SideBySideDiff", () => {
         description: "Same description",
       };
 
-      const { container } = render(
+      render(
         <SideBySideDiff
           mainData={mainData}
           branchData={branchData}

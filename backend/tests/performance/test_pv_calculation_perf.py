@@ -117,19 +117,19 @@ class TestPVCalculationPerformance:
 
         # Assert: Performance requirement met
         # Average time should be <100ms per calculation
-        assert (
-            avg_ms_per_calc < 100
-        ), f"PV calculation exceeds 100ms target: {avg_ms_per_calc:.2f}ms average"
+        assert avg_ms_per_calc < 100, (
+            f"PV calculation exceeds 100ms target: {avg_ms_per_calc:.2f}ms average"
+        )
 
         # Stretch goal: <50ms for good UX
-        assert (
-            avg_ms_per_calc < 50
-        ), f"PV calculation slower than 50ms stretch goal: {avg_ms_per_calc:.2f}ms average"
+        assert avg_ms_per_calc < 50, (
+            f"PV calculation slower than 50ms stretch goal: {avg_ms_per_calc:.2f}ms average"
+        )
 
         # Verify PV is approximately 50% of BAC (midpoint of schedule)
-        assert (
-            Decimal("49000.00") <= pv <= Decimal("51000.00")
-        ), f"PV should be ~50% of BAC at midpoint, got {pv}"
+        assert Decimal("49000.00") <= pv <= Decimal("51000.00"), (
+            f"PV should be ~50% of BAC at midpoint, got {pv}"
+        )
 
     async def test_10_cost_elements_pv_under_500ms(
         self, db_session: AsyncSession
@@ -353,16 +353,14 @@ class TestPVCalculationPerformance:
 
         # Assert: All progression types should be <100ms
         for prog_type, avg_time in timings.items():
-            assert (
-                avg_time < 100
-            ), f"{prog_type} progression too slow: {avg_time:.2f}ms"
+            assert avg_time < 100, f"{prog_type} progression too slow: {avg_time:.2f}ms"
 
         # Assert: GAUSSIAN and LOGARITHMIC should be within 2x of LINEAR
         linear_time = timings["LINEAR"]
         for prog_type in ["GAUSSIAN", "LOGARITHMIC"]:
-            assert (
-                timings[prog_type] < linear_time * 2
-            ), f"{prog_type} progression ({timings[prog_type]:.2f}ms) is more than 2x slower than LINEAR ({linear_time:.2f}ms)"
+            assert timings[prog_type] < linear_time * 2, (
+                f"{prog_type} progression ({timings[prog_type]:.2f}ms) is more than 2x slower than LINEAR ({linear_time:.2f}ms)"
+            )
 
     async def test_pv_without_baseline_returns_zero_quickly(
         self, db_session: AsyncSession
@@ -410,6 +408,6 @@ class TestPVCalculationPerformance:
 
         # Assert: Should return 0 quickly
         assert pv == Decimal("0"), "PV should be 0 when no baseline exists"
-        assert (
-            elapsed_ms < 50
-        ), f"PV calculation without baseline took {elapsed_ms:.2f}ms, exceeding 50ms target"
+        assert elapsed_ms < 50, (
+            f"PV calculation without baseline took {elapsed_ms:.2f}ms, exceeding 50ms target"
+        )

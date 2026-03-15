@@ -30,8 +30,7 @@ async def test_wbe_query():
             # Test 1: Get WBE by root_id (uses _get_base_stmt)
             print("Testing get_by_root_id...")
             wbe = await service.get_by_root_id(
-                root_id="00000000-0000-0000-0000-000000000001",
-                branch="main"
+                root_id="00000000-0000-0000-0000-000000000001", branch="main"
             )
             if wbe:
                 print(f"  ✓ Found WBE: {wbe.code} - {wbe.name}")
@@ -60,7 +59,8 @@ async def test_wbe_query():
             print("=" * 60)
 
             sawarnings = [
-                w for w in warning_list
+                w
+                for w in warning_list
                 if issubclass(w.category, sqlalchemy_exc.SAWarning)
             ]
 

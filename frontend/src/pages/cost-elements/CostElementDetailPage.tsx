@@ -22,12 +22,23 @@ export const CostElementDetailPage = () => {
   const navigate = useNavigate();
   const setCurrentProject = useTimeMachineStore((s) => s.setCurrentProject);
 
-  const { data: costElement, isLoading } = useCostElement(id!);
   const { data: breadcrumb, isLoading: breadcrumbLoading } =
     useCostElementBreadcrumb(id!) as {
       data: CostElementBreadcrumb | undefined;
       isLoading: boolean;
     };
+
+  const isProjectReady = useTimeMachineStore(
+    (s) => !!breadcrumb?.project?.project_id && s.currentProjectId === breadcrumb.project.project_id
+  );
+
+  const { data: costElement, isLoading: costElementLoading } = useCostElement(
+    id!,
+    undefined,
+    { enabled: isProjectReady }
+  );
+
+  const isLoading = breadcrumbLoading || costElementLoading || !isProjectReady;
 
   // Set project context from breadcrumb for Time Machine
   useEffect(() => {
