@@ -1,4 +1,4 @@
-import { Card, Descriptions, Tag, Button, Space } from "antd";
+import { Card, Descriptions, Tag, Button, Space, theme } from "antd";
 import { Link } from "react-router-dom";
 import { WBERead } from "@/api/generated";
 import {
@@ -25,6 +25,7 @@ export const WBESummaryCard = ({
   onDelete,
   onViewHistory,
 }: WBESummaryCardProps) => {
+  const { token } = theme.useToken();
   // Determine parent link
   const parentLink = wbe.parent_wbe_id
     ? `/projects/${projectId}/wbes/${wbe.parent_wbe_id}`
@@ -35,7 +36,7 @@ export const WBESummaryCard = ({
   return (
     <Card
       loading={loading}
-      style={{ marginBottom: 16 }}
+      style={{ marginBottom: token.marginMD }}
       extra={
         <Space>
           <Can permission="wbe-read">
@@ -56,9 +57,9 @@ export const WBESummaryCard = ({
         </Space>
       }
     >
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: token.marginMD }}>
         <h2
-          style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}
+          style={{ margin: 0, display: "flex", alignItems: "center", gap: token.marginSM }}
         >
           <Tag color="cyan">L{wbe.level}</Tag>
           {wbe.code} - {wbe.name}

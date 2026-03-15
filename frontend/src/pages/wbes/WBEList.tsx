@@ -1,4 +1,4 @@
-import { App, Button, Input, Space, Tag } from "antd";
+import { App, Button, Input, Space, Tag, theme } from "antd";
 import {
   HistoryOutlined,
   NodeIndexOutlined,
@@ -36,6 +36,7 @@ interface WBEListProps {
 }
 
 export const WBEList = ({ projectId }: WBEListProps) => {
+  const { token } = theme.useToken();
   const { tableParams, handleTableChange, handleSearch } = useTableParams<
     WBERead,
     WBEFilters
@@ -98,7 +99,7 @@ export const WBEList = ({ projectId }: WBEListProps) => {
       confirm,
       clearFilters,
     }) => (
-      <div style={{ padding: 8 }}>
+      <div style={{ padding: token.paddingSM }}>
         <Input
           placeholder={`Search ${dataIndex}`}
           value={selectedKeys[0]}
@@ -106,7 +107,7 @@ export const WBEList = ({ projectId }: WBEListProps) => {
             setSelectedKeys(e.target.value ? [e.target.value] : [])
           }
           onPressEnter={() => confirm()}
-          style={{ width: 188, marginBottom: 8, display: "block" }}
+          style={{ width: 188, marginBottom: token.marginSM, display: "block" }}
         />
         <Space>
           <Button
@@ -129,7 +130,9 @@ export const WBEList = ({ projectId }: WBEListProps) => {
       </div>
     ),
     filterIcon: (filtered: boolean) => (
-      <SearchOutlined style={{ color: filtered ? "#1890ff" : undefined }} />
+      <SearchOutlined
+        style={{ color: filtered ? token.colorPrimary : undefined }}
+      />
     ),
     onFilter: (value, record) => {
       const fieldVal = record[dataIndex];
@@ -267,11 +270,11 @@ export const WBEList = ({ projectId }: WBEListProps) => {
           >
             <div
               style={{
-                fontSize: "16px",
+                fontSize: token.fontSizeLG,
                 fontWeight: "bold",
                 display: "flex",
                 alignItems: "center",
-                gap: "8px",
+                gap: token.marginSM,
               }}
             >
               <NodeIndexOutlined />

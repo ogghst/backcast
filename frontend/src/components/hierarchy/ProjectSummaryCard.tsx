@@ -1,4 +1,4 @@
-import { Card, Descriptions, Tag, Typography, Button, Space } from "antd";
+import { Card, Descriptions, Tag, Typography, Button, Space, theme } from "antd";
 import { ProjectRead } from "@/api/generated";
 import { HistoryOutlined } from "@ant-design/icons";
 import { Can } from "@/components/auth/Can";
@@ -14,10 +14,11 @@ export const ProjectSummaryCard = ({
   loading,
   onViewHistory,
 }: ProjectSummaryCardProps) => {
+  const { token } = theme.useToken();
   return (
     <Card
       loading={loading}
-      style={{ marginBottom: 16 }}
+      style={{ marginBottom: token.marginMD }}
       extra={
         onViewHistory && (
           <Space>
@@ -30,10 +31,10 @@ export const ProjectSummaryCard = ({
         )
       }
     >
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: token.marginMD }}>
         <Typography.Title level={4} style={{ margin: 0 }}>
           {project.name}{" "}
-          <Tag color="blue" style={{ marginLeft: 8 }}>
+          <Tag color="blue" style={{ marginLeft: token.marginSM }}>
             {project.code}
           </Tag>
         </Typography.Title>

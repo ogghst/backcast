@@ -1,4 +1,4 @@
-import { App, Button, Input, Space } from "antd";
+import { App, Button, Input, Space, theme } from "antd";
 import { useNavigate } from "react-router-dom";
 import {
   HistoryOutlined,
@@ -31,6 +31,7 @@ import { ProjectFilters } from "@/types/filters";
 import { ProjectsService } from "@/api/generated";
 
 export const ProjectList = () => {
+  const { token } = theme.useToken();
   const navigate = useNavigate();
   const { tableParams, handleTableChange, handleSearch } = useTableParams<
     ProjectRead,
@@ -85,7 +86,7 @@ export const ProjectList = () => {
       confirm,
       clearFilters,
     }) => (
-      <div style={{ padding: 8 }}>
+      <div style={{ padding: token.paddingSM }}>
         <Input
           placeholder={`Search ${dataIndex}`}
           value={selectedKeys[0]}
@@ -93,7 +94,7 @@ export const ProjectList = () => {
             setSelectedKeys(e.target.value ? [e.target.value] : [])
           }
           onPressEnter={() => confirm()}
-          style={{ width: 188, marginBottom: 8, display: "block" }}
+          style={{ width: 188, marginBottom: token.marginSM, display: "block" }}
         />
         <Space>
           <Button
@@ -116,7 +117,9 @@ export const ProjectList = () => {
       </div>
     ),
     filterIcon: (filtered: boolean) => (
-      <SearchOutlined style={{ color: filtered ? "#1890ff" : undefined }} />
+      <SearchOutlined
+        style={{ color: filtered ? token.colorPrimary : undefined }}
+      />
     ),
     onFilter: (value, record) => {
       const fieldVal = record[dataIndex];
@@ -286,11 +289,11 @@ export const ProjectList = () => {
           >
             <div
               style={{
-                fontSize: "16px",
+                fontSize: token.fontSizeLG,
                 fontWeight: "bold",
                 display: "flex",
                 alignItems: "center",
-                gap: "8px",
+                gap: token.marginSM,
               }}
             >
               <ProjectOutlined />

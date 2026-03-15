@@ -170,7 +170,7 @@ const StreamingMessage = ({
           width: 8px;
           height: 8px;
           borderRadius: "50%",
-          backgroundColor: "#1890ff",
+          backgroundColor: token.colorPrimary,
           animation: "typingPulse 1.4s infinite ease-in-out both",
         }
 

@@ -1,4 +1,4 @@
-import { App, Button, Input, Space, Tag } from "antd";
+import { App, Button, Input, Space, Tag, theme } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -60,6 +60,7 @@ const { useList, useCreate, useUpdate, useDelete } = createResourceHooks<
 import { UserFilters } from "@/types/filters";
 
 export const UserList = () => {
+  const { token } = theme.useToken();
   const { tableParams, handleTableChange, handleSearch } = useTableParams<
     User,
     UserFilters
@@ -114,7 +115,7 @@ export const UserList = () => {
       confirm,
       clearFilters,
     }) => (
-      <div style={{ padding: 8 }}>
+      <div style={{ padding: token.paddingSM }}>
         <Input
           placeholder={`Search ${dataIndex}`}
           value={selectedKeys[0]}
@@ -122,7 +123,7 @@ export const UserList = () => {
             setSelectedKeys(e.target.value ? [e.target.value] : [])
           }
           onPressEnter={() => confirm()}
-          style={{ width: 188, marginBottom: 8, display: "block" }}
+          style={{ width: 188, marginBottom: token.marginSM, display: "block" }}
         />
         <Space>
           <Button
@@ -145,7 +146,9 @@ export const UserList = () => {
       </div>
     ),
     filterIcon: (filtered: boolean) => (
-      <SearchOutlined style={{ color: filtered ? "#1890ff" : undefined }} />
+      <SearchOutlined
+        style={{ color: filtered ? token.colorPrimary : undefined }}
+      />
     ),
     onFilter: (value, record) => {
       const fieldVal = record[dataIndex];
@@ -286,7 +289,7 @@ export const UserList = () => {
               alignItems: "center",
             }}
           >
-            <div style={{ fontSize: "16px", fontWeight: "bold" }}>
+            <div style={{ fontSize: token.fontSizeLG, fontWeight: "bold" }}>
               User Management
             </div>
             <Can permission="user-create">

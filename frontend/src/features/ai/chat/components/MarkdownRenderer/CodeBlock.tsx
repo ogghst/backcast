@@ -30,7 +30,7 @@ interface CodeBlockProps {
  */
 export const CodeBlock: React.FC<CodeBlockProps> = ({ language, value }) => {
   const { token } = antdTheme.useToken();
-  const { colors, borderRadius } = useThemeTokens();
+  const { colors, borderRadius, spacing } = useThemeTokens();
 
   // Determine the syntax theme based on Ant Design theme mode
   const syntaxTheme = useMemo(() => {
@@ -49,11 +49,11 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, value }) => {
   return (
     <div
       style={{
-        borderRadius: borderRadius.md,
+        borderRadius: `${borderRadius.md}px`,
         overflow: 'hidden',
         border: `1px solid ${colors.borderSecondary}`,
         boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-        margin: '8px 0',
+        margin: `${spacing.sm}px 0`,
       }}
     >
       {/* Header bar with language label and copy button */}
@@ -62,14 +62,14 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, value }) => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '8px 12px',
+          padding: `${spacing.sm}px ${spacing.md}px`,
           background: backgroundGradient,
           borderBottom: `1px solid ${colors.borderSecondary}`,
         }}
       >
         <span
           style={{
-            fontSize: '10px',
+            fontSize: token.fontSizeXS,
             textTransform: 'uppercase',
             fontWeight: 600,
             color: colors.textSecondary,

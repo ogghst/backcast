@@ -13,10 +13,16 @@ import {
   LogoutOutlined,
   DownOutlined,
   BulbOutlined,
+  SettingOutlined,
+  TeamOutlined,
+  TagsOutlined,
+  RobotOutlined,
+  ApiOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserPreferencesStore } from "@/stores/useUserPreferencesStore";
+import { usePermission } from "@/hooks/usePermission";
 
 const { Text } = Typography;
 
@@ -28,6 +34,7 @@ export const UserProfile: React.FC = () => {
   const { user, logout } = useAuth();
   const { themeMode, toggleTheme, fetchPreferences } =
     useUserPreferencesStore();
+  const { can, hasRole } = usePermission();
 
   useEffect(() => {
     if (user) {
@@ -38,6 +45,57 @@ export const UserProfile: React.FC = () => {
   const handleLogout = () => {
     logout();
     navigate("/login");
+  };
+
+  const getAdminItems = (): MenuProps["items"] => {
+    const adminItems: MenuProps["items"] = [];
+
+    if (can("user-read")) {
+      adminItems.push({
+        key: "/admin/users",
+        icon: <UserOutlined />,
+        label: "Users",
+        onClick: () => navigate("/admin/users"),
+      });
+    }
+
+    if (can("department-read")) {
+      adminItems.push({
+        key: "/admin/departments",
+        icon: <TeamOutlined />,
+        label: "Departments",
+        onClick: () => navigate("/admin/departments"),
+      });
+    }
+
+    if (can("cost-element-type-read")) {
+      adminItems.push({
+        key: "/admin/cost-element-types",
+        icon: <TagsOutlined />,
+        label: "Cost Element Types",
+        onClick: () => navigate("/admin/cost-element-types"),
+      });
+    }
+
+    if (can("ai-config-read")) {
+      adminItems.push({
+        key: "/admin/ai-providers",
+        icon: <RobotOutlined />,
+        label: "AI Providers",
+        onClick: () => navigate("/admin/ai-providers"),
+      });
+    }
+
+    if (can("ai-config-read")) {
+      adminItems.push({
+        key: "/admin/ai-assistants",
+        icon: <ApiOutlined />,
+        label: "AI Assistants",
+        onClick: () => navigate("/admin/ai-assistants"),
+      });
+    }
+
+    return adminItems;
   };
 
   const items: MenuProps["items"] = [
@@ -83,6 +141,21 @@ export const UserProfile: React.FC = () => {
       label: "Profile",
       onClick: () => navigate("/profile"),
     },
+    // Admin submenu section
+    ...(hasRole("admin") && getAdminItems().length > 0
+      ? [
+          {
+            type: "divider" as const,
+          },
+          {
+            key: "admin",
+            icon: <SettingOutlined />,
+            label: "Admin",
+            children: getAdminItems(),
+            popupClassName: "admin-submenu",
+          },
+        ]
+      : []),
     {
       key: "logout",
       icon: <LogoutOutlined />,

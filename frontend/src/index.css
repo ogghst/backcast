@@ -53,3 +53,13 @@ body {
   outline: 2px solid #4a7c91;
   outline-offset: 2px;
 }
+
+/* Hide scrollbar for horizontal navigation menu (icon-only mode) */
+.ant-menu-horizontal.header-navigation-menu::-webkit-scrollbar {
+  display: none;
+}
+
+.ant-menu-horizontal.header-navigation-menu {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}

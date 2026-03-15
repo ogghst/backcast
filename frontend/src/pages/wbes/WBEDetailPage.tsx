@@ -154,7 +154,7 @@ export const WBEDetailPage = () => {
 
   if (!wbe && !wbeLoading) {
     return (
-      <div style={{ padding: 24 }}>
+      <div style={{ padding: token.paddingXL }}>
         <h1>WBE Not Found</h1>
         <p>The requested Work Breakdown Element could not be found.</p>
         <Button onClick={() => navigate(`/projects/${projectId}`)}>
@@ -168,7 +168,7 @@ export const WBEDetailPage = () => {
     <Space
       direction="vertical"
       size="middle"
-      style={{ width: "100%", marginTop: 16 }}
+      style={{ width: "100%", marginTop: token.paddingMD }}
     >
       {/* WBE Summary */}
       {wbe && (
@@ -213,7 +213,13 @@ export const WBEDetailPage = () => {
             }}
           />
         ) : (
-          <div style={{ textAlign: "center", padding: 24, color: "#999" }}>
+          <div
+            style={{
+              textAlign: "center",
+              padding: token.paddingXL,
+              color: token.colorTextTertiary,
+            }}
+          >
             {childrenLoading
               ? "Loading..."
               : "No child WBEs. Click 'Add Child WBE' to create one."}
@@ -232,7 +238,7 @@ export const WBEDetailPage = () => {
     <Space
       direction="vertical"
       size="large"
-      style={{ width: "100%", marginTop: 16 }}
+      style={{ width: "100%", marginTop: token.paddingMD }}
     >
       {evmMetrics && (
         <EVMSummaryView
@@ -258,7 +264,7 @@ export const WBEDetailPage = () => {
               <div
                 style={{
                   backgroundColor: token.colorBgContainer,
-                  padding: 16,
+                  padding: token.paddingMD,
                   borderRadius: token.borderRadiusLG,
                 }}
               >
@@ -279,7 +285,7 @@ export const WBEDetailPage = () => {
   );
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: token.paddingXL }}>
       {/* Breadcrumb Navigation */}
       <BreadcrumbBuilder breadcrumb={breadcrumb} loading={breadcrumbLoading} />
 
@@ -289,7 +295,7 @@ export const WBEDetailPage = () => {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: 16,
+          marginBottom: token.paddingMD,
         }}
       >
         <h1 style={{ margin: 0 }}>WBE Details</h1>

@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { Button, Tooltip } from 'antd';
+import { Button, Tooltip, theme } from 'antd';
 import { CopyOutlined, CheckOutlined } from '@ant-design/icons';
 
 interface CopyButtonProps {
@@ -26,6 +26,7 @@ interface CopyButtonProps {
  * - Tooltip for better UX
  */
 export const CopyButton: React.FC<CopyButtonProps> = ({ text, className }) => {
+  const { token } = theme.useToken();
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -58,7 +59,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ text, className }) => {
         loading={loading}
         className={className}
         style={{
-          color: copied ? '#52c41a' : undefined,
+          color: copied ? token.colorSuccess : undefined,
           transition: 'color 0.2s ease',
         }}
         aria-label={copied ? 'Copied to clipboard' : 'Copy to clipboard'}

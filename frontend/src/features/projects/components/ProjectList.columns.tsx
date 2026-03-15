@@ -5,7 +5,7 @@
  * Column definitions are memoized to prevent unnecessary re-renders.
  */
 
-import { Button, Input, Space } from "antd";
+import { Button, Input, Space, theme } from "antd";
 import {
   HistoryOutlined,
   EditOutlined,
@@ -22,56 +22,62 @@ import { Can } from "@/components/auth/Can";
  */
 export const getColumnSearchProps = (
   dataIndex: keyof ProjectRead,
-): ColumnType<ProjectRead> => ({
-  filterDropdown: ({
-    setSelectedKeys,
-    selectedKeys,
-    confirm,
-    clearFilters,
-  }) => (
-    <div style={{ padding: 8 }}>
-      <Input
-        placeholder={`Search ${dataIndex}`}
-        value={selectedKeys[0]}
-        onChange={(e) =>
-          setSelectedKeys(e.target.value ? [e.target.value] : [])
-        }
-        onPressEnter={() => confirm()}
-        style={{ width: 188, marginBottom: 8, display: "block" }}
+): ColumnType<ProjectRead> => {
+  const { token } = theme.useToken();
+
+  return {
+    filterDropdown: ({
+      setSelectedKeys,
+      selectedKeys,
+      confirm,
+      clearFilters,
+    }) => (
+      <div style={{ padding: token.paddingSM }}>
+        <Input
+          placeholder={`Search ${dataIndex}`}
+          value={selectedKeys[0]}
+          onChange={(e) =>
+            setSelectedKeys(e.target.value ? [e.target.value] : [])
+          }
+          onPressEnter={() => confirm()}
+          style={{ width: 188, marginBottom: token.marginSM, display: "block" }}
+        />
+        <Space>
+          <Button
+            type="primary"
+            onClick={() => confirm()}
+            icon={<SearchOutlined />}
+            size="small"
+            style={{ width: 90 }}
+          >
+            Search
+          </Button>
+          <Button
+            onClick={() => clearFilters && clearFilters()}
+            size="small"
+            style={{ width: 90 }}
+          >
+            Reset
+          </Button>
+        </Space>
+      </div>
+    ),
+    filterIcon: (filtered: boolean) => (
+      <SearchOutlined
+        style={{ color: filtered ? token.colorPrimary : undefined }}
       />
-      <Space>
-        <Button
-          type="primary"
-          onClick={() => confirm()}
-          icon={<SearchOutlined />}
-          size="small"
-          style={{ width: 90 }}
-        >
-          Search
-        </Button>
-        <Button
-          onClick={() => clearFilters && clearFilters()}
-          size="small"
-          style={{ width: 90 }}
-        >
-          Reset
-        </Button>
-      </Space>
-    </div>
-  ),
-  filterIcon: (filtered: boolean) => (
-    <SearchOutlined style={{ color: filtered ? "#1890ff" : undefined }} />
-  ),
-  onFilter: (value, record) => {
-    const fieldVal = record[dataIndex];
-    return fieldVal
-      ? fieldVal
-          .toString()
-          .toLowerCase()
-          .includes((value as string).toLowerCase())
-      : false;
-  },
-});
+    ),
+    onFilter: (value, record) => {
+      const fieldVal = record[dataIndex];
+      return fieldVal
+        ? fieldVal
+            .toString()
+            .toLowerCase()
+            .includes((value as string).toLowerCase())
+        : false;
+    },
+  };
+};
 
 /**
  * Memoized status filter options

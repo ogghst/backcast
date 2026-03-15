@@ -1,4 +1,4 @@
-import { Table, Button, Space, Input, Tag } from "antd";
+import { Table, Button, Space, Input, Tag, theme } from "antd";
 import type { ColumnType } from "antd/es/table";
 import { WBERead } from "@/api/generated";
 import {
@@ -36,6 +36,7 @@ export const WBETable = ({
   searchable = true,
   pagination,
 }: WBETableProps) => {
+  const { token } = theme.useToken();
   const [searchText, setSearchText] = useState("");
 
   const getColumnSearchProps = (
@@ -47,7 +48,7 @@ export const WBETable = ({
       confirm,
       clearFilters,
     }) => (
-      <div style={{ padding: 8 }}>
+      <div style={{ padding: token.marginSM }}>
         <Input
           placeholder={`Search ${dataIndex}`}
           value={selectedKeys[0]}
@@ -55,7 +56,7 @@ export const WBETable = ({
             setSelectedKeys(e.target.value ? [e.target.value] : [])
           }
           onPressEnter={() => confirm()}
-          style={{ width: 188, marginBottom: 8, display: "block" }}
+          style={{ width: 188, marginBottom: token.marginSM, display: "block" }}
         />
         <Space>
           <Button
@@ -78,7 +79,7 @@ export const WBETable = ({
       </div>
     ),
     filterIcon: (filtered: boolean) => (
-      <SearchOutlined style={{ color: filtered ? "#1890ff" : undefined }} />
+      <SearchOutlined style={{ color: filtered ? token.colorPrimary : undefined }} />
     ),
     onFilter: (value, record) => {
       // Client-side filtering only applies if NOT using server-side pagination
@@ -199,7 +200,7 @@ export const WBETable = ({
       {searchable && (
         <div
           style={{
-            marginBottom: 16,
+            marginBottom: token.marginMD,
             display: "flex",
             justifyContent: "flex-end",
           }}

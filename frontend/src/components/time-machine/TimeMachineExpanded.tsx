@@ -1,24 +1,21 @@
 import React, { useMemo, useCallback } from "react";
+import { theme, DatePicker, Divider, Space } from "antd";
 import {
-  Card,
-  Space,
-  Button,
-  DatePicker,
-  Divider,
-  Typography,
-  Alert,
-} from "antd";
-import { CloseOutlined, ReloadOutlined } from "@ant-design/icons";
+  CloseOutlined,
+  UndoOutlined,
+  CalendarOutlined,
+  HistoryOutlined,
+} from "@ant-design/icons";
 import dayjs from "dayjs";
 
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { useTimeMachine } from "@/contexts/TimeMachineContext";
 import { TimelineSlider } from "./TimelineSlider";
-
 import { QuickJumpButtons, calculateDateFromPreset } from "./QuickJumpButtons";
+import { BranchSelector } from "./BranchSelector";
+import { ViewModeSelector } from "./ViewModeSelector";
 import type { QuickJumpPreset, ProjectTimelineData } from "./types";
-
-const { Text } = Typography;
+import "./TimeMachine.styles.css";
 
 interface TimeMachineExpandedProps {
   /** Project ID */
@@ -32,13 +29,14 @@ interface TimeMachineExpandedProps {
 }
 
 /**
- * Expanded Time Machine panel showing full timeline controls.
+ * Expanded Time Machine panel - integrated control deck.
  *
- * Features:
+ * All time navigation controls in one cohesive panel:
+ * - Status indicator (historical/current)
+ * - Branch and view mode selectors
  * - Timeline slider with event markers
-
- * - Quick jump buttons (1D, 1W, 1M, 3M, All)
- * - Date picker for precise selection
+ * - Quick jump buttons
+ * - Precise date/time picker
  * - Reset to now button
  *
  * @example
@@ -58,9 +56,11 @@ interface TimeMachineExpandedProps {
  * ```
  */
 export function TimeMachineExpanded({
+  projectId,
   timelineData,
   isLoading = false,
 }: TimeMachineExpandedProps) {
+  const { token } = theme.useToken();
   const { isHistorical, invalidateQueries } = useTimeMachine();
   const { toggleExpanded, getSelectedTime, selectTime, resetToNow } =
     useTimeMachineStore();
@@ -74,12 +74,9 @@ export function TimeMachineExpanded({
   );
 
   // Default date range if not provided
-  // eslint-disable-next-line
-  const now = React.useRef(Date.now()).current;
-  // Use timeline start date if provided, otherwise default to current time
-  // (no historical viewing possible if project has no valid_time or start_date)
-  const minDate = timelineData?.startDate || new Date(now);
-  const maxDate = timelineData?.endDate || new Date(now);
+  const now = useMemo(() => new Date(), []);
+  const minDate = timelineData?.startDate || now;
+  const maxDate = timelineData?.endDate || now;
 
   // Handle time selection with query invalidation
   const handleSelectTime = useCallback(
@@ -115,71 +112,154 @@ export function TimeMachineExpanded({
   );
 
   return (
-    <Card
-      size="small"
+    <div
       style={{
-        margin: "0 16px 16px 16px",
-        borderTop: "none",
-        borderTopLeftRadius: 0,
-        borderTopRightRadius: 0,
+        background: token.colorBgContainer,
+        borderRadius: token.borderRadiusLG,
+        boxShadow: token.boxShadowTertiary,
+        padding: token.paddingLG,
+        animation: "tm-slide-down 280ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+        maxWidth: "100%",
       }}
-      extra={
-        <Button
-          type="text"
-          icon={<CloseOutlined />}
-          onClick={toggleExpanded}
-          aria-label="Close time machine"
-        />
-      }
     >
-      {/* Historical mode warning */}
-      {isHistorical && (
-        <Alert
-          type="info"
-          showIcon
-          message={
-            <Text>
-              Viewing project state as of{" "}
-              <Text strong>{selectedDate?.toLocaleString()}</Text>
-            </Text>
-          }
-          style={{ marginBottom: 16 }}
-        />
-      )}
-
-      {/* Timeline Slider */}
-      <TimelineSlider
-        minDate={minDate}
-        maxDate={maxDate}
-        value={selectedDate}
-        onChange={handleSelectTime}
-        events={timelineData?.events || []}
-        disabled={isLoading}
-      />
-
-      <Divider style={{ margin: "12px 0" }} />
-
-      {/* Controls Row */}
-      <Space
+      {/* Header Row */}
+      <div
         style={{
           display: "flex",
           justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 12,
+          alignItems: "center",
+          marginBottom: token.marginMD,
         }}
       >
-        {/* Left: Quick jumps */}
-        <Space>
-          <QuickJumpButtons
-            onJump={handleQuickJump}
-            disabled={isLoading}
-            currentDate={selectedDate}
-            minDate={minDate}
-            maxDate={maxDate}
-          />
-        </Space>
+        {/* Left: Status indicator */}
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: token.marginXS,
+            padding: `${token.paddingXS}px ${token.paddingSM}px`,
+            background: isHistorical
+              ? token.colorPrimaryBg
+              : token.colorFillSecondary,
+            color: isHistorical ? token.colorPrimary : token.colorTextSecondary,
+            borderRadius: token.borderRadiusSM,
+            fontSize: token.fontSizeSM,
+            fontWeight: token.fontWeightStrong,
+          }}
+        >
+          <HistoryOutlined />
+          <span
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: token.marginXS,
+            }}
+          >
+            {isHistorical ? (
+              <>
+                Viewing History:{" "}
+                <strong>
+                  {selectedDate?.toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </strong>
+                {" at "}
+                <strong>
+                  {selectedDate?.toLocaleTimeString(undefined, {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </strong>
+              </>
+            ) : (
+              "Viewing Current State"
+            )}
+          </span>
+        </div>
 
-        {/* Right: Date picker + Reset */}
+        {/* Right: Close button */}
+        <button
+          onClick={toggleExpanded}
+          aria-label="Close time machine"
+          type="button"
+          style={{
+            padding: token.paddingXS,
+            background: "transparent",
+            color: token.colorTextSecondary,
+            cursor: "pointer",
+            borderRadius: token.borderRadiusSM,
+            transition: "all 150ms ease",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 28,
+            height: 28,
+            fontSize: token.fontSizeSM,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = token.colorFillSecondary;
+            e.currentTarget.style.color = token.colorText;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = token.colorTextSecondary;
+          }}
+        >
+          <CloseOutlined />
+        </button>
+      </div>
+
+      {/* Branch and View Mode Row */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: token.marginMD,
+          marginBottom: token.marginMD,
+        }}
+      >
+        <BranchSelector projectId={projectId} />
+        <ViewModeSelector />
+      </div>
+
+      <Divider style={{ margin: `${token.marginMD}px 0` }} />
+
+      {/* Timeline Slider */}
+      <div style={{ margin: `${token.marginLG}px 0` }}>
+        <TimelineSlider
+          minDate={minDate}
+          maxDate={maxDate}
+          value={selectedDate}
+          onChange={handleSelectTime}
+          events={timelineData?.events || []}
+          disabled={isLoading}
+        />
+      </div>
+
+      {/* Quick Actions Row */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: token.marginMD,
+          flexWrap: "wrap",
+        }}
+      >
+        {/* Quick Jump Buttons */}
+        <QuickJumpButtons
+          onJump={handleQuickJump}
+          disabled={isLoading}
+          currentDate={selectedDate}
+          minDate={minDate}
+          maxDate={maxDate}
+        />
+
+        {/* Spacer */}
+        <div style={{ flex: 1, minWidth: token.marginLG }} />
+
+        {/* Precise Date Picker + Reset */}
         <Space>
           <DatePicker
             value={selectedDate ? dayjs(selectedDate) : null}
@@ -189,18 +269,47 @@ export function TimeMachineExpanded({
             placeholder="Select exact date"
             style={{ width: 180 }}
             disabled={isLoading}
+            size="middle"
+            suffixIcon={<CalendarOutlined />}
           />
 
-          <Button
-            icon={<ReloadOutlined />}
+          <button
             onClick={handleResetToNow}
             disabled={isLoading || !isHistorical}
+            type="button"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: token.marginXS,
+              padding: `${token.paddingXS}px ${token.paddingSM}px`,
+              background: isLoading || !isHistorical
+                ? token.colorFillTertiary
+                : token.colorFillSecondary,
+              color: token.colorText,
+              fontSize: token.fontSizeSM,
+              fontWeight: token.fontWeightStrong,
+              borderRadius: token.borderRadiusSM,
+              cursor: isLoading || !isHistorical ? "not-allowed" : "pointer",
+              transition: "all 150ms ease",
+              height: 32,
+            }}
+            onMouseEnter={(e) => {
+              if (!isLoading && isHistorical) {
+                e.currentTarget.style.background = token.colorFill;
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = isHistorical
+                ? token.colorFillSecondary
+                : token.colorFillTertiary;
+            }}
           >
-            Now
-          </Button>
+            <UndoOutlined />
+            <span>Now</span>
+          </button>
         </Space>
-      </Space>
-    </Card>
+      </div>
+    </div>
   );
 }
 

@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Spin, Alert, theme as antdTheme } from 'antd';
 import { createMermaidConfig, isSupportedMermaidDiagram } from '../../utils/markdown/mermaid.config';
+import { useThemeTokens } from '@/hooks/useThemeTokens';
 import type { Mermaid } from 'mermaid';
 
 interface MermaidDiagramProps {
@@ -31,6 +32,7 @@ interface MermaidModule {
  */
 export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code }) => {
   const { token } = antdTheme.useToken();
+  const { borderRadius } = useThemeTokens();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [svgContent, setSvgContent] = useState<string>('');
@@ -125,7 +127,7 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code }) => {
 
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '24px' }}>
+      <div style={{ textAlign: 'center', padding: token.paddingLG }}>
         <Spin size="small" />
       </div>
     );
@@ -139,11 +141,11 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code }) => {
         type="error"
         showIcon
         closable
-        style={{ margin: '8px 0' }}
+        style={{ margin: `${token.marginSM}px 0` }}
         action={
           <a
             onClick={handleRetry}
-            style={{ cursor: 'pointer', fontSize: '14px' }}
+            style={{ cursor: 'pointer', fontSize: token.fontSize }}
           >
             Retry
           </a>
@@ -156,11 +158,11 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code }) => {
     <div
       ref={containerRef}
       style={{
-        padding: '16px',
+        padding: token.paddingMD,
         backgroundColor: 'transparent',
-        borderRadius: '8px',
+        borderRadius: `${borderRadius.lg}px`,
         overflow: 'auto',
-        margin: '8px 0',
+        margin: `${token.marginSM}px 0`,
       }}
       dangerouslySetInnerHTML={{ __html: svgContent }}
     />

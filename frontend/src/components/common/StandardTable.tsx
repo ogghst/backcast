@@ -1,4 +1,4 @@
-import { Table, TableProps, Input } from "antd";
+import { Table, TableProps, Input, theme } from "antd";
 import { TablePaginationConfig } from "antd/es/table";
 import { FilterValue, SorterResult } from "antd/es/table/interface";
 import React, { useEffect, useState } from "react";
@@ -38,6 +38,7 @@ export const StandardTable = <T extends object>({
   onSearch,
   ...props
 }: StandardTableProps<T>) => {
+  const { token } = theme.useToken();
   const [searchValue, setSearchValue] = useState(tableParams.search || "");
 
   useEffect(() => {
@@ -68,9 +69,9 @@ export const StandardTable = <T extends object>({
       {(toolbar || searchable) && (
         <div
           style={{
-            marginBottom: 16,
+            marginBottom: token.marginMD,
             display: "flex",
-            gap: 16,
+            gap: token.marginMD,
             justifyContent: "space-between",
             alignItems: "center",
           }}

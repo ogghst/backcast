@@ -68,7 +68,13 @@ export const ProjectEVMAnalysis: React.FC = () => {
   // Loading state render
   if (isLoading && !evmMetrics) {
     return (
-      <div style={{ display: "flex", justifyContent: "center", padding: 48 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          padding: token.paddingXL * 1.5,
+        }}
+      >
         <Spin size="large" role="status" />
       </div>
     );
@@ -77,7 +83,7 @@ export const ProjectEVMAnalysis: React.FC = () => {
   // Error state
   if (metricsError || timeSeriesError) {
     return (
-      <div style={{ padding: 24 }}>
+      <div style={{ padding: token.paddingXL }}>
         <p>Error loading EVM data. Please try again.</p>
       </div>
     );
@@ -87,7 +93,7 @@ export const ProjectEVMAnalysis: React.FC = () => {
     <Space
       direction="vertical"
       size="large"
-      style={{ width: "100%", padding: 24 }}
+      style={{ width: "100%", padding: token.paddingXL }}
     >
       {/* Page Title */}
       <h1 style={{ margin: 0 }}>EVM Analysis</h1>
@@ -118,7 +124,7 @@ export const ProjectEVMAnalysis: React.FC = () => {
               <div
                 style={{
                   backgroundColor: token.colorBgContainer,
-                  padding: 16,
+                  padding: token.paddingMD,
                   borderRadius: token.borderRadiusLG,
                 }}
               >
