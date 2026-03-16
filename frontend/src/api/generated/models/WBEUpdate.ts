@@ -7,7 +7,6 @@
  */
 export type WBEUpdate = {
     name?: (string | null);
-    budget_allocation?: (number | string | null);
     revenue_allocation?: (number | string | null);
     level?: (number | null);
     parent_wbe_id?: (string | null);

@@ -1,5 +1,7 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useProject } from "@/features/projects/api/useProjects";
+import { useQueryClient } from "@tanstack/react-query";
+import { useProject, useUpdateProject } from "@/features/projects/api/useProjects";
+import { queryKeys } from "@/api/queryKeys";
 import {
   useWBEs,
   useCreateWBE,
@@ -8,9 +10,9 @@ import {
 } from "@/features/wbes/api/useWBEs";
 import { ProjectSummaryCard } from "@/components/hierarchy/ProjectSummaryCard";
 import { WBETable } from "@/components/hierarchy/WBETable";
-import { WBECreate, WBERead, WBEUpdate } from "@/api/generated";
-import { Button, Breadcrumb, Skeleton, Card, theme } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import { WBECreate, WBERead, WBEUpdate, ProjectUpdate } from "@/api/generated";
+import { Button, Breadcrumb, Skeleton, Card, theme, Typography, Space, Flex } from "antd";
+import { PlusOutlined, EditOutlined, HistoryOutlined } from "@ant-design/icons";
 import { useState } from "react";
 import { WBEModal } from "@/features/wbes/components/WBEModal";
 import { DeleteWBEModal } from "@/components/hierarchy/DeleteWBEModal";
@@ -18,6 +20,7 @@ import { Can } from "@/components/auth/Can";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { ProjectsService } from "@/api/generated";
+import { ProjectEditModal } from "@/components/projects/ProjectEditModal";
 
 /**
  * ProjectOverview component
@@ -29,6 +32,7 @@ export const ProjectOverview = () => {
   const { token } = theme.useToken();
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: project, isLoading: projectLoading } = useProject(projectId!);
 
@@ -50,6 +54,9 @@ export const ProjectOverview = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [wbeToDelete, setWbeToDelete] = useState<WBERead | null>(null);
 
+  // Edit Project Modal State
+  const [editModalOpen, setEditModalOpen] = useState(false);
+
   // History State
   const [historyOpen, setHistoryOpen] = useState(false);
   const { data: historyVersions, isLoading: historyLoading } = useEntityHistory(
@@ -60,6 +67,27 @@ export const ProjectOverview = () => {
       enabled: historyOpen,
     }
   );
+
+  // Edit Project Mutation
+  const { mutate: updateProject, isPending: isUpdatingProject } = useUpdateProject({
+    onSuccess: () => {
+      // Explicitly refetch the project detail query to ensure UI updates
+      if (projectId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.projects.detail(projectId)
+        });
+      }
+    },
+  });
+
+  const handleEditProject = (values: ProjectUpdate) => {
+    if (projectId) {
+      updateProject({
+        id: projectId,
+        data: values,
+      });
+    }
+  };
 
   const { mutateAsync: createWBE } = useCreateWBE({
     onSuccess: () => {
@@ -103,16 +131,34 @@ export const ProjectOverview = () => {
         ]}
         style={{ marginBottom: token.paddingMD }}
       />
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: token.paddingMD,
-        }}
+      <Flex
+        justify="space-between"
+        align="center"
+        style={{ marginBottom: token.paddingMD }}
       >
-        <h1 style={{ margin: 0 }}>Project Details</h1>
-      </div>
+        <Typography.Title level={1} style={{ margin: 0 }}>
+          Project Details
+        </Typography.Title>
+        <Space size={token.marginSM}>
+          <Can permission="project-update">
+            <Button
+              type="primary"
+              icon={<EditOutlined />}
+              onClick={() => setEditModalOpen(true)}
+            >
+              Edit
+            </Button>
+          </Can>
+          <Can permission="project-read">
+            <Button
+              icon={<HistoryOutlined />}
+              onClick={() => setHistoryOpen(true)}
+            >
+              History
+            </Button>
+          </Can>
+        </Space>
+      </Flex>
       {/* Loading State */}
       {projectLoading && !project && (
         <Skeleton active paragraph={{ rows: 4 }} />
@@ -123,7 +169,6 @@ export const ProjectOverview = () => {
           <ProjectSummaryCard
             project={project}
             loading={projectLoading}
-            onViewHistory={() => setHistoryOpen(true)}
           />
 
           <Card
@@ -176,39 +221,48 @@ export const ProjectOverview = () => {
       )}
 
       {project && (
-        <VersionHistoryDrawer
-          open={historyOpen}
-          onClose={() => setHistoryOpen(false)}
-          entityName={`Project: ${project.name}`}
-          isLoading={historyLoading}
-          versions={(historyVersions || []).map((version, idx, arr) => {
-            // Basic parsing of stringified range "[start, end)"
-            let start = new Date().toISOString();
-            if (version.valid_time && typeof version.valid_time === "string") {
-              const clean = version.valid_time
-                .replace("[", "")
-                .replace(")", "")
-                .split(",")[0];
-              if (clean) start = clean.trim();
-            } else if (
-              Array.isArray(
-                (version as unknown as { valid_time: string[] }).valid_time
-              )
-            ) {
-              start = (version as unknown as { valid_time: string[] })
-                .valid_time[0];
-            }
+        <>
+          <VersionHistoryDrawer
+            open={historyOpen}
+            onClose={() => setHistoryOpen(false)}
+            entityName={`Project: ${project.name}`}
+            isLoading={historyLoading}
+            versions={(historyVersions || []).map((version, idx, arr) => {
+              // Basic parsing of stringified range "[start, end)"
+              let start = new Date().toISOString();
+              if (version.valid_time && typeof version.valid_time === "string") {
+                const clean = version.valid_time
+                  .replace("[", "")
+                  .replace(")", "")
+                  .split(",")[0];
+                if (clean) start = clean.trim();
+              } else if (
+                Array.isArray(
+                  (version as unknown as { valid_time: string[] }).valid_time
+                )
+              ) {
+                start = (version as unknown as { valid_time: string[] })
+                  .valid_time[0];
+              }
 
-            return {
-              id: `v${arr.length - idx}`,
-              valid_from: start,
-              transaction_time: new Date().toISOString(), // Placeholder if not parsed
-              changed_by: version.created_by_name || "System",
-              changes:
-                idx === 0 ? { created: "initial" } : { updated: "changed" },
-            };
-          })}
-        />
+              return {
+                id: `v${arr.length - idx}`,
+                valid_from: start,
+                transaction_time: new Date().toISOString(), // Placeholder if not parsed
+                changed_by: version.created_by_name || "System",
+                changes:
+                  idx === 0 ? { created: "initial" } : { updated: "changed" },
+              };
+            })}
+          />
+          <ProjectEditModal
+            open={editModalOpen}
+            onCancel={() => setEditModalOpen(false)}
+            onOk={handleEditProject}
+            confirmLoading={isUpdatingProject}
+            project={project}
+          />
+        </>
       )}
 
       <WBEModal

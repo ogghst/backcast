@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.core.enums import ProjectStatus
+
 
 class ProjectBase(BaseModel):
     """Base schema for Project with common fields."""
@@ -14,7 +16,7 @@ class ProjectBase(BaseModel):
     code: str = Field(..., max_length=50, description="Unique project code")
     budget: Decimal = Field(..., ge=0, description="Project budget")
     contract_value: Decimal | None = Field(None, ge=0, description="Contract value")
-    status: str = Field("Draft", max_length=50, description="Project status")
+    status: ProjectStatus = Field(ProjectStatus.DRAFT, description="Project status")
     start_date: datetime | None = Field(None, description="Project start date")
     end_date: datetime | None = Field(None, description="Project end date")
     description: str | None = Field(None, max_length=5000, description="Description")
@@ -43,6 +45,7 @@ class ProjectUpdate(BaseModel):
     name: str | None = Field(None, max_length=200)
     budget: Decimal | None = Field(None, ge=0)
     contract_value: Decimal | None = Field(None, ge=0)
+    status: ProjectStatus | None = Field(None, description="Project status")
     start_date: datetime | None = None
     end_date: datetime | None = None
     description: str | None = Field(None, max_length=5000)

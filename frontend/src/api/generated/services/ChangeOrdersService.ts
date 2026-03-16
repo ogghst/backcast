@@ -138,6 +138,35 @@ export class ChangeOrdersService {
         });
     }
     /**
+     * Get Next Change Order Code
+     * Get the next available change order code.
+     *
+     * Returns the next sequential code in format CO-YYYY-NNN.
+     * Codes are scoped to the project and year.
+     *
+     * Requires read permission.
+     * @param projectId Project ID to scope the code
+     * @param year Year for the code (defaults to current year)
+     * @returns string Successful Response
+     * @throws ApiError
+     */
+    public static getNextChangeOrderCode(
+        projectId: string,
+        year?: (number | null),
+    ): CancelablePromise<Record<string, string>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/change-orders/next-code',
+            query: {
+                'project_id': projectId,
+                'year': year,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
      * Read Change Order
      * Get a specific change order by change_order_id (UUID root identifier).
      *
@@ -444,6 +473,7 @@ export class ChangeOrdersService {
      * @param changeOrderId
      * @param branch Branch name
      * @param comment Optional comment for audit log
+     * @param controlDate Control date for the operation (defaults to now)
      * @returns ChangeOrderPublic Successful Response
      * @throws ApiError
      */
@@ -451,6 +481,7 @@ export class ChangeOrdersService {
         changeOrderId: string,
         branch: string = 'main',
         comment?: (string | null),
+        controlDate?: (string | null),
     ): CancelablePromise<ChangeOrderPublic> {
         return __request(OpenAPI, {
             method: 'PUT',
@@ -461,6 +492,7 @@ export class ChangeOrdersService {
             query: {
                 'branch': branch,
                 'comment': comment,
+                'control_date': controlDate,
             },
             errors: {
                 422: `Validation Error`,
@@ -479,6 +511,7 @@ export class ChangeOrdersService {
      * @param changeOrderId
      * @param requestBody
      * @param branch Branch name
+     * @param controlDate Control date for the operation (defaults to now)
      * @returns ChangeOrderPublic Successful Response
      * @throws ApiError
      */
@@ -486,6 +519,7 @@ export class ChangeOrdersService {
         changeOrderId: string,
         requestBody: ChangeOrderApproval,
         branch: string = 'main',
+        controlDate?: (string | null),
     ): CancelablePromise<ChangeOrderPublic> {
         return __request(OpenAPI, {
             method: 'PUT',
@@ -495,6 +529,7 @@ export class ChangeOrdersService {
             },
             query: {
                 'branch': branch,
+                'control_date': controlDate,
             },
             body: requestBody,
             mediaType: 'application/json',
@@ -515,6 +550,7 @@ export class ChangeOrdersService {
      * @param changeOrderId
      * @param requestBody
      * @param branch Branch name
+     * @param controlDate Control date for the operation (defaults to now)
      * @returns ChangeOrderPublic Successful Response
      * @throws ApiError
      */
@@ -522,6 +558,7 @@ export class ChangeOrdersService {
         changeOrderId: string,
         requestBody: ChangeOrderApproval,
         branch: string = 'main',
+        controlDate?: (string | null),
     ): CancelablePromise<ChangeOrderPublic> {
         return __request(OpenAPI, {
             method: 'PUT',
@@ -531,9 +568,46 @@ export class ChangeOrdersService {
             },
             query: {
                 'branch': branch,
+                'control_date': controlDate,
             },
             body: requestBody,
             mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Archive Change Order Branch
+     * Archive (soft-delete) a Change Order's branch.
+     *
+     * Only allowed for Change Orders in "Implemented" or "Rejected" status.
+     * Hides the branch from active lists while preserving history for
+     * time-travel queries.
+     *
+     * Requires update permission.
+     *
+     * Args:
+     * change_order_id: UUID of the change order
+     *
+     * Returns:
+     * Updated ChangeOrderPublic with current state
+     *
+     * Raises:
+     * HTTPException: 400 if status is not Implemented/Rejected, 404 if not found
+     * @param changeOrderId
+     * @returns ChangeOrderPublic Successful Response
+     * @throws ApiError
+     */
+    public static archiveChangeOrderBranch(
+        changeOrderId: string,
+    ): CancelablePromise<ChangeOrderPublic> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/change-orders/{change_order_id}/archive',
+            path: {
+                'change_order_id': changeOrderId,
+            },
             errors: {
                 422: `Validation Error`,
             },
@@ -552,6 +626,7 @@ export class ChangeOrdersService {
      * Args:
      * change_order_id: UUID of the stuck change order
      * recovery_data: Recovery request with impact level, approver, and reason
+     * control_date: Optional control date for the operation (defaults to now)
      *
      * Returns:
      * Updated ChangeOrder with recovered workflow state
@@ -561,6 +636,7 @@ export class ChangeOrdersService {
      * @param changeOrderId
      * @param requestBody
      * @param branch Branch name
+     * @param controlDate Control date for the operation (defaults to now)
      * @returns ChangeOrderPublic Successful Response
      * @throws ApiError
      */
@@ -568,6 +644,7 @@ export class ChangeOrdersService {
         changeOrderId: string,
         requestBody: ChangeOrderRecoveryRequest,
         branch: string = 'main',
+        controlDate?: (string | null),
     ): CancelablePromise<ChangeOrderPublic> {
         return __request(OpenAPI, {
             method: 'POST',
@@ -577,6 +654,7 @@ export class ChangeOrdersService {
             },
             query: {
                 'branch': branch,
+                'control_date': controlDate,
             },
             body: requestBody,
             mediaType: 'application/json',
@@ -599,12 +677,14 @@ export class ChangeOrdersService {
      * Requires read permission.
      * @param changeOrderId
      * @param branch Branch name
+     * @param asOf Time travel: get approval info as of this timestamp (ISO 8601)
      * @returns ApprovalInfoPublic Successful Response
      * @throws ApiError
      */
     public static getChangeOrderApprovalInfo(
         changeOrderId: string,
         branch: string = 'main',
+        asOf?: (string | null),
     ): CancelablePromise<ApprovalInfoPublic> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -614,6 +694,7 @@ export class ChangeOrdersService {
             },
             query: {
                 'branch': branch,
+                'as_of': asOf,
             },
             errors: {
                 422: `Validation Error`,

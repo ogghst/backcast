@@ -1,96 +1,30 @@
-import { Card, Descriptions, Tag, Button, Space, theme } from "antd";
-import { Link } from "react-router-dom";
+import React from "react";
 import { WBERead } from "@/api/generated";
-import {
-  EditOutlined,
-  DeleteOutlined,
-  HistoryOutlined,
-} from "@ant-design/icons";
-import { Can } from "@/components/auth/Can";
+import { WBEHeaderCard } from "@/components/wbes/WBEHeaderCard";
+import { WBEInfoCard } from "@/components/wbes/WBEInfoCard";
 
 interface WBESummaryCardProps {
   wbe: WBERead;
-  projectId: string;
   loading?: boolean;
-  onEdit?: () => void;
-  onDelete?: () => void;
-  onViewHistory?: () => void;
 }
 
+/**
+ * WBESummaryCard - Redesigned WBE summary with card-based layout.
+ *
+ * Combines WBEHeaderCard and WBEInfoCard for a refined dashboard aesthetic.
+ * Action buttons (Edit, History, Delete) are handled by the parent page component.
+ */
 export const WBESummaryCard = ({
   wbe,
-  projectId,
   loading,
-  onEdit,
-  onDelete,
-  onViewHistory,
 }: WBESummaryCardProps) => {
-  const { token } = theme.useToken();
-  // Determine parent link
-  const parentLink = wbe.parent_wbe_id
-    ? `/projects/${projectId}/wbes/${wbe.parent_wbe_id}`
-    : `/projects/${projectId}`;
-
-  const parentLabel = wbe.parent_wbe_id ? "Parent WBE" : "Project";
-
   return (
-    <Card
-      loading={loading}
-      style={{ marginBottom: token.marginMD }}
-      extra={
-        <Space>
-          <Can permission="wbe-read">
-            <Button icon={<HistoryOutlined />} onClick={onViewHistory}>
-              History
-            </Button>
-          </Can>
-          <Can permission="wbe-update">
-            <Button icon={<EditOutlined />} onClick={onEdit}>
-              Edit
-            </Button>
-          </Can>
-          <Can permission="wbe-delete">
-            <Button danger icon={<DeleteOutlined />} onClick={onDelete}>
-              Delete
-            </Button>
-          </Can>
-        </Space>
-      }
-    >
-      <div style={{ marginBottom: token.marginMD }}>
-        <h2
-          style={{ margin: 0, display: "flex", alignItems: "center", gap: token.marginSM }}
-        >
-          <Tag color="cyan">L{wbe.level}</Tag>
-          {wbe.code} - {wbe.name}
-        </h2>
-      </div>
-
-      <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }} bordered>
-        <Descriptions.Item label="Code">{wbe.code}</Descriptions.Item>
-        <Descriptions.Item label="Level">
-          <Tag color="cyan">Level {wbe.level}</Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label="Budget Allocation">
-          {wbe.budget_allocation
-            ? new Intl.NumberFormat("en-US", {
-                style: "currency",
-                currency: "EUR",
-              }).format(Number(wbe.budget_allocation))
-            : "-"}
-        </Descriptions.Item>
-        <Descriptions.Item label={parentLabel}>
-          <Link to={parentLink}>
-            {wbe.parent_wbe_id ? `← Go to Parent WBE` : `← Back to Project`}
-          </Link>
-        </Descriptions.Item>
-        <Descriptions.Item label="Branch">
-          <Tag color="orange">{wbe.branch || "main"}</Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label="Description" span={3}>
-          {wbe.description || "-"}
-        </Descriptions.Item>
-      </Descriptions>
-    </Card>
+    <>
+      <WBEHeaderCard
+        wbe={wbe}
+        loading={loading}
+      />
+      <WBEInfoCard wbe={wbe} loading={loading} />
+    </>
   );
 };

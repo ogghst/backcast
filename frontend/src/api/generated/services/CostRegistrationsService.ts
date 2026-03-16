@@ -99,12 +99,14 @@ export class CostRegistrationsService {
      * showing only cost registrations that were valid as of that timestamp.
      * @param costElementId
      * @param asOf Time travel: get budget status as of this timestamp (ISO 8601)
+     * @param branch Branch context to resolve Cost Element budget
      * @returns any Successful Response
      * @throws ApiError
      */
     public static getBudgetStatus(
         costElementId: string,
         asOf?: (string | null),
+        branch: string = 'main',
     ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'GET',
@@ -114,6 +116,7 @@ export class CostRegistrationsService {
             },
             query: {
                 'as_of': asOf,
+                'branch': branch,
             },
             errors: {
                 422: `Validation Error`,

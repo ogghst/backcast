@@ -203,7 +203,6 @@ describe("ActivityItem", () => {
     const item = screen.getByRole("button");
     // Check that the element has some height (touch target)
     expect(item).toBeInTheDocument();
-    const styles = window.getComputedStyle(item);
     // The minHeight should be at least 44px for accessibility
     expect(item).toHaveAttribute("style");
     expect(item.getAttribute("style")).toContain("44");

@@ -208,7 +208,7 @@ describe("ProjectSpotlight", () => {
    * Test that metric cards are displayed in a grid
    */
   it("displays metrics in a grid layout", () => {
-    const { container } = render(
+    render(
       <MemoryRouter>
         <ProjectSpotlight project={mockProject} />
       </MemoryRouter>

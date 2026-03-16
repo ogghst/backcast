@@ -275,7 +275,8 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
 
         # Check if version exists in target branch
         # We need to manage the query manually to avoid TemporalService issues and handle branching
-        current = await self.get_by_id(cost_element_id, branch=target_branch)
+        # Use STRICT mode to avoid falling back to parent branches
+        current = await self.get_by_id(cost_element_id, branch=target_branch, branch_mode=BranchMode.STRICT)
 
         if current:
             # Linear update in same branch: Close old, Open new
@@ -368,7 +369,7 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             data.update(update_data)
 
             # Set branching metadata
-            data["branch"] = branch
+            data["branch"] = target_branch
             data["parent_id"] = source_version.id  # Link to parent version
 
             # Create new version (Insert only, do not close parent)

@@ -11,20 +11,20 @@ class TestChangeOrderUpdateSchema:
 
     def test_change_order_update_accepts_comment(self):
         """Test ChangeOrderUpdate accepts optional comment field."""
-        data = {"status": "Submitted", "comment": "Ready for review"}
+        data = {"status": "Submitted for Approval", "comment": "Ready for review"}
 
         update = ChangeOrderUpdate(**data)
 
-        assert update.status == "Submitted"
+        assert update.status == "Submitted for Approval"
         assert update.comment == "Ready for review"
 
     def test_change_order_update_comment_is_optional(self):
         """Test ChangeOrderUpdate works without comment field."""
-        data = {"status": "Submitted"}
+        data = {"status": "Submitted for Approval"}
 
         update = ChangeOrderUpdate(**data)
 
-        assert update.status == "Submitted"
+        assert update.status == "Submitted for Approval"
         assert update.comment is None
 
     def test_change_order_update_comment_can_be_long_text(self):
@@ -60,12 +60,12 @@ class TestChangeOrderUpdateSchema:
         """Test ChangeOrderUpdate combines comment with other fields."""
         data = {
             "title": "Updated Title",
-            "status": "Submitted",
+            "status": "Submitted for Approval",
             "comment": "Updated title for clarity",
         }
 
         update = ChangeOrderUpdate(**data)
 
         assert update.title == "Updated Title"
-        assert update.status == "Submitted"
+        assert update.status == "Submitted for Approval"
         assert update.comment == "Updated title for clarity"
