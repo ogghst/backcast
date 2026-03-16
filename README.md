@@ -72,7 +72,8 @@ cd backend
 uv run alembic upgrade head
 
 # Start development server
-uv run uvicorn app.main:app --reload
+cd backend
+uv run uvicorn app.main:app --reload --port 8020 --host 0.0.0.0
 
 # Start frontend development server
 cd frontend
