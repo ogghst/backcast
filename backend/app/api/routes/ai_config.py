@@ -351,8 +351,8 @@ async def list_ai_tools() -> list[AIToolPublic]:
     Imports and registers all tool templates before querying the registry.
     """
     # Discover and register all tools from known modules
-    from app.ai.tools.registry import get_registry, get_all_tools
-    
+    from app.ai.tools.registry import get_all_tools, get_registry
+
     registry = get_registry()
     registry.discover_and_register("app.ai.tools.project_tools")
     registry.discover_and_register("app.ai.tools.templates.analysis_template")

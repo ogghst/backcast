@@ -85,11 +85,11 @@ async def test_branch_service_lifecycle(db_session: AsyncSession):
     assert reverted.parent_id == merged_id  # History verified
 
     # 6. Verify Current State
-    current_main = await service.get_current(root_id, branch="main")
+    current_main = await service.get_as_of(root_id, branch="main")
     assert current_main is not None
     assert current_main.id == reverted.id
 
-    current_feature = await service.get_current(
+    current_feature = await service.get_as_of(
         root_id, branch="feature/scope-increase"
     )
     assert current_feature is not None

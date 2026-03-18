@@ -72,7 +72,7 @@ async def test_assignment_persistence_across_versions(
     # This simulates what the workflow does when assigning an approver.
     # We directly set assigned_approver_id to the User's BUSINESS KEY (user_id)
     # Note: The model now correctly points to users.user_id (Business Key)
-    stored_co = await change_order_service.get_current(change_order.change_order_id)
+    stored_co = await change_order_service.get_as_of(change_order.change_order_id, as_of=None)
     assert stored_co is not None, "Change Order should be retrievable by Root ID"
 
     # Set assignment using Business Key (user_id)
@@ -103,7 +103,7 @@ async def test_assignment_persistence_across_versions(
     )
 
     # 5. Fetch Change Order again and verify persistence
-    refetched_co = await change_order_service.get_current(change_order.change_order_id)
+    refetched_co = await change_order_service.get_as_of(change_order.change_order_id, as_of=None)
     assert refetched_co is not None, "Change Order should still be retrievable"
 
     # CRITICAL ASSERTION: Assignment persists across user updates
@@ -148,7 +148,7 @@ async def test_assignment_to_non_existent_user(
         change_order_in=co_data, actor_id=admin_actor_id, control_date=datetime.now(UTC)
     )
 
-    stored_co = await change_order_service.get_current(change_order.change_order_id)
+    stored_co = await change_order_service.get_as_of(change_order.change_order_id, as_of=None)
     assert stored_co is not None
 
     # Per TD-067 analysis, setting a non-existent user_id is allowed at DB level

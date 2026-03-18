@@ -23,7 +23,7 @@ import logging
 from typing import Annotated, Any
 from uuid import UUID
 
-from langchain_core.tools import BaseTool, InjectedToolArg
+from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.types import ToolContext

@@ -1,9 +1,5 @@
 import asyncio
-import httpx
-import pytest
-import pytest_asyncio
-from typing import Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.core.rbac import RBACServiceABC, get_rbac_service
@@ -51,7 +47,7 @@ app.dependency_overrides[get_current_active_user] = mock_get_current_active_user
 app.dependency_overrides[get_rbac_service] = mock_get_rbac_service
 
 async def main():
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Create project
@@ -64,7 +60,7 @@ async def main():
         assert response.status_code == 201
         project = response.json()
         project_id = project["project_id"]
-        
+
         # Create first CO
         co1 = {
             "project_id": project_id,
@@ -76,7 +72,7 @@ async def main():
         resp1 = await client.post("/api/v1/change-orders", json=co1)
         print(f"CO1 Status: {resp1.status_code}")
         print(f"CO1 Response: {resp1.text}")
-        
+
         # Create second CO
         co2 = {
             "project_id": project_id,

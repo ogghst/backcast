@@ -2,8 +2,8 @@
 
 import json
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
-from uuid import UUID, uuid4
+from unittest.mock import AsyncMock, Mock, patch
+from uuid import uuid4
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -11,13 +11,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agent_service import AgentService, _extract_client_config
 from app.models.domain.ai import (
-    AIAssistantConfig,
     AIConversationMessage,
     AIConversationSession,
     AIProvider,
     AIProviderConfig,
 )
-from app.models.domain.user import User
 
 
 @pytest.mark.asyncio

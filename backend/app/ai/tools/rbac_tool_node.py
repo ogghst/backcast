@@ -6,7 +6,7 @@ Reads tool metadata and validates user permissions via RBACService.
 
 from typing import Any
 
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 from langgraph.prebuilt import ToolNode
 

@@ -11,14 +11,13 @@ actual graph execution overhead without external API latency.
 
 import asyncio
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from app.ai.graph import create_graph
 from app.ai.state import AgentState
-
 
 # Performance Targets
 SIMPLE_QUERY_TARGET_P50 = 500  # ms

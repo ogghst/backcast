@@ -51,7 +51,7 @@ class TestProgressEntryServiceCreate:
         actor_id = uuid4()
 
         # Act
-        created_progress = await service.create(progress_in, actor_id=actor_id)
+        created_progress = await service.create(actor_id, progress_in=progress_in)
 
         # Assert
         assert created_progress is not None
@@ -79,7 +79,7 @@ class TestProgressEntryServiceCreate:
         actor_id = uuid4()
 
         # Act
-        created_progress = await service.create(progress_in, actor_id=actor_id)
+        created_progress = await service.create(actor_id, progress_in=progress_in)
 
         # Assert
         assert created_progress.progress_percentage == Decimal("0.00")
@@ -102,7 +102,7 @@ class TestProgressEntryServiceCreate:
         actor_id = uuid4()
 
         # Act
-        created_progress = await service.create(progress_in, actor_id=actor_id)
+        created_progress = await service.create(actor_id, progress_in=progress_in)
 
         # Assert
         assert created_progress.progress_percentage == Decimal("100.00")
@@ -170,7 +170,7 @@ class TestProgressEntryServiceUpdate:
             progress_percentage=Decimal("50.00"),
         )
         actor_id = uuid4()
-        created_progress = await service.create(progress_in, actor_id=actor_id)
+        created_progress = await service.create(actor_id, progress_in=progress_in)
 
         # Act - update to higher percentage
         progress_update = ProgressEntryUpdate(
@@ -201,7 +201,7 @@ class TestProgressEntryServiceUpdate:
             progress_percentage=Decimal("75.00"),
         )
         actor_id = uuid4()
-        created_progress = await service.create(progress_in, actor_id=actor_id)
+        created_progress = await service.create(actor_id, progress_in=progress_in)
 
         # Act - update to lower percentage with justification
         progress_update = ProgressEntryUpdate(
@@ -238,25 +238,25 @@ class TestProgressEntryServiceGetLatest:
 
         # Create multiple progress entries
         await service.create(
-            ProgressEntryCreate(
+            actor_id,
+            progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("25.00"),
             ),
-            actor_id=actor_id,
         )
         await service.create(
-            ProgressEntryCreate(
+            actor_id,
+            progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("50.00"),
             ),
-            actor_id=actor_id,
         )
         await service.create(
-            ProgressEntryCreate(
+            actor_id,
+            progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("75.00"),
             ),
-            actor_id=actor_id,
         )
 
         # Act
@@ -282,20 +282,20 @@ class TestProgressEntryServiceGetLatest:
 
         # Create progress entries on different dates
         await service.create(
-            ProgressEntryCreate(
+            actor_id,
+            progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("25.00"),
                 control_date=datetime(2026, 1, 10, 12, 0, tzinfo=UTC),
             ),
-            actor_id=actor_id,
         )
         await service.create(
-            ProgressEntryCreate(
+            actor_id,
+            progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("50.00"),
                 control_date=datetime(2026, 1, 15, 12, 0, tzinfo=UTC),
             ),
-            actor_id=actor_id,
         )
 
         # Act - query as of Jan 12 (should get 25%)
@@ -346,25 +346,25 @@ class TestProgressEntryServiceGetHistory:
 
         # Create progress entries
         await service.create(
-            ProgressEntryCreate(
+            actor_id,
+            progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("25.00"),
             ),
-            actor_id=actor_id,
         )
         await service.create(
-            ProgressEntryCreate(
+            actor_id,
+            progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("50.00"),
             ),
-            actor_id=actor_id,
         )
         await service.create(
-            ProgressEntryCreate(
+            actor_id,
+            progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("75.00"),
             ),
-            actor_id=actor_id,
         )
 
         # Act
@@ -397,11 +397,11 @@ class TestProgressEntryServiceGetHistory:
         # Create 5 progress entries
         for i in range(5):
             await service.create(
-                ProgressEntryCreate(
+                actor_id,
+                progress_in=ProgressEntryCreate(
                     cost_element_id=cost_element_id,
                     progress_percentage=Decimal(str(i * 20)),
                 ),
-                actor_id=actor_id,
             )
 
         # Act - get page 1 with 2 items per page
@@ -429,20 +429,20 @@ class TestProgressEntryServiceGetHistory:
 
         # Act - create multiple entries on the same day
         await service.create(
-            ProgressEntryCreate(
+            actor_id,
+            progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("25.00"),
                 notes="Morning update",
             ),
-            actor_id=actor_id,
         )
         await service.create(
-            ProgressEntryCreate(
+            actor_id,
+            progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("30.00"),
                 notes="Afternoon update",
             ),
-            actor_id=actor_id,
         )
 
         # Assert - both should exist

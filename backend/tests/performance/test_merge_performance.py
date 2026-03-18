@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.change_order_service import ChangeOrderService
 from app.services.cost_element_service import CostElementService
+from app.services.project import ProjectService
 from app.services.wbe import WBEService
 
 
@@ -46,6 +47,16 @@ class TestMergePerformance:
         co_service = ChangeOrderService(db_session)
         wbe_service = WBEService(db_session)
         ce_service = CostElementService(db_session)
+        project_service = ProjectService(db_session)
+
+        # Create project on main branch first
+        await project_service.create_root(
+            root_id=project_id,
+            actor_id=actor_id,
+            branch="main",
+            code="PROJ-PERF",
+            name="Performance Test Project",
+        )
 
         # Create CO on main branch
         await co_service.create_root(
@@ -175,6 +186,16 @@ class TestMergePerformance:
 
         co_service = ChangeOrderService(db_session)
         wbe_service = WBEService(db_session)
+        project_service = ProjectService(db_session)
+
+        # Create project on main branch first
+        await project_service.create_root(
+            root_id=project_id,
+            actor_id=actor_id,
+            branch="main",
+            code="PROJ-PERF",
+            name="Performance Test Project",
+        )
 
         # Create CO on main branch
         await co_service.create_root(

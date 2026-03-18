@@ -205,7 +205,7 @@ class TestChangeOrderFullMerge:
         )
 
         # Get WBE before merge
-        wbe_before = await wbe_service.get_current(wbe_id, branch="main")
+        wbe_before = await wbe_service.get_as_of(wbe_id, as_of=None, branch="main")
         assert wbe_before.name == "Original WBE"
 
         # Create CO version on source branch
@@ -240,7 +240,7 @@ class TestChangeOrderFullMerge:
         )
 
         # Assert
-        wbe_after = await wbe_service.get_current(wbe_id, branch="main")
+        wbe_after = await wbe_service.get_as_of(wbe_id, as_of=None, branch="main")
         assert wbe_after is not None
         assert wbe_after.name == "Modified WBE"
 
@@ -353,7 +353,7 @@ class TestChangeOrderFullMerge:
         )
 
         # Verify WBE exists and is not deleted on main
-        wbe_before = await wbe_service.get_current(wbe_id, branch="main")
+        wbe_before = await wbe_service.get_as_of(wbe_id, as_of=None, branch="main")
         assert wbe_before is not None
         assert wbe_before.deleted_at is None
 

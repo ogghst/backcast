@@ -61,25 +61,57 @@ async def test_chat_stream_sends_tokens(db_session: AsyncSession) -> None:
 
     # Create mock chunks for streaming
     chunk1 = MagicMock()
-    chunk1.choices = [MagicMock()]
-    chunk1.choices[0].delta.content = "Hello"
-    chunk1.choices[0].delta.tool_calls = None
-    chunk1.choices[0].finish_reason = None
-    chunk1.choices[0].message = None
+    chunk1.text = "Hello"
+    chunk1.content = "Hello"
 
     chunk2 = MagicMock()
-    chunk2.choices = [MagicMock()]
-    chunk2.choices[0].delta.content = " world"
-    chunk2.choices[0].delta.tool_calls = None
-    chunk2.choices[0].finish_reason = "stop"
-    chunk2.choices[0].message = None
+    chunk2.text = " world"
+    chunk2.content = " world"
 
-    # Mock stream_with_error_handling to return our chunks
-    async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[MagicMock]:
-        yield chunk1
-        yield chunk2
+    # Mock LLM creation
+    mock_llm = MagicMock()
 
-    with patch("app.ai.agent_service.stream_with_error_handling", side_effect=mock_stream):
+    # Mock graph and streaming events
+    mock_graph = MagicMock()
+    event_stream = []
+
+    # Create on_chat_model_stream event for chunk1
+    event1 = {
+        "event": "on_chat_model_stream",
+        "data": {
+            "chunk": chunk1
+        }
+    }
+    event_stream.append(event1)
+
+    # Create on_chat_model_stream event for chunk2
+    event2 = {
+        "event": "on_chat_model_stream",
+        "data": {
+            "chunk": chunk2
+        }
+    }
+    event_stream.append(event2)
+
+    # Create on_end event
+    event3 = {
+        "event": "on_end",
+        "data": {
+            "output": {
+                "messages": []
+            }
+        }
+    }
+    event_stream.append(event3)
+
+    async def mock_astream_events(*args: object, **kwargs: object) -> AsyncIterator[dict]:
+        for event in event_stream:
+            yield event
+
+    mock_graph.astream_events = mock_astream_events
+
+    with patch.object(service, "_create_langchain_llm", return_value=mock_llm), \
+         patch("app.ai.agent_service.create_graph", return_value=mock_graph):
         await service.chat_stream(
             message="Hello",
             assistant_config=assistant_config,
@@ -141,15 +173,20 @@ async def test_chat_stream_handles_streaming_error(db_session: AsyncSession) -> 
     mock_websocket = MagicMock(spec=WebSocket)
     mock_websocket.send_json = AsyncMock()
 
-    # Mock streaming error
-    async def mock_stream_with_error(*args: object, **kwargs: object) -> AsyncIterator[MagicMock]:
+    # Mock LLM creation
+    mock_llm = MagicMock()
+
+    # Mock graph and streaming events with error
+    mock_graph = MagicMock()
+
+    async def mock_astream_events_with_error(*args: object, **kwargs: object) -> AsyncIterator[dict]:
         raise LLMStreamingError("Connection failed")
         yield  # Never reached
 
-    with patch(
-        "app.ai.agent_service.stream_with_error_handling",
-        side_effect=mock_stream_with_error,
-    ):
+    mock_graph.astream_events = mock_astream_events_with_error
+
+    with patch.object(service, "_create_langchain_llm", return_value=mock_llm), \
+         patch("app.ai.agent_service.create_graph", return_value=mock_graph):
         await service.chat_stream(
             message="Hello",
             assistant_config=assistant_config,
@@ -218,10 +255,29 @@ async def test_chat_stream_sends_complete_message(db_session: AsyncSession) -> N
     chunk.choices[0].finish_reason = "stop"
     chunk.choices[0].message = None
 
-    async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[MagicMock]:
-        yield chunk
+    # Mock LLM creation
+    mock_llm = MagicMock()
 
-    with patch("app.ai.agent_service.stream_with_error_handling", side_effect=mock_stream):
+    # Mock graph and streaming events
+    mock_graph = MagicMock()
+
+    # Create event stream with on_end event
+    event = {
+        "event": "on_end",
+        "data": {
+            "output": {
+                "messages": []
+            }
+        }
+    }
+
+    async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[dict]:
+        yield event
+
+    mock_graph.astream_events = mock_stream
+
+    with patch.object(service, "_create_langchain_llm", return_value=mock_llm), \
+         patch("app.ai.agent_service.create_graph", return_value=mock_graph):
         await service.chat_stream(
             message="Hello",
             assistant_config=assistant_config,
@@ -292,10 +348,29 @@ async def test_chat_stream_handles_websocket_disconnect(db_session: AsyncSession
     chunk.choices[0].finish_reason = "stop"
     chunk.choices[0].message = None
 
-    async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[MagicMock]:
-        yield chunk
+    # Mock LLM creation
+    mock_llm = MagicMock()
 
-    with patch("app.ai.agent_service.stream_with_error_handling", side_effect=mock_stream):
+    # Mock graph and streaming events
+    mock_graph = MagicMock()
+
+    # Create event stream with on_end event
+    event = {
+        "event": "on_end",
+        "data": {
+            "output": {
+                "messages": []
+            }
+        }
+    }
+
+    async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[dict]:
+        yield event
+
+    mock_graph.astream_events = mock_stream
+
+    with patch.object(service, "_create_langchain_llm", return_value=mock_llm), \
+         patch("app.ai.agent_service.create_graph", return_value=mock_graph):
         # Should not raise exception even though WebSocket fails
         await service.chat_stream(
             message="Hello",
@@ -368,10 +443,29 @@ async def test_chat_stream_uses_existing_session(db_session: AsyncSession) -> No
     chunk.choices[0].finish_reason = "stop"
     chunk.choices[0].message = None
 
-    async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[MagicMock]:
-        yield chunk
+    # Mock LLM creation
+    mock_llm = MagicMock()
 
-    with patch("app.ai.agent_service.stream_with_error_handling", side_effect=mock_stream):
+    # Mock graph and streaming events
+    mock_graph = MagicMock()
+
+    # Create event stream with on_end event
+    event = {
+        "event": "on_end",
+        "data": {
+            "output": {
+                "messages": []
+            }
+        }
+    }
+
+    async def mock_stream(*args: object, **kwargs: object) -> AsyncIterator[dict]:
+        yield event
+
+    mock_graph.astream_events = mock_stream
+
+    with patch.object(service, "_create_langchain_llm", return_value=mock_llm), \
+         patch("app.ai.agent_service.create_graph", return_value=mock_graph):
         await service.chat_stream(
             message="Hello",
             assistant_config=assistant_config,

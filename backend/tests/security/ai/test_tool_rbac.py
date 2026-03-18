@@ -9,11 +9,34 @@ Tests verify that tool-level RBAC is enforced correctly:
 - Tool-level RBAC vs service-level RBAC
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.tools import ToolContext
+from app.core.rbac import RBACServiceABC, set_rbac_service
+
+
+class MockRBACService(RBACServiceABC):
+    """Mock RBAC service for testing."""
+
+    def __init__(self):
+        self.permission_map = {
+            "admin": ["project-read", "project-write", "project-delete"],
+            "manager": ["project-read", "project-write"],
+            "viewer": ["project-read"],
+            "guest": [],
+        }
+
+    def has_role(self, user_role: str, required_roles: list[str]) -> bool:
+        return user_role in required_roles
+
+    def has_permission(self, user_role: str, required_permission: str) -> bool:
+        return required_permission in self.permission_map.get(user_role, [])
+
+    def get_user_permissions(self, user_role: str) -> list[str]:
+        return self.permission_map.get(user_role, [])
 
 
 # Test fixtures
@@ -22,8 +45,9 @@ def mock_context_with_permissions():
     """Create a mock context with permissions."""
     context = MagicMock(spec=ToolContext)
     context.user_id = "test-user-id"
-    context.db_session = MagicMock(spec=AsyncSession)
-    context.check_permission = AsyncMock(return_value=True)
+    context.user_role = "viewer"
+    context.session = MagicMock(spec=AsyncSession)
+    context._permission_cache = {}
     return context
 
 
@@ -32,9 +56,27 @@ def mock_context_without_permissions():
     """Create a mock context without permissions."""
     context = MagicMock(spec=ToolContext)
     context.user_id = "test-user-id"
-    context.db_session = MagicMock(spec=AsyncSession)
-    context.check_permission = AsyncMock(return_value=False)
+    context.user_role = "guest"
+    context.session = MagicMock(spec=AsyncSession)
+    context._permission_cache = {}
     return context
+
+
+@pytest.fixture(autouse=True)
+def setup_mock_rbac():
+    """Automatically use mock RBAC service for all security tests."""
+    mock_service = MockRBACService()
+    original_service = None
+
+    # Store and replace the global service
+    from app.core import rbac as rbac_module
+    original_service = rbac_module._rbac_service
+    set_rbac_service(mock_service)
+
+    yield
+
+    # Restore original service
+    rbac_module._rbac_service = original_service
 
 
 @pytest.mark.asyncio
@@ -58,16 +100,23 @@ async def test_permission_denied_without_required_permission(
         permissions=["project-read"],
     )
     async def secure_tool(input: str, context: ToolContext) -> dict:
-        """A secure tool."""
+        """A secure tool that processes input.
+
+        Args:
+            input: The input string to process
+            context: The tool context
+
+        Returns:
+            A dictionary containing the processed result
+        """
         return {"result": f"Processed: {input}"}
 
     # Act
-    result = await secure_tool(input="test", context=mock_context_without_permissions)
+    result = await secure_tool.ainvoke({"input": "test", "context": mock_context_without_permissions})
 
     # Assert
     assert "error" in result
     assert "permission" in result["error"].lower()
-    assert mock_context_without_permissions.check_permission.called
 
 
 @pytest.mark.asyncio
@@ -91,16 +140,23 @@ async def test_permission_granted_with_required_permission(
         permissions=["project-read"],
     )
     async def secure_tool(input: str, context: ToolContext) -> dict:
-        """A secure tool."""
+        """A secure tool that processes input.
+
+        Args:
+            input: The input string to process
+            context: The tool context
+
+        Returns:
+            A dictionary containing the processed result
+        """
         return {"result": f"Processed: {input}"}
 
     # Act
-    result = await secure_tool(input="test", context=mock_context_with_permissions)
+    result = await secure_tool.ainvoke({"input": "test", "context": mock_context_with_permissions})
 
     # Assert
     assert "error" not in result
     assert result["result"] == "Processed: test"
-    assert mock_context_with_permissions.check_permission.called
 
 
 @pytest.mark.asyncio
@@ -118,11 +174,8 @@ async def test_multiple_permissions_and_logic(
     # Arrange
     from app.ai.tools.decorator import ai_tool
 
-    # Mock context to grant only first permission
-    async def check_permission_mock(permission: str) -> bool:
-        return permission == "project-read"
-
-    mock_context_with_permissions.check_permission = AsyncMock(side_effect=check_permission_mock)
+    # Use viewer role which only has project-read permission
+    mock_context_with_permissions.user_role = "viewer"
 
     @ai_tool(
         name="multi_perm_tool",
@@ -130,17 +183,23 @@ async def test_multiple_permissions_and_logic(
         permissions=["project-read", "project-write"],
     )
     async def multi_perm_tool(input: str, context: ToolContext) -> dict:
-        """A tool with multiple permissions."""
+        """A tool with multiple permissions.
+
+        Args:
+            input: The input string to process
+            context: The tool context
+
+        Returns:
+            A dictionary containing the processed result
+        """
         return {"result": f"Processed: {input}"}
 
     # Act
-    result = await multi_perm_tool(input="test", context=mock_context_with_permissions)
+    result = await multi_perm_tool.ainvoke({"input": "test", "context": mock_context_with_permissions})
 
     # Assert
     assert "error" in result
     assert "permission" in result["error"].lower()
-    # Should have checked both permissions
-    assert mock_context_with_permissions.check_permission.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -166,13 +225,21 @@ async def test_unauthorized_access_blocked_at_tool_level(
         permissions=["project-read"],
     )
     async def secure_tool(input: str, context: ToolContext) -> dict:
-        """A secure tool."""
+        """A secure tool that processes input.
+
+        Args:
+            input: The input string to process
+            context: The tool context
+
+        Returns:
+            A dictionary containing the processed result
+        """
         nonlocal function_executed
         function_executed = True
         return {"result": f"Processed: {input}"}
 
     # Act
-    result = await secure_tool(input="test", context=mock_context_without_permissions)
+    result = await secure_tool.ainvoke({"input": "test", "context": mock_context_without_permissions})
 
     # Assert
     assert "error" in result
@@ -197,13 +264,21 @@ async def test_tool_level_rbac_metadata():
         category="projects",
     )
     async def secure_tool(input: str, context: ToolContext) -> dict:
-        """A secure tool."""
+        """A secure tool that processes input.
+
+        Args:
+            input: The input string to process
+            context: The tool context
+
+        Returns:
+            A dictionary containing the processed result
+        """
         return {"result": f"Processed: {input}"}
 
     # Act
     # Access the tool's metadata
-    if hasattr(secure_tool, "metadata"):
-        metadata = secure_tool.metadata
+    if hasattr(secure_tool, "_tool_metadata"):
+        metadata = secure_tool._tool_metadata
 
         # Assert
         assert metadata.permissions == ["project-read", "project-write"]
@@ -231,17 +306,23 @@ async def test_rbac_enforcement_with_no_permissions_required(
         description="A tool without permission requirements",
     )
     async def open_tool(input: str, context: ToolContext) -> dict:
-        """An open tool."""
+        """An open tool without permission requirements.
+
+        Args:
+            input: The input string to process
+            context: The tool context
+
+        Returns:
+            A dictionary containing the processed result
+        """
         return {"result": f"Processed: {input}"}
 
     # Act
-    result = await open_tool(input="test", context=mock_context_without_permissions)
+    result = await open_tool.ainvoke({"input": "test", "context": mock_context_without_permissions})
 
     # Assert
     assert "error" not in result
     assert result["result"] == "Processed: test"
-    # Should not check permissions
-    assert not mock_context_without_permissions.check_permission.called
 
 
 @pytest.mark.asyncio
@@ -263,17 +344,27 @@ async def test_tool_context_user_id_isolation():
         description="A tool that uses context",
     )
     async def context_tool(input: str, context: ToolContext) -> dict:
-        """A tool that captures context."""
+        """A tool that captures context.
+
+        Args:
+            input: The input string to process
+            context: The tool context
+
+        Returns:
+            A dictionary containing the user ID
+        """
         captured_user_ids.append(context.user_id)
         return {"result": f"User: {context.user_id}"}
 
     # Act
     context1 = MagicMock(spec=ToolContext)
     context1.user_id = "user-1"
-    context1.db_session = MagicMock(spec=AsyncSession)
+    context1.user_role = "viewer"
+    context1.session = MagicMock(spec=AsyncSession)
     context1.check_permission = AsyncMock(return_value=True)
+    context1._permission_cache = {}
 
-    await context_tool(input="test", context=context1)
+    await context_tool.ainvoke({"input": "test", "context": context1})
 
     # Assert
     assert len(captured_user_ids) == 1
@@ -285,18 +376,27 @@ async def test_tool_context_user_id_isolation():
 async def test_permission_check_exception_handling(
     mock_context_without_permissions,
 ):
-    """Test: Permission check exceptions are handled gracefully.
+    """Test: Permission check exceptions are propagated.
 
     This test verifies that if the permission check raises an exception,
-    it is handled gracefully and returns an error response.
+    it propagates to the caller (the decorator doesn't catch RBAC exceptions).
     """
     # Arrange
     from app.ai.tools.decorator import ai_tool
 
-    # Mock context to raise exception on permission check
-    mock_context_without_permissions.check_permission = AsyncMock(
-        side_effect=Exception("Database connection failed")
-    )
+    # Create a broken RBAC service that raises exceptions
+    class BrokenRBACService(RBACServiceABC):
+        def has_role(self, user_role: str, required_roles: list[str]) -> bool:
+            return True
+
+        def has_permission(self, user_role: str, required_permission: str) -> bool:
+            raise Exception("Database connection failed")
+
+        def get_user_permissions(self, user_role: str) -> list[str]:
+            return []
+
+    # Set the broken service
+    set_rbac_service(BrokenRBACService())
 
     @ai_tool(
         name="secure_tool",
@@ -304,15 +404,21 @@ async def test_permission_check_exception_handling(
         permissions=["project-read"],
     )
     async def secure_tool(input: str, context: ToolContext) -> dict:
-        """A secure tool."""
+        """A secure tool that processes input.
+
+        Args:
+            input: The input string to process
+            context: The tool context
+
+        Returns:
+            A dictionary containing the processed result
+        """
         return {"result": f"Processed: {input}"}
 
     # Act & Assert
-    # The decorator's exception handling should catch the error
-    # Currently, the decorator lets exceptions propagate
-    # This test verifies the current behavior
+    # The decorator doesn't catch RBAC service exceptions, so they propagate
     with pytest.raises(Exception, match="Database connection failed"):
-        await secure_tool(input="test", context=mock_context_without_permissions)
+        await secure_tool.ainvoke({"input": "test", "context": mock_context_without_permissions})
 
 
 # Run security tests with pytest:

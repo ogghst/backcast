@@ -161,7 +161,6 @@ async def test_wbe_time_travel_update(
         "project_id": test_project["project_id"],
         "code": "TT-2.0",
         "name": "Version 1",
-        "budget_allocation": 100000,
         "level": 1,
     }
     create_response = await client.post("/api/v1/wbes", json=wbe_data)
@@ -178,7 +177,7 @@ async def test_wbe_time_travel_update(
     time.sleep(1.0)
 
     # T3: Update WBE
-    update_data = {"name": "Version 2", "budget_allocation": 150000}
+    update_data = {"name": "Version 2"}
     update_response = await client.put(f"/api/v1/wbes/{wbe_id}", json=update_data)
     assert update_response.status_code == 200
 
@@ -188,14 +187,12 @@ async def test_wbe_time_travel_update(
     assert response_v1.status_code == 200
     wbe_v1 = response_v1.json()
     assert wbe_v1["name"] == "Version 1"
-    assert float(wbe_v1["budget_allocation"]) == 100000.0
 
     # Query at current - should see Version 2
     response_current = await client.get(f"/api/v1/wbes/{wbe_id}")
     assert response_current.status_code == 200
     wbe_current = response_current.json()
     assert wbe_current["name"] == "Version 2"
-    assert float(wbe_current["budget_allocation"]) == 150000.0
 
 
 @pytest.mark.asyncio

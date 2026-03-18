@@ -80,7 +80,7 @@ class TestChangeOrderBranchArchive:
         # So we update DB directly for setup speed, OR use proper transitions.
         # Let's use direct DB update to set "Implemented" to test the *Archive* logic specifically.
 
-        co = await co_service.get_current(co_id)
+        co = await co_service.get_as_of(co_id, as_of=None, branch="main")
         assert co is not None
         co.status = "Implemented"
         db_session.add(co)
@@ -115,7 +115,7 @@ class TestChangeOrderBranchArchive:
             await branch_service.get_by_name_and_project(branch_name, project_id)
 
         # 2. Change Order should still exist (not archived itself)
-        co_after = await co_service.get_current(co_id)
+        co_after = await co_service.get_as_of(co_id, as_of=None, branch="main")
         assert co_after is not None
         assert co_after.status == "Implemented"
 

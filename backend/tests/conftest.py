@@ -55,7 +55,7 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def apply_migrations() -> Generator[None, None, None]:
     """Apply alembic migrations to the test database."""
     # Override settings to point to test DB
@@ -91,17 +91,28 @@ def apply_migrations() -> Generator[None, None, None]:
         venv_python = sys.executable
 
     env = os.environ.copy()
+    # Set the database URLs for wipe script
     env["WIPE_DATABASE_URL"] = TEST_DATABASE_URL
     env["ORIGINAL_DATABASE_URL"] = str(original_url)
+    # Also set DATABASE_URL for wipe script fallback
+    env["DATABASE_URL"] = TEST_DATABASE_URL
 
     try:
-        subprocess.run(
+        result = subprocess.run(
             [venv_python, wipe_script],
             env=env,
             check=True,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
+            timeout=60,  # Add timeout to prevent hanging
         )
+        print(f"DB Wipe output: {result.stdout}")
+    except subprocess.TimeoutExpired as e:
+        print("DB Wipe timed out after 60 seconds")
+        print(f"stdout: {e.stdout}")
+        print(f"stderr: {e.stderr}")
+        # Don't raise - try to continue with migrations
     except subprocess.CalledProcessError as e:
         print(f"DB Wipe Failed: {e.stdout} {e.stderr}")
         # Don't raise - try to continue with migrations
@@ -171,7 +182,7 @@ def apply_migrations() -> Generator[None, None, None]:
 
 
 @pytest_asyncio.fixture(scope="function")
-async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
+async def db_engine(apply_migrations) -> AsyncGenerator[AsyncEngine, None]:
     """Create async engine for tests."""
     engine = create_async_engine(
         TEST_DATABASE_URL, echo=False, poolclass=NullPool, pool_pre_ping=True
@@ -199,12 +210,50 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
         async with async_session_maker() as session:
             # Clean up all test data before the test (if tables exist)
             try:
-                await session.execute(
-                    text(
-                        "TRUNCATE TABLE cost_elements, cost_element_types, wbes, projects, departments, users, cost_registrations, progress_entries, schedule_baselines, branches, change_orders, change_order_audit_log, forecasts, ai_providers, ai_provider_configs, ai_models, ai_assistant_configs, ai_conversation_sessions, ai_conversation_messages RESTART IDENTITY CASCADE"
-                    )
+                # Check which tables exist using information_schema
+                result = await session.execute(
+                    text("""
+                        SELECT table_name
+                        FROM information_schema.tables
+                        WHERE table_schema = 'public'
+                        AND table_type = 'BASE TABLE'
+                    """)
                 )
-                await session.commit()
+                existing_tables = {row[0] for row in result}
+
+                # List of tables to truncate in dependency order (child tables first)
+                tables_to_truncate = [
+                    "ai_conversation_messages",
+                    "ai_conversation_sessions",
+                    "ai_assistant_configs",
+                    "ai_models",
+                    "ai_provider_configs",
+                    "ai_providers",
+                    "cost_registrations",
+                    "progress_entries",
+                    "cost_elements",
+                    "change_order_audit_log",
+                    "change_orders",
+                    "branches",
+                    "forecasts",
+                    "wbes",
+                    "cost_element_types",
+                    "projects",
+                    "departments",
+                    "users",
+                    "schedule_baselines",  # May not exist in newer migrations
+                ]
+
+                # Build TRUNCATE statement for tables that exist
+                truncate_parts = []
+                for table in tables_to_truncate:
+                    if table in existing_tables:
+                        truncate_parts.append(f'"{table}"')
+
+                if truncate_parts:
+                    truncate_sql = f"TRUNCATE TABLE {', '.join(truncate_parts)} RESTART IDENTITY CASCADE"
+                    await session.execute(text(truncate_sql))
+                    await session.commit()
             except Exception as e:
                 # Tables might not exist yet (first test run), fail fast
                 print(f"Error truncating tables: {e}")

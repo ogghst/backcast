@@ -1,9 +1,10 @@
 """Integration tests for migrated project tools."""
 
-import pytest
 from uuid import uuid4
 
-from app.ai.tools.project_tools import list_projects, get_project
+import pytest
+
+from app.ai.tools.project_tools import get_project, list_projects
 from app.ai.tools.types import ToolContext
 
 

@@ -13,6 +13,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Defer imports to avoid circular import issues
 from app.models.domain.change_order import ChangeOrder
 from app.models.domain.cost_element import CostElement
 from app.models.domain.project import Project
@@ -24,10 +25,11 @@ from app.models.schemas.dashboard import (
     ProjectMetrics,
     ProjectSpotlight,
 )
-from app.services.change_order_service import ChangeOrderService
-from app.services.cost_element_service import CostElementService
-from app.services.project import ProjectService
-from app.services.wbe import WBEService
+
+# from app.services.change_order_service import ChangeOrderService
+# from app.services.cost_element_service import CostElementService
+# from app.services.project import ProjectService
+# from app.services.wbe import WBEService
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,12 @@ class DashboardService:
         Args:
             session: Async database session
         """
+        # Defer imports to avoid circular import issues
+        from app.services.change_order_service import ChangeOrderService
+        from app.services.cost_element_service import CostElementService
+        from app.services.project import ProjectService
+        from app.services.wbe import WBEService
+
         self.session = session
         self.project_service = ProjectService(session)
         self.wbe_service = WBEService(session)

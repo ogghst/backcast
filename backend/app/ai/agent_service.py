@@ -255,6 +255,7 @@ class AgentService:
         # Create tools
         # Fetch user to get their role for RBAC
         from sqlalchemy import select
+
         from app.models.domain.user import User
 
         user_result = await self.session.execute(
@@ -418,6 +419,7 @@ class AgentService:
         # Create tools
         # Fetch user to get their role for RBAC
         from sqlalchemy import select
+
         from app.models.domain.user import User
 
         user_result = await db.execute(

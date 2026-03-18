@@ -1,19 +1,19 @@
 """Tests for tool registry."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
+import pytest
+
+from app.ai.tools.decorator import ai_tool
 from app.ai.tools.registry import (
     ToolRegistry,
-    get_registry,
-    register_tool,
     get_all_tools,
-    get_tools_by_permission,
+    get_registry,
     get_tools_by_category,
-    as_langchain_tools,
+    get_tools_by_permission,
+    register_tool,
 )
 from app.ai.tools.types import ToolContext, ToolMetadata
-from app.ai.tools.decorator import ai_tool
 
 
 class TestToolRegistry:

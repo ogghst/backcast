@@ -187,7 +187,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Create progress entries
-        await progress_service.create_progress_entry(
+        await progress_service.create(
             progress_in=ProgressEntryCreate(
                 cost_element_id=ce1_id,
                 progress_percentage=Decimal("25.00"),
@@ -199,7 +199,7 @@ class TestChangeOrderWorkflowFullTemporal:
             actor_id=actor_id,
         )
 
-        await progress_service.create_progress_entry(
+        await progress_service.create(
             progress_in=ProgressEntryCreate(
                 cost_element_id=ce2_id,
                 progress_percentage=Decimal("10.00"),
@@ -346,7 +346,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Add progress entry on CO branch
-        await progress_service.create_progress_entry(
+        await progress_service.create(
             progress_in=ProgressEntryCreate(
                 cost_element_id=ce1_id,
                 progress_percentage=Decimal("40.00"),
@@ -772,7 +772,7 @@ class TestChangeOrderWorkflowFullTemporal:
         )
 
         # Create progress and cost registrations
-        await progress_service.create_progress_entry(
+        await progress_service.create(
             progress_in=ProgressEntryCreate(
                 cost_element_id=ce_id,
                 progress_percentage=Decimal("25.00"),

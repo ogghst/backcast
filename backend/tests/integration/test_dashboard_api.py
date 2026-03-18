@@ -20,7 +20,6 @@ from app.services.change_order_service import ChangeOrderService
 from app.services.project import ProjectService
 from app.services.wbe import WBEService
 
-
 # Mock admin user for auth
 mock_admin_user = User(
     id=uuid4(),

@@ -27,7 +27,7 @@ Usage:
 import logging
 from typing import Annotated, Any
 
-from langchain_core.tools import BaseTool, InjectedToolArg
+from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.types import ToolContext
@@ -225,8 +225,8 @@ async def create_project(
         >>> print(f"Created project with ID: {result['id']}")
     """
     try:
-        from uuid import UUID
         from datetime import datetime
+        from uuid import UUID
 
         service = context.project_service
 
