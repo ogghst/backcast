@@ -97,7 +97,7 @@ async def test_search_change_orders(
         "project_id": project_id,
         "code": "CO-SEARCH-2",
         "title": "Beta Change",
-        "status": "Submitted",
+        "status": "Submitted for Approval",
         "description": "Second CO",
     }
 
@@ -147,7 +147,7 @@ async def test_filter_change_orders(
         "project_id": project_id,
         "code": "CO-FILT-2",
         "title": "Submitted CO",
-        "status": "Submitted",
+        "status": "Submitted for Approval",
         "description": "Submitted",
     }
 

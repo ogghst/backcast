@@ -10,5 +10,9 @@ export type ChangeOrderApproval = {
      * Optional comments explaining the approval/rejection decision
      */
     comments?: (string | null);
+    /**
+     * Control date for the workflow operation (defaults to now)
+     */
+    control_date?: (string | null);
 };
 

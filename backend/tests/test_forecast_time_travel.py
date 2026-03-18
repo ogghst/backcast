@@ -4,6 +4,7 @@ This test reproduces the issue where updating a forecast with a future control_d
 makes it unavailable for queries with as_of dates before that control_date.
 """
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -75,15 +76,20 @@ async def test_forecast_time_travel_with_future_control_date(
     """Test that forecasts can be queried with as_of dates before their control_date.
 
     Scenario:
-    1. Create cost element at 2026-01-20 (today)
-    2. Create initial forecast at  2026-01-20
-    3. Update forecast with control_date=2026-02-11 (future)
-    4. Query forecast at as_of=2026-02-10 (before control_date, but after initial creation)
+    1. Create cost element at current time
+    2. Create initial forecast at current time
+    3. Update forecast with control_date in the future (current time + 10 days)
+    4. Query forecast at as_of = control_date - 1 day (before control_date, but after initial creation)
 
     Expected: Should return the old forecast version because its valid_time covers the query date.
     Actual Bug: Returns 404 because get_as_of() uses System Time Travel semantics which requires
     transaction_time to contain as_of.
     """
+    # Calculate dynamic dates to ensure they're always in the future
+    now = datetime.now(timezone.utc)  # noqa: UP017
+    future_control_date = now + timedelta(days=10)
+    query_as_of_date = future_control_date - timedelta(days=1)
+
     # Create dependencies
     dept_res = await client.post(
         "/api/v1/departments",
@@ -139,17 +145,17 @@ async def test_forecast_time_travel_with_future_control_date(
         json={
             "eac_amount": "700.00",
             "basis_of_estimate": "Updated forecast",
-            "control_date": "2026-02-11T23:32:23.040Z",
+            "control_date": future_control_date.isoformat(),
         },
     )
     assert update_res.status_code == 200
     assert update_res.json()["eac_amount"] == "700.00"
 
-    # 3. Query at as_of=2026-02-10 (one day before control_date)
+    # 3. Query at as_of = control_date - 1 day (before control_date)
     # This should return the OLD version (eac_amount=1000)
     query_res = await client.get(
         f"/api/v1/cost-elements/{cost_element_id}/forecast",
-        params={"as_of": "2026-02-10T23:32:23.040Z", "branch": "main"},
+        params={"as_of": query_as_of_date.isoformat(), "branch": "main"},
     )
 
     # Bug: Returns 404 instead of old version

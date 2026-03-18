@@ -141,7 +141,7 @@ async def test_change_order_active_versions(db_session: AsyncSession, admin_user
     )
 
     # Active Fetch
-    current = await service.get_current(co_id)
+    current = await service.get_as_of(co_id, as_of=None, branch="main")
     assert current is not None
     assert current.title == "V2"
 
@@ -203,8 +203,8 @@ async def test_change_order_crud_lifecycle(db_session: AsyncSession, admin_user:
     assert deleted.deleted_at is not None
 
     # 6. Verify Deletion
-    # Should not be found via normal get_current
-    missing = await service.get_current(co_id)
+    # Should not be found via normal get_as_of
+    missing = await service.get_as_of(co_id, as_of=None, branch="main")
     assert missing is None
 
     # Should not be in list

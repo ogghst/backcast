@@ -240,12 +240,13 @@ class TestGenericEVMMetricsEndpoint:
         """
         # Arrange
         cost_element_id = setup_evm_data["cost_element_id"]
-        past_date = datetime(2026, 3, 15, tzinfo=UTC)
+        # Use a date in the future (entities were created at test runtime)
+        future_date = datetime(2026, 6, 30, tzinfo=UTC)
 
         # Act
         response = await client.get(
             f"/api/v1/evm/cost_element/{cost_element_id}/metrics",
-            params={"control_date": past_date.isoformat()},
+            params={"control_date": future_date.isoformat()},
         )
 
         # Assert
@@ -815,7 +816,8 @@ class TestEVMBatchEndpoint:
         """
         # Arrange
         cost_element_id = setup_evm_data["cost_element_id"]
-        control_date = datetime(2026, 3, 15, tzinfo=UTC)
+        # Use a date in the future (entities were created at test runtime)
+        control_date = datetime(2026, 6, 30, tzinfo=UTC)
 
         # Act
         response = await client.post(

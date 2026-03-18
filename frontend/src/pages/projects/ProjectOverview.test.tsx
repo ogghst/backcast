@@ -1,7 +1,25 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ProjectOverview } from "./ProjectOverview";
+
+// Mock TimeMachine context
+vi.mock("@/contexts/TimeMachineContext", () => ({
+  useTimeMachineParams: () => ({
+    asOf: undefined,
+    branch: "main",
+    mode: "merged",
+  }),
+  useTimeMachine: () => ({
+    asOf: undefined,
+    branch: "main",
+    mode: "merged",
+    isHistorical: false,
+    invalidateQueries: vi.fn(),
+  }),
+  TimeMachineProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
 
 // Mock the hooks
 vi.mock("@/features/projects/api/useProjects", () => ({
@@ -13,6 +31,10 @@ vi.mock("@/features/projects/api/useProjects", () => ({
       budget: 100000,
     },
     isLoading: false,
+  }),
+  useUpdateProject: () => ({
+    mutate: vi.fn(),
+    isPending: false,
   }),
 }));
 
@@ -34,6 +56,20 @@ vi.mock("@/hooks/useEntityHistory", () => ({
   }),
 }));
 
+// Mock Can component to always render children
+vi.mock("@/components/auth/Can", () => ({
+  Can: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+const createTestQueryClient = () =>
+  new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+      },
+    },
+  });
+
 describe("ProjectOverview", () => {
   /**
    * T-Overview-001: test_project_overview_renders_project_details_and_wbes
@@ -53,10 +89,13 @@ describe("ProjectOverview", () => {
    */
   it("test_project_overview_renders_project_details_and_wbes", () => {
     // Arrange & Act
+    const queryClient = createTestQueryClient();
     render(
-      <MemoryRouter initialEntries={["/projects/123"]}>
-        <ProjectOverview />
-      </MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/projects/123"]}>
+          <ProjectOverview />
+        </MemoryRouter>
+      </QueryClientProvider>
     );
 
     // Assert

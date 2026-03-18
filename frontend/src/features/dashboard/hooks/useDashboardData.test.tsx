@@ -17,7 +17,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { server } from "@/mocks/server";
 import { useDashboardData } from "./useDashboardData";
-import type { DashboardDataAPI } from "../types";
 
 /**
  * Create a wrapper with QueryClient for testing hooks

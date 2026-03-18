@@ -7,8 +7,6 @@ These tests verify that template files follow the new pattern with:
 - Correct imports
 """
 
-import inspect
-from typing import get_type_hints
 
 import pytest
 from langchain_core.tools import BaseTool
@@ -230,16 +228,16 @@ class TestTemplateImports:
         """Test that crud_template has required imports."""
         assert hasattr(crud_template, "ai_tool"), "Should import ai_tool"
         assert hasattr(crud_template, "ToolContext"), "Should import ToolContext"
-        assert hasattr(crud_template, "BaseTool"), "Should import BaseTool from langchain_core.tools"
+        # Note: BaseTool is not directly imported in templates; @ai_tool decorator handles it
 
     def test_analysis_template_imports(self):
         """Test that analysis_template has required imports."""
         assert hasattr(analysis_template, "ai_tool"), "Should import ai_tool"
         assert hasattr(analysis_template, "ToolContext"), "Should import ToolContext"
-        assert hasattr(analysis_template, "BaseTool"), "Should import BaseTool from langchain_core.tools"
+        # Note: BaseTool is not directly imported in templates; @ai_tool decorator handles it
 
     def test_change_order_template_imports(self):
         """Test that change_order_template has required imports."""
         assert hasattr(change_order_template, "ai_tool"), "Should import ai_tool"
         assert hasattr(change_order_template, "ToolContext"), "Should import ToolContext"
-        assert hasattr(change_order_template, "BaseTool"), "Should import BaseTool from langchain_core.tools"
+        # Note: BaseTool is not directly imported in templates; @ai_tool decorator handles it

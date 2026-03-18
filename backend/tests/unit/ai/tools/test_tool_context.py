@@ -1,6 +1,5 @@
 """Tests for ToolContext user_role field."""
 
-import pytest
 from uuid import uuid4
 
 from app.ai.tools.types import ToolContext
@@ -21,7 +20,6 @@ class TestToolContextUserRole:
             The field has the correct type annotation
         """
         # Arrange: Create a mock session and user_role
-        from sqlalchemy.ext.asyncio import AsyncSession
 
         mock_session = None  # We'll use a mock
         user_id = str(uuid4())

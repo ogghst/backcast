@@ -1,84 +1,29 @@
-import { Card, Descriptions, Tag, Typography, Button, Space, theme } from "antd";
+import React from "react";
 import { ProjectRead } from "@/api/generated";
-import { HistoryOutlined } from "@ant-design/icons";
-import { Can } from "@/components/auth/Can";
+import { ProjectHeaderCard } from "@/components/projects/ProjectHeaderCard";
+import { ProjectInfoCard } from "@/components/projects/ProjectInfoCard";
 
 interface ProjectSummaryCardProps {
   project: ProjectRead;
   loading?: boolean;
-  onViewHistory?: () => void;
 }
 
+/**
+ * ProjectSummaryCard - Redesigned project summary with card-based layout.
+ *
+ * Combines ProjectHeaderCard and ProjectInfoCard for a refined dashboard aesthetic.
+ */
 export const ProjectSummaryCard = ({
   project,
   loading,
-  onViewHistory,
 }: ProjectSummaryCardProps) => {
-  const { token } = theme.useToken();
   return (
-    <Card
-      loading={loading}
-      style={{ marginBottom: token.marginMD }}
-      extra={
-        onViewHistory && (
-          <Space>
-            <Can permission="project-read">
-              <Button icon={<HistoryOutlined />} onClick={onViewHistory}>
-                History
-              </Button>
-            </Can>
-          </Space>
-        )
-      }
-    >
-      <div style={{ marginBottom: token.marginMD }}>
-        <Typography.Title level={4} style={{ margin: 0 }}>
-          {project.name}{" "}
-          <Tag color="blue" style={{ marginLeft: token.marginSM }}>
-            {project.code}
-          </Tag>
-        </Typography.Title>
-      </div>
-
-      <Descriptions size="small" column={{ xs: 1, sm: 2, md: 3 }} bordered>
-        <Descriptions.Item label="Status">
-          <Tag color={project.status === "Active" ? "green" : "default"}>
-            {project.status || "Unknown"}
-          </Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label="Budget">
-          {project.budget
-            ? new Intl.NumberFormat("en-US", {
-                style: "currency",
-                currency: "EUR",
-              }).format(Number(project.budget))
-            : "-"}
-        </Descriptions.Item>
-        <Descriptions.Item label="Contract Value">
-          {project.contract_value
-            ? new Intl.NumberFormat("en-US", {
-                style: "currency",
-                currency: "EUR",
-              }).format(Number(project.contract_value))
-            : "-"}
-        </Descriptions.Item>
-        <Descriptions.Item label="Start Date">
-          {project.start_date
-            ? new Date(project.start_date).toLocaleDateString()
-            : "-"}
-        </Descriptions.Item>
-        <Descriptions.Item label="End Date">
-          {project.end_date
-            ? new Date(project.end_date).toLocaleDateString()
-            : "-"}
-        </Descriptions.Item>
-        <Descriptions.Item label="Branch">
-          <Tag color="orange">{project.branch || "main"}</Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label="Description" span={3}>
-          {project.description || "-"}
-        </Descriptions.Item>
-      </Descriptions>
-    </Card>
+    <>
+      <ProjectHeaderCard
+        project={project}
+        loading={loading}
+      />
+      <ProjectInfoCard project={project} loading={loading} />
+    </>
   );
 };

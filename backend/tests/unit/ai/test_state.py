@@ -3,7 +3,6 @@
 Follows TDD: Test first, then implement.
 """
 
-import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from app.ai.state import AgentState

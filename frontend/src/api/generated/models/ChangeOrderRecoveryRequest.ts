@@ -13,6 +13,7 @@
  * assigned_approver_id: User to assign as approver
  * skip_impact_analysis: Skip impact analysis and use manual values
  * recovery_reason: Explanation for recovery (10-500 chars)
+ * control_date: Optional control date for the operation (defaults to now)
  */
 export type ChangeOrderRecoveryRequest = {
     /**
@@ -31,5 +32,9 @@ export type ChangeOrderRecoveryRequest = {
      * Explanation for recovery (required for audit)
      */
     recovery_reason: string;
+    /**
+     * Control date for the workflow operation (defaults to now)
+     */
+    control_date?: (string | null);
 };
 

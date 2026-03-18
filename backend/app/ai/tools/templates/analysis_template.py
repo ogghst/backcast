@@ -29,7 +29,7 @@ from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
 
-from langchain_core.tools import BaseTool, InjectedToolArg
+from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.types import ToolContext
@@ -85,8 +85,8 @@ async def calculate_evm_metrics(
         ...     print("Project over budget")
     """
     try:
-        from app.services.evm_service import EVMService
         from app.models.schemas.evm import EntityType
+        from app.services.evm_service import EVMService
 
         service = EVMService(context.session)
 
@@ -161,8 +161,8 @@ async def get_evm_performance_summary(
         >>> print(f"Recommendation: {result['recommendation']}")
     """
     try:
-        from app.services.evm_service import EVMService
         from app.models.schemas.evm import EntityType
+        from app.services.evm_service import EVMService
 
         service = EVMService(context.session)
 
@@ -240,8 +240,8 @@ async def analyze_cost_variance(
         ...     print(f"{item['wbe_name']}: ${item['variance']}")
     """
     try:
-        from app.services.evm_service import EVMService
         from app.models.schemas.evm import EntityType
+        from app.services.evm_service import EVMService
 
         service = EVMService(context.session)
 
@@ -308,8 +308,8 @@ async def analyze_schedule_variance(
         >>> print(f"Critical Path Delay: {result['critical_path_delay_days']} days")
     """
     try:
-        from app.services.evm_service import EVMService
         from app.models.schemas.evm import EntityType
+        from app.services.evm_service import EVMService
 
         service = EVMService(context.session)
 
@@ -386,8 +386,8 @@ async def generate_project_forecast(
         >>> print(f"Cost Variance at Completion: ${result['vac']}")
     """
     try:
-        from app.services.evm_service import EVMService
         from app.models.schemas.evm import EntityType
+        from app.services.evm_service import EVMService
 
         service = EVMService(context.session)
 
@@ -449,8 +449,8 @@ async def compare_forecast_scenarios(
         ...     print(f"{scenario['method']}: ${scenario['estimated_final_cost']}")
     """
     try:
-        from app.services.evm_service import EVMService
         from app.models.schemas.evm import EntityType
+        from app.services.evm_service import EVMService
 
         service = EVMService(context.session)
 
@@ -519,8 +519,8 @@ async def get_forecast_accuracy(
     try:
         # Note: Detailed accuracy metrics not yet implemented in service layer.
         # Returning a simplified assessment based on current performance.
-        from app.services.evm_service import EVMService
         from app.models.schemas.evm import EntityType
+        from app.services.evm_service import EVMService
 
         service = EVMService(context.session)
 
@@ -587,8 +587,8 @@ async def get_project_kpis(
         ...     print(f"{kpi}: {value}")
     """
     try:
-        from app.services.evm_service import EVMService
         from app.models.schemas.evm import EntityType
+        from app.services.evm_service import EVMService
 
         service = EVMService(context.session)
 

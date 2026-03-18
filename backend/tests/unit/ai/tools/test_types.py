@@ -1,7 +1,8 @@
 """Tests for AI tool types."""
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from app.ai.tools.types import ToolContext, ToolMetadata
 

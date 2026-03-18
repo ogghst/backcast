@@ -39,9 +39,8 @@ def admin_user() -> User:
 
 @pytest.mark.asyncio
 async def test_merge_branch_with_explicit_control_date(
-    session: AsyncSession,
+    db_session: AsyncSession,
     admin_user,
-    sample_project,
 ):
     """T-001: Should use provided control_date for valid_time.lower.
 
@@ -51,16 +50,18 @@ async def test_merge_branch_with_explicit_control_date(
     # Arrange
     from app.services.project import ProjectService
 
-    service = ProjectService(session)
+    service = ProjectService(db_session)
     control_date = datetime(2026, 1, 15, 12, 0, 0, tzinfo=UTC)
 
     # Create initial version on main
     project = await service.create_project(
         project_in=ProjectCreate(
-            code="TEST-001", name="Original", budget=Decimal("100000")
+            code="TEST-001",
+            name="Original",
+            budget=Decimal("100000"),
+            control_date=datetime(2026, 1, 10, tzinfo=UTC),
         ),
         actor_id=admin_user.user_id,
-        control_date=datetime(2026, 1, 10, tzinfo=UTC),
     )
 
     # Create branch
@@ -73,11 +74,13 @@ async def test_merge_branch_with_explicit_control_date(
 
     # Modify on branch
     await service.update_project(
-        root_id=project.project_id,
-        project_in=ProjectUpdate(name="Modified on Branch"),
+        project_id=project.project_id,
+        project_in=ProjectUpdate(
+            name="Modified on Branch",
+            branch="BR-001",
+            control_date=datetime(2026, 1, 12, tzinfo=UTC),
+        ),
         actor_id=admin_user.user_id,
-        branch="BR-001",
-        control_date=datetime(2026, 1, 12, tzinfo=UTC),
     )
 
     # Act: Merge with explicit control_date
@@ -89,7 +92,7 @@ async def test_merge_branch_with_explicit_control_date(
         target_branch="main",
         control_date=control_date,
     )
-    merged = await cmd.execute(session)
+    merged = await cmd.execute(db_session)
 
     # Assert: Verify merged version valid_time starts at control_date
     assert merged.valid_time.lower == control_date, (
@@ -101,9 +104,8 @@ async def test_merge_branch_with_explicit_control_date(
 
 @pytest.mark.asyncio
 async def test_merge_branch_with_control_date_none(
-    session: AsyncSession,
+    db_session: AsyncSession,
     admin_user,
-    sample_project,
 ):
     """T-002: Should use datetime.now(UTC) when control_date is None.
 
@@ -113,16 +115,18 @@ async def test_merge_branch_with_control_date_none(
     # Arrange
     from app.services.project import ProjectService
 
-    service = ProjectService(session)
+    service = ProjectService(db_session)
     before_merge = datetime.now(UTC)
 
     # Create initial version on main
     project = await service.create_project(
         project_in=ProjectCreate(
-            code="TEST-002", name="Original", budget=Decimal("100000")
+            code="TEST-002",
+            name="Original",
+            budget=Decimal("100000"),
+            control_date=datetime(2026, 1, 10, tzinfo=UTC),
         ),
         actor_id=admin_user.user_id,
-        control_date=datetime(2026, 1, 10, tzinfo=UTC),
     )
 
     # Create branch
@@ -135,11 +139,13 @@ async def test_merge_branch_with_control_date_none(
 
     # Modify on branch
     await service.update_project(
-        root_id=project.project_id,
-        project_in=ProjectUpdate(name="Modified on Branch"),
+        project_id=project.project_id,
+        project_in=ProjectUpdate(
+            name="Modified on Branch",
+            branch="BR-002",
+            control_date=datetime(2026, 1, 12, tzinfo=UTC),
+        ),
         actor_id=admin_user.user_id,
-        branch="BR-002",
-        control_date=datetime(2026, 1, 12, tzinfo=UTC),
     )
 
     # Act: Merge without control_date (default behavior)
@@ -151,7 +157,7 @@ async def test_merge_branch_with_control_date_none(
         target_branch="main",
         control_date=None,  # Explicitly None
     )
-    merged = await cmd.execute(session)
+    merged = await cmd.execute(db_session)
 
     after_merge = datetime.now(UTC)
 
@@ -165,9 +171,8 @@ async def test_merge_branch_with_control_date_none(
 
 @pytest.mark.asyncio
 async def test_merge_branch_control_date_in_past(
-    session: AsyncSession,
+    db_session: AsyncSession,
     admin_user,
-    sample_project,
 ):
     """T-003: Should successfully use past timestamp as control_date.
 
@@ -177,16 +182,18 @@ async def test_merge_branch_control_date_in_past(
     # Arrange
     from app.services.project import ProjectService
 
-    service = ProjectService(session)
+    service = ProjectService(db_session)
     past_date = datetime(2025, 12, 25, 10, 30, 0, tzinfo=UTC)  # Past date
 
     # Create initial version on main (before past_date)
     project = await service.create_project(
         project_in=ProjectCreate(
-            code="TEST-003", name="Original", budget=Decimal("100000")
+            code="TEST-003",
+            name="Original",
+            budget=Decimal("100000"),
+            control_date=datetime(2025, 12, 20, tzinfo=UTC),
         ),
         actor_id=admin_user.user_id,
-        control_date=datetime(2025, 12, 20, tzinfo=UTC),
     )
 
     # Create branch (before past_date)
@@ -199,11 +206,13 @@ async def test_merge_branch_control_date_in_past(
 
     # Modify on branch (before past_date)
     await service.update_project(
-        root_id=project.project_id,
-        project_in=ProjectUpdate(name="Modified on Branch"),
+        project_id=project.project_id,
+        project_in=ProjectUpdate(
+            name="Modified on Branch",
+            branch="BR-003",
+            control_date=datetime(2025, 12, 24, tzinfo=UTC),
+        ),
         actor_id=admin_user.user_id,
-        branch="BR-003",
-        control_date=datetime(2025, 12, 24, tzinfo=UTC),
     )
 
     # Act: Merge with past control_date
@@ -215,7 +224,7 @@ async def test_merge_branch_control_date_in_past(
         target_branch="main",
         control_date=past_date,
     )
-    merged = await cmd.execute(session)
+    merged = await cmd.execute(db_session)
 
     # Assert: Verify merged version valid_time starts at past_date
     assert merged.valid_time.lower == past_date, (
@@ -227,9 +236,8 @@ async def test_merge_branch_control_date_in_past(
 
 @pytest.mark.asyncio
 async def test_merge_branch_control_date_utc_aware(
-    session: AsyncSession,
+    db_session: AsyncSession,
     admin_user,
-    sample_project,
 ):
     """T-004: Should require timezone-aware datetime.
 
@@ -239,15 +247,17 @@ async def test_merge_branch_control_date_utc_aware(
     # Arrange
     from app.services.project import ProjectService
 
-    service = ProjectService(session)
+    service = ProjectService(db_session)
 
     # Create initial version on main
     project = await service.create_project(
         project_in=ProjectCreate(
-            code="TEST-004", name="Original", budget=Decimal("100000")
+            code="TEST-004",
+            name="Original",
+            budget=Decimal("100000"),
+            control_date=datetime(2026, 1, 10, tzinfo=UTC),
         ),
         actor_id=admin_user.user_id,
-        control_date=datetime(2026, 1, 10, tzinfo=UTC),
     )
 
     # Create branch
@@ -260,11 +270,13 @@ async def test_merge_branch_control_date_utc_aware(
 
     # Modify on branch
     await service.update_project(
-        root_id=project.project_id,
-        project_in=ProjectUpdate(name="Modified on Branch"),
+        project_id=project.project_id,
+        project_in=ProjectUpdate(
+            name="Modified on Branch",
+            branch="BR-004",
+            control_date=datetime(2026, 1, 12, tzinfo=UTC),
+        ),
         actor_id=admin_user.user_id,
-        branch="BR-004",
-        control_date=datetime(2026, 1, 12, tzinfo=UTC),
     )
 
     # Act: Merge with UTC-aware control_date
@@ -277,7 +289,7 @@ async def test_merge_branch_control_date_utc_aware(
         target_branch="main",
         control_date=utc_aware_date,
     )
-    merged = await cmd.execute(session)
+    merged = await cmd.execute(db_session)
 
     # Assert: Verify merge accepts UTC-aware datetime
     assert merged.valid_time.lower == utc_aware_date, (

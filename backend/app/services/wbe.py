@@ -1173,11 +1173,8 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
             ... )
         """
         wbe = await self.get_as_of(wbe_id, as_of, branch, branch_mode)
-        if wbe:
-            # Populate computed budget
-            wbe.budget_allocation = await self._compute_wbe_budget(
-                wbe_id, branch=wbe.branch
-            )
+        # Note: Don't overwrite budget_allocation with computed value for historical queries
+        # The historical WBE already has its correct budget_allocation from that point in time
         return wbe
 
     async def get_recently_updated(

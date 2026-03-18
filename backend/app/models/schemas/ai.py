@@ -11,7 +11,7 @@ Provides schemas for:
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Self
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -106,16 +106,15 @@ class AIProviderConfigPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     @model_validator(mode='after')
-    @classmethod
-    def mask_encrypted_value(cls, model: Any) -> Any:
+    def mask_encrypted_value(self) -> Self:
         """Mask encrypted values."""
-        if model.is_encrypted and model.value:
+        if self.is_encrypted and self.value:
             # Check if value looks like encrypted data (long base64 string)
             # Fernet encrypted values are base64 and typically 100+ chars
-            if len(model.value) > 50:
+            if len(self.value) > 50:
                 # Create a new model with masked value
-                model.value = "***MASKED***"
-        return model
+                self.value = "***MASKED***"
+        return self
 
 
 # === Model Schemas ===

@@ -6,40 +6,22 @@
  * Schema for reading WBE data.
  */
 export type WBERead = {
-    /**
-     * Parent project root ID
-     */
+    id: string;
+    wbe_id: string;
     project_id: string;
-    /**
-     * WBS code (e.g., 1.2.3)
-     */
     code: string;
-    /**
-     * WBE name
-     */
     name: string;
     /**
-     * Budget allocation
+     * Computed budget (sum of cost element budgets in full WBE hierarchy)
      */
     budget_allocation?: string;
     /**
      * Revenue allocation from project contract value
      */
     revenue_allocation?: (string | null);
-    /**
-     * Hierarchy level
-     */
-    level?: number;
-    /**
-     * Parent WBE root ID
-     */
+    level: number;
     parent_wbe_id?: (string | null);
-    /**
-     * Description
-     */
     description?: (string | null);
-    id: string;
-    wbe_id: string;
     branch: string;
     created_at?: (string | null);
     created_by: string;

@@ -154,24 +154,24 @@ class TestProgressTimeTravel:
 
         # Create progress entry on Day 1
         await service.create(
+            user_id,
             progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("25.00"),
                 notes="Day 1 progress",
                 control_date=day_1,
             ),
-            actor_id=user_id,
         )
 
         # Create progress entry on Day 5
         await service.create(
+            user_id,
             progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("50.00"),
                 notes="Day 5 progress",
                 control_date=day_5,
             ),
-            actor_id=user_id,
         )
 
         # Act - query as of Day 3 (should get Day 1's entry)
@@ -215,12 +215,12 @@ class TestProgressTimeTravel:
 
         # Create progress entry
         progress = await service.create(
+            user_id,
             progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("25.00"),
                 control_date=day_1,
             ),
-            actor_id=user_id,
         )
         progress_entry_id = progress.progress_entry_id
 
@@ -272,26 +272,26 @@ class TestProgressTimeTravel:
 
         # Create initial version
         progress = await service.create(
+            user_id,
             progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("25.00"),
             ),
-            actor_id=user_id,
         )
         progress_entry_id = progress.progress_entry_id
 
         # Update to 50%
         await service.update(
-            progress_entry_id=progress_entry_id,
+            progress_entry_id,
+            user_id,
             progress_in=ProgressEntryUpdate(progress_percentage=Decimal("50.00")),
-            actor_id=user_id,
         )
 
         # Update to 75%
         await service.update(
-            progress_entry_id=progress_entry_id,
+            progress_entry_id,
+            user_id,
             progress_in=ProgressEntryUpdate(progress_percentage=Decimal("75.00")),
-            actor_id=user_id,
         )
 
         # Act - get history
@@ -330,20 +330,20 @@ class TestProgressTimeTravel:
 
         # Create progress on Day 1
         progress = await service.create(
+            user_id,
             progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("25.00"),
                 control_date=day_1,
             ),
-            actor_id=user_id,
         )
 
         # Update on Day 5
         await service.update(
-            progress_entry_id=progress.progress_entry_id,
-            progress_in=ProgressEntryUpdate(progress_percentage=Decimal("50.00")),
-            actor_id=user_id,
+            progress.progress_entry_id,
+            user_id,
             control_date=day_5,
+            progress_in=ProgressEntryUpdate(progress_percentage=Decimal("50.00")),
         )
 
         # Act - query as of Day 3 using get_progress_entry_as_of
@@ -379,22 +379,22 @@ class TestProgressTimeTravel:
 
         # Create initial progress
         progress = await service.create(
+            user_id,
             progress_in=ProgressEntryCreate(
                 cost_element_id=cost_element_id,
                 progress_percentage=Decimal("75.00"),
                 notes="Excellent progress",
             ),
-            actor_id=user_id,
         )
 
         # Decrease with justification
         updated = await service.update(
-            progress_entry_id=progress.progress_entry_id,
+            progress.progress_entry_id,
+            user_id,
             progress_in=ProgressEntryUpdate(
                 progress_percentage=Decimal("50.00"),
                 notes="Work undone - inspection failed, rework required",
             ),
-            actor_id=user_id,
         )
 
         # Assert

@@ -207,11 +207,12 @@ class TestLLMClientEdgeCases:
         """
         mock_client = MagicMock()
 
-        # Create a mock stream with malformed chunk
+        # Create a mock stream that raises an exception during iteration
         async def mock_stream_malformed() -> AsyncIterator:  # type: ignore[type-arg]
-            # Yield a chunk with missing required fields
-            yield MagicMock(choices=[])  # Empty choices is invalid
-            yield MagicMock(choices=None)  # None choices is invalid
+            # Yield one valid chunk
+            yield MagicMock(choices=[MagicMock(delta=MagicMock(content="Hello"))])
+            # Then raise an exception to simulate streaming failure
+            raise RuntimeError("Malformed response from API")
 
         mock_client.chat.completions.create = AsyncMock(
             return_value=mock_stream_malformed()
@@ -220,12 +221,13 @@ class TestLLMClientEdgeCases:
         # Act & Assert: Should handle malformed response gracefully or raise error
         # The stream_with_error_handling should catch errors during iteration
         with pytest.raises(LLMStreamingError, match="Unexpected error during streaming"):
-            async for _ in stream_with_error_handling(
+            async for chunk in stream_with_error_handling(
                 client=mock_client,
                 model="gpt-4",
                 messages=[{"role": "user", "content": "test"}],
             ):
-                pass
+                # First chunk should be yielded successfully
+                assert chunk.choices[0].delta.content == "Hello"
 
     @pytest.mark.asyncio
     async def test_client_response_missing_delta_content(self) -> None:

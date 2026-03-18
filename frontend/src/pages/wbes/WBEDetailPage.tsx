@@ -1,7 +1,9 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Button, Card, Tabs, Collapse, Space, theme } from "antd";
-import { PlusOutlined, LineChartOutlined } from "@ant-design/icons";
+import { PlusOutlined, LineChartOutlined, EditOutlined, DeleteOutlined, HistoryOutlined } from "@ant-design/icons";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/api/queryKeys";
 
 import {
   useWBE,
@@ -39,6 +41,7 @@ export const WBEDetailPage = () => {
   }>();
   const navigate = useNavigate();
   const { token } = theme.useToken();
+  const queryClient = useQueryClient();
 
   // Pagination State
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
@@ -105,6 +108,10 @@ export const WBEDetailPage = () => {
   const { mutateAsync: updateWBE } = useUpdateWBE({
     onSuccess: () => {
       refetchChildren();
+      // Invalidate the current WBE detail query to refresh the header/info cards
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.wbes.detail(wbeId!),
+      });
       setModalOpen(false);
     },
   });
@@ -174,11 +181,7 @@ export const WBEDetailPage = () => {
       {wbe && (
         <WBESummaryCard
           wbe={wbe}
-          projectId={projectId!}
           loading={wbeLoading}
-          onEdit={handleEditCurrent}
-          onDelete={handleDeleteCurrent}
-          onViewHistory={() => setHistoryOpen(true)}
         />
       )}
 
@@ -289,7 +292,7 @@ export const WBEDetailPage = () => {
       {/* Breadcrumb Navigation */}
       <BreadcrumbBuilder breadcrumb={breadcrumb} loading={breadcrumbLoading} />
 
-      {/* Page Title */}
+      {/* Page Title with Action Buttons */}
       <div
         style={{
           display: "flex",
@@ -299,6 +302,23 @@ export const WBEDetailPage = () => {
         }}
       >
         <h1 style={{ margin: 0 }}>WBE Details</h1>
+        <Space>
+          <Can permission="wbe-read">
+            <Button icon={<HistoryOutlined />} onClick={() => setHistoryOpen(true)}>
+              History
+            </Button>
+          </Can>
+          <Can permission="wbe-update">
+            <Button icon={<EditOutlined />} onClick={handleEditCurrent}>
+              Edit
+            </Button>
+          </Can>
+          <Can permission="wbe-delete">
+            <Button danger icon={<DeleteOutlined />} onClick={handleDeleteCurrent}>
+              Delete
+            </Button>
+          </Can>
+        </Space>
       </div>
 
       <Tabs

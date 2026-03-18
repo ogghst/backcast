@@ -78,9 +78,9 @@ async def create_test_entities(
             code="PERF-PROJ",
             name="Performance Test Project",
             budget=Decimal("1000000.00"),
+            control_date=control_date,
         ),
         actor_id=actor_id,
-        control_date=control_date,
     )
     await db_session.flush()
 
@@ -146,7 +146,7 @@ async def test_evm_calculation_performance_with_10_elements(db_session):
 
     cost_elements = []
     for i in range(10):
-        cost_element = await ce_service.create(
+        cost_element = await ce_service.create_cost_element(
             CostElementCreate(
                 cost_element_id=uuid4(),
                 wbe_id=wbe_id,
@@ -162,7 +162,7 @@ async def test_evm_calculation_performance_with_10_elements(db_session):
         cost_elements.append(cost_element)
 
         # Create cost registration through service layer
-        await cr_service.create(
+        await cr_service.create_cost_registration(
             CostRegistrationCreate(
                 cost_registration_id=uuid4(),
                 cost_element_id=cost_element.cost_element_id,
@@ -175,14 +175,14 @@ async def test_evm_calculation_performance_with_10_elements(db_session):
 
         # Create progress entry through service layer
         await pe_service.create(
-            ProgressEntryCreate(
+            actor_id=created_by_id,
+            progress_in=ProgressEntryCreate(
                 progress_entry_id=uuid4(),
                 cost_element_id=cost_element.cost_element_id,
                 progress_percentage=Decimal("50.00"),
                 reported_date=control_date,
                 reported_by_user_id=created_by_id,
             ),
-            actor_id=created_by_id,
             control_date=control_date,
         )
 
@@ -249,7 +249,7 @@ async def test_cost_aggregation_performance_with_1000_entries(db_session):
 
     cost_elements = []
     for i in range(10):
-        cost_element = await ce_service.create(
+        cost_element = await ce_service.create_cost_element(
             CostElementCreate(
                 cost_element_id=uuid4(),
                 wbe_id=wbe_id,
@@ -271,7 +271,7 @@ async def test_cost_aggregation_performance_with_1000_entries(db_session):
     base_date = datetime(2026, 1, 1, tzinfo=UTC)
     for cost_element in cost_elements:
         for i in range(100):
-            await cr_service.create(
+            await cr_service.create_cost_registration(
                 CostRegistrationCreate(
                     cost_registration_id=uuid4(),
                     cost_element_id=cost_element.cost_element_id,
@@ -327,7 +327,7 @@ async def test_evm_query_with_complex_filters_performance(db_session):
 
     # Create cost element using CostElementService
     ce_service = CostElementService(db_session)
-    cost_element = await ce_service.create(
+    cost_element = await ce_service.create_cost_element(
         CostElementCreate(
             cost_element_id=uuid4(),
             wbe_id=wbe_id,
@@ -346,7 +346,7 @@ async def test_evm_query_with_complex_filters_performance(db_session):
     cr_service = CostRegistrationService(db_session)
     base_date = datetime(2026, 1, 1, tzinfo=UTC)
     for i in range(50):
-        await cr_service.create(
+        await cr_service.create_cost_registration(
             CostRegistrationCreate(
                 cost_registration_id=uuid4(),
                 cost_element_id=cost_element.cost_element_id,

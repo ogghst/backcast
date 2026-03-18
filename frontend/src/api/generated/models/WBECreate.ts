@@ -19,10 +19,6 @@ export type WBECreate = {
      */
     name: string;
     /**
-     * Budget allocation
-     */
-    budget_allocation?: (number | string);
-    /**
      * Revenue allocation from project contract value
      */
     revenue_allocation?: (number | string | null);

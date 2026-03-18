@@ -220,8 +220,8 @@ class TestChangeOrderServiceGetCurrent:
         created = await service.create_change_order(co_in, user_id)
         await db_session.commit()
 
-        # Assert - Verify get_current finds it (using open upper bound pattern)
-        found = await service.get_current(created.change_order_id, branch="main")
+        # Assert - Verify get_as_of finds it (using open upper bound pattern)
+        found = await service.get_as_of(created.change_order_id, as_of=None, branch="main")
         assert found is not None
         assert found.code == "CO-2026-FUTURE"
         assert found.change_order_id == created.change_order_id
@@ -265,7 +265,7 @@ class TestChangeOrderServiceGetCurrent:
         await db_session.commit()
 
         # Assert
-        found = await service.get_current(created.change_order_id, branch="main")
+        found = await service.get_as_of(created.change_order_id, as_of=None, branch="main")
         assert found is not None
         assert found.code == "CO-2026-PAST"
 
@@ -312,8 +312,8 @@ class TestChangeOrderServiceGetCurrent:
         )
         await db_session.commit()
 
-        # Assert - get_current returns the updated version
-        found = await service.get_current(co_id, branch="main")
+        # Assert - get_as_of returns the updated version
+        found = await service.get_as_of(co_id, as_of=None, branch="main")
         assert found is not None
         assert found.title == "Updated Title"
         assert found.id != initial_id  # Different version ID

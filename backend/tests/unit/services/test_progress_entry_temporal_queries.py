@@ -31,28 +31,28 @@ async def test_get_progress_history_with_as_of(
 
     # Create progress entries with different control dates
     await service.create(
-        ProgressEntryCreate(
+        actor_id,
+        progress_in=ProgressEntryCreate(
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("25.00"),
             control_date=datetime(2026, 1, 10, 12, 0, tzinfo=UTC),
         ),
-        actor_id=actor_id,
     )
     await service.create(
-        ProgressEntryCreate(
+        actor_id,
+        progress_in=ProgressEntryCreate(
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("50.00"),
             control_date=datetime(2026, 1, 20, 12, 0, tzinfo=UTC),
         ),
-        actor_id=actor_id,
     )
     await service.create(
-        ProgressEntryCreate(
+        actor_id,
+        progress_in=ProgressEntryCreate(
             cost_element_id=cost_element_id,
             progress_percentage=Decimal("75.00"),
             control_date=datetime(2026, 1, 30, 12, 0, tzinfo=UTC),
         ),
-        actor_id=actor_id,
     )
 
     # Act - query as of Jan 15 (should get only the first entry)

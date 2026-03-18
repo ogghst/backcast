@@ -80,7 +80,7 @@ async def test_create_project(
         "code": unique_code,
         "budget": 100000,
         "contract_value": 120000,
-        "status": "planning",
+        "status": "Draft",
         "description": "A test project",
     }
 

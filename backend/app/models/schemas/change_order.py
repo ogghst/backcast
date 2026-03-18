@@ -10,6 +10,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.enums import ChangeOrderStatus
 from app.models.schemas.common import PaginatedResponse
 
 
@@ -29,7 +30,9 @@ class ChangeOrderBase(BaseModel):
     effective_date: datetime | None = Field(
         None, description="When change takes effect"
     )
-    status: str = Field(default="Draft", description="Workflow state")
+    status: ChangeOrderStatus = Field(
+        default=ChangeOrderStatus.DRAFT, description="Workflow state"
+    )
     impact_level: str | None = Field(None, description="Financial impact level")
 
 
@@ -65,7 +68,7 @@ class ChangeOrderUpdate(BaseModel):
     description: str | None = None
     justification: str | None = None
     effective_date: datetime | None = None
-    status: str | None = None
+    status: ChangeOrderStatus | None = None
     branch: str | None = Field(
         None, description="Branch name for update (defaults to current branch)"
     )

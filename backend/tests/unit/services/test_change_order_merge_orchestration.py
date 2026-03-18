@@ -32,15 +32,18 @@ class TestChangeOrderMergeOrchestration:
         actor_id = uuid4()
         target_branch = "main"
 
-        # Create a mock ChangeOrder
-        mock_co = MagicMock(spec=ChangeOrder)
-        mock_co.code = "123"
-        mock_co.status = "Approved"
-        mock_co.change_order_id = change_order_id
-        mock_co.project_id = uuid4()  # Add project_id for budget recalculation
+        # Create a mock ChangeOrder with configure_mock to ensure attributes return values
+        project_id = uuid4()
+        mock_co = MagicMock()
+        mock_co.configure_mock(
+            code="123",
+            status="Approved",
+            change_order_id=change_order_id,
+            project_id=project_id
+        )
 
         # Mock the service methods
-        service.get_current = AsyncMock(return_value=mock_co)
+        service.get_as_of = AsyncMock(return_value=mock_co, side_effect=None)
 
         # Mock session operations to avoid actual DB operations
         db_session.add = MagicMock()
@@ -108,12 +111,15 @@ class TestChangeOrderMergeOrchestration:
         actor_id = uuid4()
         target_branch = "main"
 
-        # Create a mock ChangeOrder
-        mock_co = MagicMock(spec=ChangeOrder)
-        mock_co.code = "456"
-        mock_co.status = "Approved"
-        mock_co.change_order_id = change_order_id
-        mock_co.project_id = uuid4()  # Add project_id for budget recalculation
+        # Create a mock ChangeOrder with configure_mock
+        project_id = uuid4()
+        mock_co = MagicMock()
+        mock_co.configure_mock(
+            code="456",
+            status="Approved",
+            change_order_id=change_order_id,
+            project_id=project_id
+        )
 
         # Create mock WBEs (not deleted)
         mock_wbe1 = MagicMock()
@@ -124,7 +130,7 @@ class TestChangeOrderMergeOrchestration:
         mock_wbe2.wbe_id = uuid4()
         mock_wbe2.deleted_at = None
 
-        service.get_current = AsyncMock(return_value=mock_co)
+        service.get_as_of = AsyncMock(return_value=mock_co, side_effect=None)
 
         # Mock session operations to avoid actual DB operations
         db_session.add = MagicMock()
@@ -218,7 +224,7 @@ class TestChangeOrderMergeOrchestration:
         mock_co.change_order_id = change_order_id
         mock_co.project_id = uuid4()  # Add project_id for budget recalculation
 
-        service.get_current = AsyncMock(return_value=mock_co)
+        service.get_as_of = AsyncMock(return_value=mock_co, side_effect=None)
 
         # Mock session operations to avoid actual DB operations
         db_session.add = MagicMock()
@@ -296,17 +302,20 @@ class TestChangeOrderMergeOrchestration:
         target_branch = "main"
 
         # Create a mock ChangeOrder
-        mock_co = MagicMock(spec=ChangeOrder)
-        mock_co.code = "999"
-        mock_co.status = "Approved"
-        mock_co.change_order_id = change_order_id
+        mock_co = MagicMock()
+        mock_co.configure_mock(
+            code="999",
+            status="Approved",
+            change_order_id=change_order_id,
+            project_id=uuid4()
+        )
 
         # Create mock WBE (not deleted, so merge will be attempted)
         mock_wbe = MagicMock()
         mock_wbe.wbe_id = uuid4()
         mock_wbe.deleted_at = None
 
-        service.get_current = AsyncMock(return_value=mock_co)
+        service.get_as_of = AsyncMock(return_value=mock_co, side_effect=None)
 
         # Mock session operations to avoid actual DB operations
         db_session.add = MagicMock()
@@ -360,12 +369,15 @@ class TestChangeOrderMergeOrchestration:
         target_branch = "main"
 
         # Create a mock ChangeOrder
-        mock_co = MagicMock(spec=ChangeOrder)
-        mock_co.code = "888"
-        mock_co.status = "Approved"
-        mock_co.change_order_id = change_order_id
+        mock_co = MagicMock()
+        mock_co.configure_mock(
+            code="888",
+            status="Approved",
+            change_order_id=change_order_id,
+            project_id=uuid4()
+        )
 
-        service.get_current = AsyncMock(return_value=mock_co)
+        service.get_as_of = AsyncMock(return_value=mock_co, side_effect=None)
 
         # Mock the _detect_all_merge_conflicts method to return conflicts
         conflicts = [

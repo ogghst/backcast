@@ -53,7 +53,7 @@ async def test_project_zombie_check_deleted_not_visible(db_session):
     assert result_before is not None, "Entity should be visible before deletion"
 
     # 2. Delete entity
-    await service.soft_delete(entity_id=project_id, actor_id=actor_id)
+    await service.soft_delete(root_id=project_id, actor_id=actor_id)
     await db_session.commit()
 
     # Verify deletion was recorded

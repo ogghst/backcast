@@ -1,8 +1,9 @@
 """Tests for RBAC @require_permission decorator."""
 
-import pytest
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 from app.core.rbac import RBACServiceABC, require_permission, set_rbac_service
 
@@ -401,9 +402,10 @@ class TestJsonRBACServiceEdgeCases:
             Returns False (empty list means no valid roles)
         """
         # Arrange: Create JsonRBACService
-        from app.core.rbac import JsonRBACService
-        import tempfile
         import json
+        import tempfile
+
+        from app.core.rbac import JsonRBACService
 
         # Create a temporary config file
         config = {
@@ -462,9 +464,10 @@ class TestJsonRBACServiceEdgeCases:
             An empty list is returned
         """
         # Arrange: Create JsonRBACService
-        from app.core.rbac import JsonRBACService
-        import tempfile
         import json
+        import tempfile
+
+        from app.core.rbac import JsonRBACService
 
         config = {
             "roles": {
@@ -499,9 +502,10 @@ class TestJsonRBACServiceEdgeCases:
             An empty list is returned
         """
         # Arrange: Create JsonRBACService with role that has no permissions
-        from app.core.rbac import JsonRBACService
-        import tempfile
         import json
+        import tempfile
+
+        from app.core.rbac import JsonRBACService
 
         config = {
             "roles": {
@@ -536,9 +540,10 @@ class TestJsonRBACServiceEdgeCases:
             An empty list is returned (default value)
         """
         # Arrange: Create JsonRBACService with incomplete config
-        from app.core.rbac import JsonRBACService
-        import tempfile
         import json
+        import tempfile
+
+        from app.core.rbac import JsonRBACService
 
         config = {
             "roles": {

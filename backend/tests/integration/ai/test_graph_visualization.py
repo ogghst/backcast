@@ -3,10 +3,9 @@
 from unittest.mock import Mock
 
 import pytest
-from langchain_core.tools import BaseTool
 
 from app.ai.graph import create_graph, export_graphviz
-from app.ai.tools.project_tools import list_projects, get_project
+from app.ai.tools.project_tools import get_project, list_projects
 from app.ai.tools.types import ToolContext
 
 

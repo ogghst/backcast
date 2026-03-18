@@ -13,7 +13,8 @@ UTC = UTC
 @pytest.mark.asyncio
 async def test_create_version_command_with_control_date(db_session):
     """CreateVersionCommand should set valid_time to control_date."""
-    control_date = datetime(2026, 3, 3, tzinfo=UTC)
+    # Use a date in the future (30 days from now) to ensure transaction_time < control_date
+    control_date = datetime.now(UTC) + timedelta(days=30)
     actor_id = uuid4()
 
     # Passing control_date to init - currently this will likely be treated as a field

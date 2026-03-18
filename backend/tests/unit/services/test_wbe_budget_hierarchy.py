@@ -12,6 +12,8 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.schemas.cost_element_type import CostElementTypeCreate
+from app.models.schemas.department import DepartmentCreate
 from app.services.cost_element_service import CostElementService
 from app.services.cost_element_type_service import CostElementTypeService
 from app.services.department import DepartmentService
@@ -78,17 +80,23 @@ async def project_with_hierarchy(
         └── CostElement D (budget: 15,000)
     """
     # Create department
-    department = await department_service.create_department(
+    department_create = DepartmentCreate(
         name="Test Department",
         code="TEST-DEPT",
+    )
+    department = await department_service.create_department(
+        dept_in=department_create,
         actor_id=test_user_id,
     )
 
     # Create cost element type
-    cost_element_type = await cost_element_type_service.create(
+    cost_element_type_create = CostElementTypeCreate(
         code="TEST-TYPE",
         name="Test Cost Element Type",
         department_id=department.department_id,
+    )
+    cost_element_type = await cost_element_type_service.create(
+        type_in=cost_element_type_create,
         actor_id=test_user_id,
     )
 
@@ -263,13 +271,28 @@ async def test_branch_isolation(
     Main branch should not include cost elements from change branches.
     """
     wbe_1 = project_with_hierarchy["wbe_1"]
+    project = project_with_hierarchy["project"]
+    cost_element_type = project_with_hierarchy["cost_element_type"]
 
-    # Create a cost element on a different branch
+    # Create WBE 1 on the change branch (same root_id, different branch)
     change_branch = "change-order-123"
+    wbe_1_change = await wbe_service.create_root(
+        root_id=wbe_1.wbe_id,  # Same root_id as main branch WBE
+        actor_id=test_user_id,
+        project_id=project.project_id,
+        code="1",
+        name="WBE 1 (Change Branch)",
+        level=1,
+        branch=change_branch,
+    )
+
+    # Create a cost element on the change branch
     await cost_element_service.create_root(
         root_id=uuid4(),
         actor_id=test_user_id,
-        wbe_id=wbe_1.wbe_id,
+        wbe_id=wbe_1_change.wbe_id,
+        cost_element_type_id=cost_element_type.cost_element_type_id,
+        code="CE-CHANGE",
         name="CostElement on Change Branch",
         budget_amount=Decimal("50000"),
         branch=change_branch,
@@ -285,7 +308,7 @@ async def test_branch_isolation(
 
     # Change branch budget should include only its own cost element
     change_budget = await wbe_service._compute_wbe_budget(
-        wbe_1.wbe_id, branch=change_branch
+        wbe_1_change.wbe_id, branch=change_branch
     )
 
     assert change_budget == Decimal("50000"), (
@@ -354,6 +377,8 @@ async def test_wbe_with_only_descendants(
     # Create a new parent WBE with no direct cost elements
     from uuid import uuid4
 
+    cost_element_type = project_with_hierarchy["cost_element_type"]
+
     parent_wbe = await wbe_service.create_root(
         root_id=uuid4(),
         actor_id=test_user_id,
@@ -380,6 +405,8 @@ async def test_wbe_with_only_descendants(
         root_id=uuid4(),
         actor_id=test_user_id,
         wbe_id=child_wbe.wbe_id,
+        cost_element_type_id=cost_element_type.cost_element_type_id,
+        code="CE-CHILD",
         name="Child Cost Element",
         budget_amount=Decimal("30000"),
         branch="main",

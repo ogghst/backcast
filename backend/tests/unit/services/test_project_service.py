@@ -189,10 +189,10 @@ class TestProjectServiceGetProjects:
         )
         await service.create_project(
             ProjectCreate(
-                name="Closed Project",
-                code="CLOSED",
+                name="Completed Project",
+                code="COMPLETED",
                 budget=Decimal("30000.00"),
-                status="Closed",
+                status="Completed",
             ),
             actor_id=uuid4(),
         )

@@ -40,6 +40,24 @@ async def wipe() -> None:
         # Drop all tables by dropping and recreating the public schema
         # This is more reliable than drop_all which can fail with custom types
         try:
+            # First, drop all custom types in the public schema to avoid conflicts
+            result = await conn.execute(
+                text("""
+                    SELECT typname
+                    FROM pg_type
+                    WHERE typtype = 'e'
+                    AND typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
+                """)
+            )
+            enum_types = [row[0] for row in result]
+            for enum_type in enum_types:
+                try:
+                    await conn.execute(text(f'DROP TYPE IF EXISTS "{enum_type}" CASCADE'))
+                    print(f"Dropped enum type: {enum_type}")
+                except Exception as e:
+                    print(f"Warning: Could not drop type {enum_type}: {e}")
+
+            # Now drop and recreate the public schema
             await conn.execute(text("DROP SCHEMA public CASCADE"))
             await conn.execute(text("CREATE SCHEMA public"))
             # Grant permissions to current database user (backcast), not postgres
