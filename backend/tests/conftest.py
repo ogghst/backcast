@@ -409,6 +409,55 @@ def mock_rbac_service() -> MockRBACService:
     return MockRBACService()
 
 
+@pytest.fixture
+def mock_rbac_service_no_ai() -> MockRBACService:
+    """Mock RBAC service that denies AI chat permissions.
+
+    Returns:
+        MockRBACService instance without ai-chat permission.
+    """
+    class NoAIRBACService(RBACServiceABC):
+        def has_role(self, user_role: str, required_roles: list[str]) -> bool:
+            return True
+
+        def has_permission(self, user_role: str, required_permission: str) -> bool:
+            # Deny ai-chat permission specifically
+            if required_permission == "ai-chat":
+                return False
+            return True
+
+        def get_user_permissions(self, user_role: str) -> list[str]:
+            # Return all permissions except ai-chat
+            return [
+                "user-read",
+                "user-create",
+                "user-update",
+                "user-delete",
+                "project-read",
+                "project-create",
+                "project-update",
+                "project-delete",
+                "wbe-read",
+                "wbe-create",
+                "wbe-update",
+                "wbe-delete",
+                "cost-element-read",
+                "cost-element-create",
+                "cost-element-update",
+                "cost-element-delete",
+                "department-read",
+                "department-create",
+                "department-update",
+                "department-delete",
+                "cost-element-type-read",
+                "cost-element-type-create",
+                "cost-element-type-update",
+                "cost-element-type-delete",
+            ]
+
+    return NoAIRBACService()
+
+
 # =============================================================================
 # Auth Override Fixture
 # =============================================================================
@@ -865,3 +914,155 @@ async def api_test_entity_hierarchy(client: AsyncClient) -> dict[str, dict[str, 
         "wbe": wbe,
         "cost_element": cost_element,
     }
+
+
+# =============================================================================
+# AI Configuration Fixtures
+# =============================================================================
+
+
+@pytest_asyncio.fixture
+async def test_ai_provider(db_session: AsyncSession) -> Any:
+    """Create a test AI provider in the database.
+
+    Returns:
+        AIProvider instance with OpenAI configuration.
+    """
+    from app.models.domain.ai import AIProvider
+
+    provider = AIProvider(
+        id=str(uuid4()),
+        provider_type="openai",
+        name="OpenAI Test",
+        base_url="https://api.openai.com/v1",
+        is_active=True,
+    )
+    db_session.add(provider)
+    await db_session.flush()
+    await db_session.refresh(provider)
+    return provider
+
+
+@pytest_asyncio.fixture
+async def test_ai_model(
+    db_session: AsyncSession,
+    test_ai_provider: Any,
+) -> Any:
+    """Create a test AI model in the database.
+
+    Args:
+        db_session: Database session.
+        test_ai_provider: Parent provider fixture.
+
+    Returns:
+        AIModel instance for GPT-4.
+    """
+    from app.models.domain.ai import AIModel
+
+    model = AIModel(
+        id=str(uuid4()),
+        provider_id=str(test_ai_provider.id),
+        model_id="gpt-4",
+        display_name="GPT-4 Test",
+        is_active=True,
+    )
+    db_session.add(model)
+    await db_session.flush()
+    await db_session.refresh(model)
+    return model
+
+
+@pytest_asyncio.fixture
+async def test_ai_assistant(
+    db_session: AsyncSession,
+    test_ai_model: Any,
+) -> Any:
+    """Create an active test AI assistant configuration.
+
+    Args:
+        db_session: Database session.
+        test_ai_model: Parent model fixture.
+
+    Returns:
+        AIAssistantConfig instance with test configuration.
+    """
+    from app.models.domain.ai import AIAssistantConfig
+
+    config = AIAssistantConfig(
+        id=str(uuid4()),
+        name="Test Assistant",
+        description="A test assistant for WebSocket tests",
+        model_id=str(test_ai_model.id),
+        system_prompt="You are a helpful test assistant.",
+        temperature=0.0,
+        max_tokens=1000,
+        allowed_tools=["list_projects"],
+        is_active=True,
+    )
+    db_session.add(config)
+    await db_session.flush()
+    await db_session.refresh(config)
+    return config
+
+
+@pytest_asyncio.fixture
+async def inactive_ai_assistant(
+    db_session: AsyncSession,
+    test_ai_model: Any,
+) -> Any:
+    """Create an inactive test AI assistant configuration.
+
+    Args:
+        db_session: Database session.
+        test_ai_model: Parent model fixture.
+
+    Returns:
+        AIAssistantConfig instance with is_active=False.
+    """
+    from app.models.domain.ai import AIAssistantConfig
+
+    config = AIAssistantConfig(
+        id=str(uuid4()),
+        name="Inactive Assistant",
+        description="An inactive test assistant",
+        model_id=str(test_ai_model.id),
+        system_prompt="You are a helpful test assistant.",
+        temperature=0.0,
+        max_tokens=1000,
+        allowed_tools=["list_projects"],
+        is_active=False,  # Inactive
+    )
+    db_session.add(config)
+    await db_session.flush()
+    await db_session.refresh(config)
+    return config
+
+
+@pytest_asyncio.fixture
+async def test_ai_provider_with_config(
+    db_session: AsyncSession,
+    test_ai_provider: Any,
+) -> Any:
+    """Create a test AI provider with encrypted API key configuration.
+
+    Args:
+        db_session: Database session.
+        test_ai_provider: Parent provider fixture.
+
+    Returns:
+        AIProvider instance with associated config.
+    """
+    from app.models.domain.ai import AIProviderConfig
+
+    # Add encrypted API key config
+    config = AIProviderConfig(
+        id=str(uuid4()),
+        provider_id=str(test_ai_provider.id),
+        key="api_key",
+        value="gsk_test_encrypted_api_key_value_that_is_long_enough",  # Mock encrypted value
+        is_encrypted=True,
+    )
+    db_session.add(config)
+    await db_session.flush()
+
+    return test_ai_provider

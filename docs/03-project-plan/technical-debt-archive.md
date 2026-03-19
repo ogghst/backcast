@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
 **Last Updated:** 2026-03-19
-**Total Archived Items:** 30
+**Total Archived Items:** 31
 
 ---
 
@@ -67,6 +67,34 @@ This file contains all completed, closed, or resolved technical debt items. For 
   - [x] Fix setState synchronously warning (1 issue)
 - **References:**
   - **Iteration:** 2026-03-08-websocket-streaming
+
+#### [TD-074] WebSocket Protocol Unit Tests Missing
+
+- **Source:** WebSocket Streaming Implementation (2026-03-08)
+- **Description:** Comprehensive unit tests for WebSocket message protocol not implemented.
+- **Status:** ✅ Complete (2026-03-19)
+- **Owner:** Backend Developer
+- **Priority:** Medium (P2)
+- **Resolution:** Achieved 96.49% coverage for `ai_chat.py` (exceeding 80% target). Added 20 new integration tests covering connection lifecycle, streaming tokens, error handling, token edge cases, and REST API endpoints.
+- **Actual Effort:** 16 hours (estimated: 4 hours, actual scope was larger)
+- **Files Modified:**
+  - `backend/tests/api/routes/ai_chat/test_websocket.py` - Added WebSocket mocking strategy documentation
+  - `backend/tests/api/routes/ai_chat/test_websocket_integration.py` - Created 20 new integration tests
+  - `backend/tests/conftest.py` - Added AI configuration fixtures
+- **Action Items:**
+  - [x] Document WebSocket mocking strategy
+  - [x] Add connection lifecycle tests (5 tests: T-WS-LC-01 through T-WS-LC-05)
+  - [x] Add streaming token tests (3 tests: T-WS-ST-01 through T-WS-ST-03)
+  - [x] Add error handling tests (5 tests: T-WS-ERR-01 through T-WS-ERR-05)
+  - [x] Add token edge case tests (2 tests: missing subject, user not found)
+  - [x] Add REST API endpoint tests (4 tests: list_sessions, get_session_messages, delete_session, get_ai_config_service)
+  - [x] Add database persistence test (1 test)
+- **Test Results:**
+  - 38 tests passed (20 new + 18 existing)
+  - `ai_chat.py` coverage: 96.49% (from 77.19%)
+  - Only 4 lines uncovered (256-257, 271-273) - WebSocket exception handling edge cases
+- **References:**
+  - **Technical Debt ID:** TD-074
 
 #### [TD-083] Missing Reopen Action for Rejected Change Orders
 

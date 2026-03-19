@@ -1,32 +1,12 @@
 # Technical Debt Register
 
 **Last Updated:** 2026-03-19
-**Total Open Items:** 5
-**Total Estimated Effort:** 78 hours
+**Total Open Items:** 4
+**Total Estimated Effort:** 74 hours
 
 ---
 
 This file tracks active technical debt items. For completed/closed debt, see [technical-debt-archive.md](./technical-debt-archive.md).
-
----
-
-## High Severity (P0 - P1)
-
-### [TD-074] WebSocket Protocol Unit Tests Missing
-
-- **Source:** WebSocket Streaming Implementation (2026-03-08)
-- **Description:** Comprehensive unit tests for WebSocket message protocol not implemented.
-- **Impact:** Test coverage ~75%, below 80% target
-- **Estimated Effort:** 4 hours
-- **Target Date:** 2026-03-15
-- **Status:** 🔴 Open
-- **Owner:** QA/Test Developer
-- **Priority:** Medium (P2)
-- **Action Items:**
-  - [ ] Document WebSocket mocking strategy
-  - [ ] Add connection lifecycle tests
-  - [ ] Add streaming token tests
-  - [ ] Add reconnection logic tests
 
 ---
 
@@ -94,24 +74,15 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
-| High (P0-P1) | 1 | 4 hours |
-| Medium (P2-P3) | 4 | 66-76 hours |
+| High (P0-P1) | 0 | 0 hours |
+| Medium (P2-P3) | 4 | 74 hours |
 | Low (P4+) | 0 | 0 hours |
-| **Total** | **5** | **~78 hours** |
-
-## Summary
-
-| Priority | Count | Total Effort |
-|----------|-------|--------------|
-| High (P0-P1) | 1 | 4 hours |
-| Medium (P2-P3) | 4 | 66-76 hours |
-| Low (P4+) | 0 | 0 hours |
-| **Total** | **5** | **~78 hours** |
+| **Total** | **4** | **~74 hours** |
 
 ---
 
 ## Links
 
-- [Technical Debt Archive](./technical-debt-archive.md) - Completed debt items (27 items)
+- [Technical Debt Archive](./technical-debt-archive.md) - Completed debt items (31 items)
 - [Sprint Backlog](./sprint-backlog.md) - Current iteration
 - [Product Backlog](./product-backlog.md) - All pending work

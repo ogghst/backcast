@@ -1,7 +1,25 @@
 """Integration tests for AI Chat WebSocket endpoint.
 
-These tests use the actual WebSocket connection without TestClient's
-thread-based approach, which allows proper async testing.
+WebSocket Mocking Strategy:
+- Real WebSocket connections (TestClient) for protocol testing
+- Mocked external dependencies (LLM/LangGraph) for deterministic tests
+- Real database with transaction rollback for persistence testing
+- Mocked auth/RBAC for predictable authentication
+
+This file contains schema and unit tests with mocked WebSockets.
+For full integration tests with real WebSocket connections, see
+test_websocket_integration.py.
+
+Testing Approach:
+1. Schema validation tests ensure Pydantic models work correctly
+2. Request validation tests verify input constraints
+3. Database integration tests verify persistence layer
+4. Authentication flow tests verify JWT handling
+5. Basic WebSocket lifecycle tests verify connection management
+
+The tests in this file use mocked WebSockets to test individual components
+in isolation. For end-to-end WebSocket protocol testing, see the integration
+tests in test_websocket_integration.py.
 """
 
 from collections.abc import Generator
