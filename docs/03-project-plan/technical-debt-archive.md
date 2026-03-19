@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
 **Last Updated:** 2026-03-19
-**Total Archived Items:** 31
+**Total Archived Items:** 32
 
 ---
 
@@ -95,6 +95,42 @@ This file contains all completed, closed, or resolved technical debt items. For 
   - Only 4 lines uncovered (256-257, 271-273) - WebSocket exception handling edge cases
 - **References:**
   - **Technical Debt ID:** TD-074
+
+#### [TD-063] Add Zombie Check Tests for All Versioned Entities
+
+- **Source:** Code Quality Cleanup ACT phase (2026-01-19)
+- **Description:** Zombie check tests only implemented for forecasts. Need for Projects, WBEs, CostElements, etc.
+- **Status:** ✅ Complete (2026-03-19)
+- **Owner:** Backend Developer
+- **Priority:** Medium (P2)
+- **Resolution:** Implemented zombie check tests for 4 versioned entities: Branch, CostElement, CostElementType, and Department. Tests verify that soft-deleted entities correctly respect time travel boundaries (deleted entities are NOT visible when querying after their deleted_at timestamp).
+- **Actual Effort:** 1 day (~8 hours) as estimated
+- **Files Modified:**
+  - `backend/tests/unit/core/test_zombie_checks.py` - Added 4 new zombie check tests
+- **Action Items:**
+  - [x] Test Branch zombie check (test_branch_zombie_check_deleted_not_visible)
+  - [x] Test CostElement zombie check (test_cost_element_zombie_check_deleted_not_visible)
+  - [x] Test CostElementType zombie check (test_cost_element_type_zombie_check_deleted_not_visible)
+  - [x] Test Department zombie check (test_department_zombie_check_deleted_not_visible)
+- **Test Results:**
+  - All 7 zombie check tests passing (3 existing + 4 new)
+  - Project zombie check (already existed)
+  - WBE zombie check (already existed)
+  - WBE MERGE mode zombie check (already existed)
+  - Branch zombie check (NEW)
+  - CostElement zombie check (NEW)
+  - CostElementType zombie check (NEW)
+  - Department zombie check (NEW)
+- **Coverage:**
+  - Zombie checks verify core EVCS temporal behavior
+  - Tests use `soft_delete()` then query with `get_as_of()` after deletion
+  - Assert entities return None after deletion
+  - Verify entities exist before deletion
+- **References:**
+  - **Technical Debt ID:** TD-063
+  - **Test File:** `backend/tests/unit/core/test_zombie_checks.py`
+  - **Helper Functions:** `backend/tests/unit/temporal_test_helpers.py`
+  - **Documentation:** `docs/02-architecture/cross-cutting/temporal-query-reference.md`
 
 #### [TD-083] Missing Reopen Action for Rejected Change Orders
 

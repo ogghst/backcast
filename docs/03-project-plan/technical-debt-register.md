@@ -1,8 +1,8 @@
 # Technical Debt Register
 
 **Last Updated:** 2026-03-19
-**Total Open Items:** 4
-**Total Estimated Effort:** 74 hours
+**Total Open Items:** 3
+**Total Estimated Effort:** 66 hours
 
 ---
 
@@ -20,18 +20,6 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 - **Estimated Effort:** 3 hours
 - **Status:** 🔴 Open
 - **Owner:** Full Stack Developer
-
----
-
-### [TD-063] Add Zombie Check Tests for All Versioned Entities
-
-- **Source:** Code Quality Cleanup ACT phase (2026-01-19)
-- **Description:** Zombie check tests only implemented for forecasts. Need for Projects, WBEs, CostElements, etc.
-- **Impact:** Data integrity verification for time-travel queries
-- **Estimated Effort:** 1 day
-- **Target Date:** 2026-01-22
-- **Status:** 🔴 Open
-- **Owner:** QA Engineer
 
 ---
 
@@ -75,14 +63,14 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
 | High (P0-P1) | 0 | 0 hours |
-| Medium (P2-P3) | 4 | 74 hours |
+| Medium (P2-P3) | 3 | 66 hours |
 | Low (P4+) | 0 | 0 hours |
-| **Total** | **4** | **~74 hours** |
+| **Total** | **3** | **~66 hours** |
 
 ---
 
 ## Links
 
-- [Technical Debt Archive](./technical-debt-archive.md) - Completed debt items (31 items)
+- [Technical Debt Archive](./technical-debt-archive.md) - Completed debt items (32 items)
 - [Sprint Backlog](./sprint-backlog.md) - Current iteration
 - [Product Backlog](./product-backlog.md) - All pending work
