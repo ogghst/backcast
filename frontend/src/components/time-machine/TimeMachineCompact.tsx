@@ -9,6 +9,7 @@ import {
   CheckCircleOutlined,
   ExclamationCircleOutlined,
   CloseCircleOutlined,
+  BranchesOutlined,
 } from "@ant-design/icons";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { useTimeMachine } from "@/contexts/TimeMachineContext";
@@ -78,15 +79,15 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
     }
 
     if (status === "Approved") {
-      return <CheckCircleOutlined style={{ color: token.colorSuccess, fontSize: 12 }} />;
+      return <CheckCircleOutlined style={{ color: token.colorSuccess, fontSize: token.fontSize }} />;
     }
 
     if (status === "Pending") {
-      return <ExclamationCircleOutlined style={{ color: token.colorWarning, fontSize: 12 }} />;
+      return <ExclamationCircleOutlined style={{ color: token.colorWarning, fontSize: token.fontSize }} />;
     }
 
     if (status === "Rejected") {
-      return <CloseCircleOutlined style={{ color: token.colorError, fontSize: 12 }} />;
+      return <CloseCircleOutlined style={{ color: token.colorError, fontSize: token.fontSize }} />;
     }
 
     return null;
@@ -108,12 +109,11 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
           display: "flex",
           alignItems: "center",
           gap: token.marginXS,
-          color: isHistorical ? token.colorPrimary : token.colorTextSecondary,
-          fontSize: token.fontSizeSM,
-          fontWeight: isHistorical ? token.fontWeightStrong : undefined,
+          color: isHistorical ? token.colorPrimary : token.colorText,
+          fontSize: token.fontSize,
         }}
       >
-        <ClockCircleOutlined style={{ fontSize: 12 }} />
+        <ClockCircleOutlined style={{ fontSize: token.fontSize }} />
         <span style={{ fontVariantNumeric: "tabular-nums" }}>
           {displayDate}
         </span>
@@ -133,7 +133,7 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
         )}
       </div>
 
-      {/* Branch label with status icon */}
+      {/* Branch label with icon and status indicator */}
       <Tooltip
         title={
           currentBranch?.change_order_status
@@ -147,10 +147,11 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
             alignItems: "center",
             gap: token.marginXS,
             color: token.colorText,
-            fontSize: token.fontSizeSM,
+            fontSize: token.fontSize,
             cursor: "default",
           }}
         >
+          <BranchesOutlined style={{ fontSize: token.fontSize }} />
           <span>{selectedBranch}</span>
           {getStatusIcon}
         </div>
@@ -162,17 +163,17 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
           display: "flex",
           alignItems: "center",
           gap: token.marginXS,
-          color: token.colorTextSecondary,
-          fontSize: token.fontSizeSM,
+          color: token.colorText,
+          fontSize: token.fontSize,
         }}
       >
         {viewMode === "merged" ? (
           <Tooltip title="Merged view: See data from current branch combined with main">
-            <MergeCellsOutlined style={{ fontSize: 12 }} />
+            <MergeCellsOutlined style={{ fontSize: token.fontSize }} />
           </Tooltip>
         ) : (
           <Tooltip title="Isolated view: See only data from current branch">
-            <SplitCellsOutlined style={{ fontSize: 12 }} />
+            <SplitCellsOutlined style={{ fontSize: token.fontSize }} />
           </Tooltip>
         )}
         <span>{viewMode === "merged" ? "Merged" : "Isolated"}</span>

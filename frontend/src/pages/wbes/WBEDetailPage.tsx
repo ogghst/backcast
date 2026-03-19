@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Button, Card, Tabs, Collapse, Space, theme } from "antd";
+import { Button, Card, Tabs, Collapse, Space, theme, Typography, Flex } from "antd";
 import { PlusOutlined, LineChartOutlined, EditOutlined, DeleteOutlined, HistoryOutlined } from "@ant-design/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
@@ -175,7 +175,7 @@ export const WBEDetailPage = () => {
     <Space
       direction="vertical"
       size="middle"
-      style={{ width: "100%", marginTop: token.paddingMD }}
+      style={{ width: "100%" }}
     >
       {/* WBE Summary */}
       {wbe && (
@@ -188,6 +188,7 @@ export const WBEDetailPage = () => {
       {/* Child WBEs Section */}
       <Card
         title="Child WBEs"
+        style={{ marginTop: token.paddingMD }}
         extra={
           <Can permission="wbe-create">
             <Button
@@ -241,7 +242,7 @@ export const WBEDetailPage = () => {
     <Space
       direction="vertical"
       size="large"
-      style={{ width: "100%", marginTop: token.paddingMD }}
+      style={{ width: "100%" }}
     >
       {evmMetrics && (
         <EVMSummaryView
@@ -289,50 +290,111 @@ export const WBEDetailPage = () => {
 
   return (
     <div style={{ padding: token.paddingXL }}>
-      {/* Breadcrumb Navigation */}
-      <BreadcrumbBuilder breadcrumb={breadcrumb} loading={breadcrumbLoading} />
-
-      {/* Page Title with Action Buttons */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: token.paddingMD,
-        }}
-      >
-        <h1 style={{ margin: 0 }}>WBE Details</h1>
-        <Space>
-          <Can permission="wbe-read">
-            <Button icon={<HistoryOutlined />} onClick={() => setHistoryOpen(true)}>
-              History
-            </Button>
-          </Can>
-          <Can permission="wbe-update">
-            <Button icon={<EditOutlined />} onClick={handleEditCurrent}>
-              Edit
-            </Button>
-          </Can>
-          <Can permission="wbe-delete">
-            <Button danger icon={<DeleteOutlined />} onClick={handleDeleteCurrent}>
-              Delete
-            </Button>
-          </Can>
-        </Space>
-      </div>
-
+      {/* Tabs - moved to top like project page */}
       <Tabs
         defaultActiveKey="overview"
         items={[
           {
             key: "overview",
             label: "Overview",
-            children: overviewTabContent,
+            children: (
+              <>
+                {/* Breadcrumb Navigation */}
+                <BreadcrumbBuilder breadcrumb={breadcrumb} loading={breadcrumbLoading} />
+
+                {/* Page Title with Action Buttons */}
+                <Flex
+                  justify="space-between"
+                  align="center"
+                  style={{ marginBottom: token.paddingMD }}
+                >
+                  <Typography.Title level={1} style={{ margin: 0 }}>
+                    WBE Details
+                  </Typography.Title>
+                  <Space size={token.marginSM}>
+                    <Can permission="wbe-update">
+                      <Button
+                        type="primary"
+                        icon={<EditOutlined />}
+                        onClick={handleEditCurrent}
+                      >
+                        Edit
+                      </Button>
+                    </Can>
+                    <Can permission="wbe-read">
+                      <Button
+                        icon={<HistoryOutlined />}
+                        onClick={() => setHistoryOpen(true)}
+                      >
+                        History
+                      </Button>
+                    </Can>
+                    <Can permission="wbe-delete">
+                      <Button
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={handleDeleteCurrent}
+                      >
+                        Delete
+                      </Button>
+                    </Can>
+                  </Space>
+                </Flex>
+
+                {overviewTabContent}
+              </>
+            ),
           },
           {
             key: "evm",
             label: "EVM Analysis",
-            children: evmTabContent,
+            children: (
+              <>
+                {/* Breadcrumb Navigation */}
+                <BreadcrumbBuilder breadcrumb={breadcrumb} loading={breadcrumbLoading} />
+
+                {/* Page Title with Action Buttons */}
+                <Flex
+                  justify="space-between"
+                  align="center"
+                  style={{ marginBottom: token.paddingMD }}
+                >
+                  <Typography.Title level={1} style={{ margin: 0 }}>
+                    WBE Details
+                  </Typography.Title>
+                  <Space size={token.marginSM}>
+                    <Can permission="wbe-update">
+                      <Button
+                        type="primary"
+                        icon={<EditOutlined />}
+                        onClick={handleEditCurrent}
+                      >
+                        Edit
+                      </Button>
+                    </Can>
+                    <Can permission="wbe-read">
+                      <Button
+                        icon={<HistoryOutlined />}
+                        onClick={() => setHistoryOpen(true)}
+                      >
+                        History
+                      </Button>
+                    </Can>
+                    <Can permission="wbe-delete">
+                      <Button
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={handleDeleteCurrent}
+                      >
+                        Delete
+                      </Button>
+                    </Can>
+                  </Space>
+                </Flex>
+
+                {evmTabContent}
+              </>
+            ),
           },
         ]}
       />

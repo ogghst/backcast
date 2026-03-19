@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { useProject, useUpdateProject } from "@/features/projects/api/useProjects";
+import { useProject, useUpdateProject, useDeleteProject } from "@/features/projects/api/useProjects";
 import { queryKeys } from "@/api/queryKeys";
 import {
   useWBEs,
@@ -12,10 +12,11 @@ import { ProjectSummaryCard } from "@/components/hierarchy/ProjectSummaryCard";
 import { WBETable } from "@/components/hierarchy/WBETable";
 import { WBECreate, WBERead, WBEUpdate, ProjectUpdate } from "@/api/generated";
 import { Button, Breadcrumb, Skeleton, Card, theme, Typography, Space, Flex } from "antd";
-import { PlusOutlined, EditOutlined, HistoryOutlined } from "@ant-design/icons";
+import { PlusOutlined, EditOutlined, HistoryOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useState } from "react";
 import { WBEModal } from "@/features/wbes/components/WBEModal";
 import { DeleteWBEModal } from "@/components/hierarchy/DeleteWBEModal";
+import { DeleteProjectModal } from "@/components/projects/DeleteProjectModal";
 import { Can } from "@/components/auth/Can";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
@@ -57,6 +58,9 @@ export const ProjectOverview = () => {
   // Edit Project Modal State
   const [editModalOpen, setEditModalOpen] = useState(false);
 
+  // Delete Project Modal State
+  const [deleteProjectModalOpen, setDeleteProjectModalOpen] = useState(false);
+
   // History State
   const [historyOpen, setHistoryOpen] = useState(false);
   const { data: historyVersions, isLoading: historyLoading } = useEntityHistory(
@@ -77,6 +81,13 @@ export const ProjectOverview = () => {
           queryKey: queryKeys.projects.detail(projectId)
         });
       }
+    },
+  });
+
+  // Delete Project Mutation
+  const { mutate: deleteProject, isPending: isDeletingProject } = useDeleteProject({
+    onSuccess: () => {
+      navigate("/projects");
     },
   });
 
@@ -155,6 +166,15 @@ export const ProjectOverview = () => {
               onClick={() => setHistoryOpen(true)}
             >
               History
+            </Button>
+          </Can>
+          <Can permission="project-delete">
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => setDeleteProjectModalOpen(true)}
+            >
+              Delete
             </Button>
           </Can>
         </Space>
@@ -261,6 +281,18 @@ export const ProjectOverview = () => {
             onOk={handleEditProject}
             confirmLoading={isUpdatingProject}
             project={project}
+          />
+          <DeleteProjectModal
+            project={project}
+            open={deleteProjectModalOpen}
+            onCancel={() => setDeleteProjectModalOpen(false)}
+            onConfirm={() => {
+              if (projectId) {
+                deleteProject(projectId);
+                setDeleteProjectModalOpen(false);
+              }
+            }}
+            confirmLoading={isDeletingProject}
           />
         </>
       )}
