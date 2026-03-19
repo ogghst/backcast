@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { Modal, Form, Input, Select, Switch } from "antd";
+import { Modal, Form, Input, Select, Switch, Button, Space, Divider } from "antd";
+import { DatabaseOutlined, SettingOutlined } from "@ant-design/icons";
 import type { AIProviderPublic, AIProviderCreate, AIProviderUpdate } from "../types";
 
 interface AIProviderModalProps {
@@ -8,6 +9,8 @@ interface AIProviderModalProps {
   onOk: (values: AIProviderCreate | AIProviderUpdate) => void | Promise<void>;
   confirmLoading: boolean;
   initialValues?: AIProviderPublic | null;
+  onOpenModels?: () => void;
+  onOpenConfiguration?: () => void;
 }
 
 export const AIProviderModal = ({
@@ -16,6 +19,8 @@ export const AIProviderModal = ({
   onOk,
   confirmLoading,
   initialValues,
+  onOpenModels,
+  onOpenConfiguration,
 }: AIProviderModalProps) => {
   const [form] = Form.useForm();
   const isEdit = !!initialValues;
@@ -56,6 +61,42 @@ export const AIProviderModal = ({
       okButtonProps={{ "data-testid": "submit-provider-btn" }}
       confirmLoading={confirmLoading}
       destroyOnClose
+      footer={
+        <>
+          {isEdit && (
+            <div style={{ marginBottom: 16 }}>
+              <Space>
+                <Button
+                  icon={<DatabaseOutlined />}
+                  onClick={onOpenModels}
+                  data-testid="models-btn"
+                >
+                  Models
+                </Button>
+                <Button
+                  icon={<SettingOutlined />}
+                  onClick={onOpenConfiguration}
+                  data-testid="configuration-btn"
+                >
+                  Configuration
+                </Button>
+              </Space>
+              <Divider style={{ margin: "12px 0" }} />
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <Button onClick={onCancel}>Cancel</Button>
+            <Button
+              type="primary"
+              onClick={handleSubmit}
+              loading={confirmLoading}
+              data-testid="submit-provider-btn"
+            >
+              {isEdit ? "Save" : "Create"}
+            </Button>
+          </div>
+        </>
+      }
     >
       <Form form={form} layout="vertical" name="ai_provider_form">
         <Form.Item

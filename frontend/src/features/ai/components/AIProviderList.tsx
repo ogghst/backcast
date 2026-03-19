@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
-import { App, Button, Space, Tag, Switch, Typography } from "antd";
+import { App, Button, Space, Tag, Typography, theme } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
-  SettingOutlined,
   PlusOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
 } from "@ant-design/icons";
 import type { ColumnType } from "antd/es/table";
-import { useAIProviders, useUpdateAIProvider, useDeleteAIProvider, useCreateAIProvider } from "../api";
+import { useAIProviders, useDeleteAIProvider, useCreateAIProvider } from "../api";
 import { AIProviderModal } from "./AIProviderModal";
 import { AIProviderConfigModal } from "./AIProviderConfigModal";
 import { AIModelManagementModal } from "./AIModelManagementModal";
@@ -22,18 +23,13 @@ const { Text } = Typography;
 export const AIProviderList = () => {
   const { tableParams, handleTableChange } = useTableParams<AIProviderPublic>();
   const { data: providers, isLoading, refetch } = useAIProviders(true);
+  const { token } = theme.useToken();
   const { typography } = useThemeTokens();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [configModalOpen, setConfigModalOpen] = useState(false);
   const [modelManagementModalOpen, setModelManagementModalOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<AIProviderPublic | null>(null);
-
-  const { mutateAsync: updateProvider } = useUpdateAIProvider({
-    onSuccess: () => {
-      refetch();
-    },
-  });
 
   const { mutate: deleteProvider } = useDeleteAIProvider({
     onSuccess: () => {
@@ -68,13 +64,6 @@ export const AIProviderList = () => {
     });
   };
 
-  const handleToggleActive = (provider: AIProviderPublic, checked: boolean) => {
-    updateProvider({
-      id: provider.id,
-      data: { is_active: checked },
-    });
-  };
-
   const columns: ColumnType<AIProviderPublic>[] = [
     {
       title: "Name",
@@ -106,43 +95,18 @@ export const AIProviderList = () => {
       title: "Active",
       dataIndex: "is_active",
       key: "is_active",
-      render: (isActive: boolean, record) => (
-        <Switch
-          checked={isActive}
-          onChange={(checked) => handleToggleActive(record, checked)}
-          disabled={!isActive && !record.is_active}
-        />
-      ),
+      render: (isActive: boolean) =>
+        isActive ? (
+          <CheckCircleOutlined style={{ color: token.colorSuccess, fontSize: typography.sizes.xl }} />
+        ) : (
+          <CloseCircleOutlined style={{ color: token.colorTextTertiary, fontSize: typography.sizes.xl }} />
+        ),
     },
     {
       title: "Actions",
       key: "actions",
       render: (_, record) => (
         <Space>
-          <Can permission="ai-config-update">
-            <Button
-              icon={<SettingOutlined />}
-              onClick={() => {
-                console.log("[AIProviderList] Configure button clicked", { record });
-                setSelectedProvider(record);
-                setConfigModalOpen(true);
-              }}
-              aria-label="setting"
-              title="Configure"
-            />
-          </Can>
-          <Can permission="ai-config-read">
-            <Button
-              onClick={() => {
-                console.log("[AIProviderList] Models button clicked", { record });
-                setSelectedProvider(record);
-                setModelManagementModalOpen(true);
-              }}
-              title="Manage Models"
-            >
-              Models
-            </Button>
-          </Can>
           <Can permission="ai-config-update">
             <Button
               icon={<EditOutlined />}
@@ -220,6 +184,14 @@ export const AIProviderList = () => {
         }}
         confirmLoading={isLoading}
         initialValues={selectedProvider}
+        onOpenModels={() => {
+          setModalOpen(false);
+          setModelManagementModalOpen(true);
+        }}
+        onOpenConfiguration={() => {
+          setModalOpen(false);
+          setConfigModalOpen(true);
+        }}
       />
 
       {selectedProvider && (
