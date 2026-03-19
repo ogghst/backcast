@@ -1,8 +1,8 @@
 # Technical Debt Register
 
-**Last Updated:** 2026-03-14
-**Total Open Items:** 6
-**Total Estimated Effort:** 102 hours
+**Last Updated:** 2026-03-19
+**Total Open Items:** 5
+**Total Estimated Effort:** 78 hours
 
 ---
 
@@ -11,26 +11,6 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 ---
 
 ## High Severity (P0 - P1)
-
-### [TD-067] FK Constraint: Business Key vs Primary Key in Temporal Entities
-
-- **Source:** Change Order Workflow Recovery (2026-02-06)
-- **Description:** `ChangeOrder.assigned_approver_id` foreign key references `users(id)` (auto-generated primary key) instead of `users(user_id)` (business key). This causes issues in bitemporal queries because PK changes across versions while business key remains stable.
-- **Impact:** Data integrity issues in bitemporal queries; using PK may return wrong or expired versions
-- **Estimated Effort:** 2-3 days (16-24 hours)
-- **Target Date:** 2026-02-15
-- **Status:** 🔴 Open
-- **Owner:** Backend Developer
-- **Priority:** High
-- **Risk:** Data integrity issues in bitemporal queries
-- **Action Items:**
-  - [ ] Audit all FK references in temporal entities
-  - [ ] Create migration plan
-  - [ ] Update coding standards
-  - [ ] Schedule implementation iteration
-- **References:** ADR-005 Bitemporal Versioning, CO-2026-003 recovery
-
----
 
 ### [TD-074] WebSocket Protocol Unit Tests Missing
 
@@ -114,19 +94,19 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
-| High (P0-P1) | 2 | 20-24 hours |
+| High (P0-P1) | 1 | 4 hours |
 | Medium (P2-P3) | 4 | 66-76 hours |
 | Low (P4+) | 0 | 0 hours |
-| **Total** | **6** | **~102 hours** |
+| **Total** | **5** | **~78 hours** |
 
 ## Summary
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
-| High (P0-P1) | 3 | 24-28 hours |
+| High (P0-P1) | 1 | 4 hours |
 | Medium (P2-P3) | 4 | 66-76 hours |
-| Low (P4+) | 1 | 1 hour |
-| **Total** | **8** | **~107 hours** |
+| Low (P4+) | 0 | 0 hours |
+| **Total** | **5** | **~78 hours** |
 
 ---
 
