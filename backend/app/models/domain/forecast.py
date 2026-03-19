@@ -60,6 +60,11 @@ class Forecast(EntityBase, VersionableMixin, BranchableMixin):
     basis_of_estimate: Mapped[str] = mapped_column(Text, nullable=False)
 
     # Optional approval fields
+    # Note: approved_by has no FK constraint to users.user_id because:
+    # 1. users.user_id is a business key, not PK or UNIQUE constraint
+    # 2. PostgreSQL FKs require PK or UNIQUE references
+    # 3. Application-level validation in service layer ensures referential integrity
+    # See ADR-005: "Foreign Key Constraints in Temporal Entities"
     approved_date: Mapped[datetime | None] = mapped_column(
         nullable=True,
     )

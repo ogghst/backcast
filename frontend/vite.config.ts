@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
       host: "::",
       proxy: {
         "/api": {
-          target: env.VITE_API_URL || "http://192.168.1.23:8020",
+          target: env.VITE_API_URL,
           changeOrigin: true,
           ws: true, // Enable WebSocket proxying
         },

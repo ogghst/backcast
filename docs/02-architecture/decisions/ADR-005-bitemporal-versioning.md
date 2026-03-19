@@ -168,7 +168,122 @@ Entities using the dual-table pattern should be migrated:
 2. Migrate data: `valid_from` → `lower(valid_time)`, etc.
 3. Update commands to generic pattern
 4. Update services to extend `TemporalService[T]`
-5. Drop old head/version tables
+5. Drop old version tables
+
+### Foreign Key Constraints in Temporal Entities
+
+**Problem:** PostgreSQL foreign key constraints require referencing either a PRIMARY KEY or a column with a UNIQUE constraint. However, temporal entities use business keys (e.g., `user_id`, `project_id`) that are indexed but not unique across all versions.
+
+**Challenge:**
+```python
+# INVALID: users.user_id is not PK or UNIQUE
+class ChangeOrder(Base):
+    assigned_approver_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.user_id")  # ❌ Fails: user_id not unique
+    )
+```
+
+**Solution: Application-Level Referential Integrity**
+
+Since database FKs cannot reference business keys in temporal tables, enforce referential integrity at the application layer:
+
+```python
+# CORRECT: No FK constraint, application-level validation
+class ChangeOrder(Base):
+    # Note: No FK constraint to users.user_id
+    # Application-level validation in service layer ensures integrity
+    assigned_approver_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID, nullable=True
+    )
+```
+
+**Implementation Pattern:**
+
+1. **Model Layer:** Remove FK constraints from temporal entity references
+   ```python
+   # ❌ Don't do this
+   assigned_approver_id = mapped_column(
+       PG_UUID, ForeignKey("users.user_id", ondelete="SET NULL")
+   )
+
+   # ✅ Do this instead
+   assigned_approver_id = mapped_column(PG_UUID, nullable=True)
+   ```
+
+2. **Database Layer:** Create supporting indexes for validation
+   ```sql
+   -- Unique index on current versions (supports validation queries)
+   CREATE UNIQUE INDEX uq_users_current_user_id
+   ON users (user_id)
+   WHERE upper_inf(transaction_time) AND deleted_at IS NULL;
+
+   -- Index on referencing table for efficient lookups
+   CREATE INDEX ix_change_orders_assigned_approver
+   ON change_orders (assigned_approver_id)
+   WHERE assigned_approver_id IS NOT NULL;
+   ```
+
+3. **Service Layer:** Validate references in business logic
+   ```python
+   async def assign_approver(
+       self,
+       change_order_id: UUID,
+       user_id: UUID
+   ) -> ChangeOrder:
+       # Validate user exists and is current
+       user = await self.user_service.get_current(user_id)
+       if not user or not user.is_active:
+           raise ValueError(f"User {user_id} not found or inactive")
+
+       # Safe to assign - reference is valid
+       return await self.update(
+           change_order_id,
+           {"assigned_approver_id": user_id}
+       )
+   ```
+
+**When to Use FK vs Application-Level Integrity:**
+
+| Scenario | Approach | Rationale |
+|----------|----------|-----------|
+| Temporal → Temporal (business key) | Application-level | Business key not unique, FK invalid |
+| Temporal → Temporal (system ID) | Database FK | System ID (`id`) is PK, FK valid |
+| Temporal → Non-Temporal | Database FK | Target table has standard PK |
+| Non-Temporal → Temporal | Application-level | Temporal PK represents single version, not entity |
+
+**Examples:**
+
+```python
+# ✅ VALID: FK to non-temporal table
+class Project(Base):  # Non-temporal
+    department_id: Mapped[UUID] = mapped_column(
+        ForeignKey("departments.id")  # OK: departments.id is PK
+    )
+
+# ❌ INVALID: FK to temporal business key
+class ChangeOrder(Base):
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.project_id")  # FAILS: project_id not unique
+    )
+
+# ✅ VALID: Application-level reference
+class ChangeOrder(Base):
+    project_id: Mapped[UUID] = mapped_column(
+        PG_UUID  # No FK - validate in service
+    )
+```
+
+**Benefits:**
+- Enables temporal entity relationships without database constraints
+- Supports referencing "current" version by business key
+- Maintains data integrity through validation logic
+- Allows flexible validation rules (e.g., check user.is_active)
+
+**Trade-offs:**
+- No automatic cascade deletes (must implement in service)
+- Requires explicit validation in service layer
+- Possible orphaned references if validation incomplete
+- Less performant than database-enforced FKs
 
 ### Related Documentation
 

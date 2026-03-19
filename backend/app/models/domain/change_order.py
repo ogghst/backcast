@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import String, Text
 from sqlalchemy.dialects.postgresql import JSONB, NUMERIC, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -122,8 +122,13 @@ class ChangeOrder(EntityBase, VersionableMixin, BranchableMixin):
     impact_level: Mapped[str | None] = mapped_column(
         String(20), nullable=True, index=True
     )
+    # Note: No FK constraint to users.user_id because:
+    # 1. users.user_id is a business key, not PK or UNIQUE constraint
+    # 2. PostgreSQL FKs require PK or UNIQUE references
+    # 3. Application-level validation in service layer ensures referential integrity
+    # See ADR-005: "Foreign Key Constraints in Temporal Entities"
     assigned_approver_id: Mapped[UUID | None] = mapped_column(
-        PG_UUID, ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True
+        PG_UUID, nullable=True
     )
     sla_assigned_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True

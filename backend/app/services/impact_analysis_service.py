@@ -1457,13 +1457,18 @@ class ImpactAnalysisService:
         ]
 
         # Fetch the project's start_date and end_date from the main branch
-        project_result = await self._db.execute(
-            select(Project).where(
+        project_stmt = (
+            select(Project)
+            .where(
                 Project.project_id == project_id,
                 Project.branch == "main",
-                Project.deleted_at.is_(None),
+                func.upper(cast(Any, Project).valid_time).is_(None),
+                cast(Any, Project).deleted_at.is_(None),
             )
+            .order_by(cast(Any, Project).valid_time.desc())
+            .limit(1)
         )
+        project_result = await self._db.execute(project_stmt)
         project = project_result.scalar_one_or_none()
 
         # Use project dates if available, otherwise fall back to schedule baseline dates
