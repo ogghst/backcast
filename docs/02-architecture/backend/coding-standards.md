@@ -66,6 +66,35 @@ async def calculate_earned_value(
 
 **ADRs:** [Bitemporal](../decisions/ADR-005-bitemporal-versioning.md), [Command Pattern](../decisions/ADR-003-command-pattern.md)
 
+#### Foreign Key Constraints for Temporal Entities
+
+**Pattern:** Temporal entities (using `VersionableMixin`) should **NOT** use database-level FK constraints to other temporal entities' root IDs (e.g., `project_id`, `user_id`, `wbe_id`).
+
+**Rationale:**
+- Root IDs are **NOT UNIQUE** in bitemporal tables (multiple versions share the same root ID)
+- PostgreSQL FK constraints require UNIQUE target columns
+- Referential integrity must be enforced at the **application/service layer**
+
+**Implementation:**
+- Use explicit comments: `# NOTE: No database-level ForeignKey constraint because [field] is a root ID`
+- Service layer validates existence before setting FK fields
+- When FK is unavoidable (e.g., to non-temporal entities like `users.user_id`), document the decision
+
+**Examples:**
+```python
+# Correct - Bitemporal to Bitemporal (no FK)
+project_id: Mapped[UUID] = mapped_column(
+    PG_UUID, nullable=False, index=True
+)
+# NOTE: No database-level ForeignKey constraint because project_id is a root ID.
+# Referential integrity enforced at service layer.
+
+# Correct - Bitemporal to non-temporal Business Key (FK allowed)
+assigned_approver_id: Mapped[UUID | None] = mapped_column(
+    PG_UUID, ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True
+)
+```
+
 ---
 
 ## API Routes

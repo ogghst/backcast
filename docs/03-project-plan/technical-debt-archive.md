@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
-**Last Updated:** 2026-03-14
-**Total Archived Items:** 29
+**Last Updated:** 2026-03-19
+**Total Archived Items:** 30
 
 ---
 
@@ -170,6 +170,47 @@ This file contains all completed, closed, or resolved technical debt items. For 
 - **Resolution:** Timeout configuration implemented
 - **References:** Change Order Workflow Recovery iteration
 
+#### [TD-067] FK Constraint: Business Key vs Primary Key in Temporal Entities
+
+- **Source:** Change Order Workflow Recovery (2026-02-06)
+- **Description:** `ChangeOrder.assigned_approver_id` foreign key referenced `users(id)` (auto-generated primary key) instead of `users(user_id)` (business key). This caused issues in bitemporal queries because PK changes across versions while business key remains stable.
+- **Status:** ✅ Complete (2026-03-19)
+- **Owner:** Backend Developer
+- **Priority:** High (P0-P1)
+- **Resolution:**
+  - **Bug Fix (2026-02-07):** Changed `ChangeOrder.assigned_approver_id` to reference `users.user_id` instead of `users.id`. Migration `03b4089c06af` dropped old FK constraint and migrated existing data.
+  - **Audit Completed (2026-03-19):** Verified all temporal entities follow correct pattern. All FK references to other temporal entities use application-level validation with explanatory comments.
+  - **Coding Standards Updated (2026-03-19):** Documented bitemporal FK pattern in `docs/02-architecture/backend/coding-standards.md`.
+- **Actual Effort:**
+  - Original fix: 4 hours (2026-02-07)
+  - Audit + documentation: 0.5 hours (2026-03-19)
+- **Files Modified:**
+  - `backend/app/models/domain/change_order.py` - FK now references `users.user_id`
+  - `backend/alembic/versions/03b4089c06af_fix_change_order_approver_fk.py` - Migration applied
+  - `backend/tests/integration/test_td_067_assignment_persistence.py` - Integration tests added
+  - `docs/02-architecture/backend/coding-standards.md` - FK pattern documented
+- **Action Items:**
+  - [x] Audit all FK references in temporal entities (all verified correct)
+  - [x] Create migration plan (implemented 2026-02-07)
+  - [x] Update coding standards (completed 2026-03-19)
+  - [x] Schedule implementation iteration (completed 2026-02-07)
+  - [x] Close technical debt item
+- **Audit Results (2026-03-19):**
+  | Entity | FK Pattern | Status |
+  |--------|-----------|--------|
+  | ChangeOrder | `ForeignKey("users.user_id")` | ✅ Correct |
+  | WBE | No FK (uses `project_id`, has comment) | ✅ Correct |
+  | CostElement | No FK (uses `wbe_id`, comment) | ✅ Correct |
+  | ScheduleBaseline | No FK (uses `project_id`, comment) | ✅ Correct |
+  | CostRegistration | No FK (uses `project_id`, `wbe_id`, comment) | ✅ Correct |
+  | ProgressEntry | No FK (uses `wbe_id`, comment) | ✅ Correct |
+  | Branch | No FK (uses `project_id`, comment) | ✅ Correct |
+  | AI entities | SimpleEntityBase (non-versioned) | ✅ Correct |
+- **References:**
+  - **Iteration 1:** 2026-02-07-td-067-fk-business-keys (bug fix)
+  - **Iteration 2:** 2026-03-19-td-067-coding-standards-update (audit + documentation)
+  - **ADR:** ADR-005 Bitemporal Versioning
+
 #### [TD-059] WBE Hierarchical Filter API Response Format
 
 - **Source:** Backend Test Suite Run (2026-01-14)
@@ -199,8 +240,8 @@ This file contains all completed, closed, or resolved technical debt items. For 
 ## Summary by Year
 
 ### 2026
-- **Q1:** 6 items closed (TD-072, TD-073, TD-057, TD-062, TD-068, TD-059)
-- **Total Archived:** 6 items
+- **Q1:** 7 items closed (TD-072, TD-073, TD-057, TD-062, TD-068, TD-059, TD-067)
+- **Total Archived:** 7 items
 
 ### 2025
 - **Q4:** 15 items closed
@@ -212,7 +253,7 @@ This file contains all completed, closed, or resolved technical debt items. For 
 
 | Status | Count |
 |--------|-------|
-| Complete | 5 |
+| Complete | 6 |
 | Closed - Not Needed | 1 |
-| **Total (2026)** | **6** |
-| **Total (All Time)** | **28** |
+| **Total (2026)** | **7** |
+| **Total (All Time)** | **29** |
