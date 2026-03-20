@@ -16,14 +16,12 @@ from langchain_core.messages import (
     ToolMessage,
 )
 from langchain_openai import ChatOpenAI
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.graph import create_graph
 from app.ai.tools import ToolContext, create_project_tools
 from app.models.domain.ai import (
     AIAssistantConfig,
-    AIConversationMessage,
     AIConversationSession,
     AIProvider,
 )
@@ -120,6 +118,18 @@ class AgentService:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+        self._config_service: AIConfigService | None = None
+
+    @property
+    def config_service(self) -> AIConfigService:
+        """Get or create the AI config service.
+
+        Returns:
+            AIConfigService instance for database operations
+        """
+        if self._config_service is None:
+            self._config_service = AIConfigService(self.session)
+        return self._config_service
 
     async def _get_llm_client_config(self, model_id: UUID) -> tuple[dict[str, Any], str]:
         """Get LLM client configuration and model name for a model.
@@ -207,30 +217,25 @@ class AgentService:
         # Get or create session
         db_session: AIConversationSession | None
         if session_id:
-            db_session = await self._get_session(session_id)
+            db_session = await self.config_service.get_session(session_id)
             if not db_session:
                 raise ValueError(f"Session {session_id} not found")
         else:
             # Create new session
-            db_session = AIConversationSession(
-                user_id=str(user_id),
-                assistant_config_id=str(assistant_config.id),
+            db_session = await self.config_service.create_session(
+                user_id=user_id,
+                assistant_config_id=assistant_config.id,
             )
-            self.session.add(db_session)
-            await self.session.flush()
-            await self.session.refresh(db_session)
             session_id = db_session.id
         if not session_id:
             raise ValueError("Failed to create session")
 
         # Add user message to session
-        user_msg = AIConversationMessage(
-            session_id=str(session_id),
+        _ = await self.config_service.add_message(
+            session_id=session_id,
             role="user",
             content=message,
         )
-        self.session.add(user_msg)
-        await self.session.flush()
 
         # Build conversation history
         history = await self._build_conversation_history(session_id)
@@ -254,14 +259,11 @@ class AgentService:
 
         # Create tools
         # Fetch user to get their role for RBAC
-        from sqlalchemy import select
+        # Use UserService to properly handle temporal versioning
+        from app.services.user import UserService
 
-        from app.models.domain.user import User
-
-        user_result = await self.session.execute(
-            select(User).where(User.user_id == user_id)
-        )
-        user = user_result.scalar_one_or_none()
+        user_service = UserService(self.session)
+        user = await user_service.get_user(user_id)
         user_role = user.role if user else "guest"
 
         tool_context = ToolContext(self.session, str(user_id), user_role=user_role)
@@ -302,7 +304,6 @@ class AgentService:
 
         # Collect tool calls and results
         tool_calls_data: list[dict[str, Any]] = []
-        tool_results_data: list[dict[str, Any]] = []
 
         for msg in messages:
             if isinstance(msg, AIMessage) and msg.tool_calls:
@@ -317,15 +318,19 @@ class AgentService:
             # In a real implementation, you might want to track these separately
 
         # Save assistant message to session
-        assistant_msg = AIConversationMessage(
-            session_id=str(session_id),
-            role="assistant",
-            content=final_message.content or "",
-            tool_calls=tool_calls_data if tool_calls_data else None,
-            tool_results=tool_results_data if tool_results_data else None,
+        # Convert AIMessage content to string (can be str | list)
+        content_str = (
+            final_message.content
+            if isinstance(final_message.content, str)
+            else str(final_message.content) if final_message.content else ""
         )
-        self.session.add(assistant_msg)
-        await self.session.flush()
+        assistant_msg = await self.config_service.add_message(
+            session_id=session_id,
+            role="assistant",
+            content=content_str,
+            tool_calls=tool_calls_data if tool_calls_data else None,
+            tool_results=None,  # No tool results in non-streaming mode
+        )
 
         # Build response
         return AIChatResponse(
@@ -343,6 +348,8 @@ class AgentService:
         websocket: WebSocket,
         db: AsyncSession,
         title: str | None = None,
+        project_id: UUID | None = None,
+        branch_id: UUID | None = None,
     ) -> None:
         """Process a chat message using LangGraph with streaming response.
 
@@ -359,6 +366,8 @@ class AgentService:
             websocket: WebSocket connection for streaming responses
             db: Database session for persistence
             title: Optional title for the session (only used when creating a new session)
+            project_id: Optional project context UUID for the session
+            branch_id: Optional branch or change order context UUID for the session
 
         Returns:
             None (communicates via WebSocket)
@@ -369,31 +378,28 @@ class AgentService:
         # Get or create session
         db_session: AIConversationSession | None
         if session_id:
-            db_session = await self._get_session(session_id)
+            db_session = await self.config_service.get_session(session_id)
             if not db_session:
                 raise ValueError(f"Session {session_id} not found")
         else:
-            # Create new session
-            db_session = AIConversationSession(
-                user_id=str(user_id),
-                assistant_config_id=str(assistant_config.id),
+            # Create new session with context
+            db_session = await self.config_service.create_session(
+                user_id=user_id,
+                assistant_config_id=assistant_config.id,
                 title=title,
+                project_id=project_id,
+                branch_id=branch_id,
             )
-            db.add(db_session)
-            await db.flush()
-            await db.refresh(db_session)
             session_id = db_session.id
         if not session_id:
             raise ValueError("Failed to create session")
 
         # Add user message to session
-        user_msg = AIConversationMessage(
-            session_id=str(session_id),
+        _ = await self.config_service.add_message(
+            session_id=session_id,
             role="user",
             content=message,
         )
-        db.add(user_msg)
-        await db.flush()
         await db.commit()
 
         # Build conversation history
@@ -418,17 +424,20 @@ class AgentService:
 
         # Create tools
         # Fetch user to get their role for RBAC
-        from sqlalchemy import select
+        # Use UserService to properly handle temporal versioning
+        from app.services.user import UserService
 
-        from app.models.domain.user import User
-
-        user_result = await db.execute(
-            select(User).where(User.user_id == user_id)
-        )
-        user = user_result.scalar_one_or_none()
+        user_service = UserService(db)
+        user = await user_service.get_user(user_id)
         user_role = user.role if user else "guest"
 
-        tool_context = ToolContext(db, str(user_id), user_role=user_role)
+        tool_context = ToolContext(
+            db,
+            str(user_id),
+            user_role=user_role,
+            project_id=str(project_id) if project_id else None,
+            branch_id=str(branch_id) if branch_id else None,
+        )
         available_tools = create_project_tools(tool_context)
         tools_dict = {tool.name: tool for tool in available_tools}
 
@@ -592,17 +601,15 @@ class AgentService:
                 pass
 
         # Save assistant message to session
-        assistant_msg = AIConversationMessage(
-            session_id=str(session_id),
+        assistant_msg = await self.config_service.add_message(
+            session_id=session_id,
             role="assistant",
             content=accumulated_content or "",
             tool_calls=all_tool_calls if all_tool_calls else None,
             tool_results=all_tool_results if all_tool_results else None,
         )
-        db.add(assistant_msg)
-        await db.flush()
-        await db.refresh(assistant_msg)
         await db.commit()
+        await db.refresh(assistant_msg)
 
         # Send complete message
         try:
@@ -622,26 +629,6 @@ class AgentService:
             f"message_id={assistant_msg.id}"
         )
 
-    async def _get_session(self, session_id: UUID) -> AIConversationSession | None:
-        """Get a conversation session.
-
-        Context: Internal DB helper.
-
-        Args:
-            session_id: ID of the session to retrieve
-
-        Returns:
-            The session object if found, otherwise None
-
-        Raises:
-            None
-        """
-        stmt = select(AIConversationSession).where(
-            AIConversationSession.id == str(session_id)
-        )
-        result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
-
     async def _build_conversation_history(self, session_id: UUID) -> list[BaseMessage]:
 
         """Build conversation history from session messages.
@@ -658,7 +645,7 @@ class AgentService:
             None
         """
         messages: list[BaseMessage] = []
-        db_messages = await self._get_session_messages(session_id)
+        db_messages = await self.config_service.list_messages(session_id)
         for msg in db_messages:
             if msg.role == "user":
                 messages.append(HumanMessage(content=msg.content))
@@ -668,27 +655,3 @@ class AgentService:
                 # Skip tool messages in history - they're implicit
                 pass
         return messages
-
-    async def _get_session_messages(
-        self, session_id: UUID
-    ) -> list[AIConversationMessage]:
-        """Get all messages for a session.
-
-        Context: Internal DB helper.
-
-        Args:
-            session_id: The session ID
-
-        Returns:
-            List of AIConversationMessage instances ordered by creation time
-
-        Raises:
-            None
-        """
-        stmt = (
-            select(AIConversationMessage)
-            .where(AIConversationMessage.session_id == str(session_id))
-            .order_by(AIConversationMessage.created_at)
-        )
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
