@@ -3,6 +3,7 @@
 This package contains template modules for AI tools:
 - crud_template: Project and WBE CRUD operations
 - analysis_template: EVM and Forecasting analysis tools
+- advanced_analysis_template: Advanced project analysis and insights
 - change_order_template: Change order management tools
 
 All tools use the @ai_tool decorator with LangChain's InjectedToolArg
@@ -10,6 +11,7 @@ for proper context injection and docstring parsing.
 """
 
 from app.ai.tools.templates import (
+    advanced_analysis_template,
     analysis_template,
     change_order_template,
     crud_template,
@@ -17,6 +19,7 @@ from app.ai.tools.templates import (
 
 __all__ = [
     "analysis_template",
+    "advanced_analysis_template",
     "change_order_template",
     "crud_template",
 ]

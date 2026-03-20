@@ -41,9 +41,13 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     # Import tool modules
     from app.ai.tools import project_tools
     from app.ai.tools.templates import (
+        advanced_analysis_template,
         analysis_template,
         change_order_template,
+        cost_element_template,
         crud_template,
+        diagram_template,
+        user_management_template,
     )
 
     # Collect all tools from project_tools (production tools)
@@ -88,6 +92,49 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         change_order_template.analyze_change_order_impact,
     ]
     tools.extend(change_order_tools)
+
+    # Add tools from cost_element_template (Cost Element and Schedule Baseline CRUD)
+    cost_element_tools = [
+        cost_element_template.list_cost_elements,
+        cost_element_template.get_cost_element,
+        cost_element_template.create_cost_element,
+        cost_element_template.update_cost_element,
+        cost_element_template.delete_cost_element,
+        cost_element_template.get_schedule_baseline,
+        cost_element_template.update_schedule_baseline,
+        cost_element_template.delete_schedule_baseline,
+    ]
+    tools.extend(cost_element_tools)
+
+    # Add tools from user_management_template (User and Department CRUD)
+    user_management_tools = [
+        user_management_template.list_users,
+        user_management_template.get_user,
+        user_management_template.create_user,
+        user_management_template.update_user,
+        user_management_template.delete_user,
+        user_management_template.list_departments,
+        user_management_template.get_department,
+        user_management_template.create_department,
+        user_management_template.update_department,
+        user_management_template.delete_department,
+    ]
+    tools.extend(user_management_tools)
+
+    # Add tools from advanced_analysis_template (Advanced analysis and insights)
+    advanced_analysis_tools = [
+        advanced_analysis_template.assess_project_health,
+        advanced_analysis_template.detect_evm_anomalies,
+        advanced_analysis_template.analyze_forecast_trends,
+        advanced_analysis_template.generate_optimization_suggestions,
+    ]
+    tools.extend(advanced_analysis_tools)
+
+    # Add tools from diagram_template (Mermaid diagram generation)
+    diagram_tools = [
+        diagram_template.generate_mermaid_diagram,
+    ]
+    tools.extend(diagram_tools)
 
     # Filter to only BaseTool instances
     base_tools: list[BaseTool] = [

@@ -12,19 +12,23 @@ from app.services.project import ProjectService
 class ToolContext:
     """Execution context for AI tools with dependency injection.
 
-    Provides database session, user context, and service accessors
+    Provides database session, user context, project/branch context, and service accessors
     for tool execution.
 
     Attributes:
         session: Async database session
         user_id: Authenticated user ID
         user_role: User's role for RBAC authorization (e.g., "admin", "viewer")
+        project_id: Optional project context UUID for scoped operations
+        branch_id: Optional branch or change order context UUID for scoped operations
         _permission_cache: Cache for permission checks
     """
 
     session: AsyncSession
     user_id: str
     user_role: str = "guest"
+    project_id: str | None = None
+    branch_id: str | None = None
     _permission_cache: dict[str, bool] = field(default_factory=dict)
 
     @property
