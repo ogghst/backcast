@@ -324,24 +324,38 @@ async def generate_change_order_draft(
 
         # Call service method to generate draft
         # This analyzes impact and creates a comprehensive draft
-        draft = await service.generate_draft(  # type: ignore[attr-defined]
+        draft = await service.generate_draft(
             project_id=UUID(project_id),
             title=title,
             description=description,
             reason=reason,
+            actor_id=UUID(context.user_id),
         )
+
+        # Extract AI analysis results from impact_analysis_results
+        ai_analysis: dict[str, Any] = {}
+        if hasattr(draft, 'impact_analysis_results') and draft.impact_analysis_results:
+            ai_data = draft.impact_analysis_results
+            if isinstance(ai_data, dict) and "ai_analysis" in ai_data:
+                ai_analysis = ai_data["ai_analysis"]
 
         # Convert to AI-friendly format
         return {
             "id": str(draft.change_order_id),
             "project_id": str(draft.project_id),
+            "code": draft.code,
             "title": draft.title,
             "description": draft.description,
             "status": draft.status,
-            "budget_impact": float(draft.budget_impact) if hasattr(draft, 'budget_impact') and draft.budget_impact else 0.0,
-            "schedule_impact_days": draft.schedule_impact_days if hasattr(draft, 'schedule_impact_days') else None,
-            "risk_assessment": draft.risk_assessment if hasattr(draft, 'risk_assessment') else None,
-            "recommendation": draft.recommendation if hasattr(draft, 'recommendation') else None,
+            "impact_level": draft.impact_level,
+            "branch": draft.branch,
+            "estimated_budget_impact": ai_analysis.get("estimated_budget_impact", 0.0),
+            "estimated_schedule_impact_days": ai_analysis.get("estimated_schedule_impact_days", 0),
+            "risk_assessment": ai_analysis.get("risk_assessment", "Medium"),
+            "recommendation": ai_analysis.get("recommendation", "Review required"),
+            "confidence_score": ai_analysis.get("confidence_score", 0.0),
+            "affected_entities": ai_analysis.get("affected_entities", []),
+            "message": f"Draft change order {draft.code} generated successfully",
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
