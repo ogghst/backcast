@@ -183,7 +183,7 @@ export const AIAssistantList = () => {
         }}
         confirmLoading={isLoading}
         initialValues={selectedAssistant}
-        availableModels={availableModels}
+        models={availableModels}
       />
     </div>
   );
