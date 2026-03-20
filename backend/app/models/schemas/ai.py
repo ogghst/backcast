@@ -11,7 +11,7 @@ Provides schemas for:
 """
 
 from datetime import datetime
-from typing import Any, Self
+from typing import Any, Literal, Self
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -226,6 +226,8 @@ class AIConversationSessionPublic(BaseModel):
     user_id: UUID
     assistant_config_id: UUID
     title: str | None
+    project_id: UUID | None = Field(None, description="Optional project context")
+    branch_id: UUID | None = Field(None, description="Optional branch or change order context")
     created_at: datetime
     updated_at: datetime
 
@@ -237,9 +239,22 @@ class AIConversationSessionCreate(BaseModel):
 
     assistant_config_id: UUID
     title: str | None = Field(None, max_length=255)
+    project_id: UUID | None = Field(None, description="Optional project context")
+    branch_id: UUID | None = Field(None, description="Optional branch or change order context")
 
 
 # === Conversation Message Schemas ===
+
+
+class FileAttachment(BaseModel):
+    """Schema for file attachments in chat messages."""
+
+    file_id: str = Field(..., description="Unique file identifier")
+    filename: str = Field(..., max_length=255, description="Original filename")
+    file_type: str = Field(..., max_length=100, description="MIME type or file extension")
+    file_size: int = Field(..., ge=0, description="File size in bytes")
+    url: str = Field(..., max_length=500, description="URL to access the file")
+    uploaded_at: datetime = Field(..., description="Upload timestamp")
 
 
 class AIConversationMessagePublic(BaseModel):
@@ -249,11 +264,55 @@ class AIConversationMessagePublic(BaseModel):
     session_id: UUID
     role: str
     content: str
+    content_format: Literal["text", "markdown", "mermaid", "code"] = Field(
+        default="text", description="Format of the content"
+    )
     tool_calls: list[dict[str, Any]] | None = None
     tool_results: list[dict[str, Any]] | None = None
+    attachments: list[FileAttachment] = Field(
+        default_factory=list, description="File attachments"
+    )
+    images: list[str] = Field(
+        default_factory=list, description="Image URLs"
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional message metadata"
+    )
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode='before')
+    @classmethod
+    def ignore_sqlalchemy_metadata(cls, data: Any) -> Any:
+        """Ignore SQLAlchemy's built-in metadata attribute during validation.
+
+        SQLAlchemy models have a built-in `metadata` attribute (MetaData object)
+        that conflicts with our schema's metadata field (dict). This validator
+        handles the conflict by excluding it when it's not a dict.
+        """
+        # Handle dict input (e.g., from API requests)
+        if isinstance(data, dict):
+            # Ensure metadata is a dict, not SQLAlchemy's MetaData
+            if 'metadata' in data and not isinstance(data.get('metadata'), dict):
+                data = dict(data)  # Make a copy
+                data['metadata'] = {}
+            return data
+
+        # Handle SQLAlchemy model input (from_attributes=True)
+        if hasattr(data, '__table__'):
+            # Create a dict copy, converting SQLAlchemy's metadata to empty dict
+            result: dict[str, Any] = {}
+            for key in cls.model_fields:
+                if key == 'metadata':
+                    # Always use empty dict for schema metadata
+                    result[key] = {}
+                elif hasattr(data, key):
+                    value = getattr(data, key)
+                    result[key] = value
+            return result
+
+        return data
 
 
 # === Chat Response Schema ===
@@ -283,6 +342,14 @@ class WSChatRequest(BaseModel):
         None, description="Assistant config to use (required for new sessions)"
     )
     title: str | None = Field(None, max_length=255, description="Optional session title (for new sessions)")
+    project_id: UUID | None = Field(None, description="Optional project context for the session")
+    branch_id: UUID | None = Field(None, description="Optional branch or change order context for the session")
+    attachments: list[FileAttachment] = Field(
+        default_factory=list, description="File attachments to the message"
+    )
+    images: list[str] = Field(
+        default_factory=list, description="Image URLs included in the message"
+    )
 
 
 class WSTokenMessage(BaseModel):
@@ -344,3 +411,61 @@ class WSErrorMessage(BaseModel):
 WSMessage = (
     WSTokenMessage | WSToolCallMessage | WSToolResultMessage | WSCompleteMessage | WSErrorMessage
 )
+
+
+# === Image Upload Schemas ===
+
+
+class ImageUploadResponse(BaseModel):
+    """Schema for image upload response."""
+
+    file_id: str = Field(..., description="Unique file identifier")
+    filename: str = Field(..., description="Original filename")
+    url: str = Field(..., description="URL to access the uploaded image")
+    file_size: int = Field(..., description="File size in bytes")
+    content_type: str = Field(..., description="MIME type of the image")
+    uploaded_at: datetime = Field(..., description="Upload timestamp")
+
+
+# === File Upload Schemas ===
+
+
+class FileUploadResponse(BaseModel):
+    """Schema for file upload response."""
+
+    file_id: str = Field(..., description="Unique file identifier")
+    filename: str = Field(..., description="Original filename")
+    url: str = Field(..., description="URL to access the uploaded file")
+    file_size: int = Field(..., description="File size in bytes")
+    content_type: str = Field(..., description="MIME type of the file")
+    file_type: str = Field(..., description="Category of file (document, spreadsheet, etc.)")
+    uploaded_at: datetime = Field(..., description="Upload timestamp")
+
+
+# === Mermaid Diagram Schemas ===
+
+
+class MermaidDiagramRequest(BaseModel):
+    """Schema for requesting Mermaid diagram generation."""
+
+    diagram_type: Literal["flowchart", "sequence", "class", "state", "er", "gantt"] = Field(
+        ..., description="Type of diagram to generate"
+    )
+    description: str = Field(
+        ..., min_length=1, max_length=5000, description="Natural language description of the diagram"
+    )
+    title: str | None = Field(None, max_length=255, description="Optional diagram title")
+    context: str | None = Field(
+        None, max_length=2000, description="Additional context for diagram generation"
+    )
+
+
+class MermaidDiagramResponse(BaseModel):
+    """Schema for Mermaid diagram generation response."""
+
+    mermaid_code: str = Field(..., description="Mermaid diagram code")
+    diagram_type: str = Field(..., description="Type of diagram generated")
+    title: str | None = Field(None, description="Diagram title")
+    description: str = Field(..., description="Original description")
+    rendered_url: str | None = Field(None, description="URL to render the diagram (if applicable)")
+
