@@ -156,7 +156,7 @@ class AIAssistantConfig(SimpleEntityBase):
 class AIConversationSession(SimpleEntityBase):
     """User conversation session.
 
-    Groups messages for a conversation.
+    Groups messages for a conversation with optional project and branch context.
     """
 
     __tablename__ = "ai_conversation_sessions"
@@ -169,6 +169,12 @@ class AIConversationSession(SimpleEntityBase):
         index=True,
     )
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    project_id: Mapped[str | None] = mapped_column(
+        PG_UUID, nullable=True, index=True, comment="Optional project context"
+    )
+    branch_id: Mapped[str | None] = mapped_column(
+        PG_UUID, nullable=True, index=True, comment="Optional branch or change order context"
+    )
 
     # Relationships
     assistant_config: Mapped["AIAssistantConfig"] = relationship(
@@ -184,7 +190,13 @@ class AIConversationSession(SimpleEntityBase):
     )
 
     def __repr__(self) -> str:
-        return f"<AIConversationSession(id={self.id}, user_id={self.user_id})>"
+        ctx_parts = [f"user_id={self.user_id}"]
+        if self.project_id:
+            ctx_parts.append(f"project_id={self.project_id}")
+        if self.branch_id:
+            ctx_parts.append(f"branch_id={self.branch_id}")
+        ctx = ", ".join(ctx_parts)
+        return f"<AIConversationSession(id={self.id}, {ctx})>"
 
 
 class AIConversationMessage(SimpleEntityBase):
