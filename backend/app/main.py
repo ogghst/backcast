@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from app.api.routes import (
     ai_chat,
     ai_config,
+    ai_upload,
     auth,
     change_orders,
     cost_element_types,
@@ -194,6 +195,11 @@ app.include_router(
     ai_chat.router,
     prefix=settings.API_V1_STR,
     tags=["AI Chat"],
+)
+app.include_router(
+    ai_upload.router,
+    prefix=settings.API_V1_STR,
+    tags=["AI Upload"],
 )
 app.include_router(
     dashboard.router,
