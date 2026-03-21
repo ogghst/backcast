@@ -83,7 +83,7 @@ def test_all_template_modules_are_discovered() -> None:
     registry.discover_and_register("app.ai.tools.templates.advanced_analysis_template")
     registry.discover_and_register("app.ai.tools.templates.diagram_template")
 
-    tools = registry.get_all_tools()
+    tools = registry.get_all_metadata()
 
     # Verify we have tools from all expected modules
     tool_names = [tool.name for tool in tools]

@@ -667,14 +667,24 @@ async def test_ws_lc_05_normal_disconnect_cleanup(
     async def mock_chat_stream(*args, **kwargs):
         pass
 
+    # Create a mock session that has async close method
+    mock_db_session = AsyncMock(spec=AsyncSession)
+    mock_db_session.close = AsyncMock()
+
+    # Mock async_session_maker to return mock db session
+    # Use a regular function instead of AsyncMock
+    def mock_session_maker():
+        return mock_db_session
+
     with patch("app.api.routes.ai_chat.AgentService") as mock_agent_service:
         mock_agent_service.return_value.chat_stream = mock_chat_stream
 
-        # Call the endpoint directly
-        await chat_stream(
-            websocket=mock_websocket,
-            token=valid_token,
-        )
+        with patch("app.db.session.async_session_maker", mock_session_maker):
+            # Call the endpoint directly
+            await chat_stream(
+                websocket=mock_websocket,
+                token=valid_token,
+            )
 
     # Verify connection was accepted and handled gracefully
     mock_websocket.accept.assert_called_once()
@@ -1475,6 +1485,7 @@ async def test_ws_token_missing_subject(
 @pytest.mark.asyncio
 async def test_ws_user_not_found(
     override_rbac: None,
+    db_session: AsyncSession,
 ) -> None:
     """Test WebSocket connection when user not found in database.
 
@@ -1491,11 +1502,26 @@ async def test_ws_user_not_found(
     # Create token for non-existent user
     token = WebSocketTestHelpers.create_valid_token("nonexistent@example.com")
 
-    # Call the endpoint directly
-    await chat_stream(
-        websocket=mock_websocket,
-        token=token,
-    )
+    # Create a mock session that has async close method
+    mock_db_session = AsyncMock(spec=AsyncSession)
+    mock_db_session.close = AsyncMock()
+
+    # Mock async_session_maker to return mock db session
+    def mock_session_maker():
+        return mock_db_session
+
+    # Mock UserService to return None (user not found)
+    with patch("app.services.user.UserService") as mock_user_service_class:
+        mock_user_service = AsyncMock()
+        mock_user_service.get_by_email = AsyncMock(return_value=None)
+        mock_user_service_class.return_value = mock_user_service
+
+        with patch("app.db.session.async_session_maker", mock_session_maker):
+            # Call the endpoint directly
+            await chat_stream(
+                websocket=mock_websocket,
+                token=token,
+            )
 
     # Verify connection was rejected with policy violation
     mock_websocket.close.assert_called_once_with(code=1008, reason="User not found")
