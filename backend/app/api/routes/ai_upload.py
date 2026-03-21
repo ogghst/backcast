@@ -7,18 +7,16 @@ Provides endpoints for:
 """
 
 import logging
-import os
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi.responses import FileResponse
 
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
 from app.core.config import settings
-from app.db.session import get_db
 from app.models.domain.user import User
 from app.models.schemas.ai import FileUploadResponse, ImageUploadResponse
 
@@ -145,8 +143,8 @@ async def upload_image(
             content_type=file.content_type,
             uploaded_at=datetime.utcnow(),
         )
-    except Exception as e:
-        logger.error(f"Failed to save image: {e}", exc_info=True)
+    except Exception as err:
+        logger.error(f"Failed to save image: {err}", exc_info=True)
         # Clean up partial file if it exists
         if file_path.exists():
             try:
@@ -156,7 +154,7 @@ async def upload_image(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload image",
-        )
+        ) from err
 
 
 @router.post(
@@ -239,8 +237,8 @@ async def upload_file(
             file_type=file_type,
             uploaded_at=datetime.utcnow(),
         )
-    except Exception as e:
-        logger.error(f"Failed to save file: {e}", exc_info=True)
+    except Exception as err:
+        logger.error(f"Failed to save file: {err}", exc_info=True)
         # Clean up partial file if it exists
         if file_path.exists():
             try:
@@ -250,7 +248,7 @@ async def upload_file(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload file",
-        )
+        ) from err
 
 
 @router.get(
@@ -261,7 +259,7 @@ async def upload_file(
 async def get_image(
     file_id: str,
     current_user: User = Depends(get_current_active_user),
-):
+) -> FileResponse:
     """Retrieve an uploaded image by file ID.
 
     Args:
@@ -308,7 +306,7 @@ async def get_image(
 async def get_document(
     file_id: str,
     current_user: User = Depends(get_current_active_user),
-):
+) -> FileResponse:
     """Retrieve an uploaded document by file ID.
 
     Args:
