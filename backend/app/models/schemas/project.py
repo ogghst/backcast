@@ -56,6 +56,18 @@ class ProjectUpdate(BaseModel):
         None, description="Optional control date for update (valid_time start)"
     )
 
+    @field_validator("name")
+    @classmethod
+    def validate_name_not_empty(cls, v: str | None) -> str | None:
+        """Validate that if name is provided, it is not empty or whitespace.
+
+        This prevents AI tools from passing empty strings that violate the
+        database NOT NULL constraint on the name column.
+        """
+        if v is not None and v.strip() == "":
+            raise ValueError("Project name cannot be empty or whitespace only")
+        return v
+
 
 class ProjectRead(ProjectBase):
     """Schema for reading project data."""

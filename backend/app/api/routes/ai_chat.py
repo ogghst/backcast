@@ -242,6 +242,9 @@ async def chat_stream(
                     title=request.title,
                     project_id=request.project_id,
                     branch_id=request.branch_id,
+                    as_of=request.as_of,
+                    branch_name=request.branch_name,
+                    branch_mode=request.branch_mode,
                 )
                 logger.info(f"WebSocket chat stream completed successfully for user {user_id}")
             except Exception as stream_err:
@@ -260,6 +263,14 @@ async def chat_stream(
 
     except WebSocketDisconnect as e:
         logger.info(f"WebSocket disconnected normally for user {user_id}: code={e.code}, reason={e.reason}")
+    except RuntimeError as e:
+        # Starlette raises RuntimeError when receive_json() is called on a closed WebSocket
+        # This happens when the client disconnects during streaming and the loop continues
+        if "not connected" in str(e).lower():
+            logger.info(f"WebSocket disconnected (RuntimeError) for user {user_id}: {e}")
+        else:
+            # Re-raise unexpected RuntimeErrors
+            raise
     except Exception as e:
         logger.error(f"WebSocket error for user {user_id}: {str(e)}", exc_info=True)
         try:

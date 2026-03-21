@@ -306,13 +306,23 @@ async def update_project(
 
         service = context.project_service
 
+        # Build update kwargs with only non-None values to prevent
+        # passing null values to the database which violates NOT NULL constraints
+        update_kwargs: dict[str, object] = {}
+        if name is not None:
+            update_kwargs["name"] = name
+        if description is not None:
+            update_kwargs["description"] = description
+        if budget is not None:
+            update_kwargs["budget"] = budget
+        if status is not None:
+            update_kwargs["status"] = status
+
+        if not update_kwargs:
+            return {"error": "No fields provided for update"}
+
         # Create update schema with only provided fields
-        update_data = ProjectUpdate(
-            name=name,
-            description=description,
-            budget=budget,
-            status=status,
-        )
+        update_data = ProjectUpdate(**update_kwargs)
 
         # Call service method
         project = await service.update_project(

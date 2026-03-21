@@ -9,6 +9,47 @@ For functional testing, see tests/integration/ai/tools/test_crud_tools_integrati
 """
 
 import pytest
+from pydantic import ValidationError
+
+
+class TestProjectUpdateValidation:
+    """Test ProjectUpdate schema validation to prevent null/empty names."""
+
+    def test_project_update_allows_none_for_optional_fields(self) -> None:
+        """Test that ProjectUpdate allows None for optional fields (skip update)."""
+        from app.models.schemas.project import ProjectUpdate
+
+        # None means "don't update this field"
+        update = ProjectUpdate(name=None, description=None)
+        assert update.name is None
+        assert update.description is None
+
+    def test_project_update_rejects_empty_string_name(self) -> None:
+        """Test that ProjectUpdate rejects empty string for name."""
+        from app.models.schemas.project import ProjectUpdate
+
+        with pytest.raises(ValidationError) as exc_info:
+            ProjectUpdate(name="")
+
+        errors = exc_info.value.errors()
+        assert any("cannot be empty" in err["msg"] for err in errors)
+
+    def test_project_update_rejects_whitespace_only_name(self) -> None:
+        """Test that ProjectUpdate rejects whitespace-only name."""
+        from app.models.schemas.project import ProjectUpdate
+
+        with pytest.raises(ValidationError) as exc_info:
+            ProjectUpdate(name="   ")
+
+        errors = exc_info.value.errors()
+        assert any("cannot be empty" in err["msg"] for err in errors)
+
+    def test_project_update_accepts_valid_name(self) -> None:
+        """Test that ProjectUpdate accepts valid name."""
+        from app.models.schemas.project import ProjectUpdate
+
+        update = ProjectUpdate(name="Valid Project Name")
+        assert update.name == "Valid Project Name"
 
 
 class TestCRUDTemplateExisting:
