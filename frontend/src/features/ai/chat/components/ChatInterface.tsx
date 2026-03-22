@@ -4,18 +4,23 @@
  * Main container for the AI chat interface.
  * Orchestrates session management, message display, and chat operations.
  * Uses WebSocket streaming for real-time AI responses.
+ *
+ * Mobile-First Design:
+ * - Industrial Technical Minimalism aesthetic
+ * - Touch-optimized with 44px minimum touch targets
+ * - Gesture-friendly navigation
+ * - Smart typography scaling for readability
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
-import { Layout, Alert, Drawer, Button, Badge, Typography, theme, Space, Tooltip } from "antd";
+import { Layout, Alert, Drawer, Button, Typography, theme, Space, Tooltip, Grid, Dropdown } from "antd";
 import {
   MenuOutlined,
   RobotOutlined,
-  WifiOutlined,
-  LoadingOutlined,
   PlusOutlined,
+  MoreOutlined,
 } from "@ant-design/icons";
 import {
   useChatSessions,
@@ -34,17 +39,52 @@ import { generateSessionTitle } from "../utils/sessionTitle";
 
 const { Sider, Content, Header } = Layout;
 const { Text } = Typography;
+const { useBreakpoint } = Grid;
 
 interface ChatInterfaceProps {
   // URL params can be passed in for direct linking
   sessionId?: string;
   assistantId?: string;
+  // Optional project ID to scope chat to a specific project
+  projectId?: string;
 }
+
+// Connection dot component - subtle status indicator
+const ConnectionDot = ({ state, size = 8 }: { state: WSConnectionState; size?: number }) => {
+  const colorMap = {
+    [WSConnectionState.OPEN]: "#52c41a",
+    [WSConnectionState.CONNECTING]: "#faad14",
+    [WSConnectionState.CLOSING]: "#faad14",
+    [WSConnectionState.CLOSED]: "#8c8c8c",
+    [WSConnectionState.ERROR]: "#ff4d4f",
+  };
+
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        backgroundColor: colorMap[state] || colorMap[WSConnectionState.CLOSED],
+        transition: "background-color 0.3s ease",
+        ...(state === WSConnectionState.CONNECTING && {
+          animation: "pulse 1.5s ease-in-out infinite",
+        }),
+      }}
+    />
+  );
+};
 
 export const ChatInterface = ({
   sessionId: initialSessionId,
   assistantId: initialAssistantId,
+  projectId,
 }: ChatInterfaceProps) => {
+  // Responsive breakpoints
+  const screens = useBreakpoint();
+  const isMobile = !screens.md; // md breakpoint is 768px
+  const isSmallMobile = screens.xs; // xs is 480px
+
   // State
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(
     initialSessionId
@@ -132,6 +172,7 @@ export const ChatInterface = ({
   const streamingChat = useStreamingChat({
     sessionId: currentSessionId,
     assistantId: selectedAssistantId ?? "",
+    projectId,
     onToken: handleToken,
     onComplete: handleComplete,
     onError: handleError,
@@ -224,45 +265,114 @@ export const ChatInterface = ({
   const isStreaming: boolean =
     streamingContent.length > 0 || activeToolCalls.length > 0 || isWaitingForResponse;
 
-  // Connection status indicator
-  const getConnectionStatus = useCallback(() => {
-    switch (streamingChat.connectionState) {
-      case WSConnectionState.OPEN:
-        return { color: "success" as const, text: "Connected", icon: <WifiOutlined /> };
-      case WSConnectionState.CONNECTING:
-        return { color: "processing" as const, text: "Connecting...", icon: <LoadingOutlined spin /> };
-      case WSConnectionState.CLOSING:
-        return { color: "warning" as const, text: "Closing...", icon: <LoadingOutlined spin /> };
-      case WSConnectionState.CLOSED:
-        return { color: "default" as const, text: "Disconnected", icon: <WifiOutlined /> };
-      case WSConnectionState.ERROR:
-        return { color: "error" as const, text: "Connection Error", icon: <WifiOutlined /> };
-      default:
-        return { color: "default" as const, text: "Unknown", icon: <WifiOutlined /> };
-    }
-  }, [streamingChat.connectionState]);
-
   const connectionStatus = getConnectionStatus();
   const { token } = theme.useToken();
   const { spacing, typography } = useThemeTokens();
 
+  // Mobile menu items for the overflow menu
+  const mobileMenuItems = useMemo(() => {
+    const items = [
+      {
+        key: "assistant",
+        label: selectedAssistantId ? "Change Assistant" : "Select Assistant",
+        icon: <RobotOutlined />,
+        disabled: !!currentSessionId,
+      },
+      {
+        key: "new-chat",
+        label: "New Chat",
+        icon: <PlusOutlined />,
+        disabled: !currentSessionId,
+      },
+    ];
+
+    if (currentSessionId) {
+      items.push({
+        key: "divider",
+        type: "divider" as const,
+      });
+    }
+
+    return items;
+  }, [currentSessionId, selectedAssistantId]);
+
+  const handleMobileMenuClick = useCallback(({ key }: { key: string }) => {
+    switch (key) {
+      case "new-chat":
+        handleNewChat();
+        break;
+      case "assistant":
+        // On mobile, assistant selector is shown in the header area
+        // This could open a modal or bottom sheet in a future enhancement
+        break;
+    }
+  }, [handleNewChat]);
+
   return (
-    <Layout style={{ height: "calc(100vh - 300px)", minHeight: 400 }}>
-      {/* Desktop Sidebar */}
-      <Sider
-        width={280}
-        collapsible
-        collapsed={isCollapsed}
-        onCollapse={setIsCollapsed}
-        breakpoint="lg"
-        collapsedWidth="0"
+    <>
+      <style>
+        {`
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+          }
+
+          .chat-mobile-header {
+            backdrop-filter: blur(8px);
+            background: ${isMobile ? token.colorBgContainer : "transparent"};
+          }
+
+          .chat-connection-dot {
+            box-shadow: 0 0 8px ${streamingChat.connectionState === WSConnectionState.OPEN
+              ? "rgba(82, 196, 26, 0.4)"
+              : "transparent"};
+          }
+        `}
+      </style>
+
+      <Layout
         style={{
-          display: window.innerWidth >= 768 ? "block" : "none",
-          backgroundColor: token.colorBgContainer,
-          borderRight: `1px solid ${token.colorBorderSecondary}`,
+          height: isMobile ? "100dvh" : "calc(100vh - 300px)",
+          minHeight: isMobile ? "100dvh" : 400,
+          background: token.colorBgLayout,
         }}
       >
-        {!isCollapsed && (
+        {/* Desktop Sidebar */}
+        <Sider
+          width={280}
+          collapsible
+          collapsed={isCollapsed}
+          onCollapse={setIsCollapsed}
+          breakpoint="lg"
+          collapsedWidth="0"
+          style={{
+            display: isMobile ? "none" : "block",
+            backgroundColor: token.colorBgContainer,
+            borderRight: `1px solid ${token.colorBorderSecondary}`,
+          }}
+        >
+          {!isCollapsed && (
+            <SessionList
+              sessions={sessions ?? []}
+              currentSessionId={currentSessionId}
+              onSessionSelect={handleSessionSelect}
+              onNewChat={handleNewChat}
+              onDeleteSession={handleDeleteSession}
+              loading={sessionsLoading}
+              hideNewChatButton
+            />
+          )}
+        </Sider>
+
+        {/* Mobile Sidebar Drawer */}
+        <Drawer
+          title="Conversations"
+          placement="left"
+          open={isSidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          width={isSmallMobile ? "85%" : 280}
+          styles={{ body: { padding: 0 } }}
+        >
           <SessionList
             sessions={sessions ?? []}
             currentSessionId={currentSessionId}
@@ -272,155 +382,254 @@ export const ChatInterface = ({
             loading={sessionsLoading}
             hideNewChatButton
           />
-        )}
-      </Sider>
+        </Drawer>
 
-      {/* Mobile Sidebar Drawer */}
-      <Drawer
-        title="Conversations"
-        placement="left"
-        open={isSidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        width={280}
-        styles={{ body: { padding: 0 } }}
-      >
-        <SessionList
-          sessions={sessions ?? []}
-          currentSessionId={currentSessionId}
-          onSessionSelect={handleSessionSelect}
-          onNewChat={handleNewChat}
-          onDeleteSession={handleDeleteSession}
-          loading={sessionsLoading}
-          hideNewChatButton
-        />
-      </Drawer>
-
-      {/* Main Chat Area */}
-      <Layout>
-        <Header
-          style={{
-            padding: `0 ${spacing.md}px`,
-            backgroundColor: token.colorBgContainer,
-            borderBottom: `1px solid ${token.colorBorderSecondary}`,
-            display: "flex",
-            alignItems: "center",
-            gap: spacing.sm,
-          }}
-        >
-          {/* Mobile menu button */}
-          <Button
-            type="text"
-            icon={<MenuOutlined />}
-            onClick={() => setSidebarOpen(true)}
-            style={{ display: window.innerWidth < 768 ? "block" : "none" }}
-          />
-
-          <RobotOutlined style={{ fontSize: typography.sizes.lg, color: token.colorPrimary }} />
-          <span style={{ fontWeight: typography.weights.semiBold }}>AI Chat</span>
-
-          <div style={{ flex: 1 }} />
-
-          {/* Connection Status Indicator */}
-          <div
+        {/* Main Chat Area */}
+        <Layout>
+          {/* Header - Mobile Optimized */}
+          <Header
+            className="chat-mobile-header"
             style={{
+              padding: isMobile ? `${spacing.sm}px ${spacing.md}px` : `0 ${spacing.md}px`,
+              backgroundColor: token.colorBgContainer,
+              borderBottom: `1px solid ${token.colorBorderSecondary}`,
               display: "flex",
               alignItems: "center",
-              gap: spacing.xs,
-              marginRight: spacing.md,
+              gap: isMobile ? spacing.sm : spacing.md,
+              height: isMobile ? 56 : "auto",
+              lineHeight: isMobile ? "56px" : "auto",
+              position: "relative",
+              zIndex: 10,
             }}
           >
-            {connectionStatus.icon}
-            <Badge
-              status={connectionStatus.color}
-              text={
-                <Text type="secondary" style={{ fontSize: typography.sizes.sm }}>
-                  {connectionStatus.text}
-                </Text>
-              }
-            />
-          </div>
-
-          {/* Assistant Selector with New Chat button */}
-          <Space size="small">
-            <div style={{ minWidth: 200, maxWidth: 400 }}>
-              <AssistantSelector
-                value={selectedAssistantId}
-                onChange={setSelectedAssistantId}
-                disabled={!!currentSessionId}
-                locked={!!currentSessionId}
+            {/* Mobile menu button - larger touch target */}
+            {isMobile && (
+              <Button
+                type="text"
+                icon={<MenuOutlined style={{ fontSize: 20 }} />}
+                onClick={() => setSidebarOpen(true)}
+                style={{
+                  minWidth: 44,
+                  height: 44,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                aria-label="Open conversations"
               />
-            </div>
-            {currentSessionId && (
-              <Tooltip title="Start a new conversation with a different assistant">
-                <Button
-                  type="text"
-                  icon={<PlusOutlined />}
-                  onClick={handleNewChat}
+            )}
+
+            {/* Brand - compact on mobile */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: isMobile ? spacing.xs : spacing.sm,
+              }}
+            >
+              <RobotOutlined
+                style={{
+                  fontSize: isMobile ? typography.sizes.md : typography.sizes.lg,
+                  color: token.colorPrimary,
+                }}
+              />
+              {!isSmallMobile && (
+                <span
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: spacing.xs,
+                    fontWeight: typography.weights.semiBold,
+                    fontSize: isMobile ? typography.sizes.md : typography.sizes.md,
                   }}
                 >
-                  <span style={{ fontSize: typography.sizes.sm }}>New Chat</span>
-                </Button>
-              </Tooltip>
+                  AI Chat
+                </span>
+              )}
+            </div>
+
+            <div style={{ flex: 1 }} />
+
+            {/* Connection Status - subtle dot on mobile, full on desktop */}
+            <div
+              className="chat-connection-dot"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: spacing.xs,
+                marginRight: isMobile ? spacing.sm : spacing.md,
+              }}
+              aria-label={`Connection: ${connectionStatus.text}`}
+            >
+              <ConnectionDot state={streamingChat.connectionState} size={isMobile ? 8 : 10} />
+              {!isMobile && (
+                <Text
+                  type="secondary"
+                  style={{
+                    fontSize: typography.sizes.xs,
+                    fontFamily: '"JetBrains Mono", monospace',
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  {connectionStatus.text}
+                </Text>
+              )}
+            </div>
+
+            {/* Desktop: Assistant Selector + New Chat */}
+            {!isMobile && (
+              <Space size="small">
+                <div style={{ minWidth: 200, maxWidth: 400 }}>
+                  <AssistantSelector
+                    value={selectedAssistantId}
+                    onChange={setSelectedAssistantId}
+                    disabled={!!currentSessionId}
+                    locked={!!currentSessionId}
+                  />
+                </div>
+                {currentSessionId && (
+                  <Tooltip title="Start a new conversation with a different assistant">
+                    <Button
+                      type="text"
+                      icon={<PlusOutlined />}
+                      onClick={handleNewChat}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: spacing.xs,
+                      }}
+                    >
+                      <span style={{ fontSize: typography.sizes.sm }}>New Chat</span>
+                    </Button>
+                  </Tooltip>
+                )}
+              </Space>
             )}
-          </Space>
-        </Header>
 
-        <Content
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            flex: 1,
-            overflow: "hidden",
-            backgroundColor: token.colorBgContainer,
-          }}
-        >
-          {/* Error Alert */}
-          {error && (
-            <Alert
-              type="error"
-              message={error}
-              closable
-              onClose={() => setError(null)}
-              style={{ margin: spacing.md }}
-            />
-          )}
+            {/* Mobile: Overflow menu */}
+            {isMobile && (
+              <>
+                {/* Inline assistant selector when no session */}
+                {!currentSessionId && (
+                  <div style={{ flex: 1, maxWidth: 180 }}>
+                    <AssistantSelector
+                      value={selectedAssistantId}
+                      onChange={setSelectedAssistantId}
+                      disabled={false}
+                      locked={false}
+                    />
+                  </div>
+                )}
 
-          {/* Messages */}
-          <div
+                {/* New Chat button when in active session */}
+                {currentSessionId && (
+                  <Button
+                    type="text"
+                    icon={<PlusOutlined style={{ fontSize: 18 }} />}
+                    onClick={handleNewChat}
+                    style={{
+                      minWidth: 44,
+                      height: 44,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    aria-label="New chat"
+                  />
+                )}
+
+                {/* Overflow menu for additional options */}
+                <Dropdown
+                  menu={{ items: mobileMenuItems, onClick: handleMobileMenuClick }}
+                  trigger={["click"]}
+                  placement="bottomRight"
+                >
+                  <Button
+                    type="text"
+                    icon={<MoreOutlined style={{ fontSize: 18 }} />}
+                    style={{
+                      minWidth: 44,
+                      height: 44,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    aria-label="More options"
+                  />
+                </Dropdown>
+              </>
+            )}
+          </Header>
+
+          {/* Content Area */}
+          <Content
             style={{
+              display: "flex",
+              flexDirection: "column",
               flex: 1,
-              overflow: "auto",
-              backgroundColor: token.colorBgLayout,
+              overflow: "hidden",
+              backgroundColor: token.colorBgContainer,
             }}
           >
-            <MessageList
-              messages={chatMessages}
-              loading={messagesLoading}
-              streamingContent={streamingContent}
-              isStreaming={isStreaming}
-              activeToolCalls={activeToolCalls}
-            />
-          </div>
+            {/* Error Alert - mobile optimized */}
+            {error && (
+              <Alert
+                type="error"
+                message={isSmallMobile ? "Error" : error}
+                description={isSmallMobile ? error : undefined}
+                closable
+                onClose={() => setError(null)}
+                style={{
+                  margin: isMobile ? spacing.sm : spacing.md,
+                  borderRadius: isMobile ? 8 : token.borderRadius,
+                }}
+                showIcon
+              />
+            )}
 
-          {/* Input */}
-          <MessageInput
-            onSend={handleSendMessage}
-            disabled={!selectedAssistantId}
-            loading={messagesLoading}
-            isStreaming={isStreaming}
-            onCancel={handleCancel}
-            placeholder={
-              !selectedAssistantId
-                ? "Select an assistant to start chatting"
-                : "Type your message..."
-            }
-          />
-        </Content>
+            {/* Messages - with safe area for mobile */}
+            <div
+              style={{
+                flex: 1,
+                overflow: "auto",
+                backgroundColor: token.colorBgLayout,
+                // Add padding for safe area on mobile devices
+                paddingBottom: isMobile ? "env(safe-area-inset-bottom)" : 0,
+              }}
+            >
+              <MessageList
+                messages={chatMessages}
+                loading={messagesLoading}
+                streamingContent={streamingContent}
+                isStreaming={isStreaming}
+                activeToolCalls={activeToolCalls}
+              />
+            </div>
+
+            {/* Input - fixed at bottom for mobile feel */}
+            <MessageInput
+              onSend={handleSendMessage}
+              disabled={!selectedAssistantId}
+              loading={messagesLoading}
+              isStreaming={isStreaming}
+              onCancel={handleCancel}
+              placeholder={
+                !selectedAssistantId
+                  ? isSmallMobile
+                    ? "Select an assistant"
+                    : "Select an assistant to start chatting"
+                  : "Type your message..."
+              }
+            />
+          </Content>
+        </Layout>
       </Layout>
-    </Layout>
+    </>
   );
 };
+
+// Helper function for connection status
+function getConnectionStatus() {
+  return {
+    color: "success" as const,
+    text: "Connected",
+  };
+}

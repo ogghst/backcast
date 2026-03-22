@@ -177,7 +177,7 @@ describe('CodeBlock', () => {
 
       const languageLabel = screen.getByText('javascript');
       expect(languageLabel).toBeInTheDocument();
-      // Check that the style includes textTransform uppercase (inline style)
+      // Verify the element has the uppercase style applied
       expect(languageLabel.style.textTransform).toBe('uppercase');
     });
   });

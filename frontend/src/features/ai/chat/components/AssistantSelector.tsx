@@ -2,10 +2,13 @@
  * AssistantSelector Component
  *
  * Dropdown component for selecting an AI assistant configuration.
- * Filters to show only active assistants.
+ * Mobile-optimized with flexible sizing and cleaner locked state.
  *
- * When locked (disabled), shows visual feedback with a lock icon
- * and displays the current assistant name prominently.
+ * Design: Industrial Technical Minimalism
+ * - Flexible width for mobile layouts
+ * - Monospace font for technical feel
+ * - Subtle locked state with icon
+ * - Clear visual hierarchy
  */
 
 import { Select, Empty, Tooltip } from "antd";
@@ -13,6 +16,7 @@ import type { SelectProps } from "antd";
 import { LockOutlined } from "@ant-design/icons";
 import { useAIAssistants } from "@/features/ai/api/useAIAssistants";
 import type { AIAssistantPublic } from "@/features/ai/types";
+import { useThemeTokens } from "@/hooks/useThemeTokens";
 
 export interface AssistantSelectorProps
   extends Omit<SelectProps<string>, "options" | "loading"> {
@@ -30,6 +34,8 @@ export const AssistantSelector = ({
   locked = false,
   ...selectProps
 }: AssistantSelectorProps) => {
+  const { spacing, typography } = useThemeTokens();
+
   // Fetch only active assistants
   const { data: assistants, isLoading } = useAIAssistants(false, {
     enabled: !disabled,
@@ -57,21 +63,30 @@ export const AssistantSelector = ({
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 8,
-            padding: "4px 12px",
+            gap: spacing.xs,
+            padding: `${spacing.xs}px ${spacing.sm}px`,
             backgroundColor: disabled ? "rgba(0, 0, 0, 0.04)" : undefined,
-            border: `1px solid rgba(0, 0, 0, 0.06)`,
-            borderRadius: 6,
+            border: `1px solid rgba(0, 0, 0, 0.08)`,
+            borderRadius: 8,
             cursor: "not-allowed",
-            minWidth: 200,
+            height: 36,
+            boxSizing: "border-box",
           }}
         >
-          <LockOutlined style={{ fontSize: 12, color: "rgba(0, 0, 0, 0.45)" }} />
+          <LockOutlined
+            style={{
+              fontSize: typography.sizes.sm,
+              color: "rgba(0, 0, 0, 0.4)",
+            }}
+          />
           <span
             style={{
-              fontSize: 14,
-              fontWeight: 500,
-              color: "rgba(0, 0, 0, 0.88)",
+              fontSize: typography.sizes.sm,
+              fontWeight: typography.weights.medium,
+              color: "rgba(0, 0, 0, 0.85)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
             {currentAssistant.name}
@@ -87,15 +102,19 @@ export const AssistantSelector = ({
       onChange={onChange}
       disabled={disabled || isLoading}
       loading={isLoading}
-      placeholder="Select an AI assistant"
+      placeholder="Select AI Assistant"
       options={options}
-      notFoundContent={<Empty description="No active assistants available" />}
+      notFoundContent={<Empty description="No active assistants" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
       filterOption={(input, option) =>
         (option?.label as string ?? "").toLowerCase().includes(input.toLowerCase())
       }
       showSearch
       allowClear={false}
       {...selectProps}
+      style={{
+        fontSize: typography.sizes.sm,
+        ...selectProps.style,
+      }}
     />
   );
 };
