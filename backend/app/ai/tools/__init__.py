@@ -8,7 +8,6 @@ import logging
 
 from langchain_core.tools import BaseTool
 
-from app.ai.tools.project_tools import get_project, list_projects
 from app.ai.tools.types import ToolContext
 
 logger = logging.getLogger(__name__)
@@ -39,7 +38,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         ```
     """
     # Import tool modules
-    from app.ai.tools import project_tools
+    from app.ai.tools import context_tools, project_tools, temporal_tools
     from app.ai.tools.templates import (
         advanced_analysis_template,
         analysis_template,
@@ -47,6 +46,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         cost_element_template,
         crud_template,
         diagram_template,
+        forecast_cost_progress_template,
         user_management_template,
     )
 
@@ -55,6 +55,13 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         project_tools.list_projects,
         project_tools.get_project,
     ]
+
+    # Add context tools (read-only for LLM awareness)
+    context_tools_list = [
+        temporal_tools.get_temporal_context,
+        context_tools.get_project_context,
+    ]
+    tools.extend(context_tools_list)
 
     # Add tools from crud_template (Project and WBE CRUD operations)
     # Note: list_projects and get_project are duplicates, so we only add unique ones
@@ -135,6 +142,24 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         diagram_template.generate_mermaid_diagram,
     ]
     tools.extend(diagram_tools)
+
+    # Add tools from forecast_cost_progress_template (Forecast, Cost Registration, Progress Entry)
+    forecast_cost_progress_tools = [
+        forecast_cost_progress_template.get_forecast,
+        forecast_cost_progress_template.create_forecast,
+        forecast_cost_progress_template.update_forecast,
+        forecast_cost_progress_template.compare_forecast_to_budget,
+        forecast_cost_progress_template.get_budget_status,
+        forecast_cost_progress_template.create_cost_registration,
+        forecast_cost_progress_template.list_cost_registrations,
+        forecast_cost_progress_template.get_cost_trends,
+        forecast_cost_progress_template.get_cumulative_costs,
+        forecast_cost_progress_template.get_latest_progress,
+        forecast_cost_progress_template.create_progress_entry,
+        forecast_cost_progress_template.get_progress_history,
+        forecast_cost_progress_template.get_cost_element_summary,
+    ]
+    tools.extend(forecast_cost_progress_tools)
 
     # Filter to only BaseTool instances
     base_tools: list[BaseTool] = [
