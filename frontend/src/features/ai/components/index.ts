@@ -11,3 +11,5 @@ export * from "./AIAssistantModal";
 export * from "./AIAssistantList";
 export * from "./ToolDetailModal";
 export * from "./ToolSelectorPanel";
+export * from "./ModeBadge";
+export * from "./ApprovalDialog";

@@ -349,6 +349,9 @@ class WSChatRequest(BaseModel):
     branch_mode: Literal["merged", "isolated"] | None = Field(
         "merged", description="Branch mode for temporal queries (default: 'merged')"
     )
+    execution_mode: Literal["safe", "standard", "expert"] = Field(
+        "standard", description="AI tool execution mode (default: 'standard')"
+    )
     attachments: list[FileAttachment] = Field(
         default_factory=list, description="File attachments to the message"
     )
@@ -412,9 +415,59 @@ class WSErrorMessage(BaseModel):
     code: int | None = Field(None, description="Optional error code")
 
 
+class WSApprovalRequestMessage(BaseModel):
+    """WebSocket approval request message from server.
+
+    Server -> Client message requesting user approval for critical tool execution.
+    Sent when a critical tool is about to be executed in standard mode.
+
+    The client should display an approval dialog and send back WSApprovalResponseMessage.
+    """
+
+    type: Literal["approval_request"] = Field(
+        default="approval_request", description="Message type discriminator"
+    )
+    approval_id: str = Field(..., description="Unique UUID for this approval request")
+    session_id: UUID = Field(..., description="Chat session ID")
+    tool_name: str = Field(..., description="Name of the tool requiring approval")
+    tool_args: dict[str, Any] = Field(
+        default_factory=dict, description="Arguments that will be passed to the tool"
+    )
+    risk_level: Literal["critical"] = Field(
+        default="critical", description="Risk level of the tool (always 'critical' for approval requests)"
+    )
+    expires_at: datetime = Field(
+        ...,
+        description="Expiration timestamp (5 minutes from request)",
+    )
+
+
+class WSApprovalResponseMessage(BaseModel):
+    """WebSocket approval response message from client.
+
+    Client -> Server message with user's decision on approval request.
+    Sent when user clicks "Approve" or "Reject" in the approval dialog.
+    """
+
+    type: Literal["approval_response"] = Field(
+        default="approval_response", description="Message type discriminator"
+    )
+    approval_id: str = Field(..., description="Approval ID being responded to")
+    approved: bool = Field(..., description="True if user approved, False if rejected")
+    user_id: UUID = Field(..., description="User ID making the decision")
+    timestamp: datetime = Field(
+        default_factory=datetime.now, description="Timestamp of the decision"
+    )
+
+
 # Union type for all server->client WebSocket messages
 WSMessage = (
-    WSTokenMessage | WSToolCallMessage | WSToolResultMessage | WSCompleteMessage | WSErrorMessage
+    WSTokenMessage
+    | WSToolCallMessage
+    | WSToolResultMessage
+    | WSCompleteMessage
+    | WSErrorMessage
+    | WSApprovalRequestMessage
 )
 
 

@@ -40,7 +40,7 @@ from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
-from app.ai.tools.types import ToolContext
+from app.ai.tools.types import RiskLevel, ToolContext
 from app.models.schemas.cost_element import CostElementCreate, CostElementUpdate
 from app.models.schemas.cost_element_type import (
     CostElementTypeCreate,
@@ -61,6 +61,7 @@ logger = logging.getLogger(__name__)
     "Temporal context (branch, as_of date) is enforced by the system.",
     permissions=["cost-element-read"],
     category="cost-elements",
+    risk_level=RiskLevel.LOW,
 )
 async def list_cost_elements(
     wbe_id: str | None = None,
@@ -166,6 +167,7 @@ async def list_cost_elements(
     "Returns full cost element details including budget, type, and WBE information.",
     permissions=["cost-element-read"],
     category="cost-elements",
+    risk_level=RiskLevel.LOW,
 )
 async def get_cost_element(
     cost_element_id: str,
@@ -232,6 +234,7 @@ async def get_cost_element(
     "Automatically creates a default schedule baseline and forecast for the cost element.",
     permissions=["cost-element-create"],
     category="cost-elements",
+    risk_level=RiskLevel.HIGH,
 )
 async def create_cost_element(
     wbe_id: str,
@@ -325,6 +328,7 @@ async def create_cost_element(
     "Only updates fields that are provided. Supports branch isolation.",
     permissions=["cost-element-update"],
     category="cost-elements",
+    risk_level=RiskLevel.HIGH,
 )
 async def update_cost_element(
     cost_element_id: str,
@@ -413,6 +417,7 @@ async def update_cost_element(
     "Cascades the delete to the associated schedule baseline and forecast.",
     permissions=["cost-element-delete"],
     category="cost-elements",
+    risk_level=RiskLevel.CRITICAL,
 )
 async def delete_cost_element(
     cost_element_id: str,
@@ -474,6 +479,7 @@ async def delete_cost_element(
     "Schedule baselines define the time-phased budget curve for EVM calculations.",
     permissions=["schedule-baseline-read"],
     category="schedule-baselines",
+    risk_level=RiskLevel.LOW,
 )
 async def get_schedule_baseline(
     cost_element_id: str,
@@ -534,6 +540,7 @@ async def get_schedule_baseline(
     "Supports different progression types for budget distribution.",
     permissions=["schedule-baseline-update"],
     category="schedule-baselines",
+    risk_level=RiskLevel.HIGH,
 )
 async def update_schedule_baseline(
     schedule_baseline_id: str,
@@ -625,6 +632,7 @@ async def update_schedule_baseline(
     "Note: This is usually called automatically when deleting the associated cost element.",
     permissions=["schedule-baseline-delete"],
     category="schedule-baselines",
+    risk_level=RiskLevel.CRITICAL,
 )
 async def delete_schedule_baseline(
     schedule_baseline_id: str,
@@ -686,6 +694,7 @@ async def delete_schedule_baseline(
     "search and pagination. Returns types with their codes and departments.",
     permissions=["cost-element-type-read"],
     category="cost-element-types",
+    risk_level=RiskLevel.LOW,
 )
 async def list_cost_element_types(
     department_id: str | None = None,
@@ -776,6 +785,7 @@ async def list_cost_element_types(
     "Returns full type details including department information.",
     permissions=["cost-element-type-read"],
     category="cost-element-types",
+    risk_level=RiskLevel.LOW,
 )
 async def get_cost_element_type(
     cost_element_type_id: str,
@@ -834,6 +844,7 @@ async def get_cost_element_type(
     "Cost element types are standardized cost categories owned by departments.",
     permissions=["cost-element-type-create"],
     category="cost-element-types",
+    risk_level=RiskLevel.HIGH,
 )
 async def create_cost_element_type(
     code: str,
@@ -912,6 +923,7 @@ async def create_cost_element_type(
     "Only updates fields that are provided.",
     permissions=["cost-element-type-update"],
     category="cost-element-types",
+    risk_level=RiskLevel.HIGH,
 )
 async def update_cost_element_type(
     cost_element_type_id: str,
@@ -999,6 +1011,7 @@ async def update_cost_element_type(
     "The type is marked as deleted but remains in the system for audit purposes.",
     permissions=["cost-element-type-delete"],
     category="cost-element-types",
+    risk_level=RiskLevel.CRITICAL,
 )
 async def delete_cost_element_type(
     cost_element_type_id: str,

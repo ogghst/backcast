@@ -30,6 +30,14 @@ export enum ProjectRole {
 }
 
 /**
+ * AI tool execution modes
+ * - safe: Only low-risk tools allowed
+ * - standard: Low and high-risk tools allowed, critical tools require approval
+ * - expert: All tools allowed without approval
+ */
+export type ExecutionMode = "safe" | "standard" | "expert";
+
+/**
  * Client -> Server: Chat message request
  */
 export interface WSChatRequest {
@@ -38,6 +46,8 @@ export interface WSChatRequest {
   session_id: string | null;
   assistant_config_id: string;
   title?: string; // Optional session title (for new sessions)
+  // Execution mode for tool risk management
+  execution_mode?: ExecutionMode; // AI tool execution mode (defaults to "standard" on backend)
   // Temporal context parameters for AI tools
   as_of?: string | null; // ISO timestamp or null for "now"
   branch_name?: string; // Branch name (e.g., "main", "BR-001")
@@ -162,4 +172,56 @@ export function isPermissionDeniedMessage(
   message: WSServerMessage
 ): message is WSPermissionDeniedMessage {
   return isErrorMessage(message) && message.code === 403;
+}
+
+/**
+ * Server -> Client: Request approval for critical tool execution
+ * Sent when a critical tool is about to be executed in standard mode
+ */
+export interface WSApprovalRequestMessage {
+  type: "approval_request";
+  approval_id: string; // UUID for this approval request
+  session_id: string; // Chat session ID
+  tool_name: string; // Name of the tool being called
+  tool_args: Record<string, unknown>; // Arguments passed to the tool
+  risk_level: "critical"; // Always "critical" for approval requests
+  expires_at: string; // ISO datetime when approval expires (5 minutes)
+}
+
+/**
+ * Client -> Server: User decision on approval request
+ * Sent when user approves or rejects a critical tool execution
+ */
+export interface WSApprovalResponseMessage {
+  type: "approval_response";
+  approval_id: string; // UUID matching the approval request
+  approved: boolean; // User's decision (true = approve, false = reject)
+  user_id: string; // ID of the user making the decision
+  timestamp: string; // ISO datetime of the decision
+}
+
+/**
+ * Type guard to check if a server message is an approval request
+ */
+export function isApprovalRequestMessage(
+  message: unknown
+): message is WSApprovalRequestMessage {
+  return (
+    typeof message === "object" &&
+    message !== null &&
+    (message as Record<string, unknown>).type === "approval_request"
+  );
+}
+
+/**
+ * Type guard to check if a client message is an approval response
+ */
+export function isApprovalResponseMessage(
+  message: unknown
+): message is WSApprovalResponseMessage {
+  return (
+    typeof message === "object" &&
+    message !== null &&
+    (message as Record<string, unknown>).type === "approval_response"
+  );
 }

@@ -2,6 +2,7 @@
 
 Extends LangGraph's ToolNode to add permission checking before tool execution.
 Reads tool metadata and validates user permissions via RBACService.
+Integrates with risk checking to ensure both permission and risk checks pass.
 """
 
 from typing import Any
@@ -10,19 +11,19 @@ from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 from langgraph.prebuilt import ToolNode
 
-from app.ai.tools.types import ToolContext
+from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 from app.core.rbac import get_rbac_service
 
 
 class RBACToolNode(ToolNode):
-    """ToolNode subclass with RBAC permission checking.
+    """ToolNode subclass with RBAC permission checking and risk checking.
 
-    Wraps LangGraph's ToolNode to add permission checks before tool execution.
-    Reads _tool_metadata from tools to determine required permissions.
+    Wraps LangGraph's ToolNode to add permission and risk checks before tool execution.
+    Reads _tool_metadata from tools to determine required permissions and risk levels.
 
     Attributes:
         tools: List of tools available for execution
-        context: ToolContext containing user_role for permission checks
+        context: ToolContext containing user_role and execution_mode for checks
 
     Example:
         ```python
@@ -47,7 +48,7 @@ class RBACToolNode(ToolNode):
 
         Args:
             tools: List of BaseTool instances to execute
-            context: ToolContext with user_role for permission checks
+            context: ToolContext with user_role and execution_mode for checks
         """
         super().__init__(tools, awrap_tool_call=self._awrap_tool_call)
         self.context = context
@@ -139,12 +140,65 @@ class RBACToolNode(ToolNode):
         # All permissions granted
         return None
 
+    def check_tool_risk(
+        self,
+        tool_name: str,
+    ) -> tuple[bool, str | None]:
+        """Check if a tool is allowed based on execution mode and risk level.
+
+        Args:
+            tool_name: Name of the tool to check
+
+        Returns:
+            Tuple of (allowed, error_message)
+            - allowed: True if tool can be executed, False otherwise
+            - error_message: Error message if not allowed, None otherwise
+        """
+        # Find the tool by name
+        tool = None
+        for t in self.tools:
+            if t.name == tool_name:
+                tool = t
+                break
+
+        if tool is None:
+            return False, f"Tool not found: {tool_name}"
+
+        # Get tool metadata
+        metadata = getattr(tool, "_tool_metadata", None)
+        if metadata is None:
+            # No metadata means no risk level - assume high (safe default)
+            risk_level = RiskLevel.HIGH
+        else:
+            risk_level = metadata.risk_level
+
+        # Check based on execution mode
+        mode = self.context.execution_mode
+
+        if mode == ExecutionMode.SAFE:
+            if risk_level != RiskLevel.LOW:
+                return (
+                    False,
+                    f"Tool '{tool_name}' requires {risk_level.value} risk level. "
+                    f"Safe mode only allows low-risk tools."
+                )
+        elif mode == ExecutionMode.STANDARD:
+            if risk_level == RiskLevel.CRITICAL:
+                return (
+                    False,
+                    f"Tool '{tool_name}' has critical risk level. "
+                    f"Standard mode requires approval for critical tools."
+                )
+        # Expert mode allows all tools
+
+        return True, None
+
     async def _awrap_tool_call(
         self,
         request: Any,
         execute: Any,
     ) -> Any:
-        """Wrap tool call to check permissions and inject context.
+        """Wrap tool call to check permissions, risk, and inject context.
 
         Args:
             request: ToolCallRequest containing tool_call information
@@ -166,7 +220,15 @@ class RBACToolNode(ToolNode):
                 tool_call_id=tool_id
             )
 
-        # 2. Inject context into args
+        # 2. Check risk level (only if permission granted)
+        allowed, risk_error = self.check_tool_risk(tool_name)
+        if not allowed:
+            return ToolMessage(
+                content=risk_error or "Tool execution not allowed based on risk level",
+                tool_call_id=tool_id
+            )
+
+        # 3. Inject context into args
         tool_args["context"] = self.context
 
         # Create new tool_call dictionary with modified args

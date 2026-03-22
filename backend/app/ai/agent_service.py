@@ -21,6 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.graph import create_graph
 from app.ai.tools import ToolContext, create_project_tools
+from app.ai.tools.interrupt_node import InterruptNode
+from app.ai.tools.types import ExecutionMode
 from app.models.domain.ai import (
     AIAssistantConfig,
     AIConversationSession,
@@ -280,7 +282,7 @@ class AgentService:
             }
 
         # Create graph with context for RBAC
-        graph = create_graph(llm=llm, tools=list(tools_dict.values()), context=tool_context)
+        graph, _interrupt_node = create_graph(llm=llm, tools=list(tools_dict.values()), context=tool_context)
 
         # Invoke the graph
         result = await graph.ainvoke(
@@ -354,6 +356,7 @@ class AgentService:
         as_of: datetime | None = None,
         branch_name: str | None = None,
         branch_mode: Literal["merged", "isolated"] | None = None,
+        execution_mode: ExecutionMode = ExecutionMode.STANDARD,
     ) -> None:
         """Process a chat message using LangGraph with streaming response.
 
@@ -375,6 +378,7 @@ class AgentService:
             as_of: Optional historical date for temporal queries
             branch_name: Optional branch name for temporal queries
             branch_mode: Optional branch mode for temporal queries ("merged" or "isolated")
+            execution_mode: Execution mode for tool filtering (safe/standard/expert)
 
         Returns:
             None (communicates via WebSocket)
@@ -454,6 +458,7 @@ class AgentService:
             as_of=as_of,
             branch_name=branch_name,
             branch_mode=branch_mode,
+            execution_mode=execution_mode,
         )
         available_tools = create_project_tools(tool_context)
         tools_dict = {tool.name: tool for tool in available_tools}
@@ -466,8 +471,19 @@ class AgentService:
                 if name in assistant_config.allowed_tools
             }
 
-        # Create graph with context for RBAC
-        graph = create_graph(llm=llm, tools=list(tools_dict.values()), context=tool_context)
+        # Create graph with context for RBAC and InterruptNode for approval workflow
+        # Pass websocket and session_id to enable InterruptNode approval requests
+        graph, interrupt_node = create_graph(
+            llm=llm,
+            tools=list(tools_dict.values()),
+            context=tool_context,
+            websocket=websocket,
+            session_id=session_id,
+        )
+
+        # Register InterruptNode for approval handling if created
+        if interrupt_node is not None:
+            self.register_interrupt_node(session_id, interrupt_node)
 
         # Stream using astream_events
         accumulated_content = ""
@@ -722,3 +738,107 @@ class AgentService:
                 # Skip tool messages in history - they're implicit
                 pass
         return messages
+
+    # Store reference to InterruptNode for approval handling
+    # Key: session_id, Value: InterruptNode instance
+    _interrupt_nodes: dict[UUID, "InterruptNode"] = {}
+
+    def register_interrupt_node(self, session_id: UUID, interrupt_node: "InterruptNode") -> None:
+        """Register an InterruptNode for a session.
+
+        Args:
+            session_id: The session ID
+            interrupt_node: The InterruptNode instance to register
+        """
+        self._interrupt_nodes[session_id] = interrupt_node
+
+    def get_interrupt_node(self, session_id: UUID) -> "InterruptNode | None":
+        """Get the InterruptNode for a session.
+
+        Args:
+            session_id: The session ID
+
+        Returns:
+            The InterruptNode instance if found, None otherwise
+        """
+        return self._interrupt_nodes.get(session_id)
+
+    def register_approval_response(self, session_id: UUID, approval_id: str, approved: bool) -> bool:
+        """Register an approval response from the user.
+
+        Args:
+            session_id: The session ID
+            approval_id: The approval ID being responded to
+            approved: True if user approved, False if rejected
+
+        Returns:
+            True if the approval was registered successfully, False otherwise
+        """
+        interrupt_node = self.get_interrupt_node(session_id)
+        if interrupt_node is None:
+            logger.warning(f"No InterruptNode found for session {session_id}")
+            return False
+
+        interrupt_node.register_approval_response(approval_id, approved)
+        logger.info(f"Registered approval response for session {session_id}, approval_id={approval_id}, approved={approved}")
+        return True
+
+    async def resume_graph_after_approval(
+        self,
+        session_id: UUID,
+        approval_id: str,
+        websocket: WebSocket,
+    ) -> bool:
+        """Resume graph execution after user approval.
+
+        Args:
+            session_id: The session ID
+            approval_id: The approval ID that was granted
+            websocket: WebSocket connection for sending results
+
+        Returns:
+            True if resume was successful, False otherwise
+        """
+        interrupt_node = self.get_interrupt_node(session_id)
+        if interrupt_node is None:
+            logger.warning(f"No InterruptNode found for session {session_id}")
+            return False
+
+        # Check if there's interrupt state for this approval
+        interrupt_state = interrupt_node.get_interrupt_state(approval_id)
+        if interrupt_state is None:
+            logger.warning(f"No interrupt state found for approval_id={approval_id}")
+            return False
+
+        # Execute the tool after approval
+        try:
+            result = await interrupt_node.execute_after_approval(approval_id)
+
+            if result is None:
+                logger.error(f"Failed to execute tool after approval for approval_id={approval_id}")
+                return False
+
+            # Send the result via WebSocket
+            from app.models.schemas.ai import WSToolResultMessage
+
+            tool_result = {
+                "tool": interrupt_state.get("tool_name", "unknown"),
+                "success": True,
+                "result": result.content,
+                "error": None,
+            }
+
+            await websocket.send_json(
+                WSToolResultMessage(
+                    type="tool_result",
+                    tool=tool_result["tool"],
+                    result=tool_result,
+                ).model_dump(mode="json")
+            )
+
+            logger.info(f"Successfully resumed and executed tool for approval_id={approval_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error resuming graph for approval_id={approval_id}: {e}", exc_info=True)
+            return False

@@ -15,6 +15,8 @@ import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import type {
   WSChatRequest,
   WSServerMessage,
+  WSApprovalRequestMessage,
+  WSApprovalResponseMessage,
 } from "../types";
 import {
   WSConnectionState,
@@ -24,6 +26,7 @@ import {
   isCompleteMessage,
   isErrorMessage,
   isPermissionDeniedMessage,
+  isApprovalRequestMessage,
   type WSPermissionDeniedMessage,
 } from "../types";
 
@@ -47,6 +50,8 @@ export interface UseStreamingChatConfig {
   onToolCall?: (tool: string, args: Record<string, unknown>) => void;
   /** Optional callback invoked when a tool result is received */
   onToolResult?: (tool: string, result: unknown) => void;
+  /** Optional callback invoked when an approval request is received */
+  onApprovalRequest?: (request: WSApprovalRequestMessage) => void;
 }
 
 /**
@@ -54,7 +59,9 @@ export interface UseStreamingChatConfig {
  */
 export interface UseStreamingChatReturn {
   /** Send a message to start/restart streaming */
-  sendMessage: (message: string, title?: string) => void;
+  sendMessage: (message: string, title?: string, executionMode?: "safe" | "standard" | "expert") => void;
+  /** Send an approval response for a critical tool execution */
+  sendApprovalResponse: (approvalId: string, approved: boolean) => void;
   /** Cancel the current request and close the connection */
   cancel: () => void;
   /** Current WebSocket connection state */
@@ -146,6 +153,7 @@ export const useStreamingChat = (
     onError,
     onToolCall,
     onToolResult,
+    onApprovalRequest,
   } = config;
 
   // Get JWT token from auth store
@@ -189,29 +197,37 @@ export const useStreamingChat = (
   const handleMessage = useCallback(
     (event: MessageEvent) => {
       try {
-        const message: WSServerMessage = JSON.parse(event.data);
+        const message = JSON.parse(event.data);
+
+        // Handle approval request messages (custom type, not in WSServerMessage union)
+        if (isApprovalRequestMessage(message)) {
+          onApprovalRequest?.(message);
+          return;
+        }
+
+        const serverMessage: WSServerMessage = message;
 
         // Handle token messages
-        if (isTokenMessage(message)) {
-          onToken(message.content, message.session_id);
+        if (isTokenMessage(serverMessage)) {
+          onToken(serverMessage.content, serverMessage.session_id);
           return;
         }
 
         // Handle tool call messages
-        if (isToolCallMessage(message)) {
-          onToolCall?.(message.tool, message.args);
+        if (isToolCallMessage(serverMessage)) {
+          onToolCall?.(serverMessage.tool, serverMessage.args);
           return;
         }
 
         // Handle tool result messages
-        if (isToolResultMessage(message)) {
-          onToolResult?.(message.tool, message.result);
+        if (isToolResultMessage(serverMessage)) {
+          onToolResult?.(serverMessage.tool, serverMessage.result);
           return;
         }
 
         // Handle completion messages
-        if (isCompleteMessage(message)) {
-          onComplete(message.session_id, message.message_id);
+        if (isCompleteMessage(serverMessage)) {
+          onComplete(serverMessage.session_id, serverMessage.message_id);
           // Keep connection alive — do NOT close here.
           // The connection will be closed when the component unmounts
           // or the user explicitly cancels (via the cancel() function).
@@ -219,10 +235,10 @@ export const useStreamingChat = (
         }
 
         // Handle error messages
-        if (isErrorMessage(message)) {
+        if (isErrorMessage(serverMessage)) {
           // Handle permission denied errors (403) with user-friendly message
-          if (isPermissionDeniedMessage(message)) {
-            const permissionMsg = formatPermissionDeniedError(message);
+          if (isPermissionDeniedMessage(serverMessage)) {
+            const permissionMsg = formatPermissionDeniedError(serverMessage);
             onError(permissionMsg);
             setError(new Error(permissionMsg));
             setConnectionState(WSConnectionState.ERROR);
@@ -230,9 +246,9 @@ export const useStreamingChat = (
           }
 
           // Handle generic errors
-          const errorMsg = message.code
-            ? `Error ${message.code}: ${message.message}`
-            : message.message;
+          const errorMsg = serverMessage.code
+            ? `Error ${serverMessage.code}: ${serverMessage.message}`
+            : serverMessage.message;
           onError(errorMsg);
           setError(new Error(errorMsg));
           setConnectionState(WSConnectionState.ERROR);
@@ -240,21 +256,21 @@ export const useStreamingChat = (
         }
 
         // Unknown message type - log for debugging
-        console.warn("Unknown WebSocket message type:", message);
+        console.warn("Unknown WebSocket message type:", serverMessage);
       } catch (err) {
         console.error("Error parsing WebSocket message:", err);
         onError("Failed to parse server message");
         setError(new Error("Failed to parse server message"));
       }
     },
-    [onToken, onComplete, onError, onToolCall, onToolResult]
+    [onToken, onComplete, onError, onToolCall, onToolResult, onApprovalRequest]
   );
 
   /**
    * Send a message to start streaming
    */
   const sendMessage = useCallback(
-    (message: string, title?: string) => {
+    (message: string, title?: string, executionMode?: "safe" | "standard" | "expert") => {
       const ws = wsRef.current;
 
       if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -273,7 +289,7 @@ export const useStreamingChat = (
       const branchName = getSelectedBranch();
       const branchMode = getViewMode();
 
-      // Send chat request with temporal params
+      // Send chat request with temporal params and execution mode
       const request: WSChatRequest = {
         type: "chat",
         message,
@@ -284,6 +300,7 @@ export const useStreamingChat = (
         branch_name: branchName,
         branch_mode: branchMode,
         project_id: projectIdRef.current, // Include project_id if provided
+        execution_mode: executionMode ?? "standard", // Default to standard if not provided
       };
 
       try {
@@ -296,6 +313,50 @@ export const useStreamingChat = (
       }
     },
     [sessionId, assistantId, onError, getSelectedTime, getSelectedBranch, getViewMode]
+  );
+
+  /**
+   * Send an approval response for a critical tool execution
+   */
+  const sendApprovalResponse = useCallback(
+    (approvalId: string, approved: boolean) => {
+      const ws = wsRef.current;
+
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        const errorMsg = "WebSocket is not connected";
+        onError(errorMsg);
+        setError(new Error(errorMsg));
+        return;
+      }
+
+      // Get user ID from auth store
+      const userId = useAuthStore.getState().userId;
+      if (!userId) {
+        const errorMsg = "User ID not found - cannot send approval response";
+        onError(errorMsg);
+        setError(new Error(errorMsg));
+        return;
+      }
+
+      // Create approval response message
+      const response: WSApprovalResponseMessage = {
+        type: "approval_response",
+        approval_id: approvalId,
+        approved,
+        user_id: userId,
+        timestamp: new Date().toISOString(),
+      };
+
+      try {
+        ws.send(JSON.stringify(response));
+      } catch (err) {
+        const errorMsg =
+          err instanceof Error ? err.message : "Failed to send approval response";
+        onError(errorMsg);
+        setError(new Error(errorMsg));
+      }
+    },
+    [onError]
   );
 
   /**
@@ -425,6 +486,7 @@ export const useStreamingChat = (
 
   return {
     sendMessage,
+    sendApprovalResponse,
     cancel,
     connectionState,
     error,

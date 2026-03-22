@@ -15,12 +15,13 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
-import { Layout, Alert, Drawer, Button, Typography, theme, Space, Tooltip, Grid, Dropdown } from "antd";
+import { Layout, Alert, Drawer, Button, Typography, theme, Space, Tooltip, Grid, Dropdown, Select } from "antd";
 import {
   MenuOutlined,
   RobotOutlined,
   PlusOutlined,
   MoreOutlined,
+  SafetyOutlined,
 } from "@ant-design/icons";
 import {
   useChatSessions,
@@ -33,9 +34,12 @@ import { SessionList } from "./SessionList";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import type { ChatMessage } from "../../types";
-import { WSConnectionState } from "../types";
+import { WSConnectionState, type WSApprovalRequestMessage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { generateSessionTitle } from "../utils/sessionTitle";
+import { useExecutionMode } from "../../hooks/useExecutionMode";
+import { ModeBadge } from "../../components/ModeBadge";
+import { ApprovalDialog } from "../../components/ApprovalDialog";
 
 const { Sider, Content, Header } = Layout;
 const { Text } = Typography;
@@ -103,6 +107,10 @@ export const ChatInterface = ({
     Array<{ name: string; args: Record<string, unknown> }>
   >([]);
 
+  // Approval state
+  const [approvalRequest, setApprovalRequest] = useState<WSApprovalRequestMessage | null>(null);
+  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
+
   // Query client for cache invalidation
   const queryClient = useQueryClient();
 
@@ -168,6 +176,12 @@ export const ChatInterface = ({
     );
   }, []);
 
+  const handleApprovalRequest = useCallback((request: WSApprovalRequestMessage) => {
+    // Show approval dialog
+    setApprovalRequest(request);
+    setShowApprovalDialog(true);
+  }, []);
+
   // Streaming chat hook
   const streamingChat = useStreamingChat({
     sessionId: currentSessionId,
@@ -178,7 +192,11 @@ export const ChatInterface = ({
     onError: handleError,
     onToolCall: handleToolCall,
     onToolResult: handleToolResult,
+    onApprovalRequest: handleApprovalRequest,
   });
+
+  // Execution mode hook for managing AI tool risk level
+  const { executionMode, setExecutionMode } = useExecutionMode();
 
   // Handle new chat
   const handleNewChat = useCallback(() => {
@@ -236,10 +254,10 @@ export const ChatInterface = ({
       // Generate title for new sessions (when no current session exists)
       const title = currentSessionId ? undefined : generateSessionTitle(messageContent);
 
-      // Send message via streaming hook
-      streamingChat.sendMessage(messageContent, title ?? undefined);
+      // Send message via streaming hook with execution mode
+      streamingChat.sendMessage(messageContent, title ?? undefined, executionMode);
     },
-    [selectedAssistantId, streamingChat, currentSessionId]
+    [selectedAssistantId, streamingChat, currentSessionId, executionMode]
   );
 
   // Handle canceling the current stream
@@ -249,6 +267,33 @@ export const ChatInterface = ({
     setActiveToolCalls([]);
     setIsWaitingForResponse(false);
   }, [streamingChat]);
+
+  // Handle approval decision
+  const handleApproval = useCallback((approved: boolean) => {
+    if (!approvalRequest) {
+      return;
+    }
+
+    // Send approval response
+    streamingChat.sendApprovalResponse(approvalRequest.approval_id, approved);
+
+    // Close dialog and clear state
+    setShowApprovalDialog(false);
+    setApprovalRequest(null);
+  }, [approvalRequest, streamingChat]);
+
+  const handleApprove = useCallback(() => {
+    handleApproval(true);
+  }, [handleApproval]);
+
+  const handleReject = useCallback(() => {
+    handleApproval(false);
+  }, [handleApproval]);
+
+  const handleApprovalCancel = useCallback(() => {
+    setShowApprovalDialog(false);
+    setApprovalRequest(null);
+  }, []);
 
   // Helper: Convert API messages to ChatMessage type
   const chatMessages: ChatMessage[] =
@@ -474,6 +519,66 @@ export const ChatInterface = ({
               )}
             </div>
 
+            {/* Execution Mode Selector - shown on both desktop and mobile */}
+            <Tooltip title={`AI tool execution mode: ${executionMode}`}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: spacing.xs,
+                  marginRight: isMobile ? spacing.sm : spacing.md,
+                }}
+              >
+                {!isMobile && (
+                  <SafetyOutlined
+                    style={{
+                      fontSize: typography.sizes.sm,
+                      color: token.colorTextSecondary,
+                    }}
+                  />
+                )}
+                <Select
+                  value={executionMode}
+                  onChange={setExecutionMode}
+                  style={{
+                    minWidth: isMobile ? 80 : 120,
+                    fontSize: isMobile ? typography.sizes.xs : typography.sizes.sm,
+                  }}
+                  size={isMobile ? "small" : "middle"}
+                  options={[
+                    {
+                      value: "safe",
+                      label: (
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <ModeBadge mode="safe" />
+                          {!isMobile && <span style={{ fontSize: "11px" }}>Low risk only</span>}
+                        </div>
+                      ),
+                    },
+                    {
+                      value: "standard",
+                      label: (
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <ModeBadge mode="standard" />
+                          {!isMobile && <span style={{ fontSize: "11px" }}>Approval needed</span>}
+                        </div>
+                      ),
+                    },
+                    {
+                      value: "expert",
+                      label: (
+                        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <ModeBadge mode="expert" />
+                          {!isMobile && <span style={{ fontSize: "11px" }}>All tools</span>}
+                        </div>
+                      ),
+                    },
+                  ]}
+                  aria-label="Select execution mode"
+                />
+              </div>
+            </Tooltip>
+
             {/* Desktop: Assistant Selector + New Chat */}
             {!isMobile && (
               <Space size="small">
@@ -622,6 +727,15 @@ export const ChatInterface = ({
           </Content>
         </Layout>
       </Layout>
+
+      {/* Approval Dialog for critical tools */}
+      <ApprovalDialog
+        open={showApprovalDialog}
+        approvalRequest={approvalRequest}
+        onApprove={handleApprove}
+        onReject={handleReject}
+        onCancel={handleApprovalCancel}
+      />
     </>
   );
 };

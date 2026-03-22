@@ -23,7 +23,7 @@ from app.ai.tools.templates.cost_element_template import (
     list_cost_element_types,
     update_cost_element_type,
 )
-from app.ai.tools.types import ToolContext
+from app.ai.tools.types import RiskLevel, ToolContext
 from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.core.rbac import RBACServiceABC, set_rbac_service
 from app.main import app
@@ -527,6 +527,95 @@ async def test_delete_cost_element_type_not_found_error(db_session: AsyncSession
 
     # Verify error response
     assert "error" in result
+
+
+# =============================================================================
+# RISK LEVEL TESTS
+# =============================================================================
+
+class TestCostElementToolRiskLevels:
+    """Test that cost element tools have appropriate risk levels.
+
+    Verifies that all tools in cost_element_template.py are properly annotated
+    with risk levels according to the plan guidelines:
+    - low: Read-only tools, no side effects
+    - high: Tools that modify data but with validation
+    - critical: Tools that delete data, bulk operations, or sensitive actions
+    """
+
+    @pytest.mark.parametrize(
+        "tool_name,expected_risk",
+        [
+            # Cost Element tools - LOW (read-only)
+            ("list_cost_elements", RiskLevel.LOW),
+            ("get_cost_element", RiskLevel.LOW),
+            # Cost Element tools - HIGH (modify with validation)
+            ("create_cost_element", RiskLevel.HIGH),
+            ("update_cost_element", RiskLevel.HIGH),
+            # Cost Element tools - CRITICAL (delete)
+            ("delete_cost_element", RiskLevel.CRITICAL),
+            # Schedule Baseline tools - LOW (read-only)
+            ("get_schedule_baseline", RiskLevel.LOW),
+            # Schedule Baseline tools - HIGH (modify with validation)
+            ("update_schedule_baseline", RiskLevel.HIGH),
+            # Schedule Baseline tools - CRITICAL (delete)
+            ("delete_schedule_baseline", RiskLevel.CRITICAL),
+            # Cost Element Type tools - LOW (read-only)
+            ("list_cost_element_types", RiskLevel.LOW),
+            ("get_cost_element_type", RiskLevel.LOW),
+            # Cost Element Type tools - HIGH (modify with validation)
+            ("create_cost_element_type", RiskLevel.HIGH),
+            ("update_cost_element_type", RiskLevel.HIGH),
+            # Cost Element Type tools - CRITICAL (delete)
+            ("delete_cost_element_type", RiskLevel.CRITICAL),
+        ],
+    )
+    def test_tool_has_correct_risk_level(self, tool_name: str, expected_risk: RiskLevel) -> None:
+        """Test that each tool has the correct risk level annotation.
+
+        Args:
+            tool_name: Name of the tool function
+            expected_risk: Expected risk level for the tool
+        """
+        from app.ai.tools import templates
+
+        # Get the tool from the template module
+        tool = getattr(templates.cost_element_template, tool_name)
+
+        # Verify the tool has metadata
+        assert hasattr(tool, "_tool_metadata"), f"{tool_name} missing _tool_metadata"
+
+        # Get the metadata
+        metadata = tool._tool_metadata  # type: ignore[attr-defined]
+
+        # Verify risk level
+        assert (
+            metadata.risk_level == expected_risk
+        ), f"{tool_name} has risk_level={metadata.risk_level}, expected {expected_risk}"
+
+    def test_all_cost_element_type_tools_have_risk_level_metadata(self) -> None:
+        """Test that all exported cost element type tools have risk_level metadata.
+
+        This ensures no tools were missed during annotation.
+        """
+        from app.ai.tools import templates
+
+        # List of all cost element type tool functions that should have risk_level
+        tool_names = [
+            "list_cost_element_types",
+            "get_cost_element_type",
+            "create_cost_element_type",
+            "update_cost_element_type",
+            "delete_cost_element_type",
+        ]
+
+        for tool_name in tool_names:
+            tool = getattr(templates.cost_element_template, tool_name)
+            assert hasattr(tool, "_tool_metadata"), f"{tool_name} missing _tool_metadata"
+            metadata = tool._tool_metadata  # type: ignore[attr-defined]
+            assert isinstance(
+                metadata.risk_level, RiskLevel
+            ), f"{tool_name} has invalid risk_level type"
 
 
 # =============================================================================

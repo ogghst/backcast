@@ -19,7 +19,7 @@ from typing import Any, ParamSpec, TypeVar
 
 from langchain_core.tools import BaseTool, tool
 
-from .types import ToolContext, ToolMetadata
+from .types import RiskLevel, ToolContext, ToolMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,7 @@ def ai_tool(
     description: str | None = None,
     permissions: list[str] | None = None,
     category: str | None = None,
+    risk_level: RiskLevel | None = None,
 ) -> Callable[[Callable[P, Any]], BaseTool]:
     """Decorator to convert async function into LangChain BaseTool.
 
@@ -40,12 +41,14 @@ def ai_tool(
     - Generate Pydantic schemas from function signatures
     - Support InjectedToolArg for context parameter hiding
     - Attach RBAC metadata for permission checking
+    - Attach risk level for execution mode filtering
 
     Args:
         name: Tool name (defaults to function name)
         description: Tool description (defaults to function docstring)
         permissions: Required permissions for RBAC
         category: Tool category for organization
+        risk_level: Tool risk level for execution mode filtering (defaults to HIGH)
 
     Returns:
         LangChain BaseTool instance (not the original function)
@@ -56,7 +59,8 @@ def ai_tool(
             name="list_projects",
             description="List all projects in the system",
             permissions=["project-read"],
-            category="projects"
+            category="projects",
+            risk_level=RiskLevel.LOW
         )
         async def list_projects(
             search: str | None = None,
@@ -87,6 +91,7 @@ def ai_tool(
         - This excludes context from the tool schema while injecting it at runtime
         - Docstring Args sections are parsed for parameter descriptions
         - The decorator returns a BaseTool, not the original function
+        - risk_level defaults to HIGH for backward compatibility
     """
 
     def decorator(func: Callable[P, Any]) -> BaseTool:
@@ -95,14 +100,16 @@ def ai_tool(
         tool_description = description or func.__doc__ or "No description"
         tool_permissions = permissions or []
         tool_category = category
+        tool_risk_level = risk_level or RiskLevel.HIGH  # Default to HIGH for backward compatibility
 
-        # Create ToolMetadata for RBAC
+        # Create ToolMetadata for RBAC and risk checking
         metadata = ToolMetadata(
             name=tool_name,
             description=tool_description,
             permissions=tool_permissions,
             category=tool_category,
-            version="1.0.0"
+            version="1.0.0",
+            risk_level=tool_risk_level,
         )
 
         # Wrap function to inject context and handle permissions

@@ -2,11 +2,45 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from typing import Any, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.project import ProjectService
+
+
+class RiskLevel(str, Enum):
+    """Risk level for AI tools.
+
+    Used to determine which execution modes can use the tool:
+    - low: Read-only tools, no side effects (safe mode compatible)
+    - high: Tools that modify data but with validation (standard mode)
+    - critical: Tools that delete data, bulk operations, or sensitive actions (expert mode only)
+
+    Used in Phase 1: Tool categorization
+    Used in Phase 2: Risk checking and execution mode filtering
+    """
+
+    LOW = "low"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class ExecutionMode(str, Enum):
+    """AI tool execution mode.
+
+    Controls which tools are available for execution based on risk levels:
+    - safe: Only low-risk tools (read-only operations)
+    - standard: Low and high-risk tools (requires approval for critical)
+    - expert: All tools including critical (no approval required)
+
+    Used in Phase 2: Risk checking and approval workflow
+    """
+
+    SAFE = "safe"
+    STANDARD = "standard"
+    EXPERT = "expert"
 
 
 @dataclass
@@ -20,6 +54,7 @@ class ToolContext:
         session: Async database session
         user_id: Authenticated user ID
         user_role: User's role for RBAC authorization (e.g., "admin", "viewer")
+        execution_mode: AI tool execution mode (default: STANDARD)
         project_id: Optional project context UUID for scoped operations
         branch_id: Optional branch or change order context UUID for scoped operations
         as_of: Optional historical date for temporal queries (None for current state)
@@ -31,6 +66,7 @@ class ToolContext:
     session: AsyncSession
     user_id: str
     user_role: str = "guest"
+    execution_mode: ExecutionMode = ExecutionMode.STANDARD
     project_id: str | None = None
     branch_id: str | None = None
     as_of: datetime | None = None
@@ -118,6 +154,7 @@ class ToolMetadata:
         permissions: Required permissions list
         category: Tool category for grouping
         version: Tool version
+        risk_level: Tool risk level (default: HIGH for backward compatibility)
     """
 
     name: str
@@ -125,6 +162,7 @@ class ToolMetadata:
     permissions: list[str]
     category: str | None = None
     version: str = "1.0.0"
+    risk_level: RiskLevel = RiskLevel.HIGH
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -134,4 +172,5 @@ class ToolMetadata:
             "permissions": self.permissions,
             "category": self.category,
             "version": self.version,
+            "risk_level": self.risk_level.value,
         }

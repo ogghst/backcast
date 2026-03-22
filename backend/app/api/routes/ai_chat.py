@@ -18,6 +18,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agent_service import AgentService
+from app.ai.tools.types import ExecutionMode
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
 from app.core.config import settings
 from app.core.rbac import get_rbac_service
@@ -26,6 +27,7 @@ from app.models.domain.user import User
 from app.models.schemas.ai import (
     AIConversationMessagePublic,
     AIConversationSessionPublic,
+    WSApprovalResponseMessage,
     WSChatRequest,
     WSErrorMessage,
 )
@@ -192,8 +194,71 @@ async def chat_stream(
         config_service = AIConfigService(db)
         agent_service = AgentService(db)
 
+        # Track current session ID for approval handling
+        current_session_id: UUID | None = None
+
         while True:
             data = await websocket.receive_json()
+            message_type = data.get("type", "chat")
+
+            # Handle approval response messages
+            if message_type == "approval_response":
+                try:
+                    approval_response = WSApprovalResponseMessage.model_validate(data)
+                    # Use the current session ID from the ongoing chat session
+                    if current_session_id is None:
+                        await websocket.send_json(
+                            WSErrorMessage(
+                                type="error",
+                                message="No active chat session for approval",
+                                code=400,
+                            ).model_dump()
+                        )
+                        continue
+
+                    # Register the approval response with the AgentService
+                    success = agent_service.register_approval_response(
+                        session_id=current_session_id,
+                        approval_id=approval_response.approval_id,
+                        approved=approval_response.approved,
+                    )
+                    if not success:
+                        await websocket.send_json(
+                            WSErrorMessage(
+                                type="error",
+                                message=f"Failed to register approval for session {current_session_id}",
+                                code=400,
+                            ).model_dump()
+                        )
+                        continue
+
+                    # If approved, resume graph execution
+                    if approval_response.approved:
+                        resume_success = await agent_service.resume_graph_after_approval(
+                            session_id=current_session_id,
+                            approval_id=approval_response.approval_id,
+                            websocket=websocket,
+                        )
+                        if not resume_success:
+                            await websocket.send_json(
+                                WSErrorMessage(
+                                    type="error",
+                                    message=f"Failed to resume graph execution for approval {approval_response.approval_id}",
+                                    code=500,
+                                ).model_dump()
+                            )
+                except Exception as approval_err:
+                    logger.error(f"Error handling approval response: {approval_err}", exc_info=True)
+                    await websocket.send_json(
+                        WSErrorMessage(
+                            type="error",
+                            message=f"Error processing approval: {str(approval_err)}",
+                            code=500,
+                        ).model_dump()
+                    )
+                continue
+
+            # Handle chat messages
             request = WSChatRequest.model_validate(data)
 
             # Validate assistant config per message
@@ -230,6 +295,10 @@ async def chat_stream(
                 )
                 continue
 
+            # Update current session ID for approval handling
+            if request.session_id:
+                current_session_id = request.session_id
+
             # Process the message and stream the response
             try:
                 await agent_service.chat_stream(
@@ -245,6 +314,7 @@ async def chat_stream(
                     as_of=request.as_of,
                     branch_name=request.branch_name,
                     branch_mode=request.branch_mode,
+                    execution_mode=ExecutionMode(request.execution_mode),
                 )
                 logger.info(f"WebSocket chat stream completed successfully for user {user_id}")
             except Exception as stream_err:
