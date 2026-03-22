@@ -65,3 +65,81 @@ class ChangeOrderStatus(str, Enum):
             ChangeOrderStatus.REJECTED: "error",
         }
         return color_map[self]
+
+
+class ProjectRole(str, Enum):
+    """Project-level roles for RBAC.
+
+    Each role has specific permissions for project operations.
+    """
+
+    PROJECT_ADMIN = "project_admin"
+    PROJECT_MANAGER = "project_manager"
+    PROJECT_EDITOR = "project_editor"
+    PROJECT_VIEWER = "project_viewer"
+
+    @property
+    def permissions(self) -> list[str]:
+        """Get the list of global permissions for this role.
+
+        Returns:
+            List of permission strings for this role.
+        """
+        permission_map = {
+            ProjectRole.PROJECT_ADMIN: [
+                "project-*",
+                "cost-element-*",
+                "wbe-*",
+                "progress-entry-*",
+                "change-order-*",
+                "forecast-*",
+            ],
+            ProjectRole.PROJECT_MANAGER: [
+                "project-read",
+                "project-update",
+                "cost-element-*",
+                "wbe-*",
+                "progress-entry-*",
+                "change-order-read",
+                "change-order-create",
+                "forecast-*",
+            ],
+            ProjectRole.PROJECT_EDITOR: [
+                "project-read",
+                "project-update",
+                "cost-element-create",
+                "cost-element-read",
+                "cost-element-update",
+                "wbe-read",
+                "progress-entry-create",
+                "progress-entry-read",
+                "progress-entry-update",
+                "change-order-read",
+                "forecast-read",
+                "forecast-create",
+            ],
+            ProjectRole.PROJECT_VIEWER: [
+                "project-read",
+                "cost-element-read",
+                "wbe-read",
+                "progress-entry-read",
+                "change-order-read",
+                "forecast-read",
+            ],
+        }
+        return permission_map[self]
+
+    @property
+    def color(self) -> str:
+        """Get Ant Design color name for this role.
+
+        Returns:
+            Ant Design color name suitable for Tag/Badge components.
+        """
+        color_map = {
+            ProjectRole.PROJECT_ADMIN: "error",
+            ProjectRole.PROJECT_MANAGER: "warning",
+            ProjectRole.PROJECT_EDITOR: "processing",
+            ProjectRole.PROJECT_VIEWER: "default",
+        }
+        return color_map[self]

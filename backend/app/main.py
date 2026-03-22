@@ -25,6 +25,7 @@ from app.api.routes import (
     evm,
     forecasts,
     progress_entries,
+    project_members,
     projects,
     schedule_baselines,
     users,
@@ -140,6 +141,11 @@ app.include_router(
     projects.router,
     prefix=f"{settings.API_V1_STR}/projects",
     tags=["Projects"],
+)
+app.include_router(
+    project_members.router,
+    prefix=settings.API_V1_STR,
+    tags=["Project Members"],
 )
 app.include_router(
     wbes.router,
