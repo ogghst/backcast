@@ -8,7 +8,7 @@
 
 ## Context
 
-The Backcast EVS system requires a robust versioning system that provides:
+The Backcast  system requires a robust versioning system that provides:
 
 - Complete history of all entity changes
 - Time-travel queries to any past state (valid time)

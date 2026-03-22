@@ -1,6 +1,6 @@
 # Frontend UI Patterns
 
-This document outlines the standard UI patterns and components used in the Backcast EVS frontend application. Adhering to these patterns ensures a consistent user experience and maintainable codebase.
+This document outlines the standard UI patterns and components used in the Backcast  frontend application. Adhering to these patterns ensures a consistent user experience and maintainable codebase.
 
 ## 1. List Views & Tables
 

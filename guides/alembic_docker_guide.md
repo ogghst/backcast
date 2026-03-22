@@ -1,6 +1,6 @@
 # Alembic Docker Migration Guide
 
-This guide explains how to use the Alembic Docker image to manage database migrations for the Backcast EVS project.
+This guide explains how to use the Alembic Docker image to manage database migrations for the Backcast  project.
 
 ## Overview
 

@@ -7,7 +7,7 @@
 
 ## Overview
 
-The Backcast EVS AI system provides a LangGraph-based agent for natural language interactions with project management data. This document describes all public interfaces for the AI system.
+The Backcast  AI system provides a LangGraph-based agent for natural language interactions with project management data. This document describes all public interfaces for the AI system.
 
 ### Core Components
 

@@ -127,7 +127,7 @@ async def validation_exception_handler(
 
 @app.get("/")
 async def root() -> dict[str, str]:
-    return {"message": "Welcome to Backcast EVS API"}
+    return {"message": "Welcome to Backcast API"}
 
 
 app.include_router(auth.router, prefix=settings.API_V1_STR)

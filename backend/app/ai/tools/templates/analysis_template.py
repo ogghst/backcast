@@ -10,7 +10,7 @@ The key principle is:
 
     @ai_tool decorator MUST wrap existing service methods, NOT duplicate business logic
 
-Analysis Tools in Backcast EVS:
+Analysis Tools in Backcast:
 - EVM: Earned Value Management for cost/schedule performance
 - Forecasting: Predict future performance based on trends
 - Variance: Compare planned vs actual performance

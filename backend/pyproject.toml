@@ -1,7 +1,7 @@
 [project]
 name = "backcast_evs"
 version = "0.1.0"
-description = "Backcast EVS - EVCS architecture and backend implementation."
+description = "Backcast  - EVCS architecture and backend implementation."
 requires-python = ">=3.12"
 readme = "README.md"
 dependencies = [

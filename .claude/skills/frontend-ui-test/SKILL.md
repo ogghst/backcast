@@ -7,7 +7,7 @@ allowed-tools: [mcp__playwright__browser_navigate, mcp__playwright__browser_snap
 
 # Frontend UI Testing with Playwright MCP
 
-Automated browser testing for the Backcast EVS frontend using Playwright MCP tools in headless isolated mode.
+Automated browser testing for the Backcast  frontend using Playwright MCP tools in headless isolated mode.
 
 ## Scope Validation
 

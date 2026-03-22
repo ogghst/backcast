@@ -8,7 +8,7 @@
 
 ## Overview
 
-This guide explains how to create, test, and deploy AI tools for the Backcast EVS LangGraph agent. Tools are the primary way the AI agent interacts with the system - they wrap existing service methods and provide a standardized interface for LLM-powered conversations.
+This guide explains how to create, test, and deploy AI tools for the Backcast  LangGraph agent. Tools are the primary way the AI agent interacts with the system - they wrap existing service methods and provide a standardized interface for LLM-powered conversations.
 
 ### What is an AI Tool?
 

@@ -6,7 +6,7 @@ allowed-tools: [AskUserQuestion, Read, Write, Edit, Glob, Grep]
 
 # Frontend State Management Skill
 
-Guides implementation of frontend state following the Backcast EVS architecture: **TanStack Query** for server state, **Zustand + Immer** for client state, with strict context isolation for versioned entities.
+Guides implementation of frontend state following the Backcast  architecture: **TanStack Query** for server state, **Zustand + Immer** for client state, with strict context isolation for versioned entities.
 
 ## Quick Start
 

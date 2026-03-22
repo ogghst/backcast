@@ -1,12 +1,12 @@
 # Change Order Workflow & Architecture Guide
 
-This document provides comprehensive documentation of the Change Order workflow and backend logic for the Backcast EVS project. It covers the entity model, state machine, workflow operations, EVCS architecture, and debugging guidance.
+This document provides comprehensive documentation of the Change Order workflow and backend logic for the Backcast  project. It covers the entity model, state machine, workflow operations, EVCS architecture, and debugging guidance.
 
 ## 1. Overview
 
 ### Purpose of Change Orders
 
-Change Orders (COs) in the Backcast EVS system manage modifications to project budgets, work breakdown elements (WBEs), and cost elements. They provide a structured approval workflow with impact analysis, SLA tracking, and complete audit trails.
+Change Orders (COs) in the Backcast  system manage modifications to project budgets, work breakdown elements (WBEs), and cost elements. They provide a structured approval workflow with impact analysis, SLA tracking, and complete audit trails.
 
 ### Key Concepts
 

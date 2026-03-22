@@ -53,7 +53,7 @@ tool_context = ToolContext(
 
 ```python
 # System prompt generated BEFORE AI response
-base_prompt = "You are a project management assistant for Backcast EVS..."
+base_prompt = "You are a project management assistant for Backcast ..."
 
 # Temporal context detected (non-default values)
 temporal_note = """

@@ -27,7 +27,7 @@
 
 ### What is EVCS?
 
-The **Entity Versioning Control System (EVCS)** is a core component of Backcast EVS that provides Git-like versioning capabilities for all database entities. Just as Git tracks every change to source code, EVCS tracks every change to business entities with complete audit trails and the ability to query historical states.
+The **Entity Versioning Control System (EVCS)** is a core component of Backcast  that provides Git-like versioning capabilities for all database entities. Just as Git tracks every change to source code, EVCS tracks every change to business entities with complete audit trails and the ability to query historical states.
 
 ### Why EVCS Matters
 

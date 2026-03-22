@@ -35,7 +35,7 @@ The `@ai_tool` decorator will wrap **existing backend service methods** (e.g., `
 
 ### Problem Statement
 
-The current AI agent implementation in Backcast EVS has critical architectural gaps that prevent scalable tool development:
+The current AI agent implementation in Backcast  has critical architectural gaps that prevent scalable tool development:
 
 1. **Custom Agent Loop (Not Using StateGraph):**
    - Location: `backend/app/ai/agent_service.py` lines 414-437, 569-799

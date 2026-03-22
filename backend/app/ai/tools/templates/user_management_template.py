@@ -5,13 +5,13 @@ The key principle is:
 
     @ai_tool decorator MUST wrap existing service methods, NOT duplicate business logic
 
-Users in Backcast EVS:
+Users in Backcast:
 - Users are temporal entities with full versioning support
 - Password hashing is handled by the service
 - Users have roles and permissions managed by RBAC
 - User preferences are stored as JSON
 
-Departments in Backcast EVS:
+Departments in Backcast:
 - Departments are temporal entities with full versioning support
 - Departments can have optional managers (users)
 - Used for organizing users and cost element types

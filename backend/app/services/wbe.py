@@ -623,8 +623,7 @@ class WBEService(BranchableService[WBE]):  # type: ignore[type-var,unused-ignore
         wbe = await cmd.execute(self.session)
 
         # Validate revenue allocation AFTER creation (so WBE is in DB)
-        # Flush to ensure the new WBE is visible to the validation query
-        await self.session.flush()
+        # No flush needed - CreateVersionCommand.execute() already flushed
 
         await self._validate_revenue_allocation(
             project_id=wbe_in.project_id,

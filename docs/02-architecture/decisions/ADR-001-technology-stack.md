@@ -5,7 +5,7 @@
 
 ## Context
 
-We needed to choose a technology stack for building the Backcast EVS backend, a Project Budget Management and EVM application with Git-style versioning capabilities. The system requires:
+We needed to choose a technology stack for building the Backcast  backend, a Project Budget Management and EVM application with Git-style versioning capabilities. The system requires:
 
 - High-performance API endpoints
 - Async database operations

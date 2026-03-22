@@ -6,7 +6,7 @@
 
 ## Context
 
-The Backcast EVS system uses versioning for entities, where each write operation (create, update, delete) must:
+The Backcast  system uses versioning for entities, where each write operation (create, update, delete) must:
 
 - Create new version records
 - Close previous versions

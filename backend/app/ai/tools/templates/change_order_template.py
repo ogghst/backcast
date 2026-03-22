@@ -5,7 +5,7 @@ The key principle is:
 
     @ai_tool decorator MUST wrap existing service methods, NOT duplicate business logic
 
-Change Orders in Backcast EVS:
+Change Orders in Backcast:
 - Change Orders document scope changes on projects
 - They require approval workflow and impact analysis
 - They support branching for isolation during negotiations

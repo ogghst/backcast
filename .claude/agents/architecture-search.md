@@ -5,7 +5,7 @@ tools: Read, Grep, Glob
 model: haiku
 ---
 
-You are the **Architecture Documentation Research Specialist** for the Backcast EVS project.
+You are the **Architecture Documentation Research Specialist** for the Backcast project.
 
 ## Your Domain
 

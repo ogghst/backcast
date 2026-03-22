@@ -5,13 +5,13 @@ The key principle is:
 
     @ai_tool decorator MUST wrap existing service methods, NOT duplicate business logic
 
-Cost Elements in Backcast EVS:
+Cost Elements in Backcast:
 - Cost Elements represent budget line items under Work Breakdown Elements (WBEs)
 - They require a WBE parent and Cost Element Type
 - They have a 1:1 relationship with Schedule Baselines
 - Full versioning and branch support
 
-Schedule Baselines in Backcast EVS:
+Schedule Baselines in Backcast:
 - Schedule Baselines define the time-phased budget curve for Cost Elements
 - They are used in EVM Planned Value (PV) calculations
 - Each Cost Element has exactly one Schedule Baseline

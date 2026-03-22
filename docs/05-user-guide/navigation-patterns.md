@@ -1,6 +1,6 @@
 # Frontend Navigation Patterns
 
-This document describes the navigation patterns used in the Backcast EVS frontend application.
+This document describes the navigation patterns used in the Backcast  frontend application.
 
 ## Overview
 
