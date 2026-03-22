@@ -20,6 +20,16 @@ export enum WSConnectionState {
 }
 
 /**
+ * Project role definitions for RBAC
+ */
+export enum ProjectRole {
+  PROJECT_ADMIN = "PROJECT_ADMIN",
+  PROJECT_MANAGER = "PROJECT_MANAGER",
+  PROJECT_EDITOR = "PROJECT_EDITOR",
+  PROJECT_VIEWER = "PROJECT_VIEWER",
+}
+
+/**
  * Client -> Server: Chat message request
  */
 export interface WSChatRequest {
@@ -28,6 +38,12 @@ export interface WSChatRequest {
   session_id: string | null;
   assistant_config_id: string;
   title?: string; // Optional session title (for new sessions)
+  // Temporal context parameters for AI tools
+  as_of?: string | null; // ISO timestamp or null for "now"
+  branch_name?: string; // Branch name (e.g., "main", "BR-001")
+  branch_mode?: "merged" | "isolated"; // Branch view mode
+  // Project context for project-specific chat
+  project_id?: string; // Project ID to scope chat to a specific project
 }
 
 /**
@@ -81,6 +97,19 @@ export interface WSErrorMessage {
 }
 
 /**
+ * Server -> Client: Permission denied error (403)
+ * Sent when user lacks required project-level permissions
+ */
+export interface WSPermissionDeniedMessage extends WSErrorMessage {
+  type: "error";
+  message: string;
+  code: 403;
+  detail: "permission_denied";
+  project_id?: string;
+  required_permission?: string;
+}
+
+/**
  * Discriminated union of all server message types
  * Use the `type` field to discriminate between message variants
  */
@@ -124,4 +153,13 @@ export function isCompleteMessage(message: WSServerMessage): message is WSComple
  */
 export function isErrorMessage(message: WSServerMessage): message is WSErrorMessage {
   return message.type === "error";
+}
+
+/**
+ * Type guard to check if a server message is a permission denied error
+ */
+export function isPermissionDeniedMessage(
+  message: WSServerMessage
+): message is WSPermissionDeniedMessage {
+  return isErrorMessage(message) && message.code === 403;
 }

@@ -53,18 +53,24 @@ class RBACToolNode(ToolNode):
         self.context = context
         self.tools = tools
 
-    def _check_tool_permission(self, tool_name: str) -> str | None:
+    async def _check_tool_permission(
+        self,
+        tool_name: str,
+        tool_args: dict[str, Any],
+    ) -> str | None:
         """Check if user has permission to execute a tool.
 
         Args:
             tool_name: Name of the tool to check
+            tool_args: Arguments passed to the tool (may contain project_id)
 
         Returns:
             None if permitted, error message string if denied
 
         Note:
             Reads _tool_metadata.permissions from the tool instance.
-            Uses RBACServiceABC.has_permission for the check.
+            Uses RBACServiceABC.has_project_access for project-level checks when available.
+            Falls back to RBACServiceABC.has_permission for global permissions.
         """
         # Find the tool by name
         tool = None
@@ -82,14 +88,53 @@ class RBACToolNode(ToolNode):
             # No metadata means no permission requirements
             return None
 
-        # Check each required permission
+        # Extract project_id from tool_args if present
+        project_id = tool_args.get("project_id")
+
+        # Get RBAC service
         rbac_service = get_rbac_service()
+
+        # Inject session if service supports it and project_id is provided
+        if project_id is not None and hasattr(rbac_service, "session"):
+            if rbac_service.session is None:
+                rbac_service.session = self.context.session
+
+        # Check each required permission
         for permission in metadata.permissions:
-            if not rbac_service.has_permission(self.context.user_role, permission):
-                return (
-                    f"Permission denied: {permission} required "
-                    f"(user_role: {self.context.user_role}, tool: {tool_name})"
-                )
+            # Use project-level access check if project_id is provided
+            if project_id is not None and hasattr(rbac_service, "has_project_access"):
+                from uuid import UUID
+
+                try:
+                    project_uuid = UUID(project_id) if isinstance(project_id, str) else project_id
+                    user_uuid = UUID(self.context.user_id)
+
+                    has_access = await rbac_service.has_project_access(
+                        user_id=user_uuid,
+                        user_role=self.context.user_role,
+                        project_id=project_uuid,
+                        required_permission=permission,
+                    )
+
+                    if not has_access:
+                        return (
+                            f"Permission denied: {permission} required "
+                            f"for project {project_id} "
+                            f"(user_role: {self.context.user_role}, tool: {tool_name})"
+                        )
+                except (ValueError, TypeError):
+                    # Invalid UUID format, deny permission
+                    return (
+                        f"Permission denied: Invalid project_id format "
+                        f"(tool: {tool_name})"
+                    )
+            else:
+                # Global permission check
+                if not rbac_service.has_permission(self.context.user_role, permission):
+                    return (
+                        f"Permission denied: {permission} required "
+                        f"(user_role: {self.context.user_role}, tool: {tool_name})"
+                    )
 
         # All permissions granted
         return None
@@ -111,9 +156,10 @@ class RBACToolNode(ToolNode):
         tool_call = request.tool_call
         tool_name = tool_call.get("name", "")
         tool_id = tool_call.get("id", "")
+        tool_args = dict(tool_call.get("args", {}))
 
-        # 1. Check permissions
-        error_message = self._check_tool_permission(tool_name)
+        # 1. Check permissions (async now)
+        error_message = await self._check_tool_permission(tool_name, tool_args)
         if error_message:
             return ToolMessage(
                 content=error_message,
@@ -121,12 +167,11 @@ class RBACToolNode(ToolNode):
             )
 
         # 2. Inject context into args
-        new_tool_args = dict(tool_call.get("args", {}))
-        new_tool_args["context"] = self.context
+        tool_args["context"] = self.context
 
         # Create new tool_call dictionary with modified args
         new_tool_call = dict(tool_call)
-        new_tool_call["args"] = new_tool_args
+        new_tool_call["args"] = tool_args
 
         # Create overridden request and execute
         new_request = request.override(tool_call=new_tool_call)

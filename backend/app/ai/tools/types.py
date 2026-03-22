@@ -1,7 +1,8 @@
 """Type definitions for AI tool system."""
 
 from dataclasses import dataclass, field
-from typing import Any
+from datetime import datetime
+from typing import Any, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +22,9 @@ class ToolContext:
         user_role: User's role for RBAC authorization (e.g., "admin", "viewer")
         project_id: Optional project context UUID for scoped operations
         branch_id: Optional branch or change order context UUID for scoped operations
+        as_of: Optional historical date for temporal queries (None for current state)
+        branch_name: Optional branch name for temporal queries (e.g., "main", "BR-001")
+        branch_mode: Optional branch mode for temporal queries ("merged" or "isolated")
         _permission_cache: Cache for permission checks
     """
 
@@ -29,6 +33,9 @@ class ToolContext:
     user_role: str = "guest"
     project_id: str | None = None
     branch_id: str | None = None
+    as_of: datetime | None = None
+    branch_name: str | None = None
+    branch_mode: Literal["merged", "isolated"] | None = None
     _permission_cache: dict[str, bool] = field(default_factory=dict)
 
     @property
@@ -36,29 +43,68 @@ class ToolContext:
         """Get project service instance."""
         return ProjectService(self.session)
 
-    async def check_permission(self, permission: str) -> bool:
+    async def check_permission(
+        self,
+        permission: str,
+        project_id: str | None = None,
+    ) -> bool:
         """Check if user has the specified permission.
 
         Args:
             permission: Permission string to check
+            project_id: Optional project ID for project-level access checks
 
         Returns:
             True if user has permission, False otherwise
 
         Note:
             Implements simple caching for performance.
-            In production, this would check against user's roles.
+            Uses project-level access checks when project_id is provided.
         """
-        # Check cache first
-        if permission in self._permission_cache:
-            return self._permission_cache[permission]
+        from uuid import UUID
 
-        # TODO: Implement actual RBAC check
-        # For now, allow all authenticated users
-        granted = True
+        from app.core.rbac import get_rbac_service
+
+        # Build cache key
+        cache_key = f"{permission}:{project_id or 'global'}"
+
+        # Check cache first
+        if cache_key in self._permission_cache:
+            return self._permission_cache[cache_key]
+
+        # Get RBAC service
+        rbac_service = get_rbac_service()
+
+        # Inject session if available for project-level checks
+        if project_id is not None:
+            try:
+                project_uuid = UUID(project_id)
+                user_uuid = UUID(self.user_id)
+
+                # Check if rbac_service supports project-level access
+                if hasattr(rbac_service, "has_project_access"):
+                    # Inject session if service supports it
+                    if hasattr(rbac_service, "session") and rbac_service.session is None:
+                        rbac_service.session = self.session
+
+                    granted = await rbac_service.has_project_access(
+                        user_id=user_uuid,
+                        user_role=self.user_role,
+                        project_id=project_uuid,
+                        required_permission=permission,
+                    )
+                else:
+                    # Fallback to role-based check
+                    granted = rbac_service.has_permission(self.user_role, permission)
+            except (ValueError, TypeError):
+                # Invalid UUID format, deny permission
+                granted = False
+        else:
+            # Global permission check
+            granted = rbac_service.has_permission(self.user_role, permission)
 
         # Cache result
-        self._permission_cache[permission] = granted
+        self._permission_cache[cache_key] = granted
         return granted
 
 

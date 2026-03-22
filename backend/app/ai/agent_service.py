@@ -4,7 +4,8 @@ Uses LangGraph StateGraph for conversation flow with tool calling loop.
 """
 
 import logging
-from typing import Any
+from datetime import datetime
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import WebSocket
@@ -240,7 +241,7 @@ class AgentService:
         # Build conversation history
         history = await self._build_conversation_history(session_id)
 
-        # Add system prompt
+        # Add system prompt (no temporal context for non-streaming chat)
         system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
         history.insert(0, SystemMessage(content=system_prompt))
 
@@ -350,6 +351,9 @@ class AgentService:
         title: str | None = None,
         project_id: UUID | None = None,
         branch_id: UUID | None = None,
+        as_of: datetime | None = None,
+        branch_name: str | None = None,
+        branch_mode: Literal["merged", "isolated"] | None = None,
     ) -> None:
         """Process a chat message using LangGraph with streaming response.
 
@@ -368,6 +372,9 @@ class AgentService:
             title: Optional title for the session (only used when creating a new session)
             project_id: Optional project context UUID for the session
             branch_id: Optional branch or change order context UUID for the session
+            as_of: Optional historical date for temporal queries
+            branch_name: Optional branch name for temporal queries
+            branch_mode: Optional branch mode for temporal queries ("merged" or "isolated")
 
         Returns:
             None (communicates via WebSocket)
@@ -405,8 +412,15 @@ class AgentService:
         # Build conversation history
         history = await self._build_conversation_history(session_id)
 
-        # Add system prompt
-        system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
+        # Add system prompt with temporal context
+        base_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
+        system_prompt = self._build_system_prompt(
+            base_prompt=base_prompt,
+            project_id=project_id,
+            as_of=as_of,
+            branch_name=branch_name,
+            branch_mode=branch_mode,
+        )
         history.insert(0, SystemMessage(content=system_prompt))
 
         # Get LLM client configuration
@@ -437,6 +451,9 @@ class AgentService:
             user_role=user_role,
             project_id=str(project_id) if project_id else None,
             branch_id=str(branch_id) if branch_id else None,
+            as_of=as_of,
+            branch_name=branch_name,
+            branch_mode=branch_mode,
         )
         available_tools = create_project_tools(tool_context)
         tools_dict = {tool.name: tool for tool in available_tools}
@@ -628,6 +645,56 @@ class AgentService:
             f"Chat stream completed for session {session_id}, "
             f"message_id={assistant_msg.id}"
         )
+
+    def _build_system_prompt(
+        self,
+        base_prompt: str,
+        project_id: UUID | None = None,
+        as_of: datetime | None = None,
+        branch_name: str | None = None,
+        branch_mode: Literal["merged", "isolated"] | None = None,
+    ) -> str:
+        """Build system prompt with context awareness.
+
+        Context: Project and temporal context are enforced at the tool level via ToolContext,
+        not in the system prompt. This provides maximum security by preventing prompt injection
+        attacks from bypassing constraints. The system prompt provides the LLM with awareness
+        of context for better responses, but enforcement happens at the tool level.
+
+        The LLM has no control over temporal parameters (as_of, branch_name, branch_mode) or
+        project_id. These are applied automatically by tools based on the session context.
+
+        Args:
+            base_prompt: Base system prompt
+            project_id: Optional project ID for project-scoped queries
+            as_of: Optional historical date for temporal queries (unused in prompt)
+            branch_name: Optional branch name for temporal queries (unused in prompt)
+            branch_mode: Optional branch mode for temporal queries (unused in prompt)
+
+        Returns:
+            Base system prompt with project context information (temporal enforcement
+            happens at tool level via ToolContext)
+        """
+        context_sections = []
+
+        # Add project context awareness if in project scope
+        if project_id:
+            context_sections.append(
+                f"You are operating in the context of a specific project (ID: {project_id}). "
+                "Use project-scoped tools to query data within this project. "
+                "The user's access is limited to this project's data. "
+                "Use get_project_context tool to query project details. "
+                "Project scope is locked for this session - you cannot switch to other projects."
+            )
+
+        # Combine base prompt with context sections
+        if context_sections:
+            return base_prompt + "\n\n" + "\n\n".join(context_sections)
+
+        # Return base prompt without context additions
+        # Temporal and project enforcement happens at tool level via ToolContext
+        # This provides maximum security against prompt injection attacks
+        return base_prompt
 
     async def _build_conversation_history(self, session_id: UUID) -> list[BaseMessage]:
 

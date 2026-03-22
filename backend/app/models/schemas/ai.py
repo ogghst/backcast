@@ -344,6 +344,11 @@ class WSChatRequest(BaseModel):
     title: str | None = Field(None, max_length=255, description="Optional session title (for new sessions)")
     project_id: UUID | None = Field(None, description="Optional project context for the session")
     branch_id: UUID | None = Field(None, description="Optional branch or change order context for the session")
+    as_of: datetime | None = Field(None, description="Optional historical date for temporal queries")
+    branch_name: str | None = Field("main", description="Branch name for temporal queries (default: 'main')")
+    branch_mode: Literal["merged", "isolated"] | None = Field(
+        "merged", description="Branch mode for temporal queries (default: 'merged')"
+    )
     attachments: list[FileAttachment] = Field(
         default_factory=list, description="File attachments to the message"
     )

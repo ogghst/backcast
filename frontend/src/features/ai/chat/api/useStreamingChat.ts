@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import type {
   WSChatRequest,
   WSServerMessage,
@@ -22,6 +23,8 @@ import {
   isToolResultMessage,
   isCompleteMessage,
   isErrorMessage,
+  isPermissionDeniedMessage,
+  type WSPermissionDeniedMessage,
 } from "../types";
 
 /**
@@ -32,6 +35,8 @@ export interface UseStreamingChatConfig {
   sessionId?: string;
   /** The assistant configuration ID to use for the chat */
   assistantId: string;
+  /** Optional project ID to scope chat to a specific project */
+  projectId?: string;
   /** Callback invoked when a token is received */
   onToken: (token: string, sessionId: string) => void;
   /** Callback invoked when the complete response is received */
@@ -67,6 +72,32 @@ const MAX_RECONNECT_ATTEMPTS = 5;
  * Base delay for exponential backoff (in milliseconds)
  */
 const BASE_RECONNECT_DELAY = 1000;
+
+/**
+ * Formats a permission denied error message with helpful context
+ *
+ * @param message - Permission denied error message
+ * @returns User-friendly error message
+ */
+function formatPermissionDeniedError(
+  message: WSPermissionDeniedMessage
+): string {
+  const { project_id, required_permission, message: baseMessage } = message;
+
+  if (project_id && required_permission) {
+    return `Permission denied: You need '${required_permission}' permission for project ${project_id}. ${baseMessage}`;
+  }
+
+  if (project_id) {
+    return `Permission denied: You do not have access to project ${project_id}. ${baseMessage}`;
+  }
+
+  if (required_permission) {
+    return `Permission denied: Required permission: ${required_permission}. ${baseMessage}`;
+  }
+
+  return baseMessage;
+}
 
 /**
  * Constructs the WebSocket URL with authentication token
@@ -109,6 +140,7 @@ export const useStreamingChat = (
   const {
     sessionId,
     assistantId,
+    projectId,
     onToken,
     onComplete,
     onError,
@@ -118,6 +150,19 @@ export const useStreamingChat = (
 
   // Get JWT token from auth store
   const token = useAuthStore((state): string | null => state.token);
+
+  // Get temporal context from Time Machine store
+  const getSelectedTime = useTimeMachineStore((state) => state.getSelectedTime);
+  const getSelectedBranch = useTimeMachineStore((state) => state.getSelectedBranch);
+  const getViewMode = useTimeMachineStore((state) => state.getViewMode);
+
+  // Store projectId in a ref for the connection lifetime
+  const projectIdRef = useRef(projectId);
+
+  // Keep projectIdRef updated when config.projectId changes
+  useEffect(() => {
+    projectIdRef.current = projectId;
+  }, [projectId]);
 
   // WebSocket reference (not in state to avoid re-renders)
   const wsRef = useRef<WebSocket | null>(null);
@@ -175,6 +220,16 @@ export const useStreamingChat = (
 
         // Handle error messages
         if (isErrorMessage(message)) {
+          // Handle permission denied errors (403) with user-friendly message
+          if (isPermissionDeniedMessage(message)) {
+            const permissionMsg = formatPermissionDeniedError(message);
+            onError(permissionMsg);
+            setError(new Error(permissionMsg));
+            setConnectionState(WSConnectionState.ERROR);
+            return;
+          }
+
+          // Handle generic errors
           const errorMsg = message.code
             ? `Error ${message.code}: ${message.message}`
             : message.message;
@@ -213,13 +268,22 @@ export const useStreamingChat = (
       cancelledRef.current = false;
       reconnectAttemptsRef.current = 0;
 
-      // Send chat request
+      // Read temporal context from Time Machine store
+      const asOf = getSelectedTime();
+      const branchName = getSelectedBranch();
+      const branchMode = getViewMode();
+
+      // Send chat request with temporal params
       const request: WSChatRequest = {
         type: "chat",
         message,
         session_id: sessionId ?? null,
         assistant_config_id: assistantId,
         title, // Pass title for new sessions
+        as_of: asOf ?? null, // Convert undefined to null for "now"
+        branch_name: branchName,
+        branch_mode: branchMode,
+        project_id: projectIdRef.current, // Include project_id if provided
       };
 
       try {
@@ -231,7 +295,7 @@ export const useStreamingChat = (
         setError(new Error(errorMsg));
       }
     },
-    [sessionId, assistantId, onError]
+    [sessionId, assistantId, onError, getSelectedTime, getSelectedBranch, getViewMode]
   );
 
   /**
