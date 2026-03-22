@@ -162,7 +162,6 @@ async def test_s_curve_shows_differences_when_wbe_budget_changes(
 
     # CRITICAL ASSERTION: The curves should be different!
     # At any given week, change_value should be 1.5x main_value
-    differences_found = False
     for i, point in enumerate(data_points):
         main_val = point.main_value or Decimal("0")
         change_val = point.change_value or Decimal("0")
@@ -175,7 +174,6 @@ async def test_s_curve_shows_differences_when_wbe_budget_changes(
                 # Check that they're different (ratio is approximately 1.5)
                 if abs(ratio - Decimal("1.5")) < Decimal("0.01"):
                     # This is expected - they should be different with 1.5x ratio
-                    differences_found = True
                     print(
                         f"Week {point.week_start}: main={main_val}, change={change_val}, ratio={ratio}"
                     )

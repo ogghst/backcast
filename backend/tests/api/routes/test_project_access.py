@@ -5,7 +5,6 @@ permission hierarchy, and ProjectRoleChecker dependency.
 """
 
 from collections.abc import Generator
-
 from uuid import uuid4
 
 import pytest
@@ -15,11 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.core.enums import ProjectRole
 from app.core.rbac import get_rbac_service
+from app.main import app
 from app.models.domain.project import Project
 from app.models.domain.project_member import ProjectMember
 from app.models.domain.user import User
-from app.main import app
-
 
 # =============================================================================
 # Auth Override Fixtures for Database Users

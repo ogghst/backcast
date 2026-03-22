@@ -21,7 +21,6 @@ from app.models.schemas.progress_entry import ProgressEntryCreate
 from app.models.schemas.project import ProjectCreate
 from app.models.schemas.wbe import WBECreate
 from app.services.cost_element_service import CostElementService
-from app.services.project import ProjectService
 from app.services.cost_registration_service import CostRegistrationService
 from app.services.progress_entry_service import ProgressEntryService
 from app.services.project import ProjectService
@@ -224,7 +223,7 @@ class AIToolsTestDataSeeder:
 
                     # Generate new UUID for cost element
                     new_ce_id = uuid4()
-                    original_ce_id = ce_data["cost_element_id"]
+                    ce_data["cost_element_id"]
                     ce_data["cost_element_id"] = str(new_ce_id)
 
                     # Update WBE ID reference using the mapping
@@ -362,10 +361,10 @@ class AIToolsTestDataSeeder:
         )
         result_cr = await session.execute(stmt_cr)
         # Use a simpler key: code + amount + description (ignore exact timestamp due to timezone issues)
-        existing_regs = set(
+        existing_regs = {
             (ce_id_to_code_map.get(r.cost_element_id, ""), float(r.amount), r.description)
             for r in result_cr.all()
-        )
+        }
         logger.debug(f"Found {len(existing_regs)} existing cost registrations")
 
         with seed_operation():
@@ -451,10 +450,10 @@ class AIToolsTestDataSeeder:
             ProgressEntry.notes
         )
         result_pe = await session.execute(stmt_pe)
-        existing_entries = set(
+        existing_entries = {
             (ce_id_to_code_map.get(e.cost_element_id, ""), float(e.progress_percentage), e.notes)
             for e in result_pe.all()
-        )
+        }
 
         with seed_operation():
             for pe_data in pe_data_list:

@@ -4,16 +4,14 @@ Tests AI-powered change order draft generation with database integration.
 """
 
 import json
-from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.change_order_parser import ChangeOrderRequirementParser
 from app.core.enums import ChangeOrderStatus
-from app.models.domain.change_order import ChangeOrder
 from app.models.domain.project import Project
 from app.services.change_order_service import ChangeOrderService
 
@@ -57,7 +55,7 @@ async def test_generate_draft_success(
         new_callable=AsyncMock,
     ):
         # Setup mocks
-        from app.models.domain.ai import AIProvider, AIModel
+        from app.models.domain.ai import AIModel, AIProvider
 
         mock_provider = MagicMock(spec=AIProvider)
         mock_provider.id = uuid4()
@@ -192,7 +190,7 @@ async def test_generate_draft_branch_creation(
     with patch(
         "app.ai.change_order_parser.LLMClientFactory.create_client",
     ) as mock_create_client:
-        from app.models.domain.ai import AIProvider, AIModel
+        from app.models.domain.ai import AIModel, AIProvider
 
         mock_provider = MagicMock(spec=AIProvider)
         mock_provider.id = uuid4()

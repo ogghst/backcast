@@ -5,14 +5,20 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.schemas.ai import AIConversationSessionCreate, AIConversationSessionPublic
+from app.models.schemas.ai import (
+    AIConversationSessionPublic,
+)
 from app.services.ai_config_service import AIConfigService
 
 
 @pytest.mark.asyncio
 async def test_create_session_with_project_context(db_session: AsyncSession) -> None:
     """Test creating a session with project context."""
-    from app.models.schemas.ai import AIAssistantConfigCreate, AIModelCreate, AIProviderCreate
+    from app.models.schemas.ai import (
+        AIAssistantConfigCreate,
+        AIModelCreate,
+        AIProviderCreate,
+    )
 
     service = AIConfigService(db_session)
 
@@ -62,7 +68,11 @@ async def test_create_session_with_project_context(db_session: AsyncSession) -> 
 @pytest.mark.asyncio
 async def test_create_session_without_context(db_session: AsyncSession) -> None:
     """Test creating a session without project/branch context."""
-    from app.models.schemas.ai import AIAssistantConfigCreate, AIModelCreate, AIProviderCreate
+    from app.models.schemas.ai import (
+        AIAssistantConfigCreate,
+        AIModelCreate,
+        AIProviderCreate,
+    )
 
     service = AIConfigService(db_session)
 
@@ -110,7 +120,11 @@ async def test_create_session_without_context(db_session: AsyncSession) -> None:
 @pytest.mark.asyncio
 async def test_session_schema_serialization_with_context(db_session: AsyncSession) -> None:
     """Test that AIConversationSessionPublic serializes context fields correctly."""
-    from app.models.schemas.ai import AIAssistantConfigCreate, AIModelCreate, AIProviderCreate
+    from app.models.schemas.ai import (
+        AIAssistantConfigCreate,
+        AIModelCreate,
+        AIProviderCreate,
+    )
 
     service = AIConfigService(db_session)
 

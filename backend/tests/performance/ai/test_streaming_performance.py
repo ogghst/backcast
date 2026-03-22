@@ -77,7 +77,7 @@ async def test_first_token_latency_p50(mock_streaming_llm):
     start_time = time.perf_counter()
     first_token_time = None
 
-    async for event in graph.astream_events(initial_state, config=config, version="v1"):
+    async for _event in graph.astream_events(initial_state, config=config, version="v1"):
         if first_token_time is None:
             first_token_time = time.perf_counter()
 
@@ -136,7 +136,7 @@ async def test_first_token_latency_percentiles(mock_streaming_llm):
         start_time = time.perf_counter()
         first_token_time = None
 
-        async for event in graph.astream_events(initial_state, config=config, version="v1"):
+        async for _event in graph.astream_events(initial_state, config=config, version="v1"):
             if first_token_time is None:
                 first_token_time = time.perf_counter()
                 break
@@ -242,7 +242,7 @@ async def test_concurrent_streams(mock_streaming_llm):
     start_time = time.perf_counter()
     first_token_time = None
 
-    async for event in graph.astream_events(initial_state, config=config, version="v1"):
+    async for _event in graph.astream_events(initial_state, config=config, version="v1"):
         if first_token_time is None:
             first_token_time = time.perf_counter()
             break
@@ -256,7 +256,7 @@ async def test_concurrent_streams(mock_streaming_llm):
         cfg = {"configurable": {"thread_id": f"test-thread-{thread_id}"}}
         start = time.perf_counter()
         first = None
-        async for event in graph.astream_events(initial_state, config=cfg, version="v1"):
+        async for _event in graph.astream_events(initial_state, config=cfg, version="v1"):
             if first is None:
                 first = time.perf_counter()
                 break
@@ -265,7 +265,7 @@ async def test_concurrent_streams(mock_streaming_llm):
     start_time = time.perf_counter()
     tasks = [measure_stream(i) for i in range(concurrency)]
     latencies = await asyncio.gather(*tasks)
-    total_time = (time.perf_counter() - start_time) * 1000
+    (time.perf_counter() - start_time) * 1000
 
     avg_latency = sum(latencies) / len(latencies)
 
@@ -315,7 +315,7 @@ async def test_websocket_message_overhead(mock_streaming_llm):
         if event.get("event") == "on_chat_model_stream":
             # Measure time to create WebSocket message
             start = time.perf_counter()
-            ws_message = WSTokenMessage(
+            WSTokenMessage(
                 conversation_id="test",
                 token=event.get("data", {}).get("chunk", ""),
             )

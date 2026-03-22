@@ -6,7 +6,6 @@ hidden from the LLM and enforced only at the tool level via ToolContext.
 """
 
 from datetime import datetime
-from unittest.mock import Mock
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession

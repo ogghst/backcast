@@ -52,7 +52,7 @@ class TestToolContextUserRole:
 
         # Assert: user_role should be annotated as str
         assert "user_role" in hints
-        assert hints["user_role"] == str
+        assert hints["user_role"] is str
 
     def test_tool_context_user_role_backward_compatible(self) -> None:
         """Test that ToolContext works without user_role (backward compatibility).

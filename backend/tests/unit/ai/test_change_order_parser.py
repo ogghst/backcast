@@ -6,14 +6,14 @@ Tests AI-powered requirement parsing for change order draft generation.
 import json
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 from openai.types.chat import ChatCompletion, ChatCompletionMessage
 from openai.types.chat.chat_completion import Choice
 
 from app.ai.change_order_parser import ChangeOrderRequirementParser
-from app.models.domain.ai import AIProvider, AIModel
+from app.models.domain.ai import AIModel, AIProvider
 
 
 @pytest.fixture

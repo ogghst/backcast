@@ -1,9 +1,11 @@
 """Tests for system prompt temporal context."""
 
-import pytest
 from datetime import datetime
-from app.ai.agent_service import AgentService
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.ai.agent_service import AgentService
 
 
 class TestSystemPromptTemporalContext:

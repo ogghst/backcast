@@ -170,7 +170,7 @@ class TestUpdateChangeOrderStatusCommand:
            control_date=datetime(2026, 3, 1, 10, 0, 0, tzinfo=UTC),
         )
 
-        result = await cmd.execute(mock_session)
+        await cmd.execute(mock_session)
 
         # Verify clone was called with the new status
         mock_change_order.clone.assert_called_once()

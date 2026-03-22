@@ -78,7 +78,7 @@ async def test_list_projects_logs_temporal_context(
 
         with caplog.at_level(logging.INFO):
             # Invoke the tool
-            result = await list_projects.ainvoke(  # type: ignore
+            await list_projects.ainvoke(  # type: ignore
                 {
                     "search": None,
                     "status": None,
@@ -277,7 +277,7 @@ async def test_get_project_logs_temporal_context(mock_tool_context, caplog):
         mock_rbac.return_value = mock_rbac_service
 
         with caplog.at_level(logging.INFO):
-            result = await get_project.ainvoke(  # type: ignore
+            await get_project.ainvoke(  # type: ignore
                 {"project_id": str(mock_project.project_id), "context": mock_tool_context}
             )
 

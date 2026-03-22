@@ -15,10 +15,10 @@ pytest-asyncio. These tests use direct WebSocket mocking and endpoint testing.
 """
 
 import asyncio
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import Generator
 from datetime import datetime, timedelta
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -39,14 +39,12 @@ from app.models.domain.ai import (
 )
 from app.models.domain.user import User
 from app.models.schemas.ai import (
-    WSChatRequest,
     WSCompleteMessage,
     WSErrorMessage,
     WSTokenMessage,
     WSToolCallMessage,
     WSToolResultMessage,
 )
-
 
 # =============================================================================
 # Test Utilities
@@ -131,7 +129,7 @@ class WebSocketTestHelpers:
             Mock LangGraph event dictionaries.
         """
         # Token streaming events
-        for i, char in enumerate(content):
+        for _i, char in enumerate(content):
             yield {
                 "event": "on_chat_model_stream",
                 "data": {
@@ -266,7 +264,7 @@ class MockASTreamEvents:
             try:
                 return next(self.events)
             except StopIteration:
-                raise StopAsyncIteration
+                raise StopAsyncIteration from None
         else:
             if hasattr(self, "_index"):
                 self._index += 1
@@ -406,7 +404,6 @@ def override_get_user(test_user: User) -> Generator[None, None, None]:
 
     # The method signature is get_by_email(self, email: str) -> User | None
     # When patching an instance method, we need to handle self correctly
-    original_get_by_email = UserService.get_by_email
 
     async def mock_get_by_email(self, email: str) -> User | None:
         if email == test_user.email:
@@ -1533,8 +1530,6 @@ async def test_ws_user_not_found(
 # =============================================================================
 
 
-from fastapi.testclient import TestClient
-from unittest.mock import MagicMock
 
 
 @pytest.mark.asyncio
@@ -1551,8 +1546,7 @@ async def test_list_sessions_success(
 
     Covers lines 39, 50, 55-56 in ai_chat.py.
     """
-    from app.api.routes.ai_chat import list_sessions, get_ai_config_service
-    from app.models.domain.ai import AIConversationSession
+    from app.api.routes.ai_chat import list_sessions
 
     # Create test sessions (SimpleEntityBase requires created_at/updated_at)
     # Note: user_id and assistant_config_id are UUIDs in the model
@@ -1608,9 +1602,9 @@ async def test_get_session_messages_success(
 
     Covers lines 65-78 in ai_chat.py.
     """
-    from app.api.routes.ai_chat import get_session_messages
-    from app.models.domain.ai import AIConversationSession, AIConversationMessage
     from fastapi import HTTPException
+
+    from app.api.routes.ai_chat import get_session_messages
 
     session_id = uuid4()
 
@@ -1700,9 +1694,9 @@ async def test_delete_session_success(
 
     Covers lines 87-99 in ai_chat.py.
     """
-    from app.api.routes.ai_chat import delete_session
-    from app.models.domain.ai import AIConversationSession
     from fastapi import HTTPException
+
+    from app.api.routes.ai_chat import delete_session
 
     session_id = uuid4()
 

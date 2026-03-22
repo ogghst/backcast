@@ -549,7 +549,7 @@ class TestSCurveTimeSeriesGeneration:
         db_session.add(dept)
 
         # Create cost element type (NOT branchable)
-        cet_id = self._create_cost_element_type(db_session, dept_id)
+        self._create_cost_element_type(db_session, dept_id)
 
         # Create WBE without schedule baseline
         main_wbe = WBE(

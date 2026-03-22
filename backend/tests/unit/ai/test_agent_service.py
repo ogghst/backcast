@@ -529,7 +529,7 @@ class TestChatStreamMethod:
         self, db_session: AsyncSession
     ) -> None:
         """Verify graceful handling of WebSocket closure during streaming."""
-        service = AgentService(db_session)
+        AgentService(db_session)
 
         # Test that WebSocket errors are caught in the streaming logic
         websocket = Mock()
@@ -566,7 +566,7 @@ class TestToolResultSerialization:
         self, db_session: AsyncSession
     ) -> None:
         """Verify that ToolMessage.content is extracted correctly."""
-        service = AgentService(db_session)
+        AgentService(db_session)
 
         # Create a ToolMessage with string content
         tool_msg: ToolMessage = ToolMessage(
@@ -583,7 +583,7 @@ class TestToolResultSerialization:
 
     async def test_tool_message_dict_extraction(self, db_session: AsyncSession) -> None:
         """Verify that ToolMessage with dict content is handled correctly."""
-        service = AgentService(db_session)
+        AgentService(db_session)
 
         # Create a ToolMessage with string content (dicts are stringified)
         tool_msg: ToolMessage = ToolMessage(
@@ -602,7 +602,7 @@ class TestToolResultSerialization:
 
     async def test_tool_result_format(self, db_session: AsyncSession) -> None:
         """Verify the tool result dict format is JSON-serializable."""
-        service = AgentService(db_session)
+        AgentService(db_session)
 
         # Create a tool result dict like in chat_stream
         tool_msg = ToolMessage(content="Result text", tool_call_id="call_789")
@@ -626,7 +626,7 @@ class TestToolResultSerialization:
 
     async def test_plain_string_handling(self, db_session: AsyncSession) -> None:
         """Verify that plain string outputs are handled correctly."""
-        service = AgentService(db_session)
+        AgentService(db_session)
 
         # Simulate a plain string output (not a ToolMessage)
         tool_output = "Plain string result"
@@ -641,7 +641,7 @@ class TestToolResultSerialization:
 
     async def test_dict_with_content_field(self, db_session: AsyncSession) -> None:
         """Verify that dict outputs with 'content' field are handled correctly."""
-        service = AgentService(db_session)
+        AgentService(db_session)
 
         # Simulate a dict output with content field
         tool_output: dict[str, Any] = {"content": "Extracted content", "metadata": "extra"}

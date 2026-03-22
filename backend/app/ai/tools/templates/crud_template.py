@@ -181,11 +181,11 @@ async def get_project(
         project = await service.get_by_id(UUID(project_id))
 
         if not project:
-            result = {"error": f"Project {project_id} not found"}
-            return add_temporal_metadata(result, context)
+            not_found_result = {"error": f"Project {project_id} not found"}
+            return add_temporal_metadata(not_found_result, context)
 
         # Convert to AI-friendly format and add temporal metadata
-        result = {
+        result: dict[str, str | float | None] = {
             "id": str(project.project_id),
             "name": project.name,
             "code": project.code,

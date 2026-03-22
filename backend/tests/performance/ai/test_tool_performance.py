@@ -163,7 +163,6 @@ async def test_simple_tool_execution_percentiles(mock_fast_llm_with_tool_call, s
     }
 
     # Config with thread_id for checkpointer
-    config = {"configurable": {"thread_id": "perf-test-simple-tool-percentiles"}}
 
     # Act - Run multiple times
     iterations = 50
@@ -366,12 +365,12 @@ async def test_concurrent_tool_execution(simple_tool):
 
     # Measure graph compilation with 1 tool
     start_time = time.perf_counter()
-    graph_1 = create_graph(llm=llm, tools=[tools[0]])
+    create_graph(llm=llm, tools=[tools[0]])
     compile_time_1 = (time.perf_counter() - start_time) * 1000
 
     # Measure graph compilation with 10 tools
     start_time = time.perf_counter()
-    graph_10 = create_graph(llm=llm, tools=tools)
+    create_graph(llm=llm, tools=tools)
     compile_time_10 = (time.perf_counter() - start_time) * 1000
 
     # Calculate overhead per tool

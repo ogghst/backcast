@@ -1,10 +1,8 @@
 """Tests for WSChatRequest temporal parameters."""
 
-import pytest
 from datetime import datetime
-from uuid import uuid4
 
-from app.models.schemas.ai import WSChatRequest, FileAttachment
+from app.models.schemas.ai import WSChatRequest
 
 
 class TestWSChatRequestTemporalParams:

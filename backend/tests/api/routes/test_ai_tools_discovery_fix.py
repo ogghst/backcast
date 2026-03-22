@@ -9,8 +9,8 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
-from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.ai.tools.registry import get_registry
+from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.core.rbac import RBACServiceABC, set_rbac_service
 from app.main import app
 from app.models.domain.user import User
@@ -171,7 +171,7 @@ async def test_tools_endpoint_returns_all_templates(client: AsyncClient) -> None
     assert len(tools) >= 38, f"Expected at least 38 tools, got {len(tools)}"
 
     # Verify tool categories are present
-    categories = set(tool.get("category") for tool in tools)
+    categories = {tool.get("category") for tool in tools}
     assert len(categories) > 1, "Expected tools from multiple categories"
 
     # Verify specific tools from each module are present

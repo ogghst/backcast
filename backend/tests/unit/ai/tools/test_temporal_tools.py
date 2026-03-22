@@ -10,7 +10,6 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Import the module to access the raw function before decoration
-import app.ai.tools.temporal_tools
 from app.ai.tools.types import ToolContext
 
 # Get the raw function before it's decorated

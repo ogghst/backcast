@@ -527,7 +527,7 @@ async def test_websocket_handles_runtime_error_disconnect(db_session: AsyncSessi
     # Test that the error can be caught and handled
     try:
         await websocket.receive_json()
-        assert False, "Should have raised RuntimeError"
+        raise AssertionError("Should have raised RuntimeError")
     except RuntimeError as e:
         # Verify this is the WebSocket-not-connected error
         assert "not connected" in str(e).lower()

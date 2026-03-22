@@ -2,7 +2,9 @@
 """Clean up AI tools test data from the database."""
 
 import asyncio
+
 from sqlalchemy import text
+
 from app.db.session import async_session_maker
 
 

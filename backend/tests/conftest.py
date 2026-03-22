@@ -102,8 +102,7 @@ def apply_migrations() -> Generator[None, None, None]:
             [venv_python, wipe_script],
             env=env,
             check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             timeout=60,  # Add timeout to prevent hanging
         )
@@ -571,7 +570,7 @@ async def admin_user(db_session: AsyncSession) -> User:
     """
     from app.services.user import UserService
 
-    service = UserService(db_session)
+    UserService(db_session)
     user = User(
         id=uuid4(),
         user_id=uuid4(),
@@ -595,7 +594,6 @@ async def test_user(db_session: AsyncSession) -> User:
     Returns:
         User instance with viewer role.
     """
-    from app.services.user import UserService
 
     user = User(
         id=uuid4(),
