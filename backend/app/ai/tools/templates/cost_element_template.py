@@ -23,6 +23,13 @@ Usage:
     3. Use ToolContext for dependency injection
     4. Call service methods with context.session
     5. Return results in AI-friendly format
+
+TEMPORAL CONTEXT PATTERN:
+For temporal tools (those that work with versioned entities):
+- Import temporal logging helpers: log_temporal_context, add_temporal_metadata
+- Call log_temporal_context() at tool start for observability
+- Call add_temporal_metadata() on return to include temporal context in results
+- Update tool descriptions to mention temporal context enforcement
 """
 
 import logging
@@ -32,6 +39,7 @@ from uuid import UUID
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
+from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import ToolContext
 from app.models.schemas.cost_element import CostElementCreate, CostElementUpdate
 from app.models.schemas.schedule_baseline import ScheduleBaselineUpdate
@@ -45,7 +53,8 @@ logger = logging.getLogger(__name__)
 @ai_tool(
     name="list_cost_elements",
     description="List all cost elements with optional filtering by WBE, type, "
-    "or search. Returns cost elements with their budget amounts and related data.",
+    "or search. Returns cost elements with their budget amounts and related data. "
+    "Temporal context (branch, as_of date) is enforced by the system.",
     permissions=["cost-element-read"],
     category="cost-elements",
 )
@@ -79,6 +88,7 @@ async def list_cost_elements(
         - total: Total number of cost elements matching filters
         - skip: Number of records skipped
         - limit: Maximum records returned
+        - _temporal_context: Temporal context metadata (branch, as_of)
 
     Raises:
         ValueError: If invalid filter parameters are provided
@@ -89,6 +99,9 @@ async def list_cost_elements(
         >>> for ce in result['cost_elements']:
         ...     print(f"- {ce['name']}: ${ce['budget_amount']}")
     """
+    # Log temporal context for observability
+    log_temporal_context("list_cost_elements", context)
+
     try:
         from app.services.cost_element_service import CostElementService
 
@@ -111,8 +124,8 @@ async def list_cost_elements(
             sort_order=sort_order,
         )
 
-        # Convert to AI-friendly format
-        return {
+        # Convert to AI-friendly format and add temporal metadata
+        result = {
             "cost_elements": [
                 {
                     "id": str(ce.cost_element_id),
@@ -133,11 +146,14 @@ async def list_cost_elements(
             "skip": skip,
             "limit": limit,
         }
+        return add_temporal_metadata(result, context)
     except ValueError as e:
-        return {"error": f"Invalid input: {e}"}
+        error_result = {"error": f"Invalid input: {e}"}
+        return add_temporal_metadata(error_result, context)
     except Exception as e:
         logger.error(f"Error in list_cost_elements: {e}")
-        return {"error": str(e)}
+        error_result = {"error": str(e)}
+        return add_temporal_metadata(error_result, context)
 
 
 @ai_tool(

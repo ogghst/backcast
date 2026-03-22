@@ -17,6 +17,13 @@ Usage:
     3. Use ToolContext for dependency injection
     4. Call service methods with context.session
     5. Return results in AI-friendly format
+
+TEMPORAL CONTEXT PATTERN:
+For temporal tools (those that work with versioned entities):
+- Import temporal logging helpers: log_temporal_context, add_temporal_metadata
+- Call log_temporal_context() at tool start for observability
+- Call add_temporal_metadata() on return to include temporal context in results
+- Update tool descriptions to mention temporal context enforcement
 """
 
 import logging
@@ -26,6 +33,7 @@ from uuid import UUID
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
+from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import ToolContext
 from app.models.schemas.change_order import (
     ChangeOrderCreate,
@@ -41,7 +49,8 @@ logger = logging.getLogger(__name__)
 @ai_tool(
     name="list_change_orders",
     description="List all change orders with optional filtering by project, status, "
-    "or other criteria. Returns change orders with their approval status and impact.",
+    "or other criteria. Returns change orders with their approval status and impact. "
+    "Temporal context (branch, as_of date) is enforced by the system.",
     permissions=["change-order-read"],
     category="change-orders",
 )
@@ -69,6 +78,7 @@ async def list_change_orders(
         - total: Total number of change orders matching filters
         - skip: Number of records skipped
         - limit: Maximum records returned
+        - _temporal_context: Temporal context metadata (branch, as_of)
 
     Raises:
         ValueError: If project_id is not a valid UUID format
@@ -79,6 +89,9 @@ async def list_change_orders(
         >>> for co in result['change_orders']:
         ...     print(f"- {co['title']}: {co['status']}")
     """
+    # Log temporal context for observability
+    log_temporal_context("list_change_orders", context)
+
     try:
         from app.services.change_order_service import ChangeOrderService
 
@@ -95,8 +108,8 @@ async def list_change_orders(
             limit=limit,
         )
 
-        # Convert to AI-friendly format
-        return {
+        # Convert to AI-friendly format and add temporal metadata
+        result = {
             "change_orders": [
                 {
                     "id": str(co.change_order_id),
@@ -115,11 +128,14 @@ async def list_change_orders(
             "skip": skip,
             "limit": limit,
         }
+        return add_temporal_metadata(result, context)
     except ValueError as e:
-        return {"error": f"Invalid input: {e}"}
+        error_result = {"error": f"Invalid input: {e}"}
+        return add_temporal_metadata(error_result, context)
     except Exception as e:
         logger.error(f"Error in list_change_orders: {e}")
-        return {"error": str(e)}
+        error_result = {"error": str(e)}
+        return add_temporal_metadata(error_result, context)
 
 
 @ai_tool(

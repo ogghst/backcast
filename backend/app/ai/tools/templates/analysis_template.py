@@ -22,6 +22,13 @@ Usage:
     3. Use ToolContext for dependency injection
     4. Call service methods with context.session
     5. Return results in AI-friendly format
+
+TEMPORAL CONTEXT PATTERN:
+For temporal tools (those that work with versioned entities):
+- Import temporal logging helpers: log_temporal_context, add_temporal_metadata
+- Call log_temporal_context() at tool start for observability
+- Call add_temporal_metadata() on return to include temporal context in results
+- Update tool descriptions to mention temporal context enforcement
 """
 
 import logging
@@ -32,6 +39,7 @@ from uuid import UUID
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
+from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import ToolContext
 
 logger = logging.getLogger(__name__)
@@ -43,7 +51,8 @@ logger = logging.getLogger(__name__)
 @ai_tool(
     name="calculate_evm_metrics",
     description="Calculate Earned Value Management (EVM) metrics for a project. "
-    "Returns PV, EV, AC, CV, SV, CPI, SPI, and other key EVM indicators.",
+    "Returns PV, EV, AC, CV, SV, CPI, SPI, and other key EVM indicators. "
+    "Temporal context (branch, as_of date) is enforced by the system.",
     permissions=["evm-read"],
     category="analysis",
 )
@@ -73,6 +82,7 @@ async def calculate_evm_metrics(
         - vac: Variance at Completion (BAC - EAC)
         - etc: Estimate to Complete
         - eac: Estimate at Completion
+        - _temporal_context: Temporal context metadata (branch, as_of)
 
     Raises:
         ValueError: If project_id is invalid or date format is wrong
@@ -84,6 +94,9 @@ async def calculate_evm_metrics(
         >>> if result['cpi'] < 1.0:
         ...     print("Project over budget")
     """
+    # Log temporal context for observability
+    log_temporal_context("calculate_evm_metrics", context)
+
     try:
         from app.models.schemas.evm import EntityType
         from app.services.evm_service import EVMService
@@ -101,8 +114,8 @@ async def calculate_evm_metrics(
             control_date=as_of,
         )
 
-        # Convert to AI-friendly format
-        return {
+        # Convert to AI-friendly format and add temporal metadata
+        result = {
             "project_id": project_id,
             "as_of_date": as_of.isoformat(),
             "planned_value": float(evm_data.pv),
@@ -119,11 +132,14 @@ async def calculate_evm_metrics(
             "progress_percentage": float(evm_data.progress_percentage) if evm_data.progress_percentage is not None else 0.0,
             "warning": evm_data.warning,
         }
+        return add_temporal_metadata(result, context)
     except ValueError as e:
-        return {"error": f"Invalid input: {e}"}
+        error_result = {"error": f"Invalid input: {e}"}
+        return add_temporal_metadata(error_result, context)
     except Exception as e:
         logger.error(f"Error in calculate_evm_metrics: {e}")
-        return {"error": str(e)}
+        error_result = {"error": str(e)}
+        return add_temporal_metadata(error_result, context)
 
 
 @ai_tool(
