@@ -38,7 +38,7 @@ from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
-from app.ai.tools.types import ToolContext
+from app.ai.tools.types import RiskLevel, ToolContext
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +55,7 @@ logger = logging.getLogger(__name__)
     "Temporal context (branch, as_of date) is enforced by the system.",
     permissions=["forecast-read"],
     category="forecast",
+    risk_level=RiskLevel.LOW,
 )
 async def get_forecast(
     cost_element_id: str,
@@ -133,6 +134,7 @@ async def get_forecast(
     "Requires EAC amount and basis of estimate.",
     permissions=["forecast-create"],
     category="forecast",
+    risk_level=RiskLevel.HIGH,
 )
 async def create_forecast(
     cost_element_id: str,
@@ -218,6 +220,7 @@ async def create_forecast(
     "Supports branch isolation for change order workflows.",
     permissions=["forecast-update"],
     category="forecast",
+    risk_level=RiskLevel.HIGH,
 )
 async def update_forecast(
     forecast_id: str,
@@ -304,6 +307,7 @@ async def update_forecast(
     "Use this to assess if a cost element is forecast to exceed its budget.",
     permissions=["forecast-read", "cost-registration-read"],
     category="forecast",
+    risk_level=RiskLevel.LOW,
 )
 async def compare_forecast_to_budget(
     cost_element_id: str,
@@ -414,6 +418,7 @@ async def compare_forecast_to_budget(
     "Supports time-travel queries via as_of parameter.",
     permissions=["cost-registration-read"],
     category="cost-registration",
+    risk_level=RiskLevel.LOW,
 )
 async def get_budget_status(
     cost_element_id: str,
@@ -496,6 +501,7 @@ async def get_budget_status(
     "Optionally includes description, invoice number, and vendor reference.",
     permissions=["cost-registration-create"],
     category="cost-registration",
+    risk_level=RiskLevel.HIGH,
 )
 async def create_cost_registration(
     cost_element_id: str,
@@ -597,6 +603,7 @@ async def create_cost_registration(
     "Returns registrations in descending order by date.",
     permissions=["cost-registration-read"],
     category="cost-registration",
+    risk_level=RiskLevel.LOW,
 )
 async def list_cost_registrations(
     cost_element_id: str,
@@ -688,6 +695,7 @@ async def list_cost_registrations(
     "Returns aggregated costs grouped by period for trend analysis.",
     permissions=["cost-registration-read"],
     category="cost-registration",
+    risk_level=RiskLevel.LOW,
 )
 async def get_cost_trends(
     cost_element_id: str,
@@ -766,6 +774,7 @@ async def get_cost_trends(
     "Returns running total of costs with registration dates for S-curve analysis.",
     permissions=["cost-registration-read"],
     category="cost-registration",
+    risk_level=RiskLevel.LOW,
 )
 async def get_cumulative_costs(
     cost_element_id: str,
@@ -845,6 +854,7 @@ async def get_cumulative_costs(
     "Supports time-travel queries via as_of parameter.",
     permissions=["progress-entry-read"],
     category="progress-entry",
+    risk_level=RiskLevel.LOW,
 )
 async def get_latest_progress(
     cost_element_id: str,
@@ -923,6 +933,7 @@ async def get_latest_progress(
     "Optionally includes notes explaining the progress.",
     permissions=["progress-entry-create"],
     category="progress-entry",
+    risk_level=RiskLevel.HIGH,
 )
 async def create_progress_entry(
     cost_element_id: str,
@@ -1006,6 +1017,7 @@ async def create_progress_entry(
     "Returns all progress entries in descending order by date for trend analysis.",
     permissions=["progress-entry-read"],
     category="progress-entry",
+    risk_level=RiskLevel.LOW,
 )
 async def get_progress_history(
     cost_element_id: str,
@@ -1100,6 +1112,7 @@ async def get_progress_history(
     "for a complete cost element view.",
     permissions=["forecast-read", "cost-registration-read", "progress-entry-read"],
     category="summary",
+    risk_level=RiskLevel.LOW,
 )
 async def get_cost_element_summary(
     cost_element_id: str,

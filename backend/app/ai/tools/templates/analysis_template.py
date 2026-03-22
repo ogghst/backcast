@@ -40,7 +40,7 @@ from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
-from app.ai.tools.types import ToolContext
+from app.ai.tools.types import RiskLevel, ToolContext
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +55,7 @@ logger = logging.getLogger(__name__)
     "Temporal context (branch, as_of date) is enforced by the system.",
     permissions=["evm-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def calculate_evm_metrics(
     project_id: str,
@@ -148,6 +149,7 @@ async def calculate_evm_metrics(
     "and performance assessment (on track, at risk, off track).",
     permissions=["evm-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def get_evm_performance_summary(
     project_id: str,
@@ -226,6 +228,7 @@ async def get_evm_performance_summary(
     "by work breakdown structure and identifies root causes.",
     permissions=["evm-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def analyze_cost_variance(
     project_id: str,
@@ -295,6 +298,7 @@ async def analyze_cost_variance(
     "critical path issues, and schedule risks.",
     permissions=["evm-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def analyze_schedule_variance(
     project_id: str,
@@ -366,6 +370,7 @@ async def analyze_schedule_variance(
     "performance trends. Estimates final cost, completion date, and variance.",
     permissions=["forecast-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def generate_project_forecast(
     project_id: str,
@@ -438,6 +443,7 @@ async def generate_project_forecast(
     "Helps understand range of possible outcomes.",
     permissions=["forecast-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def compare_forecast_scenarios(
     project_id: str,
@@ -504,6 +510,7 @@ async def compare_forecast_scenarios(
     "Helps improve forecasting models and understand uncertainty.",
     permissions=["forecast-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def get_forecast_accuracy(
     project_id: str,
@@ -572,6 +579,7 @@ async def get_forecast_accuracy(
     "Returns overall health score and critical metrics.",
     permissions=["evm-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def get_project_kpis(
     project_id: str,

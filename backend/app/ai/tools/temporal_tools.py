@@ -10,7 +10,7 @@ from typing import Annotated, Any
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
-from app.ai.tools.types import ToolContext
+from app.ai.tools.types import RiskLevel, ToolContext
 
 
 @ai_tool(
@@ -24,6 +24,7 @@ from app.ai.tools.types import ToolContext
     "use the Time Machine component in the UI.",
     permissions=[],  # No special permissions required
     category="temporal",
+    risk_level=RiskLevel.LOW,
 )
 async def get_temporal_context(
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]

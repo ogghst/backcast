@@ -16,7 +16,7 @@ from app.ai.tools.temporal_logging import (
     log_project_context,
     log_temporal_context,
 )
-from app.ai.tools.types import ToolContext
+from app.ai.tools.types import RiskLevel, ToolContext
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,8 @@ logger = logging.getLogger(__name__)
     name="list_projects",
     description="List all projects in the system with optional search, status filter, and pagination. Respects temporal context (as_of date, branch, branch_mode) for versioned queries.",
     permissions=["project-read"],
-    category="projects"
+    category="projects",
+    risk_level=RiskLevel.LOW,
 )
 async def list_projects(
     search: str | None = None,
@@ -163,7 +164,8 @@ async def list_projects(
     name="get_project",
     description="Get detailed information about a specific project by its ID. Respects temporal context (as_of date, branch, branch_mode) for versioned queries.",
     permissions=["project-read"],
-    category="projects"
+    category="projects",
+    risk_level=RiskLevel.LOW,
 )
 async def get_project(
     project_id: str,

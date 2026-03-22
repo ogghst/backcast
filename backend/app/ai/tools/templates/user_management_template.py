@@ -31,7 +31,7 @@ from uuid import UUID
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
-from app.ai.tools.types import ToolContext
+from app.ai.tools.types import RiskLevel, ToolContext
 from app.models.schemas.department import DepartmentCreate, DepartmentUpdate
 from app.models.schemas.user import UserRegister, UserUpdate
 
@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
     "Returns users with their roles, departments, and activity status.",
     permissions=["user-read"],
     category="users",
+    risk_level=RiskLevel.LOW,
 )
 async def list_users(
     skip: int = 0,
@@ -118,6 +119,7 @@ async def list_users(
     "Returns full user details including role and preferences.",
     permissions=["user-read"],
     category="users",
+    risk_level=RiskLevel.LOW,
 )
 async def get_user(
     user_id: str,
@@ -179,6 +181,7 @@ async def get_user(
     "Password is automatically hashed. Returns the created user without password.",
     permissions=["user-create"],
     category="users",
+    risk_level=RiskLevel.HIGH,
 )
 async def create_user(
     email: str,
@@ -259,6 +262,7 @@ async def create_user(
     "Note: User preferences cannot be updated via this tool - use the user preferences endpoint instead.",
     permissions=["user-update"],
     category="users",
+    risk_level=RiskLevel.HIGH,
 )
 async def update_user(
     user_id: str,
@@ -357,6 +361,7 @@ async def update_user(
     "The user is marked as deleted but remains in the system for audit purposes.",
     permissions=["user-delete"],
     category="users",
+    risk_level=RiskLevel.CRITICAL,
 )
 async def delete_user(
     user_id: str,
@@ -415,6 +420,7 @@ async def delete_user(
     "Returns departments with their codes and manager information.",
     permissions=["department-read"],
     category="departments",
+    risk_level=RiskLevel.LOW,
 )
 async def list_departments(
     search: str | None = None,
@@ -494,6 +500,7 @@ async def list_departments(
     "Returns full department details including manager and status.",
     permissions=["department-read"],
     category="departments",
+    risk_level=RiskLevel.LOW,
 )
 async def get_department(
     department_id: str,
@@ -553,6 +560,7 @@ async def get_department(
     "Returns the created department with all details.",
     permissions=["department-create"],
     category="departments",
+    risk_level=RiskLevel.HIGH,
 )
 async def create_department(
     code: str,
@@ -635,6 +643,7 @@ async def create_department(
     "Only updates fields that are provided.",
     permissions=["department-update"],
     category="departments",
+    risk_level=RiskLevel.HIGH,
 )
 async def update_department(
     department_id: str,
@@ -716,6 +725,7 @@ async def update_department(
     "The department is marked as deleted but remains in the system for audit purposes.",
     permissions=["department-delete"],
     category="departments",
+    risk_level=RiskLevel.CRITICAL,
 )
 async def delete_department(
     department_id: str,

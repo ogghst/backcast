@@ -10,7 +10,7 @@ from typing import Annotated, Any
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
-from app.ai.tools.types import ToolContext
+from app.ai.tools.types import RiskLevel, ToolContext
 
 
 @ai_tool(
@@ -23,6 +23,7 @@ from app.ai.tools.types import ToolContext
     "the user must navigate to a different project chat URL.",
     permissions=[],  # No special permissions required
     category="context",
+    risk_level=RiskLevel.LOW,
 )
 async def get_project_context(
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]

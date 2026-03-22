@@ -19,7 +19,7 @@ from typing import Annotated, Any
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
-from app.ai.tools.types import ToolContext
+from app.ai.tools.types import RiskLevel, ToolContext
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
     "Returns Mermaid code that can be rendered in compatible viewers.",
     permissions=["ai-chat"],
     category="diagrams",
+    risk_level=RiskLevel.LOW,
 )
 async def generate_mermaid_diagram(
     diagram_type: str,

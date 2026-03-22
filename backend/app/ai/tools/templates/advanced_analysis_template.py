@@ -19,7 +19,7 @@ from uuid import UUID
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
-from app.ai.tools.types import ToolContext
+from app.ai.tools.types import RiskLevel, ToolContext
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
     "(0-100), status rating, and actionable recommendations.",
     permissions=["evm-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def assess_project_health(
     project_id: str,
@@ -371,6 +372,7 @@ def _calculate_risk_health(evm_data: Any, wbes: list[Any]) -> dict[str, Any]:
     "cost spikes, schedule delays, and budget overruns using statistical analysis.",
     permissions=["evm-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def detect_evm_anomalies(
     project_id: str,
@@ -645,6 +647,7 @@ def _calculate_schedule_trend(spis: list[float]) -> dict[str, str]:
     "scenario modeling, and confidence intervals.",
     permissions=["forecast-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def analyze_forecast_trends(
     project_id: str,
@@ -958,6 +961,7 @@ def _generate_forecast_recommendations(
     "project performance in cost, schedule, and resource allocation.",
     permissions=["evm-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def generate_optimization_suggestions(
     project_id: str,

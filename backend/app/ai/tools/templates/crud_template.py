@@ -38,7 +38,7 @@ from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
-from app.ai.tools.types import ToolContext
+from app.ai.tools.types import RiskLevel, ToolContext
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
 from app.models.schemas.wbe import WBECreate
 
@@ -55,6 +55,7 @@ logger = logging.getLogger(__name__)
     "Temporal context (branch, as_of date) is enforced by the system.",
     permissions=["project-read"],
     category="projects",
+    risk_level=RiskLevel.LOW,
 )
 async def list_projects(
     search: str | None = None,
@@ -142,6 +143,7 @@ async def list_projects(
     "Temporal context (branch, as_of date) is enforced by the system.",
     permissions=["project-read"],
     category="projects",
+    risk_level=RiskLevel.LOW,
 )
 async def get_project(
     project_id: str,
@@ -211,6 +213,7 @@ async def get_project(
     "Returns the created project with its assigned ID.",
     permissions=["project-create"],
     category="projects",
+    risk_level=RiskLevel.HIGH,
 )
 async def create_project(
     name: str,
@@ -289,6 +292,7 @@ async def create_project(
     "Only updates fields that are provided.",
     permissions=["project-update"],
     category="projects",
+    risk_level=RiskLevel.HIGH,
 )
 async def update_project(
     project_id: str,
@@ -383,6 +387,7 @@ async def update_project(
     "WBEs represent the hierarchical breakdown of project work.",
     permissions=["wbe-read"],
     category="wbe",
+    risk_level=RiskLevel.LOW,
 )
 async def list_wbes(
     project_id: str | None = None,
@@ -458,6 +463,7 @@ async def list_wbes(
     description="Get detailed information about a specific Work Breakdown Element (WBE).",
     permissions=["wbe-read"],
     category="wbe",
+    risk_level=RiskLevel.LOW,
 )
 async def get_wbe(
     wbe_id: str,
@@ -518,6 +524,7 @@ async def get_wbe(
     description="Create a new Work Breakdown Element (WBE) under a project.",
     permissions=["wbe-create"],
     category="wbe",
+    risk_level=RiskLevel.HIGH,
 )
 async def create_wbe(
     project_id: str,

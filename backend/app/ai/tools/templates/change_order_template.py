@@ -34,7 +34,7 @@ from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
-from app.ai.tools.types import ToolContext
+from app.ai.tools.types import RiskLevel, ToolContext
 from app.models.schemas.change_order import (
     ChangeOrderCreate,
     ChangeOrderUpdate,
@@ -53,6 +53,7 @@ logger = logging.getLogger(__name__)
     "Temporal context (branch, as_of date) is enforced by the system.",
     permissions=["change-order-read"],
     category="change-orders",
+    risk_level=RiskLevel.LOW,
 )
 async def list_change_orders(
     project_id: str | None = None,
@@ -144,6 +145,7 @@ async def list_change_orders(
     "impact analysis, approval history, and audit trail.",
     permissions=["change-order-read"],
     category="change-orders",
+    risk_level=RiskLevel.LOW,
 )
 async def get_change_order(
     change_order_id: str,
@@ -207,6 +209,7 @@ async def get_change_order(
     "The change order will be created in 'Draft' status and require approval workflow.",
     permissions=["change-order-create"],
     category="change-orders",
+    risk_level=RiskLevel.HIGH,
 )
 async def create_change_order(
     project_id: str,
@@ -291,6 +294,7 @@ async def create_change_order(
     "Analyzes the impact and creates a comprehensive change order document.",
     permissions=["change-order-create"],
     category="change-orders",
+    risk_level=RiskLevel.HIGH,
 )
 async def generate_change_order_draft(
     project_id: str,
@@ -386,6 +390,7 @@ async def generate_change_order_draft(
     "Initiates the approval workflow and notifies stakeholders.",
     permissions=["change-order-update"],
     category="change-orders",
+    risk_level=RiskLevel.HIGH,
 )
 async def submit_change_order_for_approval(
     change_order_id: str,
@@ -444,6 +449,7 @@ async def submit_change_order_for_approval(
     "Changes the status to 'Approved' and allows implementation to begin.",
     permissions=["change-order-approve"],
     category="change-orders",
+    risk_level=RiskLevel.HIGH,
 )
 async def approve_change_order(
     change_order_id: str,
@@ -510,6 +516,7 @@ async def approve_change_order(
     "Changes the status to 'Rejected' and documents the reason.",
     permissions=["change-order-approve"],
     category="change-orders",
+    risk_level=RiskLevel.HIGH,
 )
 async def reject_change_order(
     change_order_id: str,
@@ -581,6 +588,7 @@ async def reject_change_order(
     "schedule, and risk. Provides detailed impact assessment for decision making.",
     permissions=["change-order-read"],
     category="change-orders",
+    risk_level=RiskLevel.LOW,
 )
 async def analyze_change_order_impact(
     change_order_id: str,
