@@ -48,6 +48,15 @@ class MockRBACService(RBACServiceABC):
     def get_user_permissions(self, user_role: str) -> list[str]:
         return ["*"]  # Admin has all permissions
 
+    def get_project_role(self, user_id: str, project_id: str) -> str | None:
+        return "admin"  # Admin has admin role on all projects
+
+    def get_user_projects(self, user_id: str) -> list[str]:
+        return []  # No specific projects for admin
+
+    def has_project_access(self, user_id: str, project_id: str) -> bool:
+        return True  # Admin has access to all projects
+
 
 @pytest.fixture(autouse=True)
 def override_auth() -> Generator[None, None, None]:
@@ -119,7 +128,7 @@ def test_all_template_modules_are_discovered() -> None:
     assert "reject_change_order" in tool_names
     assert "analyze_change_order_impact" in tool_names
 
-    # From cost_element_template (9 tools)
+    # From cost_element_template (14 tools: 5 cost element + 3 schedule baseline + 5 cost element type + 1 legacy)
     assert "list_cost_elements" in tool_names
     assert "get_cost_element" in tool_names
     assert "create_cost_element" in tool_names
@@ -128,6 +137,11 @@ def test_all_template_modules_are_discovered() -> None:
     assert "get_schedule_baseline" in tool_names
     assert "update_schedule_baseline" in tool_names
     assert "delete_schedule_baseline" in tool_names
+    assert "list_cost_element_types" in tool_names
+    assert "get_cost_element_type" in tool_names
+    assert "create_cost_element_type" in tool_names
+    assert "update_cost_element_type" in tool_names
+    assert "delete_cost_element_type" in tool_names
 
     # From user_management_template (10 tools)
     assert "list_users" in tool_names
@@ -150,8 +164,8 @@ def test_all_template_modules_are_discovered() -> None:
     # From diagram_template (1 tool)
     assert "generate_mermaid_diagram" in tool_names
 
-    # Total expected: ~49 tools (some duplicates removed)
-    assert len(tool_names) >= 38, f"Expected at least 38 tools, got {len(tool_names)}"
+    # Total expected: ~54 tools (some duplicates removed)
+    assert len(tool_names) >= 43, f"Expected at least 43 tools, got {len(tool_names)}"
 
 
 @pytest.mark.asyncio

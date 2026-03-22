@@ -42,6 +42,10 @@ from app.ai.tools.decorator import ai_tool
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import ToolContext
 from app.models.schemas.cost_element import CostElementCreate, CostElementUpdate
+from app.models.schemas.cost_element_type import (
+    CostElementTypeCreate,
+    CostElementTypeUpdate,
+)
 from app.models.schemas.schedule_baseline import ScheduleBaselineUpdate
 
 logger = logging.getLogger(__name__)
@@ -669,6 +673,377 @@ async def delete_schedule_baseline(
         return {"error": f"Schedule baseline {schedule_baseline_id} not found"}
     except Exception as e:
         logger.error(f"Error in delete_schedule_baseline: {e}")
+        return {"error": str(e)}
+
+
+# =============================================================================
+# COST ELEMENT TYPE CRUD TOOLS
+# =============================================================================
+
+@ai_tool(
+    name="list_cost_element_types",
+    description="List all cost element types with optional department filter, "
+    "search and pagination. Returns types with their codes and departments.",
+    permissions=["cost-element-type-read"],
+    category="cost-element-types",
+)
+async def list_cost_element_types(
+    department_id: str | None = None,
+    search: str | None = None,
+    skip: int = 0,
+    limit: int = 100,
+    sort_field: str | None = None,
+    sort_order: str = "asc",
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """List cost element types with optional filtering.
+
+    Context: Provides database session and cost element type service for querying types.
+
+    Args:
+        department_id: Optional department ID to filter cost element types
+        search: Optional search term for code or name
+        skip: Number of records to skip for pagination
+        limit: Maximum number of records to return
+        sort_field: Field to sort by (e.g., "name", "code")
+        sort_order: Sort order ("asc" or "desc")
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with:
+        - cost_element_types: List of cost element type objects
+        - total: Total number of types matching filters
+        - skip: Number of records skipped
+        - limit: Maximum records returned
+
+    Raises:
+        ValueError: If invalid filter parameters
+
+    Example:
+        >>> result = await list_cost_element_types(
+        ...     department_id="...",
+        ...     search="Labor",
+        ...     limit=10
+        ... )
+        >>> print(f"Found {result['total']} cost element types")
+        >>> for cet in result['cost_element_types']:
+        ...     print(f"- {cet['name']} ({cet['code']})")
+    """
+    try:
+        from app.services.cost_element_type_service import CostElementTypeService
+
+        service = CostElementTypeService(context.session)
+
+        # Build filters dict
+        filters = {}
+        if department_id:
+            filters["department_id"] = UUID(department_id)
+
+        # Call service method
+        types, total = await service.get_cost_element_types(
+            filters=filters if filters else None,
+            search=search,
+            skip=skip,
+            limit=limit,
+            sort_field=sort_field,
+            sort_order=sort_order,
+        )
+
+        # Convert to AI-friendly format
+        return {
+            "cost_element_types": [
+                {
+                    "id": str(t.cost_element_type_id),
+                    "code": t.code,
+                    "name": t.name,
+                    "description": t.description,
+                    "department_id": str(t.department_id),
+                }
+                for t in types
+            ],
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+        }
+    except Exception as e:
+        logger.error(f"Error in list_cost_element_types: {e}")
+        return {"error": str(e)}
+
+
+@ai_tool(
+    name="get_cost_element_type",
+    description="Get detailed information about a specific cost element type by ID. "
+    "Returns full type details including department information.",
+    permissions=["cost-element-type-read"],
+    category="cost-element-types",
+)
+async def get_cost_element_type(
+    cost_element_type_id: str,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Get a single cost element type by ID.
+
+    Context: Provides database session and cost element type service for retrieving type data.
+
+    Args:
+        cost_element_type_id: UUID of the cost element type to retrieve
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with cost element type details or error if not found
+
+    Raises:
+        ValueError: If cost_element_type_id is not a valid UUID format
+        KeyError: If cost element type is not found
+
+    Example:
+        >>> result = await get_cost_element_type("123e4567-e89b-12d3-a456-426614174000")
+        >>> if "error" not in result:
+        ...     print(f"Cost Element Type: {result['name']}")
+        ...     print(f"Code: {result['code']}")
+    """
+    try:
+        from app.services.cost_element_type_service import CostElementTypeService
+
+        service = CostElementTypeService(context.session)
+
+        # Call service method
+        cost_element_type = await service.get_by_id(UUID(cost_element_type_id))
+
+        if not cost_element_type:
+            return {"error": f"Cost element type {cost_element_type_id} not found"}
+
+        # Convert to AI-friendly format
+        return {
+            "id": str(cost_element_type.cost_element_type_id),
+            "code": cost_element_type.code,
+            "name": cost_element_type.name,
+            "description": cost_element_type.description,
+            "department_id": str(cost_element_type.department_id),
+        }
+    except ValueError:
+        return {"error": f"Invalid cost element type ID: {cost_element_type_id}"}
+    except Exception as e:
+        logger.error(f"Error in get_cost_element_type: {e}")
+        return {"error": str(e)}
+
+
+@ai_tool(
+    name="create_cost_element_type",
+    description="Create a new cost element type under a department. "
+    "Cost element types are standardized cost categories owned by departments.",
+    permissions=["cost-element-type-create"],
+    category="cost-element-types",
+)
+async def create_cost_element_type(
+    code: str,
+    name: str,
+    department_id: str,
+    description: str | None = None,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Create a new cost element type.
+
+    Context: Provides database session and cost element type service for creating types.
+
+    Args:
+        code: Unique cost element type code
+        name: Cost element type name
+        department_id: UUID of the owning department
+        description: Optional description
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with created cost element type details
+
+    Raises:
+        ValueError: If invalid input or duplicate code
+        KeyError: If department not found
+
+    Example:
+        >>> result = await create_cost_element_type(
+        ...     code="LABOR",
+        ...     name="Labor",
+        ...     department_id="...",
+        ...     description="Labor costs"
+        ... )
+        >>> print(f"Created cost element type with ID: {result['id']}")
+    """
+    try:
+        from app.services.cost_element_type_service import CostElementTypeService
+
+        service = CostElementTypeService(context.session)
+
+        # Create Pydantic schema
+        cet_data = CostElementTypeCreate(
+            code=code,
+            name=name,
+            description=description,
+            department_id=UUID(department_id),
+        )
+
+        # Call service method
+        cost_element_type = await service.create(
+            type_in=cet_data,
+            actor_id=UUID(context.user_id),
+        )
+
+        # Convert to AI-friendly format
+        return {
+            "id": str(cost_element_type.cost_element_type_id),
+            "code": cost_element_type.code,
+            "name": cost_element_type.name,
+            "description": cost_element_type.description,
+            "department_id": str(cost_element_type.department_id),
+            "message": "Cost element type created successfully",
+        }
+    except ValueError as e:
+        return {"error": f"Invalid input: {e}"}
+    except KeyError as e:
+        return {"error": f"Department not found: {e}"}
+    except Exception as e:
+        logger.error(f"Error in create_cost_element_type: {e}")
+        return {"error": str(e)}
+
+
+@ai_tool(
+    name="update_cost_element_type",
+    description="Update an existing cost element type with new information. "
+    "Only updates fields that are provided.",
+    permissions=["cost-element-type-update"],
+    category="cost-element-types",
+)
+async def update_cost_element_type(
+    cost_element_type_id: str,
+    code: str | None = None,
+    name: str | None = None,
+    description: str | None = None,
+    department_id: str | None = None,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Update an existing cost element type.
+
+    Context: Provides database session and cost element type service for updating types.
+
+    Args:
+        cost_element_type_id: UUID of the cost element type to update
+        code: New code (optional)
+        name: New name (optional)
+        description: New description (optional)
+        department_id: New department UUID (optional)
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with updated cost element type details
+
+    Raises:
+        ValueError: If cost_element_type_id is invalid or no fields provided
+        KeyError: If cost element type not found
+
+    Example:
+        >>> result = await update_cost_element_type(
+        ...     cost_element_type_id="...",
+        ...     name="Updated Name",
+        ...     description="Updated description"
+        ... )
+        >>> print(f"Updated cost element type: {result['name']}")
+    """
+    try:
+        from app.services.cost_element_type_service import CostElementTypeService
+
+        service = CostElementTypeService(context.session)
+
+        # Build update data dict - only include non-None fields
+        # This prevents setting optional fields to None when not provided
+        update_kwargs: dict[str, str | UUID] = {}
+        if code is not None:
+            update_kwargs["code"] = code
+        if name is not None:
+            update_kwargs["name"] = name
+        if description is not None:
+            update_kwargs["description"] = description
+        if department_id is not None:
+            update_kwargs["department_id"] = UUID(department_id)
+
+        # Create update schema with only provided fields
+        update_data = CostElementTypeUpdate(**update_kwargs)
+
+        # Call service method
+        cost_element_type = await service.update(
+            cost_element_type_id=UUID(cost_element_type_id),
+            type_in=update_data,
+            actor_id=UUID(context.user_id),
+        )
+
+        # Convert to AI-friendly format
+        return {
+            "id": str(cost_element_type.cost_element_type_id),
+            "code": cost_element_type.code,
+            "name": cost_element_type.name,
+            "description": cost_element_type.description,
+            "department_id": str(cost_element_type.department_id),
+            "message": "Cost element type updated successfully",
+        }
+    except ValueError as e:
+        return {"error": f"Invalid input: {e}"}
+    except KeyError:
+        return {"error": f"Cost element type {cost_element_type_id} not found"}
+    except Exception as e:
+        logger.error(f"Error in update_cost_element_type: {e}")
+        return {"error": str(e)}
+
+
+@ai_tool(
+    name="delete_cost_element_type",
+    description="Soft delete a cost element type. "
+    "The type is marked as deleted but remains in the system for audit purposes.",
+    permissions=["cost-element-type-delete"],
+    category="cost-element-types",
+)
+async def delete_cost_element_type(
+    cost_element_type_id: str,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Soft delete a cost element type.
+
+    Context: Provides database session and cost element type service for deletion.
+
+    Args:
+        cost_element_type_id: UUID of the cost element type to delete
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with deletion confirmation
+
+    Raises:
+        ValueError: If cost_element_type_id is invalid
+        KeyError: If cost element type not found
+
+    Example:
+        >>> result = await delete_cost_element_type("...")
+        >>> print(f"Deleted cost element type: {result['id']}")
+    """
+    try:
+        from app.services.cost_element_type_service import CostElementTypeService
+
+        service = CostElementTypeService(context.session)
+
+        # Call service method
+        await service.soft_delete(
+            cost_element_type_id=UUID(cost_element_type_id),
+            actor_id=UUID(context.user_id),
+        )
+
+        return {
+            "id": cost_element_type_id,
+            "message": "Cost element type deleted successfully",
+        }
+    except ValueError:
+        return {"error": f"Invalid cost element type ID: {cost_element_type_id}"}
+    except KeyError:
+        return {"error": f"Cost element type {cost_element_type_id} not found"}
+    except Exception as e:
+        logger.error(f"Error in delete_cost_element_type: {e}")
         return {"error": str(e)}
 
 

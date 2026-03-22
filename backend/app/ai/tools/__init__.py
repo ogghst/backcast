@@ -100,7 +100,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     ]
     tools.extend(change_order_tools)
 
-    # Add tools from cost_element_template (Cost Element and Schedule Baseline CRUD)
+    # Add tools from cost_element_template (Cost Element, Schedule Baseline, Cost Element Type CRUD)
     cost_element_tools = [
         cost_element_template.list_cost_elements,
         cost_element_template.get_cost_element,
@@ -110,6 +110,11 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         cost_element_template.get_schedule_baseline,
         cost_element_template.update_schedule_baseline,
         cost_element_template.delete_schedule_baseline,
+        cost_element_template.list_cost_element_types,
+        cost_element_template.get_cost_element_type,
+        cost_element_template.create_cost_element_type,
+        cost_element_template.update_cost_element_type,
+        cost_element_template.delete_cost_element_type,
     ]
     tools.extend(cost_element_tools)
 
