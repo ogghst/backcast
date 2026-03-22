@@ -1,0 +1,5 @@
+[GET] http://192.168.1.15:8020/api/v1/users/me/preferences => [200] OK
+[GET] http://192.168.1.15:8020/api/v1/dashboard/recent-activity => [200] OK
+[GET] http://192.168.1.15:8020/api/v1/users/me/preferences => [200] OK
+[GET] http://192.168.1.15:8020/api/v1/auth/me => [200] OK
+[GET] http://192.168.1.15:8020/api/v1/users/me/preferences => [200] OK
