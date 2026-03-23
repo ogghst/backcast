@@ -12,7 +12,7 @@
  * - Smart typography scaling for readability
  */
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { Layout, Alert, Drawer, Button, Typography, theme, Space, Tooltip, Grid, Dropdown, Select } from "antd";
@@ -33,6 +33,9 @@ import { AssistantSelector } from "./AssistantSelector";
 import { SessionList } from "./SessionList";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
+import { AgentStatusBadge } from "./AgentStatusBadge";
+import { AgentActivityPanel } from "./AgentActivityPanel";
+import type { AgentActivity } from "./AgentActivityPanel";
 import type { ChatMessage } from "../../types";
 import { WSConnectionState, type WSApprovalRequestMessage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
@@ -107,6 +110,9 @@ export const ChatInterface = ({
     Array<{ name: string; args: Record<string, unknown> }>
   >([]);
 
+  // Agent activity state (Deep Agent planning, subagent delegation, etc.)
+  const [latestActivity, setLatestActivity] = useState<AgentActivity | null>(null);
+
   // Approval state
   const [approvalRequest, setApprovalRequest] = useState<WSApprovalRequestMessage | null>(null);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
@@ -155,6 +161,7 @@ export const ChatInterface = ({
       setIsWaitingForResponse(false);
       setStreamingContent("");
       setActiveToolCalls([]);
+      setLatestActivity(null); // Clear agent activity on complete
     },
     [queryClient]
   );
@@ -164,9 +171,67 @@ export const ChatInterface = ({
     setError(`Chat error: ${errorMsg}`);
   }, []);
 
+  // Track tool execution with step counts
+  const toolStepCounter = useRef<Map<string, number>>(new Map());
+  const totalToolSteps = useRef<Map<string, number>>(new Map());
+
+  const handleApprovalRequest = useCallback((request: WSApprovalRequestMessage) => {
+    // Show approval dialog
+    setApprovalRequest(request);
+    setShowApprovalDialog(true);
+  }, []);
+
+  // Deep Agent activity handlers
+  const handlePlanning = useCallback((
+    plan?: string,
+    steps?: Array<{ text: string; done: boolean }>
+  ) => {
+    setLatestActivity({
+      type: "planning",
+      message: plan,
+      steps,
+      timestamp: Date.now(),
+    });
+  }, []);
+
+  const handleSubagent = useCallback((subagent: string, message?: string) => {
+    setLatestActivity({
+      type: "delegating",
+      subagent,
+      message,
+      timestamp: Date.now(),
+    });
+  }, []);
+
+  const handleThinking = useCallback(() => {
+    // Only set thinking if we don't have recent activity
+    if (latestActivity && Date.now() - latestActivity.timestamp < 2000) {
+      return;
+    }
+    setLatestActivity({
+      type: "thinking",
+      timestamp: Date.now(),
+    });
+  }, [latestActivity]);
+
   const handleToolCall = useCallback((tool: string, args: Record<string, unknown>) => {
+    // Track tool execution steps
+    toolStepCounter.current.set(tool, (toolStepCounter.current.get(tool) || 0) + 1);
+    const currentStep = toolStepCounter.current.get(tool)!;
+    const totalSteps = totalToolSteps.current.get(tool) || currentStep;
+    totalToolSteps.current.set(tool, Math.max(totalSteps, currentStep));
+
     // Add tool to active calls
     setActiveToolCalls((prev) => [...prev, { name: tool, args }]);
+
+    // Update latest activity with step information
+    setLatestActivity({
+      type: "executing",
+      toolName: tool,
+      currentStep,
+      totalSteps,
+      timestamp: Date.now(),
+    });
   }, []);
 
   const handleToolResult = useCallback((tool: string) => {
@@ -174,13 +239,16 @@ export const ChatInterface = ({
     setActiveToolCalls((prev) =>
       prev.filter((t) => t.name !== tool)
     );
-  }, []);
 
-  const handleApprovalRequest = useCallback((request: WSApprovalRequestMessage) => {
-    // Show approval dialog
-    setApprovalRequest(request);
-    setShowApprovalDialog(true);
-  }, []);
+    // Clear the step counter for this tool when it completes
+    toolStepCounter.current.delete(tool);
+    totalToolSteps.current.delete(tool);
+
+    // Clear latest activity if it was for this tool
+    if (latestActivity?.type === "executing" && latestActivity.toolName === tool) {
+      setLatestActivity(null);
+    }
+  }, [latestActivity]);
 
   // Streaming chat hook
   const streamingChat = useStreamingChat({
@@ -193,6 +261,9 @@ export const ChatInterface = ({
     onToolCall: handleToolCall,
     onToolResult: handleToolResult,
     onApprovalRequest: handleApprovalRequest,
+    onPlanning: handlePlanning,
+    onSubagent: handleSubagent,
+    onThinking: handleThinking,
   });
 
   // Execution mode hook for managing AI tool risk level
@@ -243,6 +314,7 @@ export const ChatInterface = ({
       // Clear any previous streaming state
       setStreamingContent("");
       setActiveToolCalls([]);
+      setLatestActivity(null);
       setIsWaitingForResponse(true);
 
       // Only send if the WebSocket is connected
@@ -265,6 +337,7 @@ export const ChatInterface = ({
     streamingChat.cancel();
     setStreamingContent("");
     setActiveToolCalls([]);
+    setLatestActivity(null);
     setIsWaitingForResponse(false);
   }, [streamingChat]);
 
@@ -519,6 +592,11 @@ export const ChatInterface = ({
               )}
             </div>
 
+            {/* Agent Status Badge - shows current Deep Agent activity */}
+            {latestActivity && (
+              <AgentStatusBadge activity={latestActivity} compact={isSmallMobile} />
+            )}
+
             {/* Execution Mode Selector - shown on both desktop and mobile */}
             <Tooltip title={`AI tool execution mode: ${executionMode}`}>
               <div
@@ -708,6 +786,9 @@ export const ChatInterface = ({
                 activeToolCalls={activeToolCalls}
               />
             </div>
+
+            {/* Agent Activity Panel - between messages and input */}
+            <AgentActivityPanel activity={latestActivity} />
 
             {/* Input - fixed at bottom for mobile feel */}
             <MessageInput

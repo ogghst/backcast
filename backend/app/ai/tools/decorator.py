@@ -115,7 +115,7 @@ def ai_tool(
         # Wrap function to inject context and handle permissions
         @wraps(func)
         async def wrapped_with_context(*args: P.args, **kwargs: P.kwargs) -> Any:
-            # Extract context from kwargs
+            # Extract context from kwargs or context variable
             context_obj_arg = kwargs.get("context")
             context_obj: ToolContext | None = None
 
@@ -127,10 +127,20 @@ def ai_tool(
                 if hasattr(context_obj_arg, "session") and hasattr(context_obj_arg, "user_id"):
                     context_obj = context_obj_arg  # type: ignore[assignment]
 
+            # If context not in kwargs, try to get from context variable
+            # This is set by BackcastSecurityMiddleware to avoid putting
+            # non-serializable objects (AsyncSession) in the state
+            if context_obj is None:
+                from app.ai.middleware.backcast_security import get_context
+                context_obj = get_context()
+
             # Validate context
             if context_obj is None:
                 logger.error(f"Tool {tool_name} called without context")
                 return {"error": "Tool context not provided"}
+
+            # Add context to kwargs for the original function
+            kwargs["context"] = context_obj
 
             # Check permissions via RBAC service
             from app.core.rbac import get_rbac_service

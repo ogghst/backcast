@@ -4,6 +4,7 @@ Uses LangGraph StateGraph for conversation flow with tool calling loop.
 """
 
 import logging
+import os
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -17,10 +18,17 @@ from langchain_core.messages import (
     ToolMessage,
 )
 from langchain_openai import ChatOpenAI
+from langgraph.types import Command
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.websockets import WebSocketState
 
+from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
 from app.ai.graph import create_graph
+from app.ai.telemetry import (
+    initialize_telemetry,
+    trace_context,
+    trace_subagent_delegation,
+)
 from app.ai.tools import ToolContext, create_project_tools
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.types import ExecutionMode
@@ -34,11 +42,20 @@ from app.models.schemas.ai import (
     AIConversationMessagePublic,
     WSCompleteMessage,
     WSErrorMessage,
+    WSPlanningMessage,
+    WSSubagentMessage,
+    WSThinkingMessage,
     WSTokenMessage,
     WSToolCallMessage,
     WSToolResultMessage,
 )
 from app.services.ai_config_service import AIConfigService
+
+# Initialize telemetry on module load (will only instrument once)
+_tracer_provider = initialize_telemetry(
+    service_name="backcast-ai",
+    enable_console=os.getenv("OTEL_CONSOLE_EXPORT", "false").lower() == "true",
+)
 
 
 async def _extract_client_config(
@@ -147,8 +164,8 @@ class AgentService:
             self._config_service = AIConfigService(self.session)
         return self._config_service
 
-    async def _get_llm_client_config(self, model_id: UUID) -> tuple[dict[str, Any], str]:
-        """Get LLM client configuration and model name for a model.
+    async def _get_llm_client_config(self, model_id: UUID) -> tuple[dict[str, Any], str, str]:
+        """Get LLM client configuration, model name, and provider type for a model.
 
         Context: Internal helper to resolve the configuration for LangChain's ChatOpenAI.
         Returns configuration dict instead of a client to allow LangChain to create
@@ -158,7 +175,7 @@ class AgentService:
             model_id: UUID of the AI model to instantiate
 
         Returns:
-            A tuple containing the client configuration dict and the target model name
+            A tuple containing the client configuration dict, the target model name, and provider type
 
         Raises:
             ValueError: If the model or its associated provider cannot be found
@@ -175,7 +192,7 @@ class AgentService:
 
         # Extract configuration for LangChain
         client_config = await _extract_client_config(provider, config_service)
-        return client_config, str(model.model_id)
+        return client_config, str(model.model_id), provider.provider_type
 
     async def _create_langchain_llm(
         self,
@@ -206,6 +223,117 @@ class AgentService:
             max_tokens=max_tokens or 2000,
         )
 
+    def _construct_model_string(
+        self,
+        provider_type: str | None,
+        model_name: str | None,
+    ) -> str:
+        """Construct a model string for Deep Agents SDK.
+
+        Args:
+            provider_type: Provider type (e.g., 'openai', 'azure', 'ollama', 'z.ai')
+            model_name: Model identifier (e.g., 'gpt-4o', 'glm-4.7')
+
+        Returns:
+            Model string in format '<provider>:<model>'
+
+        Example:
+            >>> self._construct_model_string("openai", "gpt-4o")
+            'openai:gpt-4o'
+        """
+        # Map provider types to Deep Agents SDK format
+        provider_mapping = {
+            "openai": "openai",
+            "azure": "azure",
+            "ollama": "ollama",
+            "z.ai": "openai",  # Z.AI uses OpenAI-compatible API
+        }
+
+        provider = provider_mapping.get(provider_type or "", "openai")
+
+        # Clean model name to remove any provider prefix
+        clean_model = model_name or ""
+        if ":" in clean_model:
+            clean_model = clean_model.split(":")[-1]
+
+        return f"{provider}:{clean_model}"
+
+    async def _create_deep_agent_graph(
+        self,
+        llm: ChatOpenAI,
+        tool_context: ToolContext,
+        assistant_config: AIAssistantConfig,
+        websocket: WebSocket | None = None,
+        session_id: UUID | None = None,
+        enable_subagents: bool = True,
+        provider_type: str | None = None,
+        model_name: str | None = None,
+    ) -> tuple[Any, InterruptNode | None]:
+        """Create Deep Agent graph with Backcast context.
+
+        Uses DeepAgentOrchestrator to wrap create_deep_agent() from the
+        LangChain Deep Agents SDK. Preserves security model and temporal context.
+
+        Args:
+            llm: The language model to use (for fallback to LangGraph)
+            tool_context: ToolContext with user permissions and temporal parameters
+            assistant_config: AI assistant configuration
+            websocket: Optional WebSocket connection for InterruptNode
+            session_id: Optional session ID for InterruptNode
+            enable_subagents: Whether to enable subagent delegation
+            provider_type: Optional provider type for model string construction
+            model_name: Optional model name for model string construction
+
+        Returns:
+            Tuple of (compiled_graph, interrupt_node) where interrupt_node may be None
+
+        Note:
+            This is an alternative to create_graph() that uses the Deep Agents SDK
+            for planning and subagent delegation. Falls back to create_graph() if
+            Deep Agents SDK is not available or encounters errors.
+        """
+        try:
+            # Use pre-configured LLM (ChatOpenAI) instead of model string
+            # This ensures the Deep Agent SDK uses our custom configuration (Z.AI base URL, API key)
+            logger.info(f"Creating Deep Agent with pre-configured LLM, subagents={enable_subagents}")
+
+            orchestrator = DeepAgentOrchestrator(
+                model=llm,  # Pass the ChatOpenAI instance directly
+                context=tool_context,
+                system_prompt=assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT,
+                enable_subagents=enable_subagents,
+            )
+
+            # Filter tools by assistant config
+            allowed_tools = assistant_config.allowed_tools
+            logger.info(f"DEBUG: assistant_config.allowed_tools = {allowed_tools}")
+            if allowed_tools is not None:
+                logger.info(f"DEBUG: allowed_tools count = {len(allowed_tools)}, first few: {allowed_tools[:3]}")
+
+            # Create agent with orchestrator
+            graph = orchestrator.create_agent(
+                allowed_tools=allowed_tools,
+            )
+            logger.info("Deep Agent graph created successfully")
+
+            # Create InterruptNode for WebSocket approval flow
+            # Deep Agents SDK uses interrupt_on for interrupts, but we keep
+            # InterruptNode for WebSocket-based approval flow
+            interrupt_node = None
+            if websocket and session_id:
+                interrupt_node = InterruptNode([], tool_context, websocket, session_id)
+
+            return graph, interrupt_node
+
+        except ImportError:
+            # Deep Agents SDK not available, fall back to LangGraph
+            logger.warning("Deep Agents SDK not available, falling back to LangGraph")
+            return create_graph(llm, create_project_tools(tool_context), tool_context, websocket, session_id)
+        except Exception as e:
+            # Error creating Deep Agent, fall back to LangGraph
+            logger.error(f"Error creating Deep Agent: {e}, falling back to LangGraph")
+            return create_graph(llm, create_project_tools(tool_context), tool_context, websocket, session_id)
+
     async def chat(
         self,
         message: str,
@@ -217,6 +345,37 @@ class AgentService:
 
         Context: Main entry point for the AI conversation. Manages the session, invokes the graph, and saves history.
                 Uses the new StateGraph with ainvoke for non-streaming responses.
+
+        Args:
+            message: The user's input message
+            assistant_config: Configuration defining the model and allowed tools
+            session_id: Optional existing session ID to continue. If None, a new session is created
+            user_id: ID of the user sending the message
+
+        Returns:
+            Structured response containing the assistant's message, any tool calls, and the session ID
+
+        Raises:
+            ValueError: If session creation fails or no assistant response is generated
+        """
+        with trace_context(
+            "agent.chat",
+            attributes={
+                "session_id": str(session_id) if session_id else "new",
+                "user_id": str(user_id),
+                "assistant_id": str(assistant_config.id),
+            }
+        ):
+            return await self._chat_impl(message, assistant_config, session_id, user_id)
+
+    async def _chat_impl(
+        self,
+        message: str,
+        assistant_config: AIAssistantConfig,
+        session_id: UUID | None,
+        user_id: UUID,
+    ) -> AIChatResponse:
+        """Internal implementation of chat processing.
 
         Args:
             message: The user's input message
@@ -261,7 +420,7 @@ class AgentService:
         history.insert(0, SystemMessage(content=system_prompt))
 
         # Get LLM client configuration
-        client_config, model_name = await self._get_llm_client_config(
+        client_config, model_name, provider_type = await self._get_llm_client_config(
             UUID(str(assistant_config.model_id))
         )
 
@@ -287,7 +446,7 @@ class AgentService:
         tools_dict = {tool.name: tool for tool in available_tools}
 
         # Filter tools based on assistant config
-        if assistant_config.allowed_tools:
+        if assistant_config.allowed_tools is not None:
             tools_dict = {
                 name: tool
                 for name, tool in tools_dict.items()
@@ -441,7 +600,7 @@ class AgentService:
         history.insert(0, SystemMessage(content=system_prompt))
 
         # Get LLM client configuration
-        client_config, model_name = await self._get_llm_client_config(
+        client_config, model_name, provider_type = await self._get_llm_client_config(
             UUID(str(assistant_config.model_id))
         )
 
@@ -477,22 +636,26 @@ class AgentService:
         tools_dict = {tool.name: tool for tool in available_tools}
 
         # Filter tools based on assistant config
-        if assistant_config.allowed_tools:
+        if assistant_config.allowed_tools is not None:
             tools_dict = {
                 name: tool
                 for name, tool in tools_dict.items()
                 if name in assistant_config.allowed_tools
             }
 
-        # Create graph with context for RBAC and InterruptNode for approval workflow
-        # Pass websocket and session_id to enable InterruptNode approval requests
-        graph, interrupt_node = create_graph(
+        # Create graph with Deep Agent SDK for planning and subagent delegation
+        # Falls back to regular LangGraph if Deep Agent SDK fails
+        graph, interrupt_node = await self._create_deep_agent_graph(
             llm=llm,
-            tools=list(tools_dict.values()),
-            context=tool_context,
+            tool_context=tool_context,
+            assistant_config=assistant_config,
             websocket=websocket,
             session_id=session_id,
+            enable_subagents=True,
+            provider_type=provider_type,
+            model_name=model_name,
         )
+        logger.info(f"Created graph: {type(graph).__name__}")
 
         # Register InterruptNode for approval handling if created
         if interrupt_node is not None:
@@ -503,8 +666,22 @@ class AgentService:
         all_tool_calls: list[dict[str, Any]] = []
         all_tool_results: list[dict[str, Any]] = []
 
+        # Track step count for progress indicators
+        current_step = 0
+        estimated_total_steps = None
+
         try:
             logger.info(f"Starting astream_events for session {session_id}")
+
+            # Send thinking event to indicate agent is processing
+            if self._is_websocket_connected(websocket):
+                try:
+                    await websocket.send_json(
+                        WSThinkingMessage().model_dump(mode="json")
+                    )
+                    logger.info("Sent WebSocket thinking event")
+                except Exception:
+                    logger.debug("Failed to send thinking event, WebSocket may be closed")
 
             async for event in graph.astream_events(
                 {
@@ -553,6 +730,69 @@ class AgentService:
                 elif event_type == "on_tool_start":
                     tool_name = event.get("name", "")
                     tool_input = data.get("input", {})
+
+                    # Increment step counter for all tool executions
+                    current_step += 1
+
+                    # Detect Deep Agent planning (write_todos tool)
+                    if tool_name == "write_todos" and self._is_websocket_connected(websocket):
+                        try:
+                            # Extract plan from tool input
+                            plan = tool_input.get("plan") if isinstance(tool_input, dict) else None
+                            # Extract steps if available
+                            steps = None
+                            if isinstance(tool_input, dict):
+                                raw_steps = tool_input.get("steps")
+                                if isinstance(raw_steps, list):
+                                    steps = [
+                                        {"text": str(s), "done": False} for s in raw_steps
+                                    ]
+                                    # Update estimated total based on planning steps
+                                    estimated_total_steps = len(steps)
+
+                            await websocket.send_json(
+                                WSPlanningMessage(
+                                    type="planning",
+                                    plan=plan,
+                                    steps=steps,
+                                    step_number=current_step,
+                                    total_steps=estimated_total_steps,
+                                ).model_dump(mode="json")
+                            )
+                            logger.info(f"Sent WebSocket planning event: plan={plan}, steps={len(steps) if steps else 0}")
+                        except Exception:
+                            logger.debug("Failed to send planning event")
+                        pass
+
+                    # Detect Deep Agent subagent delegation (task tool)
+                    elif tool_name == "task" and self._is_websocket_connected(websocket):
+                        try:
+                            # Extract subagent_type and description from tool input
+                            subagent_type = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
+                            description = tool_input.get("description") if isinstance(tool_input, dict) else None
+
+                            if subagent_type:
+                                # Add telemetry span for subagent delegation
+                                with trace_subagent_delegation(subagent_type, description):
+                                    # The actual tool execution happens outside this context
+                                    # This span marks when the delegation occurs
+                                    pass
+
+                                await websocket.send_json(
+                                    WSSubagentMessage(
+                                        type="subagent",
+                                        subagent=subagent_type,
+                                        message=description,
+                                        step_number=current_step,
+                                        total_steps=estimated_total_steps,
+                                    ).model_dump(mode="json")
+                                )
+                                logger.info(f"Subagent delegation: {subagent_type}")
+                        except Exception:
+                            logger.debug("Failed to send subagent event")
+                        pass
+
+                    # Send standard tool_call message with step information
                     if self._is_websocket_connected(websocket):
                         try:
                             await websocket.send_json(
@@ -560,6 +800,8 @@ class AgentService:
                                     type="tool_call",
                                     tool=tool_name,
                                     args=tool_input,
+                                    step_number=current_step,
+                                    total_steps=estimated_total_steps,
                                 ).model_dump(mode="json")
                             )
                         except Exception:
@@ -582,6 +824,9 @@ class AgentService:
                     elif isinstance(tool_output, dict) and "content" in tool_output:
                         # Sometimes output is a dict with content field
                         result_content = tool_output["content"]
+                    elif isinstance(tool_output, Command):
+                        # Command objects from langgraph subagent delegation - convert to dict
+                        result_content = {"command": tool_output.update}
 
                     # Record tool result
                     tool_result: dict[str, Any] = {

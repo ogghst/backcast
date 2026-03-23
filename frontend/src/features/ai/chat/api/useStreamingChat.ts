@@ -27,6 +27,9 @@ import {
   isErrorMessage,
   isPermissionDeniedMessage,
   isApprovalRequestMessage,
+  isPlanningMessage,
+  isSubagentMessage,
+  isThinkingMessage,
   type WSPermissionDeniedMessage,
 } from "../types";
 
@@ -49,9 +52,15 @@ export interface UseStreamingChatConfig {
   /** Optional callback invoked when a tool is called */
   onToolCall?: (tool: string, args: Record<string, unknown>) => void;
   /** Optional callback invoked when a tool result is received */
-  onToolResult?: (tool: string, result: unknown) => void;
+  onToolResult?: (tool: string, result?: unknown) => void;
   /** Optional callback invoked when an approval request is received */
   onApprovalRequest?: (request: WSApprovalRequestMessage) => void;
+  /** Optional callback invoked when agent is planning */
+  onPlanning?: (plan?: string, steps?: Array<{ text: string; done: boolean }>) => void;
+  /** Optional callback invoked when agent delegates to subagent */
+  onSubagent?: (subagent: string, message?: string) => void;
+  /** Optional callback invoked when agent is thinking */
+  onThinking?: () => void;
 }
 
 /**
@@ -154,6 +163,9 @@ export const useStreamingChat = (
     onToolCall,
     onToolResult,
     onApprovalRequest,
+    onPlanning,
+    onSubagent,
+    onThinking,
   } = config;
 
   // Get JWT token from auth store
@@ -184,6 +196,44 @@ export const useStreamingChat = (
   // Timeout reference for reconnection delays
   const reconnectTimeoutRef = useRef<number | null>(null);
 
+  // Store callbacks in refs to avoid useEffect re-running when they change
+  const callbacksRef = useRef({
+    onToken,
+    onComplete,
+    onError,
+    onToolCall,
+    onToolResult,
+    onApprovalRequest,
+    onPlanning,
+    onSubagent,
+    onThinking,
+  });
+
+  // Keep callbacks ref updated
+  useEffect(() => {
+    callbacksRef.current = {
+      onToken,
+      onComplete,
+      onError,
+      onToolCall,
+      onToolResult,
+      onApprovalRequest,
+      onPlanning,
+      onSubagent,
+      onThinking,
+    };
+  });
+
+  // Track if this is the first mount to handle React Strict Mode
+  // In Strict Mode, effects run twice: mount -> unmount -> mount
+  // We use this ref to prevent creating duplicate connections during remount
+  const isFirstMountRef = useRef(true);
+
+  // Reset first mount ref when token or assistantId changes
+  useEffect(() => {
+    isFirstMountRef.current = true;
+  }, [token, assistantId]);
+
   // Connection state
   const [connectionState, setConnectionState] =
     useState<WSConnectionState>(WSConnectionState.CLOSED);
@@ -193,78 +243,96 @@ export const useStreamingChat = (
 
   /**
    * Handles incoming WebSocket messages
+   * Uses ref to access latest callbacks without triggering reconnection
    */
-  const handleMessage = useCallback(
-    (event: MessageEvent) => {
-      try {
-        const message = JSON.parse(event.data);
+  const handleMessage = useCallback((event: MessageEvent) => {
+    const callbacks = callbacksRef.current;
 
-        // Handle approval request messages (custom type, not in WSServerMessage union)
-        if (isApprovalRequestMessage(message)) {
-          onApprovalRequest?.(message);
-          return;
-        }
+    try {
+      const message = JSON.parse(event.data);
 
-        const serverMessage: WSServerMessage = message;
+      // Handle approval request messages (custom type, not in WSServerMessage union)
+      if (isApprovalRequestMessage(message)) {
+        callbacks.onApprovalRequest?.(message);
+        return;
+      }
 
-        // Handle token messages
-        if (isTokenMessage(serverMessage)) {
-          onToken(serverMessage.content, serverMessage.session_id);
-          return;
-        }
+      const serverMessage: WSServerMessage = message;
 
-        // Handle tool call messages
-        if (isToolCallMessage(serverMessage)) {
-          onToolCall?.(serverMessage.tool, serverMessage.args);
-          return;
-        }
+      // Handle token messages
+      if (isTokenMessage(serverMessage)) {
+        callbacks.onToken(serverMessage.content, serverMessage.session_id);
+        return;
+      }
 
-        // Handle tool result messages
-        if (isToolResultMessage(serverMessage)) {
-          onToolResult?.(serverMessage.tool, serverMessage.result);
-          return;
-        }
+      // Handle tool call messages
+      if (isToolCallMessage(serverMessage)) {
+        callbacks.onToolCall?.(serverMessage.tool, serverMessage.args);
+        return;
+      }
 
-        // Handle completion messages
-        if (isCompleteMessage(serverMessage)) {
-          onComplete(serverMessage.session_id, serverMessage.message_id);
-          // Keep connection alive — do NOT close here.
-          // The connection will be closed when the component unmounts
-          // or the user explicitly cancels (via the cancel() function).
-          return;
-        }
+      // Handle tool result messages
+      if (isToolResultMessage(serverMessage)) {
+        callbacks.onToolResult?.(serverMessage.tool, serverMessage.result);
+        return;
+      }
 
-        // Handle error messages
-        if (isErrorMessage(serverMessage)) {
-          // Handle permission denied errors (403) with user-friendly message
-          if (isPermissionDeniedMessage(serverMessage)) {
-            const permissionMsg = formatPermissionDeniedError(serverMessage);
-            onError(permissionMsg);
-            setError(new Error(permissionMsg));
-            setConnectionState(WSConnectionState.ERROR);
-            return;
-          }
+      // Handle planning messages (Deep Agent creating a plan)
+      if (isPlanningMessage(serverMessage)) {
+        callbacks.onPlanning?.(serverMessage.plan, serverMessage.steps);
+        return;
+      }
 
-          // Handle generic errors
-          const errorMsg = serverMessage.code
-            ? `Error ${serverMessage.code}: ${serverMessage.message}`
-            : serverMessage.message;
-          onError(errorMsg);
-          setError(new Error(errorMsg));
+      // Handle subagent messages (Deep Agent delegating to subagent)
+      if (isSubagentMessage(serverMessage)) {
+        callbacks.onSubagent?.(serverMessage.subagent, serverMessage.message);
+        return;
+      }
+
+      // Handle thinking messages (agent is processing)
+      if (isThinkingMessage(serverMessage)) {
+        callbacks.onThinking?.();
+        return;
+      }
+
+      // Handle completion messages
+      if (isCompleteMessage(serverMessage)) {
+        callbacks.onComplete(serverMessage.session_id, serverMessage.message_id);
+        // Keep connection alive — do NOT close here.
+        // The connection will be closed when the component unmounts
+        // or the user explicitly cancels (via the cancel() function).
+        return;
+      }
+
+      // Handle error messages
+      if (isErrorMessage(serverMessage)) {
+        // Handle permission denied errors (403) with user-friendly message
+        if (isPermissionDeniedMessage(serverMessage)) {
+          const permissionMsg = formatPermissionDeniedError(serverMessage);
+          callbacks.onError(permissionMsg);
+          setError(new Error(permissionMsg));
           setConnectionState(WSConnectionState.ERROR);
           return;
         }
 
-        // Unknown message type - log for debugging
-        console.warn("Unknown WebSocket message type:", serverMessage);
-      } catch (err) {
-        console.error("Error parsing WebSocket message:", err);
-        onError("Failed to parse server message");
-        setError(new Error("Failed to parse server message"));
+        // Handle generic errors
+        const errorMsg = serverMessage.code
+          ? `Error ${serverMessage.code}: ${serverMessage.message}`
+          : serverMessage.message;
+        callbacks.onError(errorMsg);
+        setError(new Error(errorMsg));
+        setConnectionState(WSConnectionState.ERROR);
+        return;
       }
-    },
-    [onToken, onComplete, onError, onToolCall, onToolResult, onApprovalRequest]
-  );
+
+      // Unknown message type - log for debugging
+      console.warn("Unknown WebSocket message type:", serverMessage);
+    } catch (err) {
+      console.error("Error parsing WebSocket message:", err);
+      callbacks.onError("Failed to parse server message");
+      setError(new Error("Failed to parse server message"));
+    }
+  }, []); // No dependencies - uses ref for callbacks
 
   /**
    * Send a message to start streaming
@@ -361,8 +429,11 @@ export const useStreamingChat = (
 
   /**
    * Cancel the current request and close the connection
+   * NOTE: This is intentionally NOT memoized with useCallback to avoid
+   * being in the useEffect dependency array, which would cause reconnection.
+   * The cleanup function directly closes the connection without using cancel().
    */
-  const cancel = useCallback(() => {
+  const cancel = () => {
     cancelledRef.current = true;
 
     // Clear any pending reconnection timeout
@@ -377,7 +448,7 @@ export const useStreamingChat = (
       wsRef.current.close();
       wsRef.current = null;
     }
-  }, []);
+  };
 
   // Establish connection and set up lifecycle
   useEffect(() => {
@@ -386,13 +457,24 @@ export const useStreamingChat = (
       return;
     }
 
-    // Reset cancelled state on mount to support React Strict Mode remounting
+    // Handle React Strict Mode: In development, effects run twice (mount-unmount-mount)
+    // We only create a connection on the first mount to avoid duplicates
+    if (!isFirstMountRef.current) {
+      return;
+    }
+
+    // Mark as mounted to prevent duplicate connections in Strict Mode
+    isFirstMountRef.current = false;
+
+    // Reset cancelled state on mount
     cancelledRef.current = false;
 
     /**
      * Schedules a reconnection attempt with exponential backoff
      */
     const scheduleReconnect = () => {
+      const callbacks = callbacksRef.current;
+
       if (
         !cancelledRef.current &&
         reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS
@@ -412,7 +494,7 @@ export const useStreamingChat = (
         }, delay);
       } else if (!cancelledRef.current) {
         const errorMsg = `Connection closed after ${MAX_RECONNECT_ATTEMPTS} reconnection attempts`;
-        onError(errorMsg);
+        callbacks.onError(errorMsg);
         setError(new Error(errorMsg));
       }
     };
@@ -457,19 +539,21 @@ export const useStreamingChat = (
 
         // Handle errors
         ws.addEventListener("error", () => {
+          const callbacks = callbacksRef.current;
           if (cancelledRef.current) return;
-          
+
           setConnectionState(WSConnectionState.ERROR);
           const errorMsg = "WebSocket connection error";
-          onError(errorMsg);
+          callbacks.onError(errorMsg);
           setError(new Error(errorMsg));
         });
       } catch (err) {
+        const callbacks = callbacksRef.current;
         const errorMsg =
           err instanceof Error
             ? err.message
             : "Failed to create WebSocket connection";
-        onError(errorMsg);
+        callbacks.onError(errorMsg);
         setError(new Error(errorMsg));
         setConnectionState(WSConnectionState.ERROR);
       }
@@ -478,11 +562,28 @@ export const useStreamingChat = (
     // Initial connection
     connect();
 
-    // Cleanup on unmount
+    // Cleanup on unmount - directly close connection without using cancel()
     return () => {
-      cancel();
+      // Reset first mount ref to allow reconnection if component remounts
+      // with different token/assistantId
+      isFirstMountRef.current = true;
+
+      cancelledRef.current = true;
+
+      // Clear any pending reconnection timeout
+      if (reconnectTimeoutRef.current !== null) {
+        window.clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+
+      // Close WebSocket if open
+      if (wsRef.current) {
+        setConnectionState(WSConnectionState.CLOSING);
+        wsRef.current.close();
+        wsRef.current = null;
+      }
     };
-  }, [token, assistantId, handleMessage, onError, cancel]);
+  }, [token, assistantId, handleMessage]); // Only reconnect when token or assistantId changes
 
   return {
     sendMessage,

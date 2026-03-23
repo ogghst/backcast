@@ -120,6 +120,34 @@ export interface WSPermissionDeniedMessage extends WSErrorMessage {
 }
 
 /**
+ * Server -> Client: Agent planning event
+ * Sent when the Deep Agent is creating a plan (using write_todos)
+ */
+export interface WSPlanningMessage {
+  type: "planning";
+  plan?: string; // The plan description
+  steps?: Array<{ text: string; done: boolean }>; // Planning steps
+}
+
+/**
+ * Server -> Client: Subagent delegation event
+ * Sent when the Deep Agent delegates to a subagent
+ */
+export interface WSSubagentMessage {
+  type: "subagent";
+  subagent: string; // Subagent name (e.g., "evm_analyst")
+  message?: string; // Optional description of what the subagent is doing
+}
+
+/**
+ * Server -> Client: Agent thinking event
+ * Sent when the agent is processing before first response
+ */
+export interface WSThinkingMessage {
+  type: "thinking";
+}
+
+/**
  * Discriminated union of all server message types
  * Use the `type` field to discriminate between message variants
  */
@@ -128,7 +156,10 @@ export type WSServerMessage =
   | WSToolCallMessage
   | WSToolResultMessage
   | WSCompleteMessage
-  | WSErrorMessage;
+  | WSErrorMessage
+  | WSPlanningMessage
+  | WSSubagentMessage
+  | WSThinkingMessage;
 
 /**
  * Type guard to check if a server message is a token message
@@ -224,4 +255,25 @@ export function isApprovalResponseMessage(
     message !== null &&
     (message as Record<string, unknown>).type === "approval_response"
   );
+}
+
+/**
+ * Type guard to check if a server message is a planning message
+ */
+export function isPlanningMessage(message: WSServerMessage): message is WSPlanningMessage {
+  return message.type === "planning";
+}
+
+/**
+ * Type guard to check if a server message is a subagent delegation message
+ */
+export function isSubagentMessage(message: WSServerMessage): message is WSSubagentMessage {
+  return message.type === "subagent";
+}
+
+/**
+ * Type guard to check if a server message is a thinking message
+ */
+export function isThinkingMessage(message: WSServerMessage): message is WSThinkingMessage {
+  return message.type === "thinking";
 }

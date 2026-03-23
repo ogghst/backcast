@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  jaeger:
+    image: jaegertracing/jaeger:2.11.0  # Using v2 specifically
+    container_name: backcast-jaeger
+    command:
+      - "--set"
+      - "receivers.otlp.protocols.grpc.endpoint=0.0.0.0:4317"
+      - "--set"
+      - "receivers.otlp.protocols.http.endpoint=0.0.0.0:4318"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - LOG_LEVEL=info
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4317:4317"    # OTLP gRPC receiver
+      - "4318:4318"    # OTLP HTTP receiver
+      - "14250:14250"  # Model proto (for older clients)
+    networks:
+      - backcast-network
+
+networks:
+  backcast-network:
+    driver: bridge

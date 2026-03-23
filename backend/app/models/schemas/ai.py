@@ -380,6 +380,8 @@ class WSToolCallMessage(BaseModel):
     type: str = Field(default="tool_call", description="Message type discriminator")
     tool: str = Field(..., description="Tool function name being called")
     args: dict[str, Any] = Field(default_factory=dict, description="Tool arguments")
+    step_number: int | None = Field(None, description="Current step number (1-indexed)")
+    total_steps: int | None = Field(None, description="Estimated total steps")
 
 
 class WSToolResultMessage(BaseModel):
@@ -460,6 +462,54 @@ class WSApprovalResponseMessage(BaseModel):
     )
 
 
+class WSThinkingMessage(BaseModel):
+    """WebSocket thinking message from server.
+
+    Server -> Client message indicating the agent is processing/thinking.
+    Useful for showing initial loading state before any tool calls.
+    """
+
+    type: Literal["thinking"] = Field(
+        default="thinking", description="Message type discriminator"
+    )
+
+
+class WSPlanningMessage(BaseModel):
+    """WebSocket planning message from server.
+
+    Server -> Client message indicating the Deep Agent is creating a plan.
+    Sent when the agent uses the write_todos tool for task planning.
+    """
+
+    type: Literal["planning"] = Field(
+        default="planning", description="Message type discriminator"
+    )
+    plan: str | None = Field(None, description="Plan description")
+    steps: list[dict[str, Any]] | None = Field(
+        None,
+        description="Planning steps with text and done status",
+    )
+    step_number: int | None = Field(None, description="Current step number (1-indexed)")
+    total_steps: int | None = Field(None, description="Total steps in plan")
+
+
+class WSSubagentMessage(BaseModel):
+    """WebSocket subagent delegation message from server.
+
+    Server -> Client message indicating the Deep Agent is delegating to a subagent.
+    """
+
+    type: Literal["subagent"] = Field(
+        default="subagent", description="Message type discriminator"
+    )
+    subagent: str = Field(..., description="Subagent name (e.g., 'evm_analyst')")
+    message: str | None = Field(
+        None, description="Optional description of what the subagent is doing"
+    )
+    step_number: int | None = Field(None, description="Current step number (1-indexed)")
+    total_steps: int | None = Field(None, description="Estimated total steps")
+
+
 # Union type for all server->client WebSocket messages
 WSMessage = (
     WSTokenMessage
@@ -468,6 +518,9 @@ WSMessage = (
     | WSCompleteMessage
     | WSErrorMessage
     | WSApprovalRequestMessage
+    | WSThinkingMessage
+    | WSPlanningMessage
+    | WSSubagentMessage
 )
 
 
