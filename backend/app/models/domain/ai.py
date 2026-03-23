@@ -135,6 +135,8 @@ class AIAssistantConfig(SimpleEntityBase):
     system_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     temperature: Mapped[float | None] = mapped_column(Float(3), nullable=True)
     max_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # LangGraph recursion limit (maximum steps in agent execution loop)
+    recursion_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
     allowed_tools: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 

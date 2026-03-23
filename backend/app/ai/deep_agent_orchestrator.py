@@ -18,7 +18,7 @@ from langchain_core.tools import BaseTool
 from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
 from app.ai.middleware.temporal_context import TemporalContextMiddleware
 from app.ai.subagents import get_all_subagents
-from app.ai.tools import create_project_tools
+from app.ai.tools import create_project_tools, filter_tools_by_execution_mode
 from app.ai.tools.types import ToolContext
 
 logger = logging.getLogger(__name__)
@@ -103,6 +103,9 @@ class DeepAgentOrchestrator:
         if allowed_tools is not None:
             all_tools = [t for t in all_tools if t.name in allowed_tools]
 
+        # Filter by execution mode - this prevents LLM from seeing tools it can't use
+        all_tools = filter_tools_by_execution_mode(all_tools, self.context.execution_mode)
+
         # When subagents are enabled, the main agent should NOT have direct access
         # to Backcast tools - it should only delegate via the "task" tool.
         # Subagents will have access to the actual tools.
@@ -126,7 +129,7 @@ class DeepAgentOrchestrator:
 
         # Create middleware stack with tools reference
         # Order matters: temporal first (logging), then security (checking)
-        # Security middleware needs all_tools for permission checking even when main agent doesn't use them
+        # Security middleware needs filtered_tools for permission checking
         middleware = [
             TemporalContextMiddleware(self.context),
             BackcastSecurityMiddleware(self.context, tools=all_tools),

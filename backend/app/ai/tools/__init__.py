@@ -8,9 +8,65 @@ import logging
 
 from langchain_core.tools import BaseTool
 
-from app.ai.tools.types import ToolContext
+from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 
 logger = logging.getLogger(__name__)
+
+
+def filter_tools_by_execution_mode(
+    tools: list[BaseTool],
+    execution_mode: ExecutionMode,
+) -> list[BaseTool]:
+    """Filter tools based on execution mode and risk level.
+
+    Args:
+        tools: List of tools to filter
+        execution_mode: Current execution mode
+
+    Returns:
+        Filtered list of tools that are allowed in the current mode
+
+    Rules:
+        - SAFE mode: Only LOW risk tools
+        - STANDARD mode: LOW and HIGH risk tools (CRITICAL tools require approval)
+        - EXPERT mode: All tools
+    """
+    filtered_tools: list[BaseTool] = []
+
+    for tool in tools:
+        # Get tool metadata
+        metadata = getattr(tool, "_tool_metadata", None)
+        if metadata is None:
+            # No metadata means no risk level - assume high (safe default)
+            risk_level = RiskLevel.HIGH
+        else:
+            risk_level = metadata.risk_level
+
+        # Filter based on execution mode
+        if execution_mode == ExecutionMode.SAFE:
+            if risk_level == RiskLevel.LOW:
+                filtered_tools.append(tool)
+            else:
+                logger.debug(
+                    f"Filtering out tool '{tool.name}' (risk={risk_level.value}) in SAFE mode"
+                )
+        elif execution_mode == ExecutionMode.STANDARD:
+            # Standard mode allows LOW and HIGH, but CRITICAL tools require approval
+            # For now, we include all except CRITICAL since approval is handled separately
+            if risk_level != RiskLevel.CRITICAL:
+                filtered_tools.append(tool)
+            else:
+                logger.debug(
+                    f"Filtering out tool '{tool.name}' (risk={risk_level.value}) in STANDARD mode (requires approval)"
+                )
+        else:
+            # Expert mode allows all tools
+            filtered_tools.append(tool)
+
+    logger.info(
+        f"Filtered {len(tools)} tools down to {len(filtered_tools)} for execution_mode={execution_mode.value}"
+    )
+    return filtered_tools
 
 
 def create_project_tools(context: ToolContext) -> list[BaseTool]:
@@ -178,6 +234,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
 # Re-export for backwards compatibility
 __all__ = [
     "create_project_tools",
+    "filter_tools_by_execution_mode",
     "ToolContext",
     "list_projects",
     "get_project",

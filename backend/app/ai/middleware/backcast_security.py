@@ -229,8 +229,12 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         # Check based on execution mode
         mode = self.context.execution_mode
 
+        # DEBUG: Log execution mode and risk level
+        logger.info(f"RISK_CHECK: tool='{tool_name}', mode={mode.value}, risk_level={risk_level.value}")
+
         if mode == ExecutionMode.SAFE:
             if risk_level != RiskLevel.LOW:
+                logger.warning(f"BLOCKING tool '{tool_name}' in SAFE mode (risk_level={risk_level.value})")
                 return (
                     False,
                     f"Tool '{tool_name}' requires {risk_level.value} risk level. "

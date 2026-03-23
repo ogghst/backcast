@@ -33,6 +33,7 @@ export const AIAssistantModal = ({
           system_prompt: initialValues.system_prompt,
           temperature: initialValues.temperature,
           max_tokens: initialValues.max_tokens,
+          recursion_limit: initialValues.recursion_limit,
           allowed_tools: initialValues.allowed_tools,
           is_active: initialValues.is_active,
         });
@@ -118,9 +119,19 @@ export const AIAssistantModal = ({
           name="max_tokens"
           label="Max Tokens"
           initialValue={2048}
-          rules={[{ type: "number", min: 1, max: 32000, message: "Max tokens must be between 1 and 32000" }]}
+          rules={[{ type: "number", min: 1, max: 200000, message: "Max tokens must be between 1 and 200000" }]}
         >
-          <Slider min={1} max={32000} step={100} marks={{ 1: "1", 16000: "16K", 32000: "32K" }} />
+          <Slider min={1} max={200000} step={100} marks={{ 1: "1", 100000: "100K", 200000: "200K" }} />
+        </Form.Item>
+
+        <Form.Item
+          name="recursion_limit"
+          label="Recursion Limit"
+          initialValue={25}
+          tooltip="Maximum number of agent iterations (LangGraph default is 25)"
+          rules={[{ type: "number", min: 1, max: 500, message: "Recursion limit must be between 1 and 500" }]}
+        >
+          <Slider min={1} max={500} step={5} marks={{1: "1", 25: "25 (default)", 50: "50", 100: "100", 200: "200", 500: "500"}} />
         </Form.Item>
 
         <Form.Item name="allowed_tools" label="Allowed Tools">

@@ -456,6 +456,9 @@ class AgentService:
         # Create graph with context for RBAC
         graph, _interrupt_node = create_graph(llm=llm, tools=list(tools_dict.values()), context=tool_context)
 
+        # Extract recursion_limit from assistant config with fallback to default
+        recursion_limit = assistant_config.recursion_limit if assistant_config.recursion_limit is not None else 25
+
         # Invoke the graph
         result = await graph.ainvoke(
             input_state={
@@ -463,7 +466,10 @@ class AgentService:
                 "tool_call_count": 0,
                 "next": "agent",
             },
-            config={"configurable": {"thread_id": str(session_id)}},
+            config={
+                "recursion_limit": recursion_limit,
+                "configurable": {"thread_id": str(session_id)}
+            },
         )
 
         # Extract final AI response
@@ -632,6 +638,8 @@ class AgentService:
             branch_mode=branch_mode,
             execution_mode=execution_mode,
         )
+        # DEBUG: Log execution mode for diagnostics
+        logger.info(f"DEBUG: Creating ToolContext with execution_mode={execution_mode.value} for user_id={user_id}")
         available_tools = create_project_tools(tool_context)
         tools_dict = {tool.name: tool for tool in available_tools}
 
@@ -661,6 +669,9 @@ class AgentService:
         if interrupt_node is not None:
             self.register_interrupt_node(session_id, interrupt_node)
 
+        # Extract recursion_limit from assistant config with fallback to default
+        recursion_limit = assistant_config.recursion_limit if assistant_config.recursion_limit is not None else 25
+
         # Stream using astream_events
         accumulated_content = ""
         all_tool_calls: list[dict[str, Any]] = []
@@ -689,7 +700,10 @@ class AgentService:
                     "tool_call_count": 0,
                     "next": "agent",
                 },
-                config={"configurable": {"thread_id": str(session_id)}},
+                config={
+                    "recursion_limit": recursion_limit,
+                    "configurable": {"thread_id": str(session_id)}
+                },
                 version="v1",
             ):
                 event_type = event.get("event", "")
@@ -905,8 +919,28 @@ class AgentService:
 
                     logger.info(f"Graph execution completed for session {session_id}")
 
+            # CRITICAL: Check for tool errors and rollback session if needed
+            # Tool execution failures can leave the database session in a rolled back state
+            # We need to rollback explicitly to restore the session to a usable state
+            tool_errors_occurred = any(not tr["success"] for tr in all_tool_results)
+            if tool_errors_occurred:
+                logger.warning(
+                    f"Tool errors occurred during execution for session {session_id}. "
+                    f"Rolling back database session to restore usable state."
+                )
+                try:
+                    await db.rollback()
+                    logger.info(f"Database session rolled back successfully for session {session_id}")
+                except Exception as rollback_error:
+                    logger.error(f"Error during session rollback: {rollback_error}", exc_info=True)
+
         except Exception as e:
             logger.error(f"Error in chat_stream astream_events: {e}", exc_info=True)
+            # Rollback session on any exception to ensure clean state
+            try:
+                await db.rollback()
+            except Exception:
+                pass  # Best effort rollback
             # Send error message via WebSocket
             if self._is_websocket_connected(websocket):
                 try:
@@ -924,15 +958,39 @@ class AgentService:
                 logger.debug("WebSocket not connected, skipping error send")
 
         # Save assistant message to session
-        assistant_msg = await self.config_service.add_message(
-            session_id=session_id,
-            role="assistant",
-            content=accumulated_content or "",
-            tool_calls=all_tool_calls if all_tool_calls else None,
-            tool_results=all_tool_results if all_tool_results else None,
-        )
-        await db.commit()
-        await db.refresh(assistant_msg)
+        # Wrap in try/except to handle any session state issues
+        try:
+            assistant_msg = await self.config_service.add_message(
+                session_id=session_id,
+                role="assistant",
+                content=accumulated_content or "",
+                tool_calls=all_tool_calls if all_tool_calls else None,
+                tool_results=all_tool_results if all_tool_results else None,
+            )
+            await db.commit()
+            await db.refresh(assistant_msg)
+        except Exception as msg_error:
+            logger.error(f"Error saving assistant message to session {session_id}: {msg_error}", exc_info=True)
+            # Rollback to ensure session is clean
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+            # Try to save message again with clean session (without tool results if they caused issues)
+            try:
+                assistant_msg = await self.config_service.add_message(
+                    session_id=session_id,
+                    role="assistant",
+                    content=accumulated_content or "",
+                    tool_calls=None,  # Don't include tool calls on retry
+                    tool_results=None,  # Don't include tool results on retry
+                )
+                await db.commit()
+                await db.refresh(assistant_msg)
+                logger.info(f"Successfully saved message to session {session_id} after cleanup")
+            except Exception as retry_error:
+                logger.error(f"Failed to save message even after cleanup: {retry_error}", exc_info=True)
+                # Continue anyway - we've done our best to save the state
 
         # Send complete message
         if self._is_websocket_connected(websocket):

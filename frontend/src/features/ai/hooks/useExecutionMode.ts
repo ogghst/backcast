@@ -72,6 +72,7 @@ export const useExecutionMode = () => {
 
   // Wrapper function to set mode and trigger localStorage update
   const setExecutionMode = (mode: ExecutionMode) => {
+    console.log("[useExecutionMode] Setting execution mode to:", mode);
     setExecutionModeState(mode);
   };
 

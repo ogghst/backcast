@@ -2,18 +2,19 @@
  * AgentActivityPanel Component
  *
  * Visualizes Deep Agent's latest planning, subagent delegation, and tool execution.
- * Displays only the most recent activity with distinctive industrial-technical aesthetic.
+ * Simplified, clean design with activity history tracking.
  *
  * Features:
  * - Planning phase visualization (write_todos)
  * - Active subagent indicator
- * - Tool execution progress
- * - Animated state transitions
+ * - Tool execution status
+ * - Activity history with collapsible panel
+ * - Smooth animations and transitions
  */
 
-import { memo, useEffect, useState } from "react";
+import { memo, useState, useEffect } from "react";
 import { ClockCircleOutlined, RobotOutlined, ThunderboltOutlined, CheckCircleOutlined } from "@ant-design/icons";
-import { theme } from "antd";
+import { theme, Grid } from "antd";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 
 /**
@@ -30,14 +31,22 @@ export interface AgentActivity {
   subagent?: string;
   toolName?: string;
   steps?: Array<{ text: string; done: boolean }>;
-  currentStep?: number;
-  totalSteps?: number;
   timestamp: number;
 }
 
 interface AgentActivityPanelProps {
   /** Current agent activity (latest only) */
   activity: AgentActivity | null;
+  /** Activity history items (max 10) */
+  activityHistory?: ActivityHistoryItem[];
+}
+
+/**
+ * Activity history item for tracking past activities
+ */
+export interface ActivityHistoryItem {
+  activity: AgentActivity;
+  displayTime: string; // Relative time like "2s ago"
 }
 
 /**
@@ -52,10 +61,9 @@ const SUBAGENT_STYLES: Record<string, { name: string; icon: string; colorKey: ke
 };
 
 /**
- * Latest activity display component with animations
+ * Latest activity display component with smooth transitions
  */
 const LatestActivityDisplay = memo(({ activity }: { activity: AgentActivity }) => {
-  const { token } = theme.useToken();
   const { spacing, typography, colors, borderRadius } = useThemeTokens();
   const [isVisible, setIsVisible] = useState(false);
 
@@ -72,72 +80,65 @@ const LatestActivityDisplay = memo(({ activity }: { activity: AgentActivity }) =
           icon: <ClockCircleOutlined />,
           label: "Creating plan",
           color: colors.warning,
-          bgGradient: `linear-gradient(135deg, ${colors.warning}15 0%, ${colors.warning}08 100%)`,
+          bgColor: `${colors.warning}08`,
         };
       case "delegating": {
         const subagentStyle = SUBAGENT_STYLES[activity.subagent || ""];
         const color = subagentStyle ? colors[subagentStyle.colorKey] : colors.primary;
         return {
-          icon: <span style={{ fontSize: typography.sizes.md }}>{subagentStyle?.icon || "🤖"}</span>,
+          icon: <span style={{ fontSize: typography.sizes.sm }}>{subagentStyle?.icon || "🤖"}</span>,
           label: `Delegating to ${subagentStyle?.name || activity.subagent || "specialist"}`,
           color,
-          bgGradient: `linear-gradient(135deg, ${color}15 0%, ${color}08 100%)`,
+          bgColor: `${color}08`,
         };
       }
-      case "executing": {
-        const stepText = activity.currentStep && activity.totalSteps
-          ? `Step ${activity.currentStep} of ${activity.totalSteps}`
-          : null;
-        const label = activity.toolName
-          ? (stepText ? `${activity.toolName} • ${stepText}` : `Running ${activity.toolName}`)
-          : (stepText || "Executing tool");
-
+      case "executing":
         return {
           icon: <ThunderboltOutlined />,
-          label,
+          label: activity.toolName || "Executing tool",
           color: colors.info,
-          bgGradient: `linear-gradient(135deg, ${colors.info}15 0%, ${colors.info}08 100%)`,
+          bgColor: `${colors.info}08`,
         };
-      }
       default: // thinking
         return {
           icon: <RobotOutlined />,
           label: "Thinking",
           color: colors.textSecondary,
-          bgGradient: `linear-gradient(135deg, ${colors.textSecondary}15 0%, ${colors.textSecondary}08 100%)`,
+          bgColor: `${colors.textSecondary}08`,
         };
-      }
+    }
   };
 
   const config = getActivityConfig();
 
   return (
     <div
+      key={activity.timestamp}
       style={{
         display: "flex",
         alignItems: "flex-start",
-        gap: spacing.md,
-        padding: `${spacing.md}px ${spacing.lg}px`,
-        background: config.bgGradient,
-        borderLeft: `3px solid ${config.color}`,
-        borderRadius: borderRadius.lg,
+        gap: spacing.sm,
+        padding: spacing.sm,
+        background: config.bgColor,
+        borderLeft: `2px solid ${config.color}`,
+        borderRadius: borderRadius.md,
         opacity: isVisible ? 1 : 0,
         transform: isVisible ? "translateX(0)" : "translateX(-10px)",
-        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+        transition: "opacity 0.2s ease, transform 0.2s ease",
       }}
     >
-      {/* Icon with pulsing animation for active states */}
+      {/* Icon with subtle animation for active states */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          width: 28,
-          height: 28,
+          width: 20,
+          height: 20,
           borderRadius: "50%",
           background: config.color,
           color: "#fff",
-          fontSize: typography.sizes.md,
+          fontSize: typography.sizes.xs,
           flexShrink: 0,
           ...(activity.type !== "executing" && {
             animation: "gentle-pulse 2s ease-in-out infinite",
@@ -153,18 +154,18 @@ const LatestActivityDisplay = memo(({ activity }: { activity: AgentActivity }) =
           style={{
             display: "flex",
             alignItems: "center",
-            gap: spacing.sm,
-            marginBottom: activity.type === "planning" && activity.steps ? spacing.sm : 0,
+            gap: spacing.xs,
+            marginBottom: activity.type === "planning" && activity.steps ? spacing.xs : 0,
           }}
         >
           <span
             style={{
-              fontSize: typography.sizes.sm,
-              fontWeight: typography.weights.semiBold,
+              fontSize: typography.sizes.xs,
+              fontWeight: typography.weights.medium,
               color: config.color,
-              fontFamily: '"JetBrains Mono", "SF Mono", monospace',
+              fontFamily: "system-ui, -apple-system, sans-serif",
               textTransform: "uppercase",
-              letterSpacing: "0.5px",
+              letterSpacing: "0.3px",
             }}
           >
             {config.label}
@@ -172,11 +173,11 @@ const LatestActivityDisplay = memo(({ activity }: { activity: AgentActivity }) =
 
           {/* Loading dots for active states */}
           {activity.type === "thinking" || activity.type === "executing" ? (
-            <span style={{ display: "flex", gap: 3, marginLeft: spacing.xs }}>
+            <span style={{ display: "flex", gap: 2, marginLeft: spacing.xs }}>
               <span
                 style={{
-                  width: 4,
-                  height: 4,
+                  width: 3,
+                  height: 3,
                   borderRadius: "50%",
                   background: config.color,
                   animation: "dot-flashing 1.4s infinite ease-in-out both",
@@ -184,8 +185,8 @@ const LatestActivityDisplay = memo(({ activity }: { activity: AgentActivity }) =
               />
               <span
                 style={{
-                  width: 4,
-                  height: 4,
+                  width: 3,
+                  height: 3,
                   borderRadius: "50%",
                   background: config.color,
                   animation: "dot-flashing 1.4s infinite ease-in-out both 0.2s",
@@ -193,8 +194,8 @@ const LatestActivityDisplay = memo(({ activity }: { activity: AgentActivity }) =
               />
               <span
                 style={{
-                  width: 4,
-                  height: 4,
+                  width: 3,
+                  height: 3,
                   borderRadius: "50%",
                   background: config.color,
                   animation: "dot-flashing 1.4s infinite ease-in-out both 0.4s",
@@ -208,78 +209,38 @@ const LatestActivityDisplay = memo(({ activity }: { activity: AgentActivity }) =
         {activity.message && (
           <div
             style={{
-              fontSize: typography.sizes.sm,
+              fontSize: typography.sizes.xs,
               color: colors.textSecondary,
-              lineHeight: 1.5,
+              lineHeight: 1.4,
             }}
           >
             {activity.message}
           </div>
         )}
 
-        {/* Progress bar for executing state with steps */}
-        {activity.type === "executing" && activity.currentStep && activity.totalSteps && (
-          <div style={{ marginTop: spacing.sm }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: spacing.sm,
-                fontSize: typography.sizes.xs,
-                fontFamily: '"JetBrains Mono", monospace',
-                color: colors.textSecondary,
-                marginBottom: spacing.xs,
-              }}
-            >
-              <span>Progress</span>
-              <span style={{ marginLeft: "auto" }}>
-                {Math.round((activity.currentStep / activity.totalSteps) * 100)}%
-              </span>
-            </div>
-            <div
-              style={{
-                width: "100%",
-                height: 4,
-                backgroundColor: token.colorBorderSecondary,
-                borderRadius: borderRadius.sm,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  width: `${(activity.currentStep / activity.totalSteps) * 100}%`,
-                  height: "100%",
-                  backgroundColor: config.color,
-                  transition: "width 0.3s ease-out",
-                }}
-              />
-            </div>
-          </div>
-        )}
-
         {/* Planning steps */}
         {activity.type === "planning" && activity.steps && activity.steps.length > 0 && (
-          <div style={{ marginTop: spacing.sm }}>
+          <div style={{ marginTop: spacing.xs }}>
             {activity.steps.map((step, idx) => (
               <div
                 key={idx}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: spacing.sm,
-                  padding: `${spacing.xs}px 0`,
-                  fontSize: typography.sizes.sm,
+                  gap: spacing.xs,
+                  padding: `${spacing.xs / 2}px 0`,
+                  fontSize: typography.sizes.xs,
                   color: step.done ? colors.textSecondary : colors.text,
                   opacity: step.done ? 0.7 : 1,
                 }}
               >
                 <CheckCircleOutlined
                   style={{
-                    fontSize: typography.sizes.sm,
+                    fontSize: typography.sizes.xs,
                     color: step.done ? colors.success : colors.border,
                   }}
                 />
-                <span style={{ fontFamily: '"Inter", system-ui, sans-serif' }}>
+                <span style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}>
                   {step.text}
                 </span>
               </div>
@@ -294,11 +255,67 @@ const LatestActivityDisplay = memo(({ activity }: { activity: AgentActivity }) =
 LatestActivityDisplay.displayName = "LatestActivityDisplay";
 
 /**
- * Main AgentActivityPanel component - shows only the latest activity
+ * Activity history item component
  */
-export const AgentActivityPanel = memo(({ activity }: AgentActivityPanelProps) => {
-  const { token } = theme.useToken();
+const ActivityHistoryItem = memo(({ item }: { item: ActivityHistoryItem }) => {
   const { spacing, typography, colors } = useThemeTokens();
+
+  const getConfig = () => {
+    switch (item.activity.type) {
+      case "planning":
+        return { icon: <ClockCircleOutlined />, color: colors.warning };
+      case "delegating":
+        return { icon: <RobotOutlined />, color: colors.primary };
+      case "executing":
+        return { icon: <ThunderboltOutlined />, color: colors.info };
+      default:
+        return { icon: <RobotOutlined />, color: colors.textSecondary };
+    }
+  };
+
+  const config = getConfig();
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: spacing.xs,
+        padding: `${spacing.xs / 2}px ${spacing.sm}`,
+        fontSize: typography.sizes.xs,
+        color: colors.textSecondary,
+        fontFamily: "system-ui, -apple-system, sans-serif",
+      }}
+    >
+      <span style={{ color: config.color, fontSize: typography.sizes.xs }}>
+        {config.icon}
+      </span>
+      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {item.activity.toolName || item.activity.message || item.activity.type}
+      </span>
+      <span style={{ fontSize: typography.sizes.xs, opacity: 0.7 }}>
+        {item.displayTime || "Recently"}
+      </span>
+    </div>
+  );
+});
+
+ActivityHistoryItem.displayName = "ActivityHistoryItem";
+
+/**
+ * Main AgentActivityPanel component - shows latest activity with optional history
+ */
+export const AgentActivityPanel = memo(({ activity, activityHistory: propActivityHistory = [] }: AgentActivityPanelProps) => {
+  const { token } = theme.useToken();
+  const { spacing } = useThemeTokens();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md; // md breakpoint is 768px
+
+  // Hover state for history expansion
+  const [isHovered, setIsHovered] = useState(false);
+
+  // Use passed history or empty array
+  const activityHistory = propActivityHistory;
 
   if (!activity) {
     return null;
@@ -328,33 +345,40 @@ export const AgentActivityPanel = memo(({ activity }: AgentActivityPanelProps) =
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
         }}
       >
-        {/* Header */}
+        {/* Latest activity display with hover expansion */}
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: spacing.sm,
-            padding: `${spacing.md}px ${spacing.lg}px ${spacing.sm}px ${spacing.lg}px`,
+            padding: `${spacing.xs}px ${isMobile ? spacing.sm : spacing.md}px`,
+            position: "relative"
           }}
+          onMouseEnter={() => activityHistory.length > 0 && setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
         >
-          <RobotOutlined style={{ color: token.colorPrimary, fontSize: typography.sizes.md }} />
-          <span
-            style={{
-              fontSize: typography.sizes.xs,
-              fontWeight: typography.weights.semiBold,
-              fontFamily: '"JetBrains Mono", monospace',
-              textTransform: "uppercase",
-              letterSpacing: "1px",
-              color: colors.textSecondary,
-            }}
-          >
-            Latest Activity
-          </span>
-        </div>
-
-        {/* Latest activity display */}
-        <div style={{ padding: `0 ${spacing.lg}px ${spacing.md}px ${spacing.lg}px` }}>
           <LatestActivityDisplay activity={activity} />
+
+          {/* Activity history panel - expands on hover */}
+          {activityHistory.length > 0 && (
+            <div
+              style={{
+                maxHeight: isHovered ? "300px" : "0",
+                overflowY: "auto",
+                opacity: isHovered ? 1 : 0,
+                transition: "max-height 0.3s ease-out, opacity 0.3s ease-out",
+                marginTop: spacing.sm,
+              }}
+            >
+              <div
+                style={{
+                  borderTop: `1px solid ${token.colorBorderSecondary}`,
+                  paddingTop: spacing.sm,
+                }}
+              >
+                {activityHistory.map((item, idx) => (
+                  <ActivityHistoryItem key={`${item.activity.timestamp}-${idx}`} item={item} />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>

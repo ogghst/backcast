@@ -168,7 +168,8 @@ class AIAssistantConfigBase(BaseModel):
     model_id: UUID
     system_prompt: str | None = Field(None, max_length=10000)
     temperature: float | None = Field(None, ge=0, le=2)
-    max_tokens: int | None = Field(None, ge=1, le=32000)
+    max_tokens: int | None = Field(None, ge=1, le=200000)
+    recursion_limit: int | None = Field(None, ge=1, le=500, description="LangGraph recursion limit (maximum steps in agent execution loop)")
     allowed_tools: list[str] | None = Field(
         None, description="List of tool names this assistant can use"
     )
@@ -188,7 +189,8 @@ class AIAssistantConfigUpdate(BaseModel):
     description: str | None = Field(None, max_length=2000)
     system_prompt: str | None = Field(None, max_length=10000)
     temperature: float | None = Field(None, ge=0, le=2)
-    max_tokens: int | None = Field(None, ge=1, le=32000)
+    max_tokens: int | None = Field(None, ge=1, le=200000)
+    recursion_limit: int | None = Field(None, ge=1, le=500)
     allowed_tools: list[str] | None = None
     model_id: UUID | None = None
     is_active: bool | None = None

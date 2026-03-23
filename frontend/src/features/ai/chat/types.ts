@@ -46,8 +46,8 @@ export interface WSChatRequest {
   session_id: string | null;
   assistant_config_id: string;
   title?: string; // Optional session title (for new sessions)
-  // Execution mode for tool risk management
-  execution_mode?: ExecutionMode; // AI tool execution mode (defaults to "standard" on backend)
+  // Execution mode for tool risk management (required)
+  execution_mode: ExecutionMode; // AI tool execution mode (safe/standard/expert)
   // Temporal context parameters for AI tools
   as_of?: string | null; // ISO timestamp or null for "now"
   branch_name?: string; // Branch name (e.g., "main", "BR-001")

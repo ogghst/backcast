@@ -84,6 +84,7 @@ export interface AIAssistantPublic {
   system_prompt: string | null;
   temperature: number;
   max_tokens: number;
+  recursion_limit: number | null;
   allowed_tools: string[];
   is_active: boolean;
   created_at: string;
@@ -97,6 +98,7 @@ export interface AIAssistantCreate {
   system_prompt?: string | null;
   temperature?: number;
   max_tokens?: number;
+  recursion_limit?: number | null;
   allowed_tools?: string[];
   is_active?: boolean;
 }
@@ -108,6 +110,7 @@ export interface AIAssistantUpdate {
   system_prompt?: string | null;
   temperature?: number;
   max_tokens?: number;
+  recursion_limit?: number | null;
   allowed_tools?: string[];
   is_active?: boolean;
 }

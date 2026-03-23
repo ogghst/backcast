@@ -348,6 +348,15 @@ export const useStreamingChat = (
         return;
       }
 
+      // Validate execution mode is provided
+      if (!executionMode) {
+        const errorMsg = "executionMode is required but was not provided";
+        console.error(errorMsg);
+        onError(errorMsg);
+        setError(new Error(errorMsg));
+        return;
+      }
+
       // Reset cancelled state when sending a new message
       cancelledRef.current = false;
       reconnectAttemptsRef.current = 0;
@@ -368,8 +377,10 @@ export const useStreamingChat = (
         branch_name: branchName,
         branch_mode: branchMode,
         project_id: projectIdRef.current, // Include project_id if provided
-        execution_mode: executionMode ?? "standard", // Default to standard if not provided
+        execution_mode: executionMode, // No default fallback - must be provided
       };
+
+      console.log("Sending chat request with execution_mode:", executionMode);
 
       try {
         ws.send(JSON.stringify(request));

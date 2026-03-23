@@ -11,7 +11,7 @@
  * - Clear visual hierarchy
  */
 
-import { Select, Empty, Tooltip } from "antd";
+import { Select, Empty, Tooltip, theme } from "antd";
 import type { SelectProps } from "antd";
 import { LockOutlined } from "@ant-design/icons";
 import { useAIAssistants } from "@/features/ai/api/useAIAssistants";
@@ -35,6 +35,7 @@ export const AssistantSelector = ({
   ...selectProps
 }: AssistantSelectorProps) => {
   const { spacing, typography } = useThemeTokens();
+  const { token } = theme.useToken();
 
   // Fetch only active assistants
   const { data: assistants, isLoading } = useAIAssistants(false, {
@@ -65,8 +66,8 @@ export const AssistantSelector = ({
             alignItems: "center",
             gap: spacing.xs,
             padding: `${spacing.xs}px ${spacing.sm}px`,
-            backgroundColor: disabled ? "rgba(0, 0, 0, 0.04)" : undefined,
-            border: `1px solid rgba(0, 0, 0, 0.08)`,
+            backgroundColor: disabled ? token.colorFillTertiary : undefined,
+            border: `1px solid ${token.colorBorder}`,
             borderRadius: 8,
             cursor: "not-allowed",
             height: 36,
@@ -76,14 +77,14 @@ export const AssistantSelector = ({
           <LockOutlined
             style={{
               fontSize: typography.sizes.sm,
-              color: "rgba(0, 0, 0, 0.4)",
+              color: token.colorTextSecondary,
             }}
           />
           <span
             style={{
               fontSize: typography.sizes.sm,
               fontWeight: typography.weights.medium,
-              color: "rgba(0, 0, 0, 0.85)",
+              color: token.colorText,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -112,8 +113,13 @@ export const AssistantSelector = ({
       allowClear={false}
       {...selectProps}
       style={{
-        fontSize: typography.sizes.sm,
+        fontSize: typography.sizes.md,
+        backgroundColor: token.colorBgContainer,
+        color: token.colorText,
         ...selectProps.style,
+      }}
+      popupStyle={{
+        backgroundColor: token.colorBgContainer,
       }}
     />
   );
