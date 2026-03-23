@@ -144,6 +144,15 @@ class DeepAgentOrchestrator:
             checkpointer=None,  # Use default checkpointer
         )
 
+        # DEBUG: Log what tools the main agent actually has access to
+        if logger.isEnabledFor(20):  # INFO level
+            logger.info(f"DEBUG: Main agent created with tools={len(tools)} direct tools, enable_subagents={self.enable_subagents}")
+            if agent_subagents:
+                logger.info(f"DEBUG: Created {len(agent_subagents)} subagents with tools:")
+                for sa in agent_subagents:
+                    sa_tools = sa.get('tools', [])
+                    logger.info(f"DEBUG:   - {sa.get('name')}: {len(sa_tools)} tools")
+
         logger.info("Deep Agent created successfully")
         return agent
 

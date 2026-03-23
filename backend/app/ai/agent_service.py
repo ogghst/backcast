@@ -731,6 +731,12 @@ class AgentService:
                     tool_name = event.get("name", "")
                     tool_input = data.get("input", {})
 
+                    # DEBUG: Log which tool is being called
+                    if logger.isEnabledFor(20):  # INFO level
+                        if tool_name not in ["write_todos", "task"]:
+                            # Backcast tool being called - log if it's directly from main agent
+                            logger.info(f"[TOOL_CALL] Tool '{tool_name}' being called (main agent or subagent)")
+
                     # Increment step counter for all tool executions
                     current_step += 1
 
@@ -770,6 +776,8 @@ class AgentService:
                             # Extract subagent_type and description from tool input
                             subagent_type = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
                             description = tool_input.get("description") if isinstance(tool_input, dict) else None
+
+                            logger.info(f"[SUBAGENT_DELEGATION] Main agent delegating to subagent '{subagent_type}': {description}")
 
                             if subagent_type:
                                 # Add telemetry span for subagent delegation
