@@ -845,6 +845,9 @@ class AgentService:
                         # Command objects from langgraph subagent delegation - convert to dict
                         result_content = {"command": tool_output.update}
 
+                    # Convert to JSON-serializable format (handles nested ToolMessage objects)
+                    result_content = self._make_json_serializable(result_content)
+
                     # Record tool result
                     tool_result: dict[str, Any] = {
                         "tool": tool_name,
@@ -1028,6 +1031,37 @@ class AgentService:
                 # Skip tool messages in history - they're implicit
                 pass
         return messages
+
+    def _make_json_serializable(self, obj: Any) -> Any:
+        """Convert non-JSON-serializable objects to JSON-serializable format.
+
+        Handles ToolMessage, Command, and other LangChain/LangGraph objects
+        that may be nested in tool results.
+
+        Args:
+            obj: The object to convert
+
+        Returns:
+            A JSON-serializable version of the object
+        """
+        if isinstance(obj, ToolMessage):
+            # Extract content from ToolMessage
+            return {
+                "content": self._make_json_serializable(obj.content),
+                "tool_call_id": getattr(obj, "tool_call_id", ""),
+            }
+        elif isinstance(obj, Command):
+            # Command objects from subagent delegation
+            return self._make_json_serializable(obj.update)
+        elif isinstance(obj, dict):
+            return {k: self._make_json_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._make_json_serializable(item) for item in obj]
+        elif isinstance(obj, (str, int, float, bool, type(None))):
+            return obj
+        else:
+            # For other types, try string conversion
+            return str(obj)
 
     # Store reference to InterruptNode for approval handling
     # Key: session_id, Value: InterruptNode instance
