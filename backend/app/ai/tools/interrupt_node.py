@@ -14,6 +14,7 @@ from uuid import UUID, uuid4
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 from langgraph.prebuilt import ToolNode
+from starlette.websockets import WebSocketState
 
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 from app.models.schemas.ai import WSApprovalRequestMessage
@@ -81,6 +82,22 @@ class InterruptNode(ToolNode):
         # Key: approval_id, Value: dict with tool_call, execute function, etc.
         self.interrupt_state: dict[str, dict[str, Any]] = {}
 
+    @staticmethod
+    def _is_websocket_connected(websocket: Any) -> bool:
+        """Check if WebSocket is still connected.
+
+        Args:
+            websocket: WebSocket connection to check
+
+        Returns:
+            True if WebSocket is connected, False otherwise
+        """
+        try:
+            return websocket.client_state != WebSocketState.DISCONNECTED
+        except (AttributeError, TypeError):
+            # If websocket doesn't have client_state, assume disconnected
+            return False
+
     def _get_tool_risk_level(self, tool_name: str) -> RiskLevel:
         """Get the risk level for a tool.
 
@@ -140,12 +157,16 @@ class InterruptNode(ToolNode):
             expires_at=expires_at,
         )
 
-        try:
-            await self.websocket.send_json(approval_request.model_dump(mode="json"))
-        except Exception:
-            # WebSocket may be closed, but we still track the approval
-            # The approval will timeout after 5 minutes
-            pass
+        if self._is_websocket_connected(self.websocket):
+            try:
+                await self.websocket.send_json(approval_request.model_dump(mode="json"))
+            except Exception:
+                # WebSocket may be closed, but we still track the approval
+                # The approval will timeout after 5 minutes
+                pass
+        else:
+            from app.ai.agent_service import logger
+            logger.debug("WebSocket not connected, skipping approval request send")
 
         # Store pending approval with expiration
         self.pending_approvals[approval_id] = {

@@ -18,6 +18,7 @@ from langchain_core.messages import (
 )
 from langchain_openai import ChatOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.websockets import WebSocketState
 
 from app.ai.graph import create_graph
 from app.ai.tools import ToolContext, create_project_tools
@@ -122,6 +123,18 @@ class AgentService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self._config_service: AIConfigService | None = None
+
+    @staticmethod
+    def _is_websocket_connected(websocket: WebSocket) -> bool:
+        """Check if WebSocket is still connected.
+
+        Args:
+            websocket: WebSocket connection to check
+
+        Returns:
+            True if WebSocket is connected, False otherwise
+        """
+        return websocket.client_state != WebSocketState.DISCONNECTED
 
     @property
     def config_service(self) -> AIConfigService:
@@ -520,35 +533,41 @@ class AgentService:
 
                         if content:
                             accumulated_content += content
-                            try:
-                                await websocket.send_json(
-                                    WSTokenMessage(
-                                        type="token",
-                                        content=content,
-                                        session_id=session_id,
-                                    ).model_dump(mode="json")
-                                )
-                            except Exception:
-                                # WebSocket may be closed
-                                logger.warning("Failed to send token, WebSocket may be closed")
-                                pass
+                            if self._is_websocket_connected(websocket):
+                                try:
+                                    await websocket.send_json(
+                                        WSTokenMessage(
+                                            type="token",
+                                            content=content,
+                                            session_id=session_id,
+                                        ).model_dump(mode="json")
+                                    )
+                                except Exception:
+                                    # WebSocket may be closed
+                                    logger.warning("Failed to send token, WebSocket may be closed")
+                                    pass
+                            else:
+                                logger.debug("WebSocket not connected, skipping token send")
 
                 # Handle tool start
                 elif event_type == "on_tool_start":
                     tool_name = event.get("name", "")
                     tool_input = data.get("input", {})
-                    try:
-                        await websocket.send_json(
-                            WSToolCallMessage(
-                                type="tool_call",
-                                tool=tool_name,
-                                args=tool_input,
-                            ).model_dump(mode="json")
-                        )
-                    except Exception:
-                        # WebSocket may be closed
-                        logger.warning("Failed to send tool_call, WebSocket may be closed")
-                        pass
+                    if self._is_websocket_connected(websocket):
+                        try:
+                            await websocket.send_json(
+                                WSToolCallMessage(
+                                    type="tool_call",
+                                    tool=tool_name,
+                                    args=tool_input,
+                                ).model_dump(mode="json")
+                            )
+                        except Exception:
+                            # WebSocket may be closed
+                            logger.warning("Failed to send tool_call, WebSocket may be closed")
+                            pass
+                    else:
+                        logger.debug("WebSocket not connected, skipping tool_call send")
 
                 # Handle tool end
                 elif event_type == "on_tool_end":
@@ -587,18 +606,21 @@ class AgentService:
                     }
                     all_tool_results.append(error_result)
 
-                    try:
-                        await websocket.send_json(
-                            WSToolResultMessage(
-                                type="tool_result",
-                                tool=tool_name,
-                                result=tool_result,
-                            ).model_dump(mode="json")
-                        )
-                    except Exception:
-                        # WebSocket may be closed
-                        logger.warning("Failed to send tool_result, WebSocket may be closed")
-                        pass
+                    if self._is_websocket_connected(websocket):
+                        try:
+                            await websocket.send_json(
+                                WSToolResultMessage(
+                                    type="tool_result",
+                                    tool=tool_name,
+                                    result=tool_result,
+                                ).model_dump(mode="json")
+                            )
+                        except Exception:
+                            # WebSocket may be closed
+                            logger.warning("Failed to send tool_result, WebSocket may be closed")
+                            pass
+                    else:
+                        logger.debug("WebSocket not connected, skipping tool_result send")
 
                 # Handle completion
                 elif event_type == "on_end":
@@ -621,17 +643,20 @@ class AgentService:
         except Exception as e:
             logger.error(f"Error in chat_stream astream_events: {e}", exc_info=True)
             # Send error message via WebSocket
-            try:
-                await websocket.send_json(
-                    WSErrorMessage(
-                        type="error",
-                        message=f"An error occurred: {str(e)}",
-                        code=500,
-                    ).model_dump(mode="json")
-                )
-            except Exception:
-                # WebSocket may be closed
-                pass
+            if self._is_websocket_connected(websocket):
+                try:
+                    await websocket.send_json(
+                        WSErrorMessage(
+                            type="error",
+                            message=f"An error occurred: {str(e)}",
+                            code=500,
+                        ).model_dump(mode="json")
+                    )
+                except Exception:
+                    # WebSocket may be closed
+                    pass
+            else:
+                logger.debug("WebSocket not connected, skipping error send")
 
         # Save assistant message to session
         assistant_msg = await self.config_service.add_message(
@@ -645,17 +670,20 @@ class AgentService:
         await db.refresh(assistant_msg)
 
         # Send complete message
-        try:
-            await websocket.send_json(
-                WSCompleteMessage(
-                    type="complete",
-                    session_id=session_id,
-                    message_id=assistant_msg.id,
-                ).model_dump(mode="json")
-            )
-        except Exception:
-            # WebSocket may be closed, but message is persisted
-            logger.warning("WebSocket closed before sending complete message")
+        if self._is_websocket_connected(websocket):
+            try:
+                await websocket.send_json(
+                    WSCompleteMessage(
+                        type="complete",
+                        session_id=session_id,
+                        message_id=assistant_msg.id,
+                    ).model_dump(mode="json")
+                )
+            except Exception:
+                # WebSocket may be closed, but message is persisted
+                logger.warning("WebSocket closed before sending complete message")
+        else:
+            logger.debug("WebSocket not connected, skipping complete send")
 
         logger.info(
             f"Chat stream completed for session {session_id}, "
@@ -828,13 +856,16 @@ class AgentService:
                 "error": None,
             }
 
-            await websocket.send_json(
-                WSToolResultMessage(
-                    type="tool_result",
-                    tool=tool_result["tool"],
-                    result=tool_result,
-                ).model_dump(mode="json")
-            )
+            if self._is_websocket_connected(websocket):
+                await websocket.send_json(
+                    WSToolResultMessage(
+                        type="tool_result",
+                        tool=tool_result["tool"],
+                        result=tool_result,
+                    ).model_dump(mode="json")
+                )
+            else:
+                logger.debug("WebSocket not connected, skipping tool_result send in resume")
 
             logger.info(f"Successfully resumed and executed tool for approval_id={approval_id}")
             return True
