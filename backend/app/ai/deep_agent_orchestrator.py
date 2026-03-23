@@ -23,6 +23,25 @@ from app.ai.tools.types import ToolContext
 
 logger = logging.getLogger(__name__)
 
+# Default system prompt (fallback when no custom prompt is provided)
+DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant for the Backcast project budget management system.
+
+You can help with:
+- Listing and viewing projects
+- Getting detailed project information
+- Earned value management calculations
+
+When providing information:
+- Be accurate and rely on the project data
+- Use three-letter codes for project status (e.g., "ACT" for active, "PLN" for planned)
+- Present data in clear, structured formats
+- Only use tools you have been explicitly enabled for the assistant
+
+When using tools:
+- Always use the exact field names expected by the tools
+- For status filters, use three-letter codes like 'ACT', 'PLN', 'CLS'
+"""
+
 
 class DeepAgentOrchestrator:
     """Orchestrator for Deep Agents with Backcast context and security.
@@ -131,12 +150,17 @@ class DeepAgentOrchestrator:
                     allowed_tools=allowed_tools,
                 )
 
+        # Build system prompt with subagent delegation instructions
+        base_prompt = self.system_prompt or DEFAULT_SYSTEM_PROMPT
+        subagent_prompt_suffix = self._build_system_prompt_suffix()
+        final_system_prompt = base_prompt + subagent_prompt_suffix
+
         # Create Deep Agent with Backcast configuration
         # Pass model string or ChatOpenAI instance directly to create_deep_agent
         agent = create_deep_agent(
             model=self.model,
             tools=tools,
-            system_prompt=self.system_prompt,
+            system_prompt=final_system_prompt,
             subagents=agent_subagents,  # type: ignore[arg-type]
             context_schema=context_schema,  # type: ignore[arg-type]
             interrupt_on=interrupt_config,  # type: ignore[arg-type]
@@ -188,6 +212,55 @@ class DeepAgentOrchestrator:
                 "description": "Execution mode: 'safe', 'standard', or 'expert'",
             },
         }
+
+    def _build_system_prompt_suffix(self) -> str:
+        """Build system prompt suffix for subagent-only access.
+
+        When subagents are enabled, the main agent MUST delegate all
+        Backcast operations to subagents. The main agent has NO direct
+        access to Backcast tools.
+
+        Returns:
+            System prompt suffix with subagent delegation instructions
+        """
+        if not self.enable_subagents:
+            return ""
+
+        # Get subagent info for the prompt
+        subagent_info = []
+        for sa in self._create_subagent_objects(
+            get_all_subagents(),
+            create_project_tools(self.context),
+            allowed_tools=None,  # Get full tool lists for descriptions
+        ):
+            sa_name = sa.get("name", "")
+            sa_tools = sa.get("tools", [])
+            # Get tool names safely - tools can be BaseTool, callable, or dict
+            tool_names = []
+            for t in sa_tools:
+                if hasattr(t, "name"):
+                    tool_names.append(t.name)
+                elif isinstance(t, dict):
+                    tool_names.append(t.get("name", str(t)))
+                else:
+                    # Callable - use function name
+                    tool_names.append(t.__name__ if hasattr(t, "__name__") else str(t))
+            subagent_info.append(
+                f"- {sa_name}: {', '.join(tool_names[:5])}"
+                f"{'...' if len(tool_names) > 5 else ''}"
+            )
+
+        return f"""
+IMPORTANT: You do NOT have direct access to Backcast tools.
+ALL Backcast operations must be delegated to specialized subagents:
+
+Available Subagents:
+{chr(10).join(subagent_info)}
+
+When a user asks for Backcast-related operations, you MUST use the task tool to delegate to the appropriate subagent. The task result will contain the information the user needs.
+
+Do NOT attempt to use Backcast tools directly - they will not work. Always delegate via the task tool.
+"""
 
     def _build_interrupt_config(self, tools: list[BaseTool]) -> dict[str, bool]:
         """Build interrupt configuration for critical tools.

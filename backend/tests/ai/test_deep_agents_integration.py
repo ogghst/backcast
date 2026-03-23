@@ -121,7 +121,7 @@ async def test_backcast_security_middleware_init(tool_context):
     """Test BackcastSecurityMiddleware initialization."""
     middleware = BackcastSecurityMiddleware(context=tool_context)
     assert middleware.context == tool_context
-    assert middleware.tools == []
+    assert middleware._security_tools == []
 
 
 @pytest.mark.asyncio
@@ -135,7 +135,7 @@ async def test_backcast_security_middleware_with_tools(tool_context):
     mock_tool._tool_metadata.risk_level = RiskLevel.LOW
 
     middleware = BackcastSecurityMiddleware(context=tool_context, tools=[mock_tool])
-    assert middleware.tools == [mock_tool]
+    assert middleware._security_tools == [mock_tool]
 
 
 @pytest.mark.asyncio
@@ -147,7 +147,7 @@ async def test_backcast_security_middleware_set_tools(tool_context):
     mock_tool.name = "test_tool"
 
     middleware.set_tools([mock_tool])
-    assert middleware.tools == [mock_tool]
+    assert middleware._security_tools == [mock_tool]
 
 
 @pytest.mark.asyncio

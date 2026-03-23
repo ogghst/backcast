@@ -733,9 +733,18 @@ class AgentService:
 
                     # DEBUG: Log which tool is being called
                     if logger.isEnabledFor(20):  # INFO level
-                        if tool_name not in ["write_todos", "task"]:
+                        if tool_name not in ["write_todos", "task", "ls", "read_file", "write_file", "edit_file", "glob", "grep", "execute"]:
                             # Backcast tool being called - log if it's directly from main agent
                             logger.info(f"[TOOL_CALL] Tool '{tool_name}' being called (main agent or subagent)")
+                        else:
+                            logger.debug(f"[SDK_TOOL_CALL] SDK tool '{tool_name}' being called")
+
+                    # WARNING: Detect if Backcast tool is being called without subagent delegation
+                    # This should NOT happen when subagents are enabled
+                    if tool_name not in ["write_todos", "task", "ls", "read_file", "write_file", "edit_file", "glob", "grep", "execute"]:
+                        # Check if this happened right after a subagent delegation
+                        # If not, it's the main agent trying to use tools directly
+                        logger.warning(f"[UNEXPECTED_TOOL_CALL] Backcast tool '{tool_name}' being called. Main agent should delegate via task tool when subagents are enabled!")
 
                     # Increment step counter for all tool executions
                     current_step += 1
