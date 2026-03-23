@@ -16,6 +16,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+# Risk level literals
+RISK_LEVEL_LOW = "low"
+RISK_LEVEL_HIGH = "high"
+RISK_LEVEL_CRITICAL = "critical"
+RISK_LEVEL_VALUES = [RISK_LEVEL_LOW, RISK_LEVEL_HIGH, RISK_LEVEL_CRITICAL]
+
 # Provider Types
 PROVIDER_TYPE_OPENAI = "openai"
 PROVIDER_TYPE_AZURE = "azure"
@@ -437,8 +443,8 @@ class WSApprovalRequestMessage(BaseModel):
     tool_args: dict[str, Any] = Field(
         default_factory=dict, description="Arguments that will be passed to the tool"
     )
-    risk_level: Literal["critical"] = Field(
-        default="critical", description="Risk level of the tool (always 'critical' for approval requests)"
+    risk_level: Literal[RISK_LEVEL_LOW, RISK_LEVEL_HIGH, RISK_LEVEL_CRITICAL] = Field(
+        ..., description="Risk level of the tool requiring approval ('low', 'high', or 'critical')"
     )
     expires_at: datetime = Field(
         ...,

@@ -215,7 +215,7 @@ async def test_user_approval_resumes_execution(
 
     # Act - Mock _send_approval_request to return our pre-registered approval_id
     original_send = interrupt_node._send_approval_request
-    async def mock_send_request(tool_name, tool_args, tool_call=None, execute=None):
+    async def mock_send_request(tool_name, tool_args, risk_level, tool_call=None, execute=None):
         return approval_id
     interrupt_node._send_approval_request = mock_send_request
 
@@ -280,7 +280,7 @@ async def test_user_rejection_skips_tool(
 
     # Act - Mock _send_approval_request to return our pre-registered approval_id
     original_send = interrupt_node._send_approval_request
-    async def mock_send_request(tool_name, tool_args, tool_call=None, execute=None):
+    async def mock_send_request(tool_name, tool_args, risk_level, tool_call=None, execute=None):
         return approval_id
     interrupt_node._send_approval_request = mock_send_request
 
@@ -528,10 +528,10 @@ async def test_graph_resume_rejection_skips_execution(
 
 
 @pytest.mark.asyncio
-async def test_high_risk_tool_does_not_trigger_interrupt(
+async def test_high_risk_tool_triggers_interrupt(
     tool_context, high_risk_tool, mock_websocket
 ):
-    """Test that high-risk tools do NOT trigger interrupt in standard mode."""
+    """Test that high-risk tools DO trigger interrupt in standard mode (after fix)."""
     # Arrange
     interrupt_node = InterruptNode(
         tools=[high_risk_tool],
@@ -552,12 +552,19 @@ async def test_high_risk_tool_does_not_trigger_interrupt(
     result = await interrupt_node._awrap_tool_call(tool_call_request, execute)
 
     # Assert
-    # 1. WebSocket should NOT have been called (no approval needed)
-    mock_websocket.send_json.assert_not_called()
+    # 1. WebSocket SHOULD have been called (approval required for HIGH risk)
+    mock_websocket.send_json.assert_called_once()
 
-    # 2. Tool should have executed normally
-    execute.assert_called_once()
-    assert result.content == "Project updated"
+    # 2. Tool should NOT have executed (waiting for approval)
+    execute.assert_not_called()
+
+    # 3. Result should indicate approval is needed
+    assert isinstance(result, ToolMessage)
+    assert "approval" in result.content.lower() or "waiting" in result.content.lower()
+
+    # 4. Verify risk_level in approval request is "high"
+    sent_message = mock_websocket.send_json.call_args[0][0]
+    assert sent_message["risk_level"] == "high"
 
 
 @pytest.mark.asyncio
@@ -583,7 +590,7 @@ async def test_approval_timeout(tool_context, critical_tool, mock_websocket):
 
     # Act - Mock _send_approval_request to return our expired approval_id
     original_send = interrupt_node._send_approval_request
-    async def mock_send_request(tool_name, tool_args, tool_call=None, execute=None):
+    async def mock_send_request(tool_name, tool_args, risk_level, tool_call=None, execute=None):
         return approval_id
     interrupt_node._send_approval_request = mock_send_request
 

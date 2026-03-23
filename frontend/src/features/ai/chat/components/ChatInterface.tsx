@@ -80,6 +80,8 @@ export const ChatInterface = ({
   const [activeToolCalls, setActiveToolCalls] = useState<
     Array<{ name: string; args: Record<string, unknown> }>
   >([]);
+  const [toolJustFinished, setToolJustFinished] = useState(false);
+  const [showStreamSeparator, setShowStreamSeparator] = useState(false);
 
   // Agent activity state (Deep Agent planning, subagent delegation, etc.)
   const [latestActivity, setLatestActivity] = useState<AgentActivity | null>(null);
@@ -114,11 +116,18 @@ export const ChatInterface = ({
   const handleToken = useCallback((token: string, sessionId: string) => {
     // We've received the first token, no longer waiting
     setIsWaitingForResponse(false);
+
+    // If a tool just finished, show the separator for this stream
+    if (toolJustFinished) {
+      setShowStreamSeparator(true);
+      setToolJustFinished(false);
+    }
+
     // Append token to streaming content
     setStreamingContent((prev) => prev + token);
     // Update session ID if this was a new session
     setCurrentSessionId((prev) => prev || sessionId);
-  }, []);
+  }, [toolJustFinished]);
 
   const handleComplete = useCallback(
     (sessionId: string, messageId: string) => {
@@ -135,6 +144,8 @@ export const ChatInterface = ({
       setActiveToolCalls([]);
       setLatestActivity(null); // Clear agent activity on complete
       setActivityHistory([]); // Clear activity history on complete
+      setShowStreamSeparator(false); // Reset separator state
+      setToolJustFinished(false); // Reset tool finished state
     },
     [queryClient]
   );
@@ -264,6 +275,9 @@ export const ChatInterface = ({
     if (latestActivity?.type === "executing" && latestActivity.toolName === tool) {
       setLatestActivity(null);
     }
+
+    // Set flag to add separator before next text stream
+    setToolJustFinished(true);
   }, [latestActivity]);
 
   // Streaming chat hook
@@ -332,6 +346,8 @@ export const ChatInterface = ({
       setActiveToolCalls([]);
       setLatestActivity(null);
       setIsWaitingForResponse(true);
+      setShowStreamSeparator(false);
+      setToolJustFinished(false);
 
       // Only send if the WebSocket is connected
       if (streamingChat.connectionState !== WSConnectionState.OPEN) {
@@ -355,6 +371,8 @@ export const ChatInterface = ({
     setActiveToolCalls([]);
     setLatestActivity(null);
     setIsWaitingForResponse(false);
+    setShowStreamSeparator(false);
+    setToolJustFinished(false);
   }, [streamingChat]);
 
   // Handle approval decision
@@ -706,6 +724,7 @@ export const ChatInterface = ({
                 streamingContent={streamingContent}
                 isStreaming={isStreaming}
                 activeToolCalls={activeToolCalls}
+                showSeparator={showStreamSeparator}
               />
             </div>
 

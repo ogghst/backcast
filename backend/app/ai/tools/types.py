@@ -9,6 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.project import ProjectService
 
+# Module-level ordering dict for RiskLevel (outside the enum to avoid it becoming a member)
+_RISK_LEVEL_ORDERING = {
+    "low": 1,
+    "high": 2,
+    "critical": 3,
+}
+
 
 class RiskLevel(str, Enum):
     """Risk level for AI tools.
@@ -20,11 +27,41 @@ class RiskLevel(str, Enum):
 
     Used in Phase 1: Tool categorization
     Used in Phase 2: Risk checking and execution mode filtering
+
+    Note: Supports comparison operators for risk level ordering (LOW < HIGH < CRITICAL)
     """
 
     LOW = "low"
     HIGH = "high"
     CRITICAL = "critical"
+
+    def _get_order_value(self) -> int:
+        """Get the integer ordering value for this risk level."""
+        return _RISK_LEVEL_ORDERING[self.value]
+
+    def __ge__(self, other: Any) -> bool:
+        """Support >= comparison for risk level checking."""
+        if not isinstance(other, RiskLevel):
+            return NotImplemented
+        return self._get_order_value() >= other._get_order_value()
+
+    def __gt__(self, other: Any) -> bool:
+        """Support > comparison for risk level checking."""
+        if not isinstance(other, RiskLevel):
+            return NotImplemented
+        return self._get_order_value() > other._get_order_value()
+
+    def __le__(self, other: Any) -> bool:
+        """Support <= comparison for risk level checking."""
+        if not isinstance(other, RiskLevel):
+            return NotImplemented
+        return self._get_order_value() <= other._get_order_value()
+
+    def __lt__(self, other: Any) -> bool:
+        """Support < comparison for risk level checking."""
+        if not isinstance(other, RiskLevel):
+            return NotImplemented
+        return self._get_order_value() < other._get_order_value()
 
 
 class ExecutionMode(str, Enum):

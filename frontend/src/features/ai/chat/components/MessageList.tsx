@@ -37,6 +37,8 @@ interface MessageListProps {
     name: string;
     args: Record<string, unknown>;
   }>;
+  /** Whether to show a separator (when new text stream starts after tool execution) */
+  showSeparator?: boolean;
 }
 
 /**
@@ -48,14 +50,17 @@ interface StreamingMessageProps {
   /** Whether currently receiving tokens */
   isStreaming: boolean;
   token: Theme['token'];
+  /** Whether to show a separator (when new text stream starts after tool execution) */
+  showSeparator?: boolean;
 }
 
 const StreamingMessage = ({
   content,
   isStreaming,
   token,
+  showSeparator,
 }: StreamingMessageProps) => {
-  const { spacing, typography, borderRadius } = useThemeTokens();
+  const { spacing, typography, borderRadius, colors } = useThemeTokens();
 
   return (
     <List.Item
@@ -103,6 +108,42 @@ const StreamingMessage = ({
             </span>
           )}
         </div>
+
+        {/* Minimalistic separator when text stream resumes after tool execution */}
+        {showSeparator && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: spacing.sm,
+              margin: `${spacing.sm}px 0`,
+              opacity: 0.4,
+            }}
+          >
+            <div
+              style={{
+                flex: 1,
+                height: 1,
+                background: `linear-gradient(to right, transparent, ${colors.textSecondary}, transparent)`,
+              }}
+            />
+            <div
+              style={{
+                width: 4,
+                height: 4,
+                borderRadius: "50%",
+                backgroundColor: colors.textSecondary,
+              }}
+            />
+            <div
+              style={{
+                flex: 1,
+                height: 1,
+                background: `linear-gradient(to right, transparent, ${colors.textSecondary}, transparent)`,
+              }}
+            />
+          </div>
+        )}
 
         {/* Streaming content with markdown rendering */}
         {content && (
@@ -203,6 +244,7 @@ export const MessageList = ({
   streamingContent = "",
   isStreaming = false,
   activeToolCalls = [],
+  showSeparator = false,
 }: MessageListProps) => {
   const { token } = theme.useToken();
   const { spacing, typography, borderRadius } = useThemeTokens();
@@ -314,6 +356,7 @@ export const MessageList = ({
           content={streamingContent}
           isStreaming={isStreaming}
           token={token}
+          showSeparator={showSeparator}
         />
       )}
 

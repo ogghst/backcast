@@ -130,6 +130,7 @@ class InterruptNode(ToolNode):
         self,
         tool_name: str,
         tool_args: dict[str, Any],
+        risk_level: RiskLevel,
         tool_call: dict[str, Any] | None = None,
         execute: Any = None,
     ) -> str:
@@ -138,6 +139,7 @@ class InterruptNode(ToolNode):
         Args:
             tool_name: Name of the tool requiring approval
             tool_args: Arguments that will be passed to the tool
+            risk_level: Risk level of the tool
             tool_call: Optional tool call dict for resume
             execute: Optional execute function for resume
 
@@ -153,7 +155,7 @@ class InterruptNode(ToolNode):
             session_id=self.session_id,
             tool_name=tool_name,
             tool_args=tool_args,
-            risk_level="critical",
+            risk_level=risk_level.value,
             expires_at=expires_at,
         )
 
@@ -336,12 +338,12 @@ class InterruptNode(ToolNode):
         tool_id = tool_call.get("id", "")
         tool_args = dict(tool_call.get("args", {}))
 
-        # Check if this is a critical tool in standard mode
+        # Check if this is a high or critical risk tool in standard mode
         risk_level = self._get_tool_risk_level(tool_name)
         mode = self.context.execution_mode
 
-        # Critical tools in standard mode require approval
-        if risk_level == RiskLevel.CRITICAL and mode == ExecutionMode.STANDARD:
+        # HIGH and CRITICAL tools in standard mode require approval
+        if risk_level >= RiskLevel.HIGH and mode == ExecutionMode.STANDARD:
             # Check if there's a pending approval for this tool call
             # For now, we'll send a new approval request each time
             # In a full implementation, we'd use LangGraph's interrupt()
@@ -351,6 +353,7 @@ class InterruptNode(ToolNode):
             approval_id = await self._send_approval_request(
                 tool_name,
                 tool_args,
+                risk_level,
                 tool_call=tool_call,
                 execute=execute,
             )
