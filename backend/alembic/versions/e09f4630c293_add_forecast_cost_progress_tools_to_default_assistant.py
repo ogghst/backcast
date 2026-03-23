@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = 'add_forecast_cost_progress_tools'
+revision: str = 'e09f4630c293'
 down_revision: str | None = '021bb7eeaa21'  # add_project_members_table
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
