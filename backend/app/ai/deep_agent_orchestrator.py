@@ -78,13 +78,24 @@ class DeepAgentOrchestrator:
             >>> result = await agent.ainvoke({"messages": [("user", "Hello")]})
         """
         # Get existing tools from @ai_tool ecosystem
-        tools = create_project_tools(self.context)
+        all_tools = create_project_tools(self.context)
 
         # Filter by allowed_tools if specified
         if allowed_tools is not None:
-            tools = [t for t in tools if t.name in allowed_tools]
+            all_tools = [t for t in all_tools if t.name in allowed_tools]
 
-        logger.info(f"Creating Deep Agent with {len(tools)} tools")
+        # When subagents are enabled, the main agent should NOT have direct access
+        # to Backcast tools - it should only delegate via the "task" tool.
+        # Subagents will have access to the actual tools.
+        if self.enable_subagents:
+            # Main agent only gets Deep Agents SDK built-in tools (write_todos, task)
+            # These are added automatically by create_deep_agent()
+            tools = []
+            logger.info("Creating Deep Agent with subagents - main agent delegates only")
+        else:
+            # Without subagents, main agent needs direct tool access
+            tools = all_tools
+            logger.info(f"Creating Deep Agent with {len(tools)} tools (no subagents)")
 
         # Build context_schema for temporal parameters
         # Note: Deep Agents uses this for validation but actual injection happens in middleware
@@ -92,13 +103,14 @@ class DeepAgentOrchestrator:
 
         # Configure interrupts for critical tools
         # These tools will pause execution for approval in standard mode
-        interrupt_config = self._build_interrupt_config(tools)
+        interrupt_config = self._build_interrupt_config(tools) if not self.enable_subagents else {}
 
         # Create middleware stack with tools reference
         # Order matters: temporal first (logging), then security (checking)
+        # Security middleware needs all_tools for permission checking even when main agent doesn't use them
         middleware = [
             TemporalContextMiddleware(self.context),
-            BackcastSecurityMiddleware(self.context, tools=tools),
+            BackcastSecurityMiddleware(self.context, tools=all_tools),
         ]
 
         # Get subagents
@@ -106,15 +118,16 @@ class DeepAgentOrchestrator:
         if self.enable_subagents:
             if subagents is None:
                 # Convert dict configs to SubAgent objects
+                # Pass all_tools so subagents can access Backcast tools
                 agent_subagents = self._create_subagent_objects(
                     get_all_subagents(),
-                    tools,
+                    all_tools,  # Subagents need access to actual tools
                     allowed_tools=allowed_tools,
                 )
             else:
                 agent_subagents = self._create_subagent_objects(
                     subagents,
-                    tools,
+                    all_tools,  # Subagents need access to actual tools
                     allowed_tools=allowed_tools,
                 )
 
