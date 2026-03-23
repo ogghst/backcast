@@ -50,7 +50,9 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         """
         super().__init__()
         self.context = context
-        self.tools = tools or []
+        # Use private attribute to avoid exposing tools to LangChain's create_agent
+        # which collects tools from ALL middleware via getattr(m, "tools", [])
+        self._security_tools = tools or []
 
     async def awrap_tool_call(
         self,
@@ -116,7 +118,7 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         """
         # Find the tool by name in Backcast tools list
         tool = None
-        for t in self.tools:
+        for t in self._security_tools:
             if t.name == tool_name:
                 tool = t
                 break
@@ -204,7 +206,7 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         """
         # Find the tool by name in Backcast tools list
         tool = None
-        for t in self.tools:
+        for t in self._security_tools:
             if t.name == tool_name:
                 tool = t
                 break
@@ -251,7 +253,7 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         Args:
             tools: List of BaseTool instances
         """
-        self.tools = tools
+        self._security_tools = tools
 
 
 def get_context() -> ToolContext | None:
