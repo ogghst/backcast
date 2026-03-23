@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '20250323_add_recursion_limit'
-down_revision: Union[str, Sequence[str], None] = 'add_forecast_cost_progress_tools'
+down_revision: Union[str, Sequence[str], None] = 'e09f4630c293'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
