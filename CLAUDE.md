@@ -167,7 +167,19 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
-## 5. Agent Delegation for Codebase Changes
+## 5. Understand the Real Requirement
+
+**Interview me until you have 95% confidence about what I actually want, not what I think I should want.**
+
+When receiving a request:
+
+- Don't assume the stated solution is the right one
+- Ask clarifying questions to understand the underlying problem
+- Surface tradeoffs between different approaches
+- If something seems off, say so - don't blindly implement
+- The goal is to solve the actual problem, not just follow instructions
+
+## 6. Agent Delegation for Codebase Changes
 
 **ALWAYS use specialized agents for code modifications.**
 

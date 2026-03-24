@@ -10,6 +10,7 @@ External tools (e.g., Deep Agents SDK built-in tools like write_todos, task) are
 allowed through without Backcast-specific checks, as they have their own security.
 """
 
+import asyncio
 import contextvars
 import logging
 import time
@@ -111,12 +112,33 @@ class BackcastSecurityMiddleware(AgentMiddleware):
 
         # 2. Check risk level and handle approval if needed (only if permission granted)
         tool_call_dict: dict[str, Any] = dict(tool_call) if tool_call else {}
-        allowed, risk_error = await self._check_risk_level_with_approval(
-            tool_name, tool_args, tool_call_dict, handler
-        )
+        try:
+            allowed, risk_error = await self._check_risk_level_with_approval(
+                tool_name, tool_args, tool_call_dict, handler
+            )
+        except asyncio.CancelledError:
+            # Task was cancelled during approval polling
+            tool_call_duration_ms = (time.time() - tool_call_start) * 1000
+            logger.info(
+                f"[TOOL_CALL_EXIT] awrap_tool_call | "
+                f"tool_name={tool_name} | "
+                f"duration_ms={tool_call_duration_ms:.2f} | "
+                f"status=cancelled | "
+                f"error=Approval polling cancelled"
+            )
+            raise
+
         if not allowed:
             # If not allowed, return error (this handles both risk blocks and rejections)
             error_content = risk_error if isinstance(risk_error, str) else "Tool execution not allowed"
+            tool_call_duration_ms = (time.time() - tool_call_start) * 1000
+            logger.info(
+                f"[TOOL_CALL_EXIT] awrap_tool_call | "
+                f"tool_name={tool_name} | "
+                f"duration_ms={tool_call_duration_ms:.2f} | "
+                f"status=denied | "
+                f"error={error_content[:100]}"
+            )
             return ToolMessage(
                 content=error_content,
                 tool_call_id=tool_id
@@ -389,57 +411,105 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                 tool_args=tool_args,
                 risk_level=risk_level,
                 tool_call=tool_call,
-                execute=handler,
             )
 
             # Poll for approval response with timeout
-            # Give user up to 30 seconds to respond
+            # Give user up to 10 seconds to respond (reduced from 30s for faster UX)
             import asyncio
 
-            max_wait_time = 30.0  # seconds
+            max_wait_time = 10.0  # seconds (reduced from 30s)
             poll_interval = 0.2  # 200ms
             heartbeat_interval = 5.0  # Send heartbeat every 5 seconds
             total_waited = 0.0
             last_heartbeat = 0.0
+            polling_start_time = time.time()
 
-            logger.info(f"POLLING_FOR_APPROVAL: approval_id={approval_id}, tool='{tool_name}'")
+            logger.info(
+                f"[APPROVAL_POLLING_START] _check_risk_level_with_approval | "
+                f"approval_id={approval_id} | "
+                f"tool_name={tool_name} | "
+                f"max_wait_time={max_wait_time}s"
+            )
 
-            while total_waited < max_wait_time:
-                await asyncio.sleep(poll_interval)
-                total_waited += poll_interval
+            try:
+                while total_waited < max_wait_time:
+                    # Check if task was cancelled (e.g., WebSocket disconnected)
+                    current_task = asyncio.current_task()
+                    if current_task is not None and current_task.cancelled():
+                        logger.info(
+                            f"[APPROVAL_POLLING_CANCELLED] _check_risk_level_with_approval | "
+                            f"approval_id={approval_id} | "
+                            f"tool_name={tool_name} | "
+                            f"waited_seconds={total_waited:.2f}"
+                        )
+                        raise asyncio.CancelledError()
 
-                # Send heartbeat to keep WebSocket connection alive
-                # Prevents connection timeout due to inactivity (typically 20-30 seconds)
-                if total_waited - last_heartbeat >= heartbeat_interval:
-                    remaining = max_wait_time - total_waited
-                    await self._interrupt_node._send_heartbeat(
-                        approval_id=approval_id,
-                        elapsed_seconds=total_waited,
-                        remaining_seconds=remaining,
-                    )
-                    last_heartbeat = total_waited
+                    await asyncio.sleep(poll_interval)
+                    total_waited += poll_interval
 
-                approved, approval_error = self._interrupt_node._check_approval(approval_id)
+                    # Send heartbeat to keep WebSocket connection alive
+                    # Prevents connection timeout due to inactivity (typically 20-30 seconds)
+                    if total_waited - last_heartbeat >= heartbeat_interval:
+                        remaining = max_wait_time - total_waited
+                        await self._interrupt_node._send_heartbeat(
+                            approval_id=approval_id,
+                            elapsed_seconds=total_waited,
+                            remaining_seconds=remaining,
+                        )
+                        last_heartbeat = total_waited
 
-                if approved:
-                    # User approved - execute tool
-                    logger.info(f"APPROVAL_GRANTED: tool='{tool_name}', executing via InterruptNode")
-                    result = await self._interrupt_node.execute_after_approval(approval_id)
+                    approved, approval_error = self._interrupt_node._check_approval(approval_id)
 
-                    if result is None:
-                        return False, "Tool execution failed after approval"
+                    if approved:
+                        # User approved - clean up and let normal handler execute the tool
+                        wait_duration = time.time() - polling_start_time
+                        logger.info(
+                            f"[APPROVAL_GRANTED] _check_risk_level_with_approval | "
+                            f"approval_id={approval_id} | "
+                            f"tool_name={tool_name} | "
+                            f"wait_seconds={wait_duration:.2f}"
+                        )
+                        # Clean up approval state
+                        if approval_id in self._interrupt_node.pending_approvals:
+                            del self._interrupt_node.pending_approvals[approval_id]
+                        if approval_id in self._interrupt_node.interrupt_state:
+                            del self._interrupt_node.interrupt_state[approval_id]
+                        # Return (True, None) so awrap_tool_call falls through to handler(request)
+                        # which executes the tool through the normal middleware chain with the real request
+                        return True, None
+                    elif approval_error is not None:
+                        # User rejected, expired, or not found
+                        logger.info(
+                            f"[APPROVAL_ERROR] _check_risk_level_with_approval | "
+                            f"approval_id={approval_id} | "
+                            f"tool_name={tool_name} | "
+                            f"error={approval_error}"
+                        )
+                        return False, approval_error
+                    # If approval_error is None, still waiting - continue polling
 
-                    # Return the result as a ToolMessage
-                    return True, result
-                elif approval_error is not None:
-                    # User rejected, expired, or not found
-                    logger.warning(f"APPROVAL_ERROR: tool='{tool_name}', error={approval_error}")
-                    return False, approval_error
-                # If approval_error is None, still waiting - continue polling
+                # Timeout reached
+                wait_duration = time.time() - polling_start_time
+                logger.info(
+                    f"[APPROVAL_TIMEOUT] _check_risk_level_with_approval | "
+                    f"approval_id={approval_id} | "
+                    f"tool_name={tool_name} | "
+                    f"waited_seconds={wait_duration:.2f} | "
+                    f"max_wait_time={max_wait_time}s"
+                )
+                return False, f"Approval request timed out after {max_wait_time} seconds. Please click Approve again."
 
-            # Timeout reached
-            logger.warning(f"APPROVAL_TIMEOUT: tool='{tool_name}', waited {max_wait_time}s")
-            return False, f"Approval request timed out after {max_wait_time} seconds. Please try again."
+            except asyncio.CancelledError:
+                # Task was cancelled (e.g., WebSocket disconnected)
+                wait_duration = time.time() - polling_start_time
+                logger.info(
+                    f"[APPROVAL_POLLING_CANCELLED] _check_risk_level_with_approval | "
+                    f"approval_id={approval_id} | "
+                    f"tool_name={tool_name} | "
+                    f"waited_seconds={wait_duration:.2f}"
+                )
+                # Re-raise to allow proper cleanup
+                raise
 
         return True, None
 

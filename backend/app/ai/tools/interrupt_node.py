@@ -132,7 +132,6 @@ class InterruptNode(ToolNode):
         tool_args: dict[str, Any],
         risk_level: RiskLevel,
         tool_call: dict[str, Any] | None = None,
-        execute: Any = None,
     ) -> str:
         """Send approval request via WebSocket.
 
@@ -140,8 +139,7 @@ class InterruptNode(ToolNode):
             tool_name: Name of the tool requiring approval
             tool_args: Arguments that will be passed to the tool
             risk_level: Risk level of the tool
-            tool_call: Optional tool call dict for resume
-            execute: Optional execute function for resume
+            tool_call: Optional tool call dict for reference
 
         Returns:
             approval_id UUID string for tracking this approval request
@@ -182,16 +180,6 @@ class InterruptNode(ToolNode):
             "expires_at": expires_at,
         }
         logger.debug(f"APPROVAL_STORED: approval_id={approval_id}, pending_approvals_count={len(self.pending_approvals)}")
-
-        # Store interrupt state for resume if provided
-        if tool_call is not None and execute is not None:
-            self.interrupt_state[approval_id] = {
-                "tool_call": tool_call,
-                "execute": execute,
-                "tool_name": tool_name,
-                "tool_args": tool_args,
-            }
-            logger.debug(f"INTERRUPT_STATE_STORED: approval_id={approval_id}")
 
         return approval_id
 

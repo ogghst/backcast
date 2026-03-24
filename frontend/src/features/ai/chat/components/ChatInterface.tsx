@@ -90,6 +90,7 @@ export const ChatInterface = ({
   // Approval state
   const [approvalRequest, setApprovalRequest] = useState<WSApprovalRequestMessage | null>(null);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
+  const [approvalRemaining, setApprovalRemaining] = useState<number | null>(null);
 
   // Query client for cache invalidation
   const queryClient = useQueryClient();
@@ -188,9 +189,24 @@ export const ChatInterface = ({
   }, [formatRelativeTime]);
 
   const handleApprovalRequest = useCallback((request: WSApprovalRequestMessage) => {
-    // Show approval dialog
+    // Show approval dialog and reset countdown
     setApprovalRequest(request);
     setShowApprovalDialog(true);
+    setApprovalRemaining(null); // Will be set by first heartbeat
+  }, []);
+
+  const handleApprovalCountdown = useCallback((remaining: number) => {
+    setApprovalRemaining(remaining);
+  }, []);
+
+  const handleApprovalTimeout = useCallback(() => {
+    setApprovalRemaining(0);
+    // Auto-dismiss after a brief delay so the user sees "Expired"
+    setTimeout(() => {
+      setShowApprovalDialog(false);
+      setApprovalRequest(null);
+      setApprovalRemaining(null);
+    }, 1500);
   }, []);
 
   // Deep Agent activity handlers
@@ -291,6 +307,8 @@ export const ChatInterface = ({
     onToolCall: handleToolCall,
     onToolResult: handleToolResult,
     onApprovalRequest: handleApprovalRequest,
+    onApprovalCountdown: handleApprovalCountdown,
+    onApprovalTimeout: handleApprovalTimeout,
     onPlanning: handlePlanning,
     onSubagent: handleSubagent,
     onThinking: handleThinking,
@@ -387,6 +405,7 @@ export const ChatInterface = ({
     // Close dialog and clear state
     setShowApprovalDialog(false);
     setApprovalRequest(null);
+    setApprovalRemaining(null);
   }, [approvalRequest, streamingChat]);
 
   const handleApprove = useCallback(() => {
@@ -400,6 +419,7 @@ export const ChatInterface = ({
   const handleApprovalCancel = useCallback(() => {
     setShowApprovalDialog(false);
     setApprovalRequest(null);
+    setApprovalRemaining(null);
   }, []);
 
   // Helper: Convert API messages to ChatMessage type
@@ -758,6 +778,7 @@ export const ChatInterface = ({
       <ApprovalDialog
         open={showApprovalDialog}
         approvalRequest={approvalRequest}
+        remainingSeconds={approvalRemaining}
         onApprove={handleApprove}
         onReject={handleReject}
         onCancel={handleApprovalCancel}

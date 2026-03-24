@@ -1,7 +1,9 @@
 """API routes for AI chat."""
 
+import asyncio
 import logging
-from typing import Annotated
+from datetime import datetime
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import (
@@ -212,17 +214,32 @@ async def chat_stream(
         session_holder = SessionIdHolder()
         current_session_id: UUID | None = None
 
-        try:
+        # Task tracking for concurrent message handling
+        tasks: set[asyncio.Task[None]] = set()
+        current_chat_task: asyncio.Task[None] | None = None
+
+        async def message_handler() -> None:
+            """Handle incoming WebSocket messages concurrently.
+
+            This function runs as a background task to process messages
+            without blocking approval responses. Chat messages launch
+            chat_stream() as background tasks, while approval responses
+            are handled immediately.
+            """
+            nonlocal current_chat_task, current_session_id
+
             while True:
                 data = await websocket.receive_json()
                 message_type = data.get("type", "chat")
 
-                # Handle approval response messages
+                # Handle approval response messages immediately (non-blocking)
                 if message_type == "approval_response":
                     try:
                         approval_response = WSApprovalResponseMessage.model_validate(data)
-                        # Use the current session ID from the ongoing chat session
-                        if current_session_id is None:
+                        # Use session_holder.value — updated by chat_stream() when session is created
+                        # (not current_session_id which is only updated after chat_stream() completes)
+                        active_session_id = session_holder.value
+                        if active_session_id is None:
                             await websocket.send_json(
                                 WSErrorMessage(
                                     type="error",
@@ -233,8 +250,10 @@ async def chat_stream(
                             continue
 
                         # Register the approval response with the AgentService
+                        # The polling loop in BackcastSecurityMiddleware will detect this
+                        # and execute the tool — no need to call resume_graph_after_approval
                         success = agent_service.register_approval_response(
-                            session_id=current_session_id,
+                            session_id=active_session_id,
                             approval_id=approval_response.approval_id,
                             approved=approval_response.approved,
                         )
@@ -242,27 +261,16 @@ async def chat_stream(
                             await websocket.send_json(
                                 WSErrorMessage(
                                     type="error",
-                                    message=f"Failed to register approval for session {current_session_id}",
+                                    message=f"Failed to register approval for session {active_session_id}",
                                     code=400,
                                 ).model_dump()
                             )
                             continue
 
-                        # If approved, resume graph execution
-                        if approval_response.approved:
-                            resume_success = await agent_service.resume_graph_after_approval(
-                                session_id=current_session_id,
-                                approval_id=approval_response.approval_id,
-                                websocket=websocket,
-                            )
-                            if not resume_success:
-                                await websocket.send_json(
-                                    WSErrorMessage(
-                                        type="error",
-                                        message=f"Failed to resume graph execution for approval {approval_response.approval_id}",
-                                        code=500,
-                                    ).model_dump()
-                                )
+                        logger.info(
+                            f"Registered approval response: approval_id={approval_response.approval_id}, "
+                            f"approved={approval_response.approved}"
+                        )
                     except Exception as approval_err:
                         logger.error(f"Error handling approval response: {approval_err}", exc_info=True)
                         await websocket.send_json(
@@ -274,7 +282,7 @@ async def chat_stream(
                         )
                     continue
 
-                # Handle chat messages
+                # Handle chat messages - launch as background task
                 request = WSChatRequest.model_validate(data)
 
                 # Validate assistant config per message
@@ -316,40 +324,90 @@ async def chat_stream(
                     current_session_id = request.session_id
                     session_holder.value = request.session_id
 
-                # Process the message and stream the response
-                try:
-                    await agent_service.chat_stream(
-                        message=request.message,
-                        assistant_config=assistant_config,
-                        session_id=request.session_id,
-                        user_id=user_id,
-                        websocket=websocket,
-                        db=db,
-                        title=request.title,
-                        project_id=request.project_id,
-                        branch_id=request.branch_id,
-                        as_of=request.as_of,
-                        branch_name=request.branch_name,
-                        branch_mode=request.branch_mode,
-                        execution_mode=ExecutionMode(request.execution_mode),
-                        session_holder=session_holder,
-                    )
-                    # Update current_session_id from session_holder in case a new session was created
-                    current_session_id = session_holder.value
-                    logger.info(f"WebSocket chat stream completed successfully for user {user_id}")
-                except Exception as stream_err:
-                    err_msg = str(stream_err)
-                    logger.error(f"Error in chat_stream for user {user_id}: {err_msg}", exc_info=True)
-                    try:
-                        await websocket.send_json(
-                            WSErrorMessage(
-                                type="error",
-                                message=err_msg,
-                                code=500,
-                            ).model_dump()
-                        )
-                    except Exception:
-                        pass  # WebSocket may already be closing
+                # Launch chat_stream as background task (non-blocking)
+                # Use a closure factory to avoid late binding issues with loop variables
+                def create_chat_stream_task(
+                    msg: str,
+                    asst_config: Any,
+                    sess_id: UUID | None,
+                    tit: str | None,
+                    proj_id: UUID | None,
+                    br_id: UUID | None,
+                    as_of_dt: datetime | None,
+                    br_name: str | None,
+                    br_mode: Literal["merged", "isolated"] | None,
+                    exec_mode: ExecutionMode,
+                ) -> asyncio.Task[None]:
+                    """Create a background task for chat_stream with captured values.
+
+                    This factory function captures the current loop variables by value,
+                    avoiding late binding issues where all tasks would share the final
+                    loop iteration values.
+                    """
+                    async def run_chat_stream() -> None:
+                        """Run chat_stream and update session_id when complete."""
+                        nonlocal current_session_id
+                        try:
+                            await agent_service.chat_stream(
+                                message=msg,
+                                assistant_config=asst_config,
+                                session_id=sess_id,
+                                user_id=user_id,
+                                websocket=websocket,
+                                db=db,
+                                title=tit,
+                                project_id=proj_id,
+                                branch_id=br_id,
+                                as_of=as_of_dt,
+                                branch_name=br_name,
+                                branch_mode=br_mode,
+                                execution_mode=exec_mode,
+                                session_holder=session_holder,
+                            )
+                            # Update current_session_id from session_holder in case a new session was created
+                            current_session_id = session_holder.value
+                            logger.info(f"WebSocket chat stream completed successfully for user {user_id}")
+                        except Exception as stream_err:
+                            err_msg = str(stream_err)
+                            logger.error(f"Error in chat_stream for user {user_id}: {err_msg}", exc_info=True)
+                            try:
+                                await websocket.send_json(
+                                    WSErrorMessage(
+                                        type="error",
+                                        message=err_msg,
+                                        code=500,
+                                    ).model_dump()
+                                )
+                            except Exception:
+                                pass  # WebSocket may already be closing
+
+                    return asyncio.create_task(run_chat_stream())
+
+                # Create and track the background task with captured values
+                chat_task = create_chat_stream_task(
+                    msg=request.message,
+                    asst_config=assistant_config,
+                    sess_id=request.session_id,
+                    tit=request.title,
+                    proj_id=request.project_id,
+                    br_id=request.branch_id,
+                    as_of_dt=request.as_of,
+                    br_name=request.branch_name,
+                    br_mode=request.branch_mode,
+                    exec_mode=ExecutionMode(request.execution_mode),
+                )
+                tasks.add(chat_task)
+                current_chat_task = chat_task
+                # Remove task from set when it completes
+                chat_task.add_done_callback(tasks.discard)
+
+        try:
+            # Start message handler as background task
+            message_task = asyncio.create_task(message_handler())
+            tasks.add(message_task)
+
+            # Wait for the message handler to complete (disconnect)
+            await message_task
 
         except WebSocketDisconnect as e:
             logger.info(f"WebSocket disconnected normally for user {user_id}: code={e.code}, reason={e.reason}")
@@ -376,5 +434,14 @@ async def chat_stream(
             except Exception:
                 # WebSocket may already be closed
                 pass
+        finally:
+            # Cancel all background tasks on disconnect
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            # Wait for tasks to finish cancellation (with timeout)
+            if tasks:
+                await asyncio.wait(tasks, timeout=2.0, return_when=asyncio.ALL_COMPLETED)
+
         # Context manager automatically closes the db session
         logger.debug(f"WebSocket connection cleanup completed for user {user_id}")

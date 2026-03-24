@@ -56,6 +56,10 @@ export interface UseStreamingChatConfig {
   onToolResult?: (tool: string, result?: unknown) => void;
   /** Optional callback invoked when an approval request is received */
   onApprovalRequest?: (request: WSApprovalRequestMessage) => void;
+  /** Optional callback invoked on each heartbeat with remaining seconds */
+  onApprovalCountdown?: (remaining: number) => void;
+  /** Optional callback invoked when approval polling times out */
+  onApprovalTimeout?: () => void;
   /** Optional callback invoked when agent is planning */
   onPlanning?: (plan?: string, steps?: Array<{ text: string; done: boolean }>) => void;
   /** Optional callback invoked when agent delegates to subagent */
@@ -164,6 +168,8 @@ export const useStreamingChat = (
     onToolCall,
     onToolResult,
     onApprovalRequest,
+    onApprovalCountdown,
+    onApprovalTimeout,
     onPlanning,
     onSubagent,
     onThinking,
@@ -205,6 +211,8 @@ export const useStreamingChat = (
     onToolCall,
     onToolResult,
     onApprovalRequest,
+    onApprovalCountdown,
+    onApprovalTimeout,
     onPlanning,
     onSubagent,
     onThinking,
@@ -219,6 +227,8 @@ export const useStreamingChat = (
       onToolCall,
       onToolResult,
       onApprovalRequest,
+      onApprovalCountdown,
+      onApprovalTimeout,
       onPlanning,
       onSubagent,
       onThinking,
@@ -229,6 +239,12 @@ export const useStreamingChat = (
   // In Strict Mode, effects run twice: mount -> unmount -> mount
   // We use this ref to prevent creating duplicate connections during remount
   const isFirstMountRef = useRef(true);
+
+  // Approval countdown tracking refs
+  const pendingApprovalIdRef = useRef<string | null>(null);
+  const remainingSecondsRef = useRef<number>(0);
+  const maxRemainingRef = useRef<number>(0);
+  const timeoutFiredRef = useRef(false);
 
   // Reset first mount ref when token or assistantId changes
   useEffect(() => {
@@ -254,6 +270,11 @@ export const useStreamingChat = (
 
       // Handle approval request messages (custom type, not in WSServerMessage union)
       if (isApprovalRequestMessage(message)) {
+        // Reset countdown tracking for the new approval request
+        pendingApprovalIdRef.current = message.approval_id;
+        remainingSecondsRef.current = 0;
+        maxRemainingRef.current = 0;
+        timeoutFiredRef.current = false;
         callbacks.onApprovalRequest?.(message);
         return;
       }
@@ -298,12 +319,31 @@ export const useStreamingChat = (
 
       // Handle polling heartbeat messages
       if (isPollingHeartbeatMessage(serverMessage)) {
+        const remaining = serverMessage.remaining_seconds;
+
+        // Track max remaining from first heartbeat to compute progress percentage
+        if (maxRemainingRef.current === 0 || remaining > maxRemainingRef.current) {
+          maxRemainingRef.current = remaining;
+        }
+        remainingSecondsRef.current = remaining;
+
         console.debug(
           `Polling heartbeat: approval_id=${serverMessage.approval_id}, ` +
           `elapsed=${serverMessage.elapsed_seconds.toFixed(1)}s, ` +
-          `remaining=${serverMessage.remaining_seconds.toFixed(1)}s`
+          `remaining=${remaining.toFixed(1)}s`
         );
-        return;  // Silently acknowledge to keep connection alive
+
+        // Notify parent of countdown update
+        callbacks.onApprovalCountdown?.(remaining);
+
+        // Fire timeout callback exactly once when remaining reaches zero
+        if (remaining <= 0 && pendingApprovalIdRef.current && !timeoutFiredRef.current) {
+          timeoutFiredRef.current = true;
+          pendingApprovalIdRef.current = null;
+          callbacks.onApprovalTimeout?.();
+        }
+
+        return;
       }
 
       // Handle completion messages
