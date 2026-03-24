@@ -268,6 +268,7 @@ class AgentService:
         enable_subagents: bool = True,
         provider_type: str | None = None,
         model_name: str | None = None,
+        available_tools: list[Any] | None = None,
     ) -> tuple[Any, InterruptNode | None]:
         """Create Deep Agent graph with Backcast context.
 
@@ -283,6 +284,7 @@ class AgentService:
             enable_subagents: Whether to enable subagent delegation
             provider_type: Optional provider type for model string construction
             model_name: Optional model name for model string construction
+            available_tools: Optional list of available tools for InterruptNode
 
         Returns:
             Tuple of (compiled_graph, interrupt_node) where interrupt_node may be None
@@ -291,8 +293,17 @@ class AgentService:
             This is an alternative to create_graph() that uses the Deep Agents SDK
             for planning and subagent delegation. Falls back to create_graph() if
             Deep Agents SDK is not available or encounters errors.
+
+            InterruptNode is integrated via BackcastSecurityMiddleware to handle
+            approvals for HIGH/CRITICAL risk tools in standard mode.
         """
         try:
+            # Create InterruptNode first (needed for middleware)
+            interrupt_node = None
+            if websocket and session_id and available_tools:
+                # Pass available_tools so InterruptNode can check risk levels
+                interrupt_node = InterruptNode(available_tools, tool_context, websocket, session_id)
+
             # Use pre-configured LLM (ChatOpenAI) instead of model string
             # This ensures the Deep Agent SDK uses our custom configuration (Z.AI base URL, API key)
             logger.info(f"Creating Deep Agent with pre-configured LLM, subagents={enable_subagents}")
@@ -302,6 +313,7 @@ class AgentService:
                 context=tool_context,
                 system_prompt=assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT,
                 enable_subagents=enable_subagents,
+                interrupt_node=interrupt_node,  # Pass InterruptNode for approval handling
             )
 
             # Filter tools by assistant config
@@ -315,13 +327,6 @@ class AgentService:
                 allowed_tools=allowed_tools,
             )
             logger.info("Deep Agent graph created successfully")
-
-            # Create InterruptNode for WebSocket approval flow
-            # Deep Agents SDK uses interrupt_on for interrupts, but we keep
-            # InterruptNode for WebSocket-based approval flow
-            interrupt_node = None
-            if websocket and session_id:
-                interrupt_node = InterruptNode([], tool_context, websocket, session_id)
 
             return graph, interrupt_node
 
@@ -535,6 +540,7 @@ class AgentService:
         branch_name: str | None = None,
         branch_mode: Literal["merged", "isolated"] | None = None,
         execution_mode: ExecutionMode = ExecutionMode.STANDARD,
+        session_holder: Any | None = None,
     ) -> None:
         """Process a chat message using LangGraph with streaming response.
 
@@ -557,6 +563,7 @@ class AgentService:
             branch_name: Optional branch name for temporal queries
             branch_mode: Optional branch mode for temporal queries ("merged" or "isolated")
             execution_mode: Execution mode for tool filtering (safe/standard/expert)
+            session_holder: Optional mutable container to update with new session_id
 
         Returns:
             None (communicates via WebSocket)
@@ -580,6 +587,9 @@ class AgentService:
                 branch_id=branch_id,
             )
             session_id = db_session.id
+            # Update session_holder so caller can track the new session_id
+            if session_holder is not None:
+                session_holder.value = session_id
         if not session_id:
             raise ValueError("Failed to create session")
 
@@ -662,6 +672,7 @@ class AgentService:
             enable_subagents=True,
             provider_type=provider_type,
             model_name=model_name,
+            available_tools=available_tools,
         )
         logger.info(f"Created graph: {type(graph).__name__}")
 

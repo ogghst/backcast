@@ -725,6 +725,7 @@ export const ChatInterface = ({
                 isStreaming={isStreaming}
                 activeToolCalls={activeToolCalls}
                 showSeparator={showStreamSeparator}
+                isMobile={isMobile}
               />
             </div>
 

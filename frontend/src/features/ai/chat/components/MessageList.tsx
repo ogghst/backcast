@@ -39,6 +39,8 @@ interface MessageListProps {
   }>;
   /** Whether to show a separator (when new text stream starts after tool execution) */
   showSeparator?: boolean;
+  /** Whether the current viewport is mobile (< 768px) */
+  isMobile?: boolean;
 }
 
 /**
@@ -52,6 +54,8 @@ interface StreamingMessageProps {
   token: Theme['token'];
   /** Whether to show a separator (when new text stream starts after tool execution) */
   showSeparator?: boolean;
+  /** Whether the current viewport is mobile (< 768px) */
+  isMobile?: boolean;
 }
 
 const StreamingMessage = ({
@@ -59,6 +63,7 @@ const StreamingMessage = ({
   isStreaming,
   token,
   showSeparator,
+  isMobile = false,
 }: StreamingMessageProps) => {
   const { spacing, typography, borderRadius, colors } = useThemeTokens();
 
@@ -68,7 +73,7 @@ const StreamingMessage = ({
         border: "none",
         display: "flex",
         justifyContent: "center",
-        padding: `${spacing.sm}px ${spacing.md}px`,
+        padding: `${spacing.sm}px ${isMobile ? spacing.sm : spacing.md}px`,
       }}
     >
       <div
@@ -79,9 +84,9 @@ const StreamingMessage = ({
           backgroundColor: token.colorFillTertiary,
           color: token.colorText,
           marginRight: "auto",
-          maxWidth: "70%",
-          borderRadius: borderRadius.lg,
-          padding: `${spacing.sm * 0.75}px ${spacing.md}px`,
+          maxWidth: isMobile ? "85%" : "70%",
+          borderRadius: isMobile ? borderRadius.md : borderRadius.lg,
+          padding: `${spacing.sm * 0.75}px ${isMobile ? spacing.sm : spacing.md}px`,
           wordBreak: "break-word",
           position: "relative",
         }}
@@ -217,21 +222,21 @@ const getMessageIcon = (role: ChatMessage["role"]) => {
   }
 };
 
-const getMessageStyle = (role: ChatMessage["role"], token: Theme['token']) => {
+const getMessageStyle = (role: ChatMessage["role"], token: Theme['token'], isMobile: boolean = false) => {
   switch (role) {
     case "user":
       return {
         backgroundColor: token.colorPrimary,
         color: token.colorTextLightSolid,
         marginLeft: "auto",
-        maxWidth: "70%",
+        maxWidth: isMobile ? "85%" : "70%",
       };
     case "assistant":
       return {
         backgroundColor: token.colorFillTertiary,
         color: token.colorText,
         marginRight: "auto",
-        maxWidth: "70%",
+        maxWidth: isMobile ? "85%" : "70%",
       };
     default:
       return {};
@@ -245,6 +250,7 @@ export const MessageList = ({
   isStreaming = false,
   activeToolCalls = [],
   showSeparator = false,
+  isMobile = false,
 }: MessageListProps) => {
   const { token } = theme.useToken();
   const { spacing, typography, borderRadius } = useThemeTokens();
@@ -305,7 +311,7 @@ export const MessageList = ({
               border: "none",
               display: "flex",
               justifyContent: "center",
-              padding: `${spacing.sm}px ${spacing.md}px`,
+              padding: `${spacing.sm}px ${isMobile ? spacing.sm : spacing.md}px`,
             }}
           >
             <div
@@ -313,9 +319,9 @@ export const MessageList = ({
                 display: "flex",
                 flexDirection: "column",
                 gap: spacing.xs,
-                ...getMessageStyle(message.role, token),
-                borderRadius: borderRadius.lg,
-                padding: `${spacing.sm * 0.75}px ${spacing.md}px`,
+                ...getMessageStyle(message.role, token, isMobile),
+                borderRadius: isMobile ? borderRadius.md : borderRadius.lg,
+                padding: `${spacing.sm * 0.75}px ${isMobile ? spacing.sm : spacing.md}px`,
                 wordBreak: "break-word",
               }}
             >
@@ -357,6 +363,7 @@ export const MessageList = ({
           isStreaming={isStreaming}
           token={token}
           showSeparator={showSeparator}
+          isMobile={isMobile}
         />
       )}
 

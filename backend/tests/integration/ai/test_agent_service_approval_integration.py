@@ -29,8 +29,10 @@ from app.models.schemas.ai import WSApprovalRequestMessage
 @pytest.fixture
 def mock_websocket():
     """Create a mock WebSocket connection."""
+    from starlette.websockets import WebSocketState
     websocket = AsyncMock(spec=WebSocket)
     websocket.send_json = AsyncMock()
+    websocket.client_state = WebSocketState.CONNECTED  # Simulate connected state
     return websocket
 
 
@@ -140,7 +142,12 @@ async def test_interrupt_node_sends_approval_request(
     interrupt_node = InterruptNode(tools, tool_context, mock_websocket, session_id)
 
     # Act
-    approval_id = await interrupt_node._send_approval_request("test_tool", {"arg1": "value1"})
+    from app.ai.tools.types import RiskLevel
+    approval_id = await interrupt_node._send_approval_request(
+        "test_tool",
+        {"arg1": "value1"},
+        RiskLevel.HIGH
+    )
 
     # Assert
     assert approval_id is not None
@@ -177,7 +184,7 @@ async def test_interrupt_node_checks_approval_status(
     # Act & Assert - Waiting for approval
     approved, error = interrupt_node._check_approval(approval_id)
     assert approved is False
-    assert error == "Waiting for user approval"
+    assert error is None  # Still waiting - no error message
 
     # Act & Assert - Approved
     interrupt_node.register_approval_response(approval_id, True)
@@ -220,7 +227,12 @@ async def test_full_approval_flow(mock_session, mock_websocket, mock_llm, tool_c
         agent_service.register_interrupt_node(session_id, interrupt_node)
 
         # Simulate critical tool call
-        approval_id = await interrupt_node._send_approval_request("critical_tool", {"param": "value"})
+        from app.ai.tools.types import RiskLevel
+        approval_id = await interrupt_node._send_approval_request(
+            "critical_tool",
+            {"param": "value"},
+            RiskLevel.CRITICAL
+        )
 
         # Verify approval request was sent
         assert mock_websocket.send_json.call_count == 1

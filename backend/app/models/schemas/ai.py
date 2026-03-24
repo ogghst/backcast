@@ -518,6 +518,24 @@ class WSSubagentMessage(BaseModel):
     total_steps: int | None = Field(None, description="Estimated total steps")
 
 
+class WSPollingHeartbeatMessage(BaseModel):
+    """WebSocket polling heartbeat message from server.
+
+    Server -> Client message sent during approval polling to keep the WebSocket
+    connection alive. Prevents connection timeout due to inactivity during the
+    30-second polling period.
+
+    Sent every 5 seconds while waiting for user approval response.
+    """
+
+    type: Literal["polling_heartbeat"] = Field(
+        default="polling_heartbeat", description="Message type discriminator"
+    )
+    approval_id: str = Field(..., description="Approval ID being polled")
+    elapsed_seconds: float = Field(..., description="Time elapsed since approval request (seconds)")
+    remaining_seconds: float = Field(..., description="Time remaining until timeout (seconds)")
+
+
 # Union type for all server->client WebSocket messages
 WSMessage = (
     WSTokenMessage

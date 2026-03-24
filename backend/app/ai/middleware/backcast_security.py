@@ -3,7 +3,7 @@
 Implements three-tier security:
 1. JWT authentication (handled at API layer)
 2. RBAC permission checking
-3. Risk-based execution modes
+3. Risk-based execution modes with InterruptNode integration
 
 Note: This middleware applies security to Backcast tools (decorated with @ai_tool).
 External tools (e.g., Deep Agents SDK built-in tools like write_todos, task) are
@@ -18,6 +18,7 @@ from langchain.agents.middleware.types import AgentMiddleware
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
+from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 from app.core.rbac import get_rbac_service
 
@@ -27,6 +28,12 @@ logger = logging.getLogger(__name__)
 # This avoids putting non-serializable objects (AsyncSession) in the state
 _current_context: contextvars.ContextVar[ToolContext | None] = contextvars.ContextVar(
     "_current_context", default=None
+)
+
+# Context variable to store the current InterruptNode for this async context
+# This allows the middleware to interact with the approval system
+_current_interrupt_node: contextvars.ContextVar[InterruptNode | None] = contextvars.ContextVar(
+    "_current_interrupt_node", default=None
 )
 
 
@@ -41,25 +48,32 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         tools: List of tools available for execution
     """
 
-    def __init__(self, context: ToolContext, tools: list[Any] | None = None) -> None:
+    def __init__(
+        self,
+        context: ToolContext,
+        tools: list[Any] | None = None,
+        interrupt_node: InterruptNode | None = None,
+    ) -> None:
         """Initialize BackcastSecurityMiddleware with context and tools.
 
         Args:
             context: ToolContext with user_role and execution_mode for checks
             tools: Optional list of tools for permission checking
+            interrupt_node: Optional InterruptNode for handling approvals
         """
         super().__init__()
         self.context = context
         # Use private attribute to avoid exposing tools to LangChain's create_agent
         # which collects tools from ALL middleware via getattr(m, "tools", [])
         self._security_tools = tools or []
+        self._interrupt_node = interrupt_node
 
     async def awrap_tool_call(
         self,
         request: ToolCallRequest,
         handler: Any,
     ) -> ToolMessage:
-        """Wrap tool call to check permissions, risk, and inject context.
+        """Wrap tool call to check permissions, risk, and handle approvals.
 
         Args:
             request: ToolCallRequest containing tool_call information
@@ -71,6 +85,7 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         Note:
             Context is stored in a context variable to avoid including
             non-serializable objects (AsyncSession) in the state.
+            Approval requests are sent via InterruptNode if available.
         """
         tool_call = request.tool_call
         tool_name = tool_call.get("name", "")
@@ -82,19 +97,30 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         if error_message:
             return ToolMessage(content=error_message, tool_call_id=tool_id)
 
-        # 2. Check risk level (only if permission granted)
-        allowed, risk_error = self._check_risk_level(tool_name)
+        # 2. Check risk level and handle approval if needed (only if permission granted)
+        tool_call_dict: dict[str, Any] = dict(tool_call) if tool_call else {}
+        allowed, risk_error = await self._check_risk_level_with_approval(
+            tool_name, tool_args, tool_call_dict, handler
+        )
         if not allowed:
+            # If not allowed, return error (this handles both risk blocks and rejections)
+            error_content = risk_error if isinstance(risk_error, str) else "Tool execution not allowed"
             return ToolMessage(
-                content=risk_error or "Tool execution not allowed based on risk level",
+                content=error_content,
                 tool_call_id=tool_id
             )
 
         # 3. Store context in context variable for tool to retrieve
         # This avoids putting non-serializable objects (AsyncSession) in the state
         _current_context.set(self.context)
+        _current_interrupt_node.set(self._interrupt_node)
 
         # Execute tool with original args (context will be retrieved from context variable)
+        # If approval was handled, the handler may have already been called
+        result = risk_error  # If risk_error is a ToolMessage, it's the result
+        if isinstance(result, ToolMessage):
+            return result
+
         return await handler(request)
 
     async def _check_tool_permission(
@@ -251,6 +277,132 @@ class BackcastSecurityMiddleware(AgentMiddleware):
 
         return True, None
 
+    async def _check_risk_level_with_approval(
+        self,
+        tool_name: str,
+        tool_args: dict[str, Any],
+        tool_call: dict[str, Any],
+        handler: Any,
+    ) -> tuple[bool, str | None | ToolMessage]:
+        """Check risk level and handle approval for HIGH/CRITICAL tools in standard mode.
+
+        Args:
+            tool_name: Name of the tool to check
+            tool_args: Arguments passed to the tool
+            tool_call: Tool call dictionary from request
+            handler: Callable to execute the tool
+
+        Returns:
+            Tuple of (allowed, error_message_or_result)
+            - allowed: True if tool can proceed, False otherwise
+            - error_message_or_result: None if allowed, error message if denied,
+                                       or ToolMessage if execution completed
+
+        Note:
+            HIGH and CRITICAL risk tools in STANDARD mode require approval.
+            Uses InterruptNode to send approval requests via WebSocket.
+            Waits for user approval with polling (max 30 seconds).
+        """
+        # First, do the basic risk check
+        allowed, error_message = self._check_risk_level(tool_name)
+        if not allowed:
+            return False, error_message
+
+        # Find the tool by name in Backcast tools list
+        tool = None
+        for t in self._security_tools:
+            if t.name == tool_name:
+                tool = t
+                break
+
+        # If tool is not found in Backcast tools, allow it to pass through
+        if tool is None:
+            return True, None
+
+        # Get tool metadata
+        metadata = getattr(tool, "_tool_metadata", None)
+        if metadata is None:
+            # No metadata means no risk level - assume high (safe default)
+            risk_level = RiskLevel.HIGH
+        else:
+            risk_level = metadata.risk_level
+
+        # Check if we need approval (HIGH/CRITICAL in STANDARD mode)
+        mode = self.context.execution_mode
+        needs_approval = (
+            risk_level >= RiskLevel.HIGH and
+            mode == ExecutionMode.STANDARD and
+            self._interrupt_node is not None
+        )
+
+        if needs_approval:
+            logger.info(f"APPROVAL_NEEDED: tool='{tool_name}', risk_level={risk_level.value}")
+
+            # Ensure interrupt_node is not None
+            if self._interrupt_node is None:
+                logger.error("InterruptNode is None but approval is needed")
+                return False, "Approval system unavailable"
+
+            # Send approval request via InterruptNode
+            approval_id = await self._interrupt_node._send_approval_request(
+                tool_name=tool_name,
+                tool_args=tool_args,
+                risk_level=risk_level,
+                tool_call=tool_call,
+                execute=handler,
+            )
+
+            # Poll for approval response with timeout
+            # Give user up to 30 seconds to respond
+            import asyncio
+
+            max_wait_time = 30.0  # seconds
+            poll_interval = 0.2  # 200ms
+            heartbeat_interval = 5.0  # Send heartbeat every 5 seconds
+            total_waited = 0.0
+            last_heartbeat = 0.0
+
+            logger.info(f"POLLING_FOR_APPROVAL: approval_id={approval_id}, tool='{tool_name}'")
+
+            while total_waited < max_wait_time:
+                await asyncio.sleep(poll_interval)
+                total_waited += poll_interval
+
+                # Send heartbeat to keep WebSocket connection alive
+                # Prevents connection timeout due to inactivity (typically 20-30 seconds)
+                if total_waited - last_heartbeat >= heartbeat_interval:
+                    remaining = max_wait_time - total_waited
+                    await self._interrupt_node._send_heartbeat(
+                        approval_id=approval_id,
+                        elapsed_seconds=total_waited,
+                        remaining_seconds=remaining,
+                    )
+                    last_heartbeat = total_waited
+
+                approved, approval_error = self._interrupt_node._check_approval(approval_id)
+
+                if approved:
+                    # User approved - execute tool
+                    logger.info(f"APPROVAL_GRANTED: tool='{tool_name}', executing via InterruptNode")
+                    result = await self._interrupt_node.execute_after_approval(approval_id)
+
+                    if result is None:
+                        return False, "Tool execution failed after approval"
+
+                    # Return the result as a ToolMessage
+                    return True, result
+                elif approval_error is not None:
+                    # User rejected, expired, or not found
+                    logger.warning(f"APPROVAL_ERROR: tool='{tool_name}', error={approval_error}")
+                    return False, approval_error
+                # If approval_error is None, still waiting - continue polling
+
+            # Timeout reached
+            logger.warning(f"APPROVAL_TIMEOUT: tool='{tool_name}', waited {max_wait_time}s")
+            return False, f"Approval request timed out after {max_wait_time} seconds. Please try again."
+
+        return True, None
+
     def set_tools(self, tools: list[Any]) -> None:
         """Set the tools list for permission checking.
 
@@ -258,6 +410,14 @@ class BackcastSecurityMiddleware(AgentMiddleware):
             tools: List of BaseTool instances
         """
         self._security_tools = tools
+
+    def set_interrupt_node(self, interrupt_node: InterruptNode | None) -> None:
+        """Set the InterruptNode for approval handling.
+
+        Args:
+            interrupt_node: InterruptNode instance for handling approvals
+        """
+        self._interrupt_node = interrupt_node
 
 
 def get_context() -> ToolContext | None:
@@ -272,3 +432,16 @@ def get_context() -> ToolContext | None:
         avoids putting non-serializable objects (AsyncSession) in the state.
     """
     return _current_context.get()
+
+
+def get_interrupt_node() -> InterruptNode | None:
+    """Get the current InterruptNode from the context variable.
+
+    Returns:
+        The current InterruptNode or None if not set
+
+    Note:
+        This function is used to retrieve the InterruptNode that was
+        set by the BackcastSecurityMiddleware for approval handling.
+    """
+    return _current_interrupt_node.get()

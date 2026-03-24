@@ -13,7 +13,7 @@
  */
 
 import { memo, useState, useEffect } from "react";
-import { ClockCircleOutlined, RobotOutlined, ThunderboltOutlined, CheckCircleOutlined } from "@ant-design/icons";
+import { ClockCircleOutlined, RobotOutlined, ThunderboltOutlined, CheckCircleOutlined, DownOutlined } from "@ant-design/icons";
 import { theme, Grid } from "antd";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 
@@ -307,15 +307,22 @@ ActivityHistoryItem.displayName = "ActivityHistoryItem";
  */
 export const AgentActivityPanel = memo(({ activity, activityHistory: propActivityHistory = [] }: AgentActivityPanelProps) => {
   const { token } = theme.useToken();
-  const { spacing } = useThemeTokens();
+  const { spacing, colors, borderRadius } = useThemeTokens();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md; // md breakpoint is 768px
 
-  // Hover state for history expansion
-  const [isHovered, setIsHovered] = useState(false);
+  // Use state-based expansion instead of hover for touch compatibility
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Use passed history or empty array
   const activityHistory = propActivityHistory;
+  const hasHistory = activityHistory.length > 0;
+
+  const toggleExpanded = () => {
+    if (hasHistory) {
+      setIsExpanded(prev => !prev);
+    }
+  };
 
   if (!activity) {
     return null;
@@ -335,6 +342,29 @@ export const AgentActivityPanel = memo(({ activity, activityHistory: propActivit
             50% { opacity: 1; transform: scale(1); }
             100% { opacity: 0.3; transform: scale(0.8); }
           }
+
+          @keyframes chevron-rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(180deg); }
+          }
+
+          .chevron-icon {
+            transition: transform 0.3s ease;
+          }
+
+          .chevron-icon.expanded {
+            transform: rotate(180deg);
+          }
+
+          .history-toggle-button {
+            cursor: pointer;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+          }
+
+          .history-toggle-button:active {
+            opacity: 0.7;
+          }
         `}
       </style>
 
@@ -345,26 +375,83 @@ export const AgentActivityPanel = memo(({ activity, activityHistory: propActivit
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
         }}
       >
-        {/* Latest activity display with hover expansion */}
+        {/* Latest activity display with expand toggle button */}
         <div
           style={{
             padding: `${spacing.xs}px ${isMobile ? spacing.sm : spacing.md}px`,
             position: "relative"
           }}
-          onMouseEnter={() => activityHistory.length > 0 && setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
         >
-          <LatestActivityDisplay activity={activity} />
+          {/* Expandable header with latest activity and toggle button */}
+          {hasHistory && (
+            <div
+              className="history-toggle-button"
+              onClick={toggleExpanded}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: spacing.sm,
+                padding: `${spacing.xs}px ${spacing.sm}px`,
+                background: isExpanded ? `${colors.primary}08` : "transparent",
+                borderRadius: borderRadius.md,
+                transition: "background 0.2s ease",
+              }}
+              role="button"
+              tabIndex={0}
+              aria-expanded={isExpanded}
+              aria-label={isExpanded ? "Collapse activity history" : "Expand activity history"}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  toggleExpanded();
+                }
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <LatestActivityDisplay activity={activity} />
+              </div>
 
-          {/* Activity history panel - expands on hover */}
-          {activityHistory.length > 0 && (
+              {/* Chevron icon for expansion indication */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
+                  background: isExpanded ? `${colors.primary}15` : "transparent",
+                  transition: "background 0.2s ease",
+                  marginLeft: spacing.sm,
+                  flexShrink: 0,
+                }}
+              >
+                <DownOutlined
+                  className={`chevron-icon ${isExpanded ? "expanded" : ""}`}
+                  style={{
+                    fontSize: 12,
+                    color: colors.primary,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* If no history, just show latest activity without toggle */}
+          {!hasHistory && (
+            <LatestActivityDisplay activity={activity} />
+          )}
+
+          {/* Activity history panel - expands on toggle */}
+          {hasHistory && (
             <div
               style={{
-                maxHeight: isHovered ? "300px" : "0",
-                overflowY: "auto",
-                opacity: isHovered ? 1 : 0,
+                maxHeight: isExpanded ? "300px" : "0",
+                overflowY: isExpanded ? "auto" : "hidden",
+                opacity: isExpanded ? 1 : 0,
                 transition: "max-height 0.3s ease-out, opacity 0.3s ease-out",
-                marginTop: spacing.sm,
+                marginTop: isExpanded ? spacing.sm : 0,
               }}
             >
               <div

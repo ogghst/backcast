@@ -6,7 +6,7 @@
 
 import React, { useMemo } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { theme as antdTheme } from 'antd';
+import { theme as antdTheme, Grid } from 'antd';
 import { CopyButton } from './CopyButton';
 import { useThemeTokens } from '@/hooks/useThemeTokens';
 import { lightTheme, darkTheme } from '../../utils/markdown/syntax-highlighter';
@@ -31,6 +31,10 @@ interface CodeBlockProps {
 export const CodeBlock: React.FC<CodeBlockProps> = ({ language, value }) => {
   const { token } = antdTheme.useToken();
   const { colors, borderRadius, spacing } = useThemeTokens();
+  const screens = Grid.useBreakpoint();
+
+  // Detect mobile view
+  const isMobile = screens.xs || (!screens.sm && !screens.md && !screens.lg && !screens.xl && !screens.xxl);
 
   // Determine the syntax theme based on Ant Design theme mode
   const syntaxTheme = useMemo(() => {
@@ -62,18 +66,18 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({ language, value }) => {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: `${spacing.sm}px ${spacing.md}px`,
+          padding: isMobile ? `${spacing.xs}px ${spacing.sm}px` : `${spacing.sm}px ${spacing.md}px`,
           background: backgroundGradient,
           borderBottom: `1px solid ${colors.borderSecondary}`,
         }}
       >
         <span
           style={{
-            fontSize: token.fontSizeXS,
+            fontSize: isMobile ? '10px' : token.fontSizeXS,
             textTransform: 'uppercase',
             fontWeight: 600,
             color: colors.textSecondary,
-            letterSpacing: '0.5px',
+            letterSpacing: isMobile ? '0.3px' : '0.5px',
           }}
         >
           {language || 'code'}

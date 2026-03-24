@@ -38,6 +38,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ai/chat", tags=["AI Chat"])
 
 
+class SessionIdHolder:
+    """Mutable container for session_id to pass by reference.
+
+    Context: When creating a new session in chat_stream(), the session_id
+    needs to be communicated back to the WebSocket endpoint for approval
+    handling. Since Python passes arguments by assignment, we use this
+    simple container to hold the session_id and update it by reference.
+    """
+
+    def __init__(self) -> None:
+        """Initialize with None session_id."""
+        self.value: UUID | None = None
+
+
 def get_ai_config_service(session: AsyncSession = Depends(get_db)) -> AIConfigService:
     """Get AI configuration service."""
     return AIConfigService(session)
@@ -194,6 +208,8 @@ async def chat_stream(
         agent_service = AgentService(db)
 
         # Track current session ID for approval handling
+        # Use mutable container so chat_stream() can update it when creating new sessions
+        session_holder = SessionIdHolder()
         current_session_id: UUID | None = None
 
         try:
@@ -298,6 +314,7 @@ async def chat_stream(
                 # Update current session ID for approval handling
                 if request.session_id:
                     current_session_id = request.session_id
+                    session_holder.value = request.session_id
 
                 # Process the message and stream the response
                 try:
@@ -315,7 +332,10 @@ async def chat_stream(
                         branch_name=request.branch_name,
                         branch_mode=request.branch_mode,
                         execution_mode=ExecutionMode(request.execution_mode),
+                        session_holder=session_holder,
                     )
+                    # Update current_session_id from session_holder in case a new session was created
+                    current_session_id = session_holder.value
                     logger.info(f"WebSocket chat stream completed successfully for user {user_id}")
                 except Exception as stream_err:
                     err_msg = str(stream_err)

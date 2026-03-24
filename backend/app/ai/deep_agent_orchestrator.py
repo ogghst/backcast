@@ -8,10 +8,11 @@ Wraps create_deep_agent() with:
 """
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 from deepagents import create_deep_agent
 from deepagents.middleware.subagents import SubAgent
+from langchain.agents.middleware.human_in_the_loop import InterruptOnConfig
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
@@ -19,7 +20,7 @@ from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
 from app.ai.middleware.temporal_context import TemporalContextMiddleware
 from app.ai.subagents import get_all_subagents
 from app.ai.tools import create_project_tools, filter_tools_by_execution_mode
-from app.ai.tools.types import ToolContext
+from app.ai.tools.types import RiskLevel, ToolContext
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,7 @@ class DeepAgentOrchestrator:
         context: ToolContext with user permissions and temporal parameters
         system_prompt: Optional custom system prompt
         enable_subagents: Whether to enable subagent delegation (default: True)
+        interrupt_node: Optional InterruptNode for handling approvals
     """
 
     def __init__(
@@ -63,6 +65,7 @@ class DeepAgentOrchestrator:
         context: ToolContext,
         system_prompt: str | None = None,
         enable_subagents: bool = True,
+        interrupt_node: Any = None,
     ) -> None:
         """Initialize DeepAgentOrchestrator.
 
@@ -71,11 +74,13 @@ class DeepAgentOrchestrator:
             context: ToolContext with user permissions and temporal parameters
             system_prompt: Optional custom system prompt
             enable_subagents: Whether to enable subagent delegation
+            interrupt_node: Optional InterruptNode for handling approvals
         """
         self.model = model
         self.context = context
         self.system_prompt = system_prompt
         self.enable_subagents = enable_subagents
+        self.interrupt_node = interrupt_node
 
     def create_agent(
         self,
@@ -114,25 +119,23 @@ class DeepAgentOrchestrator:
             # These are added automatically by create_deep_agent()
             tools = []
             logger.info("Creating Deep Agent with subagents - main agent delegates only")
+            # InterruptNode will handle approval in the middleware instead
         else:
             # Without subagents, main agent needs direct tool access
             tools = all_tools
             logger.info(f"Creating Deep Agent with {len(tools)} tools (no subagents)")
+            # InterruptNode will handle approval in the middleware instead
 
         # Build context_schema for temporal parameters
         # Note: Deep Agents uses this for validation but actual injection happens in middleware
         context_schema = self._build_context_schema()
 
-        # Configure interrupts for critical tools
-        # These tools will pause execution for approval in standard mode
-        interrupt_config = self._build_interrupt_config(tools) if not self.enable_subagents else {}
-
         # Create middleware stack with tools reference
         # Order matters: temporal first (logging), then security (checking)
-        # Security middleware needs filtered_tools for permission checking
+        # Security middleware needs filtered_tools for permission checking and InterruptNode
         middleware = [
             TemporalContextMiddleware(self.context),
-            BackcastSecurityMiddleware(self.context, tools=all_tools),
+            BackcastSecurityMiddleware(self.context, tools=all_tools, interrupt_node=self.interrupt_node),
         ]
 
         # Get subagents
@@ -160,13 +163,15 @@ class DeepAgentOrchestrator:
 
         # Create Deep Agent with Backcast configuration
         # Pass model string or ChatOpenAI instance directly to create_deep_agent
+        # Note: We don't use interrupt_on parameter because it requires HumanInTheLoopMiddleware
+        # which doesn't support async (astream_events). Instead, we use our custom
+        # BackcastSecurityMiddleware which handles approval via InterruptNode.
         agent = create_deep_agent(
             model=self.model,
             tools=tools,
             system_prompt=final_system_prompt,
             subagents=agent_subagents,  # type: ignore[arg-type]
             context_schema=context_schema,  # type: ignore[arg-type]
-            interrupt_on=interrupt_config,  # type: ignore[arg-type]
             middleware=middleware,
             checkpointer=None,  # Use default checkpointer
         )
@@ -265,22 +270,34 @@ When a user asks for Backcast-related operations, you MUST use the task tool to 
 Do NOT attempt to use Backcast tools directly - they will not work. Always delegate via the task tool.
 """
 
-    def _build_interrupt_config(self, tools: list[BaseTool]) -> dict[str, bool]:
-        """Build interrupt configuration for critical tools.
+    def _build_interrupt_config(self, tools: list[BaseTool]) -> dict[str, InterruptOnConfig]:
+        """Build interrupt configuration for HIGH and CRITICAL risk tools.
 
         Args:
-            tools: List of tools to check for critical risk level
+            tools: List of tools to check for risk level
 
         Returns:
-            Dictionary mapping critical tool names to True
+            Dictionary mapping tool names to InterruptOnConfig for tools requiring interrupt
+
+        Note:
+            In standard mode, HIGH and CRITICAL risk tools require approval.
+            The Deep Agents SDK interrupt mechanism will pause execution for these tools.
+
+            InterruptOnConfig format:
+            - allowed_decisions: List of decisions ("approve", "reject") user can make
+            - description: Static string describing the approval request
         """
-        critical_tools = {}
+        interrupt_tools = {}
         for tool in tools:
             metadata = getattr(tool, "_tool_metadata", None)
-            if metadata and metadata.risk_level.value == "critical":
-                critical_tools[tool.name] = True
-                logger.debug(f"Tool '{tool.name}' marked for interrupt (critical)")
-        return critical_tools
+            if metadata and metadata.risk_level >= RiskLevel.HIGH:
+                # Create InterruptOnConfig for HIGH and CRITICAL risk tools
+                interrupt_tools[tool.name] = InterruptOnConfig(
+                    allowed_decisions=["approve", "reject"],
+                    description=f"Tool '{tool.name}' has {metadata.risk_level.value} risk level and requires approval before execution."
+                )
+                logger.debug(f"Tool '{tool.name}' marked for interrupt ({metadata.risk_level.value})")
+        return interrupt_tools
 
     def _create_subagent_objects(
         self,
@@ -303,8 +320,18 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
             1. By the subagent's own allowed_tools list
             2. By the assistant's allowed_tools whitelist (if provided)
             This ensures subagents can only access tools that the assistant is allowed to use.
+
+            BackcastSecurityMiddleware is added to each subagent to handle approval
+            for HIGH and CRITICAL risk tools in standard mode.
         """
         subagent_objects = []
+
+        # Create middleware for subagents
+        # Each subagent gets its own middleware instance to handle tool approval
+        subagent_middleware = [
+            TemporalContextMiddleware(self.context),
+            BackcastSecurityMiddleware(self.context, tools=available_tools, interrupt_node=self.interrupt_node),
+        ]
 
         for config in subagent_configs:
             name = config.get("name", "")
@@ -332,15 +359,22 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
             subagent_tools = [t for t in available_tools if t.name in filtered_tool_names]
 
             if subagent_tools:
+                # Pass middleware to subagent so tool approval works for subagent-executed tools
+                # Note: We don't pass interrupt_on to SubAgent because it requires
+                # HumanInTheLoopMiddleware which doesn't support async (astream_events).
+                # Instead, BackcastSecurityMiddleware handles approval via InterruptNode.
                 subagent = SubAgent(
                     name=name,
                     description=description,
                     system_prompt=system_prompt,
                     tools=subagent_tools,
+                    middleware=subagent_middleware,  # Pass middleware to enable approval workflow
+                    interrupt_on=cast(Any, {}),  # Empty dict - approval handled in middleware
                 )
                 subagent_objects.append(subagent)
                 logger.info(
-                    f"Created subagent '{name}' with {len(subagent_tools)} tools"
+                    f"Created subagent '{name}' with {len(subagent_tools)} tools "
+                    "(approval handled via BackcastSecurityMiddleware)"
                 )
             else:
                 logger.warning(

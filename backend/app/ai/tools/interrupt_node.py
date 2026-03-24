@@ -17,7 +17,7 @@ from langgraph.prebuilt import ToolNode
 from starlette.websockets import WebSocketState
 
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
-from app.models.schemas.ai import WSApprovalRequestMessage
+from app.models.schemas.ai import WSApprovalRequestMessage, WSPollingHeartbeatMessage
 
 
 class InterruptNode(ToolNode):
@@ -146,8 +146,11 @@ class InterruptNode(ToolNode):
         Returns:
             approval_id UUID string for tracking this approval request
         """
+        from app.ai.agent_service import logger
         approval_id = str(uuid4())
         expires_at = datetime.now() + timedelta(minutes=5)
+
+        logger.info(f"SENDING_APPROVAL_REQUEST: approval_id={approval_id}, tool='{tool_name}', risk_level={risk_level.value}")
 
         approval_request = WSApprovalRequestMessage(
             type="approval_request",
@@ -162,12 +165,13 @@ class InterruptNode(ToolNode):
         if self._is_websocket_connected(self.websocket):
             try:
                 await self.websocket.send_json(approval_request.model_dump(mode="json"))
-            except Exception:
+                logger.info(f"APPROVAL_REQUEST_SENT: approval_id={approval_id}, tool='{tool_name}'")
+            except Exception as e:
                 # WebSocket may be closed, but we still track the approval
                 # The approval will timeout after 5 minutes
+                logger.error(f"FAILED_TO_SEND_APPROVAL_REQUEST: approval_id={approval_id}, error={e}")
                 pass
         else:
-            from app.ai.agent_service import logger
             logger.debug("WebSocket not connected, skipping approval request send")
 
         # Store pending approval with expiration
@@ -177,6 +181,7 @@ class InterruptNode(ToolNode):
             "tool_args": tool_args,
             "expires_at": expires_at,
         }
+        logger.debug(f"APPROVAL_STORED: approval_id={approval_id}, pending_approvals_count={len(self.pending_approvals)}")
 
         # Store interrupt state for resume if provided
         if tool_call is not None and execute is not None:
@@ -186,8 +191,49 @@ class InterruptNode(ToolNode):
                 "tool_name": tool_name,
                 "tool_args": tool_args,
             }
+            logger.debug(f"INTERRUPT_STATE_STORED: approval_id={approval_id}")
 
         return approval_id
+
+    async def _send_heartbeat(
+        self,
+        approval_id: str,
+        elapsed_seconds: float,
+        remaining_seconds: float,
+    ) -> None:
+        """Send a heartbeat message during approval polling to keep WebSocket alive.
+
+        Args:
+            approval_id: Approval ID being polled
+            elapsed_seconds: Time elapsed since approval request
+            remaining_seconds: Time remaining until timeout
+
+        Note:
+            This method sends a polling_heartbeat message every few seconds
+            during the approval polling period to prevent the WebSocket connection
+            from closing due to inactivity (typically 20-30 second timeouts).
+        """
+        from app.ai.agent_service import logger
+
+        heartbeat = WSPollingHeartbeatMessage(
+            type="polling_heartbeat",
+            approval_id=approval_id,
+            elapsed_seconds=elapsed_seconds,
+            remaining_seconds=remaining_seconds,
+        )
+
+        if self._is_websocket_connected(self.websocket):
+            try:
+                await self.websocket.send_json(heartbeat.model_dump(mode="json"))
+                logger.debug(
+                    f"POLLING_HEARTBEAT_SENT: approval_id={approval_id}, "
+                    f"elapsed={elapsed_seconds:.1f}s, remaining={remaining_seconds:.1f}s"
+                )
+            except Exception as e:
+                # WebSocket may be closed, log but don't raise
+                logger.warning(f"FAILED_TO_SEND_HEARTBEAT: approval_id={approval_id}, error={e}")
+        else:
+            logger.debug("WebSocket not connected, skipping heartbeat send")
 
     def _check_approval(self, approval_id: str) -> tuple[bool, str | None]:
         """Check if an approval has been granted and is not expired.
@@ -198,7 +244,12 @@ class InterruptNode(ToolNode):
         Returns:
             Tuple of (approved, error_message)
             - approved: True if approved, False otherwise
-            - error_message: Error message if not approved, None otherwise
+            - error_message: Error message if not approved, None if still waiting
+
+        Note:
+            Returns (False, None) when still waiting for user approval.
+            Returns (False, error_message) when rejected or expired.
+            Returns (True, None) when approved.
         """
         approval = self.pending_approvals.get(approval_id)
 
@@ -215,7 +266,8 @@ class InterruptNode(ToolNode):
         # Check if approved
         approved = approval.get("approved")
         if approved is None:
-            return False, "Waiting for user approval"
+            # Still waiting - return (False, None) to indicate polling should continue
+            return False, None
         elif approved is False:
             return False, "Tool execution was rejected by user"
 

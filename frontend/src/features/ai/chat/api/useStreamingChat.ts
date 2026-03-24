@@ -409,7 +409,7 @@ export const useStreamingChat = (
       }
 
       // Get user ID from auth store
-      const userId = useAuthStore.getState().userId;
+      const userId = useAuthStore.getState().user?.id;
       if (!userId) {
         const errorMsg = "User ID not found - cannot send approval response";
         onError(errorMsg);

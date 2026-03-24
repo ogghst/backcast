@@ -4,9 +4,11 @@
  * Modal dialog for requesting user approval for critical AI tool execution.
  * Displays tool information, arguments, and risk level.
  * Provides Approve/Reject/Cancel buttons for user decision.
+ *
+ * Theme-aware: Uses Ant Design theme tokens for dark mode support.
  */
 
-import { Modal, Alert, Typography, Tag, Space, Descriptions } from "antd";
+import { Modal, Alert, Typography, Tag, Space, Descriptions, Button, theme } from "antd";
 import type { WSApprovalRequestMessage } from "../chat/types";
 import { ExclamationCircleOutlined } from "@ant-design/icons";
 
@@ -47,6 +49,9 @@ export const ApprovalDialog = ({
   onReject,
   onCancel,
 }: ApprovalDialogProps) => {
+  // Access theme tokens for dark mode support
+  const { token } = theme.useToken();
+
   if (!approvalRequest) {
     return null;
   }
@@ -78,37 +83,34 @@ export const ApprovalDialog = ({
     <Modal
       title={
         <Space>
-          <ExclamationCircleOutlined style={{ color: "#faad14" }} />
+          <ExclamationCircleOutlined style={{ color: token.colorWarning }} />
           <span>Approve Tool Execution</span>
         </Space>
       }
       open={open}
-      onOk={handleApprove}
       onCancel={handleCancel}
-      okText="Approve"
-      cancelText="Reject"
-      okButtonProps={{ danger: false }}
-      cancelButtonProps={{ danger: true }}
       width={600}
       destroyOnClose
-      footer={[
-        <button key="reject" type="button" onClick={handleReject} style={{ marginRight: 8 }}>
-          Reject
-        </button>,
-        <button key="cancel" type="button" onClick={handleCancel} style={{ marginRight: 8 }}>
-          Cancel
-        </button>,
-        <button key="approve" type="button" onClick={handleApprove}>
-          Approve
-        </button>,
-      ]}
+      footer={
+        <Space style={{ width: "100%", justifyContent: "flex-end" }}>
+          <Button danger onClick={handleReject}>
+            Reject
+          </Button>
+          <Button onClick={handleCancel}>
+            Cancel
+          </Button>
+          <Button type="primary" onClick={handleApprove}>
+            Approve
+          </Button>
+        </Space>
+      }
     >
       <Alert
         message="Critical Tool Requires Approval"
         description="This tool has been marked as critical and requires your explicit approval before execution."
         type="warning"
         showIcon
-        style={{ marginBottom: 16 }}
+        style={{ marginBottom: token.marginLG }}
       />
 
       <Descriptions bordered column={1} size="small">
@@ -124,12 +126,14 @@ export const ApprovalDialog = ({
           <Paragraph>
             <pre
               style={{
-                background: "#f5f5f5",
-                padding: 8,
-                borderRadius: 4,
-                fontSize: 12,
+                background: token.colorFillAlter,
+                padding: token.paddingSM,
+                borderRadius: token.borderRadiusSM,
+                fontSize: token.fontSizeSM,
                 overflow: "auto",
                 maxHeight: 200,
+                color: token.colorText,
+                border: `1px solid ${token.colorBorderSecondary}`,
               }}
             >
               {formatArgs(approvalRequest.tool_args)}
@@ -146,7 +150,7 @@ export const ApprovalDialog = ({
         message="Approval will allow this tool to execute with the provided arguments."
         type="info"
         showIcon
-        style={{ marginTop: 16 }}
+        style={{ marginTop: token.marginLG }}
       />
     </Modal>
   );
