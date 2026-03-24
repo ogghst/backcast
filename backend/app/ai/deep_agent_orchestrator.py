@@ -17,6 +17,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
 from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
+from app.ai.middleware.subagent_result import SubagentResultMiddleware
 from app.ai.middleware.temporal_context import TemporalContextMiddleware
 from app.ai.subagents import get_all_subagents
 from app.ai.tools import create_project_tools, filter_tools_by_execution_mode
@@ -151,11 +152,13 @@ class DeepAgentOrchestrator:
         context_schema = self._build_context_schema()
 
         # Create middleware stack with tools reference
-        # Order matters: temporal first (logging), then security (checking)
-        # Security middleware needs filtered_tools for permission checking and InterruptNode
+        # Order matters: temporal first (logging), then security (checking),
+        # then subagent result interception (must be after security so it sees
+        # the approved/executed result)
         middleware = [
             TemporalContextMiddleware(self.context),
             BackcastSecurityMiddleware(self.context, tools=all_tools, interrupt_node=self.interrupt_node),
+            SubagentResultMiddleware(),
         ]
 
         # Get subagents

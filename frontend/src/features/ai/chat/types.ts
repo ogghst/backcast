@@ -64,6 +64,8 @@ export interface WSTokenMessage {
   type: "token";
   content: string;
   session_id: string;
+  source?: "main" | "subagent";
+  subagent_name?: string;
 }
 
 /**
@@ -148,6 +150,26 @@ export interface WSThinkingMessage {
 }
 
 /**
+ * Server -> Client: Subagent result event
+ * Sent when a subagent (task tool) completes with its final response
+ */
+export interface WSSubagentResultMessage {
+  type: "subagent_result";
+  subagent_name: string;
+  content: string;
+}
+
+/**
+ * Server -> Client: Content reset event
+ * Sent when the streaming content buffer should be reset,
+ * typically after a subagent completes
+ */
+export interface WSContentResetMessage {
+  type: "content_reset";
+  reason: string;
+}
+
+/**
  * Server -> Client: Polling heartbeat event
  * Sent every 5 seconds during the 30-second approval polling period
  * to keep the WebSocket connection alive
@@ -171,7 +193,9 @@ export type WSServerMessage =
   | WSErrorMessage
   | WSPlanningMessage
   | WSSubagentMessage
+  | WSSubagentResultMessage
   | WSThinkingMessage
+  | WSContentResetMessage
   | WSPollingHeartbeatMessage;
 
 /**
@@ -292,10 +316,28 @@ export function isThinkingMessage(message: WSServerMessage): message is WSThinki
 }
 
 /**
+ * Type guard to check if a server message is a subagent result message
+ */
+export function isSubagentResultMessage(
+  message: WSServerMessage
+): message is WSSubagentResultMessage {
+  return message.type === "subagent_result";
+}
+
+/**
  * Type guard to check if a server message is a polling heartbeat message
  */
 export function isPollingHeartbeatMessage(
   message: WSServerMessage
 ): message is WSPollingHeartbeatMessage {
   return message.type === "polling_heartbeat";
+}
+
+/**
+ * Type guard to check if a server message is a content reset message
+ */
+export function isContentResetMessage(
+  message: WSServerMessage
+): message is WSContentResetMessage {
+  return message.type === "content_reset";
 }

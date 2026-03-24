@@ -25,6 +25,10 @@ from starlette.websockets import WebSocketState
 
 from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
 from app.ai.graph import create_graph
+from app.ai.middleware.subagent_result import (
+    clear_last_subagent_result,
+    get_last_subagent_result,
+)
 from app.ai.telemetry import (
     initialize_telemetry,
     trace_context,
@@ -42,9 +46,11 @@ from app.models.schemas.ai import (
     AIChatResponse,
     AIConversationMessagePublic,
     WSCompleteMessage,
+    WSContentResetMessage,
     WSErrorMessage,
     WSPlanningMessage,
     WSSubagentMessage,
+    WSSubagentResultMessage,
     WSThinkingMessage,
     WSTokenMessage,
     WSToolCallMessage,
@@ -731,6 +737,9 @@ class AgentService:
         total_tokens = 0
         tool_calls_count = 0
 
+        # Track subagent name for result reporting
+        current_subagent_name: str | None = None
+
         try:
             logger.info(f"Starting astream_events for session {session_id}")
 
@@ -796,6 +805,10 @@ class AgentService:
                     tool_name = event.get("name", "")
                     tool_input = data.get("input", {})
                     tool_calls_count += 1
+
+                    # Track subagent name for result reporting
+                    if tool_name == "task":
+                        current_subagent_name = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
 
                     # Increment step counter for all tool executions
                     current_step += 1
@@ -882,6 +895,47 @@ class AgentService:
                 # Handle tool end
                 elif event_type == "on_tool_end":
                     tool_name = event.get("name", "")
+
+                    # Send subagent result when task tool completes
+                    if tool_name == "task":
+                        # Retrieve original subagent result stored by SubagentResultMiddleware
+                        subagent_content = get_last_subagent_result()
+                        clear_last_subagent_result()
+
+                        if subagent_content and self._is_websocket_connected(websocket):
+                            try:
+                                await websocket.send_json(
+                                    WSSubagentResultMessage(
+                                        type="subagent_result",
+                                        subagent_name=current_subagent_name or "subagent",
+                                        content=subagent_content,
+                                    ).model_dump(mode="json")
+                                )
+                                logger.info(
+                                    f"Sent subagent result: name={current_subagent_name}, "
+                                    f"content_length={len(subagent_content)}"
+                                )
+                            except Exception:
+                                logger.debug("Failed to send subagent result, WebSocket may be closed")
+
+                        # Reset accumulated content - discard pre-subagent main agent text
+                        # Only the main agent's post-synthesis matters for DB save and streaming
+                        accumulated_content = ""
+
+                        # Tell frontend to clear its streaming buffer
+                        if self._is_websocket_connected(websocket):
+                            try:
+                                await websocket.send_json(
+                                    WSContentResetMessage(
+                                        type="content_reset",
+                                        reason="subagent_completed",
+                                    ).model_dump(mode="json")
+                                )
+                            except Exception:
+                                pass
+
+                        current_subagent_name = None
+
                     tool_output = data.get("output", "")
 
                     # Extract content from ToolMessage if present

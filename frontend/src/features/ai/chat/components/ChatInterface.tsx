@@ -114,9 +114,23 @@ export const ChatInterface = ({
   }, [currentSession?.id, selectedAssistantId]);
 
   // Callbacks for streaming chat (defined outside the conditional to avoid hooks rule violation)
-  const handleToken = useCallback((token: string, sessionId: string) => {
+  const handleToken = useCallback((
+    token: string,
+    sessionId: string,
+    source: "main" | "subagent" = "main",
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    subagentName?: string,
+  ) => {
     // We've received the first token, no longer waiting
     setIsWaitingForResponse(false);
+
+    // Subagent tokens go to activity panel, not main content
+    if (source === "subagent") {
+      setLatestActivity(prev =>
+        prev ? { ...prev, streamingContent: (prev.streamingContent || "") + token } : null
+      );
+      return;
+    }
 
     // If a tool just finished, show the separator for this stream
     if (toolJustFinished) {
@@ -143,7 +157,7 @@ export const ChatInterface = ({
       setIsWaitingForResponse(false);
       setStreamingContent("");
       setActiveToolCalls([]);
-      setLatestActivity(null); // Clear agent activity on complete
+      setLatestActivity(prev => prev ? { ...prev, streamingContent: undefined } : null); // Clear streaming content but keep activity item
       setActivityHistory([]); // Clear activity history on complete
       setShowStreamSeparator(false); // Reset separator state
       setToolJustFinished(false); // Reset tool finished state
@@ -154,6 +168,27 @@ export const ChatInterface = ({
   const handleError = useCallback((errorMsg: string) => {
     setIsWaitingForResponse(false);
     setError(`Chat error: ${errorMsg}`);
+  }, []);
+
+  const handleSubagentResult = useCallback((subagentName: string, content: string) => {
+    setLatestActivity(prev =>
+      prev
+        ? { ...prev, streamingContent: content, subagent: subagentName }
+        : {
+            type: "delegating" as const,
+            subagent: subagentName,
+            message: "Subagent completed",
+            timestamp: Date.now(),
+            streamingContent: content,
+          }
+    );
+  }, []);
+
+  const handleContentReset = useCallback((reason: string) => {
+    if (reason === "subagent_completed") {
+      setStreamingContent("");
+      setShowStreamSeparator(true);
+    }
   }, []);
 
   // Track tool execution with step counts
@@ -311,7 +346,9 @@ export const ChatInterface = ({
     onApprovalTimeout: handleApprovalTimeout,
     onPlanning: handlePlanning,
     onSubagent: handleSubagent,
+    onSubagentResult: handleSubagentResult,
     onThinking: handleThinking,
+    onContentReset: handleContentReset,
   });
 
   // Execution mode hook for managing AI tool risk level

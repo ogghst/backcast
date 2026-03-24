@@ -32,6 +32,7 @@ export interface AgentActivity {
   toolName?: string;
   steps?: Array<{ text: string; done: boolean }>;
   timestamp: number;
+  streamingContent?: string;  // Real-time subagent output
 }
 
 interface AgentActivityPanelProps {
@@ -215,6 +216,25 @@ const LatestActivityDisplay = memo(({ activity }: { activity: AgentActivity }) =
             }}
           >
             {activity.message}
+          </div>
+        )}
+
+        {/* Subagent real-time streaming output */}
+        {activity.type === "delegating" && activity.streamingContent && (
+          <div
+            style={{
+              marginTop: spacing.xs,
+              padding: spacing.xs,
+              background: `${config.color}06`,
+              borderRadius: borderRadius.sm,
+              fontSize: typography.sizes.xs,
+              color: colors.text,
+              maxHeight: 120,
+              overflowY: "auto",
+              lineHeight: 1.5,
+            }}
+          >
+            {activity.streamingContent}
           </div>
         )}
 

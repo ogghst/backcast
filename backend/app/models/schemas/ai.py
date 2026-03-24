@@ -377,6 +377,34 @@ class WSTokenMessage(BaseModel):
     type: str = Field(default="token", description="Message type discriminator")
     content: str = Field(..., description="Partial text token")
     session_id: UUID = Field(..., description="Session identifier")
+    source: str = Field(default="main", description="'main' or 'subagent'")
+    subagent_name: str | None = Field(
+        default=None, description="Subagent name when source='subagent'"
+    )
+
+
+class WSSubagentResultMessage(BaseModel):
+    """WebSocket subagent result message from server.
+
+    Sent when a subagent (task tool) completes, containing the subagent's
+    final response text for display in the Activity Panel.
+    """
+
+    type: str = Field(default="subagent_result", description="Message type discriminator")
+    subagent_name: str = Field(..., description="Name of the subagent that completed")
+    content: str = Field(..., description="Subagent's final response text")
+
+
+class WSContentResetMessage(BaseModel):
+    """WebSocket content reset message.
+
+    Sent when accumulated streaming content should be reset,
+    typically after a subagent completes and the main agent
+    begins its synthesis phase.
+    """
+
+    type: Literal["content_reset"] = "content_reset"
+    reason: str = "subagent_completed"
 
 
 class WSToolCallMessage(BaseModel):

@@ -29,8 +29,10 @@ import {
   isApprovalRequestMessage,
   isPlanningMessage,
   isSubagentMessage,
+  isSubagentResultMessage,
   isThinkingMessage,
   isPollingHeartbeatMessage,
+  isContentResetMessage,
   type WSPermissionDeniedMessage,
 } from "../types";
 
@@ -45,7 +47,7 @@ export interface UseStreamingChatConfig {
   /** Optional project ID to scope chat to a specific project */
   projectId?: string;
   /** Callback invoked when a token is received */
-  onToken: (token: string, sessionId: string) => void;
+  onToken: (token: string, sessionId: string, source?: "main" | "subagent", subagentName?: string) => void;
   /** Callback invoked when the complete response is received */
   onComplete: (sessionId: string, messageId: string) => void;
   /** Callback invoked when an error occurs */
@@ -64,8 +66,12 @@ export interface UseStreamingChatConfig {
   onPlanning?: (plan?: string, steps?: Array<{ text: string; done: boolean }>) => void;
   /** Optional callback invoked when agent delegates to subagent */
   onSubagent?: (subagent: string, message?: string) => void;
+  /** Optional callback invoked when subagent completes with result */
+  onSubagentResult?: (subagentName: string, content: string) => void;
   /** Optional callback invoked when agent is thinking */
   onThinking?: () => void;
+  /** Optional callback invoked when streaming content should be reset */
+  onContentReset?: (reason: string) => void;
 }
 
 /**
@@ -172,7 +178,9 @@ export const useStreamingChat = (
     onApprovalTimeout,
     onPlanning,
     onSubagent,
+    onSubagentResult,
     onThinking,
+    onContentReset,
   } = config;
 
   // Get JWT token from auth store
@@ -215,7 +223,9 @@ export const useStreamingChat = (
     onApprovalTimeout,
     onPlanning,
     onSubagent,
+    onSubagentResult,
     onThinking,
+    onContentReset,
   });
 
   // Keep callbacks ref updated
@@ -231,7 +241,9 @@ export const useStreamingChat = (
       onApprovalTimeout,
       onPlanning,
       onSubagent,
+      onSubagentResult,
       onThinking,
+      onContentReset,
     };
   });
 
@@ -283,7 +295,7 @@ export const useStreamingChat = (
 
       // Handle token messages
       if (isTokenMessage(serverMessage)) {
-        callbacks.onToken(serverMessage.content, serverMessage.session_id);
+        callbacks.onToken(serverMessage.content, serverMessage.session_id, serverMessage.source, serverMessage.subagent_name);
         return;
       }
 
@@ -308,6 +320,18 @@ export const useStreamingChat = (
       // Handle subagent messages (Deep Agent delegating to subagent)
       if (isSubagentMessage(serverMessage)) {
         callbacks.onSubagent?.(serverMessage.subagent, serverMessage.message);
+        return;
+      }
+
+      // Handle subagent result messages (subagent completed with response)
+      if (isSubagentResultMessage(serverMessage)) {
+        callbacks.onSubagentResult?.(serverMessage.subagent_name, serverMessage.content);
+        return;
+      }
+
+      // Handle content reset messages (after subagent completes)
+      if (isContentResetMessage(serverMessage)) {
+        callbacks.onContentReset?.(serverMessage.reason);
         return;
       }
 
