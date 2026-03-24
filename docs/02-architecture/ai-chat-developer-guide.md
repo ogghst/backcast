@@ -413,8 +413,8 @@ Server                              Client (Browser)
 ### Polling Details
 
 - **Poll interval**: 200ms
-- **Max poll time**: 10 seconds
-- **Approval expiration**: 5 minutes (set in `InterruptNode`)
+- **Max poll time**: 60 seconds (user has up to 60 seconds to approve)
+- **Approval expiration**: 5 minutes (set in `InterruptNode`, safety net for stale approvals)
 - **Heartbeat interval**: Every 5 seconds during polling
 - **On timeout**: Error message returned to client, tool not executed
 

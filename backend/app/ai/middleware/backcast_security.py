@@ -231,41 +231,51 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         rbac_service = get_rbac_service()
 
         # Inject session if service supports it and project_id is provided
+        # Use try/finally to restore the original session and avoid corrupting
+        # the singleton's session on concurrent WebSocket connections
         if project_id is not None and hasattr(rbac_service, "session"):
-            if rbac_service.session is None:
+            original_session = getattr(rbac_service, "session", None)
+            try:
                 rbac_service.session = self.context.session
 
-        # Check each required permission
-        for permission in metadata.permissions:
-            # Use project-level access check if project_id is provided
-            if project_id is not None and hasattr(rbac_service, "has_project_access"):
-                from uuid import UUID
+                # Check each required permission (project-level)
+                for permission in metadata.permissions:
+                    if hasattr(rbac_service, "has_project_access"):
+                        from uuid import UUID
 
-                try:
-                    project_uuid = UUID(project_id) if isinstance(project_id, str) else project_id
-                    user_uuid = UUID(self.context.user_id)
+                        try:
+                            project_uuid = UUID(project_id) if isinstance(project_id, str) else project_id
+                            user_uuid = UUID(self.context.user_id)
 
-                    has_access = await rbac_service.has_project_access(
-                        user_id=user_uuid,
-                        user_role=self.context.user_role,
-                        project_id=project_uuid,
-                        required_permission=permission,
-                    )
+                            has_access = await rbac_service.has_project_access(
+                                user_id=user_uuid,
+                                user_role=self.context.user_role,
+                                project_id=project_uuid,
+                                required_permission=permission,
+                            )
 
-                    if not has_access:
-                        return (
-                            f"Permission denied: {permission} required "
-                            f"for project {project_id} "
-                            f"(user_role: {self.context.user_role}, tool: {tool_name})"
-                        )
-                except (ValueError, TypeError):
-                    # Invalid UUID format, deny permission
-                    return (
-                        f"Permission denied: Invalid project_id format "
-                        f"(tool: {tool_name})"
-                    )
-            else:
-                # Global permission check
+                            if not has_access:
+                                return (
+                                    f"Permission denied: {permission} required "
+                                    f"for project {project_id} "
+                                    f"(user_role: {self.context.user_role}, tool: {tool_name})"
+                                )
+                        except (ValueError, TypeError):
+                            return (
+                                f"Permission denied: Invalid project_id format "
+                                f"(tool: {tool_name})"
+                            )
+                    else:
+                        if not rbac_service.has_permission(self.context.user_role, permission):
+                            return (
+                                f"Permission denied: {permission} required "
+                                f"(user_role: {self.context.user_role}, tool: {tool_name})"
+                            )
+            finally:
+                rbac_service.session = original_session
+        else:
+            # Global permission checks (no project context, no session injection needed)
+            for permission in metadata.permissions:
                 if not rbac_service.has_permission(self.context.user_role, permission):
                     return (
                         f"Permission denied: {permission} required "
@@ -414,10 +424,10 @@ class BackcastSecurityMiddleware(AgentMiddleware):
             )
 
             # Poll for approval response with timeout
-            # Give user up to 10 seconds to respond (reduced from 30s for faster UX)
+            # Give user up to 60 seconds to respond (balanced UX for tool review)
             import asyncio
 
-            max_wait_time = 10.0  # seconds (reduced from 30s)
+            max_wait_time = 60.0  # seconds (increased from 10s for better UX)
             poll_interval = 0.2  # 200ms
             heartbeat_interval = 5.0  # Send heartbeat every 5 seconds
             total_waited = 0.0
@@ -497,7 +507,7 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                     f"waited_seconds={wait_duration:.2f} | "
                     f"max_wait_time={max_wait_time}s"
                 )
-                return False, f"Approval request timed out after {max_wait_time} seconds. Please click Approve again."
+                return False, "Approval request timed out. Please try again."
 
             except asyncio.CancelledError:
                 # Task was cancelled (e.g., WebSocket disconnected)

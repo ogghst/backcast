@@ -218,6 +218,28 @@ async def chat_stream(
         tasks: set[asyncio.Task[None]] = set()
         current_chat_task: asyncio.Task[None] | None = None
 
+        # Flag to stop the ping loop when connection closes
+        stop_ping = asyncio.Event()
+
+        async def ping_loop() -> None:
+            """Send ping keepalive every 20 seconds to prevent proxy timeouts.
+
+            Reverse proxies (nginx: 60s default, cloud LBs: 30-120s) can close
+            idle connections during long agent execution or approval polling.
+            This keepalive ensures the connection stays active.
+            """
+            try:
+                while not stop_ping.is_set():
+                    await asyncio.sleep(20)
+                    if not stop_ping.is_set():
+                        await websocket.send_json({"type": "ping"})
+            except asyncio.CancelledError:
+                # Task was cancelled - normal cleanup
+                pass
+            except Exception as e:
+                # WebSocket closed or error - stop pinging
+                logger.debug(f"Ping loop error for user {user_id}: {e}")
+
         async def message_handler() -> None:
             """Handle incoming WebSocket messages concurrently.
 
@@ -402,7 +424,10 @@ async def chat_stream(
                 chat_task.add_done_callback(tasks.discard)
 
         try:
-            # Start message handler as background task
+            # Start ping loop and message handler as background tasks
+            ping_task = asyncio.create_task(ping_loop())
+            tasks.add(ping_task)
+
             message_task = asyncio.create_task(message_handler())
             tasks.add(message_task)
 
@@ -435,6 +460,9 @@ async def chat_stream(
                 # WebSocket may already be closed
                 pass
         finally:
+            # Signal ping loop to stop
+            stop_ping.set()
+
             # Cancel all background tasks on disconnect
             for task in tasks:
                 if not task.done():
@@ -442,6 +470,9 @@ async def chat_stream(
             # Wait for tasks to finish cancellation (with timeout)
             if tasks:
                 await asyncio.wait(tasks, timeout=2.0, return_when=asyncio.ALL_COMPLETED)
+            # Clean up interrupt node for this session
+            if current_session_id is not None:
+                agent_service.unregister_interrupt_node(current_session_id)
 
         # Context manager automatically closes the db session
         logger.debug(f"WebSocket connection cleanup completed for user {user_id}")

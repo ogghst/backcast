@@ -383,6 +383,24 @@ class WSTokenMessage(BaseModel):
     )
 
 
+class WSTokenBatchMessage(BaseModel):
+    """WebSocket batched token streaming message from server.
+
+    Server -> Client message for streaming multiple tokens in a single message.
+    Reduces WebSocket message overhead while maintaining streaming UX.
+
+    Tokens are pre-concatenated on the backend for optimal payload size.
+    """
+
+    type: str = Field(default="token_batch", description="Message type discriminator")
+    tokens: str = Field(..., description="Concatenated token string")
+    session_id: UUID = Field(..., description="Session identifier")
+    source: str = Field(default="main", description="'main' or 'subagent'")
+    subagent_name: str | None = Field(
+        default=None, description="Subagent name when source='subagent'"
+    )
+
+
 class WSSubagentResultMessage(BaseModel):
     """WebSocket subagent result message from server.
 

@@ -288,7 +288,26 @@ ALL Backcast operations must be delegated to specialized subagents:
 Available Subagents:
 {chr(10).join(subagent_info)}
 
-When a user asks for Backcast-related operations, you MUST use the task tool to delegate to the appropriate subagent. The task result will contain the information the user needs.
+When a user asks for Backcast-related operations, you MUST use the task tool to delegate to the appropriate subagent.
+
+After the subagent completes:
+- The subagent's detailed result has been delivered to the user via the Activity Panel
+- You will receive an acknowledgment: "[Subagent result delivered to user via Activity Panel]"
+- YOUR RESPONSIBILITY: Provide a brief, helpful synthesis that:
+  1. Acknowledges what was accomplished (1-2 sentences)
+  2. Highlights the most important findings or actions taken
+  3. DO NOT repeat the detailed content (user sees it in Activity Panel)
+  4. Offers relevant next steps or asks if the user needs clarification
+
+Example good responses:
+- "I've analyzed the project's EVM metrics. The key finding is a CPI of 0.95, indicating the project is slightly over budget. The full analysis is in the Activity Panel."
+- "I've created the new project 'Assembly Line B' with a budget of $500,000. You can view the complete details in the Activity Panel."
+- "The forecast has been generated. Current projections show a 5% cost variance by Q3. Would you like me to explore mitigation strategies?"
+
+DO NOT say:
+- "Please refer to the activity panel" (user already knows it's there)
+- "The result has been delivered" (not helpful)
+- Repeat the subagent's entire output
 
 Do NOT attempt to use Backcast tools directly - they will not work. Always delegate via the task tool.
 """

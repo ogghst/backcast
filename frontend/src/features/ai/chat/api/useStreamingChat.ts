@@ -21,18 +21,15 @@ import type {
 import {
   WSConnectionState,
   isTokenMessage,
+  isTokenBatchMessage,
   isToolCallMessage,
   isToolResultMessage,
   isCompleteMessage,
   isErrorMessage,
   isPermissionDeniedMessage,
   isApprovalRequestMessage,
-  isPlanningMessage,
-  isSubagentMessage,
-  isSubagentResultMessage,
   isThinkingMessage,
   isPollingHeartbeatMessage,
-  isContentResetMessage,
   type WSPermissionDeniedMessage,
 } from "../types";
 
@@ -62,16 +59,10 @@ export interface UseStreamingChatConfig {
   onApprovalCountdown?: (remaining: number) => void;
   /** Optional callback invoked when approval polling times out */
   onApprovalTimeout?: () => void;
-  /** Optional callback invoked when agent is planning */
-  onPlanning?: (plan?: string, steps?: Array<{ text: string; done: boolean }>) => void;
-  /** Optional callback invoked when agent delegates to subagent */
-  onSubagent?: (subagent: string, message?: string) => void;
-  /** Optional callback invoked when subagent completes with result */
-  onSubagentResult?: (subagentName: string, content: string) => void;
   /** Optional callback invoked when agent is thinking */
   onThinking?: () => void;
-  /** Optional callback invoked when streaming content should be reset */
-  onContentReset?: (reason: string) => void;
+  /** Optional callback invoked with every raw WebSocket message (for debugging) */
+  onRawMessage?: (message: unknown, direction: "in" | "out") => void;
 }
 
 /**
@@ -176,11 +167,8 @@ export const useStreamingChat = (
     onApprovalRequest,
     onApprovalCountdown,
     onApprovalTimeout,
-    onPlanning,
-    onSubagent,
-    onSubagentResult,
     onThinking,
-    onContentReset,
+    onRawMessage,
   } = config;
 
   // Get JWT token from auth store
@@ -221,11 +209,8 @@ export const useStreamingChat = (
     onApprovalRequest,
     onApprovalCountdown,
     onApprovalTimeout,
-    onPlanning,
-    onSubagent,
-    onSubagentResult,
     onThinking,
-    onContentReset,
+    onRawMessage,
   });
 
   // Keep callbacks ref updated
@@ -239,11 +224,8 @@ export const useStreamingChat = (
       onApprovalRequest,
       onApprovalCountdown,
       onApprovalTimeout,
-      onPlanning,
-      onSubagent,
-      onSubagentResult,
       onThinking,
-      onContentReset,
+      onRawMessage,
     };
   });
 
@@ -280,6 +262,14 @@ export const useStreamingChat = (
     try {
       const message = JSON.parse(event.data);
 
+      // Debug callback for raw incoming messages (before processing)
+      callbacks.onRawMessage?.(message, "in");
+
+      // Handle ping/pong keepalive — ignore silently
+      if (message.type === "ping") {
+        return;
+      }
+
       // Handle approval request messages (custom type, not in WSServerMessage union)
       if (isApprovalRequestMessage(message)) {
         // Reset countdown tracking for the new approval request
@@ -293,7 +283,14 @@ export const useStreamingChat = (
 
       const serverMessage: WSServerMessage = message;
 
-      // Handle token messages
+      // Handle batched token messages (new optimized path)
+      if (isTokenBatchMessage(serverMessage)) {
+        // Send pre-concatenated token string directly
+        callbacks.onToken(serverMessage.tokens, serverMessage.session_id, serverMessage.source, serverMessage.subagent_name);
+        return;
+      }
+
+      // Handle individual token messages (backward compatible)
       if (isTokenMessage(serverMessage)) {
         callbacks.onToken(serverMessage.content, serverMessage.session_id, serverMessage.source, serverMessage.subagent_name);
         return;
@@ -308,30 +305,6 @@ export const useStreamingChat = (
       // Handle tool result messages
       if (isToolResultMessage(serverMessage)) {
         callbacks.onToolResult?.(serverMessage.tool, serverMessage.result);
-        return;
-      }
-
-      // Handle planning messages (Deep Agent creating a plan)
-      if (isPlanningMessage(serverMessage)) {
-        callbacks.onPlanning?.(serverMessage.plan, serverMessage.steps);
-        return;
-      }
-
-      // Handle subagent messages (Deep Agent delegating to subagent)
-      if (isSubagentMessage(serverMessage)) {
-        callbacks.onSubagent?.(serverMessage.subagent, serverMessage.message);
-        return;
-      }
-
-      // Handle subagent result messages (subagent completed with response)
-      if (isSubagentResultMessage(serverMessage)) {
-        callbacks.onSubagentResult?.(serverMessage.subagent_name, serverMessage.content);
-        return;
-      }
-
-      // Handle content reset messages (after subagent completes)
-      if (isContentResetMessage(serverMessage)) {
-        callbacks.onContentReset?.(serverMessage.reason);
         return;
       }
 
@@ -457,6 +430,9 @@ export const useStreamingChat = (
 
       console.log("Sending chat request with execution_mode:", executionMode);
 
+      // Debug callback for raw outgoing message
+      callbacksRef.current.onRawMessage?.(request, "out");
+
       try {
         ws.send(JSON.stringify(request));
       } catch (err) {
@@ -500,6 +476,9 @@ export const useStreamingChat = (
         user_id: userId,
         timestamp: new Date().toISOString(),
       };
+
+      // Debug callback for raw outgoing message
+      callbacksRef.current.onRawMessage?.(response, "out");
 
       try {
         ws.send(JSON.stringify(response));
@@ -617,9 +596,21 @@ export const useStreamingChat = (
         ws.addEventListener("message", handleMessage);
 
         // Handle connection close
-        ws.addEventListener("close", () => {
+        ws.addEventListener("close", (event: CloseEvent) => {
           setConnectionState(WSConnectionState.CLOSED);
           wsRef.current = null;
+
+          // Don't reconnect on policy violations (auth failure)
+          if (event.code === 1008) {
+            const errorMsg = "Authentication failed. Please log in again.";
+            const callbacks = callbacksRef.current;
+            callbacks.onError(errorMsg);
+            setError(new Error(errorMsg));
+            return;
+          }
+
+          // Token expired (4008) or normal closure (1000) — reconnect with backoff.
+          // By the time the backoff completes, the auth store may have a refreshed token.
           scheduleReconnect();
         });
 

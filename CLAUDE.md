@@ -23,6 +23,9 @@ uv run alembic revision --autogenerate -m "msg" # Create migration
 # Development
 uv run uvicorn app.main:app --reload --port 8020 # Start dev server (port 8020)
 
+# Logs (troubleshooting)
+tail -f backend/logs/app.log                         # Live app logs
+
 # Testing
 uv run pytest -k "test_name"                    # Run specific test
 uv run pytest --cov=app                         # With coverage
@@ -97,6 +100,14 @@ The codebase and test suite are large. To improve efficiency, perform quality ch
 ## Documentation
 
 [`docs/00-meta/README.md`](docs/00-meta/README.md)
+
+## External Resources
+
+- **Context7 MCP**: Up-to-date library documentation and code examples
+  - Call `mcp__plugin_context7_context7__resolve-library-id` with library name to get ID
+  - Call `mcp__plugin_context7_context7__query-docs` with library ID and query
+- **webReader**: Fetch current documentation from websites
+  - Call `mcp__web_reader__webReader` with URL to fetch web content as markdown
 
 # Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed
 

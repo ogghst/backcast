@@ -36,5 +36,10 @@ class Settings(BaseSettings):
     LOG_MAX_BYTES: int = 50 * 1024  # 50 KB default
     LOG_BACKUP_COUNT: int = 10  # Keep up to 10 rotated log files
 
+    # AI Token Buffering
+    AI_TOKEN_BUFFER_ENABLED: bool = True
+    AI_TOKEN_BUFFER_INTERVAL_MS: int = 1000  # 1 second default
+    AI_TOKEN_BUFFER_MAX_SIZE: int = 10000  # Max tokens before forced flush
+
 
 settings = Settings()

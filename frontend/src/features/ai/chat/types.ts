@@ -69,6 +69,18 @@ export interface WSTokenMessage {
 }
 
 /**
+ * Server -> Client: Batched token streaming message
+ * Multiple tokens sent in a single WebSocket message to reduce overhead
+ */
+export interface WSTokenBatchMessage {
+  type: "token_batch";
+  tokens: string; // Concatenated token string
+  session_id: string;
+  source: "main" | "subagent";
+  subagent_name?: string;
+}
+
+/**
  * Server -> Client: Tool call notification
  * Sent when the AI agent calls a tool
  */
@@ -182,11 +194,20 @@ export interface WSPollingHeartbeatMessage {
 }
 
 /**
+ * Server -> Client: Ping keepalive event
+ * Sent every 20 seconds during long agent execution to prevent proxy timeouts
+ */
+export interface WSPingMessage {
+  type: "ping";
+}
+
+/**
  * Discriminated union of all server message types
  * Use the `type` field to discriminate between message variants
  */
 export type WSServerMessage =
   | WSTokenMessage
+  | WSTokenBatchMessage
   | WSToolCallMessage
   | WSToolResultMessage
   | WSCompleteMessage
@@ -196,13 +217,21 @@ export type WSServerMessage =
   | WSSubagentResultMessage
   | WSThinkingMessage
   | WSContentResetMessage
-  | WSPollingHeartbeatMessage;
+  | WSPollingHeartbeatMessage
+  | WSPingMessage;
 
 /**
  * Type guard to check if a server message is a token message
  */
 export function isTokenMessage(message: WSServerMessage): message is WSTokenMessage {
   return message.type === "token";
+}
+
+/**
+ * Type guard to check if a server message is a batched token message
+ */
+export function isTokenBatchMessage(message: WSServerMessage): message is WSTokenBatchMessage {
+  return message.type === "token_batch";
 }
 
 /**

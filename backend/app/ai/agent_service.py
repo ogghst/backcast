@@ -3,6 +3,7 @@
 Uses LangGraph StateGraph for conversation flow with tool calling loop.
 """
 
+import asyncio
 import logging
 import os
 import time
@@ -34,9 +35,11 @@ from app.ai.telemetry import (
     trace_context,
     trace_subagent_delegation,
 )
+from app.ai.token_buffer import TokenBuffer, TokenBufferManager
 from app.ai.tools import ToolContext, create_project_tools
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.types import ExecutionMode
+from app.core.config import settings
 from app.models.domain.ai import (
     AIAssistantConfig,
     AIConversationSession,
@@ -52,7 +55,7 @@ from app.models.schemas.ai import (
     WSSubagentMessage,
     WSSubagentResultMessage,
     WSThinkingMessage,
-    WSTokenMessage,
+    WSTokenBatchMessage,
     WSToolCallMessage,
     WSToolResultMessage,
 )
@@ -723,6 +726,32 @@ class AgentService:
         # Extract recursion_limit from assistant config with fallback to default
         recursion_limit = assistant_config.recursion_limit if assistant_config.recursion_limit is not None else 25
 
+        # Initialize token buffer manager
+        buffer_manager = TokenBufferManager(
+            flush_interval_ms=settings.AI_TOKEN_BUFFER_INTERVAL_MS,
+            max_buffer_size=settings.AI_TOKEN_BUFFER_MAX_SIZE,
+            enabled=settings.AI_TOKEN_BUFFER_ENABLED,
+        )
+
+        async def flush_buffer(key: str, buffer: "TokenBuffer") -> None:
+            """Flush callback for buffer manager."""
+            if not buffer.is_empty() and self._is_websocket_connected(websocket):
+                try:
+                    await websocket.send_json(
+                        WSTokenBatchMessage(
+                            type="token_batch",
+                            tokens=buffer.get_content(),
+                            session_id=buffer.session_id or session_id,
+                            source=buffer.source,
+                            subagent_name=buffer.subagent_name,
+                        ).model_dump(mode="json")
+                    )
+                except Exception:
+                    logger.warning("Failed to send token batch, WebSocket may be closed")
+
+        buffer_manager.set_flush_callback(flush_buffer)  # type: ignore[arg-type]
+        await buffer_manager.start()
+
         # Stream using astream_events
         accumulated_content = ""
         all_tool_calls: list[dict[str, Any]] = []
@@ -753,262 +782,281 @@ class AgentService:
                 except Exception:
                     logger.debug("Failed to send thinking event, WebSocket may be closed")
 
-            async for event in graph.astream_events(
-                {
-                    "messages": history,
-                    "tool_call_count": 0,
-                    "next": "agent",
-                },
-                config={
-                    "recursion_limit": recursion_limit,
-                    "configurable": {"thread_id": str(session_id)}
-                },
-                version="v1",
-            ):
-                event_type = event.get("event", "")
-                data = event.get("data", {})
+            async def _consume_stream() -> None:
+                nonlocal current_step, estimated_total_steps, current_subagent_name, total_tokens, tool_calls_count, accumulated_content
+                async for event in graph.astream_events(
+                    {
+                        "messages": history,
+                        "tool_call_count": 0,
+                        "next": "agent",
+                    },
+                    config={
+                        "recursion_limit": recursion_limit,
+                        "configurable": {"thread_id": str(session_id)}
+                    },
+                    version="v1",
+                ):
+                    event_type = event.get("event", "")
+                    data = event.get("data", {})
 
-                # Handle token streaming
-                if event_type == "on_chat_model_stream":
-                    chunk = data.get("chunk")
-                    if chunk:
-                        # AIMessageChunk objects support .text attribute for simple text content
-                        # For more complex content with multiple blocks, we iterate through content_blocks
-                        content = ""
-                        if hasattr(chunk, "text"):
-                            content = chunk.text
-                        elif hasattr(chunk, "content"):
-                            # Fallback to content attribute if text is not available
-                            content = str(chunk.content)
+                    # Handle token streaming
+                    if event_type == "on_chat_model_stream":
+                        chunk = data.get("chunk")
+                        if chunk:
+                            # AIMessageChunk objects support .text attribute for simple text content
+                            # For more complex content with multiple blocks, we iterate through content_blocks
+                            content = ""
+                            if hasattr(chunk, "text"):
+                                content = chunk.text
+                            elif hasattr(chunk, "content"):
+                                # Fallback to content attribute if text is not available
+                                content = str(chunk.content)
 
-                        if content:
-                            accumulated_content += content
-                            total_tokens += len(content)
-                            if self._is_websocket_connected(websocket):
-                                try:
-                                    await websocket.send_json(
-                                        WSTokenMessage(
-                                            type="token",
-                                            content=content,
-                                            session_id=session_id,
-                                        ).model_dump(mode="json")
+                            if content:
+                                accumulated_content += content
+                                total_tokens += len(content)
+                                if self._is_websocket_connected(websocket):
+                                    buffer_manager.add_token(
+                                        token=content,
+                                        session_id=str(session_id),
+                                        source="subagent" if current_subagent_name else "main",
+                                        subagent_name=current_subagent_name,
                                     )
-                                except Exception:
-                                    # WebSocket may be closed
-                                    logger.warning("Failed to send token, WebSocket may be closed")
-                                    pass
-                            else:
-                                logger.debug("WebSocket not connected, skipping token send")
 
-                # Handle tool start
-                elif event_type == "on_tool_start":
-                    tool_name = event.get("name", "")
-                    tool_input = data.get("input", {})
-                    tool_calls_count += 1
+                    # Handle tool start
+                    elif event_type == "on_tool_start":
+                        tool_name = event.get("name", "")
+                        tool_input = data.get("input", {})
+                        tool_calls_count += 1
 
-                    # Track subagent name for result reporting
-                    if tool_name == "task":
-                        current_subagent_name = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
+                        # Track subagent name for result reporting
+                        if tool_name == "task":
+                            current_subagent_name = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
 
-                    # Increment step counter for all tool executions
-                    current_step += 1
+                        # Increment step counter for all tool executions
+                        current_step += 1
 
-                    # Detect Deep Agent planning (write_todos tool)
-                    if tool_name == "write_todos" and self._is_websocket_connected(websocket):
-                        try:
-                            # Extract plan from tool input
-                            plan = tool_input.get("plan") if isinstance(tool_input, dict) else None
-                            # Extract steps if available
-                            steps = None
-                            if isinstance(tool_input, dict):
-                                raw_steps = tool_input.get("steps")
-                                if isinstance(raw_steps, list):
-                                    steps = [
-                                        {"text": str(s), "done": False} for s in raw_steps
-                                    ]
-                                    # Update estimated total based on planning steps
-                                    estimated_total_steps = len(steps)
-
-                            await websocket.send_json(
-                                WSPlanningMessage(
-                                    type="planning",
-                                    plan=plan,
-                                    steps=steps,
-                                    step_number=current_step,
-                                    total_steps=estimated_total_steps,
-                                ).model_dump(mode="json")
-                            )
-                            logger.info(f"Sent WebSocket planning event: plan={plan}, steps={len(steps) if steps else 0}")
-                        except Exception:
-                            logger.debug("Failed to send planning event")
-                        pass
-
-                    # Detect Deep Agent subagent delegation (task tool)
-                    elif tool_name == "task" and self._is_websocket_connected(websocket):
-                        try:
-                            # Extract subagent_type and description from tool input
-                            subagent_type = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
-                            description = tool_input.get("description") if isinstance(tool_input, dict) else None
-
-                            logger.info(f"[SUBAGENT_DELEGATION] Main agent delegating to subagent '{subagent_type}': {description}")
-
-                            if subagent_type:
-                                # Add telemetry span for subagent delegation
-                                with trace_subagent_delegation(subagent_type, description):
-                                    # The actual tool execution happens outside this context
-                                    # This span marks when the delegation occurs
-                                    pass
+                        # Detect Deep Agent planning (write_todos tool)
+                        if tool_name == "write_todos" and self._is_websocket_connected(websocket):
+                            try:
+                                # Extract plan from tool input
+                                plan = tool_input.get("plan") if isinstance(tool_input, dict) else None
+                                # Extract steps if available
+                                steps = None
+                                if isinstance(tool_input, dict):
+                                    raw_steps = tool_input.get("steps")
+                                    if isinstance(raw_steps, list):
+                                        steps = [
+                                            {"text": str(s), "done": False} for s in raw_steps
+                                        ]
+                                        # Update estimated total based on planning steps
+                                        estimated_total_steps = len(steps)
 
                                 await websocket.send_json(
-                                    WSSubagentMessage(
-                                        type="subagent",
-                                        subagent=subagent_type,
-                                        message=description,
+                                    WSPlanningMessage(
+                                        type="planning",
+                                        plan=plan,
+                                        steps=steps,
                                         step_number=current_step,
                                         total_steps=estimated_total_steps,
                                     ).model_dump(mode="json")
                                 )
-                                logger.info(f"Subagent delegation: {subagent_type}")
-                        except Exception:
-                            logger.debug("Failed to send subagent event")
-                        pass
-
-                    # Send standard tool_call message with step information
-                    if self._is_websocket_connected(websocket):
-                        try:
-                            await websocket.send_json(
-                                WSToolCallMessage(
-                                    type="tool_call",
-                                    tool=tool_name,
-                                    args=tool_input,
-                                    step_number=current_step,
-                                    total_steps=estimated_total_steps,
-                                ).model_dump(mode="json")
-                            )
-                        except Exception:
-                            # WebSocket may be closed
-                            logger.warning("Failed to send tool_call, WebSocket may be closed")
-                            pass
-                    else:
-                        logger.debug("WebSocket not connected, skipping tool_call send")
-
-                # Handle tool end
-                elif event_type == "on_tool_end":
-                    tool_name = event.get("name", "")
-
-                    # Send subagent result when task tool completes
-                    if tool_name == "task":
-                        # Retrieve original subagent result stored by SubagentResultMiddleware
-                        subagent_content = get_last_subagent_result()
-                        clear_last_subagent_result()
-
-                        if subagent_content and self._is_websocket_connected(websocket):
-                            try:
-                                await websocket.send_json(
-                                    WSSubagentResultMessage(
-                                        type="subagent_result",
-                                        subagent_name=current_subagent_name or "subagent",
-                                        content=subagent_content,
-                                    ).model_dump(mode="json")
-                                )
-                                logger.info(
-                                    f"Sent subagent result: name={current_subagent_name}, "
-                                    f"content_length={len(subagent_content)}"
-                                )
+                                logger.info(f"Sent WebSocket planning event: plan={plan}, steps={len(steps) if steps else 0}")
                             except Exception:
-                                logger.debug("Failed to send subagent result, WebSocket may be closed")
+                                logger.debug("Failed to send planning event")
+                            pass
 
-                        # Reset accumulated content - discard pre-subagent main agent text
-                        # Only the main agent's post-synthesis matters for DB save and streaming
-                        accumulated_content = ""
+                        # Detect Deep Agent subagent delegation (task tool)
+                        elif tool_name == "task" and self._is_websocket_connected(websocket):
+                            try:
+                                # Extract subagent_type and description from tool input
+                                subagent_type = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
+                                description = tool_input.get("description") if isinstance(tool_input, dict) else None
 
-                        # Tell frontend to clear its streaming buffer
+                                logger.info(f"[SUBAGENT_DELEGATION] Main agent delegating to subagent '{subagent_type}': {description}")
+
+                                # Flush main agent buffer before switching to subagent
+                                await buffer_manager.flush_agent(source="main")
+
+                                if subagent_type:
+                                    # Add telemetry span for subagent delegation
+                                    with trace_subagent_delegation(subagent_type, description):
+                                        # The actual tool execution happens outside this context
+                                        # This span marks when the delegation occurs
+                                        pass
+
+                                    await websocket.send_json(
+                                        WSSubagentMessage(
+                                            type="subagent",
+                                            subagent=subagent_type,
+                                            message=description,
+                                            step_number=current_step,
+                                            total_steps=estimated_total_steps,
+                                        ).model_dump(mode="json")
+                                    )
+                                    logger.info(f"Subagent delegation: {subagent_type}")
+                            except Exception:
+                                logger.debug("Failed to send subagent event")
+                            pass
+
+                        # Send standard tool_call message with step information
                         if self._is_websocket_connected(websocket):
                             try:
                                 await websocket.send_json(
-                                    WSContentResetMessage(
-                                        type="content_reset",
-                                        reason="subagent_completed",
+                                    WSToolCallMessage(
+                                        type="tool_call",
+                                        tool=tool_name,
+                                        args=tool_input,
+                                        step_number=current_step,
+                                        total_steps=estimated_total_steps,
                                     ).model_dump(mode="json")
                                 )
                             except Exception:
+                                # WebSocket may be closed
+                                logger.warning("Failed to send tool_call, WebSocket may be closed")
                                 pass
+                        else:
+                            logger.debug("WebSocket not connected, skipping tool_call send")
 
-                        current_subagent_name = None
+                    # Handle tool end
+                    elif event_type == "on_tool_end":
+                        tool_name = event.get("name", "")
 
-                    tool_output = data.get("output", "")
+                        # Send subagent result when task tool completes
+                        if tool_name == "task":
+                            # Retrieve original subagent result stored by SubagentResultMiddleware
+                            subagent_content = get_last_subagent_result()
+                            clear_last_subagent_result()
 
-                    # Extract content from ToolMessage if present
-                    result_content = tool_output
-                    if isinstance(tool_output, ToolMessage):
-                        # ToolMessage objects have a content attribute that may be str, list, or dict
-                        result_content = tool_output.content
-                    elif isinstance(tool_output, dict) and "content" in tool_output:
-                        # Sometimes output is a dict with content field
-                        result_content = tool_output["content"]
-                    elif isinstance(tool_output, Command):
-                        # Command objects from langgraph subagent delegation - convert to dict
-                        result_content = {"command": tool_output.update}
+                            if subagent_content and self._is_websocket_connected(websocket):
+                                try:
+                                    await websocket.send_json(
+                                        WSSubagentResultMessage(
+                                            type="subagent_result",
+                                            subagent_name=current_subagent_name or "subagent",
+                                            content=subagent_content,
+                                        ).model_dump(mode="json")
+                                    )
+                                    logger.info(
+                                        f"Sent subagent result: name={current_subagent_name}, "
+                                        f"content_length={len(subagent_content)}"
+                                    )
+                                except Exception:
+                                    logger.debug("Failed to send subagent result, WebSocket may be closed")
 
-                    # Convert to JSON-serializable format (handles nested ToolMessage objects)
-                    result_content = self._make_json_serializable(result_content)
-
-                    # Record tool result
-                    tool_result: dict[str, Any] = {
-                        "tool": tool_name,
-                        "success": True,
-                        "result": result_content,
-                        "error": None,
-                    }
-                    all_tool_results.append(tool_result)
-
-                # Handle tool error
-                elif event_type == "on_tool_error":
-                    tool_name = event.get("name", "")
-                    error = data.get("error")
-
-                    # Record tool error
-                    error_result: dict[str, Any] = {
-                        "tool": tool_name,
-                        "success": False,
-                        "result": None,
-                        "error": str(error) if error else "Unknown error",
-                    }
-                    all_tool_results.append(error_result)
-
-                    if self._is_websocket_connected(websocket):
-                        try:
-                            await websocket.send_json(
-                                WSToolResultMessage(
-                                    type="tool_result",
-                                    tool=tool_name,
-                                    result=tool_result,
-                                ).model_dump(mode="json")
+                            # Flush subagent buffer
+                            await buffer_manager.flush_agent(
+                                source="subagent",
+                                subagent_name=current_subagent_name,
                             )
-                        except Exception:
-                            # WebSocket may be closed
-                            logger.warning("Failed to send tool_result, WebSocket may be closed")
-                            pass
-                    else:
-                        logger.debug("WebSocket not connected, skipping tool_result send")
 
-                # Handle completion
-                elif event_type == "on_end":
-                    output = data.get("output", {})
-                    messages = output.get("messages", [])
+                            # Reset accumulated content - discard pre-subagent main agent text
+                            # Only the main agent's post-synthesis matters for DB save and streaming
+                            accumulated_content = ""
 
-                    # Extract tool calls from the final messages
-                    for msg in messages:
-                        if isinstance(msg, AIMessage) and msg.tool_calls:
-                            # Convert ToolCall objects to dict format
-                            for tc in msg.tool_calls:
-                                all_tool_calls.append({
-                                    "id": tc.get("id", ""),
-                                    "name": tc.get("name", ""),
-                                    "args": tc.get("args", {}),
-                                })
+                            # Tell frontend to clear its streaming buffer
+                            if self._is_websocket_connected(websocket):
+                                try:
+                                    await websocket.send_json(
+                                        WSContentResetMessage(
+                                            type="content_reset",
+                                            reason="subagent_completed",
+                                        ).model_dump(mode="json")
+                                    )
+                                except Exception:
+                                    pass
 
-                    logger.info(f"Graph execution completed for session {session_id}")
+                            current_subagent_name = None
+
+                        tool_output = data.get("output", "")
+
+                        # Extract content from ToolMessage if present
+                        result_content = tool_output
+                        if isinstance(tool_output, ToolMessage):
+                            # ToolMessage objects have a content attribute that may be str, list, or dict
+                            result_content = tool_output.content
+                        elif isinstance(tool_output, dict) and "content" in tool_output:
+                            # Sometimes output is a dict with content field
+                            result_content = tool_output["content"]
+                        elif isinstance(tool_output, Command):
+                            # Command objects from langgraph subagent delegation - convert to dict
+                            result_content = {"command": tool_output.update}
+
+                        # Convert to JSON-serializable format (handles nested ToolMessage objects)
+                        result_content = self._make_json_serializable(result_content)
+
+                        # Record tool result
+                        tool_result: dict[str, Any] = {
+                            "tool": tool_name,
+                            "success": True,
+                            "result": result_content,
+                            "error": None,
+                        }
+                        all_tool_results.append(tool_result)
+
+                    # Handle tool error
+                    elif event_type == "on_tool_error":
+                        tool_name = event.get("name", "")
+                        error = data.get("error")
+
+                        # Record tool error
+                        error_result: dict[str, Any] = {
+                            "tool": tool_name,
+                            "success": False,
+                            "result": None,
+                            "error": str(error) if error else "Unknown error",
+                        }
+                        all_tool_results.append(error_result)
+
+                        if self._is_websocket_connected(websocket):
+                            try:
+                                await websocket.send_json(
+                                    WSToolResultMessage(
+                                        type="tool_result",
+                                        tool=tool_name,
+                                        result=tool_result,
+                                    ).model_dump(mode="json")
+                                )
+                            except Exception:
+                                # WebSocket may be closed
+                                logger.warning("Failed to send tool_result, WebSocket may be closed")
+                                pass
+                        else:
+                            logger.debug("WebSocket not connected, skipping tool_result send")
+
+                    # Handle completion
+                    elif event_type == "on_end":
+                        output = data.get("output", {})
+                        messages = output.get("messages", [])
+
+                        # Extract tool calls from the final messages
+                        for msg in messages:
+                            if isinstance(msg, AIMessage) and msg.tool_calls:
+                                # Convert ToolCall objects to dict format
+                                for tc in msg.tool_calls:
+                                    all_tool_calls.append({
+                                        "id": tc.get("id", ""),
+                                        "name": tc.get("name", ""),
+                                        "args": tc.get("args", {}),
+                                    })
+
+                        logger.info(f"Graph execution completed for session {session_id}")
+
+            try:
+                await asyncio.wait_for(_consume_stream(), timeout=300)
+            except TimeoutError:
+                logger.error(f"Streaming timeout for session {session_id}")
+                if self._is_websocket_connected(websocket):
+                    try:
+                        await websocket.send_json(
+                            WSErrorMessage(
+                                type="error",
+                                message="Response generation timed out after 5 minutes",
+                                code=408,
+                            ).model_dump(mode="json")
+                        )
+                    except Exception:
+                        pass
 
             # CRITICAL: Check for tool errors and rollback session if needed
             # Tool execution failures can leave the database session in a rolled back state
@@ -1048,6 +1096,9 @@ class AgentService:
             else:
                 logger.debug("WebSocket not connected, skipping error send")
 
+        finally:
+            self.unregister_interrupt_node(session_id)
+
         # Save assistant message to session
         # Wrap in try/except to handle any session state issues
         try:
@@ -1082,6 +1133,9 @@ class AgentService:
             except Exception as retry_error:
                 logger.error(f"Failed to save message even after cleanup: {retry_error}", exc_info=True)
                 # Continue anyway - we've done our best to save the state
+
+        # Flush all remaining buffers before completion
+        await buffer_manager.flush_all()
 
         # Send complete message
         if self._is_websocket_connected(websocket):
@@ -1242,6 +1296,13 @@ class AgentService:
             The InterruptNode instance if found, None otherwise
         """
         return self._interrupt_nodes.get(session_id)
+
+    def unregister_interrupt_node(self, session_id: UUID) -> None:
+        """Remove an InterruptNode for a session and clean up its state."""
+        interrupt_node = self._interrupt_nodes.pop(session_id, None)
+        if interrupt_node is not None:
+            interrupt_node.pending_approvals.clear()
+            interrupt_node.interrupt_state.clear()
 
     def register_approval_response(self, session_id: UUID, approval_id: str, approved: bool) -> bool:
         """Register an approval response from the user.

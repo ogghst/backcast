@@ -13,26 +13,22 @@
  */
 
 import { memo, useState, useEffect } from "react";
-import { ClockCircleOutlined, RobotOutlined, ThunderboltOutlined, CheckCircleOutlined, DownOutlined } from "@ant-design/icons";
+import { RobotOutlined, ThunderboltOutlined, DownOutlined } from "@ant-design/icons";
 import { theme, Grid } from "antd";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 
 /**
- * Agent activity states
+ * Agent activity states - simplified to only track thinking and executing
  */
-export type AgentActivityType = "thinking" | "planning" | "delegating" | "executing";
+export type AgentActivityType = "thinking" | "executing";
 
 /**
- * Agent activity state for visualization
+ * Agent activity state for visualization - simplified
  */
 export interface AgentActivity {
   type: AgentActivityType;
-  message?: string;
-  subagent?: string;
   toolName?: string;
-  steps?: Array<{ text: string; done: boolean }>;
   timestamp: number;
-  streamingContent?: string;  // Real-time subagent output
 }
 
 interface AgentActivityPanelProps {
@@ -51,17 +47,6 @@ export interface ActivityHistoryItem {
 }
 
 /**
- * Subagent display names - colors will be applied from theme
- */
-const SUBAGENT_STYLES: Record<string, { name: string; icon: string; colorKey: keyof ReturnType<typeof useThemeTokens>['colors'] }> = {
-  evm_analyst: { name: "EVM Analyst", icon: "📊", colorKey: "info" },
-  change_order_manager: { name: "Change Order Manager", icon: "📋", colorKey: "warning" },
-  forecast_analyst: { name: "Forecast Analyst", icon: "📈", colorKey: "success" },
-  project_admin: { name: "Project Admin", icon: "📁", colorKey: "primary" },
-  advanced_analyst: { name: "Advanced Analyst", icon: "🔬", colorKey: "error" },
-};
-
-/**
  * Latest activity display component with smooth transitions
  */
 const LatestActivityDisplay = memo(({ activity }: { activity: AgentActivity }) => {
@@ -76,23 +61,6 @@ const LatestActivityDisplay = memo(({ activity }: { activity: AgentActivity }) =
 
   const getActivityConfig = () => {
     switch (activity.type) {
-      case "planning":
-        return {
-          icon: <ClockCircleOutlined />,
-          label: "Creating plan",
-          color: colors.warning,
-          bgColor: `${colors.warning}08`,
-        };
-      case "delegating": {
-        const subagentStyle = SUBAGENT_STYLES[activity.subagent || ""];
-        const color = subagentStyle ? colors[subagentStyle.colorKey] : colors.primary;
-        return {
-          icon: <span style={{ fontSize: typography.sizes.sm }}>{subagentStyle?.icon || "🤖"}</span>,
-          label: `Delegating to ${subagentStyle?.name || activity.subagent || "specialist"}`,
-          color,
-          bgColor: `${color}08`,
-        };
-      }
       case "executing":
         return {
           icon: <ThunderboltOutlined />,
@@ -205,68 +173,6 @@ const LatestActivityDisplay = memo(({ activity }: { activity: AgentActivity }) =
             </span>
           ) : null}
         </div>
-
-        {/* Optional message */}
-        {activity.message && (
-          <div
-            style={{
-              fontSize: typography.sizes.xs,
-              color: colors.textSecondary,
-              lineHeight: 1.4,
-            }}
-          >
-            {activity.message}
-          </div>
-        )}
-
-        {/* Subagent real-time streaming output */}
-        {activity.type === "delegating" && activity.streamingContent && (
-          <div
-            style={{
-              marginTop: spacing.xs,
-              padding: spacing.xs,
-              background: `${config.color}06`,
-              borderRadius: borderRadius.sm,
-              fontSize: typography.sizes.xs,
-              color: colors.text,
-              maxHeight: 120,
-              overflowY: "auto",
-              lineHeight: 1.5,
-            }}
-          >
-            {activity.streamingContent}
-          </div>
-        )}
-
-        {/* Planning steps */}
-        {activity.type === "planning" && activity.steps && activity.steps.length > 0 && (
-          <div style={{ marginTop: spacing.xs }}>
-            {activity.steps.map((step, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: spacing.xs,
-                  padding: `${spacing.xs / 2}px 0`,
-                  fontSize: typography.sizes.xs,
-                  color: step.done ? colors.textSecondary : colors.text,
-                  opacity: step.done ? 0.7 : 1,
-                }}
-              >
-                <CheckCircleOutlined
-                  style={{
-                    fontSize: typography.sizes.xs,
-                    color: step.done ? colors.success : colors.border,
-                  }}
-                />
-                <span style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}>
-                  {step.text}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -282,10 +188,6 @@ const ActivityHistoryItem = memo(({ item }: { item: ActivityHistoryItem }) => {
 
   const getConfig = () => {
     switch (item.activity.type) {
-      case "planning":
-        return { icon: <ClockCircleOutlined />, color: colors.warning };
-      case "delegating":
-        return { icon: <RobotOutlined />, color: colors.primary };
       case "executing":
         return { icon: <ThunderboltOutlined />, color: colors.info };
       default:
@@ -311,7 +213,7 @@ const ActivityHistoryItem = memo(({ item }: { item: ActivityHistoryItem }) => {
         {config.icon}
       </span>
       <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {item.activity.toolName || item.activity.message || item.activity.type}
+        {item.activity.toolName || item.activity.type}
       </span>
       <span style={{ fontSize: typography.sizes.xs, opacity: 0.7 }}>
         {item.displayTime || "Recently"}

@@ -22,6 +22,7 @@ import {
   PlusOutlined,
   MoreOutlined,
   CloseOutlined,
+  BugOutlined,
 } from "@ant-design/icons";
 import {
   useChatSessions,
@@ -35,6 +36,7 @@ import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
 import { AgentActivityPanel } from "./AgentActivityPanel";
 import type { AgentActivity, ActivityHistoryItem } from "./AgentActivityPanel";
+import { WebSocketDebugPanel, type DebugMessage } from "./WebSocketDebugPanel";
 import type { ChatMessage } from "../../types";
 import { WSConnectionState, type WSApprovalRequestMessage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
@@ -92,6 +94,11 @@ export const ChatInterface = ({
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [approvalRemaining, setApprovalRemaining] = useState<number | null>(null);
 
+  // Debug state for WebSocket messages
+  const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([]);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const debugMessageIdRef = useRef(0);
+
   // Query client for cache invalidation
   const queryClient = useQueryClient();
 
@@ -117,6 +124,7 @@ export const ChatInterface = ({
   const handleToken = useCallback((
     token: string,
     sessionId: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     source: "main" | "subagent" = "main",
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     subagentName?: string,
@@ -124,13 +132,8 @@ export const ChatInterface = ({
     // We've received the first token, no longer waiting
     setIsWaitingForResponse(false);
 
-    // Subagent tokens go to activity panel, not main content
-    if (source === "subagent") {
-      setLatestActivity(prev =>
-        prev ? { ...prev, streamingContent: (prev.streamingContent || "") + token } : null
-      );
-      return;
-    }
+    // All tokens (main and subagent) go to main chat content
+    // Subagent tokens are no longer routed to activity panel
 
     // If a tool just finished, show the separator for this stream
     if (toolJustFinished) {
@@ -157,8 +160,8 @@ export const ChatInterface = ({
       setIsWaitingForResponse(false);
       setStreamingContent("");
       setActiveToolCalls([]);
-      setLatestActivity(prev => prev ? { ...prev, streamingContent: undefined } : null); // Clear streaming content but keep activity item
-      setActivityHistory([]); // Clear activity history on complete
+      // Always clear activity on complete - panel MUST close reliably
+      setLatestActivity(null);
       setShowStreamSeparator(false); // Reset separator state
       setToolJustFinished(false); // Reset tool finished state
     },
@@ -170,25 +173,21 @@ export const ChatInterface = ({
     setError(`Chat error: ${errorMsg}`);
   }, []);
 
-  const handleSubagentResult = useCallback((subagentName: string, content: string) => {
-    setLatestActivity(prev =>
-      prev
-        ? { ...prev, streamingContent: content, subagent: subagentName }
-        : {
-            type: "delegating" as const,
-            subagent: subagentName,
-            message: "Subagent completed",
-            timestamp: Date.now(),
-            streamingContent: content,
-          }
-    );
-  }, []);
-
-  const handleContentReset = useCallback((reason: string) => {
-    if (reason === "subagent_completed") {
-      setStreamingContent("");
-      setShowStreamSeparator(true);
-    }
+  // Debug: Capture all raw WebSocket messages
+  const handleRawMessage = useCallback((data: unknown, direction: "in" | "out") => {
+    setDebugMessages((prev) => {
+      const newMessages = [
+        ...prev,
+        {
+          id: debugMessageIdRef.current++,
+          timestamp: Date.now(),
+          direction,
+          data,
+        },
+      ];
+      // Keep only the last 500 messages to prevent memory issues
+      return newMessages.length > 500 ? newMessages.slice(-500) : newMessages;
+    });
   }, []);
 
   // Track tool execution with step counts
@@ -245,35 +244,6 @@ export const ChatInterface = ({
   }, []);
 
   // Deep Agent activity handlers
-  const handlePlanning = useCallback((
-    plan?: string,
-    steps?: Array<{ text: string; done: boolean }>
-  ) => {
-    // Add current activity to history before updating
-    if (latestActivity) {
-      addToActivityHistory(latestActivity);
-    }
-    setLatestActivity({
-      type: "planning",
-      message: plan,
-      steps,
-      timestamp: Date.now(),
-    });
-  }, [latestActivity, addToActivityHistory]);
-
-  const handleSubagent = useCallback((subagent: string, message?: string) => {
-    // Add current activity to history before updating
-    if (latestActivity) {
-      addToActivityHistory(latestActivity);
-    }
-    setLatestActivity({
-      type: "delegating",
-      subagent,
-      message,
-      timestamp: Date.now(),
-    });
-  }, [latestActivity, addToActivityHistory]);
-
   const handleThinking = useCallback(() => {
     // Only set thinking if we don't have recent activity
     if (latestActivity && Date.now() - latestActivity.timestamp < 2000) {
@@ -304,7 +274,7 @@ export const ChatInterface = ({
       addToActivityHistory(latestActivity);
     }
 
-    // Update latest activity with step information
+    // Update latest activity
     setLatestActivity({
       type: "executing",
       toolName: tool,
@@ -344,11 +314,8 @@ export const ChatInterface = ({
     onApprovalRequest: handleApprovalRequest,
     onApprovalCountdown: handleApprovalCountdown,
     onApprovalTimeout: handleApprovalTimeout,
-    onPlanning: handlePlanning,
-    onSubagent: handleSubagent,
-    onSubagentResult: handleSubagentResult,
     onThinking: handleThinking,
-    onContentReset: handleContentReset,
+    onRawMessage: handleRawMessage,
   });
 
   // Execution mode hook for managing AI tool risk level
@@ -457,6 +424,11 @@ export const ChatInterface = ({
     setShowApprovalDialog(false);
     setApprovalRequest(null);
     setApprovalRemaining(null);
+  }, []);
+
+  // Handle clearing debug messages
+  const handleClearDebugMessages = useCallback(() => {
+    setDebugMessages([]);
   }, []);
 
   // Helper: Convert API messages to ChatMessage type
@@ -701,6 +673,24 @@ export const ChatInterface = ({
                   />
                 </Tooltip>
               )}
+
+              {/* Debug Panel toggle button */}
+              <Tooltip title="WebSocket Debug Panel">
+                <Button
+                  type="text"
+                  icon={<BugOutlined style={{ fontSize: isMobile ? 18 : 16 }} />}
+                  onClick={() => setShowDebugPanel(!showDebugPanel)}
+                  style={{
+                    minWidth: isMobile ? 44 : 40,
+                    height: isMobile ? 44 : 40,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: showDebugPanel ? token.colorPrimary : undefined,
+                  }}
+                  aria-label="Toggle debug panel"
+                />
+              </Tooltip>
             </div>
 
             {/* Mobile: Assistant selector when no session */}
@@ -806,6 +796,14 @@ export const ChatInterface = ({
                     : "Select an assistant to start chatting"
                   : "Type your message..."
               }
+            />
+
+            {/* WebSocket Debug Panel - inline below input */}
+            <WebSocketDebugPanel
+              visible={showDebugPanel}
+              onClose={() => setShowDebugPanel(false)}
+              messages={debugMessages}
+              onClear={handleClearDebugMessages}
             />
           </Content>
         </Layout>
