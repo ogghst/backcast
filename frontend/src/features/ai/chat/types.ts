@@ -148,6 +148,18 @@ export interface WSThinkingMessage {
 }
 
 /**
+ * Server -> Client: Polling heartbeat event
+ * Sent every 5 seconds during the 30-second approval polling period
+ * to keep the WebSocket connection alive
+ */
+export interface WSPollingHeartbeatMessage {
+  type: "polling_heartbeat";
+  approval_id: string;
+  elapsed_seconds: number;
+  remaining_seconds: number;
+}
+
+/**
  * Discriminated union of all server message types
  * Use the `type` field to discriminate between message variants
  */
@@ -159,7 +171,8 @@ export type WSServerMessage =
   | WSErrorMessage
   | WSPlanningMessage
   | WSSubagentMessage
-  | WSThinkingMessage;
+  | WSThinkingMessage
+  | WSPollingHeartbeatMessage;
 
 /**
  * Type guard to check if a server message is a token message
@@ -276,4 +289,13 @@ export function isSubagentMessage(message: WSServerMessage): message is WSSubage
  */
 export function isThinkingMessage(message: WSServerMessage): message is WSThinkingMessage {
   return message.type === "thinking";
+}
+
+/**
+ * Type guard to check if a server message is a polling heartbeat message
+ */
+export function isPollingHeartbeatMessage(
+  message: WSServerMessage
+): message is WSPollingHeartbeatMessage {
+  return message.type === "polling_heartbeat";
 }

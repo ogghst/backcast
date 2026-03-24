@@ -30,6 +30,7 @@ import {
   isPlanningMessage,
   isSubagentMessage,
   isThinkingMessage,
+  isPollingHeartbeatMessage,
   type WSPermissionDeniedMessage,
 } from "../types";
 
@@ -293,6 +294,16 @@ export const useStreamingChat = (
       if (isThinkingMessage(serverMessage)) {
         callbacks.onThinking?.();
         return;
+      }
+
+      // Handle polling heartbeat messages
+      if (isPollingHeartbeatMessage(serverMessage)) {
+        console.debug(
+          `Polling heartbeat: approval_id=${serverMessage.approval_id}, ` +
+          `elapsed=${serverMessage.elapsed_seconds.toFixed(1)}s, ` +
+          `remaining=${serverMessage.remaining_seconds.toFixed(1)}s`
+        );
+        return;  // Silently acknowledge to keep connection alive
       }
 
       // Handle completion messages
