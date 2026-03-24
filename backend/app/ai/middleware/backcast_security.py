@@ -12,6 +12,7 @@ allowed through without Backcast-specific checks, as they have their own securit
 
 import contextvars
 import logging
+import time
 from typing import Any
 
 from langchain.agents.middleware.types import AgentMiddleware
@@ -92,6 +93,17 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         tool_id = tool_call.get("id", "")
         tool_args = dict(tool_call.get("args", {}))
 
+        # Log tool call entry
+        tool_call_start = time.time()
+        logger.info(
+            f"[TOOL_CALL_ENTRY] awrap_tool_call | "
+            f"tool_name={tool_name} | "
+            f"tool_id={tool_id} | "
+            f"arg_keys={list(tool_args.keys())} | "
+            f"user_role={self.context.user_role} | "
+            f"execution_mode={self.context.execution_mode.value}"
+        )
+
         # 1. Check permissions
         error_message = await self._check_tool_permission(tool_name, tool_args)
         if error_message:
@@ -118,10 +130,38 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         # Execute tool with original args (context will be retrieved from context variable)
         # If approval was handled, the handler may have already been called
         result = risk_error  # If risk_error is a ToolMessage, it's the result
+
+        # Log tool call exit
+        tool_call_duration_ms = (time.time() - tool_call_start) * 1000
         if isinstance(result, ToolMessage):
+            # Result from approval handling
+            logger.info(
+                f"[TOOL_CALL_EXIT] awrap_tool_call | "
+                f"tool_name={tool_name} | "
+                f"duration_ms={tool_call_duration_ms:.2f} | "
+                f"status=approved"
+            )
             return result
 
-        return await handler(request)
+        # Execute the handler
+        try:
+            final_result = await handler(request)
+            logger.info(
+                f"[TOOL_CALL_EXIT] awrap_tool_call | "
+                f"tool_name={tool_name} | "
+                f"duration_ms={tool_call_duration_ms:.2f} | "
+                f"status=success"
+            )
+            return final_result
+        except Exception as e:
+            logger.info(
+                f"[TOOL_CALL_EXIT] awrap_tool_call | "
+                f"tool_name={tool_name} | "
+                f"duration_ms={tool_call_duration_ms:.2f} | "
+                f"status=error | "
+                f"error={str(e)}"
+            )
+            raise
 
     async def _check_tool_permission(
         self,

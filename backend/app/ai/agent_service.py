@@ -5,6 +5,7 @@ Uses LangGraph StateGraph for conversation flow with tool calling loop.
 
 import logging
 import os
+import time
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
@@ -308,6 +309,16 @@ class AgentService:
             # This ensures the Deep Agent SDK uses our custom configuration (Z.AI base URL, API key)
             logger.info(f"Creating Deep Agent with pre-configured LLM, subagents={enable_subagents}")
 
+            # Log graph creation start
+            graph_creation_start = time.time()
+            logger.info(
+                f"[GRAPH_CREATION_START] _create_deep_agent_graph | "
+                f"session_id={session_id} | "
+                f"enable_subagents={enable_subagents} | "
+                f"provider_type={provider_type} | "
+                f"model_name={model_name}"
+            )
+
             orchestrator = DeepAgentOrchestrator(
                 model=llm,  # Pass the ChatOpenAI instance directly
                 context=tool_context,
@@ -327,6 +338,15 @@ class AgentService:
                 allowed_tools=allowed_tools,
             )
             logger.info("Deep Agent graph created successfully")
+
+            # Log graph creation complete
+            graph_creation_duration_ms = (time.time() - graph_creation_start) * 1000
+            logger.info(
+                f"[GRAPH_CREATION_COMPLETE] _create_deep_agent_graph | "
+                f"duration_ms={graph_creation_duration_ms:.2f} | "
+                f"session_id={session_id} | "
+                f"graph_type={type(graph).__name__}"
+            )
 
             return graph, interrupt_node
 
@@ -593,6 +613,20 @@ class AgentService:
         if not session_id:
             raise ValueError("Failed to create session")
 
+        # Log chat stream entry with session context
+        logger.info(
+            f"[CHAT_STREAM_ENTRY] chat_stream | "
+            f"session_id={session_id} | "
+            f"user_id={user_id} | "
+            f"assistant_id={assistant_config.id} | "
+            f"execution_mode={execution_mode.value} | "
+            f"project_id={project_id} | "
+            f"branch_id={branch_id} | "
+            f"as_of={as_of} | "
+            f"branch_name={branch_name} | "
+            f"branch_mode={branch_mode}"
+        )
+
         # Add user message to session
         _ = await self.config_service.add_message(
             session_id=session_id,
@@ -692,6 +726,11 @@ class AgentService:
         current_step = 0
         estimated_total_steps = None
 
+        # Track timing for summary log
+        stream_start_time = time.time()
+        total_tokens = 0
+        tool_calls_count = 0
+
         try:
             logger.info(f"Starting astream_events for session {session_id}")
 
@@ -735,6 +774,7 @@ class AgentService:
 
                         if content:
                             accumulated_content += content
+                            total_tokens += len(content)
                             if self._is_websocket_connected(websocket):
                                 try:
                                     await websocket.send_json(
@@ -755,6 +795,7 @@ class AgentService:
                 elif event_type == "on_tool_start":
                     tool_name = event.get("name", "")
                     tool_input = data.get("input", {})
+                    tool_calls_count += 1
 
                     # DEBUG: Log which tool is being called
                     if logger.isEnabledFor(20):  # INFO level
@@ -1019,9 +1060,16 @@ class AgentService:
         else:
             logger.debug("WebSocket not connected, skipping complete send")
 
+        # Log chat stream complete with metrics
+        stream_duration_ms = (time.time() - stream_start_time) * 1000
         logger.info(
-            f"Chat stream completed for session {session_id}, "
-            f"message_id={assistant_msg.id}"
+            f"[CHAT_STREAM_COMPLETE] chat_stream | "
+            f"duration_ms={stream_duration_ms:.2f} | "
+            f"session_id={session_id} | "
+            f"message_id={assistant_msg.id} | "
+            f"total_tokens={total_tokens} | "
+            f"tool_calls_count={tool_calls_count} | "
+            f"tool_results_count={len(all_tool_results)}"
         )
 
     def _build_system_prompt(

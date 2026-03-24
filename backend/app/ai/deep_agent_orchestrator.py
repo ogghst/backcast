@@ -101,6 +101,16 @@ class DeepAgentOrchestrator:
             >>> agent = orchestrator.create_agent()
             >>> result = await agent.ainvoke({"messages": [("user", "Hello")]})
         """
+        # Log agent creation start
+        logger.info(
+            f"[AGENT_CREATION_START] create_agent | "
+            f"model={self.model} | "
+            f"enable_subagents={self.enable_subagents} | "
+            f"system_prompt_length={len(self.system_prompt) if self.system_prompt else 0} | "
+            f"user_role={self.context.user_role} | "
+            f"execution_mode={self.context.execution_mode.value}"
+        )
+
         # Get existing tools from @ai_tool ecosystem
         all_tools = create_project_tools(self.context)
 
@@ -108,8 +118,18 @@ class DeepAgentOrchestrator:
         if allowed_tools is not None:
             all_tools = [t for t in all_tools if t.name in allowed_tools]
 
+        # Log tool filtering
+        original_tool_count = len(all_tools)
         # Filter by execution mode - this prevents LLM from seeing tools it can't use
         all_tools = filter_tools_by_execution_mode(all_tools, self.context.execution_mode)
+        filtered_tool_count = len(all_tools)
+        logger.info(
+            f"[TOOL_FILTERING] create_agent | "
+            f"execution_mode={self.context.execution_mode.value} | "
+            f"original_tool_count={original_tool_count} | "
+            f"filtered_tool_count={filtered_tool_count} | "
+            f"removed_count={original_tool_count - filtered_tool_count}"
+        )
 
         # When subagents are enabled, the main agent should NOT have direct access
         # to Backcast tools - it should only delegate via the "task" tool.

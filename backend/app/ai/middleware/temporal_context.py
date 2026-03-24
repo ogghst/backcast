@@ -13,7 +13,6 @@ from langchain.agents.middleware.types import AgentMiddleware
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
-from app.ai.tools.temporal_logging import log_temporal_context
 from app.ai.tools.types import ToolContext
 
 logger = logging.getLogger(__name__)
@@ -61,8 +60,16 @@ class TemporalContextMiddleware(AgentMiddleware):
         tool_name = tool_call.get("name", "")
         tool_args = dict(tool_call.get("args", {}))
 
-        # Log temporal context for observability
-        log_temporal_context(tool_name, self.context)
+        # Log temporal context injection
+        logger.info(
+            f"[TEMPORAL_CONTEXT_INJECTION] awrap_tool_call | "
+            f"tool_name={tool_name} | "
+            f"as_of={self.context.as_of} | "
+            f"branch_name={self.context.branch_name} | "
+            f"branch_mode={self.context.branch_mode} | "
+            f"project_id={self.context.project_id} | "
+            f"execution_mode={self.context.execution_mode.value}"
+        )
 
         # Override temporal parameters (prevents LLM bypass)
         # This ensures the temporal context from the session is used,
