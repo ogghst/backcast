@@ -28,10 +28,6 @@ from starlette.websockets import WebSocketState
 
 from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
 from app.ai.graph import create_graph
-from app.ai.middleware.subagent_result import (
-    clear_last_subagent_result,
-    get_last_subagent_result,
-)
 from app.ai.telemetry import (
     initialize_telemetry,
     trace_context,
@@ -51,7 +47,6 @@ from app.models.schemas.ai import (
     AIChatResponse,
     AIConversationMessagePublic,
     WSCompleteMessage,
-    WSContentResetMessage,
     WSErrorMessage,
     WSPlanningMessage,
     WSSubagentMessage,
@@ -939,9 +934,21 @@ class AgentService:
 
                         # Send subagent result when task tool completes
                         if tool_name == "task":
-                            # Retrieve original subagent result stored by SubagentResultMiddleware
-                            subagent_content = get_last_subagent_result()
-                            clear_last_subagent_result()
+                            # Get subagent content from event output (no longer intercepted by middleware)
+                            tool_output = data.get("output", "")
+                            subagent_content = ""
+
+                            # Extract content from various output formats
+                            if isinstance(tool_output, ToolMessage):
+                                subagent_content = tool_output.content
+                            elif isinstance(tool_output, dict) and "content" in tool_output:
+                                subagent_content = tool_output["content"]
+                            elif isinstance(tool_output, str):
+                                subagent_content = tool_output
+
+                            # Ensure subagent_content is a string
+                            if not isinstance(subagent_content, str):
+                                subagent_content = str(subagent_content)
 
                             if subagent_content:
                                 # Save subagent message to database for persistence
@@ -996,21 +1003,9 @@ class AgentService:
                                 invocation_id=current_invocation_id,
                             )
 
-                            # Reset accumulated content - discard pre-subagent main agent text
-                            # Only the main agent's post-synthesis matters for DB save and streaming
-                            accumulated_content = ""
-
-                            # Tell frontend to clear its streaming buffer
-                            if self._is_websocket_connected(websocket):
-                                try:
-                                    await websocket.send_json(
-                                        WSContentResetMessage(
-                                            type="content_reset",
-                                            reason="subagent_completed",
-                                        ).model_dump(mode="json")
-                                    )
-                                except Exception:
-                                    pass
+                            # Note: We NO LONGER reset accumulated_content here
+                            # The main agent's thoughts persist across subagent executions
+                            # to enable progressive acknowledgment and final synthesis
 
                             current_subagent_name = None
                             current_invocation_id = None
@@ -1183,6 +1178,14 @@ class AgentService:
 
         # Flush all remaining buffers before completion
         await buffer_manager.flush_all()
+
+        # Stop the buffer manager to clean up background tasks
+        # This ensures the background flush loop is properly terminated
+        try:
+            await buffer_manager.stop()
+        except Exception as buffer_error:
+            logger.warning(f"Error stopping buffer manager: {buffer_error}")
+            # Continue anyway - buffers are already flushed
 
         # Send complete message
         if self._is_websocket_connected(websocket):
