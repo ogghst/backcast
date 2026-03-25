@@ -433,14 +433,28 @@ class AIConfigService:
         content: str,
         tool_calls: list[dict[str, Any]] | None = None,
         tool_results: list[dict[str, Any]] | None = None,
+        message_metadata: dict[str, Any] | None = None,
     ) -> AIConversationMessage:
-        """Add a message to a session."""
+        """Add a message to a session.
+
+        Args:
+            session_id: Session ID to add message to
+            role: Message role (user/assistant/tool)
+            content: Message content
+            tool_calls: Optional tool calls made by assistant
+            tool_results: Optional tool results
+            message_metadata: Optional metadata (e.g., subagent_name)
+
+        Returns:
+            Created message
+        """
         message = AIConversationMessage(
             session_id=session_id,
             role=role,
             content=content,
             tool_calls=tool_calls,
             tool_results=tool_results,
+            message_metadata=message_metadata,
         )
         self.session.add(message)
         await self.session.flush()

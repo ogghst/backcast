@@ -19,6 +19,7 @@ class TokenBuffer:
     session_id: str | None = None
     source: str = "main"
     subagent_name: str | None = None
+    invocation_id: str | None = None
     last_flush_time: float = 0.0
 
     def add(self, token: str) -> None:
@@ -42,7 +43,7 @@ class TokenBufferManager:
     """Manages token buffers for multiple agents with periodic flushing.
 
     Each agent (main + subagents) has an independent buffer identified by:
-    - Buffer key: f"{source}:{subagent_name or 'main'}"
+    - Buffer key: f"{source}:{invocation_id or subagent_name or 'main'}"
     """
 
     def __init__(
@@ -64,8 +65,11 @@ class TokenBufferManager:
         """Factory function for defaultdict."""
         return TokenBuffer()
 
-    def _get_buffer_key(self, source: str, subagent_name: str | None) -> str:
+    def _get_buffer_key(self, source: str, subagent_name: str | None, invocation_id: str | None = None) -> str:
         """Generate buffer key from agent identifier."""
+        if source == "subagent" and invocation_id:
+            # Use invocation_id for unique subagent identification
+            return f"{source}:{invocation_id}"
         return f"{source}:{subagent_name or 'main'}"
 
     def set_flush_callback(self, callback: Callable[[str, TokenBuffer], None]) -> None:
@@ -82,6 +86,7 @@ class TokenBufferManager:
         session_id: str,
         source: str = "main",
         subagent_name: str | None = None,
+        invocation_id: str | None = None,
     ) -> None:
         """Add a token to the appropriate buffer.
 
@@ -90,6 +95,7 @@ class TokenBufferManager:
             session_id: Session identifier
             source: "main" or "subagent"
             subagent_name: Subagent name when source="subagent"
+            invocation_id: Unique invocation ID for subagent instance
         """
         if not self.enabled:
             # Buffering disabled - callback should handle immediately
@@ -99,15 +105,17 @@ class TokenBufferManager:
                     session_id=session_id,
                     source=source,
                     subagent_name=subagent_name,
+                    invocation_id=invocation_id,
                 )
                 self.flush_callback("_immediate", buffer)
             return
 
-        key = self._get_buffer_key(source, subagent_name)
+        key = self._get_buffer_key(source, subagent_name, invocation_id)
         buffer = self.buffers[key]
         buffer.session_id = session_id
         buffer.source = source
         buffer.subagent_name = subagent_name
+        buffer.invocation_id = invocation_id
         buffer.add(token)
 
         # Flush immediately if buffer exceeds max size
@@ -199,6 +207,7 @@ class TokenBufferManager:
         self,
         source: str = "main",
         subagent_name: str | None = None,
+        invocation_id: str | None = None,
     ) -> None:
         """Manually flush a specific agent's buffer.
 
@@ -210,8 +219,9 @@ class TokenBufferManager:
         Args:
             source: "main" or "subagent"
             subagent_name: Subagent name when source="subagent"
+            invocation_id: Unique invocation ID for subagent instance
         """
-        key = self._get_buffer_key(source, subagent_name)
+        key = self._get_buffer_key(source, subagent_name, invocation_id)
         await self._flush_buffer(key)
 
     async def flush_all(self) -> None:

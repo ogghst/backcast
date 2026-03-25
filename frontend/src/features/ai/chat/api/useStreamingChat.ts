@@ -30,6 +30,9 @@ import {
   isApprovalRequestMessage,
   isThinkingMessage,
   isPollingHeartbeatMessage,
+  isContentResetMessage,
+  isSubagentMessage,
+  isSubagentResultMessage,
   type WSPermissionDeniedMessage,
 } from "../types";
 
@@ -44,7 +47,7 @@ export interface UseStreamingChatConfig {
   /** Optional project ID to scope chat to a specific project */
   projectId?: string;
   /** Callback invoked when a token is received */
-  onToken: (token: string, sessionId: string, source?: "main" | "subagent", subagentName?: string) => void;
+  onToken: (token: string, sessionId: string, source?: "main" | "subagent", subagentName?: string, invocationId?: string) => void;
   /** Callback invoked when the complete response is received */
   onComplete: (sessionId: string, messageId: string) => void;
   /** Callback invoked when an error occurs */
@@ -61,6 +64,10 @@ export interface UseStreamingChatConfig {
   onApprovalTimeout?: () => void;
   /** Optional callback invoked when agent is thinking */
   onThinking?: () => void;
+  /** Optional callback invoked when a subagent starts */
+  onSubagentStart?: (subagent: string, invocationId: string, message?: string) => void;
+  /** Optional callback invoked when a subagent completes */
+  onSubagentComplete?: (invocationId: string) => void;
   /** Optional callback invoked with every raw WebSocket message (for debugging) */
   onRawMessage?: (message: unknown, direction: "in" | "out") => void;
 }
@@ -258,9 +265,10 @@ export const useStreamingChat = (
    */
   const handleMessage = useCallback((event: MessageEvent) => {
     const callbacks = callbacksRef.current;
+    const rawData = event.data;
 
     try {
-      const message = JSON.parse(event.data);
+      const message = JSON.parse(rawData);
 
       // Debug callback for raw incoming messages (before processing)
       callbacks.onRawMessage?.(message, "in");
@@ -285,14 +293,42 @@ export const useStreamingChat = (
 
       // Handle batched token messages (new optimized path)
       if (isTokenBatchMessage(serverMessage)) {
-        // Send pre-concatenated token string directly
-        callbacks.onToken(serverMessage.tokens, serverMessage.session_id, serverMessage.source, serverMessage.subagent_name);
+        // Send pre-concatenated token string directly with invocation_id
+        callbacks.onToken(
+          serverMessage.tokens,
+          serverMessage.session_id,
+          serverMessage.source,
+          serverMessage.subagent_name,
+          serverMessage.invocation_id
+        );
         return;
       }
 
       // Handle individual token messages (backward compatible)
       if (isTokenMessage(serverMessage)) {
-        callbacks.onToken(serverMessage.content, serverMessage.session_id, serverMessage.source, serverMessage.subagent_name);
+        callbacks.onToken(
+          serverMessage.content,
+          serverMessage.session_id,
+          serverMessage.source,
+          serverMessage.subagent_name,
+          serverMessage.invocation_id
+        );
+        return;
+      }
+
+      // Handle subagent delegation messages
+      if (isSubagentMessage(serverMessage)) {
+        callbacks.onSubagentStart?.(serverMessage.subagent, serverMessage.invocation_id, serverMessage.message);
+        // Also call tool_call handler for activity panel
+        callbacks.onToolCall?.("task", { subagent_type: serverMessage.subagent });
+        return;
+      }
+
+      // Handle subagent result messages
+      if (isSubagentResultMessage(serverMessage)) {
+        callbacks.onSubagentComplete?.(serverMessage.invocation_id);
+        // Also call tool_result handler for activity panel
+        callbacks.onToolResult?.("task", serverMessage.content);
         return;
       }
 
@@ -305,6 +341,13 @@ export const useStreamingChat = (
       // Handle tool result messages
       if (isToolResultMessage(serverMessage)) {
         callbacks.onToolResult?.(serverMessage.tool, serverMessage.result);
+        return;
+      }
+
+      // Handle content reset messages (sent when subagent completes)
+      if (isContentResetMessage(serverMessage)) {
+        // Content reset is handled by subagent completion - no additional action needed
+        console.debug("Content reset message received:", serverMessage.reason);
         return;
       }
 
@@ -376,9 +419,25 @@ export const useStreamingChat = (
       // Unknown message type - log for debugging
       console.warn("Unknown WebSocket message type:", serverMessage);
     } catch (err) {
-      console.error("Error parsing WebSocket message:", err);
-      callbacks.onError("Failed to parse server message");
-      setError(new Error("Failed to parse server message"));
+      // Enhanced error logging for debugging parse failures
+      console.error("=== WebSocket Parse Error ===");
+      console.error("Error:", err);
+      console.error("Raw message type:", typeof rawData);
+      console.error("Raw message length:", rawData?.length);
+      console.error("Raw message preview:", rawData?.substring(0, 500));
+      console.error("Full raw message:", rawData);
+
+      // Try to identify what message type this might be from raw data
+      if (typeof rawData === "string") {
+        const typeMatch = rawData.match(/"type"\s*:\s*"([^"]+)"/);
+        if (typeMatch) {
+          console.error("Detected message type from regex:", typeMatch[1]);
+        }
+      }
+
+      const errorMsg = `Failed to parse server message (type: ${typeof rawData}, length: ${rawData?.length}, detected_type: ${typeof rawData === "string" ? rawData.match(/"type"\s*:\s*"([^"]+)"/)?.[1] || "unknown" : "not_string"})`;
+      callbacks.onError(errorMsg);
+      setError(new Error(errorMsg));
     }
   }, []); // No dependencies - uses ref for callbacks
 

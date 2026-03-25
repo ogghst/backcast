@@ -206,6 +206,11 @@ export interface AIConversationMessagePublic {
   tool_calls?: ToolCall[];
   tool_results?: ToolResult[];
   created_at: string;
+  /** Optional metadata for special message types (e.g., subagent messages) */
+  metadata?: {
+    /** Subagent name if this message is from a subagent */
+    subagent_name?: string;
+  };
 }
 
 /**
@@ -231,4 +236,9 @@ export interface ChatMessage {
   toolCalls?: ToolCall[];
   toolResults?: ToolResult[];
   createdAt: string;
+  /** Optional metadata for special message types (e.g., subagent messages) */
+  metadata?: {
+    /** Subagent name if this message is from a subagent */
+    subagent_name?: string;
+  };
 }

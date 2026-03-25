@@ -219,6 +219,7 @@ class AIConversationMessage(SimpleEntityBase):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     tool_calls: Mapped[dict[str, Any] | None] = mapped_column(JSONB(), nullable=True)
     tool_results: Mapped[dict[str, Any] | None] = mapped_column(JSONB(), nullable=True)
+    message_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB(), nullable=True)
 
     # Relationships
     session: Mapped["AIConversationSession"] = relationship(

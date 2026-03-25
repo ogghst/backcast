@@ -37,7 +37,7 @@ import { MessageInput } from "./MessageInput";
 import { AgentActivityPanel } from "./AgentActivityPanel";
 import type { AgentActivity, ActivityHistoryItem } from "./AgentActivityPanel";
 import { WebSocketDebugPanel, type DebugMessage } from "./WebSocketDebugPanel";
-import type { ChatMessage } from "../../types";
+import type { ChatMessage, SubagentStream, StreamingState } from "../../types";
 import { WSConnectionState, type WSApprovalRequestMessage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { generateSessionTitle } from "../utils/sessionTitle";
@@ -77,7 +77,10 @@ export const ChatInterface = ({
   const [error, setError] = useState<string | null>(null);
 
   // Streaming state
-  const [streamingContent, setStreamingContent] = useState("");
+  const [streamingState, setStreamingState] = useState<StreamingState>({
+    main: "",
+    subagents: new Map<string, SubagentStream>(),
+  });
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
   const [activeToolCalls, setActiveToolCalls] = useState<
     Array<{ name: string; args: Record<string, unknown> }>
@@ -124,16 +127,12 @@ export const ChatInterface = ({
   const handleToken = useCallback((
     token: string,
     sessionId: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     source: "main" | "subagent" = "main",
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     subagentName?: string,
+    invocationId?: string,
   ) => {
     // We've received the first token, no longer waiting
     setIsWaitingForResponse(false);
-
-    // All tokens (main and subagent) go to main chat content
-    // Subagent tokens are no longer routed to activity panel
 
     // If a tool just finished, show the separator for this stream
     if (toolJustFinished) {
@@ -141,11 +140,78 @@ export const ChatInterface = ({
       setToolJustFinished(false);
     }
 
-    // Append token to streaming content
-    setStreamingContent((prev) => prev + token);
+    if (source === "main") {
+      // Main agent tokens
+      setStreamingState((prev) => ({
+        ...prev,
+        main: prev.main + token,
+      }));
+    } else if (source === "subagent" && invocationId) {
+      // Subagent tokens - route to correct subagent
+      setStreamingState((prev) => {
+        const subagents = new Map(prev.subagents);
+        const existing = subagents.get(invocationId);
+
+        if (existing) {
+          // Update existing subagent stream
+          subagents.set(invocationId, {
+            ...existing,
+            content: existing.content + token,
+            is_active: true,
+          });
+        } else {
+          // Create new subagent stream (shouldn't happen if subagent message was sent first)
+          subagents.set(invocationId, {
+            invocation_id: invocationId,
+            subagent_name: subagentName || "Subagent",
+            content: token,
+            is_active: true,
+            is_complete: false,
+            started_at: Date.now(),
+          });
+        }
+
+        return { ...prev, subagents };
+      });
+    }
+
     // Update session ID if this was a new session
     setCurrentSessionId((prev) => prev || sessionId);
   }, [toolJustFinished]);
+
+  const handleSubagentStart = useCallback((subagent: string, invocationId: string, message?: string) => {
+    // message parameter describes what the subagent is doing - currently unused but available for future use
+    void message;
+    setStreamingState((prev) => {
+      const subagents = new Map(prev.subagents);
+      subagents.set(invocationId, {
+        invocation_id: invocationId,
+        subagent_name: subagent,
+        content: "",
+        is_active: true,
+        is_complete: false,
+        started_at: Date.now(),
+      });
+      return { ...prev, subagents };
+    });
+  }, []);
+
+  const handleSubagentComplete = useCallback((invocationId: string) => {
+    setStreamingState((prev) => {
+      const subagents = new Map(prev.subagents);
+      const existing = subagents.get(invocationId);
+
+      if (existing) {
+        subagents.set(invocationId, {
+          ...existing,
+          is_active: false,
+          is_complete: true,
+        });
+      }
+
+      return { ...prev, subagents };
+    });
+  }, []);
 
   const handleComplete = useCallback(
     (sessionId: string, messageId: string) => {
@@ -156,9 +222,12 @@ export const ChatInterface = ({
       // Invalidate the queries so the completed message is fetched
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.messages(sessionId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.sessions() });
-      // Clear streaming state — the query refetch will populate messages
+      // Clear main streaming content but keep completed subagents visible
       setIsWaitingForResponse(false);
-      setStreamingContent("");
+      setStreamingState((prev) => ({
+        main: "",
+        subagents: prev.subagents,
+      }));
       setActiveToolCalls([]);
       // Always clear activity on complete - panel MUST close reliably
       setLatestActivity(null);
@@ -315,6 +384,8 @@ export const ChatInterface = ({
     onApprovalCountdown: handleApprovalCountdown,
     onApprovalTimeout: handleApprovalTimeout,
     onThinking: handleThinking,
+    onSubagentStart: handleSubagentStart,
+    onSubagentComplete: handleSubagentComplete,
     onRawMessage: handleRawMessage,
   });
 
@@ -364,7 +435,10 @@ export const ChatInterface = ({
       }
 
       // Clear any previous streaming state
-      setStreamingContent("");
+      setStreamingState({
+        main: "",
+        subagents: new Map<string, SubagentStream>(),
+      });
       setActiveToolCalls([]);
       setLatestActivity(null);
       setIsWaitingForResponse(true);
@@ -389,7 +463,10 @@ export const ChatInterface = ({
   // Handle canceling the current stream
   const handleCancel = useCallback(() => {
     streamingChat.cancel();
-    setStreamingContent("");
+    setStreamingState({
+      main: "",
+      subagents: new Map<string, SubagentStream>(),
+    });
     setActiveToolCalls([]);
     setLatestActivity(null);
     setIsWaitingForResponse(false);
@@ -440,11 +517,15 @@ export const ChatInterface = ({
       toolCalls: msg.tool_calls,
       toolResults: msg.tool_results,
       createdAt: msg.created_at,
+      metadata: msg.metadata,
     })) ?? [];
 
   // Determine if currently streaming (we have streaming content, active tools, or are waiting for the first chunk)
   const isStreaming: boolean =
-    streamingContent.length > 0 || activeToolCalls.length > 0 || isWaitingForResponse;
+    streamingState.main.length > 0 ||
+    streamingState.subagents.size > 0 ||
+    activeToolCalls.length > 0 ||
+    isWaitingForResponse;
 
   const { token } = theme.useToken();
   const { spacing, typography } = useThemeTokens();
@@ -768,7 +849,7 @@ export const ChatInterface = ({
               <MessageList
                 messages={chatMessages}
                 loading={messagesLoading}
-                streamingContent={streamingContent}
+                streamingState={streamingState}
                 isStreaming={isStreaming}
                 activeToolCalls={activeToolCalls}
                 showSeparator={showStreamSeparator}

@@ -7,11 +7,13 @@ import asyncio
 import logging
 import os
 import time
+import uuid
 from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import WebSocket
+from fastapi.encoders import jsonable_encoder
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -737,17 +739,25 @@ class AgentService:
             """Flush callback for buffer manager."""
             if not buffer.is_empty() and self._is_websocket_connected(websocket):
                 try:
-                    await websocket.send_json(
-                        WSTokenBatchMessage(
-                            type="token_batch",
-                            tokens=buffer.get_content(),
-                            session_id=buffer.session_id or session_id,
-                            source=buffer.source,
-                            subagent_name=buffer.subagent_name,
-                        ).model_dump(mode="json")
-                    )
-                except Exception:
-                    logger.warning("Failed to send token batch, WebSocket may be closed")
+                    # Extract invocation_id from buffer key for subagents
+                    # Buffer key format: "source:invocation_id" for subagents or "source:subagent_name" for main
+                    invocation_id = None
+                    if ":" in key and buffer.source == "subagent":
+                        # For subagents, the key contains invocation_id
+                        invocation_id = buffer.invocation_id
+
+                    msg_data = WSTokenBatchMessage(
+                        type="token_batch",
+                        tokens=buffer.get_content(),
+                        session_id=buffer.session_id or session_id,
+                        source=buffer.source,
+                        subagent_name=buffer.subagent_name,
+                        invocation_id=invocation_id,
+                    ).model_dump(mode="json")
+                    logger.debug(f"Sending token_batch: source={buffer.source}, subagent={buffer.subagent_name}, tokens_length={len(buffer.get_content())}, invocation_id={invocation_id}")
+                    await websocket.send_json(msg_data)
+                except Exception as e:
+                    logger.warning(f"Failed to send token batch: {e}")
 
         buffer_manager.set_flush_callback(flush_buffer)  # type: ignore[arg-type]
         await buffer_manager.start()
@@ -766,8 +776,9 @@ class AgentService:
         total_tokens = 0
         tool_calls_count = 0
 
-        # Track subagent name for result reporting
+        # Track subagent name and invocation_id for result reporting
         current_subagent_name: str | None = None
+        current_invocation_id: str | None = None
 
         try:
             logger.info(f"Starting astream_events for session {session_id}")
@@ -783,7 +794,7 @@ class AgentService:
                     logger.debug("Failed to send thinking event, WebSocket may be closed")
 
             async def _consume_stream() -> None:
-                nonlocal current_step, estimated_total_steps, current_subagent_name, total_tokens, tool_calls_count, accumulated_content
+                nonlocal current_step, estimated_total_steps, current_subagent_name, current_invocation_id, total_tokens, tool_calls_count, accumulated_content
                 async for event in graph.astream_events(
                     {
                         "messages": history,
@@ -821,6 +832,7 @@ class AgentService:
                                         session_id=str(session_id),
                                         source="subagent" if current_subagent_name else "main",
                                         subagent_name=current_subagent_name,
+                                        invocation_id=current_invocation_id if current_subagent_name else None,
                                     )
 
                     # Handle tool start
@@ -829,9 +841,10 @@ class AgentService:
                         tool_input = data.get("input", {})
                         tool_calls_count += 1
 
-                        # Track subagent name for result reporting
+                        # Track subagent name and invocation_id for result reporting
                         if tool_name == "task":
                             current_subagent_name = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
+                            current_invocation_id = str(uuid.uuid4())
 
                         # Increment step counter for all tool executions
                         current_step += 1
@@ -892,6 +905,7 @@ class AgentService:
                                             message=description,
                                             step_number=current_step,
                                             total_steps=estimated_total_steps,
+                                            invocation_id=current_invocation_id,
                                         ).model_dump(mode="json")
                                     )
                                     logger.info(f"Subagent delegation: {subagent_type}")
@@ -928,26 +942,46 @@ class AgentService:
                             subagent_content = get_last_subagent_result()
                             clear_last_subagent_result()
 
-                            if subagent_content and self._is_websocket_connected(websocket):
+                            if subagent_content:
+                                # Save subagent message to database for persistence
                                 try:
-                                    await websocket.send_json(
-                                        WSSubagentResultMessage(
-                                            type="subagent_result",
-                                            subagent_name=current_subagent_name or "subagent",
-                                            content=subagent_content,
-                                        ).model_dump(mode="json")
+                                    await self.config_service.add_message(
+                                        session_id=session_id,
+                                        role="assistant",
+                                        content=subagent_content,
+                                        message_metadata={"subagent_name": current_subagent_name or "subagent"} if current_subagent_name else None,
                                     )
+                                    await self.session.commit()
                                     logger.info(
-                                        f"Sent subagent result: name={current_subagent_name}, "
+                                        f"Saved subagent message to database: name={current_subagent_name}, "
                                         f"content_length={len(subagent_content)}"
                                     )
-                                except Exception:
-                                    logger.debug("Failed to send subagent result, WebSocket may be closed")
+                                except Exception as db_error:
+                                    logger.error(f"Failed to save subagent message to database: {db_error}", exc_info=True)
+
+                                # Send WebSocket message
+                                if self._is_websocket_connected(websocket):
+                                    try:
+                                        await websocket.send_json(
+                                            WSSubagentResultMessage(
+                                                type="subagent_result",
+                                                subagent_name=current_subagent_name or "subagent",
+                                                content=subagent_content,
+                                                invocation_id=current_invocation_id,
+                                            ).model_dump(mode="json")
+                                        )
+                                        logger.info(
+                                            f"Sent subagent result: name={current_subagent_name}, "
+                                            f"content_length={len(subagent_content)}"
+                                        )
+                                    except Exception:
+                                        logger.debug("Failed to send subagent result, WebSocket may be closed")
 
                             # Flush subagent buffer
                             await buffer_manager.flush_agent(
                                 source="subagent",
                                 subagent_name=current_subagent_name,
+                                invocation_id=current_invocation_id,
                             )
 
                             # Reset accumulated content - discard pre-subagent main agent text
@@ -967,6 +1001,7 @@ class AgentService:
                                     pass
 
                             current_subagent_name = None
+                            current_invocation_id = None
 
                         tool_output = data.get("output", "")
 
@@ -1010,16 +1045,16 @@ class AgentService:
 
                         if self._is_websocket_connected(websocket):
                             try:
-                                await websocket.send_json(
-                                    WSToolResultMessage(
-                                        type="tool_result",
-                                        tool=tool_name,
-                                        result=tool_result,
-                                    ).model_dump(mode="json")
-                                )
-                            except Exception:
-                                # WebSocket may be closed
-                                logger.warning("Failed to send tool_result, WebSocket may be closed")
+                                msg_data = WSToolResultMessage(
+                                    type="tool_result",
+                                    tool=tool_name,
+                                    result=jsonable_encoder(tool_result),
+                                ).model_dump(mode="json")
+                                logger.debug(f"Sending tool_result: tool={tool_name}, data_keys={list(tool_result.keys()) if isinstance(tool_result, dict) else 'not_dict'}, result_type={type(tool_result.get('result')).__name__ if isinstance(tool_result, dict) and 'result' in tool_result else 'unknown'}")
+                                await websocket.send_json(msg_data)
+                            except Exception as e:
+                                # WebSocket may be closed or serialization error
+                                logger.warning(f"Failed to send tool_result for {tool_name}: {e}")
                                 pass
                         else:
                             logger.debug("WebSocket not connected, skipping tool_result send")
@@ -1370,13 +1405,16 @@ class AgentService:
             }
 
             if self._is_websocket_connected(websocket):
-                await websocket.send_json(
-                    WSToolResultMessage(
+                try:
+                    msg_data = WSToolResultMessage(
                         type="tool_result",
                         tool=tool_result["tool"],
-                        result=tool_result,
+                        result=jsonable_encoder(tool_result),
                     ).model_dump(mode="json")
-                )
+                    logger.debug(f"Sending tool_result after approval: tool={tool_result['tool']}, result_type={type(result.content).__name__}")
+                    await websocket.send_json(msg_data)
+                except Exception as e:
+                    logger.warning(f"Failed to send tool_result after approval: {e}")
             else:
                 logger.debug("WebSocket not connected, skipping tool_result send in resume")
 

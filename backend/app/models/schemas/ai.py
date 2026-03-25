@@ -297,7 +297,7 @@ class AIConversationMessagePublic(BaseModel):
 
         SQLAlchemy models have a built-in `metadata` attribute (MetaData object)
         that conflicts with our schema's metadata field (dict). This validator
-        handles the conflict by excluding it when it's not a dict.
+        handles the conflict by using the message_metadata field instead.
         """
         # Handle dict input (e.g., from API requests)
         if isinstance(data, dict):
@@ -309,12 +309,12 @@ class AIConversationMessagePublic(BaseModel):
 
         # Handle SQLAlchemy model input (from_attributes=True)
         if hasattr(data, '__table__'):
-            # Create a dict copy, converting SQLAlchemy's metadata to empty dict
+            # Create a dict copy, using message_metadata if available
             result: dict[str, Any] = {}
             for key in cls.model_fields:
                 if key == 'metadata':
-                    # Always use empty dict for schema metadata
-                    result[key] = {}
+                    # Use message_metadata from the database model
+                    result[key] = getattr(data, 'message_metadata', None) or {}
                 elif hasattr(data, key):
                     value = getattr(data, key)
                     result[key] = value
@@ -381,6 +381,9 @@ class WSTokenMessage(BaseModel):
     subagent_name: str | None = Field(
         default=None, description="Subagent name when source='subagent'"
     )
+    invocation_id: str | None = Field(
+        default=None, description="Unique invocation ID for subagent instance"
+    )
 
 
 class WSTokenBatchMessage(BaseModel):
@@ -399,6 +402,9 @@ class WSTokenBatchMessage(BaseModel):
     subagent_name: str | None = Field(
         default=None, description="Subagent name when source='subagent'"
     )
+    invocation_id: str | None = Field(
+        default=None, description="Unique invocation ID for subagent instance"
+    )
 
 
 class WSSubagentResultMessage(BaseModel):
@@ -411,6 +417,7 @@ class WSSubagentResultMessage(BaseModel):
     type: str = Field(default="subagent_result", description="Message type discriminator")
     subagent_name: str = Field(..., description="Name of the subagent that completed")
     content: str = Field(..., description="Subagent's final response text")
+    invocation_id: str = Field(..., description="Unique invocation ID for this subagent instance")
 
 
 class WSContentResetMessage(BaseModel):
@@ -562,6 +569,7 @@ class WSSubagentMessage(BaseModel):
     )
     step_number: int | None = Field(None, description="Current step number (1-indexed)")
     total_steps: int | None = Field(None, description="Estimated total steps")
+    invocation_id: str = Field(..., description="Unique invocation ID for this subagent instance")
 
 
 class WSPollingHeartbeatMessage(BaseModel):

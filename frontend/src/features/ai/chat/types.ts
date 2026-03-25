@@ -20,6 +20,26 @@ export enum WSConnectionState {
 }
 
 /**
+ * Represents a single subagent's streaming state
+ */
+export interface SubagentStream {
+  invocation_id: string; // Unique identifier for this invocation
+  subagent_name: string; // Display name (e.g., "EVM Analyst")
+  content: string; // Accumulated streaming content
+  is_active: boolean; // Whether this subagent is currently streaming
+  is_complete: boolean; // Whether this subagent has finished
+  started_at: number; // Timestamp when streaming started
+}
+
+/**
+ * State for tracking multiple concurrent subagent streams
+ */
+export interface StreamingState {
+  main: string; // Main agent content
+  subagents: Map<string, SubagentStream>; // invocation_id -> SubagentStream
+}
+
+/**
  * Project role definitions for RBAC
  */
 export enum ProjectRole {
@@ -66,6 +86,7 @@ export interface WSTokenMessage {
   session_id: string;
   source?: "main" | "subagent";
   subagent_name?: string;
+  invocation_id?: string;
 }
 
 /**
@@ -78,6 +99,7 @@ export interface WSTokenBatchMessage {
   session_id: string;
   source: "main" | "subagent";
   subagent_name?: string;
+  invocation_id?: string;
 }
 
 /**
@@ -151,6 +173,9 @@ export interface WSSubagentMessage {
   type: "subagent";
   subagent: string; // Subagent name (e.g., "evm_analyst")
   message?: string; // Optional description of what the subagent is doing
+  invocation_id: string; // Unique invocation ID for this subagent instance
+  step_number?: number;
+  total_steps?: number;
 }
 
 /**
@@ -169,6 +194,7 @@ export interface WSSubagentResultMessage {
   type: "subagent_result";
   subagent_name: string;
   content: string;
+  invocation_id: string; // Unique invocation ID for this subagent instance
 }
 
 /**
