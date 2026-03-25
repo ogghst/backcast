@@ -1,8 +1,8 @@
-# Product Vision: Backcast EVS
+# Product Vision: Backcast 
 
 ## Overview
 
-Backcast EVS (Entity Versioning System) is a Project Budget Management and Earned Value Management (EVM) platform designed for end-of-line automation projects. The system enables comprehensive project financial tracking with Git-like versioning capabilities for complete audit trails and change order isolation.
+Backcast  (Entity Versioning System) is a Project Budget Management and Earned Value Management (EVM) platform designed for end-of-line automation projects. The system enables comprehensive project financial tracking with Git-like versioning capabilities for complete audit trails and change order isolation.
 
 ## Business Objectives
 

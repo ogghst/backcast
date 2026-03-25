@@ -9,7 +9,7 @@
 
 ## Context
 
-The Backcast EVS AI agent was originally implemented using a custom orchestration loop for conversation management and tool calling. As the system evolved to support 15+ tools across CRUD operations, change order workflows, and EVM analysis, the custom implementation became difficult to maintain and extend.
+The Backcast  AI agent was originally implemented using a custom orchestration loop for conversation management and tool calling. As the system evolved to support 15+ tools across CRUD operations, change order workflows, and EVM analysis, the custom implementation became difficult to maintain and extend.
 
 ### Problem Statement
 

@@ -23,6 +23,9 @@ uv run alembic revision --autogenerate -m "msg" # Create migration
 # Development
 uv run uvicorn app.main:app --reload --port 8020 # Start dev server (port 8020)
 
+# Logs (troubleshooting)
+tail -f backend/logs/app.log                         # Live app logs
+
 # Testing
 uv run pytest -k "test_name"                    # Run specific test
 uv run pytest --cov=app                         # With coverage
@@ -98,6 +101,14 @@ The codebase and test suite are large. To improve efficiency, perform quality ch
 
 [`docs/00-meta/README.md`](docs/00-meta/README.md)
 
+## External Resources
+
+- **Context7 MCP**: Up-to-date library documentation and code examples
+  - Call `mcp__plugin_context7_context7__resolve-library-id` with library name to get ID
+  - Call `mcp__plugin_context7_context7__query-docs` with library ID and query
+- **webReader**: Fetch current documentation from websites
+  - Call `mcp__web_reader__webReader` with URL to fetch web content as markdown
+
 # Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
@@ -167,7 +178,19 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 
-## 5. Agent Delegation for Codebase Changes
+## 5. Understand the Real Requirement
+
+**Interview me until you have 95% confidence about what I actually want, not what I think I should want.**
+
+When receiving a request:
+
+- Don't assume the stated solution is the right one
+- Ask clarifying questions to understand the underlying problem
+- Surface tradeoffs between different approaches
+- If something seems off, say so - don't blindly implement
+- The goal is to solve the actual problem, not just follow instructions
+
+## 6. Agent Delegation for Codebase Changes
 
 **ALWAYS use specialized agents for code modifications.**
 

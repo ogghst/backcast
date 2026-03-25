@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-01-18
 
-This document defines the bounded contexts used to partition the Backcast EVS system. Each context represents a cohesive functional area with clear boundaries.
+This document defines the bounded contexts used to partition the Backcast  system. Each context represents a cohesive functional area with clear boundaries.
 
 ## Backend Contexts
 

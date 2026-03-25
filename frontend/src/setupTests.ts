@@ -1,5 +1,9 @@
 import "@testing-library/jest-dom";
-import { beforeAll, afterEach, afterAll } from "vitest";
+import { beforeAll, afterEach, afterAll, vi } from "vitest";
+
+// Tell Vitest to use the manual mock for echarts-for-react
+vi.mock("echarts-for-react");
+
 import { server } from "./mocks/server";
 
 // Start server before all tests
@@ -55,3 +59,54 @@ if (typeof ProgressEvent === "undefined") {
     total: number;
   };
 }
+
+// Cleanup ECharts animation frames after each test
+// This prevents "Cannot read properties of null" errors from
+// queued animation frames firing after test completion
+afterEach(() => {
+  // Cancel all pending animation frames
+  const RAF_MAX = 100;
+  let id = 0;
+  while (id < RAF_MAX) {
+    cancelAnimationFrame(id);
+    id++;
+  }
+});
+
+// Mock HTMLCanvasElement getContext to prevent ECharts canvas errors in test environment
+// When canvas is cleaned up, the context becomes null but ECharts animation loop
+// may still be trying to access it
+const originalGetContext = HTMLCanvasElement.prototype.getContext;
+HTMLCanvasElement.prototype.getContext = function (contextType: string, ...args: never[]) {
+  const context = originalGetContext.call(this, contextType, ...args);
+
+  // For 2d context, wrap methods to handle null canvas gracefully
+  if (contextType === '2d' && context) {
+    const originalClearRect = context.clearRect;
+    context.clearRect = function (...args: never[]) {
+      try {
+        return originalClearRect.call(this, ...args);
+      } catch {
+        // Silently ignore errors when canvas is already disposed
+        return undefined;
+      }
+    };
+
+    // Wrap other canvas methods that might fail
+    const canvasMethods = ['fillRect', 'strokeRect', 'fillText', 'strokeText', 'drawImage', 'beginPath', 'moveTo', 'lineTo', 'arc', 'rect'];
+    canvasMethods.forEach(method => {
+      if (typeof context[method] === 'function') {
+        const original = context[method];
+        context[method] = function (...args: never[]) {
+          try {
+            return original.call(this, ...args);
+          } catch {
+            return undefined;
+          }
+        } as never;
+      }
+    });
+  }
+
+  return context;
+};

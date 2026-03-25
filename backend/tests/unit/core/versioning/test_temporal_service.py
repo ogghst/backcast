@@ -83,3 +83,9 @@ async def test_update_delegates_to_command(
     # For unit testing the service wrapper, we mainly want to ensure it calls the right things
     # But since the commands handle the logic, we might need integration tests more than unit tests here
     pass
+
+
+# NOTE: The fix for "Multiple rows were found" error (transaction_time tiebreaker)
+# is verified through integration testing with actual database queries.
+# The fix ensures ORDER BY valid_time DESC, transaction_time DESC for deterministic
+# selection when concurrent updates create multiple versions with the same valid_time.

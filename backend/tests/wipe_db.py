@@ -8,14 +8,25 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 async def create_db_if_not_exists(original_url: str, test_url: str) -> None:
     db_name = test_url.rstrip("/").split("/")[-1]
-    engine = create_async_engine(original_url, isolation_level="AUTOCOMMIT")
-    async with engine.connect() as conn:
-        result = await conn.execute(text(f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'"))
-        exists = result.scalar() is not None
-        if not exists:
-            print(f"Creating test database: {db_name}")
-            await conn.execute(text(f"CREATE DATABASE {db_name}"))
-    await engine.dispose()
+    print(f"Checking if database exists: {db_name}")
+    print(f"Original URL: {original_url}")
+    engine = create_async_engine(original_url, isolation_level="AUTOCOMMIT", echo=False)
+    try:
+        async with engine.connect() as conn:
+            print("Connected to original database")
+            result = await conn.execute(text(f"SELECT 1 FROM pg_database WHERE datname = '{db_name}'"))
+            exists = result.scalar() is not None
+            if not exists:
+                print(f"Creating test database: {db_name}")
+                await conn.execute(text(f"CREATE DATABASE {db_name}"))
+                print(f"Created database: {db_name}")
+            else:
+                print(f"Database already exists: {db_name}")
+    except Exception as e:
+        print(f"Error in create_db_if_not_exists: {e}")
+        raise
+    finally:
+        await engine.dispose()
 
 
 async def wipe() -> None:
@@ -30,11 +41,14 @@ async def wipe() -> None:
         print(f"Env keys available: {list(os.environ.keys())}")
         sys.exit(1)
 
+    print(f"Database URL: {db_url}")
+    print(f"Original URL: {orig_url}")
+
     if orig_url and orig_url != db_url:
         await create_db_if_not_exists(orig_url, db_url)
 
     print(f"Wiping DB: {db_url}")
-    engine = create_async_engine(db_url)
+    engine = create_async_engine(db_url, echo=False)
 
     async with engine.begin() as conn:
         # Drop all tables by dropping and recreating the public schema

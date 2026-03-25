@@ -3,7 +3,7 @@
 **Last Updated:** 2026-03-02
 **Purpose:** Define domain terms, acronyms, and naming conventions
 
-> **This is the authoritative reference** for terminology in Backcast EVS.
+> **This is the authoritative reference** for terminology in Backcast .
 > All documentation and code should follow these conventions.
 
 ---

@@ -13,6 +13,8 @@ interface CopyButtonProps {
   text: string;
   /** Optional CSS class name */
   className?: string;
+  /** Optional button size for responsive design */
+  size?: 'small' | 'middle' | 'large';
 }
 
 /**
@@ -25,7 +27,7 @@ interface CopyButtonProps {
  * - Accessible with ARIA labels
  * - Tooltip for better UX
  */
-export const CopyButton: React.FC<CopyButtonProps> = ({ text, className }) => {
+export const CopyButton: React.FC<CopyButtonProps> = ({ text, className, size = 'small' }) => {
   const { token } = theme.useToken();
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -53,7 +55,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({ text, className }) => {
     <Tooltip title={copied ? 'Copied!' : 'Copy code'} placement="left">
       <Button
         type="text"
-        size="small"
+        size={size}
         icon={copied ? <CheckOutlined /> : <CopyOutlined />}
         onClick={handleCopy}
         loading={loading}

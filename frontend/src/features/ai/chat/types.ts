@@ -20,6 +20,45 @@ export enum WSConnectionState {
 }
 
 /**
+ * Represents a single subagent's streaming state
+ */
+export interface SubagentStream {
+  invocation_id: string; // Unique identifier for this invocation
+  subagent_name: string; // Display name (e.g., "EVM Analyst")
+  content: string; // Accumulated streaming content
+  is_active: boolean; // Whether this subagent is currently streaming
+  is_complete: boolean; // Whether this subagent has finished
+  started_at: number; // Timestamp when streaming started
+  invocation_number?: number; // Invocation count for this subagent name (e.g., 2 for second invocation)
+}
+
+/**
+ * State for tracking multiple concurrent subagent streams
+ */
+export interface StreamingState {
+  main: string; // Main agent content
+  subagents: Map<string, SubagentStream>; // invocation_id -> SubagentStream
+}
+
+/**
+ * Project role definitions for RBAC
+ */
+export enum ProjectRole {
+  PROJECT_ADMIN = "PROJECT_ADMIN",
+  PROJECT_MANAGER = "PROJECT_MANAGER",
+  PROJECT_EDITOR = "PROJECT_EDITOR",
+  PROJECT_VIEWER = "PROJECT_VIEWER",
+}
+
+/**
+ * AI tool execution modes
+ * - safe: Only low-risk tools allowed
+ * - standard: Low and high-risk tools allowed, critical tools require approval
+ * - expert: All tools allowed without approval
+ */
+export type ExecutionMode = "safe" | "standard" | "expert";
+
+/**
  * Client -> Server: Chat message request
  */
 export interface WSChatRequest {
@@ -28,6 +67,14 @@ export interface WSChatRequest {
   session_id: string | null;
   assistant_config_id: string;
   title?: string; // Optional session title (for new sessions)
+  // Execution mode for tool risk management (required)
+  execution_mode: ExecutionMode; // AI tool execution mode (safe/standard/expert)
+  // Temporal context parameters for AI tools
+  as_of?: string | null; // ISO timestamp or null for "now"
+  branch_name?: string; // Branch name (e.g., "main", "BR-001")
+  branch_mode?: "merged" | "isolated"; // Branch view mode
+  // Project context for project-specific chat
+  project_id?: string; // Project ID to scope chat to a specific project
 }
 
 /**
@@ -38,6 +85,22 @@ export interface WSTokenMessage {
   type: "token";
   content: string;
   session_id: string;
+  source?: "main" | "subagent";
+  subagent_name?: string;
+  invocation_id?: string;
+}
+
+/**
+ * Server -> Client: Batched token streaming message
+ * Multiple tokens sent in a single WebSocket message to reduce overhead
+ */
+export interface WSTokenBatchMessage {
+  type: "token_batch";
+  tokens: string; // Concatenated token string
+  session_id: string;
+  source: "main" | "subagent";
+  subagent_name?: string;
+  invocation_id?: string;
 }
 
 /**
@@ -81,21 +144,121 @@ export interface WSErrorMessage {
 }
 
 /**
+ * Server -> Client: Permission denied error (403)
+ * Sent when user lacks required project-level permissions
+ */
+export interface WSPermissionDeniedMessage extends WSErrorMessage {
+  type: "error";
+  message: string;
+  code: 403;
+  detail: "permission_denied";
+  project_id?: string;
+  required_permission?: string;
+}
+
+/**
+ * Server -> Client: Agent planning event
+ * Sent when the Deep Agent is creating a plan (using write_todos)
+ */
+export interface WSPlanningMessage {
+  type: "planning";
+  plan?: string; // The plan description
+  steps?: Array<{ text: string; done: boolean }>; // Planning steps
+}
+
+/**
+ * Server -> Client: Subagent delegation event
+ * Sent when the Deep Agent delegates to a subagent
+ */
+export interface WSSubagentMessage {
+  type: "subagent";
+  subagent: string; // Subagent name (e.g., "evm_analyst")
+  message?: string; // Optional description of what the subagent is doing
+  invocation_id: string; // Unique invocation ID for this subagent instance
+  step_number?: number;
+  total_steps?: number;
+}
+
+/**
+ * Server -> Client: Agent thinking event
+ * Sent when the agent is processing before first response
+ */
+export interface WSThinkingMessage {
+  type: "thinking";
+}
+
+/**
+ * Server -> Client: Subagent result event
+ * Sent when a subagent (task tool) completes with its final response
+ */
+export interface WSSubagentResultMessage {
+  type: "subagent_result";
+  subagent_name: string;
+  content: string;
+  invocation_id: string; // Unique invocation ID for this subagent instance
+}
+
+/**
+ * Server -> Client: Content reset event
+ * Sent when the streaming content buffer should be reset,
+ * typically after a subagent completes
+ */
+export interface WSContentResetMessage {
+  type: "content_reset";
+  reason: string;
+}
+
+/**
+ * Server -> Client: Polling heartbeat event
+ * Sent every 5 seconds during the 30-second approval polling period
+ * to keep the WebSocket connection alive
+ */
+export interface WSPollingHeartbeatMessage {
+  type: "polling_heartbeat";
+  approval_id: string;
+  elapsed_seconds: number;
+  remaining_seconds: number;
+}
+
+/**
+ * Server -> Client: Ping keepalive event
+ * Sent every 20 seconds during long agent execution to prevent proxy timeouts
+ */
+export interface WSPingMessage {
+  type: "ping";
+}
+
+/**
  * Discriminated union of all server message types
  * Use the `type` field to discriminate between message variants
  */
 export type WSServerMessage =
   | WSTokenMessage
+  | WSTokenBatchMessage
   | WSToolCallMessage
   | WSToolResultMessage
   | WSCompleteMessage
-  | WSErrorMessage;
+  | WSErrorMessage
+  | WSPlanningMessage
+  | WSSubagentMessage
+  | WSSubagentResultMessage
+  | WSThinkingMessage
+  | WSContentResetMessage
+  | WSPollingHeartbeatMessage
+  | WSPingMessage;
 
 /**
  * Type guard to check if a server message is a token message
  */
 export function isTokenMessage(message: WSServerMessage): message is WSTokenMessage {
   return message.type === "token";
+}
+
+/**
+ * Type guard to check if a server message is a batched token message
+ */
+export function isTokenBatchMessage(message: WSServerMessage): message is WSTokenBatchMessage {
+  return message.type === "token_batch";
 }
 
 /**
@@ -124,4 +287,113 @@ export function isCompleteMessage(message: WSServerMessage): message is WSComple
  */
 export function isErrorMessage(message: WSServerMessage): message is WSErrorMessage {
   return message.type === "error";
+}
+
+/**
+ * Type guard to check if a server message is a permission denied error
+ */
+export function isPermissionDeniedMessage(
+  message: WSServerMessage
+): message is WSPermissionDeniedMessage {
+  return isErrorMessage(message) && message.code === 403;
+}
+
+/**
+ * Server -> Client: Request approval for critical tool execution
+ * Sent when a critical tool is about to be executed in standard mode
+ */
+export interface WSApprovalRequestMessage {
+  type: "approval_request";
+  approval_id: string; // UUID for this approval request
+  session_id: string; // Chat session ID
+  tool_name: string; // Name of the tool being called
+  tool_args: Record<string, unknown>; // Arguments passed to the tool
+  risk_level: "critical"; // Always "critical" for approval requests
+  expires_at: string; // ISO datetime when approval expires (5 minutes)
+}
+
+/**
+ * Client -> Server: User decision on approval request
+ * Sent when user approves or rejects a critical tool execution
+ */
+export interface WSApprovalResponseMessage {
+  type: "approval_response";
+  approval_id: string; // UUID matching the approval request
+  approved: boolean; // User's decision (true = approve, false = reject)
+  user_id: string; // ID of the user making the decision
+  timestamp: string; // ISO datetime of the decision
+}
+
+/**
+ * Type guard to check if a server message is an approval request
+ */
+export function isApprovalRequestMessage(
+  message: unknown
+): message is WSApprovalRequestMessage {
+  return (
+    typeof message === "object" &&
+    message !== null &&
+    (message as Record<string, unknown>).type === "approval_request"
+  );
+}
+
+/**
+ * Type guard to check if a client message is an approval response
+ */
+export function isApprovalResponseMessage(
+  message: unknown
+): message is WSApprovalResponseMessage {
+  return (
+    typeof message === "object" &&
+    message !== null &&
+    (message as Record<string, unknown>).type === "approval_response"
+  );
+}
+
+/**
+ * Type guard to check if a server message is a planning message
+ */
+export function isPlanningMessage(message: WSServerMessage): message is WSPlanningMessage {
+  return message.type === "planning";
+}
+
+/**
+ * Type guard to check if a server message is a subagent delegation message
+ */
+export function isSubagentMessage(message: WSServerMessage): message is WSSubagentMessage {
+  return message.type === "subagent";
+}
+
+/**
+ * Type guard to check if a server message is a thinking message
+ */
+export function isThinkingMessage(message: WSServerMessage): message is WSThinkingMessage {
+  return message.type === "thinking";
+}
+
+/**
+ * Type guard to check if a server message is a subagent result message
+ */
+export function isSubagentResultMessage(
+  message: WSServerMessage
+): message is WSSubagentResultMessage {
+  return message.type === "subagent_result";
+}
+
+/**
+ * Type guard to check if a server message is a polling heartbeat message
+ */
+export function isPollingHeartbeatMessage(
+  message: WSServerMessage
+): message is WSPollingHeartbeatMessage {
+  return message.type === "polling_heartbeat";
+}
+
+/**
+ * Type guard to check if a server message is a content reset message
+ */
+export function isContentResetMessage(
+  message: WSServerMessage
+): message is WSContentResetMessage {
+  return message.type === "content_reset";
 }

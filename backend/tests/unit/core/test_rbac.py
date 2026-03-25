@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import pytest
 
@@ -31,6 +32,24 @@ class MockRBACService(RBACServiceABC):
     def get_user_permissions(self, user_role: str) -> list[str]:
         """Get all permissions for a given role."""
         return self._permissions.get(user_role, [])
+
+    async def has_project_access(
+        self,
+        user_id: UUID,
+        user_role: str,
+        project_id: UUID,
+        required_permission: str,
+    ) -> bool:
+        """Mock project access check - always return True for tests."""
+        return True
+
+    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
+        """Mock get user projects - return empty list for tests."""
+        return []
+
+    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
+        """Mock get project role - return None for tests."""
+        return None
 
 
 class TestRequirePermissionDecorator:

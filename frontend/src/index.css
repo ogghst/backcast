@@ -2,7 +2,11 @@
  * Global Styles - Soft Light Theme
  *
  * Base styles for the application with soft light color scheme.
+ * Includes JetBrains Mono for technical/monospace elements.
  */
+
+/* Import JetBrains Mono for technical elements */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* Body background - soft cream */
 body {
@@ -62,4 +66,52 @@ body {
 .ant-menu-horizontal.header-navigation-menu {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
+}
+
+/* ========================================
+ * Chat Interface - Technical Aesthetic
+ * ======================================== */
+
+/* Monospace font for technical elements */
+.font-mono {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+}
+
+/* Connection status dot glow animation */
+@keyframes connectionPulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(82, 196, 26, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(82, 196, 26, 0.6);
+  }
+}
+
+/* Mobile-safe input area */
+.chat-input-safe-area {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Better touch feedback for mobile */
+@media (max-width: 767px) {
+  .ant-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Prevent accidental zoom on iOS */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Technical grid pattern for chat backgrounds */
+.chat-grid-background {
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
 }

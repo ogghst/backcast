@@ -1925,3 +1925,136 @@ class ChangeOrderService(BranchableService[ChangeOrder]):  # type: ignore[type-v
 
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def generate_draft(
+        self,
+        project_id: UUID,
+        title: str,
+        description: str,
+        reason: str,
+        actor_id: UUID,
+        branch: str = "main",
+    ) -> ChangeOrder:
+        """Generate a comprehensive draft change order using AI analysis.
+
+        Context: Phase 3C - AI-assisted change order workflows.
+        Uses AI to analyze requirements, extract impact data, and create
+        a draft change order with automatic impact assessment.
+
+        Args:
+            project_id: UUID of the project
+            title: Change order title
+            description: Detailed description of the change
+            reason: Business reason for the change
+            actor_id: UUID of the user creating the draft
+            branch: Branch name (default: "main")
+
+        Returns:
+            Created ChangeOrder instance in Draft status with AI-generated analysis
+
+        Raises:
+            ValueError: If project not found or AI parsing fails
+        """
+        from app.ai.change_order_parser import ChangeOrderRequirementParser
+        from app.core.enums import ChangeOrderStatus
+        from app.models.domain.project import Project
+
+        # Verify project exists
+        project_result = await self.session.execute(
+            select(Project).where(Project.project_id == project_id)
+        )
+        project = project_result.scalar_one_or_none()
+        if not project:
+            raise ValueError(f"Project {project_id} not found")
+
+        # Initialize AI parser
+        parser = ChangeOrderRequirementParser(self.session)
+
+        # Parse requirements with AI
+        try:
+            parsed_data = await parser.parse_requirements(
+                project_id=project_id,
+                title=title,
+                description=description,
+                reason=reason,
+            )
+        except Exception as e:
+            logger.error(f"AI parsing failed, creating draft with manual data: {e}")
+            # Fall back to manual data if AI fails
+            parsed_data = {
+                "title": title,
+                "description": description,
+                "reason": reason,
+                "budget_impact": Decimal("0"),
+                "schedule_impact_days": 0,
+                "risk_level": "Medium",
+                "affected_entities": [],
+                "recommendation": "Review required",
+                "confidence_score": 0.0,
+            }
+
+        # Generate change order code
+        from datetime import UTC
+
+        year = datetime.now(UTC).year
+        code = await self.get_next_code(project_id, year)
+
+        # Generate a UUID for the change_order root
+        root_id = uuid4()
+
+        # Generate branch name from code
+        branch_name = f"BR-{code}"
+
+        # Map AI risk level to impact level
+        risk_to_impact = {
+            "Low": "LOW",
+            "Medium": "MEDIUM",
+            "High": "HIGH",
+        }
+        impact_level = risk_to_impact.get(
+            parsed_data["risk_level"], "MEDIUM"
+        )
+
+        # Prepare change order data
+        co_data = {
+            "code": code,
+            "project_id": project_id,
+            "title": parsed_data["title"],
+            "description": parsed_data["description"],
+            "justification": parsed_data["reason"],
+            "status": ChangeOrderStatus.DRAFT,
+            "impact_level": impact_level,
+            "branch_name": branch_name,
+        }
+
+        # Create the change order on main branch using create_root
+        change_order = await self.create_root(
+            root_id=root_id,
+            actor_id=actor_id,
+            branch="main",
+            **co_data,
+        )
+
+        # Store AI analysis results in metadata
+        # Using impact_analysis_results field for AI-generated data
+        ai_results = {
+            "ai_analysis": {
+                "confidence_score": parsed_data.get("confidence_score", 0.0),
+                "risk_assessment": parsed_data["risk_level"],
+                "recommendation": parsed_data["recommendation"],
+                "affected_entities": parsed_data.get("affected_entities", []),
+                "estimated_budget_impact": float(parsed_data["budget_impact"]),
+                "estimated_schedule_impact_days": parsed_data["schedule_impact_days"],
+            }
+        }
+
+        # Update change order with AI results
+        change_order.impact_analysis_results = ai_results
+        await self.session.flush()
+
+        logger.info(
+            f"Generated AI draft change order {code} with confidence: "
+            f"{parsed_data.get('confidence_score', 0.0)}"
+        )
+
+        return change_order

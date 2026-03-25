@@ -10,7 +10,7 @@
 
 ## Responsibility
 
-The Authentication & Authorization (Auth) context provides secure user identity verification and fine-grained access control for the Backcast EVS system. It enables:
+The Authentication & Authorization (Auth) context provides secure user identity verification and fine-grained access control for the Backcast  system. It enables:
 
 - **User Authentication:** JWT-based token generation and validation
 - **Role-Based Access Control (RBAC):** Permission management with resource-specific granularity

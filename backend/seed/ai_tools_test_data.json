@@ -1,0 +1,357 @@
+{
+  "metadata": {
+    "description": "Comprehensive test dataset for AI tools testing - Forecast, Cost Registration, Progress Entry",
+    "project_code": "AI-TEST-001",
+    "project_name": "AI Test Project 2026",
+    "created_date": "2026-03-22"
+  },
+  "project": {
+    "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+    "code": "AI-TEST-001",
+    "name": "AI Test Project 2026",
+    "budget": 500000.0,
+    "contract_value": 550000.0,
+    "description": "Comprehensive test project for AI tools - includes mechanical and electrical systems with realistic cost tracking",
+    "start_date": "2026-06-01T00:00:00",
+    "end_date": "2026-12-31T23:59:59",
+    "control_date": "2026-06-01T00:00:00"
+  },
+  "wbes": [
+    {
+      "wbe_id": "10000000-0000-0000-0000-000000000001",
+      "code": "AI-TEST-001-L1",
+      "name": "Mechanical Systems",
+      "level": 1,
+      "description": "Level 1 WBE for all mechanical systems",
+      "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "parent_wbe_id": null,
+      "control_date": "2026-06-01T00:00:00"
+    },
+    {
+      "wbe_id": "10000000-0000-0000-0000-000000000002",
+      "code": "AI-TEST-001-L1-1",
+      "name": "Conveyor System",
+      "level": 2,
+      "description": "Level 2 WBE for conveyor system",
+      "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "parent_wbe_id": "10000000-0000-0000-0000-000000000001",
+      "control_date": "2026-06-01T00:00:00"
+    },
+    {
+      "wbe_id": "10000000-0000-0000-0000-000000000003",
+      "code": "AI-TEST-001-L1-1-1",
+      "name": "Main Conveyor",
+      "level": 3,
+      "description": "Level 3 WBE for main conveyor installation",
+      "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "parent_wbe_id": "10000000-0000-0000-0000-000000000002",
+      "control_date": "2026-06-01T00:00:00"
+    },
+    {
+      "wbe_id": "10000000-0000-0000-0000-000000000004",
+      "code": "AI-TEST-001-L1-1-2",
+      "name": "Secondary Conveyor",
+      "level": 3,
+      "description": "Level 3 WBE for secondary conveyor installation",
+      "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "parent_wbe_id": "10000000-0000-0000-0000-000000000002",
+      "control_date": "2026-06-01T00:00:00"
+    },
+    {
+      "wbe_id": "10000000-0000-0000-0000-000000000005",
+      "code": "AI-TEST-001-L2",
+      "name": "Electrical Systems",
+      "level": 1,
+      "description": "Level 1 WBE for all electrical systems",
+      "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "parent_wbe_id": null,
+      "control_date": "2026-06-01T00:00:00"
+    },
+    {
+      "wbe_id": "10000000-0000-0000-0000-000000000006",
+      "code": "AI-TEST-001-L2-1",
+      "name": "Power Distribution",
+      "level": 2,
+      "description": "Level 2 WBE for power distribution system",
+      "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "parent_wbe_id": "10000000-0000-0000-0000-000000000005",
+      "control_date": "2026-06-01T00:00:00"
+    },
+    {
+      "wbe_id": "10000000-0000-0000-0000-000000000007",
+      "code": "AI-TEST-001-L2-1-1",
+      "name": "Main Panel",
+      "level": 3,
+      "description": "Level 3 WBE for main electrical panel installation",
+      "project_id": "a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d",
+      "parent_wbe_id": "10000000-0000-0000-0000-000000000006",
+      "control_date": "2026-06-01T00:00:00"
+    }
+  ],
+  "cost_elements": [
+    {
+      "cost_element_id": "20000000-0000-0000-0000-000000000001",
+      "code": "CE-CONV-MAIN",
+      "name": "Main Conveyor Installation",
+      "budget_amount": 100000.0,
+      "description": "Complete installation of main conveyor system including framing, motors, and controls",
+      "wbe_id": "10000000-0000-0000-0000-000000000003",
+      "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+      "branch": "main",
+      "control_date": "2026-06-01T00:00:00",
+      "forecast": {
+        "forecast_id": "50000000-0000-0000-0000-000000000001",
+        "eac_amount": 110000.0,
+        "basis_of_estimate": "Due to steel price increases in Q1 2026, material costs are running 10% above budget. Labor remains on track."
+      }
+    },
+    {
+      "cost_element_id": "20000000-0000-0000-0000-000000000002",
+      "code": "CE-CONV-SEC",
+      "name": "Secondary Conveyor Installation",
+      "budget_amount": 75000.0,
+      "description": "Installation of secondary conveyor system with manual controls",
+      "wbe_id": "10000000-0000-0000-0000-000000000004",
+      "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+      "branch": "main",
+      "control_date": "2026-06-01T00:00:00",
+      "forecast": {
+        "forecast_id": "50000000-0000-0000-0000-000000000002",
+        "eac_amount": 75000.0,
+        "basis_of_estimate": "As planned. Installation progressing according to schedule with no cost overruns expected."
+      }
+    },
+    {
+      "cost_element_id": "20000000-0000-0000-0000-000000000003",
+      "code": "CE-PANEL-MAIN",
+      "name": "Main Panel Installation",
+      "budget_amount": 50000.0,
+      "description": "Installation of main electrical panel including all breakers and wiring",
+      "wbe_id": "10000000-0000-0000-0000-000000000007",
+      "cost_element_type_id": "ce8977f4-3a39-55a0-b32b-c049369599f5",
+      "branch": "main",
+      "control_date": "2026-06-01T00:00:00",
+      "forecast": {
+        "forecast_id": "50000000-0000-0000-0000-000000000003",
+        "eac_amount": 48000.0,
+        "basis_of_estimate": "Volume discount achieved on panel purchase. Coming in under budget by $2,000."
+      }
+    },
+    {
+      "cost_element_id": "20000000-0000-0000-0000-000000000004",
+      "code": "CE-CTRL-SYS",
+      "name": "Control System Programming",
+      "budget_amount": 40000.0,
+      "description": "PLC programming and HMI development for conveyor control system",
+      "wbe_id": "10000000-0000-0000-0000-000000000003",
+      "cost_element_type_id": "6a483c4e-893c-5a92-8db9-6f5ac937c63f",
+      "branch": "main",
+      "control_date": "2026-06-01T00:00:00",
+      "forecast": {
+        "forecast_id": "50000000-0000-0000-0000-000000000004",
+        "eac_amount": 45000.0,
+        "basis_of_estimate": "Additional programming required for safety interlocks and emergency stop functionality. $5,000 over budget."
+      }
+    }
+  ],
+  "cost_registrations": [
+    {
+      "cost_registration_id": "30000000-0000-0000-0000-000000000001",
+      "cost_element_id": "20000000-0000-0000-0000-000000000001",
+      "amount": 15000.0,
+      "quantity": 1.0,
+      "unit_of_measure": "LS",
+      "registration_date": "2026-01-15T10:00:00",
+      "description": "Initial materials - conveyor framing steel and supports",
+      "control_date": "2026-01-15T10:00:00"
+    },
+    {
+      "cost_registration_id": "30000000-0000-0000-0000-000000000002",
+      "cost_element_id": "20000000-0000-0000-0000-000000000001",
+      "amount": 25000.0,
+      "quantity": 1.0,
+      "unit_of_measure": "LS",
+      "registration_date": "2026-02-15T10:00:00",
+      "description": "Conveyor frame fabrication and motor installation",
+      "control_date": "2026-02-15T10:00:00"
+    },
+    {
+      "cost_registration_id": "30000000-0000-0000-0000-000000000003",
+      "cost_element_id": "20000000-0000-0000-0000-000000000001",
+      "amount": 20000.0,
+      "quantity": 1.0,
+      "unit_of_measure": "LS",
+      "registration_date": "2026-03-15T10:00:00",
+      "description": "Motor installation and belt assembly",
+      "control_date": "2026-03-15T10:00:00"
+    },
+    {
+      "cost_registration_id": "30000000-0000-0000-0000-000000000004",
+      "cost_element_id": "20000000-0000-0000-0000-000000000002",
+      "amount": 10000.0,
+      "quantity": 1.0,
+      "unit_of_measure": "LS",
+      "registration_date": "2026-02-01T10:00:00",
+      "description": "Materials for secondary conveyor",
+      "control_date": "2026-02-01T10:00:00"
+    },
+    {
+      "cost_registration_id": "30000000-0000-0000-0000-000000000005",
+      "cost_element_id": "20000000-0000-0000-0000-000000000002",
+      "amount": 15000.0,
+      "quantity": 1.0,
+      "unit_of_measure": "LS",
+      "registration_date": "2026-03-01T10:00:00",
+      "description": "Secondary conveyor installation labor",
+      "control_date": "2026-03-01T10:00:00"
+    },
+    {
+      "cost_registration_id": "30000000-0000-0000-0000-000000000006",
+      "cost_element_id": "20000000-0000-0000-0000-000000000003",
+      "amount": 20000.0,
+      "quantity": 1.0,
+      "unit_of_measure": "LS",
+      "registration_date": "2026-01-20T10:00:00",
+      "description": "Main panel purchase with volume discount",
+      "control_date": "2026-01-20T10:00:00"
+    },
+    {
+      "cost_registration_id": "30000000-0000-0000-0000-000000000007",
+      "cost_element_id": "20000000-0000-0000-0000-000000000003",
+      "amount": 10000.0,
+      "quantity": 1.0,
+      "unit_of_measure": "LS",
+      "registration_date": "2026-02-20T10:00:00",
+      "description": "Panel wiring and breaker installation",
+      "control_date": "2026-02-20T10:00:00"
+    },
+    {
+      "cost_registration_id": "30000000-0000-0000-0000-000000000008",
+      "cost_element_id": "20000000-0000-0000-0000-000000000004",
+      "amount": 5000.0,
+      "quantity": 1.0,
+      "unit_of_measure": "LS",
+      "registration_date": "2026-03-01T10:00:00",
+      "description": "Control system programming setup and initial configuration",
+      "control_date": "2026-03-01T10:00:00"
+    }
+  ],
+  "progress_entries": [
+    {
+      "progress_entry_id": "40000000-0000-0000-0000-000000000001",
+      "cost_element_id": "20000000-0000-0000-0000-000000000001",
+      "progress_percentage": 25.0,
+      "notes": "Main conveyor: Frame fabrication complete, motor installation in progress",
+      "control_date": "2026-01-31T10:00:00"
+    },
+    {
+      "progress_entry_id": "40000000-0000-0000-0000-000000000002",
+      "cost_element_id": "20000000-0000-0000-0000-000000000001",
+      "progress_percentage": 50.0,
+      "notes": "Main conveyor: Motors installed, belt assembly in progress",
+      "control_date": "2026-02-28T10:00:00"
+    },
+    {
+      "progress_entry_id": "40000000-0000-0000-0000-000000000003",
+      "cost_element_id": "20000000-0000-0000-0000-000000000001",
+      "progress_percentage": 75.0,
+      "notes": "Main conveyor: Belt assembly complete, testing and commissioning in progress",
+      "control_date": "2026-03-31T10:00:00"
+    },
+    {
+      "progress_entry_id": "40000000-0000-0000-0000-000000000004",
+      "cost_element_id": "20000000-0000-0000-0000-000000000002",
+      "progress_percentage": 20.0,
+      "notes": "Secondary conveyor: Materials delivered, installation started",
+      "control_date": "2026-02-28T10:00:00"
+    },
+    {
+      "progress_entry_id": "40000000-0000-0000-0000-000000000005",
+      "cost_element_id": "20000000-0000-0000-0000-000000000002",
+      "progress_percentage": 40.0,
+      "notes": "Secondary conveyor: Installation progressing well, on schedule",
+      "control_date": "2026-03-31T10:00:00"
+    },
+    {
+      "progress_entry_id": "40000000-0000-0000-0000-000000000006",
+      "cost_element_id": "20000000-0000-0000-0000-000000000003",
+      "progress_percentage": 50.0,
+      "notes": "Main panel: Panel installed, wiring 50% complete",
+      "control_date": "2026-01-31T10:00:00"
+    },
+    {
+      "progress_entry_id": "40000000-0000-0000-0000-000000000007",
+      "cost_element_id": "20000000-0000-0000-0000-000000000003",
+      "progress_percentage": 80.0,
+      "notes": "Main panel: Installation complete, final testing in progress",
+      "control_date": "2026-02-28T10:00:00"
+    },
+    {
+      "progress_entry_id": "40000000-0000-0000-0000-000000000008",
+      "cost_element_id": "20000000-0000-0000-0000-000000000004",
+      "progress_percentage": 10.0,
+      "notes": "Control system: Initial setup and configuration started",
+      "control_date": "2026-03-15T10:00:00"
+    },
+    {
+      "progress_entry_id": "40000000-0000-0000-0000-000000000009",
+      "cost_element_id": "20000000-0000-0000-0000-000000000004",
+      "progress_percentage": 30.0,
+      "notes": "Control system: Basic logic programming complete, working on safety interlocks",
+      "control_date": "2026-03-31T10:00:00"
+    }
+  ],
+  "expected_query_results": {
+    "forecast_query": {
+      "query": "What's the forecast for Main Conveyor Installation?",
+      "expected_result": {
+        "cost_element": "CE-CONV-MAIN",
+        "budget": 100000.0,
+        "eac": 110000.0,
+        "variance": 10000.0,
+        "basis": "Due to steel price increases in Q1 2026, material costs are running 10% above budget. Labor remains on track."
+      }
+    },
+    "budget_status_query": {
+      "query": "What's the budget status for CE-CONV-MAIN?",
+      "expected_result": {
+        "cost_element": "CE-CONV-MAIN",
+        "budget": 100000.0,
+        "used": 60000.0,
+        "remaining": 40000.0,
+        "registrations_count": 3
+      }
+    },
+    "progress_query": {
+      "query": "What's the latest progress for Control System Programming?",
+      "expected_result": {
+        "cost_element": "CE-CTRL-SYS",
+        "latest_progress": 30.0,
+        "entry_date": "2026-03-31",
+        "notes": "Basic logic programming complete, working on safety interlocks"
+      }
+    },
+    "cost_registrations_query": {
+      "query": "Show me all cost registrations for CE-PANEL-MAIN",
+      "expected_result": {
+        "cost_element": "CE-PANEL-MAIN",
+        "registrations": [
+          {"date": "2026-01-20", "amount": 20000.0, "description": "Main panel purchase with volume discount"},
+          {"date": "2026-02-20", "amount": 10000.0, "description": "Panel wiring and breaker installation"}
+        ],
+        "total": 30000.0
+      }
+    },
+    "wbe_hierarchy_query": {
+      "query": "What WBEs are under Mechanical Systems?",
+      "expected_result": {
+        "parent_wbe": "Mechanical Systems (AI-TEST-001-L1)",
+        "children": [
+          "Conveyor System (AI-TEST-001-L1-1)",
+          "Main Conveyor (AI-TEST-001-L1-1-1)",
+          "Secondary Conveyor (AI-TEST-001-L1-1-2)"
+        ]
+      }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "Starting Backcast EVS Backend..."
+echo "Starting Backcast  Backend..."
 
 # Wait for database if host is set
 if [ -n "$POSTGRES_HOST" ]; then

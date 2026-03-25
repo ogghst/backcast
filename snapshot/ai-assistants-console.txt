@@ -1,0 +1,4 @@
+Total messages: 7 (Errors: 1, Warnings: 1)
+Returning 1 messages for level "error"
+
+[ERROR] Warning: [antd: Modal] `destroyOnClose` is deprecated. Please use `destroyOnHidden` instead. @ http://localhost:5173/node_modules/.vite/deps/antd.js?v=ed18893d:1584

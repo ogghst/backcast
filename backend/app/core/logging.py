@@ -33,9 +33,11 @@ def setup_logging() -> None:
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 
-    # File Handler
+    # File Handler with rotating logs
     file_handler = RotatingFileHandler(
-        settings.LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=5
+        settings.LOG_FILE,
+        maxBytes=settings.LOG_MAX_BYTES,
+        backupCount=settings.LOG_BACKUP_COUNT,
     )
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)

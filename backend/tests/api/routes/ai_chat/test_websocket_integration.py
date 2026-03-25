@@ -15,10 +15,10 @@ pytest-asyncio. These tests use direct WebSocket mocking and endpoint testing.
 """
 
 import asyncio
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import Generator
 from datetime import datetime, timedelta
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -39,14 +39,12 @@ from app.models.domain.ai import (
 )
 from app.models.domain.user import User
 from app.models.schemas.ai import (
-    WSChatRequest,
     WSCompleteMessage,
     WSErrorMessage,
     WSTokenMessage,
     WSToolCallMessage,
     WSToolResultMessage,
 )
-
 
 # =============================================================================
 # Test Utilities
@@ -131,7 +129,7 @@ class WebSocketTestHelpers:
             Mock LangGraph event dictionaries.
         """
         # Token streaming events
-        for i, char in enumerate(content):
+        for _i, char in enumerate(content):
             yield {
                 "event": "on_chat_model_stream",
                 "data": {
@@ -266,7 +264,7 @@ class MockASTreamEvents:
             try:
                 return next(self.events)
             except StopIteration:
-                raise StopAsyncIteration
+                raise StopAsyncIteration from None
         else:
             if hasattr(self, "_index"):
                 self._index += 1
@@ -406,7 +404,6 @@ def override_get_user(test_user: User) -> Generator[None, None, None]:
 
     # The method signature is get_by_email(self, email: str) -> User | None
     # When patching an instance method, we need to handle self correctly
-    original_get_by_email = UserService.get_by_email
 
     async def mock_get_by_email(self, email: str) -> User | None:
         if email == test_user.email:
@@ -667,14 +664,24 @@ async def test_ws_lc_05_normal_disconnect_cleanup(
     async def mock_chat_stream(*args, **kwargs):
         pass
 
+    # Create a mock session that has async close method
+    mock_db_session = AsyncMock(spec=AsyncSession)
+    mock_db_session.close = AsyncMock()
+
+    # Mock async_session_maker to return mock db session
+    # Use a regular function instead of AsyncMock
+    def mock_session_maker():
+        return mock_db_session
+
     with patch("app.api.routes.ai_chat.AgentService") as mock_agent_service:
         mock_agent_service.return_value.chat_stream = mock_chat_stream
 
-        # Call the endpoint directly
-        await chat_stream(
-            websocket=mock_websocket,
-            token=valid_token,
-        )
+        with patch("app.db.session.async_session_maker", mock_session_maker):
+            # Call the endpoint directly
+            await chat_stream(
+                websocket=mock_websocket,
+                token=valid_token,
+            )
 
     # Verify connection was accepted and handled gracefully
     mock_websocket.accept.assert_called_once()
@@ -1475,6 +1482,7 @@ async def test_ws_token_missing_subject(
 @pytest.mark.asyncio
 async def test_ws_user_not_found(
     override_rbac: None,
+    db_session: AsyncSession,
 ) -> None:
     """Test WebSocket connection when user not found in database.
 
@@ -1491,11 +1499,26 @@ async def test_ws_user_not_found(
     # Create token for non-existent user
     token = WebSocketTestHelpers.create_valid_token("nonexistent@example.com")
 
-    # Call the endpoint directly
-    await chat_stream(
-        websocket=mock_websocket,
-        token=token,
-    )
+    # Create a mock session that has async close method
+    mock_db_session = AsyncMock(spec=AsyncSession)
+    mock_db_session.close = AsyncMock()
+
+    # Mock async_session_maker to return mock db session
+    def mock_session_maker():
+        return mock_db_session
+
+    # Mock UserService to return None (user not found)
+    with patch("app.services.user.UserService") as mock_user_service_class:
+        mock_user_service = AsyncMock()
+        mock_user_service.get_by_email = AsyncMock(return_value=None)
+        mock_user_service_class.return_value = mock_user_service
+
+        with patch("app.db.session.async_session_maker", mock_session_maker):
+            # Call the endpoint directly
+            await chat_stream(
+                websocket=mock_websocket,
+                token=token,
+            )
 
     # Verify connection was rejected with policy violation
     mock_websocket.close.assert_called_once_with(code=1008, reason="User not found")
@@ -1507,8 +1530,6 @@ async def test_ws_user_not_found(
 # =============================================================================
 
 
-from fastapi.testclient import TestClient
-from unittest.mock import MagicMock
 
 
 @pytest.mark.asyncio
@@ -1525,8 +1546,7 @@ async def test_list_sessions_success(
 
     Covers lines 39, 50, 55-56 in ai_chat.py.
     """
-    from app.api.routes.ai_chat import list_sessions, get_ai_config_service
-    from app.models.domain.ai import AIConversationSession
+    from app.api.routes.ai_chat import list_sessions
 
     # Create test sessions (SimpleEntityBase requires created_at/updated_at)
     # Note: user_id and assistant_config_id are UUIDs in the model
@@ -1582,9 +1602,9 @@ async def test_get_session_messages_success(
 
     Covers lines 65-78 in ai_chat.py.
     """
-    from app.api.routes.ai_chat import get_session_messages
-    from app.models.domain.ai import AIConversationSession, AIConversationMessage
     from fastapi import HTTPException
+
+    from app.api.routes.ai_chat import get_session_messages
 
     session_id = uuid4()
 
@@ -1674,9 +1694,9 @@ async def test_delete_session_success(
 
     Covers lines 87-99 in ai_chat.py.
     """
-    from app.api.routes.ai_chat import delete_session
-    from app.models.domain.ai import AIConversationSession
     from fastapi import HTTPException
+
+    from app.api.routes.ai_chat import delete_session
 
     session_id = uuid4()
 

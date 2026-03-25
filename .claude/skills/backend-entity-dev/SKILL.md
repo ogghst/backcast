@@ -6,7 +6,7 @@ allowed-tools: [AskUserQuestion, Read, Write, Edit, Glob, Grep]
 
 # Backend Entity Development Skill
 
-Guides creation of backend entities following the Backcast EVS coding standards and EVCS (Entity Versioning Control System) patterns.
+Guides creation of backend entities following the Backcast  coding standards and EVCS (Entity Versioning Control System) patterns.
 
 ## Quick Start
 

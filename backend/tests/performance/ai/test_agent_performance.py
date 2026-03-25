@@ -116,7 +116,6 @@ async def test_simple_query_latency_percentiles(mock_fast_llm):
     }
 
     # Config with thread_id for checkpointer
-    config = {"configurable": {"thread_id": "perf-test-percentiles"}}
 
     # Act - Run multiple times
     iterations = 50
@@ -332,7 +331,7 @@ async def test_graph_compilation_overhead(mock_fast_llm):
     """
     # Act - Measure compilation time
     start_time = time.perf_counter()
-    graph = create_graph(llm=mock_fast_llm, tools=[])
+    create_graph(llm=mock_fast_llm, tools=[])
     compilation_time = (time.perf_counter() - start_time) * 1000
 
     # Assert - Compilation should be fast

@@ -4,18 +4,25 @@
  * Main container for the AI chat interface.
  * Orchestrates session management, message display, and chat operations.
  * Uses WebSocket streaming for real-time AI responses.
+ *
+ * Mobile-First Design:
+ * - Industrial Technical Minimalism aesthetic
+ * - Touch-optimized with 44px minimum touch targets
+ * - Gesture-friendly navigation
+ * - Smart typography scaling for readability
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
-import { Layout, Alert, Drawer, Button, Badge, Typography, theme, Space, Tooltip } from "antd";
+import { Layout, Alert, Drawer, Button, theme, Tooltip, Grid, Dropdown } from "antd";
 import {
   MenuOutlined,
   RobotOutlined,
-  WifiOutlined,
-  LoadingOutlined,
   PlusOutlined,
+  MoreOutlined,
+  CloseOutlined,
+  BugOutlined,
 } from "@ant-design/icons";
 import {
   useChatSessions,
@@ -27,24 +34,37 @@ import { AssistantSelector } from "./AssistantSelector";
 import { SessionList } from "./SessionList";
 import { MessageList } from "./MessageList";
 import { MessageInput } from "./MessageInput";
-import type { ChatMessage } from "../../types";
-import { WSConnectionState } from "../types";
+import { AgentActivityPanel } from "./AgentActivityPanel";
+import type { AgentActivity, ActivityHistoryItem } from "./AgentActivityPanel";
+import { WebSocketDebugPanel, type DebugMessage } from "./WebSocketDebugPanel";
+import type { ChatMessage, SubagentStream, StreamingState } from "../../types";
+import { WSConnectionState, type WSApprovalRequestMessage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { generateSessionTitle } from "../utils/sessionTitle";
+import { useExecutionMode } from "../../hooks/useExecutionMode";
+import { ApprovalDialog } from "../../components/ApprovalDialog";
 
 const { Sider, Content, Header } = Layout;
-const { Text } = Typography;
+const { useBreakpoint } = Grid;
 
 interface ChatInterfaceProps {
   // URL params can be passed in for direct linking
   sessionId?: string;
   assistantId?: string;
+  // Optional project ID to scope chat to a specific project
+  projectId?: string;
 }
 
 export const ChatInterface = ({
   sessionId: initialSessionId,
   assistantId: initialAssistantId,
+  projectId,
 }: ChatInterfaceProps) => {
+  // Responsive breakpoints
+  const screens = useBreakpoint();
+  const isMobile = !screens.md; // md breakpoint is 768px
+  const isSmallMobile = screens.xs; // xs is 480px
+
   // State
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(
     initialSessionId
@@ -57,11 +77,33 @@ export const ChatInterface = ({
   const [error, setError] = useState<string | null>(null);
 
   // Streaming state
-  const [streamingContent, setStreamingContent] = useState("");
+  const [streamingState, setStreamingState] = useState<StreamingState>({
+    main: "",
+    subagents: new Map<string, SubagentStream>(),
+  });
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
   const [activeToolCalls, setActiveToolCalls] = useState<
     Array<{ name: string; args: Record<string, unknown> }>
   >([]);
+  const [toolJustFinished, setToolJustFinished] = useState(false);
+  const [showStreamSeparator, setShowStreamSeparator] = useState(false);
+
+  // Agent activity state (Deep Agent planning, subagent delegation, etc.)
+  const [latestActivity, setLatestActivity] = useState<AgentActivity | null>(null);
+  const [activityHistory, setActivityHistory] = useState<ActivityHistoryItem[]>([]);
+
+  // Approval state
+  const [approvalRequest, setApprovalRequest] = useState<WSApprovalRequestMessage | null>(null);
+  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
+  const [approvalRemaining, setApprovalRemaining] = useState<number | null>(null);
+
+  // Debug state for WebSocket messages
+  const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([]);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const debugMessageIdRef = useRef(0);
+
+  // Track invocation counts per subagent name
+  const [subagentInvocationCounts, setSubagentInvocationCounts] = useState<Record<string, number>>({});
 
   // Query client for cache invalidation
   const queryClient = useQueryClient();
@@ -85,13 +127,108 @@ export const ChatInterface = ({
   }, [currentSession?.id, selectedAssistantId]);
 
   // Callbacks for streaming chat (defined outside the conditional to avoid hooks rule violation)
-  const handleToken = useCallback((token: string, sessionId: string) => {
+  const handleToken = useCallback((
+    token: string,
+    sessionId: string,
+    source: "main" | "subagent" = "main",
+    subagentName?: string,
+    invocationId?: string,
+  ) => {
     // We've received the first token, no longer waiting
     setIsWaitingForResponse(false);
-    // Append token to streaming content
-    setStreamingContent((prev) => prev + token);
+
+    // If a tool just finished, show the separator for this stream
+    if (toolJustFinished) {
+      setShowStreamSeparator(true);
+      setToolJustFinished(false);
+    }
+
+    if (source === "main") {
+      // Main agent tokens
+      setStreamingState((prev) => ({
+        ...prev,
+        main: prev.main + token,
+      }));
+    } else if (source === "subagent" && invocationId) {
+      // Subagent tokens - route to correct subagent
+      setStreamingState((prev) => {
+        const subagents = new Map(prev.subagents);
+        const existing = subagents.get(invocationId);
+
+        if (existing) {
+          // Update existing subagent stream
+          subagents.set(invocationId, {
+            ...existing,
+            content: existing.content + token,
+            is_active: true,
+          });
+        } else {
+          // Create new subagent stream (shouldn't happen if subagent message was sent first)
+          subagents.set(invocationId, {
+            invocation_id: invocationId,
+            subagent_name: subagentName || "Subagent",
+            content: token,
+            is_active: true,
+            is_complete: false,
+            started_at: Date.now(),
+          });
+        }
+
+        return { ...prev, subagents };
+      });
+    }
+
     // Update session ID if this was a new session
     setCurrentSessionId((prev) => prev || sessionId);
+  }, [toolJustFinished]);
+
+  const handleSubagentStart = useCallback((subagent: string, invocationId: string, message?: string) => {
+    // message parameter describes what the subagent is doing - currently unused but available for future use
+    void message;
+
+    // Increment invocation count for this subagent name
+    setSubagentInvocationCounts((prev) => {
+      const currentCount = prev[subagent] || 0;
+      return {
+        ...prev,
+        [subagent]: currentCount + 1,
+      };
+    });
+
+    setStreamingState((prev) => {
+      const subagents = new Map(prev.subagents);
+
+      // Get the current invocation number for this subagent
+      const invocationNumber = (subagentInvocationCounts[subagent] || 0) + 1;
+
+      subagents.set(invocationId, {
+        invocation_id: invocationId,
+        subagent_name: subagent,
+        content: "",
+        is_active: true,
+        is_complete: false,
+        started_at: Date.now(),
+        invocation_number: invocationNumber,
+      });
+      return { ...prev, subagents };
+    });
+  }, [subagentInvocationCounts]);
+
+  const handleSubagentComplete = useCallback((invocationId: string) => {
+    setStreamingState((prev) => {
+      const subagents = new Map(prev.subagents);
+      const existing = subagents.get(invocationId);
+
+      if (existing) {
+        subagents.set(invocationId, {
+          ...existing,
+          is_active: false,
+          is_complete: true,
+        });
+      }
+
+      return { ...prev, subagents };
+    });
   }, []);
 
   const handleComplete = useCallback(
@@ -103,10 +240,17 @@ export const ChatInterface = ({
       // Invalidate the queries so the completed message is fetched
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.messages(sessionId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.sessions() });
-      // Clear streaming state — the query refetch will populate messages
+      // Clear main streaming content but keep completed subagents visible
       setIsWaitingForResponse(false);
-      setStreamingContent("");
+      setStreamingState((prev) => ({
+        main: "",
+        subagents: prev.subagents,
+      }));
       setActiveToolCalls([]);
+      // Always clear activity on complete - panel MUST close reliably
+      setLatestActivity(null);
+      setShowStreamSeparator(false); // Reset separator state
+      setToolJustFinished(false); // Reset tool finished state
     },
     [queryClient]
   );
@@ -116,28 +260,155 @@ export const ChatInterface = ({
     setError(`Chat error: ${errorMsg}`);
   }, []);
 
+  // Debug: Capture all raw WebSocket messages
+  const handleRawMessage = useCallback((data: unknown, direction: "in" | "out") => {
+    setDebugMessages((prev) => {
+      const newMessages = [
+        ...prev,
+        {
+          id: debugMessageIdRef.current++,
+          timestamp: Date.now(),
+          direction,
+          data,
+        },
+      ];
+      // Keep only the last 500 messages to prevent memory issues
+      return newMessages.length > 500 ? newMessages.slice(-500) : newMessages;
+    });
+  }, []);
+
+  // Track tool execution with step counts
+  const toolStepCounter = useRef<Map<string, number>>(new Map());
+  const totalToolSteps = useRef<Map<string, number>>(new Map());
+
+  // Helper function to format relative time
+  const formatRelativeTime = useCallback((timestamp: number): string => {
+    const now = Date.now();
+    const diff = now - timestamp;
+
+    if (diff < 1000) return "Just now";
+    if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    return `${Math.floor(diff / 3600000)}h ago`;
+  }, []);
+
+  // Helper function to add current activity to history before updating
+  const addToActivityHistory = useCallback((activity: AgentActivity) => {
+    setActivityHistory((prev) => {
+      // Don't add if it's the same as the current activity
+      if (prev.length > 0 && prev[0].activity.timestamp === activity.timestamp) {
+        return prev;
+      }
+      // Create history item with relative time
+      const historyItem: ActivityHistoryItem = {
+        activity,
+        displayTime: formatRelativeTime(activity.timestamp),
+      };
+      // Keep only the last 10 activities
+      return [historyItem, ...prev].slice(0, 10);
+    });
+  }, [formatRelativeTime]);
+
+  const handleApprovalRequest = useCallback((request: WSApprovalRequestMessage) => {
+    // Show approval dialog and reset countdown
+    setApprovalRequest(request);
+    setShowApprovalDialog(true);
+    setApprovalRemaining(null); // Will be set by first heartbeat
+  }, []);
+
+  const handleApprovalCountdown = useCallback((remaining: number) => {
+    setApprovalRemaining(remaining);
+  }, []);
+
+  const handleApprovalTimeout = useCallback(() => {
+    setApprovalRemaining(0);
+    // Auto-dismiss after a brief delay so the user sees "Expired"
+    setTimeout(() => {
+      setShowApprovalDialog(false);
+      setApprovalRequest(null);
+      setApprovalRemaining(null);
+    }, 1500);
+  }, []);
+
+  // Deep Agent activity handlers
+  const handleThinking = useCallback(() => {
+    // Only set thinking if we don't have recent activity
+    if (latestActivity && Date.now() - latestActivity.timestamp < 2000) {
+      return;
+    }
+    // Add current activity to history before updating
+    if (latestActivity) {
+      addToActivityHistory(latestActivity);
+    }
+    setLatestActivity({
+      type: "thinking",
+      timestamp: Date.now(),
+    });
+  }, [latestActivity, addToActivityHistory]);
+
   const handleToolCall = useCallback((tool: string, args: Record<string, unknown>) => {
+    // Track tool execution steps
+    toolStepCounter.current.set(tool, (toolStepCounter.current.get(tool) || 0) + 1);
+    const currentStep = toolStepCounter.current.get(tool)!;
+    const totalSteps = totalToolSteps.current.get(tool) || currentStep;
+    totalToolSteps.current.set(tool, Math.max(totalSteps, currentStep));
+
     // Add tool to active calls
     setActiveToolCalls((prev) => [...prev, { name: tool, args }]);
-  }, []);
+
+    // Add current activity to history before updating
+    if (latestActivity && latestActivity.toolName !== tool) {
+      addToActivityHistory(latestActivity);
+    }
+
+    // Update latest activity
+    setLatestActivity({
+      type: "executing",
+      toolName: tool,
+      timestamp: Date.now(),
+    });
+  }, [latestActivity, addToActivityHistory]);
 
   const handleToolResult = useCallback((tool: string) => {
     // Remove tool from active calls
     setActiveToolCalls((prev) =>
       prev.filter((t) => t.name !== tool)
     );
-  }, []);
+
+    // Clear the step counter for this tool when it completes
+    toolStepCounter.current.delete(tool);
+    totalToolSteps.current.delete(tool);
+
+    // Clear latest activity if it was for this tool
+    if (latestActivity?.type === "executing" && latestActivity.toolName === tool) {
+      setLatestActivity(null);
+    }
+
+    // Set flag to add separator before next text stream
+    setToolJustFinished(true);
+  }, [latestActivity]);
 
   // Streaming chat hook
   const streamingChat = useStreamingChat({
     sessionId: currentSessionId,
     assistantId: selectedAssistantId ?? "",
+    projectId,
     onToken: handleToken,
     onComplete: handleComplete,
     onError: handleError,
     onToolCall: handleToolCall,
     onToolResult: handleToolResult,
+    onApprovalRequest: handleApprovalRequest,
+    onApprovalCountdown: handleApprovalCountdown,
+    onApprovalTimeout: handleApprovalTimeout,
+    onThinking: handleThinking,
+    onSubagentStart: handleSubagentStart,
+    onSubagentComplete: handleSubagentComplete,
+    onRawMessage: handleRawMessage,
   });
+
+  // Execution mode hook for managing AI tool risk level
+  const { executionMode, setExecutionMode } = useExecutionMode();
 
   // Handle new chat
   const handleNewChat = useCallback(() => {
@@ -182,9 +453,15 @@ export const ChatInterface = ({
       }
 
       // Clear any previous streaming state
-      setStreamingContent("");
+      setStreamingState({
+        main: "",
+        subagents: new Map<string, SubagentStream>(),
+      });
       setActiveToolCalls([]);
+      setLatestActivity(null);
       setIsWaitingForResponse(true);
+      setShowStreamSeparator(false);
+      setToolJustFinished(false);
 
       // Only send if the WebSocket is connected
       if (streamingChat.connectionState !== WSConnectionState.OPEN) {
@@ -195,19 +472,59 @@ export const ChatInterface = ({
       // Generate title for new sessions (when no current session exists)
       const title = currentSessionId ? undefined : generateSessionTitle(messageContent);
 
-      // Send message via streaming hook
-      streamingChat.sendMessage(messageContent, title ?? undefined);
+      // Send message via streaming hook with execution mode
+      streamingChat.sendMessage(messageContent, title ?? undefined, executionMode);
     },
-    [selectedAssistantId, streamingChat, currentSessionId]
+    [selectedAssistantId, streamingChat, currentSessionId, executionMode]
   );
 
   // Handle canceling the current stream
   const handleCancel = useCallback(() => {
     streamingChat.cancel();
-    setStreamingContent("");
+    setStreamingState({
+      main: "",
+      subagents: new Map<string, SubagentStream>(),
+    });
     setActiveToolCalls([]);
+    setLatestActivity(null);
     setIsWaitingForResponse(false);
+    setShowStreamSeparator(false);
+    setToolJustFinished(false);
   }, [streamingChat]);
+
+  // Handle approval decision
+  const handleApproval = useCallback((approved: boolean) => {
+    if (!approvalRequest) {
+      return;
+    }
+
+    // Send approval response
+    streamingChat.sendApprovalResponse(approvalRequest.approval_id, approved);
+
+    // Close dialog and clear state
+    setShowApprovalDialog(false);
+    setApprovalRequest(null);
+    setApprovalRemaining(null);
+  }, [approvalRequest, streamingChat]);
+
+  const handleApprove = useCallback(() => {
+    handleApproval(true);
+  }, [handleApproval]);
+
+  const handleReject = useCallback(() => {
+    handleApproval(false);
+  }, [handleApproval]);
+
+  const handleApprovalCancel = useCallback(() => {
+    setShowApprovalDialog(false);
+    setApprovalRequest(null);
+    setApprovalRemaining(null);
+  }, []);
+
+  // Handle clearing debug messages
+  const handleClearDebugMessages = useCallback(() => {
+    setDebugMessages([]);
+  }, []);
 
   // Helper: Convert API messages to ChatMessage type
   const chatMessages: ChatMessage[] =
@@ -218,51 +535,103 @@ export const ChatInterface = ({
       toolCalls: msg.tool_calls,
       toolResults: msg.tool_results,
       createdAt: msg.created_at,
+      metadata: msg.metadata,
     })) ?? [];
 
   // Determine if currently streaming (we have streaming content, active tools, or are waiting for the first chunk)
   const isStreaming: boolean =
-    streamingContent.length > 0 || activeToolCalls.length > 0 || isWaitingForResponse;
+    streamingState.main.length > 0 ||
+    Array.from(streamingState.subagents.values()).some(sa => sa.is_active) ||
+    activeToolCalls.length > 0 ||
+    isWaitingForResponse;
 
-  // Connection status indicator
-  const getConnectionStatus = useCallback(() => {
-    switch (streamingChat.connectionState) {
-      case WSConnectionState.OPEN:
-        return { color: "success" as const, text: "Connected", icon: <WifiOutlined /> };
-      case WSConnectionState.CONNECTING:
-        return { color: "processing" as const, text: "Connecting...", icon: <LoadingOutlined spin /> };
-      case WSConnectionState.CLOSING:
-        return { color: "warning" as const, text: "Closing...", icon: <LoadingOutlined spin /> };
-      case WSConnectionState.CLOSED:
-        return { color: "default" as const, text: "Disconnected", icon: <WifiOutlined /> };
-      case WSConnectionState.ERROR:
-        return { color: "error" as const, text: "Connection Error", icon: <WifiOutlined /> };
-      default:
-        return { color: "default" as const, text: "Unknown", icon: <WifiOutlined /> };
-    }
-  }, [streamingChat.connectionState]);
-
-  const connectionStatus = getConnectionStatus();
   const { token } = theme.useToken();
   const { spacing, typography } = useThemeTokens();
 
+  // Mobile menu items for the overflow menu
+  const mobileMenuItems = useMemo(() => {
+    const items = [
+      {
+        key: "new-chat",
+        label: "New Chat",
+        icon: <PlusOutlined />,
+        disabled: !currentSessionId,
+      },
+    ];
+
+    if (currentSessionId) {
+      items.push({
+        key: "divider",
+        type: "divider" as const,
+      });
+    }
+
+    return items;
+  }, [currentSessionId]);
+
+  const handleMobileMenuClick = useCallback(({ key }: { key: string }) => {
+    switch (key) {
+      case "new-chat":
+        handleNewChat();
+        break;
+    }
+  }, [handleNewChat]);
+
   return (
-    <Layout style={{ height: "calc(100vh - 300px)", minHeight: 400 }}>
-      {/* Desktop Sidebar */}
-      <Sider
-        width={280}
-        collapsible
-        collapsed={isCollapsed}
-        onCollapse={setIsCollapsed}
-        breakpoint="lg"
-        collapsedWidth="0"
+    <>
+      <style>
+        {`
+          .chat-mobile-header {
+            backdrop-filter: blur(8px);
+            background: ${isMobile ? token.colorBgContainer : "transparent"};
+          }
+        `}
+      </style>
+
+      <Layout
         style={{
-          display: window.innerWidth >= 768 ? "block" : "none",
-          backgroundColor: token.colorBgContainer,
-          borderRight: `1px solid ${token.colorBorderSecondary}`,
+          height: isMobile ? "100dvh" : "calc(100vh - 300px)",
+          minHeight: isMobile ? "100dvh" : 400,
+          background: token.colorBgLayout,
         }}
       >
-        {!isCollapsed && (
+        {/* Desktop Sidebar */}
+        <Sider
+          width={280}
+          collapsible
+          collapsed={isCollapsed}
+          onCollapse={setIsCollapsed}
+          breakpoint="lg"
+          collapsedWidth="0"
+          trigger={null}
+          style={{
+            display: isMobile ? "none" : "block",
+            backgroundColor: token.colorBgContainer,
+            borderRight: `1px solid ${token.colorBorderSecondary}`,
+          }}
+        >
+          {!isCollapsed && (
+            <SessionList
+              sessions={sessions ?? []}
+              currentSessionId={currentSessionId}
+              onSessionSelect={handleSessionSelect}
+              onNewChat={handleNewChat}
+              onDeleteSession={handleDeleteSession}
+              loading={sessionsLoading}
+              hideNewChatButton
+            />
+          )}
+        </Sider>
+
+        {/* Mobile Sidebar Drawer */}
+        <Drawer
+          title="Conversations"
+          placement="left"
+          open={isSidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          width={isSmallMobile ? "85%" : 280}
+          styles={{ body: { padding: 0 } }}
+        >
           <SessionList
             sessions={sessions ?? []}
             currentSessionId={currentSessionId}
@@ -272,155 +641,282 @@ export const ChatInterface = ({
             loading={sessionsLoading}
             hideNewChatButton
           />
-        )}
-      </Sider>
+        </Drawer>
 
-      {/* Mobile Sidebar Drawer */}
-      <Drawer
-        title="Conversations"
-        placement="left"
-        open={isSidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        width={280}
-        styles={{ body: { padding: 0 } }}
-      >
-        <SessionList
-          sessions={sessions ?? []}
-          currentSessionId={currentSessionId}
-          onSessionSelect={handleSessionSelect}
-          onNewChat={handleNewChat}
-          onDeleteSession={handleDeleteSession}
-          loading={sessionsLoading}
-          hideNewChatButton
-        />
-      </Drawer>
-
-      {/* Main Chat Area */}
-      <Layout>
-        <Header
-          style={{
-            padding: `0 ${spacing.md}px`,
-            backgroundColor: token.colorBgContainer,
-            borderBottom: `1px solid ${token.colorBorderSecondary}`,
-            display: "flex",
-            alignItems: "center",
-            gap: spacing.sm,
-          }}
-        >
-          {/* Mobile menu button */}
-          <Button
-            type="text"
-            icon={<MenuOutlined />}
-            onClick={() => setSidebarOpen(true)}
-            style={{ display: window.innerWidth < 768 ? "block" : "none" }}
-          />
-
-          <RobotOutlined style={{ fontSize: typography.sizes.lg, color: token.colorPrimary }} />
-          <span style={{ fontWeight: typography.weights.semiBold }}>AI Chat</span>
-
-          <div style={{ flex: 1 }} />
-
-          {/* Connection Status Indicator */}
-          <div
+        {/* Main Chat Area */}
+        <Layout>
+          {/* Header - Mobile Optimized */}
+          <Header
+            className="chat-mobile-header"
             style={{
+              padding: isMobile ? `${spacing.sm}px ${spacing.md}px` : `0 ${spacing.md}px`,
+              backgroundColor: token.colorBgContainer,
+              borderBottom: `1px solid ${token.colorBorderSecondary}`,
               display: "flex",
               alignItems: "center",
-              gap: spacing.xs,
-              marginRight: spacing.md,
+              gap: isMobile ? spacing.sm : spacing.md,
+              height: isMobile ? 56 : "auto",
+              lineHeight: isMobile ? "56px" : "auto",
+              position: "relative",
+              zIndex: 10,
             }}
           >
-            {connectionStatus.icon}
-            <Badge
-              status={connectionStatus.color}
-              text={
-                <Text type="secondary" style={{ fontSize: typography.sizes.sm }}>
-                  {connectionStatus.text}
-                </Text>
-              }
-            />
-          </div>
-
-          {/* Assistant Selector with New Chat button */}
-          <Space size="small">
-            <div style={{ minWidth: 200, maxWidth: 400 }}>
-              <AssistantSelector
-                value={selectedAssistantId}
-                onChange={setSelectedAssistantId}
-                disabled={!!currentSessionId}
-                locked={!!currentSessionId}
+            {/* Mobile menu button - larger touch target */}
+            {isMobile && (
+              <Button
+                type="text"
+                icon={<MenuOutlined style={{ fontSize: 20 }} />}
+                onClick={() => setSidebarOpen(true)}
+                style={{
+                  minWidth: 44,
+                  height: 44,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                aria-label="Open conversations"
               />
-            </div>
-            {currentSessionId && (
-              <Tooltip title="Start a new conversation with a different assistant">
-                <Button
-                  type="text"
-                  icon={<PlusOutlined />}
-                  onClick={handleNewChat}
+            )}
+
+            {/* Desktop sidebar toggle button - visible when collapsed or to collapse */}
+            {!isMobile && (
+              <Button
+                type="text"
+                icon={
+                  isCollapsed ? (
+                    <MenuOutlined style={{ fontSize: 18 }} />
+                  ) : (
+                    <CloseOutlined style={{ fontSize: 16 }} />
+                  )
+                }
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                style={{
+                  minWidth: 40,
+                  height: 40,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  ...(isCollapsed && {
+                    background: token.colorFillAlter,
+                  }),
+                }}
+                aria-label={isCollapsed ? "Open sidebar" : "Close sidebar"}
+                title={isCollapsed ? "Open conversations" : "Close conversations"}
+              />
+            )}
+
+            {/* Brand - compact on mobile */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: isMobile ? spacing.xs : spacing.sm,
+              }}
+            >
+              <RobotOutlined
+                style={{
+                  fontSize: isMobile ? typography.sizes.md : typography.sizes.lg,
+                  color: token.colorPrimary,
+                }}
+              />
+              {!isSmallMobile && (
+                <span
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: spacing.xs,
+                    fontWeight: typography.weights.semiBold,
+                    fontSize: isMobile ? typography.sizes.md : typography.sizes.md,
                   }}
                 >
-                  <span style={{ fontSize: typography.sizes.sm }}>New Chat</span>
-                </Button>
+                  
+                </span>
+              )}
+            </div>
+
+            <div style={{ flex: 1 }} />
+
+            {/* Right-aligned section: New Chat button and Assistant selector */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: spacing.md,
+              }}
+            >
+              {/* Assistant Selector - shown on desktop */}
+              {!isMobile && (
+                <div style={{ minWidth: 200, maxWidth: 400 }}>
+                  <AssistantSelector
+                    value={selectedAssistantId}
+                    onChange={setSelectedAssistantId}
+                    disabled={!!currentSessionId}
+                    locked={!!currentSessionId}
+                    bordered={false}
+                  />
+                </div>
+              )}
+
+                {/* New Chat button - shown when in active session */}
+              {currentSessionId && (
+                <Tooltip title="Start a new conversation">
+                  <Button
+                    type="text"
+                    icon={<PlusOutlined style={{ fontSize: isMobile ? 18 : 16 }} />}
+                    onClick={handleNewChat}
+                    style={{
+                      minWidth: isMobile ? 44 : 40,
+                      height: isMobile ? 44 : 40,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                    aria-label="New chat"
+                  />
+                </Tooltip>
+              )}
+
+              {/* Debug Panel toggle button */}
+              <Tooltip title="WebSocket Debug Panel">
+                <Button
+                  type="text"
+                  icon={<BugOutlined style={{ fontSize: isMobile ? 18 : 16 }} />}
+                  onClick={() => setShowDebugPanel(!showDebugPanel)}
+                  style={{
+                    minWidth: isMobile ? 44 : 40,
+                    height: isMobile ? 44 : 40,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: showDebugPanel ? token.colorPrimary : undefined,
+                  }}
+                  aria-label="Toggle debug panel"
+                />
               </Tooltip>
+            </div>
+
+            {/* Mobile: Assistant selector when no session */}
+            {isMobile && !currentSessionId && (
+              <div style={{ flex: 1, maxWidth: 180 }}>
+                <AssistantSelector
+                  value={selectedAssistantId}
+                  onChange={setSelectedAssistantId}
+                  disabled={false}
+                  locked={false}
+                  bordered={false}
+                />
+              </div>
             )}
-          </Space>
-        </Header>
 
-        <Content
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            flex: 1,
-            overflow: "hidden",
-            backgroundColor: token.colorBgContainer,
-          }}
-        >
-          {/* Error Alert */}
-          {error && (
-            <Alert
-              type="error"
-              message={error}
-              closable
-              onClose={() => setError(null)}
-              style={{ margin: spacing.md }}
-            />
-          )}
+            {/* Mobile: Overflow menu */}
+            {isMobile && (
+              <Dropdown
+                menu={{ items: mobileMenuItems, onClick: handleMobileMenuClick }}
+                trigger={["click"]}
+                placement="bottomRight"
+              >
+                <Button
+                  type="text"
+                  icon={<MoreOutlined style={{ fontSize: 18 }} />}
+                  style={{
+                    minWidth: 44,
+                    height: 44,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  aria-label="More options"
+                />
+              </Dropdown>
+            )}
+          </Header>
 
-          {/* Messages */}
-          <div
+          {/* Content Area */}
+          <Content
             style={{
+              display: "flex",
+              flexDirection: "column",
               flex: 1,
-              overflow: "auto",
-              backgroundColor: token.colorBgLayout,
+              overflow: "hidden",
+              backgroundColor: token.colorBgContainer,
             }}
           >
-            <MessageList
-              messages={chatMessages}
-              loading={messagesLoading}
-              streamingContent={streamingContent}
-              isStreaming={isStreaming}
-              activeToolCalls={activeToolCalls}
-            />
-          </div>
+            {/* Error Alert - mobile optimized */}
+            {error && (
+              <Alert
+                type="error"
+                message={isSmallMobile ? "Error" : error}
+                description={isSmallMobile ? error : undefined}
+                closable
+                onClose={() => setError(null)}
+                style={{
+                  margin: isMobile ? spacing.sm : spacing.md,
+                  borderRadius: isMobile ? 8 : token.borderRadius,
+                }}
+                showIcon
+              />
+            )}
 
-          {/* Input */}
-          <MessageInput
-            onSend={handleSendMessage}
-            disabled={!selectedAssistantId}
-            loading={messagesLoading}
-            isStreaming={isStreaming}
-            onCancel={handleCancel}
-            placeholder={
-              !selectedAssistantId
-                ? "Select an assistant to start chatting"
-                : "Type your message..."
-            }
-          />
-        </Content>
+            {/* Messages - with safe area for mobile */}
+            <div
+              style={{
+                flex: 1,
+                overflow: "auto",
+                backgroundColor: token.colorBgLayout,
+                // Add padding for safe area on mobile devices
+                paddingBottom: isMobile ? "env(safe-area-inset-bottom)" : 0,
+              }}
+            >
+              <MessageList
+                messages={chatMessages}
+                loading={messagesLoading}
+                streamingState={streamingState}
+                isStreaming={isStreaming}
+                activeToolCalls={activeToolCalls}
+                showSeparator={showStreamSeparator}
+                isMobile={isMobile}
+              />
+            </div>
+
+            {/* Agent Activity Panel - between messages and input */}
+            <AgentActivityPanel activity={latestActivity} activityHistory={activityHistory} />
+
+            {/* Input - fixed at bottom for mobile feel */}
+            <MessageInput
+              onSend={handleSendMessage}
+              disabled={!selectedAssistantId}
+              loading={messagesLoading}
+              isStreaming={isStreaming}
+              onCancel={handleCancel}
+              connectionState={streamingChat.connectionState}
+              executionMode={executionMode}
+              onExecutionModeChange={setExecutionMode}
+              placeholder={
+                !selectedAssistantId
+                  ? isSmallMobile
+                    ? "Select an assistant"
+                    : "Select an assistant to start chatting"
+                  : "Type your message..."
+              }
+            />
+
+            {/* WebSocket Debug Panel - inline below input */}
+            <WebSocketDebugPanel
+              visible={showDebugPanel}
+              onClose={() => setShowDebugPanel(false)}
+              messages={debugMessages}
+              onClear={handleClearDebugMessages}
+            />
+          </Content>
+        </Layout>
       </Layout>
-    </Layout>
+
+      {/* Approval Dialog for critical tools */}
+      <ApprovalDialog
+        open={showApprovalDialog}
+        approvalRequest={approvalRequest}
+        remainingSeconds={approvalRemaining}
+        onApprove={handleApprove}
+        onReject={handleReject}
+        onCancel={handleApprovalCancel}
+      />
+    </>
   );
 };

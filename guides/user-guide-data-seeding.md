@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Backcast EVS backend includes an automatic data seeding system that initializes the database with essential data on startup. This ensures a consistent baseline configuration across all environments (development, testing, production).
+The Backcast  backend includes an automatic data seeding system that initializes the database with essential data on startup. This ensures a consistent baseline configuration across all environments (development, testing, production).
 
 ## Features
 

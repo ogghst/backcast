@@ -315,7 +315,7 @@ export const useCostElement = (
   branch?: string,
   options?: Omit<UseQueryOptions<CostElementRead>, "queryKey" | "queryFn">,
 ) => {
-  const { branch: tmBranch, asOf } = useTimeMachineParams();
+  const { mode, branch: tmBranch, asOf } = useTimeMachineParams();
   const effectiveBranch = branch || tmBranch || "main";
 
   return useQuery<CostElementRead>({
@@ -324,6 +324,7 @@ export const useCostElement = (
       return await CostElementsService.getCostElement(
         costElementId,
         effectiveBranch,
+        mode,
         asOf || undefined,
       );
     },

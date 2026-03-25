@@ -7,7 +7,7 @@
 
 ## Overview
 
-This guide covers common issues, errors, and solutions when working with the Backcast EVS AI system. It includes debugging techniques, logging strategies, and resolution steps.
+This guide covers common issues, errors, and solutions when working with the Backcast  AI system. It includes debugging techniques, logging strategies, and resolution steps.
 
 ---
 

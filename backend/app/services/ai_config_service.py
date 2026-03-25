@@ -369,9 +369,28 @@ class AIConfigService:
         return result.scalar_one_or_none()
 
     async def create_session(
-        self, user_id: UUID, assistant_config_id: UUID, title: str | None = None
+        self,
+        user_id: UUID,
+        assistant_config_id: UUID,
+        title: str | None = None,
+        project_id: UUID | None = None,
+        branch_id: UUID | None = None,
     ) -> AIConversationSession:
-        """Create a new conversation session."""
+        """Create a new conversation session with optional context.
+
+        Args:
+            user_id: User ID creating the session
+            assistant_config_id: Assistant configuration to use
+            title: Optional session title
+            project_id: Optional project context UUID
+            branch_id: Optional branch or change order context UUID
+
+        Returns:
+            Created conversation session
+
+        Raises:
+            ValueError: If assistant config not found
+        """
         # Verify assistant config exists
         config = await self.get_assistant_config(assistant_config_id)
         if not config:
@@ -381,6 +400,8 @@ class AIConfigService:
             user_id=user_id,
             assistant_config_id=assistant_config_id,
             title=title,
+            project_id=project_id,
+            branch_id=branch_id,
         )
         self.session.add(session)
         await self.session.flush()
@@ -411,15 +432,29 @@ class AIConfigService:
         role: str,
         content: str,
         tool_calls: list[dict[str, Any]] | None = None,
-        tool_results: dict[str, Any] | None = None,
+        tool_results: list[dict[str, Any]] | None = None,
+        message_metadata: dict[str, Any] | None = None,
     ) -> AIConversationMessage:
-        """Add a message to a session."""
+        """Add a message to a session.
+
+        Args:
+            session_id: Session ID to add message to
+            role: Message role (user/assistant/tool)
+            content: Message content
+            tool_calls: Optional tool calls made by assistant
+            tool_results: Optional tool results
+            message_metadata: Optional metadata (e.g., subagent_name)
+
+        Returns:
+            Created message
+        """
         message = AIConversationMessage(
             session_id=session_id,
             role=role,
             content=content,
             tool_calls=tool_calls,
             tool_results=tool_results,
+            message_metadata=message_metadata,
         )
         self.session.add(message)
         await self.session.flush()

@@ -84,6 +84,7 @@ export interface AIAssistantPublic {
   system_prompt: string | null;
   temperature: number;
   max_tokens: number;
+  recursion_limit: number | null;
   allowed_tools: string[];
   is_active: boolean;
   created_at: string;
@@ -97,6 +98,7 @@ export interface AIAssistantCreate {
   system_prompt?: string | null;
   temperature?: number;
   max_tokens?: number;
+  recursion_limit?: number | null;
   allowed_tools?: string[];
   is_active?: boolean;
 }
@@ -108,6 +110,7 @@ export interface AIAssistantUpdate {
   system_prompt?: string | null;
   temperature?: number;
   max_tokens?: number;
+  recursion_limit?: number | null;
   allowed_tools?: string[];
   is_active?: boolean;
 }
@@ -203,6 +206,13 @@ export interface AIConversationMessagePublic {
   tool_calls?: ToolCall[];
   tool_results?: ToolResult[];
   created_at: string;
+  /** Optional metadata for special message types (e.g., subagent messages) */
+  metadata?: {
+    /** Subagent name if this message is from a subagent */
+    subagent_name?: string;
+    /** Invocation number for subagent messages (counts invocations per subagent name) */
+    invocation_number?: number;
+  };
 }
 
 /**
@@ -228,4 +238,11 @@ export interface ChatMessage {
   toolCalls?: ToolCall[];
   toolResults?: ToolResult[];
   createdAt: string;
+  /** Optional metadata for special message types (e.g., subagent messages) */
+  metadata?: {
+    /** Subagent name if this message is from a subagent */
+    subagent_name?: string;
+    /** Invocation number for subagent messages (counts invocations per subagent name) */
+    invocation_number?: number;
+  };
 }

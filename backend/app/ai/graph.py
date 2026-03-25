@@ -6,6 +6,7 @@ Follows LangGraph 1.0+ patterns with TypedDict state and bind_tools().
 
 from collections.abc import Callable
 from typing import Any, Literal
+from uuid import UUID
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
@@ -16,6 +17,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
 
 from app.ai.state import AgentState
+from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.rbac_tool_node import RBACToolNode
 from app.ai.tools.types import ToolContext
 
@@ -145,6 +147,8 @@ def create_graph(
     llm: BaseChatModel,
     tools: list[BaseTool],
     context: ToolContext | None = None,
+    websocket: Any = None,
+    session_id: UUID | None = None,
 ) -> Any:  # Returns CompiledStateGraph[AgentState]
     """Create and compile a StateGraph for agent orchestration.
 
@@ -156,6 +160,8 @@ def create_graph(
         llm: The language model to use for the agent
         tools: List of tools available to the agent
         context: Optional ToolContext for RBAC permission checking in RBACToolNode
+        websocket: Optional WebSocket connection for InterruptNode approval requests
+        session_id: Optional session ID for InterruptNode approval tracking
 
     Returns:
         Compiled StateGraph ready for invocation
@@ -188,8 +194,14 @@ def create_graph(
     # Add tools node using RBACToolNode for permission checking
     # If context is provided, RBACToolNode will check permissions before execution
     # Otherwise, falls back to standard ToolNode behavior
-    if context:
-        tool_node: RBACToolNode | ToolNode = RBACToolNode(tools, context)
+    # If websocket and session_id are provided, use InterruptNode for approval workflow
+    interrupt_node = None
+    if context and websocket and session_id:
+        # Use InterruptNode for approval workflow when all parameters provided
+        tool_node: Any = InterruptNode(tools, context, websocket, session_id)
+        interrupt_node = tool_node
+    elif context:
+        tool_node = RBACToolNode(tools, context)
     else:
         tool_node = ToolNode(tools)
     workflow.add_node("tools", tool_node)
@@ -219,7 +231,8 @@ def create_graph(
     # Compile the graph
     app = workflow.compile(checkpointer=checkpointer)
 
-    return app
+    # Return tuple of (graph, interrupt_node) where interrupt_node may be None
+    return app, interrupt_node
 
 
 def export_graphviz(graph: Any) -> str:

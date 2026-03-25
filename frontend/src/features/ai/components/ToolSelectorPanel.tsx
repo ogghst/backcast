@@ -19,6 +19,9 @@ interface ToolSelectorPanelProps {
  */
 export const ToolSelectorPanel = ({ value = [], onChange }: ToolSelectorPanelProps) => {
   const { data: tools, isLoading, isError, error } = useAITools();
+
+  // Normalize null to empty array (database returns null for "all tools allowed")
+  const safeValue = value || [];
   const [selectedTool, setSelectedTool] = useState<AIToolPublic | null>(null);
   const { token } = theme.useToken();
   const { spacing, typography, borderRadius, colors } = useThemeTokens();
@@ -39,30 +42,30 @@ export const ToolSelectorPanel = ({ value = [], onChange }: ToolSelectorPanelPro
 
   const handleCheckboxChange = (toolName: string, checked: boolean) => {
     if (!onChange) return;
-    
+
     if (checked) {
       // Add tool if not already present
-      if (!value.includes(toolName)) {
-        onChange([...value, toolName]);
+      if (!safeValue.includes(toolName)) {
+        onChange([...safeValue, toolName]);
       }
     } else {
       // Remove tool if present
-      onChange(value.filter((v) => v !== toolName));
+      onChange(safeValue.filter((v) => v !== toolName));
     }
   };
 
   const handleSelectAllCategory = (category: string, isSelectAll: boolean) => {
     if (!onChange || !categorizedTools[category]) return;
-    
+
     const categoryToolNames = categorizedTools[category].map((t) => t.name);
-    
+
     if (isSelectAll) {
       // Add all tools from this category that aren't already selected
-      const newTools = categoryToolNames.filter(name => !value.includes(name));
-      onChange([...value, ...newTools]);
+      const newTools = categoryToolNames.filter(name => !safeValue.includes(name));
+      onChange([...safeValue, ...newTools]);
     } else {
       // Remove all tools from this category
-      onChange(value.filter(v => !categoryToolNames.includes(v)));
+      onChange(safeValue.filter(v => !categoryToolNames.includes(v)));
     }
   };
 
@@ -107,7 +110,7 @@ export const ToolSelectorPanel = ({ value = [], onChange }: ToolSelectorPanelPro
   const collapseItems = Object.entries(categorizedTools).map(([category, catTools]) => {
     // Check if some or all tools in this category are selected
     const categoryToolNames = catTools.map(t => t.name);
-    const selectedCount = categoryToolNames.filter(name => value.includes(name)).length;
+    const selectedCount = categoryToolNames.filter(name => safeValue.includes(name)).length;
     const isAllSelected = selectedCount === catTools.length && catTools.length > 0;
 
     return {
@@ -171,7 +174,7 @@ export const ToolSelectorPanel = ({ value = [], onChange }: ToolSelectorPanelPro
               }}
             >
               <Checkbox
-                checked={value.includes(tool.name)}
+                checked={safeValue.includes(tool.name)}
                 onChange={(e) => handleCheckboxChange(tool.name, e.target.checked)}
               >
                 <code style={{

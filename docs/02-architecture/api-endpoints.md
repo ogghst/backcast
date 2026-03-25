@@ -3,7 +3,7 @@
 **Last Updated:** 2026-03-02
 **Status:** Active
 
-This document provides a comprehensive reference for all API endpoints in Backcast EVS.
+This document provides a comprehensive reference for all API endpoints in Backcast .
 
 > **Interactive Documentation:** Available at `/docs` (Swagger UI) when running the backend.
 > **OpenAPI Spec:** Available at `/openapi.json`

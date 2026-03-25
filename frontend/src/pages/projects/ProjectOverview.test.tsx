@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ProjectOverview } from "./ProjectOverview";
+import { ConfigProvider } from "antd";
 
 // Mock TimeMachine context
 vi.mock("@/contexts/TimeMachineContext", () => ({
@@ -33,6 +34,10 @@ vi.mock("@/features/projects/api/useProjects", () => ({
     isLoading: false,
   }),
   useUpdateProject: () => ({
+    mutate: vi.fn(),
+    isPending: false,
+  }),
+  useDeleteProject: () => ({
     mutate: vi.fn(),
     isPending: false,
   }),
@@ -70,6 +75,17 @@ const createTestQueryClient = () =>
     },
   });
 
+const createWrapper = () => {
+  const queryClient = createTestQueryClient();
+  return ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>
+      <ConfigProvider>
+        <MemoryRouter initialEntries={["/projects/123"]}>{children}</MemoryRouter>
+      </ConfigProvider>
+    </QueryClientProvider>
+  );
+};
+
 describe("ProjectOverview", () => {
   /**
    * T-Overview-001: test_project_overview_renders_project_details_and_wbes
@@ -89,14 +105,8 @@ describe("ProjectOverview", () => {
    */
   it("test_project_overview_renders_project_details_and_wbes", () => {
     // Arrange & Act
-    const queryClient = createTestQueryClient();
-    render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={["/projects/123"]}>
-          <ProjectOverview />
-        </MemoryRouter>
-      </QueryClientProvider>
-    );
+    const Wrapper = createWrapper();
+    render(<ProjectOverview />, { wrapper: Wrapper });
 
     // Assert
     expect(screen.getByText("Project Details")).toBeInTheDocument();

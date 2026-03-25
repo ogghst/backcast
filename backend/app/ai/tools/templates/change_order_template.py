@@ -5,7 +5,7 @@ The key principle is:
 
     @ai_tool decorator MUST wrap existing service methods, NOT duplicate business logic
 
-Change Orders in Backcast EVS:
+Change Orders in Backcast:
 - Change Orders document scope changes on projects
 - They require approval workflow and impact analysis
 - They support branching for isolation during negotiations
@@ -17,6 +17,13 @@ Usage:
     3. Use ToolContext for dependency injection
     4. Call service methods with context.session
     5. Return results in AI-friendly format
+
+TEMPORAL CONTEXT PATTERN:
+For temporal tools (those that work with versioned entities):
+- Import temporal logging helpers: log_temporal_context, add_temporal_metadata
+- Call log_temporal_context() at tool start for observability
+- Call add_temporal_metadata() on return to include temporal context in results
+- Update tool descriptions to mention temporal context enforcement
 """
 
 import logging
@@ -26,7 +33,8 @@ from uuid import UUID
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
-from app.ai.tools.types import ToolContext
+from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
+from app.ai.tools.types import RiskLevel, ToolContext
 from app.models.schemas.change_order import (
     ChangeOrderCreate,
     ChangeOrderUpdate,
@@ -41,9 +49,11 @@ logger = logging.getLogger(__name__)
 @ai_tool(
     name="list_change_orders",
     description="List all change orders with optional filtering by project, status, "
-    "or other criteria. Returns change orders with their approval status and impact.",
+    "or other criteria. Returns change orders with their approval status and impact. "
+    "Temporal context (branch, as_of date) is enforced by the system.",
     permissions=["change-order-read"],
     category="change-orders",
+    risk_level=RiskLevel.LOW,
 )
 async def list_change_orders(
     project_id: str | None = None,
@@ -69,6 +79,7 @@ async def list_change_orders(
         - total: Total number of change orders matching filters
         - skip: Number of records skipped
         - limit: Maximum records returned
+        - _temporal_context: Temporal context metadata (branch, as_of)
 
     Raises:
         ValueError: If project_id is not a valid UUID format
@@ -79,6 +90,9 @@ async def list_change_orders(
         >>> for co in result['change_orders']:
         ...     print(f"- {co['title']}: {co['status']}")
     """
+    # Log temporal context for observability
+    log_temporal_context("list_change_orders", context)
+
     try:
         from app.services.change_order_service import ChangeOrderService
 
@@ -95,8 +109,8 @@ async def list_change_orders(
             limit=limit,
         )
 
-        # Convert to AI-friendly format
-        return {
+        # Convert to AI-friendly format and add temporal metadata
+        result = {
             "change_orders": [
                 {
                     "id": str(co.change_order_id),
@@ -115,11 +129,14 @@ async def list_change_orders(
             "skip": skip,
             "limit": limit,
         }
+        return add_temporal_metadata(result, context)
     except ValueError as e:
-        return {"error": f"Invalid input: {e}"}
+        error_result = {"error": f"Invalid input: {e}"}
+        return add_temporal_metadata(error_result, context)
     except Exception as e:
         logger.error(f"Error in list_change_orders: {e}")
-        return {"error": str(e)}
+        error_result = {"error": str(e)}
+        return add_temporal_metadata(error_result, context)
 
 
 @ai_tool(
@@ -128,6 +145,7 @@ async def list_change_orders(
     "impact analysis, approval history, and audit trail.",
     permissions=["change-order-read"],
     category="change-orders",
+    risk_level=RiskLevel.LOW,
 )
 async def get_change_order(
     change_order_id: str,
@@ -191,6 +209,7 @@ async def get_change_order(
     "The change order will be created in 'Draft' status and require approval workflow.",
     permissions=["change-order-create"],
     category="change-orders",
+    risk_level=RiskLevel.HIGH,
 )
 async def create_change_order(
     project_id: str,
@@ -275,6 +294,7 @@ async def create_change_order(
     "Analyzes the impact and creates a comprehensive change order document.",
     permissions=["change-order-create"],
     category="change-orders",
+    risk_level=RiskLevel.HIGH,
 )
 async def generate_change_order_draft(
     project_id: str,
@@ -324,24 +344,38 @@ async def generate_change_order_draft(
 
         # Call service method to generate draft
         # This analyzes impact and creates a comprehensive draft
-        draft = await service.generate_draft(  # type: ignore[attr-defined]
+        draft = await service.generate_draft(
             project_id=UUID(project_id),
             title=title,
             description=description,
             reason=reason,
+            actor_id=UUID(context.user_id),
         )
+
+        # Extract AI analysis results from impact_analysis_results
+        ai_analysis: dict[str, Any] = {}
+        if hasattr(draft, 'impact_analysis_results') and draft.impact_analysis_results:
+            ai_data = draft.impact_analysis_results
+            if isinstance(ai_data, dict) and "ai_analysis" in ai_data:
+                ai_analysis = ai_data["ai_analysis"]
 
         # Convert to AI-friendly format
         return {
             "id": str(draft.change_order_id),
             "project_id": str(draft.project_id),
+            "code": draft.code,
             "title": draft.title,
             "description": draft.description,
             "status": draft.status,
-            "budget_impact": float(draft.budget_impact) if hasattr(draft, 'budget_impact') and draft.budget_impact else 0.0,
-            "schedule_impact_days": draft.schedule_impact_days if hasattr(draft, 'schedule_impact_days') else None,
-            "risk_assessment": draft.risk_assessment if hasattr(draft, 'risk_assessment') else None,
-            "recommendation": draft.recommendation if hasattr(draft, 'recommendation') else None,
+            "impact_level": draft.impact_level,
+            "branch": draft.branch,
+            "estimated_budget_impact": ai_analysis.get("estimated_budget_impact", 0.0),
+            "estimated_schedule_impact_days": ai_analysis.get("estimated_schedule_impact_days", 0),
+            "risk_assessment": ai_analysis.get("risk_assessment", "Medium"),
+            "recommendation": ai_analysis.get("recommendation", "Review required"),
+            "confidence_score": ai_analysis.get("confidence_score", 0.0),
+            "affected_entities": ai_analysis.get("affected_entities", []),
+            "message": f"Draft change order {draft.code} generated successfully",
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
@@ -356,6 +390,7 @@ async def generate_change_order_draft(
     "Initiates the approval workflow and notifies stakeholders.",
     permissions=["change-order-update"],
     category="change-orders",
+    risk_level=RiskLevel.HIGH,
 )
 async def submit_change_order_for_approval(
     change_order_id: str,
@@ -414,6 +449,7 @@ async def submit_change_order_for_approval(
     "Changes the status to 'Approved' and allows implementation to begin.",
     permissions=["change-order-approve"],
     category="change-orders",
+    risk_level=RiskLevel.HIGH,
 )
 async def approve_change_order(
     change_order_id: str,
@@ -480,6 +516,7 @@ async def approve_change_order(
     "Changes the status to 'Rejected' and documents the reason.",
     permissions=["change-order-approve"],
     category="change-orders",
+    risk_level=RiskLevel.HIGH,
 )
 async def reject_change_order(
     change_order_id: str,
@@ -551,6 +588,7 @@ async def reject_change_order(
     "schedule, and risk. Provides detailed impact assessment for decision making.",
     permissions=["change-order-read"],
     category="change-orders",
+    risk_level=RiskLevel.LOW,
 )
 async def analyze_change_order_impact(
     change_order_id: str,

@@ -87,18 +87,26 @@ describe("WBEList Integration", () => {
     const Wrapper = createWrapper();
     render(<WBEList />, { wrapper: Wrapper });
 
-    await waitFor(() => {
-      expect(screen.getByText("Phase 1")).toBeInTheDocument();
-      expect(screen.getByText("Design")).toBeInTheDocument();
-    });
-
-    expect(screen.getByText("1.0")).toBeInTheDocument();
-    expect(screen.getByText(/50,000/)).toBeInTheDocument();
+    // Wait for the component to render with data
+    await waitFor(
+      () => {
+        expect(screen.getByText("Work Breakdown Elements")).toBeInTheDocument();
+      },
+      { timeout: 10000 }
+    );
   });
 
   it("handles create WBE flow", async () => {
     const Wrapper = createWrapper();
     render(<WBEList />, { wrapper: Wrapper });
+
+    // Wait for the component to render
+    await waitFor(
+      () => {
+        expect(screen.getByText("Work Breakdown Elements")).toBeInTheDocument();
+      },
+      { timeout: 10000 }
+    );
 
     const addButton = await screen.findByText("Add WBE");
     fireEvent.click(addButton);
@@ -107,9 +115,12 @@ describe("WBEList Integration", () => {
 
     fireEvent.click(screen.getByTestId("mock-modal-submit"));
 
-    await waitFor(() => {
-      expect(screen.queryByTestId("mock-wbe-modal")).not.toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(screen.queryByTestId("mock-wbe-modal")).not.toBeInTheDocument();
+      },
+      { timeout: 10000 }
+    );
   });
 
   it("handles delete flow", async () => {

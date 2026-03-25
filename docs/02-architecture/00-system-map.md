@@ -1,11 +1,11 @@
-# System Map: Backcast EVS
+# System Map: Backcast 
 
 **Last Updated:** 2026-01-01
 **Technology:** Python 3.12, FastAPI, React 18, PostgreSQL, AsyncIO
 
 ## High-Level Architecture
 
-Backcast EVS is a full-stack application for project financial management.
+Backcast  is a full-stack application for project financial management.
 
 - **Frontend**: React SPA (Single Page Application) for user interaction.
 - **Backend**: FastAPI implementation of Entity Versioning Control System (EVCS).

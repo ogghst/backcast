@@ -8,7 +8,7 @@
 
 ## 1. Overview
 
-This document outlines the user experience and functional workflows for **Change Management** within the Backcast EVS system. It leverages the underlying **Branching Architecture** to provide a robust, isolated environment for managing Change Orders (COs) throughout their lifecycle—from drafting and scoping to impact analysis and final implementation.
+This document outlines the user experience and functional workflows for **Change Management** within the Backcast  system. It leverages the underlying **Branching Architecture** to provide a robust, isolated environment for managing Change Orders (COs) throughout their lifecycle—from drafting and scoping to impact analysis and final implementation.
 
 ## 2. Change Management Workflow
 
