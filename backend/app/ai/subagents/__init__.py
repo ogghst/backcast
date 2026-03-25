@@ -1,4 +1,4 @@
-"""Subagent configurations for Deep Agents SDK.
+"""Subagent configurations for LangGraph.
 
 Defines specialized subagents for different domains, each mapped 1:1 to tool template packages:
 - project_manager: Projects and WBEs (crud_template)

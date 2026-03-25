@@ -1,18 +1,17 @@
-"""DeepAgentOrchestrator for LangChain Deep Agents SDK integration.
+"""DeepAgentOrchestrator for LangChain agent integration.
 
-Wraps create_deep_agent() with:
+Wraps langchain.agents.create_agent() with:
 - Temporal context injection (as_of, branch_name, branch_mode)
 - RBAC and risk-based security filtering
-- Subagent management with isolated contexts
+- Subagent management with isolated contexts via custom task tool
 - Tool registration from existing @ai_tool ecosystem
 """
 
 import logging
-from typing import Any, cast
+from typing import Any
 
-from deepagents import create_deep_agent
-from deepagents.middleware.subagents import SubAgent
-from langchain.agents.middleware.human_in_the_loop import InterruptOnConfig
+from langchain.agents import create_agent as langchain_create_agent
+from langchain.agents.middleware import TodoListMiddleware
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
@@ -20,7 +19,8 @@ from app.ai.middleware.backcast_security import BackcastSecurityMiddleware
 from app.ai.middleware.temporal_context import TemporalContextMiddleware
 from app.ai.subagents import get_all_subagents
 from app.ai.tools import create_project_tools, filter_tools_by_execution_mode
-from app.ai.tools.types import RiskLevel, ToolContext
+from app.ai.tools.subagent_task import TASK_SYSTEM_PROMPT, build_task_tool
+from app.ai.tools.types import ToolContext
 
 logger = logging.getLogger(__name__)
 
@@ -45,11 +45,11 @@ When using tools:
 
 
 class DeepAgentOrchestrator:
-    """Orchestrator for Deep Agents with Backcast context and security.
+    """Orchestrator for LangChain agents with Backcast context and security.
 
-    This class wraps the Deep Agents SDK's create_deep_agent function with
-    Backcast-specific configuration including temporal context, security middleware,
-    and tool filtering.
+    This class wraps langchain.agents.create_agent() with Backcast-specific
+    configuration including temporal context, security middleware, and
+    subagent tool delegation.
 
     Attributes:
         model: Model string (e.g., 'openai:gpt-4o') or ChatOpenAI instance
@@ -87,14 +87,14 @@ class DeepAgentOrchestrator:
         allowed_tools: list[str] | None = None,
         subagents: list[dict[str, Any]] | None = None,
     ) -> Any:
-        """Create a Deep Agent with Backcast tools and context.
+        """Create a LangChain agent with Backcast tools and context.
 
         Args:
             allowed_tools: Optional list of tool names to include (filters all tools)
             subagents: Optional subagent configurations (uses default if None and enabled)
 
         Returns:
-            Compiled Deep Agent graph (CompiledStateGraph)
+            Compiled agent graph (CompiledStateGraph)
 
         Example:
             >>> orchestrator = DeepAgentOrchestrator("openai:gpt-4o", context)
@@ -131,114 +131,91 @@ class DeepAgentOrchestrator:
             f"removed_count={original_tool_count - filtered_tool_count}"
         )
 
-        # When subagents are enabled, the main agent should NOT have direct access
-        # to Backcast tools - it should only delegate via the "task" tool.
-        # Subagents will have access to the actual tools.
+        # Build Backcast middleware stack (shared between main agent and subagents)
+        backcast_middleware = [
+            TemporalContextMiddleware(self.context),
+            BackcastSecurityMiddleware(
+                self.context,
+                tools=all_tools,
+                interrupt_node=self.interrupt_node,
+            ),
+        ]
+
+        # Build system prompt
+        base_prompt = self.system_prompt or DEFAULT_SYSTEM_PROMPT
+        subagent_prompt_suffix = self._build_system_prompt_suffix()
+
         if self.enable_subagents:
-            # Main agent only gets Deep Agents SDK built-in tools (write_todos, task)
-            # These are added automatically by create_deep_agent()
-            tools = []
-            logger.info("Creating Deep Agent with subagents - main agent delegates only")
-            # InterruptNode will handle approval in the middleware instead
+            # Build subagent compiled graphs and the task tool
+            subagent_configs = subagents if subagents is not None else get_all_subagents()
+            subagent_dicts = self._build_subagent_dicts(
+                subagent_configs,
+                all_tools,
+                allowed_tools=allowed_tools,
+            )
+
+            if subagent_dicts:
+                # Main agent delegates via task tool only
+                task_tool = build_task_tool(subagent_dicts)
+                tools = [task_tool]
+                final_system_prompt = base_prompt + TASK_SYSTEM_PROMPT + subagent_prompt_suffix
+                middleware = [TodoListMiddleware(), *backcast_middleware]
+                logger.info(
+                    f"Creating agent with subagents - "
+                    f"main agent delegates via task tool, "
+                    f"{len(subagent_dicts)} subagents compiled"
+                )
+            else:
+                # Fallback: no valid subagents, use direct tools mode
+                tools = all_tools
+                final_system_prompt = base_prompt
+                middleware = list(backcast_middleware)
+                logger.info(
+                    "No valid subagents after filtering - "
+                    "falling back to direct tools mode"
+                )
         else:
             # Without subagents, main agent needs direct tool access
             tools = all_tools
-            logger.info(f"Creating Deep Agent with {len(tools)} tools (no subagents)")
-            # InterruptNode will handle approval in the middleware instead
+            final_system_prompt = base_prompt
+            middleware = list(backcast_middleware)
+            logger.info(
+                f"Creating agent with {len(tools)} tools (subagents disabled)"
+            )
 
-        # Build context_schema for temporal parameters
-        # Note: Deep Agents uses this for validation but actual injection happens in middleware
-        context_schema = self._build_context_schema()
-
-        # Create middleware stack with tools reference
-        # Order matters: temporal first (logging), then security (checking)
-        middleware = [
-            TemporalContextMiddleware(self.context),
-            BackcastSecurityMiddleware(self.context, tools=all_tools, interrupt_node=self.interrupt_node),
-        ]
-
-        # Get subagents
-        agent_subagents = None
-        if self.enable_subagents:
-            if subagents is None:
-                # Convert dict configs to SubAgent objects
-                # Pass all_tools so subagents can access Backcast tools
-                agent_subagents = self._create_subagent_objects(
-                    get_all_subagents(),
-                    all_tools,  # Subagents need access to actual tools
-                    allowed_tools=allowed_tools,
-                )
-            else:
-                agent_subagents = self._create_subagent_objects(
-                    subagents,
-                    all_tools,  # Subagents need access to actual tools
-                    allowed_tools=allowed_tools,
-                )
-
-        # Build system prompt with subagent delegation instructions
-        base_prompt = self.system_prompt or DEFAULT_SYSTEM_PROMPT
-        subagent_prompt_suffix = self._build_system_prompt_suffix()
-        final_system_prompt = base_prompt + subagent_prompt_suffix
-
-        # Create Deep Agent with Backcast configuration
-        # Pass model string or ChatOpenAI instance directly to create_deep_agent
-        # Note: We don't use interrupt_on parameter because it requires HumanInTheLoopMiddleware
-        # which doesn't support async (astream_events). Instead, we use our custom
-        # BackcastSecurityMiddleware which handles approval via InterruptNode.
-        agent = create_deep_agent(
+        # Create the agent via langchain.agents.create_agent()
+        agent = langchain_create_agent(
             model=self.model,
             tools=tools,
             system_prompt=final_system_prompt,
-            subagents=agent_subagents,  # type: ignore[arg-type]
-            context_schema=context_schema,  # type: ignore[arg-type]
             middleware=middleware,
-            checkpointer=None,  # Use default checkpointer
         )
 
-        # DEBUG: Log what tools the main agent actually has access to
+        # DEBUG: Log what the main agent has access to
         if logger.isEnabledFor(20):  # INFO level
-            logger.info(f"DEBUG: Main agent created with tools={len(tools)} direct tools, enable_subagents={self.enable_subagents}")
-            if agent_subagents:
-                logger.info(f"DEBUG: Created {len(agent_subagents)} subagents with tools:")
-                for sa in agent_subagents:
-                    sa_tools = sa.get('tools', [])
-                    logger.info(f"DEBUG:   - {sa.get('name')}: {len(sa_tools)} tools")
+            logger.info(
+                f"DEBUG: Main agent created with {len(tools)} tools, "
+                f"enable_subagents={self.enable_subagents}"
+            )
+            if self.enable_subagents:
+                subagent_configs = subagents if subagents is not None else get_all_subagents()
+                subagent_dicts_debug = self._build_subagent_dicts(
+                    subagent_configs,
+                    all_tools,
+                    allowed_tools=allowed_tools,
+                )
+                if subagent_dicts_debug:
+                    logger.info(
+                        f"DEBUG: Created {len(subagent_dicts_debug)} subagents with tools:"
+                    )
+                    for sa in subagent_dicts_debug:
+                        sa_tools = sa.get("tools", [])
+                        logger.info(
+                            f"DEBUG:   - {sa.get('name')}: {len(sa_tools)} tools"
+                        )
 
-        logger.info("Deep Agent created successfully")
+        logger.info("Agent created successfully")
         return agent
-
-    def _build_context_schema(self) -> dict[str, Any] | None:
-        """Build context schema for temporal parameters.
-
-        Returns:
-            Dictionary defining temporal context schema or None
-
-        Note:
-            Deep Agents uses this for type validation. The actual injection
-            happens in TemporalContextMiddleware.
-        """
-        return {
-            "as_of": {
-                "type": "string",
-                "description": "Historical date for temporal queries (ISO format)",
-            },
-            "branch_name": {
-                "type": "string",
-                "description": "Branch name for temporal queries",
-            },
-            "branch_mode": {
-                "type": "string",
-                "description": "Branch mode: 'merged' or 'isolated'",
-            },
-            "project_id": {
-                "type": "string",
-                "description": "Project ID for project-scoped queries",
-            },
-            "execution_mode": {
-                "type": "string",
-                "description": "Execution mode: 'safe', 'standard', or 'expert'",
-            },
-        }
 
     def _build_system_prompt_suffix(self) -> str:
         """Build system prompt suffix for subagent-only access.
@@ -255,7 +232,7 @@ class DeepAgentOrchestrator:
 
         # Get subagent info for the prompt
         subagent_info = []
-        for sa in self._create_subagent_objects(
+        for sa in self._build_subagent_dicts(
             get_all_subagents(),
             create_project_tools(self.context),
             allowed_tools=None,  # Get full tool lists for descriptions
@@ -271,7 +248,9 @@ class DeepAgentOrchestrator:
                     tool_names.append(t.get("name", str(t)))
                 else:
                     # Callable - use function name
-                    tool_names.append(t.__name__ if hasattr(t, "__name__") else str(t))
+                    tool_names.append(
+                        t.__name__ if hasattr(t, "__name__") else str(t)
+                    )
             subagent_info.append(
                 f"- {sa_name}: {', '.join(tool_names[:5])}"
                 f"{'...' if len(tool_names) > 5 else ''}"
@@ -300,42 +279,17 @@ Example good responses:
 Do NOT attempt to use Backcast tools directly - they will not work. Always delegate via the task tool.
 """
 
-    def _build_interrupt_config(self, tools: list[BaseTool]) -> dict[str, InterruptOnConfig]:
-        """Build interrupt configuration for HIGH and CRITICAL risk tools.
-
-        Args:
-            tools: List of tools to check for risk level
-
-        Returns:
-            Dictionary mapping tool names to InterruptOnConfig for tools requiring interrupt
-
-        Note:
-            In standard mode, HIGH and CRITICAL risk tools require approval.
-            The Deep Agents SDK interrupt mechanism will pause execution for these tools.
-
-            InterruptOnConfig format:
-            - allowed_decisions: List of decisions ("approve", "reject") user can make
-            - description: Static string describing the approval request
-        """
-        interrupt_tools = {}
-        for tool in tools:
-            metadata = getattr(tool, "_tool_metadata", None)
-            if metadata and metadata.risk_level >= RiskLevel.HIGH:
-                # Create InterruptOnConfig for HIGH and CRITICAL risk tools
-                interrupt_tools[tool.name] = InterruptOnConfig(
-                    allowed_decisions=["approve", "reject"],
-                    description=f"Tool '{tool.name}' has {metadata.risk_level.value} risk level and requires approval before execution."
-                )
-                logger.debug(f"Tool '{tool.name}' marked for interrupt ({metadata.risk_level.value})")
-        return interrupt_tools
-
-    def _create_subagent_objects(
+    def _build_subagent_dicts(
         self,
         subagent_configs: list[dict[str, Any]],
         available_tools: list[BaseTool],
         allowed_tools: list[str] | None = None,
-    ) -> list[SubAgent]:
-        """Convert subagent configuration dicts to SubAgent objects.
+    ) -> list[dict[str, Any]]:
+        """Compile subagent configuration dicts into runnable graphs.
+
+        Each subagent is compiled via langchain.agents.create_agent() with
+        Backcast middleware (TemporalContextMiddleware + BackcastSecurityMiddleware)
+        but without TodoListMiddleware (only the main agent needs planning).
 
         Args:
             subagent_configs: List of subagent configuration dictionaries
@@ -343,24 +297,18 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
             allowed_tools: Optional whitelist of tool names from the assistant config
 
         Returns:
-            List of SubAgent objects
-
-        Note:
-            Subagent tools are filtered in two stages:
-            1. By the subagent's own allowed_tools list
-            2. By the assistant's allowed_tools whitelist (if provided)
-            This ensures subagents can only access tools that the assistant is allowed to use.
-
-            BackcastSecurityMiddleware is added to each subagent to handle approval
-            for HIGH and CRITICAL risk tools in standard mode.
+            List of dicts with 'name', 'description', and 'runnable' keys
         """
-        subagent_objects = []
+        subagent_dicts: list[dict[str, Any]] = []
 
-        # Create middleware for subagents
-        # Each subagent gets its own middleware instance to handle tool approval
+        # Build Backcast middleware for subagents
         subagent_middleware = [
             TemporalContextMiddleware(self.context),
-            BackcastSecurityMiddleware(self.context, tools=available_tools, interrupt_node=self.interrupt_node),
+            BackcastSecurityMiddleware(
+                self.context,
+                tools=available_tools,
+                interrupt_node=self.interrupt_node,
+            ),
         ]
 
         for config in subagent_configs:
@@ -369,12 +317,11 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
             system_prompt = config.get("system_prompt", "")
             allowed_tool_names = config.get("allowed_tools", [])
 
-            # Filter tools by subagent's allowed_tool_names AND assistant's allowed_tools whitelist
-            # This ensures subagents respect the assistant's tool restrictions
+            # Filter tools by subagent's allowed_tool_names AND assistant's whitelist
             if allowed_tools is not None:
-                # Intersection of subagent tools and assistant whitelist
                 filtered_tool_names = [
-                    tool_name for tool_name in allowed_tool_names
+                    tool_name
+                    for tool_name in allowed_tool_names
                     if tool_name in allowed_tools
                 ]
                 logger.debug(
@@ -382,36 +329,35 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
                     f"(from {len(allowed_tool_names)} requested) based on assistant whitelist"
                 )
             else:
-                # No assistant whitelist, use subagent's full list
                 filtered_tool_names = allowed_tool_names
 
             # Filter tools by the filtered tool names
             subagent_tools = [t for t in available_tools if t.name in filtered_tool_names]
 
-            if subagent_tools:
-                # Pass middleware to subagent so tool approval works for subagent-executed tools
-                # Note: We don't pass interrupt_on to SubAgent because it requires
-                # HumanInTheLoopMiddleware which doesn't support async (astream_events).
-                # Instead, BackcastSecurityMiddleware handles approval via InterruptNode.
-                subagent = SubAgent(
-                    name=name,
-                    description=description,
-                    system_prompt=system_prompt,
-                    tools=subagent_tools,
-                    middleware=subagent_middleware,  # Pass middleware to enable approval workflow
-                    interrupt_on=cast(Any, {}),  # Empty dict - approval handled in middleware
-                )
-                subagent_objects.append(subagent)
-                logger.info(
-                    f"Created subagent '{name}' with {len(subagent_tools)} tools "
-                    "(approval handled via BackcastSecurityMiddleware)"
-                )
-            else:
+            if not subagent_tools:
                 logger.warning(
                     f"Subagent '{name}' has no valid tools after filtering - skipping"
                 )
+                continue
 
-        return subagent_objects
+            # Compile the subagent into a runnable graph
+            runnable = langchain_create_agent(
+                model=self.model,
+                tools=subagent_tools,
+                system_prompt=system_prompt,
+                middleware=subagent_middleware,
+            )
+
+            subagent_dicts.append({
+                "name": name,
+                "description": description,
+                "runnable": runnable,
+            })
+            logger.info(
+                f"Compiled subagent '{name}' with {len(subagent_tools)} tools"
+            )
+
+        return subagent_dicts
 
 
 __all__ = ["DeepAgentOrchestrator"]

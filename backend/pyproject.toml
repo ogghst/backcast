@@ -23,7 +23,6 @@ dependencies = [
     "langgraph>=1.1.1",
     "openai>=1.50.0",
     "langchain-openai>=1.1.10",
-    "deepagents>=0.4.0",
     "openinference-instrumentation-langchain>=0.1.0",
     "openinference-instrumentation-openai>=0.1.0",
     "opentelemetry-api>=1.22.0",
@@ -67,11 +66,17 @@ disable_error_code = ["no-any-return"]
 
 # Per-module overrides for external libraries
 [[tool.mypy.overrides]]
-module = ["langchain.*", "langgraph.*", "deepagents.*"]
+module = ["langchain.*", "langgraph.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["openinference.*", "opentelemetry.*"]
+ignore_missing_imports = true
+
+# google namespace package (transitive dep via langchain-google-genai / google-genai)
+# Missing __init__.py causes mypy AssertionError during cross-reference fixing
+[[tool.mypy.overrides]]
+module = ["google.*"]
 ignore_missing_imports = true
 
 [tool.ruff]
