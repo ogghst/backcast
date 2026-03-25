@@ -270,13 +270,13 @@ export const useStreamingChat = (
     try {
       const message = JSON.parse(rawData);
 
-      // Debug callback for raw incoming messages (before processing)
-      callbacks.onRawMessage?.(message, "in");
-
-      // Handle ping/pong keepalive — ignore silently
+      // Handle ping/pong keepalive — ignore silently (before debug callback to prevent redraws)
       if (message.type === "ping") {
         return;
       }
+
+      // Debug callback for raw incoming messages (before processing)
+      callbacks.onRawMessage?.(message, "in");
 
       // Handle approval request messages (custom type, not in WSServerMessage union)
       if (isApprovalRequestMessage(message)) {
