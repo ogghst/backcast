@@ -29,6 +29,7 @@ export interface SubagentStream {
   is_active: boolean; // Whether this subagent is currently streaming
   is_complete: boolean; // Whether this subagent has finished
   started_at: number; // Timestamp when streaming started
+  invocation_number?: number; // Invocation count for this subagent name (e.g., 2 for second invocation)
 }
 
 /**

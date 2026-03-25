@@ -152,6 +152,7 @@ class AgentService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self._config_service: AIConfigService | None = None
+        self._subagent_invocation_counts: dict[str, int] = {}
 
     @staticmethod
     def _is_websocket_connected(websocket: WebSocket) -> bool:
@@ -945,15 +946,26 @@ class AgentService:
                             if subagent_content:
                                 # Save subagent message to database for persistence
                                 try:
+                                    # Track invocation count for this subagent
+                                    subagent_type = current_subagent_name or "subagent"
+                                    if subagent_type not in self._subagent_invocation_counts:
+                                        self._subagent_invocation_counts[subagent_type] = 0
+                                    self._subagent_invocation_counts[subagent_type] += 1
+                                    invocation_number = self._subagent_invocation_counts[subagent_type]
+
                                     await self.config_service.add_message(
                                         session_id=session_id,
                                         role="assistant",
                                         content=subagent_content,
-                                        message_metadata={"subagent_name": current_subagent_name or "subagent"} if current_subagent_name else None,
+                                        message_metadata={
+                                            "subagent_name": subagent_type,
+                                            "invocation_number": invocation_number,
+                                        } if current_subagent_name else None,
                                     )
                                     await self.session.commit()
                                     logger.info(
                                         f"Saved subagent message to database: name={current_subagent_name}, "
+                                        f"invocation_number={invocation_number}, "
                                         f"content_length={len(subagent_content)}"
                                     )
                                 except Exception as db_error:

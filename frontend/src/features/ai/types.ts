@@ -210,6 +210,8 @@ export interface AIConversationMessagePublic {
   metadata?: {
     /** Subagent name if this message is from a subagent */
     subagent_name?: string;
+    /** Invocation number for subagent messages (counts invocations per subagent name) */
+    invocation_number?: number;
   };
 }
 
@@ -240,5 +242,7 @@ export interface ChatMessage {
   metadata?: {
     /** Subagent name if this message is from a subagent */
     subagent_name?: string;
+    /** Invocation number for subagent messages (counts invocations per subagent name) */
+    invocation_number?: number;
   };
 }

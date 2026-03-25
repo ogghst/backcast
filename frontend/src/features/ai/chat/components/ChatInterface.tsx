@@ -102,6 +102,9 @@ export const ChatInterface = ({
   const [showDebugPanel, setShowDebugPanel] = useState(false);
   const debugMessageIdRef = useRef(0);
 
+  // Track invocation counts per subagent name
+  const [subagentInvocationCounts, setSubagentInvocationCounts] = useState<Record<string, number>>({});
+
   // Query client for cache invalidation
   const queryClient = useQueryClient();
 
@@ -182,8 +185,22 @@ export const ChatInterface = ({
   const handleSubagentStart = useCallback((subagent: string, invocationId: string, message?: string) => {
     // message parameter describes what the subagent is doing - currently unused but available for future use
     void message;
+
+    // Increment invocation count for this subagent name
+    setSubagentInvocationCounts((prev) => {
+      const currentCount = prev[subagent] || 0;
+      return {
+        ...prev,
+        [subagent]: currentCount + 1,
+      };
+    });
+
     setStreamingState((prev) => {
       const subagents = new Map(prev.subagents);
+
+      // Get the current invocation number for this subagent
+      const invocationNumber = (subagentInvocationCounts[subagent] || 0) + 1;
+
       subagents.set(invocationId, {
         invocation_id: invocationId,
         subagent_name: subagent,
@@ -191,10 +208,11 @@ export const ChatInterface = ({
         is_active: true,
         is_complete: false,
         started_at: Date.now(),
+        invocation_number: invocationNumber,
       });
       return { ...prev, subagents };
     });
-  }, []);
+  }, [subagentInvocationCounts]);
 
   const handleSubagentComplete = useCallback((invocationId: string) => {
     setStreamingState((prev) => {
@@ -523,7 +541,7 @@ export const ChatInterface = ({
   // Determine if currently streaming (we have streaming content, active tools, or are waiting for the first chunk)
   const isStreaming: boolean =
     streamingState.main.length > 0 ||
-    streamingState.subagents.size > 0 ||
+    Array.from(streamingState.subagents.values()).some(sa => sa.is_active) ||
     activeToolCalls.length > 0 ||
     isWaitingForResponse;
 

@@ -411,7 +411,7 @@ class WSSubagentResultMessage(BaseModel):
     """WebSocket subagent result message from server.
 
     Sent when a subagent (task tool) completes, containing the subagent's
-    final response text for display in the Activity Panel.
+    final response text.
     """
 
     type: str = Field(default="subagent_result", description="Message type discriminator")

@@ -6,8 +6,7 @@ Intercepts the Deep Agents SDK 'task' tool execution to:
 3. Return a truncated acknowledgment to the main agent
 
 This prevents the main agent from repeating the subagent's output
-verbatim in its synthesis response, since the full result is already
-delivered to the user via the Activity Panel.
+verbatim in its synthesis response.
 """
 
 import contextvars

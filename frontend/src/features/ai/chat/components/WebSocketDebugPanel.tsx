@@ -128,7 +128,7 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
   messages,
   onClear,
 }) => {
-  const { spacing } = useThemeTokens();
+  const { spacing, colors, borderRadius } = useThemeTokens();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState<string | null>(null);
 
@@ -174,8 +174,8 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
   return (
     <div
       style={{
-        borderTop: "1px solid #444",
-        background: "#1e1e1e",
+        borderTop: `1px solid ${colors.border}`,
+        background: colors.bgLayout,
         display: "flex",
         flexDirection: "column",
       }}
@@ -184,8 +184,8 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
       <div
         style={{
           padding: `${spacing.sm}px ${spacing.md}px`,
-          background: "#2d2d2d",
-          borderBottom: "1px solid #444",
+          background: colors.bgElevated,
+          borderBottom: `1px solid ${colors.border}`,
           display: "flex",
           alignItems: "center",
           gap: spacing.sm,
@@ -193,8 +193,8 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
         }}
       >
         <Space size="small" style={{ flex: 1 }}>
-          <BugOutlined style={{ color: "#888" }} />
-          <Text style={{ color: "#e0e0e0", fontWeight: 500 }}>WebSocket Debug</Text>
+          <BugOutlined style={{ color: colors.textTertiary }} />
+          <Text style={{ color: colors.text, fontWeight: 500 }}>WebSocket Debug</Text>
           <Tag color="blue">{messages.length} messages</Tag>
           {filteredMessages.length !== messages.length && (
             <Tag color="green">{filteredMessages.length} filtered</Tag>
@@ -207,7 +207,7 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
             onClick={handleExport}
             size="small"
             type="text"
-            style={{ color: "#aaa" }}
+            style={{ color: colors.textSecondary }}
           >
             Export
           </Button>
@@ -216,7 +216,7 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
             onClick={onClear}
             size="small"
             type="text"
-            style={{ color: "#aaa" }}
+            style={{ color: colors.textSecondary }}
           >
             Clear
           </Button>
@@ -225,7 +225,7 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
             onClick={onClose}
             size="small"
             type="text"
-            style={{ color: "#aaa" }}
+            style={{ color: colors.textSecondary }}
           >
             Hide
           </Button>
@@ -236,8 +236,8 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
       <div
         style={{
           padding: `${spacing.sm}px ${spacing.md}px`,
-          background: "#252525",
-          borderBottom: "1px solid #333",
+          background: colors.bgContainer,
+          borderBottom: `1px solid ${colors.border}`,
           flexShrink: 0,
         }}
       >
@@ -248,7 +248,6 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
             onChange={(e) => setSearchQuery(e.target.value)}
             allowClear
             size="small"
-            style={{ background: "#1e1e1e" }}
           />
 
           {/* Message type filters */}
@@ -287,7 +286,7 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
         {filteredMessages.length === 0 ? (
           <Empty
             description={
-              <Text style={{ color: "#888" }}>
+              <Text style={{ color: colors.textTertiary }}>
                 {messages.length === 0 ? "No messages yet" : "No messages match filters"}
               </Text>
             }
@@ -303,9 +302,9 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
                 <div
                   key={msg.id}
                   style={{
-                    background: "#252525",
-                    border: `1px solid ${msg.direction === "in" ? "#3a6" : "#a63"}`,
-                    borderRadius: 4,
+                    background: colors.bgContainer,
+                    border: `1px solid ${msg.direction === "in" ? colors.success : colors.error}`,
+                    borderRadius: borderRadius.sm,
                     overflow: "hidden",
                   }}
                 >
@@ -313,22 +312,24 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
                   <div
                     style={{
                       padding: "6px 10px",
-                      background: msg.direction === "in" ? "#1a2a1a" : "#2a1a1a",
-                      borderBottom: "1px solid #333",
+                      background: msg.direction === "in"
+                        ? `${colors.success}15`
+                        : `${colors.error}15`,
+                      borderBottom: `1px solid ${colors.border}`,
                       display: "flex",
                       alignItems: "center",
                       gap: 8,
                     }}
                   >
                     {msg.direction === "in" ? (
-                      <ArrowDownOutlined style={{ color: "#3a6", fontSize: 12 }} />
+                      <ArrowDownOutlined style={{ color: colors.success, fontSize: 12 }} />
                     ) : (
-                      <ArrowUpOutlined style={{ color: "#a63", fontSize: 12 }} />
+                      <ArrowUpOutlined style={{ color: colors.error, fontSize: 12 }} />
                     )}
                     <Tag color={msgColor} style={{ margin: 0, fontSize: 11 }}>
                       {msgLabel}
                     </Tag>
-                    <Text style={{ color: "#888", fontSize: 11, marginLeft: "auto" }}>
+                    <Text style={{ color: colors.textTertiary, fontSize: 11, marginLeft: "auto" }}>
                       {formatTimestamp(msg.timestamp)}
                     </Text>
                   </div>
@@ -339,12 +340,12 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
                       margin: 0,
                       padding: "8px 10px",
                       fontSize: 11,
-                      color: "#d4d4d4",
+                      color: colors.text,
                       whiteSpace: "pre-wrap",
                       wordBreak: "break-all",
                       maxHeight: 200,
                       overflow: "auto",
-                      background: "#1e1e1e",
+                      background: colors.bgLayout,
                     }}
                   >
                     {formatJSON(msg.data)}

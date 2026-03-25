@@ -218,12 +218,14 @@ interface SubagentMessageProps {
   subagent: SubagentStream;
   token: Theme['token'];
   isMobile?: boolean;
+  invocationNumber?: number;
 }
 
 const SubagentMessage = ({
   subagent,
   token,
   isMobile = false,
+  invocationNumber,
 }: SubagentMessageProps) => {
   const { spacing, typography, borderRadius } = useThemeTokens();
 
@@ -281,6 +283,12 @@ const SubagentMessage = ({
           <Text strong style={{ fontSize: typography.sizes.sm }}>
             {subagent.subagent_name}
           </Text>
+          {/* Show invocation number when greater than 1 */}
+          {invocationNumber && invocationNumber > 1 && (
+            <Text style={{ fontSize: typography.sizes.xs, opacity: 0.6 }}>
+              ({invocationNumber})
+            </Text>
+          )}
           {subagent.is_active && (
             <span
               style={{
@@ -358,6 +366,7 @@ interface PersistedSubagentMessageProps {
   content: string;
   token: Theme['token'];
   isMobile?: boolean;
+  invocationNumber?: number;
 }
 
 const PersistedSubagentMessage = ({
@@ -365,6 +374,7 @@ const PersistedSubagentMessage = ({
   content,
   token,
   isMobile = false,
+  invocationNumber,
 }: PersistedSubagentMessageProps) => {
   const { spacing, typography, borderRadius } = useThemeTokens();
 
@@ -422,6 +432,12 @@ const PersistedSubagentMessage = ({
           <Text strong style={{ fontSize: typography.sizes.sm }}>
             {subagentName}
           </Text>
+          {/* Show invocation number when greater than 1 */}
+          {invocationNumber && invocationNumber > 1 && (
+            <Text style={{ fontSize: typography.sizes.xs, opacity: 0.6 }}>
+              ({invocationNumber})
+            </Text>
+          )}
         </div>
 
         {/* Subagent content with markdown rendering */}
@@ -539,6 +555,7 @@ export const MessageList = ({
                 content={message.content}
                 token={token}
                 isMobile={isMobile}
+                invocationNumber={message.metadata.invocation_number}
               />
             );
           }
@@ -617,6 +634,7 @@ export const MessageList = ({
             subagent={subagent}
             token={token}
             isMobile={isMobile}
+            invocationNumber={subagent.invocation_number}
           />
         ))
       }
