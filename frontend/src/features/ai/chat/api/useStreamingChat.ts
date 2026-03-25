@@ -146,6 +146,11 @@ export const useStreamingChat = (
       try {
         const message: WSServerMessage = JSON.parse(event.data);
 
+        // Handle ping/pong keepalive — ignore silently
+        if (message.type === "ping") {
+          return;
+        }
+
         // Handle token messages
         if (isTokenMessage(message)) {
           onToken(message.content, message.session_id);
