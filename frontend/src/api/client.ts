@@ -99,14 +99,20 @@ axios.interceptors.response.use(
           // Refresh failed - logout user
           processQueue(error, null);
           await authStore.logout();
-          toast.error("Session expired. Please login again.");
+          // Only show toast if not already on login page
+          if (window.location.pathname !== '/login') {
+            toast.error("Session expired. Please login again.");
+          }
           return Promise.reject(error);
         }
       } catch (refreshError) {
         // Refresh threw an error - logout user
         processQueue(refreshError, null);
         await authStore.logout();
-        toast.error("Session expired. Please login again.");
+        // Only show toast if not already on login page
+        if (window.location.pathname !== '/login') {
+          toast.error("Session expired. Please login again.");
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
