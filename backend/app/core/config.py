@@ -41,5 +41,8 @@ class Settings(BaseSettings):
     AI_TOKEN_BUFFER_INTERVAL_MS: int = 1000  # 1 second default
     AI_TOKEN_BUFFER_MAX_SIZE: int = 10000  # Max tokens before forced flush
 
+    # Refresh Token Configuration
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 days default
+
 
 settings = Settings()

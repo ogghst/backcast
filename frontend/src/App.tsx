@@ -4,9 +4,13 @@ import { RouterProvider } from "react-router-dom";
 import { router } from "@/routes";
 import { theme } from "@/config/theme";
 import { useUserPreferencesStore } from "@/stores/useUserPreferencesStore";
+import { useTokenRefreshTimer } from "@/utils/tokenRefresh";
 
 export const App = () => {
   const { themeMode } = useUserPreferencesStore();
+
+  // Initialize token refresh timer
+  useTokenRefreshTimer();
 
   return (
     <ConfigProvider

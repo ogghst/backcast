@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { getCurrentUser, loginUser } from "@/api/auth";
-import type { UserLogin, UserPublic } from "@/types/auth";
+import type { UserLogin, UserPublic, TokenResponse } from "@/types/auth";
 import { queryKeys } from "@/api/queryKeys";
 
 /**
@@ -16,8 +16,8 @@ export const useAuth = () => {
     user: storedUser,
     token,
     isAuthenticated,
-    setToken,
-    logout: clearToken,
+    setTokens,
+    logout: authLogout,
     setUser,
   } = useAuthStore();
 
@@ -44,23 +44,23 @@ export const useAuth = () => {
   // Login mutation
   const loginMutation = useMutation({
     mutationFn: loginUser,
-    onSuccess: (data) => {
+    onSuccess: (data: TokenResponse) => {
       // Clear all cached queries to ensure fresh data after login
       queryClient.clear();
 
       // Reset Time Machine store: clear ALL state including current project and time travel settings
       useTimeMachineStore.getState().clearAll();
 
-      // Store token in Zustand store
-      setToken(data.access_token);
+      // Store both tokens in Zustand store
+      setTokens(data.access_token, data.refresh_token);
       // Invalidate and refetch user data
       queryClient.invalidateQueries({ queryKey: queryKeys.users.me });
     },
   });
 
   // Logout function
-  const logout = () => {
-    clearToken();
+  const logout = async () => {
+    await authLogout();
     queryClient.clear(); // Clear all cached data
     // Clear Time Machine store settings
     useTimeMachineStore.getState().clearAll();

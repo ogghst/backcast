@@ -9,6 +9,7 @@ describe("useAuthStore", () => {
         user: null,
         permissions: [],
         token: null,
+        refreshToken: null,
         isAuthenticated: false,
       });
     });

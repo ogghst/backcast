@@ -61,6 +61,10 @@ export interface Token {
   token_type: string;
 }
 
+export interface TokenResponse extends Token {
+  refresh_token: string;
+}
+
 export interface UserLogin {
   email: string;
   password: string;
