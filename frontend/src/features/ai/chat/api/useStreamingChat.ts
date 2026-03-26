@@ -33,6 +33,7 @@ import {
   isContentResetMessage,
   isSubagentMessage,
   isSubagentResultMessage,
+  isAgentCompleteMessage,
   type WSPermissionDeniedMessage,
 } from "../types";
 
@@ -68,6 +69,8 @@ export interface UseStreamingChatConfig {
   onSubagentStart?: (subagent: string, invocationId: string, message?: string) => void;
   /** Optional callback invoked when a subagent completes */
   onSubagentComplete?: (invocationId: string) => void;
+  /** Optional callback invoked when the main agent completes */
+  onMainAgentComplete?: (invocationId: string) => void;
   /** Optional callback invoked with every raw WebSocket message (for debugging) */
   onRawMessage?: (message: unknown, direction: "in" | "out") => void;
 }
@@ -175,6 +178,9 @@ export const useStreamingChat = (
     onApprovalCountdown,
     onApprovalTimeout,
     onThinking,
+    onSubagentStart,
+    onSubagentComplete,
+    onMainAgentComplete,
     onRawMessage,
   } = config;
 
@@ -217,6 +223,9 @@ export const useStreamingChat = (
     onApprovalCountdown,
     onApprovalTimeout,
     onThinking,
+    onSubagentStart,
+    onSubagentComplete,
+    onMainAgentComplete,
     onRawMessage,
   });
 
@@ -232,6 +241,9 @@ export const useStreamingChat = (
       onApprovalCountdown,
       onApprovalTimeout,
       onThinking,
+      onSubagentStart,
+      onSubagentComplete,
+      onMainAgentComplete,
       onRawMessage,
     };
   });
@@ -335,6 +347,16 @@ export const useStreamingChat = (
         callbacks.onSubagentComplete?.(serverMessage.invocation_id);
         // Also call tool_result handler for activity panel
         callbacks.onToolResult?.("task", serverMessage.content);
+        return;
+      }
+
+      // Handle agent complete messages
+      if (isAgentCompleteMessage(serverMessage)) {
+        if (serverMessage.agent_type === "main") {
+          callbacks.onMainAgentComplete?.(serverMessage.invocation_id);
+        } else if (serverMessage.agent_type === "subagent") {
+          callbacks.onSubagentComplete?.(serverMessage.invocation_id);
+        }
         return;
       }
 

@@ -33,10 +33,23 @@ export interface SubagentStream {
 }
 
 /**
+ * Represents a single main agent stream segment
+ * Used to separate main agent content before/after subagent calls
+ */
+export interface MainAgentStream {
+  invocation_id: string; // Unique identifier for this stream segment
+  content: string; // Accumulated streaming content
+  is_active: boolean; // Whether this stream is currently streaming
+  is_complete: boolean; // Whether this stream has finished
+  started_at: number; // Timestamp when streaming started
+}
+
+/**
  * State for tracking multiple concurrent subagent streams
  */
 export interface StreamingState {
-  main: string; // Main agent content
+  main: string; // Main agent content (fallback for backward compatibility)
+  mainStreams: Map<string, MainAgentStream>; // invocation_id -> MainAgentStream
   subagents: Map<string, SubagentStream>; // invocation_id -> SubagentStream
 }
 
@@ -111,6 +124,9 @@ export interface WSToolCallMessage {
   type: "tool_call";
   tool: string;
   args: Record<string, unknown>;
+  step_number?: number;
+  total_steps?: number;
+  invocation_id?: string;
 }
 
 /**
@@ -121,6 +137,7 @@ export interface WSToolResultMessage {
   type: "tool_result";
   tool: string;
   result: unknown;
+  invocation_id?: string;
 }
 
 /**
@@ -164,6 +181,9 @@ export interface WSPlanningMessage {
   type: "planning";
   plan?: string; // The plan description
   steps?: Array<{ text: string; done: boolean }>; // Planning steps
+  step_number?: number;
+  total_steps?: number;
+  invocation_id?: string;
 }
 
 /**
@@ -196,6 +216,18 @@ export interface WSSubagentResultMessage {
   subagent_name: string;
   content: string;
   invocation_id: string; // Unique invocation ID for this subagent instance
+}
+
+/**
+ * Server -> Client: Agent completion event
+ * Sent when an agent (main or subagent) stream completes for visual purposes
+ */
+export interface WSAgentCompleteMessage {
+  type: "agent_complete";
+  agent_type: "main" | "subagent";
+  invocation_id: string;
+  agent_name?: string; // Agent name for display
+  completed_at: string; // ISO datetime timestamp
 }
 
 /**
@@ -245,7 +277,8 @@ export type WSServerMessage =
   | WSThinkingMessage
   | WSContentResetMessage
   | WSPollingHeartbeatMessage
-  | WSPingMessage;
+  | WSPingMessage
+  | WSAgentCompleteMessage;
 
 /**
  * Type guard to check if a server message is a token message
@@ -396,4 +429,13 @@ export function isContentResetMessage(
   message: WSServerMessage
 ): message is WSContentResetMessage {
   return message.type === "content_reset";
+}
+
+/**
+ * Type guard to check if a server message is an agent complete message
+ */
+export function isAgentCompleteMessage(
+  message: WSServerMessage
+): message is WSAgentCompleteMessage {
+  return message.type === "agent_complete";
 }

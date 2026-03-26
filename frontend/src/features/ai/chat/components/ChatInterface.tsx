@@ -79,6 +79,7 @@ export const ChatInterface = ({
   // Streaming state
   const [streamingState, setStreamingState] = useState<StreamingState>({
     main: "",
+    mainStreams: new Map<string, MainAgentStream>(),
     subagents: new Map<string, SubagentStream>(),
   });
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
@@ -158,11 +159,38 @@ export const ChatInterface = ({
     }
 
     if (source === "main") {
-      // Main agent tokens
-      setStreamingState((prev) => ({
-        ...prev,
-        main: prev.main + token,
-      }));
+      // Main agent tokens - use invocation_id if provided to separate streams
+      if (invocationId) {
+        // Treat as separate stream based on invocation_id
+        setStreamingState((prev) => {
+          const mainStreams = new Map(prev.mainStreams);
+          const existing = mainStreams.get(invocationId);
+
+          if (existing) {
+            mainStreams.set(invocationId, {
+              ...existing,
+              content: existing.content + token,
+              is_active: true,
+            });
+          } else {
+            mainStreams.set(invocationId, {
+              invocation_id: invocationId,
+              content: token,
+              is_active: true,
+              is_complete: false,
+              started_at: Date.now(),
+            });
+          }
+
+          return { ...prev, mainStreams };
+        });
+      } else {
+        // Fallback: group in main (backward compatibility)
+        setStreamingState((prev) => ({
+          ...prev,
+          main: prev.main + token,
+        }));
+      }
     } else if (source === "subagent" && invocationId) {
       // Subagent tokens - route to correct subagent
       setStreamingState((prev) => {
@@ -245,6 +273,23 @@ export const ChatInterface = ({
     });
   }, []);
 
+  const handleMainAgentComplete = useCallback((invocationId: string) => {
+    setStreamingState((prev) => {
+      const mainStreams = new Map(prev.mainStreams);
+      const existing = mainStreams.get(invocationId);
+
+      if (existing) {
+        mainStreams.set(invocationId, {
+          ...existing,
+          is_active: false,
+          is_complete: true,
+        });
+      }
+
+      return { ...prev, mainStreams };
+    });
+  }, []);
+
   const handleComplete = useCallback(
     (sessionId: string, messageId: string) => {
       // messageId is available for future use (e.g., for highlighting the completed message)
@@ -259,6 +304,7 @@ export const ChatInterface = ({
       setIsWaitingForResponse(false);
       setStreamingState((prev) => ({
         main: "",
+        mainStreams: new Map<string, MainAgentStream>(),
         subagents: new Map(
           Array.from(prev.subagents.entries()).map(([id, sa]) => [
             id,
@@ -367,6 +413,18 @@ export const ChatInterface = ({
   }, [latestActivity, addToActivityHistory]);
 
   const handleToolCall = useCallback((tool: string, args: Record<string, unknown>) => {
+    // Mark current main agent streams as complete when a tool is called
+    // This ensures main agent content before the tool appears in its own bubble
+    setStreamingState((prev) => {
+      const mainStreams = new Map(prev.mainStreams);
+      for (const [id, stream] of mainStreams) {
+        if (stream.is_active) {
+          mainStreams.set(id, { ...stream, is_active: false, is_complete: true });
+        }
+      }
+      return { ...prev, mainStreams };
+    });
+
     // Track tool execution steps
     toolStepCounter.current.set(tool, (toolStepCounter.current.get(tool) || 0) + 1);
     const currentStep = toolStepCounter.current.get(tool)!;
@@ -424,6 +482,7 @@ export const ChatInterface = ({
     onThinking: handleThinking,
     onSubagentStart: handleSubagentStart,
     onSubagentComplete: handleSubagentComplete,
+    onMainAgentComplete: handleMainAgentComplete,
     onRawMessage: handleRawMessage,
   });
 

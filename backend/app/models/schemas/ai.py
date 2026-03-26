@@ -420,6 +420,29 @@ class WSSubagentResultMessage(BaseModel):
     invocation_id: str = Field(..., description="Unique invocation ID for this subagent instance")
 
 
+class WSAgentCompleteMessage(BaseModel):
+    """WebSocket agent completion message from server.
+
+    Sent when an agent (main or subagent) stream completes visually.
+    Provides a completion indicator for the UI without delivering new content.
+    """
+    type: Literal["agent_complete"] = Field(
+        default="agent_complete", description="Message type discriminator"
+    )
+    agent_type: Literal["main", "subagent"] = Field(
+        ..., description="Type of agent that completed"
+    )
+    invocation_id: str = Field(
+        ..., description="Unique invocation ID for this agent stream"
+    )
+    agent_name: str | None = Field(
+        None, description="Agent name (for subagents) or 'Assistant' (for main)"
+    )
+    completed_at: datetime = Field(
+        default_factory=datetime.now, description="Completion timestamp"
+    )
+
+
 class WSContentResetMessage(BaseModel):
     """WebSocket content reset message.
 
@@ -443,6 +466,7 @@ class WSToolCallMessage(BaseModel):
     args: dict[str, Any] = Field(default_factory=dict, description="Tool arguments")
     step_number: int | None = Field(None, description="Current step number (1-indexed)")
     total_steps: int | None = Field(None, description="Estimated total steps")
+    invocation_id: str | None = Field(None, description="Invocation ID for this tool call")
 
 
 class WSToolResultMessage(BaseModel):
@@ -454,6 +478,7 @@ class WSToolResultMessage(BaseModel):
     type: str = Field(default="tool_result", description="Message type discriminator")
     tool: str = Field(..., description="Tool function name")
     result: dict[str, Any] = Field(..., description="Tool execution result data")
+    invocation_id: str | None = Field(None, description="Invocation ID for this tool result")
 
 
 class WSCompleteMessage(BaseModel):
@@ -552,6 +577,7 @@ class WSPlanningMessage(BaseModel):
     )
     step_number: int | None = Field(None, description="Current step number (1-indexed)")
     total_steps: int | None = Field(None, description="Total steps in plan")
+    invocation_id: str | None = Field(None, description="Invocation ID for this planning event")
 
 
 class WSSubagentMessage(BaseModel):
@@ -601,6 +627,7 @@ WSMessage = (
     | WSThinkingMessage
     | WSPlanningMessage
     | WSSubagentMessage
+    | WSAgentCompleteMessage
 )
 
 

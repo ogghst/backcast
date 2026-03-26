@@ -47,6 +47,7 @@ from app.models.domain.ai import (
 from app.models.schemas.ai import (
     AIChatResponse,
     AIConversationMessagePublic,
+    WSAgentCompleteMessage,
     WSCompleteMessage,
     WSErrorMessage,
     WSPlanningMessage,
@@ -747,12 +748,8 @@ class AgentService:
             """Flush callback for buffer manager."""
             if not buffer.is_empty() and self._is_websocket_connected(websocket):
                 try:
-                    # Extract invocation_id from buffer key for subagents
-                    # Buffer key format: "source:invocation_id" for subagents or "source:subagent_name" for main
-                    invocation_id = None
-                    if ":" in key and buffer.source == "subagent":
-                        # For subagents, the key contains invocation_id
-                        invocation_id = buffer.invocation_id
+                    # Extract invocation_id from buffer for both main agent and subagents
+                    invocation_id = buffer.invocation_id
 
                     msg_data = WSTokenBatchMessage(
                         type="token_batch",
@@ -762,7 +759,7 @@ class AgentService:
                         subagent_name=buffer.subagent_name,
                         invocation_id=invocation_id,
                     ).model_dump(mode="json")
-                    logger.debug(f"Sending token_batch: source={buffer.source}, subagent={buffer.subagent_name}, tokens_length={len(buffer.get_content())}, invocation_id={invocation_id}")
+                    logger.info(f"[TOKEN_BATCH] Sending: source={buffer.source}, invocation_id={invocation_id}, tokens_length={len(buffer.get_content())}")
                     await websocket.send_json(msg_data)
                 except Exception as e:
                     logger.warning(f"Failed to send token batch: {e}")
@@ -788,6 +785,12 @@ class AgentService:
         current_subagent_name: str | None = None
         current_invocation_id: str | None = None
 
+        # Track main agent invocation_id for separating main agent content before/after subagents
+        main_invocation_id: str | None = None
+
+        # Track whether the current tool was initiated by the main agent (vs subagent)
+        main_agent_initiated_tool: bool = False
+
         try:
             logger.info(f"Starting astream_events for session {session_id}")
 
@@ -802,7 +805,11 @@ class AgentService:
                     logger.debug("Failed to send thinking event, WebSocket may be closed")
 
             async def _consume_stream() -> None:
-                nonlocal current_step, estimated_total_steps, current_subagent_name, current_invocation_id, total_tokens, tool_calls_count, accumulated_content
+                nonlocal current_step, estimated_total_steps, current_subagent_name, current_invocation_id, main_invocation_id, total_tokens, tool_calls_count, accumulated_content, main_agent_initiated_tool
+
+                # Generate initial main agent invocation_id at stream start
+                main_invocation_id = str(uuid.uuid4())
+
                 async for event in graph.astream_events(
                     {
                         "messages": history,
@@ -835,12 +842,14 @@ class AgentService:
                                 accumulated_content += content
                                 total_tokens += len(content)
                                 if self._is_websocket_connected(websocket):
+                                    invocation_id_to_use = current_invocation_id if current_subagent_name else main_invocation_id
+                                    logger.debug(f"Adding token: source={'subagent' if current_subagent_name else 'main'}, invocation_id={invocation_id_to_use}")
                                     buffer_manager.add_token(
                                         token=content,
                                         session_id=str(session_id),
                                         source="subagent" if current_subagent_name else "main",
                                         subagent_name=current_subagent_name,
-                                        invocation_id=current_invocation_id if current_subagent_name else None,
+                                        invocation_id=invocation_id_to_use,
                                     )
 
                     # Handle tool start
@@ -848,6 +857,18 @@ class AgentService:
                         tool_name = event.get("name", "")
                         tool_input = data.get("input", {})
                         tool_calls_count += 1
+
+                        # Track whether this tool was initiated by the main agent
+                        main_agent_initiated_tool = (current_subagent_name is None)
+
+                        # Flush main agent buffer before tool execution
+                        # This ensures main agent content before the tool appears in its own bubble
+                        if current_subagent_name is None:
+                            logger.info(f"[TOOL_START] Flushing main agent buffer before tool='{tool_name}', invocation_id={main_invocation_id}")
+                            await buffer_manager.flush_agent(
+                                source="main",
+                                invocation_id=main_invocation_id,
+                            )
 
                         # Track subagent name and invocation_id for result reporting
                         if tool_name == "task":
@@ -880,6 +901,7 @@ class AgentService:
                                         steps=steps,
                                         step_number=current_step,
                                         total_steps=estimated_total_steps,
+                                        invocation_id=main_invocation_id,
                                     ).model_dump(mode="json")
                                 )
                                 logger.info(f"Sent WebSocket planning event: plan={plan}, steps={len(steps) if steps else 0}")
@@ -931,6 +953,7 @@ class AgentService:
                                         args=tool_input,
                                         step_number=current_step,
                                         total_steps=estimated_total_steps,
+                                        invocation_id=current_invocation_id if current_subagent_name else main_invocation_id,
                                     ).model_dump(mode="json")
                                 )
                             except Exception:
@@ -1015,12 +1038,42 @@ class AgentService:
                                 invocation_id=current_invocation_id,
                             )
 
+                            # Flush subagent buffer
+                            await buffer_manager.flush_agent(
+                                source="subagent",
+                                subagent_name=current_subagent_name,
+                                invocation_id=current_invocation_id,
+                            )
+
+                            # Send subagent completion message
+                            if self._is_websocket_connected(websocket):
+                                try:
+                                    await websocket.send_json(
+                                        WSAgentCompleteMessage(
+                                            type="agent_complete",
+                                            agent_type="subagent",
+                                            invocation_id=current_invocation_id,
+                                            agent_name=current_subagent_name,
+                                        ).model_dump(mode="json")
+                                    )
+                                    logger.debug(f"Sent subagent completion: invocation_id={current_invocation_id}")
+                                except Exception:
+                                    logger.debug("Failed to send subagent completion, WebSocket may be closed")
+
                             # Note: We NO LONGER reset accumulated_content here
                             # The main agent's thoughts persist across subagent executions
                             # to enable progressive acknowledgment and final synthesis
 
                             current_subagent_name = None
                             current_invocation_id = None
+
+                        # Generate new invocation_id for main agent's continuation after ANY tool completion
+                        # This includes tools initiated by main agent AND tools initiated by subagents
+                        # Every tool completion creates a new main agent bubble
+                        old_invocation_id = main_invocation_id
+                        main_invocation_id = str(uuid.uuid4())
+                        initiator = "main agent" if main_agent_initiated_tool else "subagent"
+                        logger.info(f"[TOOL_END] Tool='{tool_name}' completed (initiated by {initiator}). Regenerated main_invocation_id: {old_invocation_id} -> {main_invocation_id}")
 
                         tool_output = data.get("output", "")
 
@@ -1068,6 +1121,7 @@ class AgentService:
                                     type="tool_result",
                                     tool=tool_name,
                                     result=jsonable_encoder(tool_result),
+                                    invocation_id=current_invocation_id if current_subagent_name else main_invocation_id,
                                 ).model_dump(mode="json")
                                 logger.debug(f"Sending tool_result: tool={tool_name}, data_keys={list(tool_result.keys()) if isinstance(tool_result, dict) else 'not_dict'}, result_type={type(tool_result.get('result')).__name__ if isinstance(tool_result, dict) and 'result' in tool_result else 'unknown'}")
                                 await websocket.send_json(msg_data)
@@ -1198,6 +1252,21 @@ class AgentService:
         except Exception as buffer_error:
             logger.warning(f"Error stopping buffer manager: {buffer_error}")
             # Continue anyway - buffers are already flushed
+
+        # Send main agent completion message before final completion
+        if self._is_websocket_connected(websocket):
+            try:
+                await websocket.send_json(
+                    WSAgentCompleteMessage(
+                        type="agent_complete",
+                        agent_type="main",
+                        invocation_id=main_invocation_id,
+                        agent_name="Assistant",
+                    ).model_dump(mode="json")
+                )
+                logger.debug(f"Sent main agent completion: invocation_id={main_invocation_id}")
+            except Exception:
+                logger.debug("Failed to send main agent completion, WebSocket may be closed")
 
         # Send complete message
         if self._is_websocket_connected(websocket):

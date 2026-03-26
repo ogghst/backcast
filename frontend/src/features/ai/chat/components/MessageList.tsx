@@ -13,6 +13,7 @@ import {
   UserOutlined,
   RobotOutlined,
   LoadingOutlined,
+  CheckOutlined,
 } from "@ant-design/icons";
 import type { ChatMessage, SubagentStream, StreamingState } from "../../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
@@ -301,6 +302,23 @@ const SubagentMessage = ({
               <LoadingOutlined spin style={{ fontSize: typography.sizes.xs }} />
               <Text style={{ fontSize: typography.sizes.xs, opacity: 0.7 }}>
                 {subagent.is_complete ? "finishing" : "working"}
+              </Text>
+            </span>
+          )}
+          {/* Completion indicator */}
+          {!subagent.is_active && subagent.is_complete && (
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: spacing.xs,
+                marginLeft: spacing.sm,
+                color: token.colorSuccess,
+              }}
+            >
+              <CheckOutlined style={{ fontSize: typography.sizes.xs }} />
+              <Text style={{ fontSize: typography.sizes.xs, opacity: 0.7 }}>
+                Done
               </Text>
             </span>
           )}
@@ -614,8 +632,8 @@ export const MessageList = ({
         }}
       />
 
-      {/* Streaming message (always last if present) */}
-      {lastMessageIsStreaming && (
+      {/* Streaming message (legacy fallback, only shown when mainStreams is empty) */}
+      {lastMessageIsStreaming && (!streamingState?.mainStreams || streamingState.mainStreams.size === 0) && (
         <StreamingMessage
           content={mainContent}
           isStreaming={isStreaming}
@@ -624,6 +642,21 @@ export const MessageList = ({
           isMobile={isMobile}
         />
       )}
+
+      {/* Main agent stream segments (separated by invocation_id) */}
+      {streamingState?.mainStreams && Array.from(streamingState.mainStreams.values())
+        .sort((a, b) => a.started_at - b.started_at)  // Show in order started
+        .map((mainStream) => (
+          <StreamingMessage
+            key={mainStream.invocation_id}
+            content={mainStream.content}
+            isStreaming={mainStream.is_active}
+            token={token}
+            showSeparator={false}
+            isMobile={isMobile}
+          />
+        ))
+      }
 
       {/* Subagent streaming messages */}
       {streamingState?.subagents && Array.from(streamingState.subagents.values())
