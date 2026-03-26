@@ -183,6 +183,7 @@ export const useStreamingChat = (
     onSubagentStart,
     onSubagentComplete,
     onMainAgentComplete,
+    onContentReset,
     onRawMessage,
   } = config;
 
