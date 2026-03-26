@@ -49,6 +49,7 @@ from app.models.schemas.ai import (
     AIConversationMessagePublic,
     WSAgentCompleteMessage,
     WSCompleteMessage,
+    WSContentResetMessage,
     WSErrorMessage,
     WSPlanningMessage,
     WSSubagentMessage,
@@ -1059,6 +1060,19 @@ class AgentService:
                                     logger.debug(f"Sent subagent completion: invocation_id={current_invocation_id}")
                                 except Exception:
                                     logger.debug("Failed to send subagent completion, WebSocket may be closed")
+
+                            # Send content reset to signal frontend to start new main agent bubble
+                            if self._is_websocket_connected(websocket):
+                                try:
+                                    await websocket.send_json(
+                                        WSContentResetMessage(
+                                            type="content_reset",
+                                            reason="subagent_completed",
+                                        ).model_dump(mode="json")
+                                    )
+                                    logger.debug("Sent content reset message after subagent completion")
+                                except Exception:
+                                    logger.debug("Failed to send content reset, WebSocket may be closed")
 
                             # Note: We NO LONGER reset accumulated_content here
                             # The main agent's thoughts persist across subagent executions

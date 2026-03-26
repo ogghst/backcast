@@ -71,6 +71,8 @@ export interface UseStreamingChatConfig {
   onSubagentComplete?: (invocationId: string) => void;
   /** Optional callback invoked when the main agent completes */
   onMainAgentComplete?: (invocationId: string) => void;
+  /** Optional callback invoked when content is reset (e.g., after subagent completes) */
+  onContentReset?: (reason: string) => void;
   /** Optional callback invoked with every raw WebSocket message (for debugging) */
   onRawMessage?: (message: unknown, direction: "in" | "out") => void;
 }
@@ -226,6 +228,7 @@ export const useStreamingChat = (
     onSubagentStart,
     onSubagentComplete,
     onMainAgentComplete,
+    onContentReset,
     onRawMessage,
   });
 
@@ -244,6 +247,7 @@ export const useStreamingChat = (
       onSubagentStart,
       onSubagentComplete,
       onMainAgentComplete,
+      onContentReset,
       onRawMessage,
     };
   });
@@ -374,8 +378,7 @@ export const useStreamingChat = (
 
       // Handle content reset messages (sent when subagent completes)
       if (isContentResetMessage(serverMessage)) {
-        // Content reset is handled by subagent completion - no additional action needed
-        console.debug("Content reset message received:", serverMessage.reason);
+        callbacks.onContentReset?.(serverMessage.reason);
         return;
       }
 

@@ -290,6 +290,21 @@ export const ChatInterface = ({
     });
   }, []);
 
+  const handleContentReset = useCallback((reason: string) => {
+    // reason parameter indicates why content was reset (e.g., "subagent_complete")
+    // Mark all existing main streams as complete to prepare for new stream
+    void reason; // Explicitly mark as intentionally unused for now
+    setStreamingState((prev) => {
+      const mainStreams = new Map(prev.mainStreams);
+      for (const [id, stream] of mainStreams) {
+        if (stream.is_active) {
+          mainStreams.set(id, { ...stream, is_active: false, is_complete: true });
+        }
+      }
+      return { ...prev, mainStreams };
+    });
+  }, []);
+
   const handleComplete = useCallback(
     (sessionId: string, messageId: string) => {
       // messageId is available for future use (e.g., for highlighting the completed message)
@@ -483,6 +498,7 @@ export const ChatInterface = ({
     onSubagentStart: handleSubagentStart,
     onSubagentComplete: handleSubagentComplete,
     onMainAgentComplete: handleMainAgentComplete,
+    onContentReset: handleContentReset,
     onRawMessage: handleRawMessage,
   });
 
