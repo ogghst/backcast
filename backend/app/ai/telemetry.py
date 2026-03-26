@@ -15,6 +15,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 
 # Environment variables
+OTEL_ENABLED = os.getenv("OTEL_ENABLED", "false").lower() == "true"
 OTLP_ENDPOINT = os.getenv("OTLP_ENDPOINT", "http://localhost:4317")
 ENABLE_CONSOLE_EXPORT = os.getenv("OTEL_CONSOLE_EXPORT", "false").lower() == "true"
 
@@ -23,11 +24,14 @@ def initialize_telemetry(
     service_name: str = "backcast-ai",
     enable_console: bool = False,
     otlp_endpoint: str | None = None,
-) -> TracerProvider:
+) -> TracerProvider | None:
     """
     Initialize OpenTelemetry with OpenInference instrumentors.
 
     Exports to Jaeger via OTLP with OpenInference semantic conventions.
+
+    Controlled by the OTEL_ENABLED environment variable (default: "false").
+    When disabled, returns None and no instrumentation is set up.
 
     Args:
         service_name: Name for this service in traces
@@ -35,8 +39,11 @@ def initialize_telemetry(
         otlp_endpoint: OTLP collector endpoint (default from OTLP_ENDPOINT env var)
 
     Returns:
-        Configured TracerProvider
+        Configured TracerProvider, or None if telemetry is disabled
     """
+    if not OTEL_ENABLED:
+        return None
+
     # Set up trace provider with resource attributes
     from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
@@ -81,6 +88,10 @@ def trace_context(
             # Your code here
             pass
     """
+    if not OTEL_ENABLED:
+        yield
+        return
+
     tracer = trace.get_tracer(__name__)
     with tracer.start_as_current_span(name, attributes=attributes or {}):
         yield
@@ -104,6 +115,10 @@ def trace_subagent_delegation(
             # Delegate to subagent
             pass
     """
+    if not OTEL_ENABLED:
+        yield
+        return
+
     from opentelemetry import trace
 
     tracer = trace.get_tracer(__name__)

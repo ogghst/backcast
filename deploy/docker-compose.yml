@@ -115,6 +115,8 @@ services:
       PORT: 8080
       LOG_LEVEL: INFO
       RUN_MIGRATIONS: "${RUN_MIGRATIONS:-true}"
+      OTEL_ENABLED: "false"
+      OTLP_ENDPOINT: http://localhost:4317
     env_file:
       - .env.production
     depends_on:
