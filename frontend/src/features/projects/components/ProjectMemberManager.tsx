@@ -173,11 +173,11 @@ export const ProjectMemberManager = ({
       key: "user_name",
       render: (name: string, record) => (
         <div>
-          <div style={{ fontWeight: 500, fontSize: typography.sizes.md }}>
+          <div style={{ fontWeight: 500, fontSize: typography.sizes.md, color: colors.text }}>
             {name || record.user_email}
           </div>
           {name && record.user_email && (
-            <div style={{ fontSize: typography.sizes.sm, opacity: 0.7 }}>
+            <div style={{ fontSize: typography.sizes.sm, color: colors.textSecondary }}>
               {record.user_email}
             </div>
           )}
@@ -250,7 +250,7 @@ export const ProjectMemberManager = ({
     <div
       style={{
         padding: spacing.md,
-        backgroundColor: "#fff",
+        backgroundColor: colors.bgContainer,
         borderRadius: borderRadius.lg,
       }}
     >
@@ -263,7 +263,7 @@ export const ProjectMemberManager = ({
         }}
       >
         <div>
-          <h2 style={{ margin: 0, fontSize: typography.sizes.xl }}>
+          <h2 style={{ margin: 0, fontSize: typography.sizes.xl, color: colors.text }}>
             Project Members
           </h2>
           {projectName && (
@@ -272,7 +272,7 @@ export const ProjectMemberManager = ({
                 margin: 0,
                 marginTop: spacing.xs,
                 fontSize: typography.sizes.sm,
-                opacity: 0.7,
+                color: colors.textSecondary,
               }}
             >
               {projectName}
@@ -506,11 +506,11 @@ export const ProjectMemberManager = ({
         style={{
           marginTop: spacing.lg,
           padding: spacing.md,
-          backgroundColor: "#fafafa",
+          backgroundColor: colors.bgLayout,
           borderRadius: borderRadius.md,
         }}
       >
-        <h4 style={{ margin: 0, marginBottom: spacing.sm }}>Role Permissions</h4>
+        <h4 style={{ margin: 0, marginBottom: spacing.sm, color: colors.text }}>Role Permissions</h4>
         <div
           style={{
             display: "grid",
@@ -521,7 +521,7 @@ export const ProjectMemberManager = ({
           {Object.entries(roleConfig).map(([key, { label, color, description }]) => (
             <div key={key} style={{ display: "flex", alignItems: "flex-start", gap: spacing.xs }}>
               <Tag color={color}>{label}</Tag>
-              <span style={{ fontSize: typography.sizes.sm }}>{description}</span>
+              <span style={{ fontSize: typography.sizes.sm, color: colors.textSecondary }}>{description}</span>
             </div>
           ))}
         </div>

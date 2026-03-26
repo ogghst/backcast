@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -89,6 +90,34 @@ class ProjectMember(SimpleEntityBase):
         foreign_keys=[assigned_by],
         viewonly=True,
     )
+
+    @property
+    def user_name(self) -> str | None:
+        """Full name of the assigned user (from eager-loaded relationship)."""
+        if "user" in sa_inspect(self).unloaded:
+            return None
+        return self.user.full_name if self.user else None
+
+    @property
+    def user_email(self) -> str | None:
+        """Email of the assigned user (from eager-loaded relationship)."""
+        if "user" in sa_inspect(self).unloaded:
+            return None
+        return self.user.email if self.user else None
+
+    @property
+    def assigned_by_name(self) -> str | None:
+        """Full name of the user who assigned the role (from eager-loaded relationship)."""
+        if "assigner" in sa_inspect(self).unloaded:
+            return None
+        return self.assigner.full_name if self.assigner else None
+
+    @property
+    def project_name(self) -> str | None:
+        """Name of the project (from eager-loaded relationship)."""
+        if "project" in sa_inspect(self).unloaded:
+            return None
+        return self.project.name if self.project else None
 
     def __repr__(self) -> str:
         return (

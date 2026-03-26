@@ -88,7 +88,8 @@ async def add_project_member(
 
     try:
         member = await service.create(**member_in.model_dump())
-        return ProjectMemberPublic.model_validate(member)
+        member_detail = await service.get_with_details(member.id)
+        return ProjectMemberPublic.model_validate(member_detail or member)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -163,7 +164,8 @@ async def update_project_member_role(
         updated_member = await service.update(
             entity_id=member.id, **member_update.model_dump()
         )
-        return ProjectMemberPublic.model_validate(updated_member)
+        member_detail = await service.get_with_details(updated_member.id)
+        return ProjectMemberPublic.model_validate(member_detail or updated_member)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
