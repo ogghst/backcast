@@ -36,6 +36,7 @@ from app.ai.telemetry import (
 from app.ai.token_buffer import TokenBuffer, TokenBufferManager
 from app.ai.tools import ToolContext, create_project_tools
 from app.ai.tools.interrupt_node import InterruptNode
+from app.ai.tools.session_manager import ToolSessionManager
 from app.ai.tools.types import ExecutionMode
 from app.core.config import settings
 from app.models.domain.ai import (
@@ -492,17 +493,28 @@ class AgentService:
         recursion_limit = assistant_config.recursion_limit if assistant_config.recursion_limit is not None else 25
 
         # Invoke the graph
-        result = await graph.ainvoke(
-            input_state={
-                "messages": history,
-                "tool_call_count": 0,
-                "next": "agent",
-            },
-            config={
-                "recursion_limit": recursion_limit,
-                "configurable": {"thread_id": str(session_id)}
-            },
-        )
+        # Note: Task-local sessions are created per tool execution and cleaned up below
+        try:
+            result = await graph.ainvoke(
+                input_state={
+                    "messages": history,
+                    "tool_call_count": 0,
+                    "next": "agent",
+                },
+                config={
+                    "recursion_limit": recursion_limit,
+                    "configurable": {"thread_id": str(session_id)}
+                },
+            )
+        finally:
+            # Clean up any remaining task-local sessions after graph execution
+            # This ensures sessions are properly removed even if tools didn't clean up
+            try:
+                await ToolSessionManager.commit()
+                logger.debug(f"Cleaned up task-local sessions after graph invocation for session {session_id}")
+            except Exception as cleanup_error:
+                logger.debug(f"No task-local sessions to clean up or cleanup failed: {cleanup_error}")
+                # Ignore cleanup errors - sessions may have already been removed
 
         # Extract final AI response
         final_message = None

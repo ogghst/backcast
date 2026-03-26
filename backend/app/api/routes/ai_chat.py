@@ -254,6 +254,10 @@ async def chat_stream(
                 data = await websocket.receive_json()
                 message_type = data.get("type", "chat")
 
+                # Handle pong keepalive — client responding to our ping, no action needed
+                if message_type == "pong":
+                    continue
+
                 # Handle approval response messages immediately (non-blocking)
                 if message_type == "approval_response":
                     try:
@@ -392,6 +396,10 @@ async def chat_stream(
                         except Exception as stream_err:
                             err_msg = str(stream_err)
                             logger.error(f"Error in chat_stream for user {user_id}: {err_msg}", exc_info=True)
+                            # CRITICAL: Roll back the session to reset transaction state
+                            # After a database error, the session enters a failed state and
+                            # all subsequent operations will fail without a rollback
+                            await db.rollback()
                             try:
                                 await websocket.send_json(
                                     WSErrorMessage(
