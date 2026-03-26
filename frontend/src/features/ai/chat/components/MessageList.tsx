@@ -52,6 +52,8 @@ interface StreamingMessageProps {
   content: string;
   /** Whether currently receiving tokens */
   isStreaming: boolean;
+  /** Whether the stream is complete (for main agent streams) */
+  isComplete?: boolean;
   token: Theme['token'];
   /** Whether to show a separator (when new text stream starts after tool execution) */
   showSeparator?: boolean;
@@ -62,6 +64,7 @@ interface StreamingMessageProps {
 const StreamingMessage = ({
   content,
   isStreaming,
+  isComplete = false,
   token,
   showSeparator,
   isMobile = false,
@@ -110,6 +113,23 @@ const StreamingMessage = ({
               <LoadingOutlined spin style={{ fontSize: typography.sizes.xs }} />
               <Text style={{ fontSize: typography.sizes.xs, opacity: 0.7 }}>
                 generating
+              </Text>
+            </span>
+          )}
+          {/* Completion indicator */}
+          {!isStreaming && isComplete && content && (
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: spacing.xs,
+                marginLeft: spacing.sm,
+                color: token.colorSuccess,
+              }}
+            >
+              <CheckOutlined style={{ fontSize: typography.sizes.xs }} />
+              <Text style={{ fontSize: typography.sizes.xs, opacity: 0.7 }}>
+                Done
               </Text>
             </span>
           )}
@@ -651,6 +671,7 @@ export const MessageList = ({
             key={mainStream.invocation_id}
             content={mainStream.content}
             isStreaming={mainStream.is_active}
+            isComplete={mainStream.is_complete}
             token={token}
             showSeparator={false}
             isMobile={isMobile}
