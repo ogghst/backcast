@@ -16,14 +16,18 @@ class TestToolContext:
         mock_session = MagicMock()
         context = ToolContext(session=mock_session, user_id="user123")
 
-        assert context.session == mock_session
+        # The original session is stored in _root_session
+        assert context._root_session == mock_session
         assert context.user_id == "user123"
+        # The session property returns a task-local session (AsyncSession from scoped factory)
+        # This is different from the original mock session to enable concurrent tool execution
 
     @pytest.mark.asyncio
     async def test_permission_checking_with_cache(self):
         """Test permission checking with caching."""
         mock_session = MagicMock()
-        context = ToolContext(session=mock_session, user_id="user123")
+        # Use "admin" role which has all permissions in the RBAC config
+        context = ToolContext(session=mock_session, user_id="user123", user_role="admin")
 
         # First check
         result1 = await context.check_permission("project-read")
@@ -33,24 +37,27 @@ class TestToolContext:
         result2 = await context.check_permission("project-read")
         assert result2 is True
 
-        # Verify cached
-        assert "project-read" in context._permission_cache
+        # Verify cached (cache key format is "permission:scope")
+        assert "project-read:global" in context._permission_cache
 
     @pytest.mark.asyncio
     async def test_permission_checking_different_permissions(self):
         """Test permission checking for different permissions."""
         mock_session = MagicMock()
-        context = ToolContext(session=mock_session, user_id="user123")
+        # Use "admin" role which has all permissions in the RBAC config
+        context = ToolContext(session=mock_session, user_id="user123", user_role="admin")
 
         # Check different permissions
         result1 = await context.check_permission("project-read")
-        result2 = await context.check_permission("admin-write")
+        result2 = await context.check_permission("user-update")
 
         assert result1 is True
         assert result2 is True
 
-        # Both should be cached
+        # Both should be cached (cache key format is "permission:scope")
         assert len(context._permission_cache) == 2
+        assert "project-read:global" in context._permission_cache
+        assert "user-update:global" in context._permission_cache
 
     @pytest.mark.asyncio
     async def test_service_accessor(self):
@@ -60,7 +67,9 @@ class TestToolContext:
 
         service = context.project_service
         assert service is not None
-        assert service.session == mock_session
+        # The service gets the task-local session from context.session property
+        # This is an AsyncSession from the scoped factory, not the original mock
+        assert service.session is not None
 
 
 class TestToolMetadata:

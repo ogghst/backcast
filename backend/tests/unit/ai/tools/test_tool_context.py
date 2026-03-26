@@ -103,4 +103,5 @@ class TestToolContextUserRole:
         # Assert
         assert context.user_id == user_id
         assert context.user_role == user_role
-        assert context.session == mock_session
+        # _root_session stores the original session
+        assert context._root_session == mock_session

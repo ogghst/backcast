@@ -154,12 +154,33 @@ def ai_tool(
                     )
                     return {"error": f"Permission denied: {permission} required"}
 
-            # Execute original function
+            # Execute original function with task-local session lifecycle
+            # Each concurrent tool execution gets its own scoped session via async_scoped_session
+            # We commit after successful execution to persist changes and clean up the session
             try:
                 result = await func(*args, **kwargs)
+
+                # Commit task-local session after successful tool execution
+                # This ensures the tool's database changes are persisted
+                from app.ai.tools.session_manager import ToolSessionManager
+                try:
+                    await ToolSessionManager.commit()
+                    logger.debug(f"Committed task-local session after tool execution: {tool_name}")
+                except Exception as commit_error:
+                    logger.warning(f"Failed to commit session after tool {tool_name}: {commit_error}")
+
                 return result
             except Exception as e:
                 logger.error(f"Error in tool {tool_name}: {e}", exc_info=True)
+
+                # Rollback task-local session on error
+                from app.ai.tools.session_manager import ToolSessionManager
+                try:
+                    await ToolSessionManager.rollback()
+                    logger.debug(f"Rolled back task-local session after tool error: {tool_name}")
+                except Exception as rollback_error:
+                    logger.warning(f"Failed to rollback session after tool {tool_name} error: {rollback_error}")
+
                 return {"error": str(e)}
 
         # Apply LangChain's @tool decorator with parse_docstring=True

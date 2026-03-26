@@ -88,7 +88,8 @@ class ToolContext:
     for tool execution.
 
     Attributes:
-        session: Async database session
+        session: Property that returns task-local session for concurrent tool execution
+        _root_session: Root WebSocket-level session (for fallback/non-tool operations)
         user_id: Authenticated user ID
         user_role: User's role for RBAC authorization (e.g., "admin", "viewer")
         execution_mode: AI tool execution mode (default: STANDARD)
@@ -98,9 +99,16 @@ class ToolContext:
         branch_name: Optional branch name for temporal queries (e.g., "main", "BR-001")
         branch_mode: Optional branch mode for temporal queries ("merged" or "isolated")
         _permission_cache: Cache for permission checks
+
+    Note:
+        The `session` property returns a task-local session using SQLAlchemy's
+        async_scoped_session, which ensures each concurrent tool execution gets
+        its own isolated session to prevent "Session is already flushing" errors.
+        The original session passed during construction is stored as `_root_session`
+        for potential fallback or WebSocket-level operations.
     """
 
-    session: AsyncSession
+    _root_session: AsyncSession = field(init=False, repr=False)
     user_id: str
     user_role: str = "guest"
     execution_mode: ExecutionMode = ExecutionMode.STANDARD
@@ -110,6 +118,57 @@ class ToolContext:
     branch_name: str | None = None
     branch_mode: Literal["merged", "isolated"] | None = None
     _permission_cache: dict[str, bool] = field(default_factory=dict)
+
+    def __init__(
+        self,
+        session: AsyncSession,
+        user_id: str,
+        user_role: str = "guest",
+        execution_mode: ExecutionMode = ExecutionMode.STANDARD,
+        project_id: str | None = None,
+        branch_id: str | None = None,
+        as_of: datetime | None = None,
+        branch_name: str | None = None,
+        branch_mode: Literal["merged", "isolated"] | None = None,
+        _permission_cache: dict[str, bool] | None = None,
+    ) -> None:
+        """Initialize ToolContext with session and user context.
+
+        Args:
+            session: The database session (will be stored as _root_session)
+            user_id: Authenticated user ID
+            user_role: User's role for RBAC
+            execution_mode: AI tool execution mode
+            project_id: Optional project context UUID
+            branch_id: Optional branch context UUID
+            as_of: Optional historical date for temporal queries
+            branch_name: Optional branch name for temporal queries
+            branch_mode: Optional branch mode for temporal queries
+            _permission_cache: Optional permission cache
+        """
+        self._root_session = session
+        self.user_id = user_id
+        self.user_role = user_role
+        self.execution_mode = execution_mode
+        self.project_id = project_id
+        self.branch_id = branch_id
+        self.as_of = as_of
+        self.branch_name = branch_name
+        self.branch_mode = branch_mode
+        self._permission_cache = _permission_cache if _permission_cache is not None else {}
+
+    @property
+    def session(self) -> AsyncSession:
+        """Get task-local session for concurrent tool execution.
+
+        Returns a session scoped to the current asyncio task using
+        SQLAlchemy's async_scoped_session with asyncio.current_task as scopefunc.
+
+        Returns:
+            AsyncSession: Task-local session for the current tool execution
+        """
+        from app.db.session import get_tool_session
+        return get_tool_session()
 
     @property
     def project_service(self) -> ProjectService:
