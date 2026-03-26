@@ -126,6 +126,20 @@ export const ChatInterface = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSession?.id, selectedAssistantId]);
 
+  // Clear streaming subagents when persisted messages are available
+  // (prevents duplicate subagent bubbles after query invalidation on complete)
+  useEffect(() => {
+    if (messages && messages.length > 0 && streamingState.subagents.size > 0) {
+      const hasPersistedSubagents = messages.some(m => m.metadata?.subagent_name);
+      if (hasPersistedSubagents) {
+        setStreamingState(prev => ({
+          ...prev,
+          subagents: new Map<string, SubagentStream>(),
+        }));
+      }
+    }
+  }, [messages, streamingState.subagents.size]);
+
   // Callbacks for streaming chat (defined outside the conditional to avoid hooks rule violation)
   const handleToken = useCallback((
     token: string,
@@ -240,11 +254,17 @@ export const ChatInterface = ({
       // Invalidate the queries so the completed message is fetched
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.messages(sessionId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.sessions() });
-      // Clear main streaming content but keep completed subagents visible
+      // Clear main streaming content; mark all subagents inactive
+      // (defensive: ensures isStreaming becomes false regardless of message ordering)
       setIsWaitingForResponse(false);
       setStreamingState((prev) => ({
         main: "",
-        subagents: prev.subagents,
+        subagents: new Map(
+          Array.from(prev.subagents.entries()).map(([id, sa]) => [
+            id,
+            { ...sa, is_active: false },
+          ])
+        ),
       }));
       setActiveToolCalls([]);
       // Always clear activity on complete - panel MUST close reliably

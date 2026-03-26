@@ -42,12 +42,10 @@ axios.interceptors.response.use(
     if (error.response?.status === 401) {
       const { logout } = useAuthStore.getState();
       logout();
-
-      // Only redirect if not already on login page
-      if (window.location.pathname !== "/login") {
-        window.location.href = "/login";
-        toast.error("Session expired. Please login again.");
-      }
+      // Don't use window.location.href — it causes full page reload, losing all React state.
+      // ProtectedRoute will handle the redirect via React Router <Navigate> once
+      // isAuthenticated becomes false.
+      toast.error("Session expired. Please login again.");
       return Promise.reject(error);
     }
 

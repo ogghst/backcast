@@ -270,8 +270,14 @@ export const useStreamingChat = (
     try {
       const message = JSON.parse(rawData);
 
-      // Handle ping/pong keepalive — ignore silently (before debug callback to prevent redraws)
+      // Handle ping/pong keepalive — respond silently (before debug callback to prevent redraws).
+      // No React state changes — ws.send() is a raw socket operation,
+      // so this won't trigger redraws, debug panel updates, or chat scrolling.
       if (message.type === "ping") {
+        const ws = wsRef.current;
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "pong" }));
+        }
         return;
       }
 
