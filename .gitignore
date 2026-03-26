@@ -66,3 +66,6 @@ markdown-rendering.png
 mermaid-fix-test.png
 mermaid-rendering.png
 frontend-screenshots/
+
+#deploy backups
+deploy/backup*.gz

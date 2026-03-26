@@ -19,6 +19,7 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "pwdlib[argon2]>=0.3.0",
     "pyjwt>=2.10.1",
+    "langchain>=1.0.0",
     "langchain-core>=1.2.18",
     "langgraph>=1.1.1",
     "openai>=1.50.0",
