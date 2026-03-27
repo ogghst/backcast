@@ -1134,28 +1134,31 @@ class AgentService:
                         # Convert to JSON-serializable format (handles nested ToolMessage objects)
                         result_content = self._make_json_serializable(result_content)
 
-                        # Record tool result
-                        tool_result: dict[str, Any] = {
-                            "tool": tool_name,
-                            "success": True,
-                            "result": result_content,
-                            "error": None,
-                        }
-                        all_tool_results.append(tool_result)
+                        # Record tool result (only for main agent — subagent tools
+                        # are not attributed to the main agent's persisted record)
+                        if current_subagent_name is None:
+                            tool_result: dict[str, Any] = {
+                                "tool": tool_name,
+                                "success": True,
+                                "result": result_content,
+                                "error": None,
+                            }
+                            all_tool_results.append(tool_result)
 
                     # Handle tool error
                     elif event_type == "on_tool_error":
                         tool_name = event.get("name", "")
                         error = data.get("error")
 
-                        # Record tool error
-                        error_result: dict[str, Any] = {
-                            "tool": tool_name,
-                            "success": False,
-                            "result": None,
-                            "error": str(error) if error else "Unknown error",
-                        }
-                        all_tool_results.append(error_result)
+                        # Record tool error (only for main agent)
+                        if current_subagent_name is None:
+                            error_result: dict[str, Any] = {
+                                "tool": tool_name,
+                                "success": False,
+                                "result": None,
+                                "error": str(error) if error else "Unknown error",
+                            }
+                            all_tool_results.append(error_result)
 
                         if self._is_websocket_connected(websocket):
                             try:
