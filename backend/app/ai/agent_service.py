@@ -1074,13 +1074,6 @@ class AgentService:
                                 invocation_id=current_invocation_id,
                             )
 
-                            # Flush subagent buffer
-                            await buffer_manager.flush_agent(
-                                source="subagent",
-                                subagent_name=current_subagent_name,
-                                invocation_id=current_invocation_id,
-                            )
-
                             # Send subagent completion message
                             if self._is_websocket_connected(websocket):
                                 try:
@@ -1120,7 +1113,8 @@ class AgentService:
                         # Generate new invocation_id for main agent's continuation after ANY tool completion
                         # This includes tools initiated by main agent AND tools initiated by subagents
                         # Every tool completion creates a new main agent bubble
-                        old_invocation_id = main_invocation_id
+                        # Note: old_invocation_id tracked for potential future use in debugging
+                        _old_invocation_id = main_invocation_id  # noqa: F841 (tracked for debugging)
                         main_invocation_id = str(uuid.uuid4())
 
                         tool_output = data.get("output", "")
