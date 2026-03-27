@@ -10,6 +10,14 @@ export type AIConversationSessionPublic = {
     user_id: string;
     assistant_config_id: string;
     title: (string | null);
+    /**
+     * Optional project context
+     */
+    project_id?: (string | null);
+    /**
+     * Optional branch or change order context
+     */
+    branch_id?: (string | null);
     created_at: string;
     updated_at: string;
 };

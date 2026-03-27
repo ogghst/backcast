@@ -11,7 +11,9 @@ export type AIAssistantConfigUpdate = {
     system_prompt?: (string | null);
     temperature?: (number | null);
     max_tokens?: (number | null);
+    recursion_limit?: (number | null);
     allowed_tools?: (Array<string> | null);
+    model_id?: (string | null);
     is_active?: (boolean | null);
 };
 

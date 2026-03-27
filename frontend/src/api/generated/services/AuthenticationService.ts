@@ -3,7 +3,9 @@
 /* tslint:disable */
 /* eslint-disable */
 import type { Body_login } from '../models/Body_login';
+import type { RefreshRequest } from '../models/RefreshRequest';
 import type { Token } from '../models/Token';
+import type { TokenResponse } from '../models/TokenResponse';
 import type { UserPublic } from '../models/UserPublic';
 import type { UserRegister } from '../models/UserRegister';
 import type { CancelablePromise } from '../core/CancelablePromise';
@@ -32,14 +34,14 @@ export class AuthenticationService {
     }
     /**
      * Login
-     * OAuth2 compatible token login, get an access token for future requests.
+     * OAuth2 compatible token login, get an access token and refresh token for future requests.
      * @param formData
-     * @returns Token Successful Response
+     * @returns TokenResponse Successful Response
      * @throws ApiError
      */
     public static login(
         formData: Body_login,
-    ): CancelablePromise<Token> {
+    ): CancelablePromise<TokenResponse> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/auth/login',
@@ -63,6 +65,52 @@ export class AuthenticationService {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/auth/me',
+        });
+    }
+    /**
+     * Refresh Token
+     * Refresh access token using a valid refresh token.
+     *
+     * Returns a new access token if the refresh token is valid, not expired,
+     * and not revoked.
+     * @param requestBody
+     * @returns Token Successful Response
+     * @throws ApiError
+     */
+    public static refreshToken(
+        requestBody: RefreshRequest,
+    ): CancelablePromise<Token> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/auth/refresh',
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Logout
+     * Logout user by revoking their refresh token.
+     *
+     * The access token will still be valid until it expires, but the
+     * refresh token cannot be used to get new access tokens.
+     * @param requestBody
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static logout(
+        requestBody: RefreshRequest,
+    ): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/auth/logout',
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
         });
     }
 }

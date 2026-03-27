@@ -88,6 +88,7 @@ export const ChatInterface = ({
   >([]);
   const [toolJustFinished, setToolJustFinished] = useState(false);
   const [showStreamSeparator, setShowStreamSeparator] = useState(false);
+  const contentResetOccurredRef = useRef(false);
 
   // Agent activity state (Deep Agent planning, subagent delegation, etc.)
   const [latestActivity, setLatestActivity] = useState<AgentActivity | null>(null);
@@ -105,6 +106,9 @@ export const ChatInterface = ({
 
   // Track invocation counts per subagent name
   const [subagentInvocationCounts, setSubagentInvocationCounts] = useState<Record<string, number>>({});
+
+  // Track sequence order for streams (to ensure proper rendering order)
+  const streamSequenceRef = useRef(0);
 
   // Query client for cache invalidation
   const queryClient = useQueryClient();
@@ -166,6 +170,22 @@ export const ChatInterface = ({
           const mainStreams = new Map(prev.mainStreams);
           const existing = mainStreams.get(invocationId);
 
+          // If content reset occurred, force new stream creation
+          if (contentResetOccurredRef.current && existing) {
+            // Generate a unique suffix to force new stream
+            const uniqueId = `${invocationId}-${Date.now()}`;
+            mainStreams.set(uniqueId, {
+              invocation_id: uniqueId,
+              content: token,
+              is_active: true,
+              is_complete: false,
+              started_at: Date.now(),
+              sequence: streamSequenceRef.current++,
+            });
+            contentResetOccurredRef.current = false; // Reset flag after first token
+            return { ...prev, mainStreams };
+          }
+
           if (existing) {
             mainStreams.set(invocationId, {
               ...existing,
@@ -179,6 +199,7 @@ export const ChatInterface = ({
               is_active: true,
               is_complete: false,
               started_at: Date.now(),
+              sequence: streamSequenceRef.current++,
             });
           }
 
@@ -251,6 +272,7 @@ export const ChatInterface = ({
         is_complete: false,
         started_at: Date.now(),
         invocation_number: invocationNumber,
+        sequence: streamSequenceRef.current++,
       });
       return { ...prev, subagents };
     });
@@ -294,6 +316,7 @@ export const ChatInterface = ({
     // reason parameter indicates why content was reset (e.g., "subagent_complete")
     // Mark all existing main streams as complete to prepare for new stream
     void reason; // Explicitly mark as intentionally unused for now
+    contentResetOccurredRef.current = true; // Set flag to force new stream creation
     setStreamingState((prev) => {
       const mainStreams = new Map(prev.mainStreams);
       for (const [id, stream] of mainStreams) {
@@ -332,6 +355,7 @@ export const ChatInterface = ({
       setLatestActivity(null);
       setShowStreamSeparator(false); // Reset separator state
       setToolJustFinished(false); // Reset tool finished state
+      contentResetOccurredRef.current = false; // Reset content reset flag
     },
     [queryClient]
   );
@@ -550,6 +574,7 @@ export const ChatInterface = ({
       // Clear any previous streaming state
       setStreamingState({
         main: "",
+        mainStreams: new Map<string, MainAgentStream>(),
         subagents: new Map<string, SubagentStream>(),
       });
       setActiveToolCalls([]);
@@ -557,6 +582,8 @@ export const ChatInterface = ({
       setIsWaitingForResponse(true);
       setShowStreamSeparator(false);
       setToolJustFinished(false);
+      contentResetOccurredRef.current = false;
+      streamSequenceRef.current = 0; // Reset sequence counter for new message
 
       // Only send if the WebSocket is connected
       if (streamingChat.connectionState !== WSConnectionState.OPEN) {
@@ -578,6 +605,7 @@ export const ChatInterface = ({
     streamingChat.cancel();
     setStreamingState({
       main: "",
+      mainStreams: new Map<string, MainAgentStream>(),
       subagents: new Map<string, SubagentStream>(),
     });
     setActiveToolCalls([]);
@@ -585,6 +613,8 @@ export const ChatInterface = ({
     setIsWaitingForResponse(false);
     setShowStreamSeparator(false);
     setToolJustFinished(false);
+    contentResetOccurredRef.current = false;
+    streamSequenceRef.current = 0; // Reset sequence counter on cancel
   }, [streamingChat]);
 
   // Handle approval decision

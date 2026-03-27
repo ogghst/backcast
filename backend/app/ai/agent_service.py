@@ -773,6 +773,15 @@ class AgentService:
         all_tool_calls: list[dict[str, Any]] = []
         all_tool_results: list[dict[str, Any]] = []
 
+        # Track main agent content segments by invocation_id for separate message persistence
+        # This preserves the bubble separation in the frontend after response completes
+        main_agent_segments: dict[str, list[str]] = {}
+
+        # Track subagent messages by the main agent invocation that triggered them
+        # This allows us to save messages in conversational order: main segment → subagents → next main segment
+        from collections import defaultdict
+        subagent_messages_by_main_invocation: dict[str, list[dict[str, Any]]] = defaultdict(list)
+
         # Track step count for progress indicators
         current_step = 0
         estimated_total_steps = None
@@ -792,6 +801,9 @@ class AgentService:
         # Track whether the current tool was initiated by the main agent (vs subagent)
         main_agent_initiated_tool: bool = False
 
+        # Track the main_invocation_id that initiated the task tool (for subagent result association)
+        task_initiating_main_invocation_id: str | None = None
+
         try:
             logger.info(f"Starting astream_events for session {session_id}")
 
@@ -806,7 +818,7 @@ class AgentService:
                     logger.debug("Failed to send thinking event, WebSocket may be closed")
 
             async def _consume_stream() -> None:
-                nonlocal current_step, estimated_total_steps, current_subagent_name, current_invocation_id, main_invocation_id, total_tokens, tool_calls_count, accumulated_content, main_agent_initiated_tool
+                nonlocal current_step, estimated_total_steps, current_subagent_name, current_invocation_id, main_invocation_id, total_tokens, tool_calls_count, accumulated_content, main_agent_initiated_tool, task_initiating_main_invocation_id
 
                 # Generate initial main agent invocation_id at stream start
                 main_invocation_id = str(uuid.uuid4())
@@ -840,6 +852,14 @@ class AgentService:
                                 content = str(chunk.content)
 
                             if content:
+                                # Track main agent content per invocation_id for separate message persistence
+                                if current_subagent_name is None:
+                                    # Main agent token - accumulate per invocation_id
+                                    if main_invocation_id not in main_agent_segments:
+                                        main_agent_segments[main_invocation_id] = []
+                                    main_agent_segments[main_invocation_id].append(content)
+
+                                # Legacy: also accumulate all content for backward compatibility
                                 accumulated_content += content
                                 total_tokens += len(content)
                                 if self._is_websocket_connected(websocket):
@@ -875,6 +895,9 @@ class AgentService:
                         if tool_name == "task":
                             current_subagent_name = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
                             current_invocation_id = str(uuid.uuid4())
+                            # Save the main_invocation_id that initiated this task tool
+                            # This will be used to associate the subagent result with the correct main segment
+                            task_initiating_main_invocation_id = main_invocation_id
 
                         # Increment step counter for all tool executions
                         current_step += 1
@@ -976,7 +999,25 @@ class AgentService:
 
                             # Extract content from various output formats
                             if isinstance(tool_output, ToolMessage):
-                                subagent_content = tool_output.content
+                                # ToolMessage.content can be str | list[str | dict[Any, Any]]
+                                raw_content = tool_output.content
+                                subagent_content = raw_content if isinstance(raw_content, str) else str(raw_content)
+                            elif isinstance(tool_output, Command):
+                                # Command objects from langgraph subagent delegation
+                                # The subagent's response is in the update field
+                                update_dict = tool_output.update
+                                if isinstance(update_dict, dict):
+                                    # Extract messages from the update
+                                    messages = update_dict.get("messages", [])
+                                    if messages:
+                                        # Get the last message which is the subagent's response
+                                        last_msg = messages[-1]
+                                        if isinstance(last_msg, dict):
+                                            subagent_content = last_msg.get("content", "")
+                                        elif hasattr(last_msg, "content"):
+                                            subagent_content = str(last_msg.content)
+                                        else:
+                                            subagent_content = str(last_msg)
                             elif isinstance(tool_output, dict) and "content" in tool_output:
                                 subagent_content = tool_output["content"]
                             elif isinstance(tool_output, str):
@@ -987,33 +1028,27 @@ class AgentService:
                                 subagent_content = str(subagent_content)
 
                             if subagent_content:
-                                # Save subagent message to database for persistence
-                                try:
-                                    # Track invocation count for this subagent
-                                    subagent_type = current_subagent_name or "subagent"
-                                    if subagent_type not in self._subagent_invocation_counts:
-                                        self._subagent_invocation_counts[subagent_type] = 0
-                                    self._subagent_invocation_counts[subagent_type] += 1
-                                    invocation_number = self._subagent_invocation_counts[subagent_type]
+                                # Track subagent message for later persistence in correct order
+                                # The subagent should be associated with the CURRENT main_invocation_id
+                                # (the one that will become "old" after regeneration below)
+                                subagent_type = current_subagent_name or "subagent"
+                                if subagent_type not in self._subagent_invocation_counts:
+                                    self._subagent_invocation_counts[subagent_type] = 0
+                                self._subagent_invocation_counts[subagent_type] += 1
+                                invocation_number = self._subagent_invocation_counts[subagent_type]
 
-                                    await self.config_service.add_message(
-                                        session_id=session_id,
-                                        role="assistant",
-                                        content=subagent_content,
-                                        message_metadata={
-                                            "subagent_name": subagent_type,
-                                            "invocation_number": invocation_number,
-                                        } if current_subagent_name else None,
-                                    )
-                                    await self.session.commit()
-                                    logger.info(
-                                        f"Saved subagent message to database: name={current_subagent_name}, "
-                                        f"invocation_number={invocation_number}, "
-                                        f"content_length={len(subagent_content)}"
-                                    )
-                                except Exception as db_error:
-                                    logger.error(f"Failed to save subagent message to database: {db_error}", exc_info=True)
-
+                                # Store subagent message with the main_invocation_id that initiated the task
+                                # Use task_initiating_main_invocation_id to ensure correct association
+                                # This ensures subagent messages are saved after the main segment that triggered them
+                                target_invocation_id = task_initiating_main_invocation_id or main_invocation_id
+                                subagent_messages_by_main_invocation[target_invocation_id].append({
+                                    "role": "assistant",
+                                    "content": subagent_content,
+                                    "message_metadata": {
+                                        "subagent_name": subagent_type,
+                                        "invocation_number": invocation_number,
+                                    } if current_subagent_name else None,
+                                })
                                 # Send WebSocket message
                                 if self._is_websocket_connected(websocket):
                                     try:
@@ -1080,14 +1115,13 @@ class AgentService:
 
                             current_subagent_name = None
                             current_invocation_id = None
+                            task_initiating_main_invocation_id = None
 
                         # Generate new invocation_id for main agent's continuation after ANY tool completion
                         # This includes tools initiated by main agent AND tools initiated by subagents
                         # Every tool completion creates a new main agent bubble
                         old_invocation_id = main_invocation_id
                         main_invocation_id = str(uuid.uuid4())
-                        initiator = "main agent" if main_agent_initiated_tool else "subagent"
-                        logger.info(f"[TOOL_END] Tool='{tool_name}' completed (initiated by {initiator}). Regenerated main_invocation_id: {old_invocation_id} -> {main_invocation_id}")
 
                         tool_output = data.get("output", "")
 
@@ -1221,37 +1255,107 @@ class AgentService:
         finally:
             self.unregister_interrupt_node(session_id)
 
-        # Save assistant message to session
+        # Save assistant messages to session in conversational order
+        # Order: main segment → its subagents → next main segment → its subagents, etc.
+        # This preserves the correct conversational flow in the frontend after response completes
         # Wrap in try/except to handle any session state issues
         try:
-            assistant_msg = await self.config_service.add_message(
-                session_id=session_id,
-                role="assistant",
-                content=accumulated_content or "",
-                tool_calls=all_tool_calls if all_tool_calls else None,
-                tool_results=all_tool_results if all_tool_results else None,
+            # Get invocation IDs in the order they were created (maintains chronological order)
+            invocation_ids_in_order = list(main_agent_segments.keys())
+            total_main_segments = len(invocation_ids_in_order)
+
+            # Save messages in conversational order: main segment → subagents → main segment → subagents
+            assistant_msg = None
+            message_count = 0
+            for idx, inv_id in enumerate(invocation_ids_in_order):
+                # Save main agent segment
+                segment_content = "".join(main_agent_segments[inv_id])
+
+                # Add metadata to track invocation_id and order
+                metadata = {
+                    "invocation_id": inv_id,
+                    "segment_index": idx,
+                    "total_segments": total_main_segments,
+                }
+
+                # Only attach tool_calls and tool_results to the first main segment
+                # This prevents duplication and maintains backward compatibility
+                segment_tool_calls = all_tool_calls if idx == 0 and all_tool_calls else None
+                segment_tool_results = all_tool_results if idx == 0 and all_tool_results else None
+
+                logger.info(
+                    f"[SAVE_MAIN_SEGMENT] Saving main segment {idx + 1}/{total_main_segments}: "
+                    f"invocation_id={inv_id}, content_length={len(segment_content)}, "
+                    f"has_tool_calls={segment_tool_calls is not None}"
+                )
+
+                segment_msg = await self.config_service.add_message(
+                    session_id=session_id,
+                    role="assistant",
+                    content=segment_content,
+                    tool_calls=segment_tool_calls,
+                    tool_results=segment_tool_results,
+                    message_metadata=metadata,
+                )
+                await db.commit()
+                await db.refresh(segment_msg)
+                message_count += 1
+
+                # Keep track of the last message for the completion message
+                assistant_msg = segment_msg
+
+                # Save subagent messages that were triggered by this main agent segment
+                # These are already tracked in subagent_messages_by_main_invocation[inv_id]
+                if inv_id in subagent_messages_by_main_invocation:
+                    subagent_msgs = subagent_messages_by_main_invocation[inv_id]
+                    logger.info(
+                        f"[SAVE_SUBAGENT_MESSAGES] Saving {len(subagent_msgs)} subagent message(s) "
+                        f"triggered by main segment invocation_id={inv_id}"
+                    )
+
+                    for subagent_msg_data in subagent_msgs:
+                        subagent_msg = await self.config_service.add_message(
+                            session_id=session_id,
+                            **subagent_msg_data
+                        )
+                        await db.commit()
+                        await db.refresh(subagent_msg)
+                        message_count += 1
+
+                        # Update assistant_msg to the last message (could be subagent)
+                        assistant_msg = subagent_msg
+
+                        logger.info(
+                            f"[SAVE_SUBAGENT_MESSAGE] Saved subagent message: "
+                            f"subagent_name={subagent_msg_data.get('message_metadata', {}).get('subagent_name')}, "
+                            f"content_length={len(subagent_msg_data.get('content', ''))}"
+                        )
+
+            logger.info(
+                f"[SAVE_COMPLETE] Saved {message_count} total messages to session {session_id} "
+                f"({total_main_segments} main segments + {message_count - total_main_segments} subagent messages)"
             )
-            await db.commit()
-            await db.refresh(assistant_msg)
         except Exception as msg_error:
-            logger.error(f"Error saving assistant message to session {session_id}: {msg_error}", exc_info=True)
+            logger.error(f"Error saving assistant messages to session {session_id}: {msg_error}", exc_info=True)
             # Rollback to ensure session is clean
             try:
                 await db.rollback()
             except Exception:
                 pass
-            # Try to save message again with clean session (without tool results if they caused issues)
+            # Try to save messages again with clean session (without tool results if they caused issues)
             try:
+                # Fallback: save as single message with accumulated content
                 assistant_msg = await self.config_service.add_message(
                     session_id=session_id,
                     role="assistant",
                     content=accumulated_content or "",
                     tool_calls=None,  # Don't include tool calls on retry
                     tool_results=None,  # Don't include tool results on retry
+                    message_metadata=None,
                 )
                 await db.commit()
                 await db.refresh(assistant_msg)
-                logger.info(f"Successfully saved message to session {session_id} after cleanup")
+                logger.info(f"Successfully saved fallback message to session {session_id} after cleanup")
             except Exception as retry_error:
                 logger.error(f"Failed to save message even after cleanup: {retry_error}", exc_info=True)
                 # Continue anyway - we've done our best to save the state
@@ -1283,7 +1387,8 @@ class AgentService:
                 logger.debug("Failed to send main agent completion, WebSocket may be closed")
 
         # Send complete message
-        if self._is_websocket_connected(websocket):
+        # Use the last message ID for the completion message (maintains backward compatibility)
+        if self._is_websocket_connected(websocket) and assistant_msg:
             try:
                 await websocket.send_json(
                     WSCompleteMessage(
@@ -1295,6 +1400,8 @@ class AgentService:
             except Exception:
                 # WebSocket may be closed, but message is persisted
                 logger.warning("WebSocket closed before sending complete message")
+        elif not assistant_msg:
+            logger.warning("No assistant message was saved, skipping completion message")
         else:
             logger.debug("WebSocket not connected, skipping complete send")
 
@@ -1304,7 +1411,7 @@ class AgentService:
             f"[CHAT_STREAM_COMPLETE] chat_stream | "
             f"duration_ms={stream_duration_ms:.2f} | "
             f"session_id={session_id} | "
-            f"message_id={assistant_msg.id} | "
+            f"message_id={assistant_msg.id if assistant_msg else 'N/A'} | "
             f"total_tokens={total_tokens} | "
             f"tool_calls_count={tool_calls_count} | "
             f"tool_results_count={len(all_tool_results)}"

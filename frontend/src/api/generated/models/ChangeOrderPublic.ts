@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ChangeOrderStatus } from './ChangeOrderStatus';
 /**
  * Schema for Change Order API responses.
  */
@@ -33,7 +34,7 @@ export type ChangeOrderPublic = {
     /**
      * Workflow state
      */
-    status?: string;
+    status?: ChangeOrderStatus;
     /**
      * Financial impact level (LOW/MEDIUM/HIGH/CRITICAL)
      */

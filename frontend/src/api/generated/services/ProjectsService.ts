@@ -21,7 +21,7 @@ export class ProjectsService {
      * - **Pagination**: Returns total count for proper pagination UI
      * - **Mode**: Branch mode - "merged" (combine with main) or "isolated" (current branch only)
      *
-     * Requires read permission.
+     * Requires read permission. Non-admin users only see projects they are members of.
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param branch Branch name

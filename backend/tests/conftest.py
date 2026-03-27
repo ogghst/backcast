@@ -142,6 +142,7 @@ def apply_migrations() -> Generator[None, None, None]:
                     "change_orders",
                     "change_order_audit_log",
                     "forecasts",
+                    "refresh_tokens",  # Refresh token storage
                     "ai_providers",
                     "ai_provider_configs",
                     "ai_models",
@@ -594,6 +595,10 @@ async def test_user(db_session: AsyncSession) -> User:
     Returns:
         User instance with viewer role.
     """
+    from app.core.security import get_password_hash
+
+    test_password = "testpass123"
+    hashed = get_password_hash(test_password)
 
     user = User(
         id=uuid4(),
@@ -602,13 +607,29 @@ async def test_user(db_session: AsyncSession) -> User:
         full_name="Test User",
         role="viewer",
         is_active=True,
-        hashed_password="hash",
+        hashed_password=hashed,
         created_by=uuid4(),
     )
     db_session.add(user)
     await db_session.flush()
     await db_session.refresh(user)
+
+    # Store password on user object for test access
+    user._test_password = test_password  # type: ignore
     return user
+
+
+@pytest.fixture
+def test_password(test_user: User) -> str:
+    """Get the test password for the test_user fixture.
+
+    Args:
+        test_user: The test user fixture.
+
+    Returns:
+        The plain text password for authentication tests.
+    """
+    return getattr(test_user, "_test_password", "testpass123")
 
 
 @pytest_asyncio.fixture

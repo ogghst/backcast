@@ -2,34 +2,12 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { AIChatRequest } from '../models/AIChatRequest';
-import type { AIChatResponse } from '../models/AIChatResponse';
 import type { AIConversationMessagePublic } from '../models/AIConversationMessagePublic';
 import type { AIConversationSessionPublic } from '../models/AIConversationSessionPublic';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
 export class AiChatService {
-    /**
-     * Chat
-     * Send a chat message using LangGraph agent.
-     * @param requestBody
-     * @returns AIChatResponse Successful Response
-     * @throws ApiError
-     */
-    public static aiChat(
-        requestBody: AIChatRequest,
-    ): CancelablePromise<AIChatResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/ai/chat/chat',
-            body: requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: `Validation Error`,
-            },
-        });
-    }
     /**
      * List Sessions
      * List conversation sessions for the current user.

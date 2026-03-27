@@ -1,7 +1,10 @@
-import { AuthenticationService, Body_login } from "@/api/generated";
+import { AuthenticationService, Body_login, type TokenResponse as GeneratedTokenResponse } from "@/api/generated";
 import axios from "axios";
 
-import type { Token, TokenResponse, UserLogin, UserPublic } from "@/types/auth";
+import type { Token, UserLogin, UserPublic } from "@/types/auth";
+
+// Re-export generated types for convenience
+export type TokenResponse = GeneratedTokenResponse;
 
 /**
  * Login user with email and password
@@ -14,7 +17,7 @@ export const loginUser = async (credentials: UserLogin): Promise<TokenResponse> 
     grant_type: "password",
   };
 
-  return (await AuthenticationService.login(formData)) as unknown as TokenResponse;
+  return await AuthenticationService.login(formData);
 };
 
 /**

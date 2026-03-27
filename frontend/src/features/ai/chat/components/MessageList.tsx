@@ -15,7 +15,7 @@ import {
   LoadingOutlined,
   CheckOutlined,
 } from "@ant-design/icons";
-import type { ChatMessage, SubagentStream, StreamingState } from "../../types";
+import type { ChatMessage, SubagentStream, MainAgentStream, StreamingState } from "../../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 
@@ -663,35 +663,72 @@ export const MessageList = ({
         />
       )}
 
-      {/* Main agent stream segments (separated by invocation_id) */}
-      {streamingState?.mainStreams && Array.from(streamingState.mainStreams.values())
-        .sort((a, b) => a.started_at - b.started_at)  // Show in order started
-        .map((mainStream) => (
-          <StreamingMessage
-            key={mainStream.invocation_id}
-            content={mainStream.content}
-            isStreaming={mainStream.is_active}
-            isComplete={mainStream.is_complete}
-            token={token}
-            showSeparator={false}
-            isMobile={isMobile}
-          />
-        ))
-      }
+      {/* Combine main agent streams and subagents, render in sequence order */}
+      {(() => {
+        type StreamItem =
+          | { type: 'main'; sequence: number; started_at: number; data: MainAgentStream }
+          | { type: 'subagent'; sequence: number; started_at: number; data: SubagentStream };
 
-      {/* Subagent streaming messages */}
-      {streamingState?.subagents && Array.from(streamingState.subagents.values())
-        .sort((a, b) => a.started_at - b.started_at)  // Show in order started
-        .map((subagent) => (
-          <SubagentMessage
-            key={subagent.invocation_id}
-            subagent={subagent}
-            token={token}
-            isMobile={isMobile}
-            invocationNumber={subagent.invocation_number}
-          />
-        ))
-      }
+        const allStreams: StreamItem[] = [];
+
+        // Add main streams
+        if (streamingState?.mainStreams) {
+          for (const stream of streamingState.mainStreams.values()) {
+            allStreams.push({
+              type: 'main',
+              sequence: stream.sequence ?? 0,
+              started_at: stream.started_at,
+              data: stream,
+            });
+          }
+        }
+
+        // Add subagent streams
+        if (streamingState?.subagents) {
+          for (const stream of streamingState.subagents.values()) {
+            allStreams.push({
+              type: 'subagent',
+              sequence: stream.sequence ?? 0,
+              started_at: stream.started_at,
+              data: stream,
+            });
+          }
+        }
+
+        // Sort by sequence (primary) and started_at (fallback)
+        allStreams.sort((a, b) => {
+          if (a.sequence !== b.sequence) {
+            return a.sequence - b.sequence;
+          }
+          return a.started_at - b.started_at;
+        });
+
+        return allStreams.map((item) => {
+          if (item.type === 'main') {
+            return (
+              <StreamingMessage
+                key={item.data.invocation_id}
+                content={item.data.content}
+                isStreaming={item.data.is_active}
+                isComplete={item.data.is_complete}
+                token={token}
+                showSeparator={false}
+                isMobile={isMobile}
+              />
+            );
+          } else {
+            return (
+              <SubagentMessage
+                key={item.data.invocation_id}
+                subagent={item.data}
+                token={token}
+                isMobile={isMobile}
+                invocationNumber={item.data.invocation_number}
+              />
+            );
+          }
+        });
+      })()}
 
       {/* Invisible element for auto-scroll */}
       <div ref={messagesEndRef} />

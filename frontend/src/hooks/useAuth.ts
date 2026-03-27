@@ -2,8 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
-import { getCurrentUser, loginUser } from "@/api/auth";
-import type { UserLogin, UserPublic, TokenResponse } from "@/types/auth";
+import { getCurrentUser, loginUser, type TokenResponse } from "@/api/auth";
+import type { UserLogin, UserPublic } from "@/types/auth";
 import { queryKeys } from "@/api/queryKeys";
 
 /**

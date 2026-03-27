@@ -30,6 +30,7 @@ export interface SubagentStream {
   is_complete: boolean; // Whether this subagent has finished
   started_at: number; // Timestamp when streaming started
   invocation_number?: number; // Invocation count for this subagent name (e.g., 2 for second invocation)
+  sequence?: number; // Order in which this stream was created (for proper rendering)
 }
 
 /**
@@ -42,6 +43,7 @@ export interface MainAgentStream {
   is_active: boolean; // Whether this stream is currently streaming
   is_complete: boolean; // Whether this stream has finished
   started_at: number; // Timestamp when streaming started
+  sequence?: number; // Order in which this stream was created (for proper rendering)
 }
 
 /**

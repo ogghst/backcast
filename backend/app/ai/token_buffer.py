@@ -70,6 +70,9 @@ class TokenBufferManager:
         if source == "subagent" and invocation_id:
             # Use invocation_id for unique subagent identification
             return f"{source}:{invocation_id}"
+        if source == "main" and invocation_id:
+            # Use invocation_id for main agent (separates content before/after subagents)
+            return f"{source}:{invocation_id}"
         return f"{source}:{subagent_name or 'main'}"
 
     def set_flush_callback(self, callback: Callable[[str, TokenBuffer], None]) -> None:

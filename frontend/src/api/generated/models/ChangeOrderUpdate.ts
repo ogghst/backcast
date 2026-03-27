@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ChangeOrderStatus } from './ChangeOrderStatus';
 /**
  * Schema for updating a Change Order.
  *
@@ -13,7 +14,7 @@ export type ChangeOrderUpdate = {
     description?: (string | null);
     justification?: (string | null);
     effective_date?: (string | null);
-    status?: (string | null);
+    status?: (ChangeOrderStatus | null);
     /**
      * Branch name for update (defaults to current branch)
      */

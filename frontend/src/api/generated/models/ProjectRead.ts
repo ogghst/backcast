@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ProjectStatus } from './ProjectStatus';
 /**
  * Schema for reading project data.
  */
@@ -25,7 +26,7 @@ export type ProjectRead = {
     /**
      * Project status
      */
-    status?: string;
+    status?: ProjectStatus;
     /**
      * Project start date
      */

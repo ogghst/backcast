@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ProjectStatus } from './ProjectStatus';
 /**
  * Schema for creating a new project.
  */
@@ -25,7 +26,7 @@ export type ProjectCreate = {
     /**
      * Project status
      */
-    status?: string;
+    status?: ProjectStatus;
     /**
      * Project start date
      */

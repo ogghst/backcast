@@ -7,11 +7,13 @@ import type { AIAssistantConfigPublic } from '../models/AIAssistantConfigPublic'
 import type { AIAssistantConfigUpdate } from '../models/AIAssistantConfigUpdate';
 import type { AIModelCreate } from '../models/AIModelCreate';
 import type { AIModelPublic } from '../models/AIModelPublic';
+import type { AIModelUpdate } from '../models/AIModelUpdate';
 import type { AIProviderConfigCreate } from '../models/AIProviderConfigCreate';
 import type { AIProviderConfigPublic } from '../models/AIProviderConfigPublic';
 import type { AIProviderCreate } from '../models/AIProviderCreate';
 import type { AIProviderPublic } from '../models/AIProviderPublic';
 import type { AIProviderUpdate } from '../models/AIProviderUpdate';
+import type { AIToolPublic } from '../models/AIToolPublic';
 import type { CancelablePromise } from '../core/CancelablePromise';
 import { OpenAPI } from '../core/OpenAPI';
 import { request as __request } from '../core/request';
@@ -174,6 +176,27 @@ export class AiConfigurationService {
         });
     }
     /**
+     * List All Models
+     * List all AI models across all providers.
+     * @param includeInactive
+     * @returns AIModelPublic Successful Response
+     * @throws ApiError
+     */
+    public static listAllModels(
+        includeInactive: boolean = false,
+    ): CancelablePromise<Array<AIModelPublic>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/ai/config/models',
+            query: {
+                'include_inactive': includeInactive,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
      * List Provider Models
      * List all models for a provider.
      * @param providerId
@@ -219,6 +242,58 @@ export class AiConfigurationService {
             },
             body: requestBody,
             mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Update Model
+     * Update an AI model.
+     * @param providerId
+     * @param modelId
+     * @param requestBody
+     * @returns AIModelPublic Successful Response
+     * @throws ApiError
+     */
+    public static updateAiModel(
+        providerId: string,
+        modelId: string,
+        requestBody: AIModelUpdate,
+    ): CancelablePromise<AIModelPublic> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/ai/config/providers/{provider_id}/models/{model_id}',
+            path: {
+                'provider_id': providerId,
+                'model_id': modelId,
+            },
+            body: requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
+     * Delete Model
+     * Delete an AI model.
+     * @param providerId
+     * @param modelId
+     * @returns void
+     * @throws ApiError
+     */
+    public static deleteAiModel(
+        providerId: string,
+        modelId: string,
+    ): CancelablePromise<void> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/ai/config/providers/{provider_id}/models/{model_id}',
+            path: {
+                'provider_id': providerId,
+                'model_id': modelId,
+            },
             errors: {
                 422: `Validation Error`,
             },
@@ -330,6 +405,20 @@ export class AiConfigurationService {
             errors: {
                 422: `Validation Error`,
             },
+        });
+    }
+    /**
+     * List Ai Tools
+     * List all available AI tools.
+     *
+     * Imports and registers all tool templates before querying the registry.
+     * @returns AIToolPublic Successful Response
+     * @throws ApiError
+     */
+    public static listAiTools(): CancelablePromise<Array<AIToolPublic>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/ai/config/tools',
         });
     }
 }

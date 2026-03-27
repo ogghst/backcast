@@ -13,6 +13,10 @@ export type AIAssistantConfigPublic = {
     temperature?: (number | null);
     max_tokens?: (number | null);
     /**
+     * LangGraph recursion limit (maximum steps in agent execution loop)
+     */
+    recursion_limit?: (number | null);
+    /**
      * List of tool names this assistant can use
      */
     allowed_tools?: (Array<string> | null);

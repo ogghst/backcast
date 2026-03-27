@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ProjectStatus } from './ProjectStatus';
 /**
  * Schema for updating an existing project.
  */
@@ -9,6 +10,10 @@ export type ProjectUpdate = {
     name?: (string | null);
     budget?: (number | string | null);
     contract_value?: (number | string | null);
+    /**
+     * Project status
+     */
+    status?: (ProjectStatus | null);
     start_date?: (string | null);
     end_date?: (string | null);
     description?: (string | null);
