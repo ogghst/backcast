@@ -314,7 +314,9 @@ class AIConversationMessagePublic(BaseModel):
             for key in cls.model_fields:
                 if key == 'metadata':
                     # Use message_metadata from the database model
-                    result[key] = getattr(data, 'message_metadata', None) or {}
+                    # Explicitly handle None vs empty dict to preserve metadata content
+                    metadata_value = getattr(data, 'message_metadata', None)
+                    result[key] = metadata_value if metadata_value is not None else {}
                 elif hasattr(data, key):
                     value = getattr(data, key)
                     result[key] = value
