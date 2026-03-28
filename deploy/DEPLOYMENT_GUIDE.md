@@ -1,4 +1,4 @@
-# Backcast EVS Production Deployment Guide
+# Backcast  Production Deployment Guide
 
 **Target Domain:** backcast.duckdns.org
 **Deployment Date:** 2026-01-26
@@ -177,7 +177,7 @@ ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # Application Settings
-PROJECT_NAME=Backcast EVS
+PROJECT_NAME=Backcast 
 API_V1_STR=/api/v1
 DEBUG=false
 PORT=8080

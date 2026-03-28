@@ -1,7 +1,7 @@
 """Tests for RBACToolNode permission checks."""
 
 from unittest.mock import AsyncMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from langchain_core.tools import BaseTool
@@ -18,6 +18,7 @@ class MockRBACService(RBACServiceABC):
     def __init__(self, permissions: dict[str, list[str]]) -> None:
         """Initialize mock with role-permission mappings."""
         self._permissions = permissions
+        self.session = None
 
     def has_role(self, user_role: str, required_roles: list[str]) -> bool:
         """Check if user's role is in the required roles list."""
@@ -31,6 +32,30 @@ class MockRBACService(RBACServiceABC):
     def get_user_permissions(self, user_role: str) -> list[str]:
         """Get all permissions for a given role."""
         return self._permissions.get(user_role, [])
+
+    async def has_project_access(
+        self,
+        user_id: UUID,
+        user_role: str,
+        project_id: UUID,
+        required_permission: str,
+    ) -> bool:
+        """Check if user has access to a project with required permission."""
+        # For testing, admins have access to all projects
+        if user_role == "admin":
+            return True
+        # For other roles, check global permissions
+        return self.has_permission(user_role, required_permission)
+
+    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
+        """Get list of project IDs the user has access to."""
+        # For testing, return empty list (no projects)
+        return []
+
+    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
+        """Get user's role within a specific project."""
+        # For testing, return None (no project role)
+        return None
 
 
 class TestRBACToolNode:
@@ -92,7 +117,8 @@ class TestRBACToolNode:
 
         return test_tool
 
-    def test_rbac_tool_node_permission_denied(
+    @pytest.mark.asyncio
+    async def test_rbac_tool_node_permission_denied(
         self,
         sample_tool: BaseTool,
         viewer_context: ToolContext
@@ -144,7 +170,7 @@ class TestRBACToolNode:
         node = RBACToolNode([delete_project], viewer_context)
 
         # Test that permission check works correctly
-        error_message = node._check_tool_permission("delete_project")
+        error_message = await node._check_tool_permission("delete_project", {})
 
         # Assert: Should return error message
         assert error_message is not None
@@ -152,7 +178,8 @@ class TestRBACToolNode:
         assert "project-delete" in error_message
         assert "viewer" in error_message
 
-    def test_rbac_tool_node_permission_granted(
+    @pytest.mark.asyncio
+    async def test_rbac_tool_node_permission_granted(
         self,
         sample_tool: BaseTool,
         admin_context: ToolContext
@@ -178,7 +205,7 @@ class TestRBACToolNode:
         node = RBACToolNode([sample_tool], admin_context)
 
         # Test that permission check allows execution
-        error_message = node._check_tool_permission("test_tool")
+        error_message = await node._check_tool_permission("test_tool", {})
 
         # Assert: Should return None (permission granted)
         assert error_message is None
@@ -206,7 +233,8 @@ class TestRBACToolNode:
 
 
     # === T-RBAC-01: test_rbac_check_called_before_execution ===
-    def test_rbac_check_called_before_execution(
+    @pytest.mark.asyncio
+    async def test_rbac_check_called_before_execution(
         self,
         sample_tool: BaseTool,
         admin_context: ToolContext
@@ -233,7 +261,7 @@ class TestRBACToolNode:
         node = RBACToolNode([sample_tool], admin_context)
 
         # Act: Check permission
-        result = node._check_tool_permission("test_tool")
+        result = await node._check_tool_permission("test_tool", {})
 
         # Assert: Permission check returned None (allowed)
         assert result is None
@@ -242,7 +270,8 @@ class TestRBACToolNode:
 
 
     # === T-RBAC-02: test_rbac_denied_returns_error_message ===
-    def test_rbac_denied_returns_error_message(
+    @pytest.mark.asyncio
+    async def test_rbac_denied_returns_error_message(
         self,
         sample_tool: BaseTool,
         viewer_context: ToolContext
@@ -294,7 +323,7 @@ class TestRBACToolNode:
         node = RBACToolNode([delete_project], viewer_context)
 
         # Act: Check permission
-        error_message = node._check_tool_permission("delete_project")
+        error_message = await node._check_tool_permission("delete_project", {})
 
         # Assert: Error message has proper format
         assert error_message is not None
@@ -305,7 +334,8 @@ class TestRBACToolNode:
 
 
     # === T-RBAC-03: test_rbac_multiple_permissions_all_required ===
-    def test_rbac_multiple_permissions_all_required(
+    @pytest.mark.asyncio
+    async def test_rbac_multiple_permissions_all_required(
         self,
         mock_session: AsyncMock,
         admin_context: ToolContext
@@ -363,7 +393,7 @@ class TestRBACToolNode:
         node = RBACToolNode([update_project], editor_context)
 
         # Act: Check permission
-        error_message = node._check_tool_permission("update_project")
+        error_message = await node._check_tool_permission("update_project", {})
 
         # Assert: Should be denied (missing project-write)
         assert error_message is not None
@@ -373,7 +403,8 @@ class TestRBACToolNode:
 
 
     # === T-RBAC-04: test_rbac_no_permissions_allows_execution ===
-    def test_rbac_no_permissions_allows_execution(
+    @pytest.mark.asyncio
+    async def test_rbac_no_permissions_allows_execution(
         self,
         mock_session: AsyncMock,
         admin_context: ToolContext
@@ -425,7 +456,7 @@ class TestRBACToolNode:
         node = RBACToolNode([public_tool], guest_context)
 
         # Act: Check permission
-        error_message = node._check_tool_permission("public_tool")
+        error_message = await node._check_tool_permission("public_tool", {})
 
         # Assert: Should be allowed (no metadata = no permissions required)
         assert error_message is None
@@ -433,7 +464,8 @@ class TestRBACToolNode:
 
 
     # === Additional test: tool not found handling ===
-    def test_rbac_tool_not_found_returns_error(
+    @pytest.mark.asyncio
+    async def test_rbac_tool_not_found_returns_error(
         self,
         mock_session: AsyncMock,
         admin_context: ToolContext
@@ -468,7 +500,7 @@ class TestRBACToolNode:
         node = RBACToolNode([existing_tool], admin_context)
 
         # Act: Try to check permission for non-existent tool
-        error_message = node._check_tool_permission("nonexistent_tool")
+        error_message = await node._check_tool_permission("nonexistent_tool", {})
 
         # Assert: Should return tool not found error
         assert error_message is not None

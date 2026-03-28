@@ -191,7 +191,13 @@ class TemporalService[TVersionable: VersionableProtocol]:
                 ),  # Exclude empty ranges
                 cast(Any, self.entity_class).deleted_at.is_(None),
             )
-            stmt = stmt.order_by(cast(Any, self.entity_class).valid_time.desc())
+            # Order by valid_time DESC, then transaction_time DESC as tiebreaker
+            # This ensures deterministic selection when multiple rows have the same valid_time
+            # (e.g., during concurrent updates or corrections)
+            stmt = stmt.order_by(
+                cast(Any, self.entity_class).valid_time.desc(),
+                cast(Any, self.entity_class).transaction_time.desc(),
+            )
 
         stmt = stmt.limit(1)
         result = await self.session.execute(stmt)
@@ -315,6 +321,9 @@ class TemporalService[TVersionable: VersionableProtocol]:
                 case((cast(Any, self.entity_class).branch == branch, 0), else_=1),
                 # Then by valid_time descending (newest first)
                 cast(Any, self.entity_class).valid_time.desc(),
+                # Then by transaction_time descending as tiebreaker for deterministic ordering
+                # when multiple rows have the same valid_time (e.g., concurrent updates/corrections)
+                cast(Any, self.entity_class).transaction_time.desc(),
             )
 
             # Apply DISTINCT ON root_id
@@ -514,6 +523,12 @@ class TemporalService[TVersionable: VersionableProtocol]:
             entity = row[0]
             # Attach the joined name to the entity object
             entity.created_by_name = row[1]
+
+            # Populate created_at from transaction_time lower bound
+            if hasattr(entity, 'transaction_time') and entity.transaction_time:
+                if hasattr(entity.transaction_time, 'lower'):
+                    entity.created_at = entity.transaction_time.lower
+
             history.append(entity)
 
         return history

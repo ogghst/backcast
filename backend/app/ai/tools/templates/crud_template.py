@@ -22,6 +22,13 @@ Usage:
     3. Use ToolContext for dependency injection
     4. Call service methods with context.session
     5. Return results in AI-friendly format
+
+TEMPORAL CONTEXT PATTERN:
+For temporal tools (those that work with versioned entities):
+- Import temporal logging helpers: log_temporal_context, add_temporal_metadata
+- Call log_temporal_context() at tool start for observability
+- Call add_temporal_metadata() on return to include temporal context in results
+- Update tool descriptions to mention temporal context enforcement
 """
 
 import logging
@@ -30,7 +37,8 @@ from typing import Annotated, Any
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
-from app.ai.tools.types import ToolContext
+from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
+from app.ai.tools.types import RiskLevel, ToolContext
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
 from app.models.schemas.wbe import WBECreate
 
@@ -43,9 +51,11 @@ logger = logging.getLogger(__name__)
 @ai_tool(
     name="list_projects",
     description="List all projects with optional search, filtering, and pagination. "
-    "Returns a list of projects with their IDs, names, codes, and metadata.",
+    "Returns a list of projects with their IDs, names, codes, and metadata. "
+    "Temporal context (branch, as_of date) is enforced by the system.",
     permissions=["project-read"],
     category="projects",
+    risk_level=RiskLevel.LOW,
 )
 async def list_projects(
     search: str | None = None,
@@ -75,6 +85,7 @@ async def list_projects(
         - total: Total number of projects matching filters
         - skip: Number of records skipped
         - limit: Maximum records returned
+        - _temporal_context: Temporal context metadata (branch, as_of)
 
     Raises:
         ValueError: If invalid filter parameters are provided
@@ -85,6 +96,9 @@ async def list_projects(
         >>> for project in result['projects']:
         ...     print(f"- {project['name']} ({project['code']})")
     """
+    # Log temporal context for observability
+    log_temporal_context("list_projects", context)
+
     try:
         # Use ProjectService from context
         service = context.project_service
@@ -98,8 +112,8 @@ async def list_projects(
             sort_order=sort_order,
         )
 
-        # Convert to AI-friendly format
-        return {
+        # Convert to AI-friendly format and add temporal metadata
+        result = {
             "projects": [
                 {
                     "id": str(p.project_id),
@@ -115,17 +129,21 @@ async def list_projects(
             "skip": skip,
             "limit": limit,
         }
+        return add_temporal_metadata(result, context)
     except Exception as e:
         logger.error(f"Error in list_projects: {e}")
-        return {"error": str(e)}
+        error_result = {"error": str(e)}
+        return add_temporal_metadata(error_result, context)
 
 
 @ai_tool(
     name="get_project",
     description="Get detailed information about a specific project by ID. "
-    "Returns full project details including budget, status, and metadata.",
+    "Returns full project details including budget, status, and metadata. "
+    "Temporal context (branch, as_of date) is enforced by the system.",
     permissions=["project-read"],
     category="projects",
+    risk_level=RiskLevel.LOW,
 )
 async def get_project(
     project_id: str,
@@ -141,6 +159,7 @@ async def get_project(
 
     Returns:
         Dictionary with project details or error if not found
+        Includes _temporal_context metadata
 
     Raises:
         ValueError: If project_id is not a valid UUID format
@@ -152,6 +171,9 @@ async def get_project(
         ...     print(f"Project: {result['name']}")
         ...     print(f"Budget: ${result['budget']}")
     """
+    # Log temporal context for observability
+    log_temporal_context("get_project", context)
+
     try:
         from uuid import UUID
 
@@ -161,10 +183,11 @@ async def get_project(
         project = await service.get_by_id(UUID(project_id))
 
         if not project:
-            return {"error": f"Project {project_id} not found"}
+            not_found_result = {"error": f"Project {project_id} not found"}
+            return add_temporal_metadata(not_found_result, context)
 
-        # Convert to AI-friendly format
-        return {
+        # Convert to AI-friendly format and add temporal metadata
+        result: dict[str, str | float | None] = {
             "id": str(project.project_id),
             "name": project.name,
             "code": project.code,
@@ -174,11 +197,14 @@ async def get_project(
             "start_date": project.start_date.isoformat() if project.start_date else None,
             "end_date": project.end_date.isoformat() if project.end_date else None,
         }
+        return add_temporal_metadata(result, context)
     except ValueError:
-        return {"error": f"Invalid project ID: {project_id}"}
+        error_result = {"error": f"Invalid project ID: {project_id}"}
+        return add_temporal_metadata(error_result, context)
     except Exception as e:
         logger.error(f"Error in get_project: {e}")
-        return {"error": str(e)}
+        error_result = {"error": str(e)}
+        return add_temporal_metadata(error_result, context)
 
 
 @ai_tool(
@@ -187,6 +213,7 @@ async def get_project(
     "Returns the created project with its assigned ID.",
     permissions=["project-create"],
     category="projects",
+    risk_level=RiskLevel.HIGH,
 )
 async def create_project(
     name: str,
@@ -265,6 +292,7 @@ async def create_project(
     "Only updates fields that are provided.",
     permissions=["project-update"],
     category="projects",
+    risk_level=RiskLevel.HIGH,
 )
 async def update_project(
     project_id: str,
@@ -306,13 +334,23 @@ async def update_project(
 
         service = context.project_service
 
+        # Build update kwargs with only non-None values to prevent
+        # passing null values to the database which violates NOT NULL constraints
+        update_kwargs: dict[str, object] = {}
+        if name is not None:
+            update_kwargs["name"] = name
+        if description is not None:
+            update_kwargs["description"] = description
+        if budget is not None:
+            update_kwargs["budget"] = budget
+        if status is not None:
+            update_kwargs["status"] = status
+
+        if not update_kwargs:
+            return {"error": "No fields provided for update"}
+
         # Create update schema with only provided fields
-        update_data = ProjectUpdate(
-            name=name,
-            description=description,
-            budget=budget,
-            status=status,
-        )
+        update_data = ProjectUpdate(**update_kwargs)
 
         # Call service method
         project = await service.update_project(
@@ -349,6 +387,7 @@ async def update_project(
     "WBEs represent the hierarchical breakdown of project work.",
     permissions=["wbe-read"],
     category="wbe",
+    risk_level=RiskLevel.LOW,
 )
 async def list_wbes(
     project_id: str | None = None,
@@ -424,6 +463,7 @@ async def list_wbes(
     description="Get detailed information about a specific Work Breakdown Element (WBE).",
     permissions=["wbe-read"],
     category="wbe",
+    risk_level=RiskLevel.LOW,
 )
 async def get_wbe(
     wbe_id: str,
@@ -484,6 +524,7 @@ async def get_wbe(
     description="Create a new Work Breakdown Element (WBE) under a project.",
     permissions=["wbe-create"],
     category="wbe",
+    risk_level=RiskLevel.HIGH,
 )
 async def create_wbe(
     project_id: str,

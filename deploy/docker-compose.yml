@@ -1,4 +1,4 @@
-# Production Docker Compose for Backcast EVS
+# Production Docker Compose for Backcast 
 # This file is isolated from development configuration
 # Usage: docker compose -f deploy/docker-compose.yml --env-file deploy/.env.production up -d
 
@@ -115,6 +115,8 @@ services:
       PORT: 8080
       LOG_LEVEL: INFO
       RUN_MIGRATIONS: "${RUN_MIGRATIONS:-true}"
+      OTEL_ENABLED: "false"
+      OTLP_ENDPOINT: http://localhost:4317
     env_file:
       - .env.production
     depends_on:

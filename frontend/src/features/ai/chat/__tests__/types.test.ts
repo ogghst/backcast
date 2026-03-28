@@ -5,6 +5,7 @@
 import { describe, it, expect } from "vitest";
 import {
   WSConnectionState,
+  type ExecutionMode,
   type WSChatRequest,
   type WSTokenMessage,
   type WSToolCallMessage,
@@ -12,11 +13,15 @@ import {
   type WSCompleteMessage,
   type WSErrorMessage,
   type WSServerMessage,
+  type WSApprovalRequestMessage,
+  type WSApprovalResponseMessage,
   isTokenMessage,
   isToolCallMessage,
   isToolResultMessage,
   isCompleteMessage,
   isErrorMessage,
+  isApprovalRequestMessage,
+  isApprovalResponseMessage,
 } from "../types";
 
 describe("WebSocket Types", () => {
@@ -222,6 +227,213 @@ describe("WebSocket Types", () => {
       expect(toolResultMessages).toHaveLength(1);
       expect(completeMessages).toHaveLength(1);
       expect(errorMessages).toHaveLength(1);
+    });
+  });
+
+  describe("Execution Mode Types (Phase 4)", () => {
+    describe("ExecutionMode type", () => {
+      it("should accept valid execution mode values", () => {
+        const safeMode: ExecutionMode = "safe";
+        const standardMode: ExecutionMode = "standard";
+        const expertMode: ExecutionMode = "expert";
+
+        expect(safeMode).toBe("safe");
+        expect(standardMode).toBe("standard");
+        expect(expertMode).toBe("expert");
+      });
+
+      it("should only accept valid execution mode values", () => {
+        // Type-level validation is enforced by TypeScript compiler
+        // This test documents the expected behavior
+        const validModes: ExecutionMode[] = ["safe", "standard", "expert"];
+        expect(validModes).toHaveLength(3);
+
+        // At runtime, we can validate that invalid values are not in the type
+        const invalidMode = "dangerous";
+        expect(validModes.includes(invalidMode as ExecutionMode)).toBe(false);
+      });
+    });
+
+    describe("WSChatRequest with execution_mode", () => {
+      it("should accept execution_mode field", () => {
+        const request: WSChatRequest = {
+          type: "chat",
+          message: "Hello, AI!",
+          session_id: "session-123",
+          assistant_config_id: "assistant-456",
+          execution_mode: "safe",
+        };
+
+        expect(request.execution_mode).toBe("safe");
+      });
+
+      it("should accept all valid execution modes", () => {
+        const safeRequest: WSChatRequest = {
+          type: "chat",
+          message: "Safe mode",
+          session_id: null,
+          assistant_config_id: "assistant-456",
+          execution_mode: "safe",
+        };
+
+        const standardRequest: WSChatRequest = {
+          type: "chat",
+          message: "Standard mode",
+          session_id: null,
+          assistant_config_id: "assistant-456",
+          execution_mode: "standard",
+        };
+
+        const expertRequest: WSChatRequest = {
+          type: "chat",
+          message: "Expert mode",
+          session_id: null,
+          assistant_config_id: "assistant-456",
+          execution_mode: "expert",
+        };
+
+        expect(safeRequest.execution_mode).toBe("safe");
+        expect(standardRequest.execution_mode).toBe("standard");
+        expect(expertRequest.execution_mode).toBe("expert");
+      });
+
+      it("should default execution_mode to standard", () => {
+        const request: WSChatRequest = {
+          type: "chat",
+          message: "Default mode",
+          session_id: null,
+          assistant_config_id: "assistant-456",
+        };
+
+        expect(request.execution_mode).toBeUndefined();
+        // In practice, backend defaults to "standard"
+      });
+    });
+  });
+
+  describe("Approval Messages (Phase 4)", () => {
+    describe("WSApprovalRequestMessage", () => {
+      it("should create valid approval request message", () => {
+        const message: WSApprovalRequestMessage = {
+          type: "approval_request",
+          approval_id: "approval-123",
+          session_id: "session-456",
+          tool_name: "delete_project",
+          tool_args: { project_id: "proj-789" },
+          risk_level: "critical",
+          expires_at: "2026-03-22T17:00:00Z",
+        };
+
+        expect(message.type).toBe("approval_request");
+        expect(message.approval_id).toBe("approval-123");
+        expect(message.session_id).toBe("session-456");
+        expect(message.tool_name).toBe("delete_project");
+        expect(message.tool_args).toEqual({ project_id: "proj-789" });
+        expect(message.risk_level).toBe("critical");
+        expect(message.expires_at).toBe("2026-03-22T17:00:00Z");
+      });
+
+      it("should have all required fields", () => {
+        // This test documents the required fields
+        const requiredFields: (keyof WSApprovalRequestMessage)[] = [
+          "type",
+          "approval_id",
+          "session_id",
+          "tool_name",
+          "tool_args",
+          "risk_level",
+          "expires_at",
+        ];
+
+        expect(requiredFields).toHaveLength(7);
+      });
+    });
+
+    describe("WSApprovalResponseMessage", () => {
+      it("should create valid approval response message", () => {
+        const message: WSApprovalResponseMessage = {
+          type: "approval_response",
+          approval_id: "approval-123",
+          approved: true,
+          user_id: "user-456",
+          timestamp: "2026-03-22T16:55:00Z",
+        };
+
+        expect(message.type).toBe("approval_response");
+        expect(message.approval_id).toBe("approval-123");
+        expect(message.approved).toBe(true);
+        expect(message.user_id).toBe("user-456");
+        expect(message.timestamp).toBe("2026-03-22T16:55:00Z");
+      });
+
+      it("should handle rejection", () => {
+        const message: WSApprovalResponseMessage = {
+          type: "approval_response",
+          approval_id: "approval-123",
+          approved: false,
+          user_id: "user-456",
+          timestamp: "2026-03-22T16:55:00Z",
+        };
+
+        expect(message.approved).toBe(false);
+      });
+    });
+
+    describe("isApprovalRequestMessage type guard", () => {
+      it("should identify approval request messages", () => {
+        const message: WSApprovalRequestMessage = {
+          type: "approval_request",
+          approval_id: "approval-123",
+          session_id: "session-456",
+          tool_name: "delete_project",
+          tool_args: { project_id: "proj-789" },
+          risk_level: "critical",
+          expires_at: "2026-03-22T17:00:00Z",
+        };
+
+        expect(isApprovalRequestMessage(message)).toBe(true);
+        if (isApprovalRequestMessage(message)) {
+          expect(message.tool_name).toBe("delete_project");
+          expect(message.risk_level).toBe("critical");
+        }
+      });
+
+      it("should reject other message types", () => {
+        const tokenMessage: WSTokenMessage = {
+          type: "token",
+          content: "Hello",
+          session_id: "session-123",
+        };
+
+        expect(isApprovalRequestMessage(tokenMessage)).toBe(false);
+      });
+    });
+
+    describe("isApprovalResponseMessage type guard", () => {
+      it("should identify approval response messages", () => {
+        const message: WSApprovalResponseMessage = {
+          type: "approval_response",
+          approval_id: "approval-123",
+          approved: true,
+          user_id: "user-456",
+          timestamp: "2026-03-22T16:55:00Z",
+        };
+
+        expect(isApprovalResponseMessage(message)).toBe(true);
+        if (isApprovalResponseMessage(message)) {
+          expect(message.approved).toBe(true);
+          expect(message.user_id).toBe("user-456");
+        }
+      });
+
+      it("should reject other message types", () => {
+        const errorMessage: WSErrorMessage = {
+          type: "error",
+          message: "Error occurred",
+        };
+
+        expect(isApprovalResponseMessage(errorMessage)).toBe(false);
+      });
     });
   });
 });

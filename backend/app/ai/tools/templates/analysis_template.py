@@ -10,7 +10,7 @@ The key principle is:
 
     @ai_tool decorator MUST wrap existing service methods, NOT duplicate business logic
 
-Analysis Tools in Backcast EVS:
+Analysis Tools in Backcast:
 - EVM: Earned Value Management for cost/schedule performance
 - Forecasting: Predict future performance based on trends
 - Variance: Compare planned vs actual performance
@@ -22,6 +22,13 @@ Usage:
     3. Use ToolContext for dependency injection
     4. Call service methods with context.session
     5. Return results in AI-friendly format
+
+TEMPORAL CONTEXT PATTERN:
+For temporal tools (those that work with versioned entities):
+- Import temporal logging helpers: log_temporal_context, add_temporal_metadata
+- Call log_temporal_context() at tool start for observability
+- Call add_temporal_metadata() on return to include temporal context in results
+- Update tool descriptions to mention temporal context enforcement
 """
 
 import logging
@@ -32,7 +39,8 @@ from uuid import UUID
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
-from app.ai.tools.types import ToolContext
+from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
+from app.ai.tools.types import RiskLevel, ToolContext
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +51,11 @@ logger = logging.getLogger(__name__)
 @ai_tool(
     name="calculate_evm_metrics",
     description="Calculate Earned Value Management (EVM) metrics for a project. "
-    "Returns PV, EV, AC, CV, SV, CPI, SPI, and other key EVM indicators.",
+    "Returns PV, EV, AC, CV, SV, CPI, SPI, and other key EVM indicators. "
+    "Temporal context (branch, as_of date) is enforced by the system.",
     permissions=["evm-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def calculate_evm_metrics(
     project_id: str,
@@ -73,6 +83,7 @@ async def calculate_evm_metrics(
         - vac: Variance at Completion (BAC - EAC)
         - etc: Estimate to Complete
         - eac: Estimate at Completion
+        - _temporal_context: Temporal context metadata (branch, as_of)
 
     Raises:
         ValueError: If project_id is invalid or date format is wrong
@@ -84,6 +95,9 @@ async def calculate_evm_metrics(
         >>> if result['cpi'] < 1.0:
         ...     print("Project over budget")
     """
+    # Log temporal context for observability
+    log_temporal_context("calculate_evm_metrics", context)
+
     try:
         from app.models.schemas.evm import EntityType
         from app.services.evm_service import EVMService
@@ -101,8 +115,8 @@ async def calculate_evm_metrics(
             control_date=as_of,
         )
 
-        # Convert to AI-friendly format
-        return {
+        # Convert to AI-friendly format and add temporal metadata
+        result = {
             "project_id": project_id,
             "as_of_date": as_of.isoformat(),
             "planned_value": float(evm_data.pv),
@@ -119,11 +133,14 @@ async def calculate_evm_metrics(
             "progress_percentage": float(evm_data.progress_percentage) if evm_data.progress_percentage is not None else 0.0,
             "warning": evm_data.warning,
         }
+        return add_temporal_metadata(result, context)
     except ValueError as e:
-        return {"error": f"Invalid input: {e}"}
+        error_result = {"error": f"Invalid input: {e}"}
+        return add_temporal_metadata(error_result, context)
     except Exception as e:
         logger.error(f"Error in calculate_evm_metrics: {e}")
-        return {"error": str(e)}
+        error_result = {"error": str(e)}
+        return add_temporal_metadata(error_result, context)
 
 
 @ai_tool(
@@ -132,6 +149,7 @@ async def calculate_evm_metrics(
     "and performance assessment (on track, at risk, off track).",
     permissions=["evm-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def get_evm_performance_summary(
     project_id: str,
@@ -210,6 +228,7 @@ async def get_evm_performance_summary(
     "by work breakdown structure and identifies root causes.",
     permissions=["evm-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def analyze_cost_variance(
     project_id: str,
@@ -279,6 +298,7 @@ async def analyze_cost_variance(
     "critical path issues, and schedule risks.",
     permissions=["evm-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def analyze_schedule_variance(
     project_id: str,
@@ -350,6 +370,7 @@ async def analyze_schedule_variance(
     "performance trends. Estimates final cost, completion date, and variance.",
     permissions=["forecast-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def generate_project_forecast(
     project_id: str,
@@ -422,6 +443,7 @@ async def generate_project_forecast(
     "Helps understand range of possible outcomes.",
     permissions=["forecast-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def compare_forecast_scenarios(
     project_id: str,
@@ -488,6 +510,7 @@ async def compare_forecast_scenarios(
     "Helps improve forecasting models and understand uncertainty.",
     permissions=["forecast-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def get_forecast_accuracy(
     project_id: str,
@@ -556,6 +579,7 @@ async def get_forecast_accuracy(
     "Returns overall health score and critical metrics.",
     permissions=["evm-read"],
     category="analysis",
+    risk_level=RiskLevel.LOW,
 )
 async def get_project_kpis(
     project_id: str,

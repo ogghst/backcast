@@ -8,7 +8,7 @@
 
 ## Overview
 
-The Backcast EVS AI Chat is an intelligent assistant that helps you manage projects, work breakdown structures (WBEs), cost elements, change orders, and perform earned value analysis using natural language. Simply ask questions in plain English, and the AI will use the appropriate tools to retrieve and analyze your data.
+The Backcast  AI Chat is an intelligent assistant that helps you manage projects, work breakdown structures (WBEs), cost elements, change orders, and perform earned value analysis using natural language. Simply ask questions in plain English, and the AI will use the appropriate tools to retrieve and analyze your data.
 
 ### What Can AI Chat Do?
 
@@ -25,7 +25,7 @@ The Backcast EVS AI Chat is an intelligent assistant that helps you manage proje
 
 ### Accessing AI Chat
 
-1. Navigate to the AI Chat section in the Backcast EVS application
+1. Navigate to the AI Chat section in the Backcast  application
 2. Select or create an AI assistant configuration
 3. Start a new conversation or continue an existing one
 4. Type your question and press Enter or click Send
@@ -336,7 +336,7 @@ You don't need to use technical terms. Ask questions the way you would to a coll
 
 ### What AI Chat Cannot Do
 
-- **Modify Data**: AI Chat is read-only. It cannot create, update, or delete projects, WBEs, or cost elements
+- **Modify Data**: In Standard or Expert mode, AI Chat can create and update data (with approval in Standard mode for high-risk tools). Critical operations like deletion require Expert mode.
 - **Access Unauthorized Data**: You can only see data you have permissions to access
 - **Perform Calculations Beyond Tools**: Calculations are limited to the available EVM and forecasting tools
 - **Real-time Data**: Data is based on the last database update, not real-time

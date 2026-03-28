@@ -1,6 +1,6 @@
-# Docker Deployment Guide for Backcast EVS
+# Docker Deployment Guide for Backcast 
 
-This guide covers deploying Backcast EVS to production using Docker and Traefik with automatic SSL certificates.
+This guide covers deploying Backcast  to production using Docker and Traefik with automatic SSL certificates.
 
 ## Audience
 

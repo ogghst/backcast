@@ -33,6 +33,16 @@ class Settings(BaseSettings):
     LOG_LEVEL: str
     LOG_FILE: str
     LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    LOG_MAX_BYTES: int = 50 * 1024  # 50 KB default
+    LOG_BACKUP_COUNT: int = 10  # Keep up to 10 rotated log files
+
+    # AI Token Buffering
+    AI_TOKEN_BUFFER_ENABLED: bool = True
+    AI_TOKEN_BUFFER_INTERVAL_MS: int = 1000  # 1 second default
+    AI_TOKEN_BUFFER_MAX_SIZE: int = 10000  # Max tokens before forced flush
+
+    # Refresh Token Configuration
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 days default
 
 
 settings = Settings()

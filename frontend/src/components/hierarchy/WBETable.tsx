@@ -1,4 +1,4 @@
-import { Table, Button, Space, Input, Tag, theme } from "antd";
+import { Table, Button, Space, Input, Tag, theme, Grid } from "antd";
 import type { ColumnType } from "antd/es/table";
 import { WBERead } from "@/api/generated";
 import {
@@ -9,6 +9,8 @@ import {
 } from "@ant-design/icons";
 import { Can } from "@/components/auth/Can";
 import { useMemo, useState } from "react";
+
+const { useBreakpoint } = Grid;
 
 export interface WBETablePagination {
   current: number;
@@ -37,6 +39,8 @@ export const WBETable = ({
   pagination,
 }: WBETableProps) => {
   const { token } = theme.useToken();
+  const screens = useBreakpoint();
+  const isMobile = !screens.md; // Mobile: < 768px
   const [searchText, setSearchText] = useState("");
 
   const getColumnSearchProps = (
@@ -98,49 +102,58 @@ export const WBETable = ({
     },
   });
 
-  const columns: ColumnType<WBERead>[] = [
-    {
-      title: "Code",
-      dataIndex: "code",
-      key: "code",
-      width: 100,
-      sorter: (a, b) =>
-        a.code.localeCompare(b.code, undefined, { numeric: true }),
-      ...getColumnSearchProps("code"),
-    },
-    {
-      title: "Name",
-      dataIndex: "name",
-      key: "name",
-      sorter: (a, b) => a.name.localeCompare(b.name),
-      ...getColumnSearchProps("name"),
-    },
-    {
-      title: "Budget",
-      dataIndex: "budget_allocation",
-      key: "budget_allocation",
-      render: (val) =>
-        val
-          ? new Intl.NumberFormat("en-US", {
-              style: "currency",
-              currency: "EUR",
-            }).format(val)
-          : "-",
-      width: 150,
-      align: "right",
-      sorter: (a, b) =>
-        Number(a.budget_allocation || 0) - Number(b.budget_allocation || 0),
-    },
-    {
-      title: "Branch",
-      dataIndex: "branch",
-      key: "branch",
-      width: 120,
-      render: (val) => (val ? <Tag>{val}</Tag> : "-"),
-      sorter: (a, b) => a.branch.localeCompare(b.branch),
-      ...getColumnSearchProps("branch"),
-    },
-    {
+  const columns: ColumnType<WBERead>[] = (() => {
+    const cols: ColumnType<WBERead>[] = [
+      {
+        title: "Code",
+        dataIndex: "code",
+        key: "code",
+        width: 100,
+        sorter: (a, b) =>
+          a.code.localeCompare(b.code, undefined, { numeric: true }),
+        ...getColumnSearchProps("code"),
+      },
+      {
+        title: "Name",
+        dataIndex: "name",
+        key: "name",
+        sorter: (a, b) => a.name.localeCompare(b.name),
+        ...getColumnSearchProps("name"),
+      },
+    ];
+
+    // Hide Budget and Branch on mobile
+    if (!isMobile) {
+      cols.push(
+        {
+          title: "Budget",
+          dataIndex: "budget_allocation",
+          key: "budget_allocation",
+          render: (val) =>
+            val
+              ? new Intl.NumberFormat("en-US", {
+                  style: "currency",
+                  currency: "EUR",
+                }).format(val)
+              : "-",
+          width: 150,
+          align: "right",
+          sorter: (a, b) =>
+            Number(a.budget_allocation || 0) - Number(b.budget_allocation || 0),
+        },
+        {
+          title: "Branch",
+          dataIndex: "branch",
+          key: "branch",
+          width: 120,
+          render: (val) => (val ? <Tag>{val}</Tag> : "-"),
+          sorter: (a, b) => a.branch.localeCompare(b.branch),
+          ...getColumnSearchProps("branch"),
+        }
+      );
+    }
+
+    cols.push({
       title: "Actions",
       key: "actions",
       width: 150,
@@ -172,12 +185,14 @@ export const WBETable = ({
             onClick={() => onRowClick?.(record)}
             title="Drill Down"
           >
-            Open
+            {isMobile ? undefined : "Open"}
           </Button>
         </Space>
       ),
-    },
-  ];
+    });
+
+    return cols;
+  })();
 
   const filteredData = useMemo(() => {
     let result = wbes || [];
@@ -209,7 +224,7 @@ export const WBETable = ({
             placeholder="Search..."
             allowClear
             onChange={(e) => setSearchText(e.target.value)}
-            style={{ width: 300 }}
+            style={{ width: isMobile ? "100%" : 300 }}
           />
         </div>
       )}
@@ -218,6 +233,7 @@ export const WBETable = ({
         columns={columns}
         rowKey="wbe_id"
         loading={loading}
+        scroll={{ x: isMobile ? "max-content" : undefined }}
         onRow={(record) => ({
           onClick: () => onRowClick?.(record),
           style: { cursor: "pointer" },

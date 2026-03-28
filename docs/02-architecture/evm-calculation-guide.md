@@ -7,7 +7,7 @@
 
 ## Overview
 
-This guide explains **how EVM is implemented** in Backcast EVS, including data sources, calculation flow, API usage, and time-travel capabilities.
+This guide explains **how EVM is implemented** in Backcast , including data sources, calculation flow, API usage, and time-travel capabilities.
 
 > **For EVM formulas and definitions**, see the authoritative source: [EVM Requirements](../../01-product-scope/evm-requirements.md)
 >
@@ -15,7 +15,7 @@ This guide explains **how EVM is implemented** in Backcast EVS, including data s
 
 ---
 
-## Implementation in Backcast EVS
+## Implementation in Backcast 
 
 ### Data Sources
 
@@ -118,7 +118,7 @@ curl -X GET "http://localhost:8020/api/v1/cost-elements/{cost_element_id}/evm?co
 
 ## Time-Travel Queries
 
-Backcast EVS supports time-travel queries for all EVM metrics, enabling historical analysis and "what-if" scenarios.
+Backcast  supports time-travel queries for all EVM metrics, enabling historical analysis and "what-if" scenarios.
 
 ### Historical EVM Analysis
 

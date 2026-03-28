@@ -4,6 +4,7 @@ Provides dependency injection for current user authentication and authorization.
 """
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -130,3 +131,65 @@ class RoleChecker:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient permissions",
         )
+
+
+class ProjectRoleChecker:
+    """FastAPI dependency for project-level role-based authorization.
+
+    Checks if a user has the required permission for a specific project.
+    System admins bypass project-level checks and always have access.
+
+    Example usage:
+        @app.get("/projects/{project_id}/wbes",
+                 dependencies=[Depends(ProjectRoleChecker(required_permission="project-read"))])
+        async def get_project_wbes(project_id: UUID): ...
+    """
+
+    def __init__(self, required_permission: str) -> None:
+        """Initialize ProjectRoleChecker dependency.
+
+        Args:
+            required_permission: Permission string required for project access
+        """
+        self.required_permission = required_permission
+
+    async def __call__(
+        self,
+        project_id: UUID,
+        current_user: Annotated[User, Depends(get_current_active_user)],
+        rbac_service: Annotated[RBACServiceABC, Depends(get_rbac_service)],
+        session: Annotated[AsyncSession, Depends(get_db)],
+    ) -> User:
+        """Check if current user has required permission for the project.
+
+        Args:
+            project_id: The project ID to check access for
+            current_user: The authenticated user from JWT token
+            rbac_service: The RBAC service for authorization checks
+            session: Database session for project-level lookups
+
+        Returns:
+            The current user if authorized
+
+        Raises:
+            HTTPException: 403 Forbidden if user lacks required permission
+        """
+        # Inject session into rbac_service if it supports it
+        if hasattr(rbac_service, "session"):
+            rbac_service.session = session
+
+        # Check if user has access to the project
+        has_access = await rbac_service.has_project_access(
+            user_id=current_user.user_id,
+            user_role=current_user.role,
+            project_id=project_id,
+            required_permission=self.required_permission,
+        )
+
+        if not has_access:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Insufficient permissions for project {project_id}",
+            )
+
+        return current_user

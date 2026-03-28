@@ -400,7 +400,7 @@ def ai_tool(
 ) -> Callable[[Callable[..., T]], BaseTool]:
     """Decorator composing LangChain @tool with domain metadata.
 
-    Context: Bridges LangChain's tool system with Backcast EVS
+    Context: Bridges LangChain's tool system with Backcast 
     domain concerns (RBAC metadata, categories). RBAC enforcement
     is handled by RBACToolNode, not this decorator.
 

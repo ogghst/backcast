@@ -5,7 +5,7 @@
 
 ## Overview
 
-This document is the **definitive reference** for bitemporal queries and time travel in the Backcast EVS system. It covers:
+This document is the **definitive reference** for bitemporal queries and time travel in the Backcast  system. It covers:
 
 - **Bitemporal Fundamentals:** Two time dimensions (valid time, transaction time)
 - **Time Travel Semantics:** Current Knowledge vs System Time travel

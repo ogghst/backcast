@@ -23,6 +23,7 @@ from app.models.domain import (  # noqa: F401
     forecast,
     progress_entry,
     project,
+    refresh_token,
     schedule_baseline,
     user,
     wbe,

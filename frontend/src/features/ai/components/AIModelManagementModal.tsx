@@ -163,17 +163,6 @@ export const AIModelManagementModal = ({
     },
   ];
 
-  // Validate providerId before allowing any operations
-  const isValidProviderId = providerId && providerId !== "01234567-89ab-cdef-0123-456789abcdef" && providerId.length > 0;
-
-  if (!isValidProviderId && open) {
-    console.error("[AIModelManagementModal] Invalid providerId detected", {
-      providerId,
-      providerName,
-      open,
-    });
-  }
-
   return (
     <>
       <Modal
@@ -190,7 +179,6 @@ export const AIModelManagementModal = ({
             icon={<PlusOutlined />}
             onClick={handleAddModel}
             block
-            disabled={!isValidProviderId}
           >
             Add Model
           </Button>

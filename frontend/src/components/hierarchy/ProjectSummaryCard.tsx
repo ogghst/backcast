@@ -1,4 +1,3 @@
-import React from "react";
 import { ProjectRead } from "@/api/generated";
 import { ProjectHeaderCard } from "@/components/projects/ProjectHeaderCard";
 import { ProjectInfoCard } from "@/components/projects/ProjectInfoCard";
@@ -9,9 +8,10 @@ interface ProjectSummaryCardProps {
 }
 
 /**
- * ProjectSummaryCard - Redesigned project summary with card-based layout.
+ * ProjectSummaryCard - Project summary with header and info cards.
  *
- * Combines ProjectHeaderCard and ProjectInfoCard for a refined dashboard aesthetic.
+ * Displays project name, key metrics, and additional details in a
+ * compact two-card layout.
  */
 export const ProjectSummaryCard = ({
   project,
@@ -19,10 +19,7 @@ export const ProjectSummaryCard = ({
 }: ProjectSummaryCardProps) => {
   return (
     <>
-      <ProjectHeaderCard
-        project={project}
-        loading={loading}
-      />
+      <ProjectHeaderCard project={project} loading={loading} />
       <ProjectInfoCard project={project} loading={loading} />
     </>
   );

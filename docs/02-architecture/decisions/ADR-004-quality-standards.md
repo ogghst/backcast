@@ -6,7 +6,7 @@
 
 ## Context
 
-The Backcast EVS system requires enterprise-grade reliability for financial tracking and EVM calculations. To ensure code quality, maintainability, and reliability, we needed to establish clear standards that:
+The Backcast  system requires enterprise-grade reliability for financial tracking and EVM calculations. To ensure code quality, maintainability, and reliability, we needed to establish clear standards that:
 
 - Catch bugs at compile time where possible
 - Ensure consistent code style

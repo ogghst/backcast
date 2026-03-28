@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { Tabs, theme } from "antd";
 import { useEffect } from "react";
+import { Grid } from "antd";
 import {
   useCostElement,
   useCostElementBreadcrumb,
@@ -21,6 +22,8 @@ export const CostElementDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const setCurrentProject = useTimeMachineStore((s) => s.setCurrentProject);
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
 
   const { data: breadcrumb, isLoading: breadcrumbLoading } =
     useCostElementBreadcrumb(id!) as {
@@ -96,19 +99,27 @@ export const CostElementDetailPage = () => {
   ];
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{
+      padding: isMobile ? token.paddingMD : token.paddingXL,
+      paddingBottom: isMobile ? token.paddingMD : token.paddingXL
+    }}>
       {/* Breadcrumb Navigation */}
       <CostElementBreadcrumbBuilder
         breadcrumb={breadcrumb}
         loading={breadcrumbLoading}
+        isMobile={isMobile}
       />
 
       {/* Page Header */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: 0 }}>
+      <div style={{ marginBottom: isMobile ? token.marginMD : token.marginLG }}>
+        <h1 style={{
+          margin: 0,
+          fontSize: isMobile ? token.fontSizeXL : token.fontSizeXXL,
+          lineHeight: isMobile ? 1.2 : 1.3,
+        }}>
           {costElement?.code} - {costElement?.name}
         </h1>
-        {costElement?.description && (
+        {costElement?.description && !isMobile && (
           <p style={{ color: token.colorTextSecondary, margin: "8px 0 0 0" }}>
             {costElement.description}
           </p>
@@ -116,7 +127,17 @@ export const CostElementDetailPage = () => {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultActiveKey="overview" items={tabItems} />
+      <Tabs
+        defaultActiveKey="overview"
+        items={tabItems}
+        type={isMobile ? "editable-card" : "line"}
+        hideAdd
+        tabBarStyle={{
+          overflow: "auto",
+          overflowX: "auto",
+          marginBottom: isMobile ? token.marginSM : token.marginMD,
+        }}
+      />
     </div>
   );
 };

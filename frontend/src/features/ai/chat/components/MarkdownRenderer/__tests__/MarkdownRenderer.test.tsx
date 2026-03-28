@@ -218,11 +218,10 @@ flowchart TD
 
       const { container } = renderWithTheme(<MarkdownRenderer content={mermaidContent} />);
 
-      // Wait for mermaid to render
+      // Wait for mermaid to render - the mock returns an SVG element
       await waitFor(() => {
-        // Should render the mermaid diagram (not a code block)
-        const mermaidContainer = container.querySelector('[style*="padding: 16px"]');
-        expect(mermaidContainer).toBeInTheDocument();
+        const mermaidSvg = container.querySelector('svg');
+        expect(mermaidSvg).toBeInTheDocument();
       });
     });
 
@@ -234,10 +233,10 @@ flowchart LR
 
       const { container } = renderWithTheme(<MarkdownRenderer content={mermaidContent} />);
 
-      // Wait for mermaid to render
+      // Wait for mermaid to render - the mock returns an SVG element
       await waitFor(() => {
-        const mermaidContainer = container.querySelector('[style*="padding: 16px"]');
-        expect(mermaidContainer).toBeInTheDocument();
+        const mermaidSvg = container.querySelector('svg');
+        expect(mermaidSvg).toBeInTheDocument();
       });
     });
 

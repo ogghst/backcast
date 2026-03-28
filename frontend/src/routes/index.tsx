@@ -21,6 +21,8 @@ import { ChangeOrderImpactAnalysisPage } from "@/pages/projects/change-orders/Ch
 import { CostElementDetailPage } from "@/pages/cost-elements/CostElementDetailPage";
 import { Profile } from "@/pages/Profile";
 import { ChatInterfacePage } from "@/pages/chat/ChatInterface";
+import { ProjectChat } from "@/pages/projects/ProjectChat";
+import { ProjectMembers } from "@/pages/projects/ProjectMembers";
 
 export const router = createBrowserRouter([
   {
@@ -105,8 +107,16 @@ export const router = createBrowserRouter([
             element: <ProjectChangeOrdersPage />,
           },
           {
+            path: "members",
+            element: <ProjectMembers />,
+          },
+          {
             path: "evm-analysis",
             element: <ProjectEVMAnalysis />,
+          },
+          {
+            path: "chat",
+            element: <ProjectChat />,
           },
         ],
       },

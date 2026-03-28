@@ -1,7 +1,9 @@
-import { Table, TableProps, Input, theme } from "antd";
+import { Grid, Table, TableProps, Input, theme } from "antd";
 import { TablePaginationConfig } from "antd/es/table";
 import { FilterValue, SorterResult } from "antd/es/table/interface";
 import React, { useEffect, useState } from "react";
+
+const { useBreakpoint } = Grid;
 
 export interface TableParams {
   pagination?: TablePaginationConfig;
@@ -39,6 +41,8 @@ export const StandardTable = <T extends object>({
   ...props
 }: StandardTableProps<T>) => {
   const { token } = theme.useToken();
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const [searchValue, setSearchValue] = useState(tableParams.search || "");
 
   useEffect(() => {
@@ -74,6 +78,7 @@ export const StandardTable = <T extends object>({
             gap: token.marginMD,
             justifyContent: "space-between",
             alignItems: "center",
+            flexWrap: isMobile ? "wrap" : "nowrap",
           }}
         >
           {searchable && (
@@ -83,14 +88,19 @@ export const StandardTable = <T extends object>({
               value={searchValue}
               onChange={handleSearchChange}
               onSearch={handleSearch}
-              style={{ width: 300 }}
+              style={{ width: isMobile ? "100%" : 300, order: isMobile ? -1 : 0 }}
             />
           )}
-          {toolbar && <div style={{ flex: 1 }}>{toolbar}</div>}
+          {toolbar && (
+            <div style={{ flex: 1, minWidth: 0, width: isMobile ? "100%" : undefined }}>
+              {toolbar}
+            </div>
+          )}
         </div>
       )}
       <Table<T>
         {...props}
+        scroll={{ x: isMobile ? "max-content" : undefined, ...props.scroll }}
         pagination={{
           ...tableParams.pagination,
           showSizeChanger: true,

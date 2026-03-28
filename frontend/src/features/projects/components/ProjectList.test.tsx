@@ -5,6 +5,21 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ConfigProvider } from "antd";
 import { MemoryRouter } from "react-router-dom";
 
+// Mock window.matchMedia for responsive breakpoint detection
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: query.includes("min-width") && parseInt(query.match(/\d+/)?.[0] || "0") <= 1024,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
 // Mock Can component to bypass RBAC
 vi.mock("@/components/auth/Can", () => ({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -32,6 +47,20 @@ vi.mock("@/features/projects/components/ProjectModal", () => ({
       </div>
     );
   },
+}));
+
+// Mock ProjectCard (used in mobile view)
+vi.mock("@/features/projects/components/ProjectCard", () => ({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ProjectCard: ({ project, onEdit, onDelete, onViewHistory }: any) => (
+    <div data-testid="mock-project-card">
+      <span>{project.name}</span>
+      <span>{project.code}</span>
+      <button onClick={() => onEdit(project)} title="Edit Project" />
+      <button onClick={() => onDelete(project.project_id)} title="Delete Project" />
+      <button onClick={() => onViewHistory(project)} title="View History" />
+    </div>
+  ),
 }));
 
 // Mock Ant Design App component
@@ -127,5 +156,30 @@ describe("ProjectList Integration", () => {
     await waitFor(() => {
       expect(confirmSpy).toHaveBeenCalled();
     });
+  });
+
+  it("renders mobile card view on small screens", async () => {
+    // Simulate mobile viewport (no matching breakpoints)
+    vi.mocked(window.matchMedia).mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    const Wrapper = createWrapper();
+    render(<ProjectList />, { wrapper: Wrapper });
+
+    // Mobile view renders ProjectCard components instead of table rows
+    const cards = await screen.findAllByTestId("mock-project-card");
+    expect(cards.length).toBeGreaterThan(0);
+
+    // Verify project data is rendered in cards
+    expect(screen.getByText("Alpha Project")).toBeInTheDocument();
+    expect(screen.getByText("PRJ-001")).toBeInTheDocument();
   });
 });

@@ -8,42 +8,94 @@ import logging
 
 from langchain_core.tools import BaseTool
 
-from app.ai.tools.project_tools import get_project, list_projects
-from app.ai.tools.types import ToolContext
+from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 
 logger = logging.getLogger(__name__)
+
+_cached_tools: list[BaseTool] | None = None
+
+
+def filter_tools_by_execution_mode(
+    tools: list[BaseTool],
+    execution_mode: ExecutionMode,
+) -> list[BaseTool]:
+    """Filter tools based on execution mode and risk level.
+
+    Args:
+        tools: List of tools to filter
+        execution_mode: Current execution mode
+
+    Returns:
+        Filtered list of tools that are allowed in the current mode
+
+    Rules:
+        - SAFE mode: Only LOW risk tools
+        - STANDARD mode: LOW and HIGH risk tools (CRITICAL tools blocked)
+        - EXPERT mode: All tools
+    """
+    filtered_tools: list[BaseTool] = []
+
+    for tool in tools:
+        # Get tool metadata
+        metadata = getattr(tool, "_tool_metadata", None)
+        if metadata is None:
+            # No metadata means no risk level - assume high (safe default)
+            risk_level = RiskLevel.HIGH
+        else:
+            risk_level = metadata.risk_level
+
+        # Filter based on execution mode
+        if execution_mode == ExecutionMode.SAFE:
+            if risk_level == RiskLevel.LOW:
+                filtered_tools.append(tool)
+            else:
+                logger.debug(
+                    f"Filtering out tool '{tool.name}' (risk={risk_level.value}) in SAFE mode"
+                )
+        elif execution_mode == ExecutionMode.STANDARD:
+            # Standard mode: LOW and HIGH allowed. CRITICAL blocked.
+            # Include all tools - approval/blocking handled by InterruptNode
+            filtered_tools.append(tool)
+        else:
+            # Expert mode allows all tools
+            filtered_tools.append(tool)
+
+    logger.info(
+        f"Filtered {len(tools)} tools down to {len(filtered_tools)} for execution_mode={execution_mode.value}"
+    )
+    return filtered_tools
 
 
 def create_project_tools(context: ToolContext) -> list[BaseTool]:
     """Create LangChain BaseTool instances for all available AI operations.
 
-    Note: This function collects tools from multiple modules. Tools are already
-    BaseTool instances from the @ai_tool decorator.
+    Note: Tools are cached as singletons. The ToolContext argument is accepted
+    for backward compatibility but tools retrieve their context at runtime via
+    context variables, not from this argument.
 
     Args:
-        context: Tool context initialized with the authenticated user's session and ID
+        context: Tool context (unused, kept for backward compatibility)
 
     Returns:
         List of BaseTool instances ready to be bound to LangGraph agents
-
-    Example:
-        ```python
-        from app.ai.tools import create_project_tools
-        from app.ai.tools.types import ToolContext
-
-        context = ToolContext(session, user_id, user_role="admin")
-        tools = create_project_tools(context)
-
-        # Tools can be used directly in LangGraph
-        graph = create_graph(llm, tools)
-        ```
     """
+    global _cached_tools
+
+    if _cached_tools is not None:
+        logger.debug(f"Returning cached tool list ({len(_cached_tools)} tools)")
+        return _cached_tools
+
     # Import tool modules
-    from app.ai.tools import project_tools
+    from app.ai.tools import context_tools, project_tools, temporal_tools
     from app.ai.tools.templates import (
+        advanced_analysis_template,
         analysis_template,
         change_order_template,
+        cost_element_template,
         crud_template,
+        diagram_template,
+        forecast_cost_progress_template,
+        user_management_template,
     )
 
     # Collect all tools from project_tools (production tools)
@@ -51,6 +103,13 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         project_tools.list_projects,
         project_tools.get_project,
     ]
+
+    # Add context tools (read-only for LLM awareness)
+    context_tools_list = [
+        temporal_tools.get_temporal_context,
+        context_tools.get_project_context,
+    ]
+    tools.extend(context_tools_list)
 
     # Add tools from crud_template (Project and WBE CRUD operations)
     # Note: list_projects and get_project are duplicates, so we only add unique ones
@@ -89,18 +148,86 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     ]
     tools.extend(change_order_tools)
 
+    # Add tools from cost_element_template (Cost Element, Schedule Baseline, Cost Element Type CRUD)
+    cost_element_tools = [
+        cost_element_template.list_cost_elements,
+        cost_element_template.get_cost_element,
+        cost_element_template.create_cost_element,
+        cost_element_template.update_cost_element,
+        cost_element_template.delete_cost_element,
+        cost_element_template.get_schedule_baseline,
+        cost_element_template.update_schedule_baseline,
+        cost_element_template.delete_schedule_baseline,
+        cost_element_template.list_cost_element_types,
+        cost_element_template.get_cost_element_type,
+        cost_element_template.create_cost_element_type,
+        cost_element_template.update_cost_element_type,
+        cost_element_template.delete_cost_element_type,
+    ]
+    tools.extend(cost_element_tools)
+
+    # Add tools from user_management_template (User and Department CRUD)
+    user_management_tools = [
+        user_management_template.list_users,
+        user_management_template.get_user,
+        user_management_template.create_user,
+        user_management_template.update_user,
+        user_management_template.delete_user,
+        user_management_template.list_departments,
+        user_management_template.get_department,
+        user_management_template.create_department,
+        user_management_template.update_department,
+        user_management_template.delete_department,
+    ]
+    tools.extend(user_management_tools)
+
+    # Add tools from advanced_analysis_template (Advanced analysis and insights)
+    advanced_analysis_tools = [
+        advanced_analysis_template.assess_project_health,
+        advanced_analysis_template.detect_evm_anomalies,
+        advanced_analysis_template.analyze_forecast_trends,
+        advanced_analysis_template.generate_optimization_suggestions,
+    ]
+    tools.extend(advanced_analysis_tools)
+
+    # Add tools from diagram_template (Mermaid diagram generation)
+    diagram_tools = [
+        diagram_template.generate_mermaid_diagram,
+    ]
+    tools.extend(diagram_tools)
+
+    # Add tools from forecast_cost_progress_template (Forecast, Cost Registration, Progress Entry)
+    forecast_cost_progress_tools = [
+        forecast_cost_progress_template.get_forecast,
+        forecast_cost_progress_template.create_forecast,
+        forecast_cost_progress_template.update_forecast,
+        forecast_cost_progress_template.compare_forecast_to_budget,
+        forecast_cost_progress_template.get_budget_status,
+        forecast_cost_progress_template.create_cost_registration,
+        forecast_cost_progress_template.list_cost_registrations,
+        forecast_cost_progress_template.get_cost_trends,
+        forecast_cost_progress_template.get_cumulative_costs,
+        forecast_cost_progress_template.get_latest_progress,
+        forecast_cost_progress_template.create_progress_entry,
+        forecast_cost_progress_template.get_progress_history,
+        forecast_cost_progress_template.get_cost_element_summary,
+    ]
+    tools.extend(forecast_cost_progress_tools)
+
     # Filter to only BaseTool instances
     base_tools: list[BaseTool] = [
         tool for tool in tools if isinstance(tool, BaseTool)
     ]
 
-    logger.info(f"Created {len(base_tools)} tools for AI chat")
+    _cached_tools = base_tools
+    logger.info(f"Created and cached {len(base_tools)} tools for AI chat")
     return base_tools
 
 
 # Re-export for backwards compatibility
 __all__ = [
     "create_project_tools",
+    "filter_tools_by_execution_mode",
     "ToolContext",
     "list_projects",
     "get_project",

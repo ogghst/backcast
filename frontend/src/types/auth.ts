@@ -56,10 +56,8 @@ export type Permission =
 // Type alias for role strings
 export type Role = "admin" | "manager" | "viewer";
 
-export interface Token {
-  access_token: string;
-  token_type: string;
-}
+// Token types - re-exported from @/api/generated
+export type { Token, TokenResponse } from "@/api/generated";
 
 export interface UserLogin {
   email: string;

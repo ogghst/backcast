@@ -1,6 +1,6 @@
 # User Guides
 
-This directory contains user-facing documentation for working with the Backcast EVS system.
+This directory contains user-facing documentation for working with the Backcast  system.
 
 ## Available Guides
 
@@ -59,7 +59,7 @@ Production deployment guide using Docker, Traefik, and Let's Encrypt SSL.
 
 ### [AI Chat User Guide](./ai-chat-user-guide.md)
 
-End-user guide for interacting with the Backcast EVS AI Chat assistant using natural language.
+End-user guide for interacting with the Backcast  AI Chat assistant using natural language.
 
 **Topics Covered:**
 - Getting started with AI Chat
@@ -78,7 +78,7 @@ End-user guide for interacting with the Backcast EVS AI Chat assistant using nat
 
 ### [Frontend Navigation Patterns](./navigation-patterns.md)
 
-Guide to the navigation patterns used in the Backcast EVS frontend application.
+Guide to the navigation patterns used in the Backcast  frontend application.
 
 **Topics Covered:**
 

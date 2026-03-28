@@ -71,6 +71,7 @@ export const EChartsBaseChart = React.forwardRef<
   ) => {
     const chartRef = useRef<ReactECharts | null>(null);
     const resizeObserverRef = useRef<ResizeObserver | null>(null);
+    const resizeTimerRef = useRef<NodeJS.Timeout | null>(null);
     const [isReady, setIsReady] = useState(!delayRender);
     const containerStyle = React.useMemo<React.CSSProperties>(() => {
       const isPercentageHeight = typeof height === "string" && height.endsWith("%");
@@ -95,9 +96,16 @@ export const EChartsBaseChart = React.forwardRef<
     // Handle chart ready
     const handleChartReady = useCallback(
       (chart: ECharts) => {
+        // Clear any existing timer
+        if (resizeTimerRef.current) {
+          clearTimeout(resizeTimerRef.current);
+        }
         // Force a resize after chart is ready to ensure proper dimensions
-        setTimeout(() => {
-          chart.resize();
+        resizeTimerRef.current = setTimeout(() => {
+          if (!chart.isDisposed()) {
+            chart.resize();
+          }
+          resizeTimerRef.current = null;
         }, 0);
 
         if (onChartReady) {
@@ -149,11 +157,12 @@ export const EChartsBaseChart = React.forwardRef<
           }
 
           // Trigger an initial resize after mount
-          setTimeout(() => {
+          resizeTimerRef.current = setTimeout(() => {
             const chart = node.getEchartsInstance();
             if (chart && !chart.isDisposed()) {
               chart.resize();
             }
+            resizeTimerRef.current = null;
           }, 100);
         } else {
           // Cleanup on unmount
@@ -161,10 +170,32 @@ export const EChartsBaseChart = React.forwardRef<
             resizeObserverRef.current.disconnect();
             resizeObserverRef.current = null;
           }
+          if (resizeTimerRef.current) {
+            clearTimeout(resizeTimerRef.current);
+            resizeTimerRef.current = null;
+          }
         }
       },
       [resizable, ref],
     );
+
+    // Dispose chart on unmount to prevent animation frame errors in test environment
+    useEffect(() => {
+      return () => {
+        if (chartRef.current) {
+          const chart = chartRef.current.getEchartsInstance();
+          if (chart && !chart.isDisposed()) {
+            chart.dispose();
+          }
+        }
+        if (resizeObserverRef.current) {
+          resizeObserverRef.current.disconnect();
+        }
+        if (resizeTimerRef.current) {
+          clearTimeout(resizeTimerRef.current);
+        }
+      };
+    }, []);
 
     // Show loading state
     if (loading) {

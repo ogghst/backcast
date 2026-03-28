@@ -1,4 +1,4 @@
-import { App, Button, Space, Input, Tag } from "antd";
+import { App, Button, Space, Input, Tag, Grid } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -54,6 +54,8 @@ export const CostRegistrationsTab = ({
   >();
   const queryClient = useQueryClient();
   const { asOf } = useTimeMachineParams();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
 
   // Build query params
   const queryParams: CostRegistrationApiParams = {
@@ -198,6 +200,7 @@ export const CostRegistrationsTab = ({
       key: "amount",
       align: "right",
       sorter: true,
+      width: 120,
       render: (amount) => (
         <span>
           €
@@ -212,6 +215,7 @@ export const CostRegistrationsTab = ({
       dataIndex: "quantity",
       key: "quantity",
       align: "right",
+      responsive: ["sm"],
       render: (quantity) =>
         quantity ? Number(quantity).toLocaleString() : "-",
     },
@@ -219,19 +223,22 @@ export const CostRegistrationsTab = ({
       title: "Unit",
       dataIndex: "unit_of_measure",
       key: "unit_of_measure",
+      responsive: ["md"],
       render: (unit) => unit || "-",
     },
     {
-      title: "Registration Date",
+      title: "Date",
       dataIndex: "registration_date",
       key: "registration_date",
       sorter: true,
-      render: (date) => (date ? dayjs(date).format("YYYY-MM-DD HH:mm") : "-"),
+      width: 140,
+      render: (date) => (date ? dayjs(date).format("YYYY-MM-DD") : "-"),
     },
     {
       title: "Description",
       dataIndex: "description",
       key: "description",
+      ellipsis: true,
       ...getColumnSearchProps("description"),
       render: (description) => description || "-",
     },
@@ -239,6 +246,7 @@ export const CostRegistrationsTab = ({
       title: "Invoice",
       dataIndex: "invoice_number",
       key: "invoice_number",
+      responsive: ["lg"],
       ...getColumnSearchProps("invoice_number"),
       render: (invoice) => invoice || "-",
     },
@@ -246,12 +254,15 @@ export const CostRegistrationsTab = ({
       title: "Vendor",
       dataIndex: "vendor_reference",
       key: "vendor_reference",
+      responsive: ["lg"],
       ...getColumnSearchProps("vendor_reference"),
       render: (vendor) => vendor || "-",
     },
     {
       title: "Actions",
       key: "actions",
+      width: isMobile ? 80 : 150,
+      fixed: "right",
       render: (_, record) => (
         <Space>
           <Can permission="cost-registration-read">
@@ -308,6 +319,8 @@ export const CostRegistrationsTab = ({
         searchable={true}
         searchPlaceholder="Search cost registrations..."
         onSearch={handleSearch}
+        scroll={{ x: isMobile ? "max-content" : undefined }}
+        size={isMobile ? "small" : "middle"}
         toolbar={
           <div
             style={{

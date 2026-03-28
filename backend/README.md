@@ -1,4 +1,4 @@
-# Backcast EVS
+# Backcast 
 
 Backend implementation for the Backcast Entity Versioning System (EVS) - a Project Budget Management and Earned Value Management (EVM) application with Git-style versioning capabilities.
 

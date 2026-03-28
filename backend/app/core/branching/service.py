@@ -637,6 +637,12 @@ class BranchableService[TBranchable: BranchableProtocol]:
         for row in result.all():
             entity = row[0]
             entity.created_by_name = row[1]
+
+            # Populate created_at from transaction_time lower bound
+            if hasattr(entity, 'transaction_time') and entity.transaction_time:
+                if hasattr(entity.transaction_time, 'lower'):
+                    entity.created_at = entity.transaction_time.lower
+
             history.append(entity)
 
         return history

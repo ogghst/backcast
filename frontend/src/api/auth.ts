@@ -1,19 +1,42 @@
-import { AuthenticationService, Body_login } from "@/api/generated";
+import { AuthenticationService, Body_login, type TokenResponse as GeneratedTokenResponse } from "@/api/generated";
+import axios from "axios";
 
 import type { Token, UserLogin, UserPublic } from "@/types/auth";
+
+// Re-export generated types for convenience
+export type TokenResponse = GeneratedTokenResponse;
 
 /**
  * Login user with email and password
  * Uses generated AuthenticationService
  */
-export const loginUser = async (credentials: UserLogin): Promise<Token> => {
+export const loginUser = async (credentials: UserLogin): Promise<TokenResponse> => {
   const formData: Body_login = {
     username: credentials.email,
     password: credentials.password,
     grant_type: "password",
   };
 
-  return (await AuthenticationService.login(formData)) as unknown as Token;
+  return await AuthenticationService.login(formData);
+};
+
+/**
+ * Refresh access token using refresh token
+ */
+export const refreshAccessToken = async (refreshToken: string): Promise<Token> => {
+  const response = await axios.post<Token>("/api/v1/auth/refresh", {
+    refresh_token: refreshToken,
+  });
+  return response.data;
+};
+
+/**
+ * Logout and revoke refresh token
+ */
+export const logoutUser = async (refreshToken: string): Promise<void> => {
+  await axios.post("/api/v1/auth/logout", {
+    refresh_token: refreshToken,
+  });
 };
 
 /**

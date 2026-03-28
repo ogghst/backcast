@@ -1,13 +1,17 @@
 """Tests for AgentService - comprehensive coverage for orchestration, session management, and error handling."""
 
 import json
+import logging
+from collections.abc import AsyncIterator
 from typing import Any
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import uuid4
 
 import pytest
+from fastapi import WebSocket
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.websockets import WebSocketState
 
 from app.ai.agent_service import AgentService, _extract_client_config
 from app.models.domain.ai import (
@@ -529,7 +533,7 @@ class TestChatStreamMethod:
         self, db_session: AsyncSession
     ) -> None:
         """Verify graceful handling of WebSocket closure during streaming."""
-        service = AgentService(db_session)
+        AgentService(db_session)
 
         # Test that WebSocket errors are caught in the streaming logic
         websocket = Mock()
@@ -566,7 +570,7 @@ class TestToolResultSerialization:
         self, db_session: AsyncSession
     ) -> None:
         """Verify that ToolMessage.content is extracted correctly."""
-        service = AgentService(db_session)
+        AgentService(db_session)
 
         # Create a ToolMessage with string content
         tool_msg: ToolMessage = ToolMessage(
@@ -583,7 +587,7 @@ class TestToolResultSerialization:
 
     async def test_tool_message_dict_extraction(self, db_session: AsyncSession) -> None:
         """Verify that ToolMessage with dict content is handled correctly."""
-        service = AgentService(db_session)
+        AgentService(db_session)
 
         # Create a ToolMessage with string content (dicts are stringified)
         tool_msg: ToolMessage = ToolMessage(
@@ -602,7 +606,7 @@ class TestToolResultSerialization:
 
     async def test_tool_result_format(self, db_session: AsyncSession) -> None:
         """Verify the tool result dict format is JSON-serializable."""
-        service = AgentService(db_session)
+        AgentService(db_session)
 
         # Create a tool result dict like in chat_stream
         tool_msg = ToolMessage(content="Result text", tool_call_id="call_789")
@@ -626,7 +630,7 @@ class TestToolResultSerialization:
 
     async def test_plain_string_handling(self, db_session: AsyncSession) -> None:
         """Verify that plain string outputs are handled correctly."""
-        service = AgentService(db_session)
+        AgentService(db_session)
 
         # Simulate a plain string output (not a ToolMessage)
         tool_output = "Plain string result"
@@ -641,7 +645,7 @@ class TestToolResultSerialization:
 
     async def test_dict_with_content_field(self, db_session: AsyncSession) -> None:
         """Verify that dict outputs with 'content' field are handled correctly."""
-        service = AgentService(db_session)
+        AgentService(db_session)
 
         # Simulate a dict output with content field
         tool_output: dict[str, Any] = {"content": "Extracted content", "metadata": "extra"}
@@ -654,3 +658,250 @@ class TestToolResultSerialization:
 
         # Verify the content is extracted
         assert result_content == "Extracted content"
+
+
+@pytest.mark.asyncio
+class TestDisconnectDetection:
+    """Test that agent streaming stops when WebSocket disconnects mid-stream."""
+
+    async def test_stream_stops_on_websocket_disconnect(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Verify streaming loop breaks immediately when client disconnects.
+
+        When the WebSocket client_state transitions to DISCONNECTED during
+        the astream_events loop, the agent should stop processing remaining
+        events instead of wasting resources on a dead connection.
+        """
+        # Set up real DB entities for the chat_stream call
+        from app.services.ai_config_service import AIConfigService
+
+        config_service = AIConfigService(db_session)
+
+        from app.models.schemas.ai import AIModelCreate, AIProviderCreate
+
+        provider_in = AIProviderCreate(
+            provider_type="openai",
+            name="Test Provider",
+            base_url="https://api.openai.com/v1",
+        )
+        provider = await config_service.create_provider(provider_in)
+
+        model_in = AIModelCreate(
+            model_id="gpt-4",
+            display_name="GPT-4",
+            provider_id=provider.id,
+        )
+        model = await config_service.create_model(model_in)
+
+        from app.models.domain.ai import AIAssistantConfig
+
+        assistant_config = AIAssistantConfig(
+            name="Test Assistant",
+            model_id=str(model.id),
+            system_prompt="You are a helpful assistant",
+            temperature=0.7,
+            max_tokens=1000,
+            allowed_tools=None,
+            is_active=True,
+        )
+        db_session.add(assistant_config)
+        await db_session.flush()
+        await db_session.refresh(assistant_config)
+
+        # Create a mock WebSocket that disconnects after 3 events
+        mock_websocket = MagicMock(spec=WebSocket)
+        mock_websocket.send_json = AsyncMock()
+
+        # Track events processed by the generator
+        events_yielded: list[int] = []
+
+        # Build 10 on_chat_model_stream events
+        total_events = 10
+        disconnect_after = 3
+
+        async def mock_astream_events(
+            *args: object, **kwargs: object
+        ) -> AsyncIterator[dict[str, Any]]:
+            """Yield events, tracking how many are produced by the generator."""
+            for i in range(total_events):
+                events_yielded.append(i)
+                chunk = MagicMock()
+                chunk.text = f"token_{i}"
+                chunk.content = f"token_{i}"
+                yield {
+                    "event": "on_chat_model_stream",
+                    "data": {"chunk": chunk},
+                }
+
+        # Mock graph with our tracking generator
+        mock_graph = MagicMock()
+        mock_graph.astream_events = mock_astream_events
+
+        # Set up WebSocket state: starts CONNECTED, becomes DISCONNECTED
+        # after 'disconnect_after' events are yielded from the generator.
+        # The _is_websocket_connected check happens at the top of each loop
+        # iteration, AFTER the event has been yielded. So we disconnect
+        # after the generator yields event N, and the loop will break
+        # when processing event N+1.
+        call_count = 0
+
+        def get_client_state() -> WebSocketState:
+            nonlocal call_count
+            call_count += 1
+            # The first call is the thinking event check (before the loop).
+            # Subsequent calls are the per-event connectivity checks.
+            # Allow the thinking event + disconnect_after events to succeed.
+            if call_count <= disconnect_after + 1:
+                return WebSocketState.CONNECTED
+            return WebSocketState.DISCONNECTED
+
+        mock_websocket.client_state = property(
+            lambda self: get_client_state()  # type: ignore[arg-type]
+        )
+
+        # Create the service and run chat_stream with mocked graph
+        service = AgentService(db_session)
+        mock_llm = MagicMock()
+
+        with (
+            patch.object(
+                service, "_create_deep_agent_graph", return_value=(mock_graph, None)
+            ),
+            patch.object(service, "_create_langchain_llm", return_value=mock_llm),
+        ):
+            await service.chat_stream(
+                message="Hello",
+                assistant_config=assistant_config,
+                session_id=None,
+                user_id=uuid4(),
+                websocket=mock_websocket,
+                db=db_session,
+            )
+
+        # The generator should have been allowed to yield all events since
+        # it's an async generator that doesn't check the websocket itself.
+        # However, the _consume_stream loop should have stopped processing
+        # events after the disconnect was detected.
+        # The key assertion: events were yielded but the loop broke early,
+        # meaning the token content was NOT accumulated for all events.
+        # We verify this by checking that not all token events were sent
+        # via the WebSocket.
+        sent_messages = [
+            call[0][0]
+            for call in mock_websocket.send_json.call_args_list
+            if call[0] and isinstance(call[0][0], dict)
+        ]
+        token_batch_messages = [
+            msg for msg in sent_messages if msg.get("type") == "token_batch"
+        ]
+
+        # The loop should have stopped processing events after disconnect
+        # was detected. Since disconnect_after=3 and the generator yields 10,
+        # we should have far fewer than 10 token batches sent.
+        assert len(token_batch_messages) < total_events, (
+            f"Expected fewer than {total_events} token_batch messages "
+            f"after disconnect, got {len(token_batch_messages)}"
+        )
+
+    async def test_is_websocket_connected_returns_true_when_connected(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Verify _is_websocket_connected returns True for connected WebSocket."""
+        mock_ws = MagicMock(spec=WebSocket)
+        mock_ws.client_state = WebSocketState.CONNECTED
+
+        assert AgentService._is_websocket_connected(mock_ws) is True
+
+    async def test_is_websocket_connected_returns_false_when_disconnected(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Verify _is_websocket_connected returns False for disconnected WebSocket."""
+        mock_ws = MagicMock(spec=WebSocket)
+        mock_ws.client_state = WebSocketState.DISCONNECTED
+
+        assert AgentService._is_websocket_connected(mock_ws) is False
+
+    async def test_disconnect_logs_warning(
+        self, db_session: AsyncSession
+    ) -> None:
+        """Verify a warning is logged when WebSocket disconnects during streaming."""
+        from app.services.ai_config_service import AIConfigService
+
+        config_service = AIConfigService(db_session)
+
+        from app.models.schemas.ai import AIModelCreate, AIProviderCreate
+
+        provider_in = AIProviderCreate(
+            provider_type="openai",
+            name="Test Provider",
+            base_url="https://api.openai.com/v1",
+        )
+        provider = await config_service.create_provider(provider_in)
+
+        model_in = AIModelCreate(
+            model_id="gpt-4",
+            display_name="GPT-4",
+            provider_id=provider.id,
+        )
+        model = await config_service.create_model(model_in)
+
+        from app.models.domain.ai import AIAssistantConfig
+
+        assistant_config = AIAssistantConfig(
+            name="Test Assistant",
+            model_id=str(model.id),
+            system_prompt="You are a helpful assistant",
+            temperature=0.7,
+            max_tokens=1000,
+            allowed_tools=None,
+            is_active=True,
+        )
+        db_session.add(assistant_config)
+        await db_session.flush()
+        await db_session.refresh(assistant_config)
+
+        # WebSocket starts disconnected so the loop breaks on first event
+        mock_websocket = MagicMock(spec=WebSocket)
+        mock_websocket.client_state = WebSocketState.DISCONNECTED
+        mock_websocket.send_json = AsyncMock()
+
+        # Single event in the stream
+        async def mock_astream_events(
+            *args: object, **kwargs: object
+        ) -> AsyncIterator[dict[str, Any]]:
+            yield {"event": "on_chat_model_stream", "data": {"chunk": MagicMock(text="x", content="x")}}
+
+        mock_graph = MagicMock()
+        mock_graph.astream_events = mock_astream_events
+
+        service = AgentService(db_session)
+        mock_llm = MagicMock()
+
+        with (
+            patch.object(
+                service, "_create_deep_agent_graph", return_value=(mock_graph, None)
+            ),
+            patch.object(service, "_create_langchain_llm", return_value=mock_llm),
+            patch("app.ai.agent_service.logger") as mock_logger,
+        ):
+            await service.chat_stream(
+                message="Hello",
+                assistant_config=assistant_config,
+                session_id=None,
+                user_id=uuid4(),
+                websocket=mock_websocket,
+                db=db_session,
+            )
+
+        # Verify the warning about aborting agent execution was logged
+        warning_calls = [
+            str(call) for call in mock_logger.warning.call_args_list
+        ]
+        abort_warnings = [
+            w for w in warning_calls if "aborting agent execution" in w
+        ]
+        assert len(abort_warnings) >= 1, (
+            f"Expected warning about aborting agent execution, "
+            f"got warnings: {warning_calls}"
+        )

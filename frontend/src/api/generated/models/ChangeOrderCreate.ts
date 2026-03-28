@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ChangeOrderStatus } from './ChangeOrderStatus';
 /**
  * Schema for creating a new Change Order.
  */
@@ -33,7 +34,7 @@ export type ChangeOrderCreate = {
     /**
      * Workflow state
      */
-    status?: string;
+    status?: ChangeOrderStatus;
     /**
      * Financial impact level
      */

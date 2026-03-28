@@ -52,7 +52,7 @@ class TestToolContextUserRole:
 
         # Assert: user_role should be annotated as str
         assert "user_role" in hints
-        assert hints["user_role"] == str
+        assert hints["user_role"] is str
 
     def test_tool_context_user_role_backward_compatible(self) -> None:
         """Test that ToolContext works without user_role (backward compatibility).
@@ -103,4 +103,5 @@ class TestToolContextUserRole:
         # Assert
         assert context.user_id == user_id
         assert context.user_role == user_role
-        assert context.session == mock_session
+        # _root_session stores the original session
+        assert context._root_session == mock_session

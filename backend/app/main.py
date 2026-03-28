@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from app.api.routes import (
     ai_chat,
     ai_config,
+    ai_upload,
     auth,
     change_orders,
     cost_element_types,
@@ -24,6 +25,7 @@ from app.api.routes import (
     evm,
     forecasts,
     progress_entries,
+    project_members,
     projects,
     schedule_baselines,
     users,
@@ -125,7 +127,7 @@ async def validation_exception_handler(
 
 @app.get("/")
 async def root() -> dict[str, str]:
-    return {"message": "Welcome to Backcast EVS API"}
+    return {"message": "Welcome to Backcast API"}
 
 
 app.include_router(auth.router, prefix=settings.API_V1_STR)
@@ -139,6 +141,11 @@ app.include_router(
     projects.router,
     prefix=f"{settings.API_V1_STR}/projects",
     tags=["Projects"],
+)
+app.include_router(
+    project_members.router,
+    prefix=settings.API_V1_STR,
+    tags=["Project Members"],
 )
 app.include_router(
     wbes.router,
@@ -194,6 +201,11 @@ app.include_router(
     ai_chat.router,
     prefix=settings.API_V1_STR,
     tags=["AI Chat"],
+)
+app.include_router(
+    ai_upload.router,
+    prefix=settings.API_V1_STR,
+    tags=["AI Upload"],
 )
 app.include_router(
     dashboard.router,

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Card, Table, Space, Tooltip, Modal, Tag, theme, Alert } from "antd";
+import { Button, Card, Table, Space, Tooltip, Modal, Tag, theme, Alert, Grid } from "antd";
 import { PlusOutlined, EditOutlined, DeleteOutlined, HistoryOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useQueryClient } from "@tanstack/react-query";
@@ -40,6 +40,8 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
   const { branch: tmBranch, asOf } = useTimeMachineParams();
   const queryClient = useQueryClient();
   const currentBranch = tmBranch || costElement.branch || "main";
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
 
   // State for modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -116,6 +118,7 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
 
   const evmMetrics = getEVMMetrics();
 
+  // Responsive columns - hide less important columns on mobile
   const columns: ColumnsType<ForecastWithComparison> = [
     {
       title: "EAC (Estimate at Complete)",
@@ -141,6 +144,7 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
       dataIndex: "basis_of_estimate",
       key: "basis_of_estimate",
       ellipsis: true,
+      responsive: ["md"],
       render: (text: string) => (
         <Tooltip title={text}>
           <span>{text?.substring(0, 50)}{text?.length > 50 ? "..." : ""}</span>
@@ -152,6 +156,7 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
       dataIndex: "branch",
       key: "branch",
       width: 120,
+      responsive: ["lg"],
       render: (branch: string) => {
         const isMain = branch === "main";
         return (
@@ -166,6 +171,7 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
       dataIndex: "created_at",
       key: "created_at",
       width: 180,
+      responsive: ["lg"],
       render: (date: string) => (date ? new Date(date).toLocaleString() : "-"),
     },
     {
@@ -259,6 +265,8 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
             rowKey="forecast_id"
             loading={isLoading}
             pagination={false}
+            scroll={{ x: isMobile ? "max-content" : undefined }}
+            size={isMobile ? "small" : "middle"}
           />
         ) : (
           <div style={{ padding: "24px", textAlign: "center" }}>

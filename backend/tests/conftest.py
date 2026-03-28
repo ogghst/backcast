@@ -102,8 +102,7 @@ def apply_migrations() -> Generator[None, None, None]:
             [venv_python, wipe_script],
             env=env,
             check=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             timeout=60,  # Add timeout to prevent hanging
         )
@@ -143,6 +142,7 @@ def apply_migrations() -> Generator[None, None, None]:
                     "change_orders",
                     "change_order_audit_log",
                     "forecasts",
+                    "refresh_tokens",  # Refresh token storage
                     "ai_providers",
                     "ai_provider_configs",
                     "ai_models",
@@ -323,6 +323,22 @@ class MockRBACService(RBACServiceABC):
             "cost-element-type-delete",
         ]
 
+    # Project-level RBAC methods (mocked - allow all)
+    async def has_project_access(
+        self,
+        user_id: UUID,
+        user_role: str,
+        project_id: UUID,
+        required_permission: str,
+    ) -> bool:
+        return True
+
+    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
+        return []
+
+    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
+        return None
+
 
 def _create_mock_user(
     user_id: UUID | None = None,
@@ -455,6 +471,22 @@ def mock_rbac_service_no_ai() -> MockRBACService:
                 "cost-element-type-delete",
             ]
 
+        # Project-level RBAC methods (mocked - allow all)
+        async def has_project_access(
+            self,
+            user_id: UUID,
+            user_role: str,
+            project_id: UUID,
+            required_permission: str,
+        ) -> bool:
+            return True
+
+        async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
+            return []
+
+        async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
+            return None
+
     return NoAIRBACService()
 
 
@@ -528,6 +560,76 @@ async def test_project(db_session: AsyncSession) -> Project:
         status="Active",
     )
     return await service.create_project(project_in, actor_id=uuid4())
+
+
+@pytest_asyncio.fixture
+async def admin_user(db_session: AsyncSession) -> User:
+    """Create an admin user in the database.
+
+    Returns:
+        User instance with admin role.
+    """
+    from app.services.user import UserService
+
+    UserService(db_session)
+    user = User(
+        id=uuid4(),
+        user_id=uuid4(),
+        email="admin@test.com",
+        full_name="Admin User",
+        role="admin",
+        is_active=True,
+        hashed_password="hash",
+        created_by=uuid4(),
+    )
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.refresh(user)
+    return user
+
+
+@pytest_asyncio.fixture
+async def test_user(db_session: AsyncSession) -> User:
+    """Create a regular test user in the database.
+
+    Returns:
+        User instance with viewer role.
+    """
+    from app.core.security import get_password_hash
+
+    test_password = "testpass123"
+    hashed = get_password_hash(test_password)
+
+    user = User(
+        id=uuid4(),
+        user_id=uuid4(),
+        email="user@test.com",
+        full_name="Test User",
+        role="viewer",
+        is_active=True,
+        hashed_password=hashed,
+        created_by=uuid4(),
+    )
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.refresh(user)
+
+    # Store password on user object for test access
+    user._test_password = test_password  # type: ignore
+    return user
+
+
+@pytest.fixture
+def test_password(test_user: User) -> str:
+    """Get the test password for the test_user fixture.
+
+    Args:
+        test_user: The test user fixture.
+
+    Returns:
+        The plain text password for authentication tests.
+    """
+    return getattr(test_user, "_test_password", "testpass123")
 
 
 @pytest_asyncio.fixture

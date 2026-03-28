@@ -4,7 +4,7 @@
     "provider_type": "openai",
     "name": "OpenAI",
     "base_url": "https://api.openai.com/v1",
-    "is_active": true,
+    "is_active": false,
     "configs": [
       {
         "id": "11111111-1111-1111-1111-111111111111",
@@ -38,29 +38,24 @@
     "id": "01234567-89ab-cdef-0123-456789abcde0",
     "provider_type": "Z.AI",
     "name": "Z.AI",
-    "base_url": "https://api.z.ai/api/anthropic",
-    "is_active": false,
+    "base_url": "https://api.z.ai/api/coding/paas/v4",
+    "is_active": true,
     "configs": [
       {
         "id": "11111111-1111-1111-1111-111111111112",
         "key": "api_key",
         "value": "",
         "is_encrypted": true
-      },
-      {
-        "id": "11111111-1111-1111-1111-111111111113",
-        "key": "endpoint",
-        "value": "",
-        "is_encrypted": false
-      },
-      {
-        "id": "11111111-1111-1111-1111-111111111114",
-        "key": "api_version",
-        "value": "2024-02-15-preview",
-        "is_encrypted": false
       }
     ],
-    "models": []
+    "models": [
+      {
+        "id": "11111111-1111-1111-1111-111111111112",
+        "model_id": "glm-4.7",
+        "display_name": "glm-4.7",
+        "is_active": true
+      }
+    ]
   },
   {
     "id": "01234567-89ab-cdef-0123-456789abcde1",

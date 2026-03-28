@@ -1,6 +1,8 @@
-import { Breadcrumb, Skeleton } from "antd";
+import { Breadcrumb, Skeleton, Typography, Grid } from "antd";
 import { Link } from "react-router-dom";
 import { HomeOutlined } from "@ant-design/icons";
+
+const { Text } = Typography;
 
 export interface CostElementBreadcrumb {
   project: {
@@ -26,59 +28,93 @@ export interface CostElementBreadcrumb {
 interface CostElementBreadcrumbBuilderProps {
   breadcrumb?: CostElementBreadcrumb;
   loading?: boolean;
+  isMobile?: boolean;
 }
 
 export const CostElementBreadcrumbBuilder = ({
   breadcrumb,
   loading,
+  isMobile: isMobileProp,
 }: CostElementBreadcrumbBuilderProps) => {
+  const screens = Grid.useBreakpoint();
+  const isMobile = isMobileProp ?? !screens.sm;
+
   if (loading) {
-    return <Skeleton.Input active style={{ width: 300, marginBottom: 16 }} />;
+    return <Skeleton.Input active style={{ width: 300, marginBottom: isMobile ? 8 : 16 }} />;
   }
 
   if (!breadcrumb) {
     return null;
   }
 
+  const showProjectItem = breadcrumb.wbe.code !== breadcrumb.project.code;
+
   const projectItem = {
     title: (
       <Link to={`/projects/${breadcrumb.project.project_id}`}>
-        {breadcrumb.project.code}
+        {isMobile ? (
+          <Text ellipsis style={{ maxWidth: 80, fontSize: 12 }}>
+            {breadcrumb.project.code}
+          </Text>
+        ) : (
+          breadcrumb.project.code
+        )}
       </Link>
     ),
   };
-
-  const showProjectItem = breadcrumb.wbe.code !== breadcrumb.project.code;
 
   const items = [
     {
       title: (
         <Link to="/">
-          <HomeOutlined /> Home
+          <HomeOutlined style={{ fontSize: isMobile ? 12 : 14 }} /> {!isMobile && "Home"}
         </Link>
       ),
     },
-    {
+    !isMobile ? {
       title: <Link to="/projects">Projects</Link>,
-    },
+    } : null,
     ...(showProjectItem ? [projectItem] : []),
     {
       title: (
         <Link
           to={`/projects/${breadcrumb.project.project_id}/wbes/${breadcrumb.wbe.wbe_id}`}
         >
-          {breadcrumb.wbe.code}
+          {isMobile ? (
+            <Text ellipsis style={{ maxWidth: 60, fontSize: 12 }}>
+              {breadcrumb.wbe.code}
+            </Text>
+          ) : (
+            breadcrumb.wbe.code
+          )}
         </Link>
       ),
     },
     {
       title: (
         <span style={{ fontWeight: 600 }}>
-          {breadcrumb.cost_element.code} {breadcrumb.cost_element.name}
+          {isMobile ? (
+            <Text ellipsis style={{ maxWidth: 100, fontSize: 12 }}>
+              {breadcrumb.cost_element.code}
+            </Text>
+          ) : (
+            <>
+              {breadcrumb.cost_element.code} {breadcrumb.cost_element.name}
+            </>
+          )}
         </span>
       ),
     },
-  ];
+  ].filter(Boolean);
 
-  return <Breadcrumb items={items} style={{ marginBottom: 16 }} />;
+  return (
+    <Breadcrumb
+      items={items}
+      style={{
+        marginBottom: isMobile ? 8 : 16,
+        fontSize: isMobile ? 12 : 14,
+      }}
+      separator={isMobile ? "/" : "/"}
+    />
+  );
 };

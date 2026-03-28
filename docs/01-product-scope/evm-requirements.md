@@ -4,7 +4,7 @@
 **Compliance:** ANSI/EIA-748 Standard  
 **Status:** Active
 
-This document specifies Earned Value Management (EVM) requirements for the Backcast EVS system.
+This document specifies Earned Value Management (EVM) requirements for the Backcast  system.
 
 ---
 

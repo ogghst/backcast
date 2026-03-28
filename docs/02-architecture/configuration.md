@@ -3,7 +3,7 @@
 **Last Updated:** 2026-03-02
 **Status:** Active
 
-This document describes the configuration options for Backcast EVS.
+This document describes the configuration options for Backcast .
 
 ---
 
@@ -38,7 +38,7 @@ This document describes the configuration options for Backcast EVS.
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `VITE_API_BASE_URL` | Yes | - | Backend API URL |
-| `VITE_APP_TITLE` | No | `Backcast EVS` | Application title |
+| `VITE_APP_TITLE` | No | `Backcast ` | Application title |
 
 ---
 

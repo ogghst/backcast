@@ -21,11 +21,15 @@ def upgrade() -> None:
     """Upgrade schema."""
     # 1. Drop existing FK referencing users.id
     op.drop_constraint(
-        "fk_change_orders_assigned_approver", "change_orders", type_="foreignkey"
+        "fk_change_orders_assigned_approver",
+        "change_orders",
+        type_="foreignkey",
     )
 
-    # 2. Update existing data to point to user_id (Business Key) instead of id (Version Key)
-    # Join on users.id = change_orders.assigned_approver_id (assuming current data is "correct" but points to version)
+    # 2. Update existing data to point to user_id (Business Key)
+    # instead of id (Version Key)
+    # Join on users.id = change_orders.assigned_approver_id
+    # (assuming current data is "correct" but points to version)
     # Update assigned_approver_id = users.user_id
     op.execute("""
         UPDATE change_orders
@@ -38,8 +42,10 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     # Re-create the FK constraint pointing to users.id
-    # Note: This will likely fail if data has been updated to user_id values that don't match any id.
-    # We attempt it for completeness but acknowledge data loss/integrity issues on downgrade.
+    # Note: This will likely fail if data has been updated to
+    # user_id values that don't match any id.
+    # We attempt it for completeness but acknowledge data loss/
+    # integrity issues on downgrade.
     op.create_foreign_key(
         "fk_change_orders_assigned_approver",
         "change_orders",

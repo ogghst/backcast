@@ -9,7 +9,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
-import { theme as antdTheme } from 'antd';
+import { theme as antdTheme, Grid } from 'antd';
 import { CodeBlock } from './CodeBlock';
 import { MermaidDiagram } from './MermaidDiagram';
 import { InlineCode } from './InlineCode';
@@ -36,6 +36,8 @@ interface MarkdownRendererProps {
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isStreaming = false }) => {
   const { token } = antdTheme.useToken();
   const { spacing, typography } = useThemeTokens();
+  const screens = Grid.useBreakpoint();
+  const isMobile = screens.xs || (!screens.sm && !screens.md && !screens.lg && !screens.xl && !screens.xxl);
   const [debouncedContent, setDebouncedContent] = useState(content);
   const [isComplete, setIsComplete] = useState(!isStreaming);
 
@@ -127,8 +129,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
       return (
         <p
           style={{
-            margin: `${spacing.sm} 0`,
-            fontSize: typography.sizes.md,
+            margin: isMobile ? `${spacing.xs} 0` : `${spacing.sm} 0`,
+            fontSize: isMobile ? typography.sizes.sm : typography.sizes.md,
             lineHeight: 1.6,
           }}
         >
@@ -136,7 +138,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
         </p>
       );
     },
-    [spacing.sm, typography.sizes.md]
+    [isMobile, spacing.xs, spacing.sm, typography.sizes.sm, typography.sizes.md]
   );
 
   /**
@@ -180,9 +182,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
       return (
         <Tag
           style={{
-            margin: `${spacing.sm} 0`,
-            paddingLeft: spacing.lg,
-            fontSize: typography.sizes.md,
+            margin: isMobile ? `${spacing.xs} 0` : `${spacing.sm} 0`,
+            paddingLeft: isMobile ? spacing.md : spacing.lg,
+            fontSize: isMobile ? typography.sizes.sm : typography.sizes.md,
             lineHeight: 1.6,
           }}
           {...props}
@@ -191,7 +193,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
         </Tag>
       );
     },
-    [spacing.sm, spacing.lg, typography.sizes.md]
+    [isMobile, spacing.xs, spacing.sm, spacing.md, spacing.lg, typography.sizes.sm, typography.sizes.md]
   );
 
   /**
@@ -223,8 +225,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
       return (
         <blockquote
           style={{
-            margin: `${spacing.sm} 0`,
-            padding: `${spacing.sm} ${spacing.md}`,
+            margin: isMobile ? `${spacing.xs} 0` : `${spacing.sm} 0`,
+            padding: isMobile ? `${spacing.xs} ${spacing.sm}` : `${spacing.sm} ${spacing.md}`,
             borderLeft: `4px solid ${token.colorPrimary}`,
             backgroundColor: token.colorFillSecondary,
             fontStyle: 'italic',
@@ -236,7 +238,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
         </blockquote>
       );
     },
-    [spacing.sm, spacing.md, token.colorPrimary, token.colorFillSecondary, token.colorTextSecondary]
+    [isMobile, spacing.xs, spacing.sm, spacing.md, token.colorPrimary, token.colorFillSecondary, token.colorTextSecondary]
   );
 
   /**
@@ -249,14 +251,15 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
         <div
           style={{
             overflowX: 'auto',
-            margin: `${spacing.md} 0`,
+            margin: isMobile ? `${spacing.sm} 0` : `${spacing.md} 0`,
+            WebkitOverflowScrolling: 'touch',
           }}
         >
           <table
             style={{
               width: '100%',
               borderCollapse: 'collapse',
-              fontSize: typography.sizes.sm,
+              fontSize: isMobile ? typography.sizes.xs : typography.sizes.sm,
               backgroundColor: token.colorBgContainer,
             }}
             {...props}
@@ -266,7 +269,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
         </div>
       );
     },
-    [spacing.md, typography.sizes.sm, token.colorBgContainer]
+    [isMobile, spacing.sm, spacing.md, typography.sizes.xs, typography.sizes.sm, token.colorBgContainer]
   );
 
   /**
@@ -297,7 +300,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
       return (
         <td
           style={{
-            padding: `${spacing.sm} ${spacing.md}`,
+            padding: isMobile ? `${spacing.xs} ${spacing.sm}` : `${spacing.sm} ${spacing.md}`,
             borderBottom: `1px solid ${token.colorBorderSecondary}`,
           }}
         >
@@ -305,7 +308,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
         </td>
       );
     },
-    [spacing.sm, spacing.md, token.colorBorderSecondary]
+    [isMobile, spacing.xs, spacing.sm, spacing.md, token.colorBorderSecondary]
   );
 
   /**
@@ -314,7 +317,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
    */
   const HeadingRenderer = useCallback(
     ({ level, children, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { level: number }) => {
-      const headingSizes: Record<number, number> = {
+      const baseHeadingSizes: Record<number, number> = {
         1: typography.sizes.xxl,
         2: typography.sizes.xl,
         3: typography.sizes.lg,
@@ -323,13 +326,23 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
         6: typography.sizes.xs,
       };
 
+      // Reduce font sizes by ~10% on mobile
+      const headingSizes: Record<number, number> = {
+        1: isMobile ? typography.sizes.xl : baseHeadingSizes[1],
+        2: isMobile ? typography.sizes.lg : baseHeadingSizes[2],
+        3: isMobile ? typography.sizes.md : baseHeadingSizes[3],
+        4: isMobile ? typography.sizes.sm : baseHeadingSizes[4],
+        5: isMobile ? typography.sizes.xs : baseHeadingSizes[5],
+        6: isMobile ? typography.sizes.xs : baseHeadingSizes[6],
+      };
+
       const Tag = `h${level}` as keyof JSX.IntrinsicElements;
       return (
         <Tag
           style={{
-            fontSize: headingSizes[level] || typography.sizes.md,
+            fontSize: headingSizes[level] || (isMobile ? typography.sizes.sm : typography.sizes.md),
             fontWeight: 600,
-            margin: `${spacing.md} 0 ${spacing.sm} 0`,
+            margin: isMobile ? `${spacing.sm} 0 ${spacing.xs} 0` : `${spacing.md} 0 ${spacing.sm} 0`,
             color: token.colorText,
           }}
           {...props}
@@ -338,7 +351,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
         </Tag>
       );
     },
-    [typography.sizes, spacing.md, spacing.sm, token.colorText]
+    [isMobile, typography.sizes, spacing.sm, spacing.md, spacing.xs, token.colorText]
   );
 
   /**
@@ -350,11 +363,11 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
         style={{
           border: 'none',
           borderTop: `1px solid ${token.colorBorderSecondary}`,
-          margin: `${spacing.lg} 0`,
+          margin: isMobile ? `${spacing.md} 0` : `${spacing.lg} 0`,
         }}
       />
     );
-  }, [spacing.lg, token.colorBorderSecondary]);
+  }, [isMobile, spacing.md, spacing.lg, token.colorBorderSecondary]);
 
   /**
    * Custom renderer for strong/bold text

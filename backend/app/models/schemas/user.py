@@ -152,6 +152,22 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+# Token response with refresh token
+class TokenResponse(BaseModel):
+    """Schema for authentication token response including refresh token."""
+
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+# Refresh token request
+class RefreshRequest(BaseModel):
+    """Schema for refresh token request."""
+
+    refresh_token: str
+
+
 class TokenPayload(BaseModel):
     """Schema for token payload data."""
 

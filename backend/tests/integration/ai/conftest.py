@@ -1,7 +1,11 @@
 """Configuration for AI integration tests."""
 
+from unittest.mock import AsyncMock, MagicMock
+from uuid import UUID
+
 import pytest
 
+from app.ai.agent_service import AgentService
 from app.core.rbac import RBACServiceABC, set_rbac_service
 
 
@@ -71,6 +75,46 @@ class MockRBACService(RBACServiceABC):
 
         return role_permissions.get(user_role, [])
 
+    async def has_project_access(
+        self,
+        user_id: UUID,
+        user_role: str,
+        project_id: UUID,
+        required_permission: str,
+    ) -> bool:
+        """Check if user has access to a project with required permission.
+
+        For testing, admins always have access, others need membership.
+        """
+        # System admins bypass project-level checks
+        if user_role == "admin":
+            return True
+
+        # For non-admins, require explicit project membership
+        # In tests, we'll deny by default unless explicitly granted
+        return False
+
+    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
+        """Get list of project IDs the user has access to.
+
+        For testing, admins get all projects, others get empty list.
+        """
+        # System admins have access to all projects
+        if user_role == "admin":
+            # Return empty list for testing - tests will override as needed
+            return []
+
+        # Non-admin users: return empty by default
+        return []
+
+    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
+        """Get user's role within a specific project.
+
+        For testing, return None by default.
+        """
+        # No membership by default
+        return None
+
 
 @pytest.fixture(autouse=True)
 def setup_mock_rbac():
@@ -87,3 +131,20 @@ def setup_mock_rbac():
 
     # Restore original service
     rbac_module._rbac_service = original_service
+
+
+@pytest.fixture
+def mock_agent_service():
+    """Create a mock AgentService for testing."""
+    return MagicMock(spec=AgentService)
+
+
+@pytest.fixture
+def mock_project_service():
+    """Create a mock ProjectService for testing."""
+    service = MagicMock()
+    service.get_projects = AsyncMock(return_value=([], 0))
+    service.get_by_id = AsyncMock(return_value=None)
+    service.create_project = AsyncMock(return_value=None)
+    service.update_project = AsyncMock(return_value=None)
+    return service

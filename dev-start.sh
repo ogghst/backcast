@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Starting Backcast EVS Development Environment"
+echo "🚀 Starting Backcast  Development Environment"
 echo "================================================"
 
 # Function to cleanup on exit

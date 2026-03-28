@@ -19,7 +19,7 @@ from typing import Any, ParamSpec, TypeVar
 
 from langchain_core.tools import BaseTool, tool
 
-from .types import ToolContext, ToolMetadata
+from .types import RiskLevel, ToolContext, ToolMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,7 @@ def ai_tool(
     description: str | None = None,
     permissions: list[str] | None = None,
     category: str | None = None,
+    risk_level: RiskLevel | None = None,
 ) -> Callable[[Callable[P, Any]], BaseTool]:
     """Decorator to convert async function into LangChain BaseTool.
 
@@ -40,12 +41,14 @@ def ai_tool(
     - Generate Pydantic schemas from function signatures
     - Support InjectedToolArg for context parameter hiding
     - Attach RBAC metadata for permission checking
+    - Attach risk level for execution mode filtering
 
     Args:
         name: Tool name (defaults to function name)
         description: Tool description (defaults to function docstring)
         permissions: Required permissions for RBAC
         category: Tool category for organization
+        risk_level: Tool risk level for execution mode filtering (defaults to HIGH)
 
     Returns:
         LangChain BaseTool instance (not the original function)
@@ -56,7 +59,8 @@ def ai_tool(
             name="list_projects",
             description="List all projects in the system",
             permissions=["project-read"],
-            category="projects"
+            category="projects",
+            risk_level=RiskLevel.LOW
         )
         async def list_projects(
             search: str | None = None,
@@ -87,6 +91,7 @@ def ai_tool(
         - This excludes context from the tool schema while injecting it at runtime
         - Docstring Args sections are parsed for parameter descriptions
         - The decorator returns a BaseTool, not the original function
+        - risk_level defaults to HIGH for backward compatibility
     """
 
     def decorator(func: Callable[P, Any]) -> BaseTool:
@@ -95,20 +100,22 @@ def ai_tool(
         tool_description = description or func.__doc__ or "No description"
         tool_permissions = permissions or []
         tool_category = category
+        tool_risk_level = risk_level or RiskLevel.HIGH  # Default to HIGH for backward compatibility
 
-        # Create ToolMetadata for RBAC
+        # Create ToolMetadata for RBAC and risk checking
         metadata = ToolMetadata(
             name=tool_name,
             description=tool_description,
             permissions=tool_permissions,
             category=tool_category,
-            version="1.0.0"
+            version="1.0.0",
+            risk_level=tool_risk_level,
         )
 
         # Wrap function to inject context and handle permissions
         @wraps(func)
         async def wrapped_with_context(*args: P.args, **kwargs: P.kwargs) -> Any:
-            # Extract context from kwargs
+            # Extract context from kwargs or context variable
             context_obj_arg = kwargs.get("context")
             context_obj: ToolContext | None = None
 
@@ -120,10 +127,20 @@ def ai_tool(
                 if hasattr(context_obj_arg, "session") and hasattr(context_obj_arg, "user_id"):
                     context_obj = context_obj_arg  # type: ignore[assignment]
 
+            # If context not in kwargs, try to get from context variable
+            # This is set by BackcastSecurityMiddleware to avoid putting
+            # non-serializable objects (AsyncSession) in the state
+            if context_obj is None:
+                from app.ai.middleware.backcast_security import get_context
+                context_obj = get_context()
+
             # Validate context
             if context_obj is None:
                 logger.error(f"Tool {tool_name} called without context")
                 return {"error": "Tool context not provided"}
+
+            # Add context to kwargs for the original function
+            kwargs["context"] = context_obj
 
             # Check permissions via RBAC service
             from app.core.rbac import get_rbac_service
@@ -137,12 +154,33 @@ def ai_tool(
                     )
                     return {"error": f"Permission denied: {permission} required"}
 
-            # Execute original function
+            # Execute original function with task-local session lifecycle
+            # Each concurrent tool execution gets its own scoped session via async_scoped_session
+            # We commit after successful execution to persist changes and clean up the session
             try:
                 result = await func(*args, **kwargs)
+
+                # Commit task-local session after successful tool execution
+                # This ensures the tool's database changes are persisted
+                from app.ai.tools.session_manager import ToolSessionManager
+                try:
+                    await ToolSessionManager.commit()
+                    logger.debug(f"Committed task-local session after tool execution: {tool_name}")
+                except Exception as commit_error:
+                    logger.warning(f"Failed to commit session after tool {tool_name}: {commit_error}")
+
                 return result
             except Exception as e:
                 logger.error(f"Error in tool {tool_name}: {e}", exc_info=True)
+
+                # Rollback task-local session on error
+                from app.ai.tools.session_manager import ToolSessionManager
+                try:
+                    await ToolSessionManager.rollback()
+                    logger.debug(f"Rolled back task-local session after tool error: {tool_name}")
+                except Exception as rollback_error:
+                    logger.warning(f"Failed to rollback session after tool {tool_name} error: {rollback_error}")
+
                 return {"error": str(e)}
 
         # Apply LangChain's @tool decorator with parse_docstring=True

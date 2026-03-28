@@ -10,6 +10,7 @@ Tests verify that tool-level RBAC is enforced correctly:
 """
 
 from unittest.mock import AsyncMock, MagicMock
+from uuid import UUID
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +29,7 @@ class MockRBACService(RBACServiceABC):
             "viewer": ["project-read"],
             "guest": [],
         }
+        self.session = None
 
     def has_role(self, user_role: str, required_roles: list[str]) -> bool:
         return user_role in required_roles
@@ -37,6 +39,30 @@ class MockRBACService(RBACServiceABC):
 
     def get_user_permissions(self, user_role: str) -> list[str]:
         return self.permission_map.get(user_role, [])
+
+    async def has_project_access(
+        self,
+        user_id: UUID,
+        user_role: str,
+        project_id: UUID,
+        required_permission: str,
+    ) -> bool:
+        """Check if user has access to a project with required permission."""
+        # For testing, admins have access to all projects
+        if user_role == "admin":
+            return True
+        # For other roles, check global permissions
+        return self.has_permission(user_role, required_permission)
+
+    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
+        """Get list of project IDs the user has access to."""
+        # For testing, return empty list (no projects)
+        return []
+
+    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
+        """Get user's role within a specific project."""
+        # For testing, return None (no project role)
+        return None
 
 
 # Test fixtures
@@ -394,6 +420,21 @@ async def test_permission_check_exception_handling(
 
         def get_user_permissions(self, user_role: str) -> list[str]:
             return []
+
+        async def has_project_access(
+            self,
+            user_id: UUID,
+            user_role: str,
+            project_id: UUID,
+            required_permission: str,
+        ) -> bool:
+            raise Exception("Database connection failed")
+
+        async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
+            return []
+
+        async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
+            return None
 
     # Set the broken service
     set_rbac_service(BrokenRBACService())

@@ -1,14 +1,14 @@
 # AI Tool Development Guide
 
-**Version:** 1.0.0
-**Last Updated:** 2026-03-09
+**Version:** 1.1.0
+**Last Updated:** 2026-03-22
 **Audience:** Backend Developers
 
 ---
 
 ## Overview
 
-This guide explains how to create, test, and deploy AI tools for the Backcast EVS LangGraph agent. Tools are the primary way the AI agent interacts with the system - they wrap existing service methods and provide a standardized interface for LLM-powered conversations.
+This guide explains how to create, test, and deploy AI tools for the Backcast  LangGraph agent. Tools are the primary way the AI agent interacts with the system - they wrap existing service methods and provide a standardized interface for LLM-powered conversations.
 
 ### What is an AI Tool?
 
@@ -28,8 +28,16 @@ An AI tool is an async function decorated with `@ai_tool` that:
 1. **Wrap, Don't Duplicate**: Tools should wrap existing service methods, not reimplement business logic
 2. **Security First**: Always enforce permissions via the `@ai_tool` decorator
 3. **Context Injection**: Use `ToolContext` for database access and user identification
-4. **Structured Returns**: Return dictionaries/Pydantic models that LLMs can understand
-5. **Error Handling**: Let the decorator handle exceptions, focus on business logic
+4. **Temporal Awareness**: For versioned entities, use temporal params from `context` to respect Time Machine state
+5. **Structured Returns**: Return dictionaries/Pydantic models that LLMs can understand
+6. **Error Handling**: Let the decorator handle exceptions, focus on business logic
+7. **Observability**: Log temporal context for ALL tools (both branchable and non-branchable entities)
+
+> [!IMPORTANT]
+> **Temporal Context**: When creating tools that query versioned entities (Projects, Change Orders, WBEs, etc.), you MUST use temporal parameters from `ToolContext` to respect the user's Time Machine state. See [Temporal Context Patterns](./temporal-context-patterns.md) for detailed guidance.
+
+> [!NOTE]
+> **Temporal Logging for All Tools**: Log temporal context using `log_temporal_context()` for ALL tools, including those that query non-branchable entities (e.g., Forecasts, Cost Registrations, Progress Entries). This provides consistent observability across the entire tool suite and helps debug temporal state issues.
 
 ---
 
@@ -495,6 +503,69 @@ async def test_tool_denied_without_permission():
     assert "permission" in result["error"].lower()
 ```
 
+### Async Fixture Pattern (pytest-asyncio)
+
+When writing tests for async tools in pytest-asyncio strict mode, use `@pytest_asyncio.fixture` for fixtures that async tests depend on:
+
+```python
+import pytest_asyncio
+
+@pytest_asyncio.fixture
+async def test_forecast(test_db):
+    """Create a test forecast for async tests."""
+    # Setup async fixture data
+    forecast = await ForecastService(test_db).create_forecast(...)
+    return forecast, forecast.cost_element_id
+
+@pytest.mark.asyncio
+async def test_get_forecast_with_fixture(test_forecast):
+    """Test using async fixture."""
+    forecast, cost_element_id = test_forecast
+
+    result = await get_forecast.ainvoke({
+        "cost_element_id": str(cost_element_id),
+        "context": mock_context
+    })
+
+    assert result["id"] == str(forecast.forecast_id)
+```
+
+> [!IMPORTANT]
+> **Common Mistake**: Using `@pytest.fixture` (non-async) for fixtures that async tests depend on causes pytest-asyncio strict mode to fail with "requested an async fixture" errors. Always use `@pytest_asyncio.fixture` for async test fixtures.
+
+### Edge Case Testing
+
+Test error paths and edge cases to improve coverage:
+
+```python
+@pytest.mark.asyncio
+async def test_get_forecast_invalid_uuid_format():
+    """Test with invalid UUID format."""
+    result = await get_forecast.ainvoke({
+        "cost_element_id": "not-a-uuid",
+        "context": mock_context
+    })
+    assert "error" in result
+
+@pytest.mark.asyncio
+async def test_get_forecast_empty_uuid():
+    """Test with empty UUID string."""
+    result = await get_forecast.ainvoke({
+        "cost_element_id": "",
+        "context": mock_context
+    })
+    assert "error" in result
+
+@pytest.mark.asyncio
+async def test_get_forecast_not_found():
+    """Test with non-existent forecast."""
+    result = await get_forecast.ainvoke({
+        "cost_element_id": str(uuid4()),
+        "context": mock_context
+    })
+    assert "error" in result
+```
+
 ---
 
 ## Tool Registry
@@ -522,9 +593,24 @@ Each tool has metadata attached:
 ```python
 tool._tool_metadata.name        # Tool name
 tool._tool_metadata.description # Tool description
-tool._tool_metadata.permissions # Required permissions
+tool._tool_metadata.permissions # Required permissions (list of strings)
 tool._tool_metadata.category    # Tool category
 tool._tool_metadata.version     # Tool version
+```
+
+> [!IMPORTANT]
+> **Permission Access**: When verifying tool permissions in tests, always check `tool._tool_metadata.permissions`, not `tool.permissions`. The decorator stores metadata in the `_tool_metadata` attribute.
+
+Example: Checking tool permissions in tests
+
+```python
+def test_tool_has_correct_permissions():
+    """Verify tool has required permissions."""
+    # Correct: Check _tool_metadata.permissions
+    assert "forecast-read" in get_forecast._tool_metadata.permissions
+
+    # Incorrect: This will fail
+    # assert hasattr(get_forecast, "permissions")  # False
 ```
 
 ---
@@ -577,6 +663,79 @@ return {
 # ❌ Bad: All fields (large payload)
 return project.to_dict()  # Includes all fields
 ```
+
+---
+
+## Temporal Logging Best Practices
+
+### Log Temporal Context for All Tools
+
+All tools should log temporal context for observability, even when querying non-branchable entities:
+
+```python
+from app.ai.tools.temporal_logging import log_temporal_context, add_temporal_metadata
+
+@ai_tool(
+    name="get_forecast",
+    description="Get the forecast for a specific cost element",
+    permissions=["forecast-read"],
+    category="forecast"
+)
+async def get_forecast(
+    cost_element_id: str,
+    context: Annotated[ToolContext, InjectedToolArg] = None,
+) -> dict[str, Any]:
+    """Get forecast for a cost element.
+
+    Args:
+        cost_element_id: UUID of the cost element
+
+    Returns:
+        Forecast details with temporal metadata
+    """
+    # Log temporal context for observability
+    log_temporal_context("get_forecast", context)
+
+    try:
+        service = ForecastService(context.session)
+        forecast = await service.get_for_cost_element(
+            cost_element_id=UUID(cost_element_id),
+            branch=context.branch_name or "main",
+        )
+
+        result = {
+            "id": str(forecast.forecast_id),
+            "eac_amount": float(forecast.eac_amount),
+            "as_of_date": forecast.as_of_date.isoformat(),
+        }
+
+        # Add temporal metadata to result
+        return add_temporal_metadata(result, context)
+    except Exception as e:
+        return add_temporal_metadata({"error": str(e)}, context)
+```
+
+### Benefits of Temporal Logging
+
+1. **Observability**: Track which temporal context (branch, as_of) tools are using
+2. **Debugging**: Quickly identify temporal state issues in logs
+3. **Audit Trail**: Maintain complete record of temporal context for all tool invocations
+4. **Consistency**: Uniform logging pattern across all tools (branchable and non-branchable)
+
+### When to Use Temporal Logging
+
+| Entity Type | Branchable | Log Temporal Context | Use Temporal Metadata |
+| ----------- | ---------- | -------------------- | --------------------- |
+| Projects | Yes | Always | Always |
+| Change Orders | Yes | Always | Always |
+| WBEs | Yes | Always | Always |
+| Forecasts | No | Always | Always |
+| Cost Registrations | No | Always | Always |
+| Progress Entries | No | Always | Always |
+| Analysis/EVM | N/A | Always | Always |
+
+> [!NOTE]
+> **Rule of Thumb**: If a tool queries data from the database, log temporal context and add temporal metadata to results. This includes ALL tools, regardless of whether the underlying entity supports branching.
 
 ---
 
@@ -663,6 +822,58 @@ async def tool(context: ToolContext, param1: str):
 # ❌ Wrong (missing InjectedToolArg)
 async def tool(param1: str, context: ToolContext):
 ```
+
+### Async Fixture Errors (pytest-asyncio)
+
+**Problem:** Tests fail with "requested an async fixture 'X', with no plugin or hook that handled it"
+
+**Root Cause:** Using `@pytest.fixture` (non-async) for fixtures that async tests depend on, violating pytest-asyncio strict mode requirements
+
+**Solution:** Convert fixtures to `@pytest_asyncio.fixture`:
+
+```python
+# ❌ Wrong: Non-async fixture
+@pytest.fixture
+def test_forecast(test_db):
+    forecast = await ForecastService(test_db).create_forecast(...)
+    return forecast
+
+# ✅ Correct: Async fixture
+import pytest_asyncio
+
+@pytest_asyncio.fixture
+async def test_forecast(test_db):
+    forecast = await ForecastService(test_db).create_forecast(...)
+    return forecast
+```
+
+**Prevention:**
+- Always use `@pytest_asyncio.fixture` for fixtures that async tests depend on
+- Run test suite incrementally during implementation to catch fixture issues early
+- Verify fixture execution during RED phase of TDD, not just test collection
+
+### Permission Test Failures
+
+**Problem:** Test fails with `AssertionError: tool should have permissions`
+
+**Root Cause:** Test checks `hasattr(tool, "permissions")` but decorator stores permissions in `tool._tool_metadata.permissions`
+
+**Solution:** Check the correct attribute path:
+
+```python
+# ❌ Wrong: Direct attribute access
+assert hasattr(get_forecast, "permissions")  # False
+assert "forecast-read" in get_forecast.permissions  # AttributeError
+
+# ✅ Correct: Check _tool_metadata
+assert hasattr(get_forecast, "_tool_metadata")  # True
+assert "forecast-read" in get_forecast._tool_metadata.permissions  # True
+```
+
+**Prevention:**
+- Review decorator implementation (`decorator.py`) before writing tests
+- Use test discovery phase to verify tool attributes
+- Check for `_tool_metadata` attribute in tests, not just `permissions`
 
 ---
 

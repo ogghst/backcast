@@ -10,16 +10,23 @@ from typing import Annotated, Any
 from langchain_core.tools import InjectedToolArg
 
 from app.ai.tools.decorator import ai_tool
-from app.ai.tools.types import ToolContext
+from app.ai.tools.temporal_logging import (
+    add_project_metadata,
+    add_temporal_metadata,
+    log_project_context,
+    log_temporal_context,
+)
+from app.ai.tools.types import RiskLevel, ToolContext
 
 logger = logging.getLogger(__name__)
 
 
 @ai_tool(
     name="list_projects",
-    description="List all projects in the system with optional search, status filter, and pagination.",
+    description="List all projects in the system with optional search, status filter, and pagination. Respects temporal context (as_of date, branch, branch_mode) for versioned queries.",
     permissions=["project-read"],
-    category="projects"
+    category="projects",
+    risk_level=RiskLevel.LOW,
 )
 async def list_projects(
     search: str | None = None,
@@ -33,6 +40,8 @@ async def list_projects(
     """List all projects in the system with filtering and pagination.
 
     Context: Provides database session and user context for executing the query.
+    Filters projects based on user's access level - non-admin users only see
+    projects they are members of. Respects temporal context for versioned queries.
 
     Args:
         search: Optional search term for project code or name
@@ -49,14 +58,58 @@ async def list_projects(
             - total: Total count of projects matching filters
             - skip: Pagination skip value
             - limit: Pagination limit value
+            - _temporal_context: Temporal parameters used for the query
 
     Raises:
         ValueError: If invalid filter parameters are provided
     """
+    # Log temporal and project context for observability
+    log_temporal_context("list_projects", context)
+    log_project_context("list_projects", context)
+
     # Context is injected by decorator
     try:
+        from uuid import UUID
+
+        from app.core.rbac import get_rbac_service
+
+        # Get user's accessible projects
+        rbac_service = get_rbac_service()
+
+        # Inject session for project-level access checks
+        if hasattr(rbac_service, "session") and rbac_service.session is None:
+            rbac_service.session = context.session
+
+        user_uuid = UUID(context.user_id)
+
+        # Get projects user has access to
+        accessible_project_ids = await rbac_service.get_user_projects(
+            user_id=user_uuid,
+            user_role=context.user_role,
+        )
+
         # Build filter string if status is provided
         filters = f"status:{status}" if status else None
+
+        # Use temporal parameters from context
+        from app.core.versioning.enums import BranchMode
+
+        branch = context.branch_name or "main"
+        branch_mode = BranchMode.MERGE if context.branch_mode == "merged" else BranchMode.STRICT
+
+        # Auto-scope to project if project_id is set in context
+        # When in project-scoped chat, automatically filter to that project
+        if context.project_id:
+            from uuid import UUID
+
+            # Add project_id filter to restrict to current project
+            project_uuid = UUID(context.project_id)
+            # Only include the specified project in accessible projects
+            if project_uuid in accessible_project_ids:
+                accessible_project_ids = [project_uuid]
+            else:
+                # User doesn't have access to the scoped project
+                accessible_project_ids = []
 
         projects, total = await context.project_service.get_projects(
             skip=skip,
@@ -65,10 +118,20 @@ async def list_projects(
             filters=filters,
             sort_field=sort_field,
             sort_order=sort_order,
-            branch="main",
+            branch=branch,
+            branch_mode=branch_mode,
+            as_of=context.as_of,
         )
 
-        return {
+        # Filter projects to only include accessible ones
+        accessible_projects = [
+            p for p in projects if p.project_id in accessible_project_ids
+        ]
+
+        # Recalculate total for filtered results
+        filtered_total = len(accessible_projects)
+
+        result = {
             "projects": [
                 {
                     "id": str(p.project_id),
@@ -80,22 +143,29 @@ async def list_projects(
                     "start_date": p.start_date.isoformat() if p.start_date else None,
                     "end_date": p.end_date.isoformat() if p.end_date else None,
                 }
-                for p in projects
+                for p in accessible_projects
             ],
-            "total": total,
+            "total": filtered_total,
             "skip": skip,
             "limit": limit,
         }
+
+        # Add temporal and project metadata to result
+        with_project_metadata = add_project_metadata(result, context)
+        return add_temporal_metadata(with_project_metadata, context)
     except Exception as e:
         logger.error(f"Error in list_projects: {e}")
-        return {"error": str(e)}
+        # Add temporal and project metadata even to error responses
+        with_project_metadata = add_project_metadata({"error": str(e)}, context)
+        return add_temporal_metadata(with_project_metadata, context)
 
 
 @ai_tool(
     name="get_project",
-    description="Get detailed information about a specific project by its ID.",
+    description="Get detailed information about a specific project by its ID. Respects temporal context (as_of date, branch, branch_mode) for versioned queries.",
     permissions=["project-read"],
-    category="projects"
+    category="projects",
+    risk_level=RiskLevel.LOW,
 )
 async def get_project(
     project_id: str,
@@ -104,6 +174,7 @@ async def get_project(
     """Get detailed information about a specific project.
 
     Context: Provides database session and user context for retrieving project data.
+    Respects temporal context for versioned queries.
 
     Args:
         project_id: Project ID as UUID string
@@ -120,21 +191,39 @@ async def get_project(
             - start_date: Project start date (ISO format)
             - end_date: Project end date (ISO format)
             - branch: Git branch for the project
+            - _temporal_context: Temporal parameters used for the query
 
     Raises:
         ValueError: If project_id is not a valid UUID format
         KeyError: If project is not found
     """
+    # Log temporal context for observability
+    log_temporal_context("get_project", context)
+
     # Context is injected by decorator
     try:
         from uuid import UUID
 
-        project = await context.project_service.get_by_id(UUID(project_id))
+        from app.core.versioning.enums import BranchMode
+
+        # Use temporal parameters from context
+        branch = context.branch_name or "main"
+        branch_mode = BranchMode.MERGE if context.branch_mode == "merged" else BranchMode.STRICT
+
+        # Use get_as_of to support temporal queries
+        project = await context.project_service.get_as_of(
+            entity_id=UUID(project_id),
+            as_of=context.as_of,
+            branch=branch,
+            branch_mode=branch_mode,
+        )
 
         if not project:
-            return {"error": f"Project {project_id} not found"}
+            return add_temporal_metadata(
+                {"error": f"Project {project_id} not found"}, context
+            )
 
-        return {
+        result = {
             "id": str(project.project_id),
             "code": project.code,
             "name": project.name,
@@ -147,8 +236,12 @@ async def get_project(
             "end_date": project.end_date.isoformat() if project.end_date else None,
             "branch": project.branch,
         }
+
+        return add_temporal_metadata(result, context)
     except ValueError:
-        return {"error": f"Invalid project ID: {project_id}"}
+        return add_temporal_metadata(
+            {"error": f"Invalid project ID: {project_id}"}, context
+        )
     except Exception as e:
         logger.error(f"Error in get_project: {e}")
-        return {"error": str(e)}
+        return add_temporal_metadata({"error": str(e)}, context)

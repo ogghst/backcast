@@ -6,9 +6,15 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import RoleChecker, get_current_active_user
+from app.api.dependencies.auth import (
+    ProjectRoleChecker,
+    RoleChecker,
+    get_current_active_user,
+)
+from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.db.session import get_db
 from app.models.domain.project import Project
 from app.models.domain.user import User
@@ -59,6 +65,8 @@ async def read_projects(
         None,
         description="Time travel: get Projects as of this timestamp (ISO 8601)",
     ),
+    current_user: User = Depends(get_current_active_user),
+    rbac_service: RBACServiceABC = Depends(get_rbac_service),
     service: ProjectService = Depends(get_project_service),
 ) -> dict[str, Any]:
     """Retrieve projects with server-side search, filtering, and sorting.
@@ -70,7 +78,7 @@ async def read_projects(
     - **Pagination**: Returns total count for proper pagination UI
     - **Mode**: Branch mode - "merged" (combine with main) or "isolated" (current branch only)
 
-    Requires read permission.
+    Requires read permission. Non-admin users only see projects they are members of.
     """
     from app.core.versioning.enums import BranchMode
     from app.models.schemas.common import PaginatedResponse
@@ -100,6 +108,16 @@ async def read_projects(
             sort_order=sort_order,
             as_of=as_of,
         )
+
+        # Filter projects by user's access for non-admin users
+        if current_user.role != "admin":
+            accessible_project_ids = await rbac_service.get_user_projects(
+                user_id=current_user.user_id,
+                user_role=current_user.role,
+            )
+            # Filter projects to only those the user can access
+            projects = [p for p in projects if p.project_id in accessible_project_ids]
+            total = len(projects)
 
         # Convert to Pydantic models
         from app.models.schemas.project import ProjectPublic
@@ -161,7 +179,6 @@ async def create_project(
     "/{project_id}",
     response_model=ProjectPublic,
     operation_id="get_project",
-    dependencies=[Depends(RoleChecker(required_permission="project-read"))],
 )
 async def read_project(
     project_id: UUID,
@@ -170,6 +187,7 @@ async def read_project(
         None,
         description="Time travel: get project state as of this timestamp (ISO 8601)",
     ),
+    current_user: User = Depends(ProjectRoleChecker(required_permission="project-read")),
     service: ProjectService = Depends(get_project_service),
 ) -> Project:
     """Get a specific project by id. Requires read permission.
@@ -202,12 +220,11 @@ async def read_project(
     "/{project_id}",
     response_model=ProjectPublic,
     operation_id="update_project",
-    dependencies=[Depends(RoleChecker(required_permission="project-update"))],
 )
 async def update_project(
     project_id: UUID,
     project_in: ProjectUpdate,
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(ProjectRoleChecker(required_permission="project-update")),
     service: ProjectService = Depends(get_project_service),
 ) -> Project:
     """Update a project. Requires update permission."""
@@ -220,20 +237,24 @@ async def update_project(
         return updated_project
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+    except IntegrityError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database integrity error during project update",
+        ) from e
 
 
 @router.delete(
     "/{project_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     operation_id="delete_project",
-    dependencies=[Depends(RoleChecker(required_permission="project-delete"))],
 )
 async def delete_project(
     project_id: UUID,
     control_date: datetime | None = Query(
         None, description="Optional control date for deletion"
     ),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(ProjectRoleChecker(required_permission="project-delete")),
     service: ProjectService = Depends(get_project_service),
 ) -> None:
     """Soft delete a project. Requires delete permission."""

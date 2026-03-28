@@ -7,7 +7,7 @@
 
 ## Overview
 
-The Backcast EVS AI system provides a LangGraph-based agent for natural language interactions with project management data. This document describes all public interfaces for the AI system.
+The Backcast  AI system provides a LangGraph-based agent for natural language interactions with project management data. This document describes all public interfaces for the AI system.
 
 ### Core Components
 
@@ -16,6 +16,20 @@ The Backcast EVS AI system provides a LangGraph-based agent for natural language
 3. **Tool Layer**: @ai_tool decorator and tool registry
 4. **WebSocket API**: Real-time streaming interface
 5. **Monitoring**: Performance and execution tracking
+
+### Caching Infrastructure
+
+Compiled agent graphs, LLM clients, and tool lists are cached for performance.
+
+| Component | Module | Purpose |
+|-----------|--------|---------|
+| `LLMClientCache` | `app.ai.graph_cache` | Thread-safe LLM client cache keyed by `(model_name, temperature, max_tokens, base_url_hash)` |
+| `CompiledGraphCache` | `app.ai.graph_cache` | LRU cache (max 20) for compiled graphs keyed by `GraphCacheKey` |
+| `GraphCacheKey` | `app.ai.graph_cache` | Frozen dataclass: `(model_name, frozenset(allowed_tools), execution_mode, system_prompt_hash)` |
+| `BackcastRuntimeContext` | `app.ai.graph_cache` | Per-request context for LangGraph Runtime |
+| `shared_checkpointer` | `app.ai.graph_cache` | Singleton `MemorySaver` shared across all graph invocations |
+
+Per-request context is managed via ContextVar helpers: `set_request_context()`, `clear_request_context()`, `get_request_tool_context()`, `get_request_interrupt_node()`.
 
 ---
 
