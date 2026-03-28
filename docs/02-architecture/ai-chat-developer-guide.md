@@ -39,7 +39,7 @@ Browser (React)                          Backend (FastAPI)
      |                                        | 5. Create agent + tools
      |  {type:"thinking"}                     |
      |<---------------------------------------|
-     |                                        | 6. Deep Agent plans (write_todos)
+     |                                        | 6. LangChain agent plans (TodoListMiddleware)
      |  {type:"planning", steps:[...]}        |
      |<---------------------------------------|
      |                                        | 7. Delegates to subagent
@@ -62,10 +62,10 @@ Browser (React)                          Backend (FastAPI)
 
 | Path | When Used | Description |
 |------|-----------|-------------|
-| **Deep Agent** (primary) | Default when Deep Agents SDK available | Multi-agent orchestration with `write_todos` planning and `task` delegation to 7 subagents |
-| **StateGraph fallback** | SDK import fails | Direct LangGraph `StateGraph` with agent node, tool node, and conditional edges. Max 5 tool iterations. |
+| **LangChain Agent** (primary) | Default path | Multi-agent orchestration via `langchain.agents.create_agent()` with `task` delegation to 7 subagents |
+| **StateGraph fallback** | Subagents disabled or no valid subagent tools | Direct LangGraph `StateGraph` with agent node, tool node, and conditional edges. Max 5 tool iterations. |
 
-The fallback path lives in `graph.py:146` (`create_graph()`). The primary path lives in `deep_agent_orchestrator.py:86` (`DeepAgentOrchestrator.create_agent()`).
+The primary path lives in `deep_agent_orchestrator.py` (`DeepAgentOrchestrator.create_agent()`), which wraps `langchain.agents.create_agent()` with Backcast config. The fallback path lives in `graph.py` (`create_graph()`).
 
 ### Core Components
 
@@ -77,13 +77,12 @@ agent_service.py (orchestration)
     |
     +---> DeepAgentOrchestrator.create_agent()
     |         |
-    |         +---> tools/__init__.py  (create_project_tools - 60+ tools)
+    |         +---> tools/__init__.py  (create_project_tools - 66 tools)
     |         +---> subagents/__init__.py  (7 subagent configs)
     |         +---> middleware/
     |         |      +---> temporal_context.py   (inject as_of, branch)
     |         |      +---> backcast_security.py  (RBAC + approval)
-    |         |      +---> subagent_result.py    (intercept results)
-    |         +---> deepagents.create_deep_agent()  (SDK)
+    |         +---> langchain_create_agent()  (LangChain native)
     |
     +---> astream_events() loop
     |         |
@@ -96,7 +95,10 @@ agent_service.py (orchestration)
               |
               +---> WSApprovalRequestMessage  --> client
               +---> WSApprovalResponseMessage <-- client
-```
+    |
+    +---> TokenBufferManager (batched token sending)
+              |
+              +---> WSTokenBatchMessage  --> client (reduces WS overhead)
 
 ---
 
@@ -132,14 +134,14 @@ Authentication happens **before** `websocket.accept()`. If auth fails, the conne
 
 ### Message Handler Loop
 
-File: `ai_chat.py:221-403`
+File: `ai_chat.py`
 
 The handler runs as `asyncio.create_task(message_handler())`. Two message types are dispatched:
 
 - `"approval_response"` — handled immediately, non-blocking (updates `pending_approvals` dict)
 - `"chat"` (default) — processed via `agent_service.chat_stream()` as background task
 
-Only one chat stream runs at a time per WebSocket connection. If a chat is already in progress, the server sends a `WSErrorMessage`.
+Chat messages are processed as concurrent background tasks via `asyncio.create_task()`. Multiple chat streams can run simultaneously on the same WebSocket connection.
 
 ---
 
@@ -226,22 +228,21 @@ This context flows through middleware to every tool call — the LLM cannot over
 
 ### Agent Creation Flow
 
-File: `agent_service.py:706-716` and `deep_agent_orchestrator.py:86-212`
+File: `agent_service.py` (_create_deep_agent_graph) and `deep_agent_orchestrator.py` (create_agent)
 
 ```
-1. create_project_tools(context)     → ~60+ LangChain BaseTool instances
+1. create_project_tools(context)     → 66 LangChain BaseTool instances (8 template packages)
 2. Filter by allowed_tools           → Assistant config whitelist
 3. Filter by execution_mode          → Risk-level filtering (safe/standard/expert)
 4. If subagents enabled:
-   - Main agent gets NO Backcast tools (only SDK built-ins: write_todos, task)
+   - Main agent gets NO Backcast tools (only task tool for delegation)
    - Subagents get filtered tool lists
 5. Build middleware stack:
    - TemporalContextMiddleware(context)
    - BackcastSecurityMiddleware(context, tools=all_tools, interrupt_node)
-   - SubagentResultMiddleware()
 6. Create SubAgent objects (7 subagents)
 7. Build system prompt with delegation instructions
-8. create_deep_agent(model, tools, system_prompt, subagents, middleware)
+8. langchain_create_agent(model, tools, system_prompt, middleware)
 9. Register InterruptNode for approval handling
 ```
 
@@ -262,7 +263,7 @@ File: `agent_service.py:706-716` and `deep_agent_orchestrator.py:86-212`
 ### Tool Filtering Pipeline
 
 ```
-All tools (~60+)
+All tools (66, 8 template packages)
     │
     ▼ allowed_tools whitelist (assistant config)
 Filtered to whitelist
@@ -270,7 +271,7 @@ Filtered to whitelist
     ▼ filter_tools_by_execution_mode()
     │
     ├─ SAFE mode:    Keep only LOW risk tools
-    ├─ STANDARD mode: Keep LOW + HIGH risk tools
+    ├─ STANDARD mode: Keep ALL tools (CRITICAL blocked later by BackcastSecurityMiddleware)
     └─ EXPERT mode:   Keep ALL tools (LOW + HIGH + CRITICAL)
 ```
 
@@ -281,7 +282,7 @@ Risk levels are set via the `@ai_tool` decorator:
 
 ### StateGraph Fallback
 
-When Deep Agents SDK is unavailable, the system falls back to `graph.py:create_graph()`:
+When subagents are disabled or no valid subagents after filtering, the system falls back to `graph.py:create_graph()`:
 
 ```
 StateGraph(AgentState)
@@ -291,6 +292,8 @@ StateGraph(AgentState)
     "tools" ────────────────────→ "agent"  (loop back)
 
 Max iterations: 5 (MAX_TOOL_ITERATIONS)
+
+Returns: (compiled_graph, interrupt_node) tuple
 ```
 
 Tool node selection:
@@ -304,7 +307,7 @@ Tool node selection:
 
 ### Event Streaming
 
-File: `agent_service.py:756-1011`
+File: `agent_service.py` (_consume_stream within chat_stream)
 
 ```python
 async for event in graph.astream_events(
@@ -319,12 +322,15 @@ async for event in graph.astream_events(
 | LangGraph Event | WebSocket Message | Description |
 |-----------------|-------------------|-------------|
 | `on_chat_model_stream` | `WSTokenMessage` | Streaming token from LLM |
-| `on_tool_start` (write_todos) | `WSPlanningMessage` | Deep Agent creating a plan |
+| `on_tool_start` (write_todos) | `WSPlanningMessage` | LangChain agent creating a plan |
 | `on_tool_start` (task) | `WSSubagentMessage` | Delegating to subagent |
 | `on_tool_start` (other) | `WSToolCallMessage` | Tool execution starting |
 | `on_tool_end` (task) | `WSSubagentResultMessage` + `WSContentResetMessage` | Subagent completed |
 | `on_tool_end` (other) | `WSToolResultMessage` | Tool execution result |
 | `on_end` | `WSCompleteMessage` | Stream complete |
+| `on_chat_model_stream` (batched) | `WSTokenBatchMessage` | Batched tokens via TokenBufferManager |
+| `on_tool_end` (task) | `WSAgentCompleteMessage` | Subagent stream completed visually |
+| `on_tool_end` (task) | `WSContentResetMessage` | Clear streaming buffer for new main agent bubble |
 
 ### Step Tracking
 
@@ -343,18 +349,32 @@ current_step += 1
 
 Every `WSToolCallMessage`, `WSSubagentMessage`, and `WSPlanningMessage` includes `step_number` and `total_steps`.
 
-### Subagent Result Interception
+### Subagent Result Handling
 
-File: `middleware/subagent_result.py`
+Handled inline in `agent_service.py:_consume_stream()` within the `on_tool_end` event handler.
 
 When a subagent completes via the `task` tool:
-1. Original subagent content is captured and stored
-2. `WSSubagentResultMessage` is sent to the client (displayed in Activity Panel)
-3. `WSContentResetMessage` is sent to clear the streaming buffer
-4. The tool result is replaced with a truncated acknowledgment: `"[Subagent result delivered to user via Activity Panel]"`
-5. Main agent receives the acknowledgment and synthesizes a final response
+1. Subagent content is extracted from the tool output (ToolMessage, Command, or dict)
+2. Content is tracked in `subagent_messages_by_main_invocation` for ordered persistence
+3. `WSSubagentResultMessage` is sent to the client (displayed in Activity Panel)
+4. Subagent token buffer is flushed
+5. `WSAgentCompleteMessage` is sent (completion indicator for UI)
+6. `WSContentResetMessage` is sent to clear the streaming buffer
+7. `accumulated_content` is NOT reset — main agent thoughts persist across subagent executions
+8. A new `main_invocation_id` is generated for the next main agent bubble
 
-This prevents the main agent from repeating the subagent's full output.
+Messages are persisted to DB in conversational order: main segment → subagents → next main segment.
+
+### Token Buffering
+
+File: `agent_service.py` (TokenBufferManager) and `token_buffer.py`
+
+The stream uses a `TokenBufferManager` that batches individual LLM tokens before sending via WebSocket. Instead of one WS message per token, tokens are accumulated and flushed as `WSTokenBatchMessage` either:
+- On buffer timeout (configurable interval)
+- When buffer size exceeds threshold
+- On explicit flush (before tool calls, on subagent transitions, on stream completion)
+
+Configuration comes from `settings.AI_TOKEN_BUFFER_INTERVAL_MS`, `settings.AI_TOKEN_BUFFER_MAX_SIZE`, and `settings.AI_TOKEN_BUFFER_ENABLED`.
 
 ---
 
@@ -363,15 +383,17 @@ This prevents the main agent from repeating the subagent's full output.
 ### When Approval is Required
 
 ```
-Tool risk_level >= HIGH
+Tool risk_level == HIGH
     AND execution_mode == STANDARD
     AND InterruptNode is available
 ```
 
+Note: CRITICAL tools in STANDARD mode are **blocked entirely** by `BackcastSecurityMiddleware._check_risk_level()` — they never reach the approval flow. Only HIGH-risk tools go through approval in standard mode.
+
 | Execution Mode | LOW tools | HIGH tools | CRITICAL tools |
 |---------------|-----------|------------|----------------|
 | `safe` | Allowed | Blocked | Blocked |
-| `standard` | Allowed | Approval required | Approval required |
+| `standard` | Allowed | Approval required | Blocked |
 | `expert` | Allowed | Allowed | Allowed |
 
 ### Approval Sequence
@@ -570,6 +592,31 @@ Subagent token:
 }
 ```
 
+#### Agent Complete
+
+```json
+{
+  "type": "agent_complete",
+  "agent_type": "main",
+  "invocation_id": "a1b2c3d4-...",
+  "agent_name": "Assistant",
+  "completed_at": "2026-03-24T12:30:15Z"
+}
+```
+
+#### Token Batch
+
+```json
+{
+  "type": "token_batch",
+  "tokens": "Based on the project data, the CPI",
+  "session_id": "a1b2c3d4-e89b-12d3-a456-426614174000",
+  "source": "main",
+  "subagent_name": null,
+  "invocation_id": "a1b2c3d4-..."
+}
+```
+
 #### Approval Request
 
 ```json
@@ -664,7 +711,7 @@ Tier 3: Risk-Based Execution Modes
 | Mode | LOW (read) | HIGH (write) | CRITICAL (delete) | Approval? |
 |------|------------|--------------|-------------------|-----------|
 | `safe` | yes | no | no | N/A (tools not available) |
-| `standard` | yes | yes (approval) | yes (approval) | Yes, for HIGH+ |
+| `standard` | yes | yes (approval) | no (blocked by middleware) | Yes, for HIGH only |
 | `expert` | yes | yes | yes | No |
 
 ### Temporal Context Injection
@@ -709,18 +756,17 @@ Search `backend/logs/app.log` for these markers to trace request flow:
 | `WebSocket chat connection established for user` | `ai_chat.py` | Connection accepted (auth passed) |
 | `[AGENT_CREATION_START]` | `deep_agent_orchestrator.py` | Agent creation starting |
 | `[TOOL_FILTERING]` | `deep_agent_orchestrator.py` | How many tools were filtered by execution mode |
-| `Creating Deep Agent with subagents` | `deep_agent_orchestrator.py` | Subagent mode active |
-| `Created subagent '...' with N tools` | `deep_agent_orchestrator.py` | Subagent tool counts |
-| `Deep Agent created successfully` | `deep_agent_orchestrator.py` | Agent ready to use |
+| `Creating agent with subagents -` | `deep_agent_orchestrator.py` | Subagent mode active |
+| `Compiled subagent '...' with N tools` | `deep_agent_orchestrator.py` | Subagent tool counts |
+| `Agent created successfully` | `deep_agent_orchestrator.py` | Agent ready to use |
 | `[CHAT_STREAM_ENTRY]` | `agent_service.py` | Chat stream starting |
 | `[CHAT_STREAM_COMPLETE]` | `agent_service.py` | Chat stream finished |
 | `on_chat_model_stream` | `agent_service.py` | Token streaming |
 | `on_tool_start` | `agent_service.py` | Tool call beginning |
 | `on_tool_end` | `agent_service.py` | Tool call complete |
-| `[APPROVAL_REQUEST_SENT]` | `interrupt_node.py` | Approval request sent to client |
+| `APPROVAL_REQUEST_SENT:` | `interrupt_node.py` | Approval request sent to client |
 | `[APPROVAL_GRANTED]` | `backcast_security.py` | User approved the tool |
-| `[APPROVAL_REJECTED]` | `backcast_security.py` | User rejected the tool |
-| `[APPROVAL_TIMEOUT]` | `backcast_security.py` | Approval polling timed out (10s) |
+| `[APPROVAL_TIMEOUT]` | `backcast_security.py` | Approval polling timed out (60s) |
 | `[SUBAGENT_DELEGATION]` | `agent_service.py` | Subagent task started |
 
 ### Common Issues
@@ -766,7 +812,7 @@ Search `backend/logs/app.log` for these markers to trace request flow:
 2. **Search logs** for the session ID: `grep "<session_id>" backend/logs/app.log`
 3. **Follow the markers**:
    - `[CHAT_STREAM_ENTRY]` → `[AGENT_CREATION_START]` → `[TOOL_FILTERING]`
-   - → `Deep Agent created successfully`
+   - → `Agent created successfully`
    - → `on_tool_start` → `[SUBAGENT_DELEGATION]` or `[APPROVAL_*]`
    - → `on_tool_end` → `on_chat_model_stream` → `[CHAT_STREAM_COMPLETE]`
 4. **Check OpenTelemetry** if Jaeger is running (OTLP endpoint at `localhost:4317`)
@@ -831,8 +877,8 @@ docker run -d --name jaeger \
 |------|---------|
 | `backend/app/api/routes/ai_chat.py` | WebSocket endpoint (`/stream`), auth, message dispatch |
 | `backend/app/ai/agent_service.py` | Main orchestration: `chat_stream()`, `chat()`, approval registration, history building |
-| `backend/app/ai/deep_agent_orchestrator.py` | `DeepAgentOrchestrator.create_agent()` — wraps SDK with Backcast config |
-| `backend/app/ai/graph.py` | `create_graph()` — StateGraph fallback (no Deep Agents SDK) |
+| `backend/app/ai/deep_agent_orchestrator.py` | `DeepAgentOrchestrator.create_agent()` — wraps `langchain.agents.create_agent()` with Backcast config |
+| `backend/app/ai/graph.py` | `create_graph()` — StateGraph fallback (no subagents) |
 | `backend/app/ai/state.py` | `AgentState` TypedDict (messages, tool_call_count, next) |
 
 ### Subagents
@@ -850,6 +896,10 @@ docker run -d --name jaeger \
 | `backend/app/ai/tools/decorator.py` | `@ai_tool` decorator for tool registration with metadata |
 | `backend/app/ai/tools/interrupt_node.py` | `InterruptNode` — approval request/response via WebSocket |
 | `backend/app/ai/tools/rbac_tool_node.py` | `RBACToolNode` — permission-aware tool node (StateGraph path) |
+| `backend/app/ai/tools/subagent_task.py` | `build_task_tool()`, `TASK_SYSTEM_PROMPT` — task tool for subagent delegation |
+| `backend/app/ai/tools/session_manager.py` | `ToolSessionManager` — task-local DB sessions for concurrent tool execution |
+| `backend/app/ai/tools/approval_audit.py` | Approval audit trail logging |
+| `backend/app/ai/tools/risk_check_node.py` | Standalone risk checking node |
 | `backend/app/ai/tools/project_tools.py` | Project and WBE tools |
 | `backend/app/ai/tools/context_tools.py` | `get_temporal_context`, `get_project_context` |
 | `backend/app/ai/tools/temporal_tools.py` | Temporal/bitemporal query tools |
@@ -861,7 +911,12 @@ docker run -d --name jaeger \
 |------|---------|
 | `backend/app/ai/middleware/backcast_security.py` | RBAC checks + risk-based approval via `InterruptNode` |
 | `backend/app/ai/middleware/temporal_context.py` | Injects `as_of`, `branch_name`, `branch_mode`, `project_id` into tool args |
-| `backend/app/ai/middleware/subagent_result.py` | Intercepts subagent results, sends to Activity Panel, truncates for main agent |
+
+### Streaming
+
+| File | Purpose |
+|------|---------|
+| `backend/app/ai/token_buffer.py` | `TokenBuffer`, `TokenBufferManager` — batched token sending to reduce WebSocket overhead |
 
 ### Schemas & Models
 
