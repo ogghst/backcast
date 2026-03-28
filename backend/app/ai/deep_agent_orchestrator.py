@@ -86,12 +86,16 @@ class DeepAgentOrchestrator:
         self,
         allowed_tools: list[str] | None = None,
         subagents: list[dict[str, Any]] | None = None,
+        checkpointer: Any | None = None,
+        context_schema: type | None = None,
     ) -> Any:
         """Create a LangChain agent with Backcast tools and context.
 
         Args:
             allowed_tools: Optional list of tool names to include (filters all tools)
             subagents: Optional subagent configurations (uses default if None and enabled)
+            checkpointer: Optional shared checkpointer for graph state persistence
+            context_schema: Optional context schema for StateGraph construction
 
         Returns:
             Compiled agent graph (CompiledStateGraph)
@@ -137,7 +141,7 @@ class DeepAgentOrchestrator:
             BackcastSecurityMiddleware(
                 self.context,
                 tools=all_tools,
-                interrupt_node=self.interrupt_node,
+                interrupt_node=None,  # Per-request InterruptNode set via ContextVar at invocation time
             ),
         ]
 
@@ -189,6 +193,8 @@ class DeepAgentOrchestrator:
             tools=tools,
             system_prompt=final_system_prompt,
             middleware=middleware,
+            checkpointer=checkpointer,
+            context_schema=context_schema,
         )
 
         # DEBUG: Log what the main agent has access to
@@ -307,7 +313,7 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
             BackcastSecurityMiddleware(
                 self.context,
                 tools=available_tools,
-                interrupt_node=self.interrupt_node,
+                interrupt_node=None,  # Per-request InterruptNode set via ContextVar at invocation time
             ),
         ]
 

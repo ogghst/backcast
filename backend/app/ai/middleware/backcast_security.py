@@ -20,6 +20,7 @@ from langchain.agents.middleware.types import AgentMiddleware
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
+from app.ai.graph_cache import get_request_interrupt_node, get_request_tool_context
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 from app.core.rbac import get_rbac_service
@@ -95,6 +96,10 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         tool_id = tool_call.get("id", "")
         tool_args = dict(tool_call.get("args", {}))
 
+        # Resolve per-request context (supports cached graphs)
+        # ContextVar takes priority over construction-time self.context
+        ctx = get_request_tool_context() or self.context
+
         # Log tool call entry
         tool_call_start = time.time()
         logger.info(
@@ -102,8 +107,8 @@ class BackcastSecurityMiddleware(AgentMiddleware):
             f"tool_name={tool_name} | "
             f"tool_id={tool_id} | "
             f"arg_keys={list(tool_args.keys())} | "
-            f"user_role={self.context.user_role} | "
-            f"execution_mode={self.context.execution_mode.value}"
+            f"user_role={ctx.user_role} | "
+            f"execution_mode={ctx.execution_mode.value}"
         )
 
         # 1. Check permissions
@@ -147,8 +152,10 @@ class BackcastSecurityMiddleware(AgentMiddleware):
 
         # 3. Store context in context variable for tool to retrieve
         # This avoids putting non-serializable objects (AsyncSession) in the state
-        _current_context.set(self.context)
-        _current_interrupt_node.set(self._interrupt_node)
+        # Use resolved interrupt_node from ContextVar (supports cached graphs)
+        resolved_interrupt_node = get_request_interrupt_node() or self._interrupt_node
+        _current_context.set(ctx)
+        _current_interrupt_node.set(resolved_interrupt_node)
 
         # Execute tool with original args (context will be retrieved from context variable)
         # If approval was handled, the handler may have already been called
@@ -208,6 +215,9 @@ class BackcastSecurityMiddleware(AgentMiddleware):
             are allowed through without Backcast-specific permission checks, as they
             have their own security mechanisms.
         """
+        # Resolve per-request context (supports cached graphs)
+        ctx = get_request_tool_context() or self.context
+
         # Find the tool by name via indexed lookup
         tool = self._tools_by_name.get(tool_name)
 
@@ -236,7 +246,7 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         if project_id is not None and hasattr(rbac_service, "session"):
             original_session = getattr(rbac_service, "session", None)
             try:
-                rbac_service.session = self.context.session
+                rbac_service.session = ctx.session
 
                 # Check each required permission (project-level)
                 for permission in metadata.permissions:
@@ -245,11 +255,11 @@ class BackcastSecurityMiddleware(AgentMiddleware):
 
                         try:
                             project_uuid = UUID(project_id) if isinstance(project_id, str) else project_id
-                            user_uuid = UUID(self.context.user_id)
+                            user_uuid = UUID(ctx.user_id)
 
                             has_access = await rbac_service.has_project_access(
                                 user_id=user_uuid,
-                                user_role=self.context.user_role,
+                                user_role=ctx.user_role,
                                 project_id=project_uuid,
                                 required_permission=permission,
                             )
@@ -258,7 +268,7 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                                 return (
                                     f"Permission denied: {permission} required "
                                     f"for project {project_id} "
-                                    f"(user_role: {self.context.user_role}, tool: {tool_name})"
+                                    f"(user_role: {ctx.user_role}, tool: {tool_name})"
                                 )
                         except (ValueError, TypeError):
                             return (
@@ -266,20 +276,20 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                                 f"(tool: {tool_name})"
                             )
                     else:
-                        if not rbac_service.has_permission(self.context.user_role, permission):
+                        if not rbac_service.has_permission(ctx.user_role, permission):
                             return (
                                 f"Permission denied: {permission} required "
-                                f"(user_role: {self.context.user_role}, tool: {tool_name})"
+                                f"(user_role: {ctx.user_role}, tool: {tool_name})"
                             )
             finally:
                 rbac_service.session = original_session
         else:
             # Global permission checks (no project context, no session injection needed)
             for permission in metadata.permissions:
-                if not rbac_service.has_permission(self.context.user_role, permission):
+                if not rbac_service.has_permission(ctx.user_role, permission):
                     return (
                         f"Permission denied: {permission} required "
-                        f"(user_role: {self.context.user_role}, tool: {tool_name})"
+                        f"(user_role: {ctx.user_role}, tool: {tool_name})"
                     )
 
         # All permissions granted
@@ -324,8 +334,11 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         else:
             risk_level = metadata.risk_level
 
+        # Resolve per-request context (supports cached graphs)
+        ctx = get_request_tool_context() or self.context
+
         # Check based on execution mode
-        mode = self.context.execution_mode
+        mode = ctx.execution_mode
 
         # DEBUG: Log execution mode and risk level
         logger.info(f"RISK_CHECK: tool='{tool_name}', mode={mode.value}, risk_level={risk_level.value}")
@@ -379,6 +392,10 @@ class BackcastSecurityMiddleware(AgentMiddleware):
             Uses InterruptNode to send approval requests via WebSocket.
             Waits for user approval with polling (max 30 seconds).
         """
+        # Resolve per-request context (supports cached graphs)
+        ctx = get_request_tool_context() or self.context
+        interrupt_node = get_request_interrupt_node() or self._interrupt_node
+
         # First, do the basic risk check
         allowed, error_message = self._check_risk_level(tool_name)
         if not allowed:
@@ -400,23 +417,23 @@ class BackcastSecurityMiddleware(AgentMiddleware):
             risk_level = metadata.risk_level
 
         # Check if we need approval (HIGH in STANDARD mode)
-        mode = self.context.execution_mode
+        mode = ctx.execution_mode
         needs_approval = (
             risk_level >= RiskLevel.HIGH and
             mode == ExecutionMode.STANDARD and
-            self._interrupt_node is not None
+            interrupt_node is not None
         )
 
         if needs_approval:
             logger.info(f"APPROVAL_NEEDED: tool='{tool_name}', risk_level={risk_level.value}")
 
             # Ensure interrupt_node is not None
-            if self._interrupt_node is None:
+            if interrupt_node is None:
                 logger.error("InterruptNode is None but approval is needed")
                 return False, "Approval system unavailable"
 
             # Send approval request via InterruptNode
-            approval_id = await self._interrupt_node._send_approval_request(
+            approval_id = await interrupt_node._send_approval_request(
                 tool_name=tool_name,
                 tool_args=tool_args,
                 risk_level=risk_level,
@@ -461,14 +478,14 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                     # Prevents connection timeout due to inactivity (typically 20-30 seconds)
                     if total_waited - last_heartbeat >= heartbeat_interval:
                         remaining = max_wait_time - total_waited
-                        await self._interrupt_node._send_heartbeat(
+                        await interrupt_node._send_heartbeat(
                             approval_id=approval_id,
                             elapsed_seconds=total_waited,
                             remaining_seconds=remaining,
                         )
                         last_heartbeat = total_waited
 
-                    approved, approval_error = self._interrupt_node._check_approval(approval_id)
+                    approved, approval_error = interrupt_node._check_approval(approval_id)
 
                     if approved:
                         # User approved - clean up and let normal handler execute the tool
@@ -480,10 +497,10 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                             f"wait_seconds={wait_duration:.2f}"
                         )
                         # Clean up approval state
-                        if approval_id in self._interrupt_node.pending_approvals:
-                            del self._interrupt_node.pending_approvals[approval_id]
-                        if approval_id in self._interrupt_node.interrupt_state:
-                            del self._interrupt_node.interrupt_state[approval_id]
+                        if approval_id in interrupt_node.pending_approvals:
+                            del interrupt_node.pending_approvals[approval_id]
+                        if approval_id in interrupt_node.interrupt_state:
+                            del interrupt_node.interrupt_state[approval_id]
                         # Return (True, None) so awrap_tool_call falls through to handler(request)
                         # which executes the tool through the normal middleware chain with the real request
                         return True, None

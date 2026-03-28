@@ -12,6 +12,8 @@ from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 
 logger = logging.getLogger(__name__)
 
+_cached_tools: list[BaseTool] | None = None
+
 
 def filter_tools_by_execution_mode(
     tools: list[BaseTool],
@@ -67,27 +69,22 @@ def filter_tools_by_execution_mode(
 def create_project_tools(context: ToolContext) -> list[BaseTool]:
     """Create LangChain BaseTool instances for all available AI operations.
 
-    Note: This function collects tools from multiple modules. Tools are already
-    BaseTool instances from the @ai_tool decorator.
+    Note: Tools are cached as singletons. The ToolContext argument is accepted
+    for backward compatibility but tools retrieve their context at runtime via
+    context variables, not from this argument.
 
     Args:
-        context: Tool context initialized with the authenticated user's session and ID
+        context: Tool context (unused, kept for backward compatibility)
 
     Returns:
         List of BaseTool instances ready to be bound to LangGraph agents
-
-    Example:
-        ```python
-        from app.ai.tools import create_project_tools
-        from app.ai.tools.types import ToolContext
-
-        context = ToolContext(session, user_id, user_role="admin")
-        tools = create_project_tools(context)
-
-        # Tools can be used directly in LangGraph
-        graph = create_graph(llm, tools)
-        ```
     """
+    global _cached_tools
+
+    if _cached_tools is not None:
+        logger.debug(f"Returning cached tool list ({len(_cached_tools)} tools)")
+        return _cached_tools
+
     # Import tool modules
     from app.ai.tools import context_tools, project_tools, temporal_tools
     from app.ai.tools.templates import (
@@ -222,7 +219,8 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         tool for tool in tools if isinstance(tool, BaseTool)
     ]
 
-    logger.info(f"Created {len(base_tools)} tools for AI chat")
+    _cached_tools = base_tools
+    logger.info(f"Created and cached {len(base_tools)} tools for AI chat")
     return base_tools
 
 

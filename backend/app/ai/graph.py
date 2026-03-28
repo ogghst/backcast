@@ -149,6 +149,8 @@ def create_graph(
     context: ToolContext | None = None,
     websocket: Any = None,
     session_id: UUID | None = None,
+    checkpointer: Any | None = None,
+    context_schema: type | None = None,
 ) -> Any:  # Returns CompiledStateGraph[AgentState]
     """Create and compile a StateGraph for agent orchestration.
 
@@ -162,6 +164,8 @@ def create_graph(
         context: Optional ToolContext for RBAC permission checking in RBACToolNode
         websocket: Optional WebSocket connection for InterruptNode approval requests
         session_id: Optional session ID for InterruptNode approval tracking
+        checkpointer: Optional shared checkpointer for state persistence (falls back to MemorySaver)
+        context_schema: Optional context schema for StateGraph construction
 
     Returns:
         Compiled StateGraph ready for invocation
@@ -226,10 +230,10 @@ def create_graph(
 
     # Create checkpointer for state persistence
     # MemorySaver stores state in memory (for production, use PostgreSQL checkpointer)
-    checkpointer = MemorySaver()
+    effective_checkpointer = checkpointer or MemorySaver()
 
     # Compile the graph
-    app = workflow.compile(checkpointer=checkpointer)
+    app = workflow.compile(checkpointer=effective_checkpointer)
 
     # Return tuple of (graph, interrupt_node) where interrupt_node may be None
     return app, interrupt_node

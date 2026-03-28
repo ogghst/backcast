@@ -435,9 +435,11 @@ async def chat_stream(
             # Start ping loop and message handler as background tasks
             ping_task = asyncio.create_task(ping_loop())
             tasks.add(ping_task)
+            ping_task.add_done_callback(tasks.discard)
 
             message_task = asyncio.create_task(message_handler())
             tasks.add(message_task)
+            message_task.add_done_callback(tasks.discard)
 
             # Wait for the message handler to complete (disconnect)
             await message_task
@@ -478,6 +480,7 @@ async def chat_stream(
             # Wait for tasks to finish cancellation (with timeout)
             if tasks:
                 await asyncio.wait(tasks, timeout=2.0, return_when=asyncio.ALL_COMPLETED)
+            tasks.clear()
             # Clean up interrupt node for this session
             if current_session_id is not None:
                 agent_service.unregister_interrupt_node(current_session_id)

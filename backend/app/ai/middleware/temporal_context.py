@@ -13,6 +13,7 @@ from langchain.agents.middleware.types import AgentMiddleware
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
+from app.ai.graph_cache import get_request_tool_context
 from app.ai.tools.types import ToolContext
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,11 @@ class TemporalContextMiddleware(AgentMiddleware):
     ) -> ToolMessage:
         """Wrap tool call to inject temporal context.
 
+        Context: Called by the Deep Agents SDK middleware chain for every tool
+        invocation. Injects as_of, branch_name, branch_mode, and project_id
+        from the session context to prevent LLM prompt injection of temporal
+        parameters.
+
         Args:
             request: ToolCallRequest containing tool_call information
             handler: Callable to execute the tool
@@ -60,28 +66,31 @@ class TemporalContextMiddleware(AgentMiddleware):
         tool_name = tool_call.get("name", "")
         tool_args = dict(tool_call.get("args", {}))
 
+        # Resolve per-request context (supports cached graphs)
+        ctx = get_request_tool_context() or self.context
+
         # Log temporal context injection
         logger.info(
             f"[TEMPORAL_CONTEXT_INJECTION] awrap_tool_call | "
             f"tool_name={tool_name} | "
-            f"as_of={self.context.as_of} | "
-            f"branch_name={self.context.branch_name} | "
-            f"branch_mode={self.context.branch_mode} | "
-            f"project_id={self.context.project_id} | "
-            f"execution_mode={self.context.execution_mode.value}"
+            f"as_of={ctx.as_of} | "
+            f"branch_name={ctx.branch_name} | "
+            f"branch_mode={ctx.branch_mode} | "
+            f"project_id={ctx.project_id} | "
+            f"execution_mode={ctx.execution_mode.value}"
         )
 
         # Override temporal parameters (prevents LLM bypass)
         # This ensures the temporal context from the session is used,
         # not any values the LLM might try to inject
-        if self.context.as_of:
-            tool_args["as_of"] = self.context.as_of.isoformat()
-        if self.context.branch_name:
-            tool_args["branch_name"] = self.context.branch_name
-        if self.context.branch_mode:
-            tool_args["branch_mode"] = self.context.branch_mode
-        if self.context.project_id:
-            tool_args["project_id"] = str(self.context.project_id)
+        if ctx.as_of:
+            tool_args["as_of"] = ctx.as_of.isoformat()
+        if ctx.branch_name:
+            tool_args["branch_name"] = ctx.branch_name
+        if ctx.branch_mode:
+            tool_args["branch_mode"] = ctx.branch_mode
+        if ctx.project_id:
+            tool_args["project_id"] = str(ctx.project_id)
 
         # Create new tool_call dictionary with modified args
         # Note: tool_call is already a ToolCall (TypedDict), so we need to cast
@@ -98,6 +107,10 @@ class TemporalContextMiddleware(AgentMiddleware):
     ) -> dict[str, Any]:
         """Synchronous version for direct context injection.
 
+        Context: Used when the async middleware chain is not available (e.g.,
+        tool registration or direct invocation) to inject the same temporal
+        parameters that awrap_tool_call would inject.
+
         Args:
             tool_args: Original tool arguments
 
@@ -108,16 +121,19 @@ class TemporalContextMiddleware(AgentMiddleware):
             This is a synchronous helper for cases where async middleware
             hooks are not available.
         """
+        # Resolve per-request context (supports cached graphs)
+        ctx = get_request_tool_context() or self.context
+
         # Create a copy to avoid modifying the original
         result = dict(tool_args)
 
-        if self.context.as_of:
-            result["as_of"] = self.context.as_of.isoformat()
-        if self.context.branch_name:
-            result["branch_name"] = self.context.branch_name
-        if self.context.branch_mode:
-            result["branch_mode"] = self.context.branch_mode
-        if self.context.project_id:
-            result["project_id"] = str(self.context.project_id)
+        if ctx.as_of:
+            result["as_of"] = ctx.as_of.isoformat()
+        if ctx.branch_name:
+            result["branch_name"] = ctx.branch_name
+        if ctx.branch_mode:
+            result["branch_mode"] = ctx.branch_mode
+        if ctx.project_id:
+            result["project_id"] = str(ctx.project_id)
 
         return result

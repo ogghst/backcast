@@ -28,6 +28,15 @@ from starlette.websockets import WebSocketState
 
 from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
 from app.ai.graph import create_graph
+from app.ai.graph_cache import (
+    BackcastRuntimeContext,
+    CompiledGraphCache,
+    GraphCacheKey,
+    LLMClientCache,
+    clear_request_context,
+    set_request_context,
+    shared_checkpointer,
+)
 from app.ai.telemetry import (
     initialize_telemetry,
     trace_context,
@@ -122,6 +131,10 @@ async def _extract_client_config(
     return client_config
 
 logger = logging.getLogger(__name__)
+
+# Caches (shared across all requests)
+_llm_cache = LLMClientCache()
+_graph_cache = CompiledGraphCache()
 
 
 # Constants
@@ -229,12 +242,23 @@ class AgentService:
         Returns:
             ChatOpenAI instance configured with the provided parameters
         """
-        return ChatOpenAI(
-            **client_config,
-            model=model_name,
-            temperature=temperature or 0.0,
-            max_tokens=max_tokens or 2000,
-        )
+        # Build cache key
+        base_url = client_config.get("base_url", "")
+        base_url_hash = str(hash(base_url))
+        temp = temperature or 0.0
+        tokens = max_tokens or 2000
+
+        cache_key = (model_name, temp, tokens, base_url_hash)
+
+        def factory() -> ChatOpenAI:
+            return ChatOpenAI(
+                **client_config,
+                model=model_name,
+                temperature=temp,
+                max_tokens=tokens,
+            )
+
+        return _llm_cache.get_or_create(cache_key, factory)
 
     def _construct_model_string(
         self,
@@ -310,48 +334,52 @@ class AgentService:
             InterruptNode is integrated via BackcastSecurityMiddleware to handle
             approvals for HIGH risk tools in standard mode. CRITICAL tools are blocked entirely.
         """
+        # Create InterruptNode first (needed for middleware and always per-request)
+        interrupt_node = None
+        if websocket and session_id and available_tools:
+            interrupt_node = InterruptNode(available_tools, tool_context, websocket, session_id)
+
+        # Compute cache key from invariant properties
+        allowed_tools = assistant_config.allowed_tools
+        system_prompt = assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT
+        model_str = model_name or "unknown"
+        execution_mode_str = tool_context.execution_mode.value
+
+        tools_frozen = frozenset(allowed_tools) if allowed_tools else frozenset("all")
+        prompt_hash = str(hash(system_prompt))
+
+        cache_key = GraphCacheKey(
+            model_name=model_str,
+            allowed_tools=tools_frozen,
+            execution_mode=execution_mode_str,
+            system_prompt_hash=prompt_hash,
+        )
+
+        # Check cache
+        cached_graph = _graph_cache.get(cache_key)
+        if cached_graph is not None:
+            logger.info(f"[GRAPH_CACHE_HIT] Reusing cached graph for session {session_id}")
+            return cached_graph, interrupt_node
+
+        # Cache miss — compile new graph
         try:
-            # Create InterruptNode first (needed for middleware)
-            interrupt_node = None
-            if websocket and session_id and available_tools:
-                # Pass available_tools so InterruptNode can check risk levels
-                interrupt_node = InterruptNode(available_tools, tool_context, websocket, session_id)
-
-            # Use pre-configured LLM (ChatOpenAI) instead of model string
-            # This ensures the Deep Agent SDK uses our custom configuration (Z.AI base URL, API key)
-            logger.info(f"Creating Deep Agent with pre-configured LLM, subagents={enable_subagents}")
-
-            # Log graph creation start
+            logger.info(f"[GRAPH_CACHE_MISS] Compiling new graph for session {session_id}")
             graph_creation_start = time.time()
-            logger.info(
-                f"[GRAPH_CREATION_START] _create_deep_agent_graph | "
-                f"session_id={session_id} | "
-                f"enable_subagents={enable_subagents} | "
-                f"provider_type={provider_type} | "
-                f"model_name={model_name}"
-            )
 
             orchestrator = DeepAgentOrchestrator(
-                model=llm,  # Pass the ChatOpenAI instance directly
+                model=llm,
                 context=tool_context,
-                system_prompt=assistant_config.system_prompt or DEFAULT_SYSTEM_PROMPT,
+                system_prompt=system_prompt,
                 enable_subagents=enable_subagents,
-                interrupt_node=interrupt_node,  # Pass InterruptNode for approval handling
+                interrupt_node=None,  # Don't bake InterruptNode into cached graph
             )
 
-            # Filter tools by assistant config
-            allowed_tools = assistant_config.allowed_tools
-            logger.info(f"DEBUG: assistant_config.allowed_tools = {allowed_tools}")
-            if allowed_tools is not None:
-                logger.info(f"DEBUG: allowed_tools count = {len(allowed_tools)}, first few: {allowed_tools[:3]}")
-
-            # Create agent with orchestrator
             graph = orchestrator.create_agent(
                 allowed_tools=allowed_tools,
+                checkpointer=shared_checkpointer,
+                context_schema=BackcastRuntimeContext,
             )
-            logger.info("Deep Agent graph created successfully")
 
-            # Log graph creation complete
             graph_creation_duration_ms = (time.time() - graph_creation_start) * 1000
             logger.info(
                 f"[GRAPH_CREATION_COMPLETE] _create_deep_agent_graph | "
@@ -360,14 +388,15 @@ class AgentService:
                 f"graph_type={type(graph).__name__}"
             )
 
+            # Store in cache
+            _graph_cache.put(cache_key, graph)
+
             return graph, interrupt_node
 
         except ImportError:
-            # Deep Agents SDK not available, fall back to LangGraph
             logger.warning("Deep Agents SDK not available, falling back to LangGraph")
             return create_graph(llm, create_project_tools(tool_context), tool_context, websocket, session_id)
         except Exception as e:
-            # Error creating Deep Agent, fall back to LangGraph
             logger.error(f"Error creating Deep Agent: {e}, falling back to LangGraph")
             return create_graph(llm, create_project_tools(tool_context), tool_context, websocket, session_id)
 
@@ -733,6 +762,9 @@ class AgentService:
         )
         logger.info(f"Created graph: {type(graph).__name__}")
 
+        # Set per-request context for middleware (ContextVar bridge)
+        set_request_context(tool_context, interrupt_node)
+
         # Register InterruptNode for approval handling if created
         if interrupt_node is not None:
             self.register_interrupt_node(session_id, interrupt_node)
@@ -842,6 +874,13 @@ class AgentService:
                         "configurable": {"thread_id": str(session_id)}
                     },
                     version="v1",
+                    context=BackcastRuntimeContext(
+                        user_id=str(user_id),
+                        user_role=user_role,
+                        project_id=str(project_id) if project_id else None,
+                        branch_id=str(branch_id) if branch_id else None,
+                        execution_mode=execution_mode.value,
+                    ),
                 ):
                     # Check cancellation FIRST (before any other processing)
                     if cancellation_token.is_set():
@@ -1274,6 +1313,8 @@ class AgentService:
                 logger.debug("WebSocket not connected, skipping error send")
 
         finally:
+            # Clear per-request context
+            clear_request_context()
             # Set cancellation token to ensure stream aborts if still running
             cancellation_token.set()
             # Clean up token from dict to prevent memory leaks

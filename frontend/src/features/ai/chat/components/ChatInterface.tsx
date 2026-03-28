@@ -37,7 +37,7 @@ import { MessageInput } from "./MessageInput";
 import { AgentActivityPanel } from "./AgentActivityPanel";
 import type { AgentActivity, ActivityHistoryItem } from "./AgentActivityPanel";
 import { WebSocketDebugPanel, type DebugMessage } from "./WebSocketDebugPanel";
-import type { ChatMessage, SubagentStream, StreamingState } from "../../types";
+import type { ChatMessage, MainAgentStream, SubagentStream, StreamingState } from "../../types";
 import { WSConnectionState, type WSApprovalRequestMessage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { generateSessionTitle } from "../utils/sessionTitle";
@@ -55,6 +55,18 @@ interface ChatInterfaceProps {
   projectId?: string;
 }
 
+/**
+ * Main container for the AI chat interface.
+ *
+ * Context: Orchestrates the full chat experience including session management,
+ * WebSocket streaming, multi-agent rendering (main agent + subagents), tool
+ * execution tracking, and approval flows for critical tool operations. Used
+ * as the primary route component for the AI chat feature.
+ *
+ * @param props.sessionId - Optional URL-param session ID for direct linking
+ * @param props.assistantId - Optional URL-param assistant ID pre-selection
+ * @param props.projectId - Optional project ID to scope chat context
+ */
 export const ChatInterface = ({
   sessionId: initialSessionId,
   assistantId: initialAssistantId,
@@ -89,6 +101,8 @@ export const ChatInterface = ({
   const [toolJustFinished, setToolJustFinished] = useState(false);
   const [showStreamSeparator, setShowStreamSeparator] = useState(false);
   const contentResetOccurredRef = useRef(false);
+  const contentResetCounterRef = useRef(0);
+  const [pendingUserMessage, setPendingUserMessage] = useState<ChatMessage | null>(null);
 
   // Agent activity state (Deep Agent planning, subagent delegation, etc.)
   const [latestActivity, setLatestActivity] = useState<AgentActivity | null>(null);
@@ -109,6 +123,7 @@ export const ChatInterface = ({
 
   // Track sequence order for streams (to ensure proper rendering order)
   const streamSequenceRef = useRef(0);
+  const completionTurnRef = useRef(0);
 
   // Query client for cache invalidation
   const queryClient = useQueryClient();
@@ -131,9 +146,22 @@ export const ChatInterface = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSession?.id, selectedAssistantId]);
 
+  // Determine if currently streaming (we have streaming content, active tools, or are waiting for the first chunk)
+  // Computed early so the cleanup useEffect below can reference it.
+  const isStreaming: boolean =
+    streamingState.main.length > 0 ||
+    Array.from(streamingState.mainStreams.values()).some(ms => ms.is_active) ||
+    Array.from(streamingState.subagents.values()).some(sa => sa.is_active) ||
+    activeToolCalls.length > 0 ||
+    isWaitingForResponse;
+
   // Clear streaming subagents when persisted messages are available
   // (prevents duplicate subagent bubbles after query invalidation on complete)
+  // Guard: only run when NOT actively streaming, to prevent clearing new Q2
+  // subagents triggered by stale Q1 persisted subagents in the messages cache.
   useEffect(() => {
+    if (isStreaming) return;
+
     if (messages && messages.length > 0 && streamingState.subagents.size > 0) {
       const hasPersistedSubagents = messages.some(m => m.metadata?.subagent_name);
       if (hasPersistedSubagents) {
@@ -143,9 +171,34 @@ export const ChatInterface = ({
         }));
       }
     }
-  }, [messages, streamingState.subagents.size]);
+  }, [messages, streamingState.subagents.size, isStreaming]);
 
-  // Callbacks for streaming chat (defined outside the conditional to avoid hooks rule violation)
+  // Clear optimistic user message when persisted messages arrive
+  useEffect(() => {
+    if (pendingUserMessage && messages) {
+      const persisted = messages.some(
+        (m) => m.role === "user" && m.content === pendingUserMessage.content
+      );
+      if (persisted) {
+        setPendingUserMessage(null);
+      }
+    }
+  }, [messages, pendingUserMessage]);
+
+  /**
+   * Processes incoming streaming tokens and routes them to the correct stream.
+   *
+   * Context: Called by useStreamingChat for every token/batch received from the
+   * WebSocket. Maintains separate streams for main agent and subagent content,
+   * handles content reset events that force new stream creation, and tracks
+   * invocation IDs for multi-stream rendering.
+   *
+   * @param token - Text content received from the LLM
+   * @param sessionId - Chat session ID for the current conversation
+   * @param source - Whether the token is from the main agent or a subagent
+   * @param subagentName - Display name of the subagent (when source is "subagent")
+   * @param invocationId - Unique ID for the current stream segment
+   */
   const handleToken = useCallback((
     token: string,
     sessionId: string,
@@ -172,8 +225,8 @@ export const ChatInterface = ({
 
           // If content reset occurred, force new stream creation
           if (contentResetOccurredRef.current && existing) {
-            // Generate a unique suffix to force new stream
-            const uniqueId = `${invocationId}-${Date.now()}`;
+            // Generate a unique suffix using monotonic counter to avoid collisions
+            const uniqueId = `${invocationId}-cr${contentResetCounterRef.current++}`;
             mainStreams.set(uniqueId, {
               invocation_id: uniqueId,
               content: token,
@@ -312,6 +365,15 @@ export const ChatInterface = ({
     });
   }, []);
 
+  /**
+   * Handles content reset events by completing active main agent streams.
+   *
+   * Context: Called by useStreamingChat when a subagent completes and the server
+   * sends a content_reset event. Sets a flag that forces the next token to create
+   * a new main agent stream rather than appending to the previous one.
+   *
+   * @param reason - Why the content was reset (e.g., "subagent_complete")
+   */
   const handleContentReset = useCallback((reason: string) => {
     // reason parameter indicates why content was reset (e.g., "subagent_complete")
     // Mark all existing main streams as complete to prepare for new stream
@@ -328,34 +390,68 @@ export const ChatInterface = ({
     });
   }, []);
 
+  /**
+   * Handles session completion by invalidating query caches and resetting
+   * all streaming state.
+   *
+   * Context: Called by useStreamingChat when the server sends a "complete" event,
+   * indicating the full response has been persisted. Invalidates TanStack Query
+   * caches to fetch the final messages, then clears streaming state, tool calls,
+   * and activity panel to return the UI to its idle state.
+   *
+   * @param sessionId - The completed chat session ID
+   * @param messageId - The ID of the persisted assistant message
+   */
   const handleComplete = useCallback(
     (sessionId: string, messageId: string) => {
-      // messageId is available for future use (e.g., for highlighting the completed message)
-      void messageId; // Explicitly mark as intentionally unused for now
+      void messageId;
       // Update session ID if this was a new session (do this first)
       setCurrentSessionId((prev) => prev || sessionId);
-      // Invalidate the queries so the completed message is fetched
-      queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.messages(sessionId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.sessions() });
-      // Clear main streaming content; mark all subagents inactive
-      // (defensive: ensures isStreaming becomes false regardless of message ordering)
       setIsWaitingForResponse(false);
+      setActiveToolCalls([]);
+      setLatestActivity(null);
+      setShowStreamSeparator(false);
+      setToolJustFinished(false);
+      contentResetOccurredRef.current = false;
+
+      // Increment turn counter to guard against stale completions
+      const turn = ++completionTurnRef.current;
+
+      // Mark all streams as inactive but KEEP their content visible
+      // until persisted messages arrive in the query cache
       setStreamingState((prev) => ({
         main: "",
-        mainStreams: new Map<string, MainAgentStream>(),
+        mainStreams: new Map(
+          Array.from(prev.mainStreams.entries()).map(([id, stream]) => [
+            id,
+            { ...stream, is_active: false, is_complete: true },
+          ])
+        ),
         subagents: new Map(
           Array.from(prev.subagents.entries()).map(([id, sa]) => [
             id,
-            { ...sa, is_active: false },
+            { ...sa, is_active: false, is_complete: true },
           ])
         ),
       }));
-      setActiveToolCalls([]);
-      // Always clear activity on complete - panel MUST close reliably
-      setLatestActivity(null);
-      setShowStreamSeparator(false); // Reset separator state
-      setToolJustFinished(false); // Reset tool finished state
-      contentResetOccurredRef.current = false; // Reset content reset flag
+
+      // Invalidate sessions (no flicker concern since sidebar is separate)
+      queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.sessions() });
+
+      // Refetch messages and clear streaming state AFTER cache is updated
+      queryClient
+        .refetchQueries({ queryKey: queryKeys.ai.chat.messages(sessionId) })
+        .then(() => {
+          // Only clear if this is still the latest completion turn
+          if (completionTurnRef.current === turn) {
+            setStreamingState({
+              main: "",
+              mainStreams: new Map<string, MainAgentStream>(),
+              subagents: new Map<string, SubagentStream>(),
+            });
+            streamSequenceRef.current = 0;
+          }
+        });
     },
     [queryClient]
   );
@@ -363,6 +459,7 @@ export const ChatInterface = ({
   const handleError = useCallback((errorMsg: string) => {
     setIsWaitingForResponse(false);
     setError(`Chat error: ${errorMsg}`);
+    setPendingUserMessage(null);
   }, []);
 
   // Debug: Capture all raw WebSocket messages
@@ -451,6 +548,18 @@ export const ChatInterface = ({
     });
   }, [latestActivity, addToActivityHistory]);
 
+  /**
+   * Handles tool call events by marking active streams as complete and updating
+   * the agent activity panel.
+   *
+   * Context: Called by useStreamingChat when the AI agent invokes a tool.
+   * Completes any active main agent streams so that content before the tool call
+   * appears in its own bubble, then adds the tool to the active calls list for
+   * the activity panel display.
+   *
+   * @param tool - Name of the tool being invoked
+   * @param args - Arguments passed to the tool
+   */
   const handleToolCall = useCallback((tool: string, args: Record<string, unknown>) => {
     // Mark current main agent streams as complete when a tool is called
     // This ensures main agent content before the tool appears in its own bubble
@@ -535,6 +644,7 @@ export const ChatInterface = ({
     setSelectedAssistantId(undefined);
     setSidebarOpen(false);
     setError(null);
+    setPendingUserMessage(null);
   }, []);
 
   // Handle session selection
@@ -571,6 +681,14 @@ export const ChatInterface = ({
         return;
       }
 
+      // Optimistically display user message before WebSocket roundtrip
+      setPendingUserMessage({
+        id: `pending-${Date.now()}`,
+        role: "user",
+        content: messageContent,
+        createdAt: new Date().toISOString(),
+      });
+
       // Clear any previous streaming state
       setStreamingState({
         main: "",
@@ -584,6 +702,8 @@ export const ChatInterface = ({
       setToolJustFinished(false);
       contentResetOccurredRef.current = false;
       streamSequenceRef.current = 0; // Reset sequence counter for new message
+      completionTurnRef.current = 0;
+      setSubagentInvocationCounts({});
 
       // Only send if the WebSocket is connected
       if (streamingChat.connectionState !== WSConnectionState.OPEN) {
@@ -615,6 +735,7 @@ export const ChatInterface = ({
     setToolJustFinished(false);
     contentResetOccurredRef.current = false;
     streamSequenceRef.current = 0; // Reset sequence counter on cancel
+    setPendingUserMessage(null);
   }, [streamingChat]);
 
   // Handle approval decision
@@ -652,23 +773,29 @@ export const ChatInterface = ({
   }, []);
 
   // Helper: Convert API messages to ChatMessage type
-  const chatMessages: ChatMessage[] =
-    messages?.map((msg) => ({
-      id: msg.id,
-      role: msg.role,
-      content: msg.content,
-      toolCalls: msg.tool_calls,
-      toolResults: msg.tool_results,
-      createdAt: msg.created_at,
-      metadata: msg.metadata,
-    })) ?? [];
+  const chatMessages: ChatMessage[] = useMemo(() => {
+    const base: ChatMessage[] =
+      messages?.map((msg) => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        toolCalls: msg.tool_calls,
+        toolResults: msg.tool_results,
+        createdAt: msg.created_at,
+        metadata: msg.metadata,
+      })) ?? [];
 
-  // Determine if currently streaming (we have streaming content, active tools, or are waiting for the first chunk)
-  const isStreaming: boolean =
-    streamingState.main.length > 0 ||
-    Array.from(streamingState.subagents.values()).some(sa => sa.is_active) ||
-    activeToolCalls.length > 0 ||
-    isWaitingForResponse;
+    if (pendingUserMessage) {
+      const alreadyExists = base.some(
+        (m) => m.role === "user" && m.content === pendingUserMessage.content
+      );
+      if (!alreadyExists) {
+        base.push(pendingUserMessage);
+      }
+    }
+
+    return base;
+  }, [messages, pendingUserMessage]);
 
   const { token } = theme.useToken();
   const { spacing, typography } = useThemeTokens();

@@ -264,6 +264,16 @@ export const useStreamingChat = (
   const maxRemainingRef = useRef<number>(0);
   const timeoutFiredRef = useRef(false);
 
+  // Timeout for complete message (prevents stuck state)
+  const completeTimeoutRef = useRef<number | null>(null);
+  // Use a mutable object to track last message time (avoids purity issues)
+  const lastMessageTimeRef = useRef({ current: 0 });
+
+  // Initialize last message time on mount
+  useEffect(() => {
+    lastMessageTimeRef.current.current = Date.now();
+  }, []);
+
   // Reset first mount ref when token or assistantId changes
   useEffect(() => {
     isFirstMountRef.current = true;
@@ -277,12 +287,56 @@ export const useStreamingChat = (
   const [error, setError] = useState<Error | null>(null);
 
   /**
-   * Handles incoming WebSocket messages
-   * Uses ref to access latest callbacks without triggering reconnection
+   * Clears the complete message timeout
+   */
+  const clearCompleteTimeout = useCallback(() => {
+    if (completeTimeoutRef.current !== null) {
+      window.clearTimeout(completeTimeoutRef.current);
+      completeTimeoutRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Starts the complete message timeout. If no 'complete' message arrives
+   * within the specified duration, triggers an error state.
+   */
+  const startCompleteTimeout = useCallback(() => {
+    clearCompleteTimeout();
+
+    // Timeout after 2 minutes of no complete message
+    const TIMEOUT_MS = 120000;
+
+    completeTimeoutRef.current = window.setTimeout(() => {
+      const timeSinceLastMessage = Date.now() - lastMessageTimeRef.current.current;
+
+      // Only trigger timeout if we haven't received any message recently
+      // This prevents false positives during slow but valid streams
+      if (timeSinceLastMessage > TIMEOUT_MS) {
+        const errorMsg = "Response timeout: No complete message received. The stream may have been interrupted.";
+        callbacksRef.current.onError?.(errorMsg);
+        setError(new Error(errorMsg));
+        setConnectionState(WSConnectionState.ERROR);
+      }
+    }, TIMEOUT_MS);
+  }, [clearCompleteTimeout]);
+
+  /**
+   * Handles incoming WebSocket messages by parsing JSON and routing to the
+   * appropriate callback based on the message type discriminator.
+   *
+   * Context: Attached as a listener to the WebSocket instance. Uses callbacksRef
+   * to access the latest callback closures without triggering reconnection cycles.
+   * Handles all message types defined in the WSServerMessage union plus the
+   * out-of-band approval_request type.
+   *
+   * @param event - Raw MessageEvent from the WebSocket onmessage handler
    */
   const handleMessage = useCallback((event: MessageEvent) => {
     const callbacks = callbacksRef.current;
     const rawData = event.data;
+
+    // Update last message time (for timeout detection)
+    lastMessageTimeRef.current.current = Date.now();
 
     try {
       const message = JSON.parse(rawData);
@@ -420,6 +474,7 @@ export const useStreamingChat = (
 
       // Handle completion messages
       if (isCompleteMessage(serverMessage)) {
+        clearCompleteTimeout(); // Clear timeout when complete arrives
         callbacks.onComplete(serverMessage.session_id, serverMessage.message_id);
         // Keep connection alive — do NOT close here.
         // The connection will be closed when the component unmounts
@@ -429,6 +484,7 @@ export const useStreamingChat = (
 
       // Handle error messages
       if (isErrorMessage(serverMessage)) {
+        clearCompleteTimeout(); // Clear timeout on error too
         // Handle permission denied errors (403) with user-friendly message
         if (isPermissionDeniedMessage(serverMessage)) {
           const permissionMsg = formatPermissionDeniedError(serverMessage);
@@ -471,10 +527,18 @@ export const useStreamingChat = (
       callbacks.onError(errorMsg);
       setError(new Error(errorMsg));
     }
-  }, []); // No dependencies - uses ref for callbacks
+  }, [clearCompleteTimeout]); // Uses ref for callbacks, needs clearCompleteTimeout
 
   /**
-   * Send a message to start streaming
+   * Sends a chat message over the active WebSocket connection.
+   *
+   * Context: Called by ChatInterface when the user submits a message. Constructs
+   * a WSChatRequest with temporal context from the Time Machine store and the
+   * selected execution mode, then sends it as JSON over the WebSocket.
+   *
+   * @param message - User's chat message text
+   * @param title - Optional title for new chat sessions
+   * @param executionMode - AI tool risk level (safe/standard/expert)
    */
   const sendMessage = useCallback(
     (message: string, title?: string, executionMode?: "safe" | "standard" | "expert") => {
@@ -499,6 +563,9 @@ export const useStreamingChat = (
       // Reset cancelled state when sending a new message
       cancelledRef.current = false;
       reconnectAttemptsRef.current = 0;
+
+      // Start complete message timeout
+      startCompleteTimeout();
 
       // Read temporal context from Time Machine store
       const asOf = getSelectedTime();
@@ -533,7 +600,7 @@ export const useStreamingChat = (
         setError(new Error(errorMsg));
       }
     },
-    [sessionId, assistantId, onError, getSelectedTime, getSelectedBranch, getViewMode]
+    [sessionId, assistantId, onError, getSelectedTime, getSelectedBranch, getViewMode, startCompleteTimeout]
   );
 
   /**
@@ -584,13 +651,21 @@ export const useStreamingChat = (
   );
 
   /**
-   * Cancel the current request and close the connection
-   * NOTE: This is intentionally NOT memoized with useCallback to avoid
-   * being in the useEffect dependency array, which would cause reconnection.
-   * The cleanup function directly closes the connection without using cancel().
+   * Cancels the current request and closes the WebSocket connection.
+   *
+   * Context: Called by ChatInterface when the user clicks cancel during streaming.
+   * Intentionally NOT memoized with useCallback to avoid being in the useEffect
+   * dependency array, which would cause reconnection loops. The cleanup function
+   * directly closes the connection without using this function.
    */
   const cancel = () => {
     cancelledRef.current = true;
+
+    // Clear complete message timeout
+    if (completeTimeoutRef.current !== null) {
+      window.clearTimeout(completeTimeoutRef.current);
+      completeTimeoutRef.current = null;
+    }
 
     // Clear any pending reconnection timeout
     if (reconnectTimeoutRef.current !== null) {
@@ -656,7 +731,12 @@ export const useStreamingChat = (
     };
 
     /**
-     * Creates a new WebSocket connection and sets up event handlers
+     * Creates a new WebSocket connection and sets up lifecycle event handlers.
+     *
+     * Context: Called on mount and during reconnection attempts. Handles the
+     * full connection lifecycle: open (updates state), message (delegates to
+     * handleMessage), close (triggers reconnection with backoff), and error
+     * (surfaces to user via onError callback).
      */
     const connect = () => {
       // Clear any existing reconnection timeout
@@ -738,6 +818,9 @@ export const useStreamingChat = (
 
       cancelledRef.current = true;
 
+      // Clear complete message timeout
+      clearCompleteTimeout();
+
       // Clear any pending reconnection timeout
       if (reconnectTimeoutRef.current !== null) {
         window.clearTimeout(reconnectTimeoutRef.current);
@@ -751,7 +834,7 @@ export const useStreamingChat = (
         wsRef.current = null;
       }
     };
-  }, [token, assistantId, handleMessage]); // Only reconnect when token or assistantId changes
+  }, [token, assistantId, handleMessage, clearCompleteTimeout]); // Only reconnect when token or assistantId changes
 
   return {
     sendMessage,

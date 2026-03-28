@@ -283,10 +283,21 @@ export type WSServerMessage =
   | WSAgentCompleteMessage;
 
 /**
- * Type guard to check if a server message is a token message
+ * Type guard to check if a server message is a token message.
+ *
+ * Context: Used by handleMessage in useStreamingChat to route streaming tokens.
+ * Validates content field to prevent malformed token events from reaching the UI.
+ *
+ * @param message - Raw server message to validate
+ * @returns True if message is a well-formed WSTokenMessage
  */
-export function isTokenMessage(message: WSServerMessage): message is WSTokenMessage {
-  return message.type === "token";
+export function isTokenMessage(message: unknown): message is WSTokenMessage {
+  if (typeof message !== "object" || message === null) return false;
+  const msg = message as Record<string, unknown>;
+  return (
+    msg.type === "token" &&
+    typeof msg.content === "string"
+  );
 }
 
 /**
@@ -311,24 +322,52 @@ export function isToolResultMessage(message: WSServerMessage): message is WSTool
 }
 
 /**
- * Type guard to check if a server message is a complete message
+ * Type guard to check if a server message is a complete message.
+ *
+ * Context: Used by handleMessage to detect session completion and trigger
+ * query invalidation. Validates session_id to ensure cache keys are correct.
+ *
+ * @param message - Raw server message to validate
+ * @returns True if message is a well-formed WSCompleteMessage
  */
-export function isCompleteMessage(message: WSServerMessage): message is WSCompleteMessage {
-  return message.type === "complete";
+export function isCompleteMessage(message: unknown): message is WSCompleteMessage {
+  if (typeof message !== "object" || message === null) return false;
+  const msg = message as Record<string, unknown>;
+  return (
+    msg.type === "complete" &&
+    typeof msg.session_id === "string"
+  );
 }
 
 /**
- * Type guard to check if a server message is an error message
+ * Type guard to check if a server message is an error message.
+ *
+ * Context: Used by handleMessage to surface errors to the user and update
+ * connection state. Validates message field so error display always has text.
+ *
+ * @param message - Raw server message to validate
+ * @returns True if message is a well-formed WSErrorMessage
  */
-export function isErrorMessage(message: WSServerMessage): message is WSErrorMessage {
-  return message.type === "error";
+export function isErrorMessage(message: unknown): message is WSErrorMessage {
+  if (typeof message !== "object" || message === null) return false;
+  const msg = message as Record<string, unknown>;
+  return (
+    msg.type === "error" &&
+    typeof msg.message === "string"
+  );
 }
 
 /**
- * Type guard to check if a server message is a permission denied error
+ * Type guard to check if a server message is a permission denied error.
+ *
+ * Context: Narrowing helper used after isErrorMessage to detect 403 errors
+ * and show project-specific permission messages.
+ *
+ * @param message - Raw server message to validate
+ * @returns True if message is a well-formed WSPermissionDeniedMessage
  */
 export function isPermissionDeniedMessage(
-  message: WSServerMessage
+  message: unknown
 ): message is WSPermissionDeniedMessage {
   return isErrorMessage(message) && message.code === 403;
 }
@@ -360,15 +399,24 @@ export interface WSApprovalResponseMessage {
 }
 
 /**
- * Type guard to check if a server message is an approval request
+ * Type guard to check if a server message is an approval request.
+ *
+ * Context: Used by handleMessage to detect critical tool approval requests
+ * from the interrupt node. Validates approval_id and tool_name to ensure
+ * the approval dialog can render correctly.
+ *
+ * @param message - Raw server message to validate
+ * @returns True if message is a well-formed WSApprovalRequestMessage
  */
 export function isApprovalRequestMessage(
   message: unknown
 ): message is WSApprovalRequestMessage {
+  if (typeof message !== "object" || message === null) return false;
+  const msg = message as Record<string, unknown>;
   return (
-    typeof message === "object" &&
-    message !== null &&
-    (message as Record<string, unknown>).type === "approval_request"
+    msg.type === "approval_request" &&
+    typeof msg.approval_id === "string" &&
+    typeof msg.tool_name === "string"
   );
 }
 

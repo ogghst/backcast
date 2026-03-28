@@ -48,6 +48,31 @@ When using the Task tool, you must specify a subagent_type parameter to select w
 6. If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
 7. When only the general-purpose agent is provided, you should use it for all tasks. It is great for isolating context and token usage, and completing specific, complex tasks, as it has all the same capabilities as the main agent.
 
+## CRITICAL: Launch Multiple Subagents for Cross-Domain Requests
+
+When a user request spans multiple domains, launch ALL relevant subagents in a single message. Examples:
+
+**Example 1: WBE + Cost Elements**
+User: "Show me the WBE hierarchy with cost breakdowns for project X"
+Assistant: Launches BOTH `project_manager` AND `cost_controller` in parallel
+- `project_manager`: Gets WBE structure, hierarchy, descriptions
+- `cost_controller`: Gets cost elements with budgets, actual costs
+Then synthesizes a unified response showing WBE tree with cost details
+
+**Example 2: Project + EVM Metrics**
+User: "What's the performance status of project X?"
+Assistant: Launches BOTH `project_manager` AND `evm_analyst` in parallel
+- `project_manager`: Gets project details and WBE structure
+- `evm_analyst`: Calculates CPI, SPI, CV, SV, EAC, health assessment
+Then synthesizes performance report with project context
+
+**Example 3: Change Order + Impact**
+User: "Analyze the impact of change order CO-001"
+Assistant: Launches BOTH `change_order_manager` AND `forecast_manager` in parallel
+- `change_order_manager`: Gets change order details and approval status
+- `forecast_manager`: Analyzes budget/schedule impact
+Then synthesizes impact assessment with change order context
+
 ### Example usage of the general-purpose agent:
 
 <example_agent_descriptions>
@@ -143,11 +168,37 @@ When to use the task tool:
 - When sandboxing improves reliability (e.g. code execution, structured searches, data formatting)
 - When you only care about the output of the subagent, and not the intermediate steps (ex. performing a lot of research and then returned a synthesized report, performing a series of computations or lookups to achieve a concise, relevant answer.)
 
+## CRITICAL: When to Call MULTIPLE Subagents
+
+When a user request spans multiple domains or data types, you MUST delegate to ALL relevant subagents in parallel. Common scenarios:
+
+1. **WBE + Cost Elements**: If the user asks for WBE structure AND cost elements/financial data:
+   - Call `project_manager` for WBE hierarchy and structure
+   - Call `cost_controller` for cost element details, budgets, actual costs
+   - Synthesize both results into a unified response
+
+2. **Project + Forecasts**: If the user asks for project details AND forecast data:
+   - Call `project_manager` for project metadata
+   - Call `forecast_manager` for forecast projections and trends
+   - Combine project context with forecast analysis
+
+3. **WBE + EVM Metrics**: If the user asks for WBEs AND performance metrics (CPI, SPI, etc.):
+   - Call `project_manager` for WBE structure
+   - Call `evm_analyst` for EVM calculations and performance analysis
+   - Present WBE hierarchy with EVM metrics integrated
+
+4. **Change Order + Impact**: If the user asks for change orders AND their impact:
+   - Call `change_order_manager` for change order details
+   - Call `forecast_manager` for budget/schedule impact analysis
+   - Synthesize change order information with impact assessment
+
+**Rule of thumb**: Each subagent specializes in a specific domain. If the user's request spans multiple domains, delegate to ALL relevant subagents in parallel, then synthesize their results.
+
 Subagent lifecycle:
-1. **Spawn** -> Provide clear role, instructions, and expected output
-2. **Run** -> The subagent completes the task autonomously
+1. **Spawn** -> Provide clear role, instructions, and expected output (for multiple subagents, spawn them in parallel)
+2. **Run** -> The subagent completes the task autonomously (all subagents run concurrently)
 3. **Return** -> The subagent provides a single structured result
-4. **Reconcile** -> Incorporate or synthesize the result into the main thread
+4. **Reconcile** -> Incorporate or synthesize the result into the main thread (combine results from multiple subagents into a unified response)
 
 When NOT to use the task tool:
 - If you need to see the intermediate reasoning or steps after the subagent has completed (the task tool hides them)
@@ -158,7 +209,8 @@ When NOT to use the task tool:
 ## Important Task Tool Usage Notes to Remember
 - Whenever possible, parallelize the work that you do. This is true for both tool_calls, and for tasks. Whenever you have independent steps to complete - make tool_calls, or kick off tasks (subagents) in parallel to accomplish them faster. This saves time for the user, which is incredibly important.
 - Remember to use the `task` tool to silo independent tasks within a multi-part objective.
-- You should use the `task` tool whenever you have a complex task that will take multiple steps, and is independent from other tasks that the agent needs to complete. These agents are highly competent and efficient."""  # noqa: E501
+- You should use the `task` tool whenever you have a complex task that will take multiple steps, and is independent from other tasks that the agent needs to complete. These agents are highly competent and efficient.
+- **Cross-domain requests**: When a user asks for information that spans multiple subagent domains, launch ALL relevant subagents in parallel, then synthesize their results into a cohesive response."""  # noqa: E501
 
 
 def build_task_tool(

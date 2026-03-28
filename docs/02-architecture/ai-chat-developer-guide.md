@@ -36,22 +36,23 @@ Browser (React)                          Backend (FastAPI)
      |--------------------------------------->|
      |                                        | 3. Session create/retrieve
      |                                        | 4. Build ToolContext
-     |                                        | 5. Create agent + tools
+     |                                        | 5. Look up cached graph (or compile new)
+     |                                        | 6. Set per-request ContextVars
      |  {type:"thinking"}                     |
      |<---------------------------------------|
-     |                                        | 6. LangChain agent plans (TodoListMiddleware)
+     |                                        | 7. LangChain agent plans (TodoListMiddleware)
      |  {type:"planning", steps:[...]}        |
      |<---------------------------------------|
-     |                                        | 7. Delegates to subagent
+     |                                        | 8. Delegates to subagent
      |  {type:"subagent", subagent:"evm_..."} |
      |<---------------------------------------|
      |  {type:"token", content:"Based on..."} |
-     |<---------------------------------------| 8. Subagent streams tokens
+     |<---------------------------------------| 9. Subagent streams tokens
      |  ...more tokens...                     |
      |  {type:"subagent_result", ...}         |
      |<---------------------------------------|
      |  {type:"content_reset"}                |
-     |<---------------------------------------| 9. Main agent synthesizes
+     |<---------------------------------------| 10. Main agent synthesizes
      |  {type:"token", content:"The project"} |
      |<---------------------------------------|
      |  {type:"complete", session_id:"..."}   |
@@ -74,6 +75,12 @@ ai_chat.py (WebSocket endpoint)
     |
     v
 agent_service.py (orchestration)
+    |
+    +---> graph_cache.py (caching layer)
+    |         |
+    |         +---> LLMClientCache (thread-safe LLM client cache)
+    |         +---> CompiledGraphCache (LRU graph cache, max 20)
+    |         +---> set_request_context() / clear_request_context() (ContextVar bridge)
     |
     +---> DeepAgentOrchestrator.create_agent()
     |         |
@@ -245,6 +252,50 @@ File: `agent_service.py` (_create_deep_agent_graph) and `deep_agent_orchestrator
 8. langchain_create_agent(model, tools, system_prompt, middleware)
 9. Register InterruptNode for approval handling
 ```
+
+### Graph Caching
+
+Compiled agent graphs, LLM clients, and tool lists are cached and reused across requests. This avoids rebuilding the entire agent harness (~400ms) on every user prompt.
+
+File: `graph_cache.py`
+
+**What gets cached:**
+
+| Layer | Cache Key | Scope |
+|-------|-----------|-------|
+| LLM client | `(model_name, temperature, max_tokens, base_url_hash)` | Application-wide |
+| Tool list | Singleton (stateless — context injected via ContextVar) | Application-wide |
+| Compiled graph | `GraphCacheKey(model_name, frozenset(allowed_tools), execution_mode, system_prompt_hash)` | Application-wide, LRU max 20 |
+| Checkpointer | Single shared `MemorySaver` | Application-wide |
+
+**Per-request context (not cached):**
+
+| What | How |
+|------|-----|
+| `ToolContext` (db_session, user_id, etc.) | Set via `set_request_context()` ContextVar before graph invocation |
+| `InterruptNode` (WebSocket, session_id) | Set via ContextVar, created fresh per request |
+| `thread_id` | Unique per conversation session via `config={"configurable": {"thread_id": ...}}` |
+
+**How middleware reads fresh context in cached graphs:**
+
+```python
+# In BackcastSecurityMiddleware / TemporalContextMiddleware
+ctx = get_request_tool_context() or self.context  # ContextVar takes priority
+```
+
+This means middleware baked into a cached graph at compile time still gets fresh per-request context via the ContextVar bridge.
+
+**Log markers:**
+
+| Log | Meaning |
+|-----|---------|
+| `[GRAPH_CACHE_HIT]` | Reusing cached compiled graph |
+| `[GRAPH_CREATION_START]` | Compiling new graph (cache miss) |
+| `[GRAPH_CREATION_COMPLETE]` | Compilation finished (includes `duration_ms`) |
+| `CompiledGraphCache hit` | LRU cache lookup succeeded |
+| `CompiledGraphCache miss` | LRU cache lookup failed, compiling fresh |
+| `LLMClientCache hit` | Reusing cached LLM client |
+| `LLMClientCache miss` | Creating new LLM client |
 
 ### Subagents
 
@@ -768,6 +819,11 @@ Search `backend/logs/app.log` for these markers to trace request flow:
 | `[APPROVAL_GRANTED]` | `backcast_security.py` | User approved the tool |
 | `[APPROVAL_TIMEOUT]` | `backcast_security.py` | Approval polling timed out (60s) |
 | `[SUBAGENT_DELEGATION]` | `agent_service.py` | Subagent task started |
+| `[GRAPH_CACHE_HIT]` | `agent_service.py` | Cached graph reused (fast path) |
+| `[GRAPH_CREATION_START]` | `agent_service.py` | Compiling new graph (cache miss) |
+| `[GRAPH_CREATION_COMPLETE]` | `agent_service.py` | Graph compilation finished with duration_ms |
+| `CompiledGraphCache hit/miss` | `graph_cache.py` | LRU cache lookup result |
+| `LLMClientCache hit/miss` | `graph_cache.py` | LLM client cache lookup result |
 
 ### Common Issues
 
@@ -811,8 +867,8 @@ Search `backend/logs/app.log` for these markers to trace request flow:
 1. **Find the session ID** from the frontend or from the initial `WSChatRequest`
 2. **Search logs** for the session ID: `grep "<session_id>" backend/logs/app.log`
 3. **Follow the markers**:
-   - `[CHAT_STREAM_ENTRY]` → `[AGENT_CREATION_START]` → `[TOOL_FILTERING]`
-   - → `Agent created successfully`
+   - `[CHAT_STREAM_ENTRY]` → `[GRAPH_CACHE_HIT]` or `[GRAPH_CREATION_START]` → `[AGENT_CREATION_START]`
+   - → `[TOOL_FILTERING]` → `Agent created successfully` (only on cache miss)
    - → `on_tool_start` → `[SUBAGENT_DELEGATION]` or `[APPROVAL_*]`
    - → `on_tool_end` → `on_chat_model_stream` → `[CHAT_STREAM_COMPLETE]`
 4. **Check OpenTelemetry** if Jaeger is running (OTLP endpoint at `localhost:4317`)
@@ -878,6 +934,7 @@ docker run -d --name jaeger \
 | `backend/app/api/routes/ai_chat.py` | WebSocket endpoint (`/stream`), auth, message dispatch |
 | `backend/app/ai/agent_service.py` | Main orchestration: `chat_stream()`, `chat()`, approval registration, history building |
 | `backend/app/ai/deep_agent_orchestrator.py` | `DeepAgentOrchestrator.create_agent()` — wraps `langchain.agents.create_agent()` with Backcast config |
+| `backend/app/ai/graph_cache.py` | Caching infrastructure: `LLMClientCache`, `CompiledGraphCache`, `GraphCacheKey`, `BackcastRuntimeContext`, shared checkpointer, ContextVar helpers |
 | `backend/app/ai/graph.py` | `create_graph()` — StateGraph fallback (no subagents) |
 | `backend/app/ai/state.py` | `AgentState` TypedDict (messages, tool_call_count, next) |
 

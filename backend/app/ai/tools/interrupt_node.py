@@ -396,7 +396,7 @@ class InterruptNode(ToolNode):
         request: Any,
         execute: Any,
     ) -> Any:
-        """Wrap tool call to check for high-risk tool approval requirements."""
+        """Wrap tool call to check for high-risk tool approval requirements.
 
         Args:
             request: ToolCallRequest containing tool_call information
@@ -410,7 +410,8 @@ class InterruptNode(ToolNode):
         tool_id = tool_call.get("id", "")
         tool_args = dict(tool_call.get("args", {}))
 
-        # Check if this is a high-risk tool in standard mode        risk_level = self._get_tool_risk_level(tool_name)
+        # Check if this is a high-risk tool in standard mode
+        risk_level = self._get_tool_risk_level(tool_name)
         mode = self.context.execution_mode
 
         # HIGH risk tools in standard mode require approval. CRITICAL tools are blocked entirely.

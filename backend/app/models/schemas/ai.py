@@ -562,6 +562,17 @@ class WSThinkingMessage(BaseModel):
     )
 
 
+class PlanningStep(BaseModel):
+    """A single step in the agent's execution plan.
+
+    Context: Used by WSPlanningMessage to represent individual steps when the
+    Deep Agent uses the write_todos tool for task planning.
+    """
+
+    text: str = Field(..., description="Step description")
+    done: bool = Field(False, description="Whether the step is completed")
+
+
 class WSPlanningMessage(BaseModel):
     """WebSocket planning message from server.
 
@@ -573,7 +584,7 @@ class WSPlanningMessage(BaseModel):
         default="planning", description="Message type discriminator"
     )
     plan: str | None = Field(None, description="Plan description")
-    steps: list[dict[str, Any]] | None = Field(
+    steps: list[PlanningStep] | None = Field(
         None,
         description="Planning steps with text and done status",
     )
@@ -621,15 +632,19 @@ class WSPollingHeartbeatMessage(BaseModel):
 # Union type for all server->client WebSocket messages
 WSMessage = (
     WSTokenMessage
+    | WSTokenBatchMessage
     | WSToolCallMessage
     | WSToolResultMessage
     | WSCompleteMessage
     | WSErrorMessage
     | WSApprovalRequestMessage
+    | WSPollingHeartbeatMessage
     | WSThinkingMessage
     | WSPlanningMessage
     | WSSubagentMessage
+    | WSSubagentResultMessage
     | WSAgentCompleteMessage
+    | WSContentResetMessage
 )
 
 
