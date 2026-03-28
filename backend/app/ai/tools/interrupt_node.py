@@ -7,10 +7,12 @@ for user approval via WebSocket messages.
 Used in Phase 3: Approval Workflow
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
+from fastapi import WebSocket
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 from langgraph.prebuilt import ToolNode
@@ -18,6 +20,32 @@ from starlette.websockets import WebSocketState
 
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 from app.models.schemas.ai import WSApprovalRequestMessage, WSPollingHeartbeatMessage
+
+
+@dataclass
+class _ToolCallRequest:
+    """Lightweight request wrapper for approved tool execution.
+
+    Context: Used by InterruptNode.execute_after_approval to construct a
+    request object compatible with the tool call handler signature without
+    importing unittest.mock.MagicMock in production code.
+
+    Attributes:
+        tool_call: Dictionary containing the tool call name, args, and id.
+    """
+
+    tool_call: dict[str, Any]
+
+    def override(self, tool_call: dict[str, Any]) -> "_ToolCallRequest":
+        """Return a new _ToolCallRequest with an overridden tool_call.
+
+        Args:
+            tool_call: Replacement tool call dictionary.
+
+        Returns:
+            New _ToolCallRequest with the provided tool_call.
+        """
+        return _ToolCallRequest(tool_call=tool_call)
 
 
 class InterruptNode(ToolNode):
@@ -61,7 +89,7 @@ class InterruptNode(ToolNode):
         self,
         tools: list[BaseTool],
         context: ToolContext,
-        websocket: Any,
+        websocket: WebSocket,
         session_id: UUID,
     ) -> None:
         """Initialize InterruptNode with tools, context, and WebSocket.
@@ -75,6 +103,7 @@ class InterruptNode(ToolNode):
         super().__init__(tools, awrap_tool_call=self._awrap_tool_call)
         self.context = context
         self.tools = tools
+        self._tools_by_name: dict[str, BaseTool] = {t.name: t for t in tools}
         self.websocket = websocket
         self.session_id = session_id
         self.pending_approvals: dict[str, dict[str, Any]] = {}
@@ -83,8 +112,11 @@ class InterruptNode(ToolNode):
         self.interrupt_state: dict[str, dict[str, Any]] = {}
 
     @staticmethod
-    def _is_websocket_connected(websocket: Any) -> bool:
+    def _is_websocket_connected(websocket: WebSocket) -> bool:
         """Check if WebSocket is still connected.
+
+        Context: Called before sending approval requests and heartbeats to
+        avoid errors on closed connections during the human-in-the-loop flow.
 
         Args:
             websocket: WebSocket connection to check
@@ -101,18 +133,17 @@ class InterruptNode(ToolNode):
     def _get_tool_risk_level(self, tool_name: str) -> RiskLevel:
         """Get the risk level for a tool.
 
+        Context: Called during tool execution to determine whether human
+        approval is required before proceeding with a critical operation.
+
         Args:
             tool_name: Name of the tool to check
 
         Returns:
             RiskLevel of the tool (defaults to HIGH if not specified)
         """
-        # Find the tool by name
-        tool = None
-        for t in self.tools:
-            if t.name == tool_name:
-                tool = t
-                break
+        # Find the tool by name via indexed lookup
+        tool = self._tools_by_name.get(tool_name)
 
         if tool is None:
             # Tool not found, assume high risk
@@ -134,6 +165,10 @@ class InterruptNode(ToolNode):
         tool_call: dict[str, Any] | None = None,
     ) -> str:
         """Send approval request via WebSocket.
+
+        Context: Called by InterruptNode._awrap_tool_call and
+        BackcastSecurityMiddleware when a HIGH/CRITICAL risk tool is invoked
+        in STANDARD execution mode.
 
         Args:
             tool_name: Name of the tool requiring approval
@@ -326,11 +361,8 @@ class InterruptNode(ToolNode):
         new_tool_call = dict(tool_call)
         new_tool_call["args"] = tool_args
 
-        # Create request object
-        from unittest.mock import MagicMock
-        request = MagicMock()
-        request.tool_call = new_tool_call
-        request.override = lambda tool_call: MagicMock(tool_call=tool_call)
+        # Create request object using typed dataclass instead of MagicMock
+        request = _ToolCallRequest(tool_call=new_tool_call)
 
         try:
             # Call the original execute function with the overridden request
@@ -364,7 +396,7 @@ class InterruptNode(ToolNode):
         request: Any,
         execute: Any,
     ) -> Any:
-        """Wrap tool call to check for critical tool approval requirements.
+        """Wrap tool call to check for high-risk tool approval requirements."""
 
         Args:
             request: ToolCallRequest containing tool_call information
@@ -378,11 +410,10 @@ class InterruptNode(ToolNode):
         tool_id = tool_call.get("id", "")
         tool_args = dict(tool_call.get("args", {}))
 
-        # Check if this is a high or critical risk tool in standard mode
-        risk_level = self._get_tool_risk_level(tool_name)
+        # Check if this is a high-risk tool in standard mode        risk_level = self._get_tool_risk_level(tool_name)
         mode = self.context.execution_mode
 
-        # HIGH and CRITICAL tools in standard mode require approval
+        # HIGH risk tools in standard mode require approval. CRITICAL tools are blocked entirely.
         if risk_level >= RiskLevel.HIGH and mode == ExecutionMode.STANDARD:
             # Check if there's a pending approval for this tool call
             # For now, we'll send a new approval request each time
@@ -395,7 +426,6 @@ class InterruptNode(ToolNode):
                 tool_args,
                 risk_level,
                 tool_call=tool_call,
-                execute=execute,
             )
 
             # Check approval status

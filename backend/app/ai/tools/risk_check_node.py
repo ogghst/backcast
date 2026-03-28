@@ -15,7 +15,7 @@ class RiskCheckNode(ToolNode):
 
     Extends LangGraph's ToolNode to filter tools based on execution mode:
     - SAFE mode: Only low-risk tools
-    - STANDARD mode: Low and high-risk tools (critical requires approval)
+    - STANDARD mode: Low and high-risk tools (critical blocked)
     - EXPERT mode: All tools
 
     Attributes:
@@ -86,11 +86,10 @@ class RiskCheckNode(ToolNode):
                 if risk_level == RiskLevel.LOW:
                     filtered.append(tool)
             elif mode == ExecutionMode.STANDARD:
-                # Standard mode: Low and high-risk tools (critical requires approval)
+                # Standard mode: Low and high-risk tools (critical blocked)
                 if risk_level in [RiskLevel.LOW, RiskLevel.HIGH]:
                     filtered.append(tool)
-                # Critical tools are NOT included - they require approval workflow
-                # This will be handled in Phase 3 (InterruptNode)
+                # Critical tools are NOT included - they are blocked entirely
             elif mode == ExecutionMode.EXPERT:
                 # Expert mode: All tools
                 filtered.append(tool)
@@ -144,7 +143,7 @@ class RiskCheckNode(ToolNode):
                 return (
                     False,
                     f"Tool '{tool_name}' has critical risk level. "
-                    f"Standard mode requires approval for critical tools."
+                    f"Standard mode blocks critical tools. Switch to expert mode."
                 )
         # Expert mode allows all tools
 

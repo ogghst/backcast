@@ -4,6 +4,11 @@
 **Date:** 2026-03-12
 **Iteration:** 2026-03-11-langchain-docstring-parsing
 
+>
+> **Status:** SUPERSEDED — The migration is complete. All tools now use `BaseTool` with `.ainvoke()`.
+> **Superseded by:** `docs/02-architecture/ai/tool-development-guide.md`
+> **Retention reason:** Historical reference for the callable-to-BaseTool migration pattern.
+
 ---
 
 ## Overview

@@ -47,6 +47,7 @@ from app.models.domain.ai import (
 from app.models.schemas.ai import (
     AIChatResponse,
     AIConversationMessagePublic,
+    PlanningStep,
     WSAgentCompleteMessage,
     WSCompleteMessage,
     WSContentResetMessage,
@@ -151,6 +152,7 @@ class AgentService:
         self.session = session
         self._config_service: AIConfigService | None = None
         self._subagent_invocation_counts: dict[str, int] = {}
+        self._cancellation_tokens: dict[UUID, asyncio.Event] = {}
 
     @staticmethod
     def _is_websocket_connected(websocket: WebSocket) -> bool:
@@ -306,7 +308,7 @@ class AgentService:
             Deep Agents SDK is not available or encounters errors.
 
             InterruptNode is integrated via BackcastSecurityMiddleware to handle
-            approvals for HIGH/CRITICAL risk tools in standard mode.
+            approvals for HIGH risk tools in standard mode. CRITICAL tools are blocked entirely.
         """
         try:
             # Create InterruptNode first (needed for middleware)
@@ -804,6 +806,12 @@ class AgentService:
         # Track the main_invocation_id that initiated the task tool (for subagent result association)
         task_initiating_main_invocation_id: str | None = None
 
+        # Create cancellation event that can be triggered by disconnect
+        # session_id is guaranteed to be a UUID at this point (line 632 ensures it)
+        cancellation_token = asyncio.Event()
+        assert session_id is not None  # for type checker
+        self._cancellation_tokens[session_id] = cancellation_token
+
         try:
             logger.info(f"Starting astream_events for session {session_id}")
 
@@ -835,6 +843,19 @@ class AgentService:
                     },
                     version="v1",
                 ):
+                    # Check cancellation FIRST (before any other processing)
+                    if cancellation_token.is_set():
+                        logger.warning(f"Stream cancelled for session {session_id}")
+                        break
+
+                    # Check if client is still connected before processing each event
+                    if not self._is_websocket_connected(websocket):
+                        logger.warning(
+                            f"WebSocket disconnected during streaming for session {session_id}, "
+                            f"aborting agent execution"
+                        )
+                        break
+
                     event_type = event.get("event", "")
                     data = event.get("data", {})
 
@@ -913,7 +934,7 @@ class AgentService:
                                     raw_steps = tool_input.get("steps")
                                     if isinstance(raw_steps, list):
                                         steps = [
-                                            {"text": str(s), "done": False} for s in raw_steps
+                                            PlanningStep(text=str(s), done=False) for s in raw_steps
                                         ]
                                         # Update estimated total based on planning steps
                                         estimated_total_steps = len(steps)
@@ -1092,6 +1113,9 @@ class AgentService:
                             # Send content reset to signal frontend to start new main agent bubble
                             if self._is_websocket_connected(websocket):
                                 try:
+                                    # Flush main agent buffer BEFORE sending content_reset
+                                    # This ensures all tokens from the old invocation_id are sent first
+                                    await buffer_manager.flush_agent(source="main")
                                     await websocket.send_json(
                                         WSContentResetMessage(
                                             type="content_reset",
@@ -1250,6 +1274,10 @@ class AgentService:
                 logger.debug("WebSocket not connected, skipping error send")
 
         finally:
+            # Set cancellation token to ensure stream aborts if still running
+            cancellation_token.set()
+            # Clean up token from dict to prevent memory leaks
+            self._cancellation_tokens.pop(session_id, None)
             self.unregister_interrupt_node(session_id)
 
         # Save assistant messages to session in conversational order

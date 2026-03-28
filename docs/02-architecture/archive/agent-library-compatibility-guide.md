@@ -1,5 +1,11 @@
 # Agent Library Compatibility Guide
+>
+> **Status:** SUPERSEDED — Evaluation complete. DeepAgents SDK replaced by LangGraph (bare).
+ Score 10/12 compatibility, low-medium migration effort. See compatibility guide for rationale.
+ **Retention reason:** API contract audit is useful for evaluating future alternatives.
 
+> **Status:** SUPERSEDED — Evaluation complete.
+ Decision: Stay with LangGraph (bare). See alternatives analysis for rationale.
 Reference for evaluating AI agent orchestration libraries as replacements for the `deepagents` SDK in the Backcast codebase.
 
 Every requirement below is derived from an audit of actual code usage — not theoretical needs.

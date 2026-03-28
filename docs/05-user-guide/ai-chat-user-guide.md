@@ -336,7 +336,7 @@ You don't need to use technical terms. Ask questions the way you would to a coll
 
 ### What AI Chat Cannot Do
 
-- **Modify Data**: AI Chat is read-only. It cannot create, update, or delete projects, WBEs, or cost elements
+- **Modify Data**: In Standard or Expert mode, AI Chat can create and update data (with approval in Standard mode for high-risk tools). Critical operations like deletion require Expert mode.
 - **Access Unauthorized Data**: You can only see data you have permissions to access
 - **Perform Calculations Beyond Tools**: Calculations are limited to the available EVM and forecasting tools
 - **Real-time Data**: Data is based on the last database update, not real-time

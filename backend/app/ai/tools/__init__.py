@@ -28,7 +28,7 @@ def filter_tools_by_execution_mode(
 
     Rules:
         - SAFE mode: Only LOW risk tools
-        - STANDARD mode: LOW and HIGH risk tools (CRITICAL tools require approval)
+        - STANDARD mode: LOW and HIGH risk tools (CRITICAL tools blocked)
         - EXPERT mode: All tools
     """
     filtered_tools: list[BaseTool] = []
@@ -51,8 +51,8 @@ def filter_tools_by_execution_mode(
                     f"Filtering out tool '{tool.name}' (risk={risk_level.value}) in SAFE mode"
                 )
         elif execution_mode == ExecutionMode.STANDARD:
-            # Standard mode allows all tools, but HIGH/CRITICAL require approval
-            # Include all tools - approval is handled by InterruptNode
+            # Standard mode: LOW and HIGH allowed. CRITICAL blocked.
+            # Include all tools - approval/blocking handled by InterruptNode
             filtered_tools.append(tool)
         else:
             # Expert mode allows all tools

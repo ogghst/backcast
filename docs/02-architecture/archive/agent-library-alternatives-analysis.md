@@ -1,8 +1,18 @@
 # Agent Library Alternatives Analysis
 
+>
+> **Status:** SUPERSEDED — The evaluation is complete. LangGraph (bare) was selected.
+ Score 10/12 compatibility, low-medium migration effort.
+ See compatibility guide for rationale.
+ **Retention reason:** Comparison data useful if reconsidering in 6+ months.
+
 Evaluation of 5 candidate libraries against the Backcast compatibility guide, with forward-looking assessment for MCP server attachment and orchestration configuration.
 
 **Date:** March 2026
+>
+> **Status:** SUPERSEDED — Evaluation complete.
+> **Decision:** LangGraph (bare) selected. Score 10/12 compatibility.
+> **Retention reason:** Comparison data useful if reconsidering in 6+ months.
 
 ---
 

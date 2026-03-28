@@ -187,7 +187,7 @@ class RBACToolNode(ToolNode):
                 return (
                     False,
                     f"Tool '{tool_name}' has critical risk level. "
-                    f"Standard mode requires approval for critical tools."
+                    f"Standard mode blocks critical tools. Switch to expert mode."
                 )
         # Expert mode allows all tools
 

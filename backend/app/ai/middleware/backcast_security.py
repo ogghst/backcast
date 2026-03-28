@@ -68,6 +68,7 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         # Use private attribute to avoid exposing tools to LangChain's create_agent
         # which collects tools from ALL middleware via getattr(m, "tools", [])
         self._security_tools = tools or []
+        self._tools_by_name: dict[str, Any] = {t.name: t for t in self._security_tools}
         self._interrupt_node = interrupt_node
 
     async def awrap_tool_call(
@@ -192,6 +193,9 @@ class BackcastSecurityMiddleware(AgentMiddleware):
     ) -> str | None:
         """Check if user has permission to execute a tool.
 
+        Context: Called by BackcastSecurityMiddleware.awrap_tool_call before
+        risk-level checks to enforce RBAC permissions on Backcast-specific tools.
+
         Args:
             tool_name: Name of the tool to check
             tool_args: Arguments passed to the tool (may contain project_id)
@@ -204,12 +208,8 @@ class BackcastSecurityMiddleware(AgentMiddleware):
             are allowed through without Backcast-specific permission checks, as they
             have their own security mechanisms.
         """
-        # Find the tool by name in Backcast tools list
-        tool = None
-        for t in self._security_tools:
-            if t.name == tool_name:
-                tool = t
-                break
+        # Find the tool by name via indexed lookup
+        tool = self._tools_by_name.get(tool_name)
 
         # If tool is not found in Backcast tools, allow it to pass through
         # This handles external tools like Deep Agents SDK built-in tools (write_todos, task)
@@ -291,6 +291,10 @@ class BackcastSecurityMiddleware(AgentMiddleware):
     ) -> tuple[bool, str | None]:
         """Check if a tool is allowed based on execution mode and risk level.
 
+        Context: Called by BackcastSecurityMiddleware._check_risk_level_with_approval
+        to determine whether a tool's risk level permits execution under the current
+        execution mode (SAFE, STANDARD, or EXPERT).
+
         Args:
             tool_name: Name of the tool to check
 
@@ -302,12 +306,8 @@ class BackcastSecurityMiddleware(AgentMiddleware):
             are allowed through without Backcast-specific risk checks, as they
             have their own security mechanisms.
         """
-        # Find the tool by name in Backcast tools list
-        tool = None
-        for t in self._security_tools:
-            if t.name == tool_name:
-                tool = t
-                break
+        # Find the tool by name via indexed lookup
+        tool = self._tools_by_name.get(tool_name)
 
         # If tool is not found in Backcast tools, allow it to pass through
         # This handles external tools like Deep Agents SDK built-in tools (write_todos, task)
@@ -343,7 +343,7 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                 return (
                     False,
                     f"Tool '{tool_name}' has critical risk level. "
-                    f"Standard mode requires approval for critical tools."
+                    f"Standard mode blocks critical tools. Switch to expert mode."
                 )
         # Expert mode allows all tools
 
@@ -356,7 +356,11 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         tool_call: dict[str, Any],
         handler: Any,
     ) -> tuple[bool, str | None | ToolMessage]:
-        """Check risk level and handle approval for HIGH/CRITICAL tools in standard mode.
+        """Check risk level and handle approval for HIGH tools in standard mode.
+
+        Context: Called by BackcastSecurityMiddleware.awrap_tool_call after
+        permission checks pass. Manages the human-in-the-loop approval polling
+        loop for tools rated HIGH or CRITICAL in STANDARD execution mode.
 
         Args:
             tool_name: Name of the tool to check
@@ -371,7 +375,7 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                                        or ToolMessage if execution completed
 
         Note:
-            HIGH and CRITICAL risk tools in STANDARD mode require approval.
+            HIGH risk tools in STANDARD mode require approval. CRITICAL tools are blocked entirely.
             Uses InterruptNode to send approval requests via WebSocket.
             Waits for user approval with polling (max 30 seconds).
         """
@@ -380,12 +384,8 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         if not allowed:
             return False, error_message
 
-        # Find the tool by name in Backcast tools list
-        tool = None
-        for t in self._security_tools:
-            if t.name == tool_name:
-                tool = t
-                break
+        # Find the tool by name via indexed lookup
+        tool = self._tools_by_name.get(tool_name)
 
         # If tool is not found in Backcast tools, allow it to pass through
         if tool is None:
@@ -399,7 +399,7 @@ class BackcastSecurityMiddleware(AgentMiddleware):
         else:
             risk_level = metadata.risk_level
 
-        # Check if we need approval (HIGH/CRITICAL in STANDARD mode)
+        # Check if we need approval (HIGH in STANDARD mode)
         mode = self.context.execution_mode
         needs_approval = (
             risk_level >= RiskLevel.HIGH and
@@ -530,6 +530,7 @@ class BackcastSecurityMiddleware(AgentMiddleware):
             tools: List of BaseTool instances
         """
         self._security_tools = tools
+        self._tools_by_name = {t.name: t for t in tools}
 
     def set_interrupt_node(self, interrupt_node: InterruptNode | None) -> None:
         """Set the InterruptNode for approval handling.

@@ -27,7 +27,7 @@ The AI Tools API supports three execution modes that control which tools can be 
 | Mode | Description | Risk Levels Allowed | Approval Required |
 |------|-------------|---------------------|-------------------|
 | `safe` | Read-only operations | `low` only | No |
-| `standard` | Normal operations (default) | `low`, `high` | Yes, for `critical` |
+| `standard` | Normal operations (default) | `low`, `high` | Yes, for `high` (critical blocked) |
 | `expert` | All operations | `low`, `high`, `critical` | No |
 
 ### Mode Selection
@@ -58,7 +58,7 @@ Every AI tool is categorized with a risk level that determines which execution m
 |------------|-------------|----------|------------------|
 | `low` | Read-only operations, no side effects | - Query projects<br>- Get EVM metrics<br>- List change orders | `safe`, `standard`, `expert` |
 | `high` | Data modification with validation | - Create project<br>- Update WBE<br>- Generate forecast | `standard`, `expert` |
-| `critical` | Destructive operations, bulk changes | - Delete project<br>- Bulk update WBEs<br>- Approve change order | `expert` only (or approval in `standard`) |
+| `critical` | Destructive operations, bulk changes | - Delete project<br>- Bulk update WBEs<br>- Approve change order | `expert` only (blocked in `standard` mode) |
 
 ### Default Risk Level
 
@@ -77,11 +77,12 @@ Server processes with LangGraph agent
     ↓
 Server → Client: Stream of messages (tokens, tool calls, etc.)
     ↓
-If critical tool in standard mode:
+If high-risk tool in standard mode:
     Server → Client: WSApprovalRequestMessage
-    Client displays approval dialog
+    Client displays ApprovalDialog
     Client → Server: WSApprovalResponseMessage
     Server resumes execution
+Note: Critical tools are blocked entirely in standard mode -- they never reach approval.
     ↓
 Server → Client: WSCompleteMessage
 ```
@@ -157,7 +158,7 @@ Server → Client: WSCompleteMessage
   "session_id": "uuid",
   "tool_name": "delete_project",
   "tool_args": {"project_id": "uuid"},
-  "risk_level": "critical",
+  "risk_level": "high",
   "expires_at": "2026-03-22T10:35:00Z"  // 5 minutes from request
 }
 ```
@@ -212,7 +213,7 @@ class WSApprovalRequestMessage(BaseModel):
     session_id: UUID
     tool_name: str
     tool_args: dict[str, Any]
-    risk_level: Literal["critical"]
+    risk_level: Literal["high"]
     expires_at: datetime
 
 class WSApprovalResponseMessage(BaseModel):
@@ -339,8 +340,10 @@ Tools are discoverable via the `/api/v1/ai/tools` endpoint:
 
 Approval is required when:
 1. Execution mode is `standard`
-2. Tool has `risk_level="critical"`
+2. Tool has `risk_level="high"`
 3. User has the required permissions
+
+Note: Critical tools are blocked entirely in standard mode and never reach the approval flow.
 
 ### Approval Flow
 
@@ -387,7 +390,7 @@ All tool executions and approval decisions are logged to the audit log:
 ```json
 {
   "type": "error",
-  "message": "Tool 'delete_project' has critical risk level. Standard mode requires approval for critical tools.",
+  "message": "Tool 'delete_project' has critical risk level. Standard mode blocks critical tools entirely. Switch to expert mode to use this tool.",
   "code": 403
 }
 ```
@@ -467,7 +470,7 @@ See `backend/tests/performance/test_risk_check_overhead.py` for detailed perform
 **Added:**
 - Execution modes: `safe`, `standard`, `expert`
 - Risk levels: `low`, `high`, `critical`
-- Approval workflow for critical tools in standard mode
+- Approval workflow for high-risk tools in standard mode; critical tools blocked
 - WebSocket messages: `WSApprovalRequestMessage`, `WSApprovalResponseMessage`
 - Tool metadata `risk_level` field
 - Audit logging for tool executions and approvals

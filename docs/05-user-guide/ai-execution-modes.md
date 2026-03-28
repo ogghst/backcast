@@ -67,16 +67,19 @@ Your selected execution mode is saved in your browser, so it persists between se
 **What it does:**
 - Allows read-only tools
 - Allows tools that create or modify data (with validation)
-- **Requires approval for critical tools** (delete, bulk operations)
+- **Requires approval for high-risk tools** (create, update, generate)
+- **Blocks critical tools entirely** (delete, bulk operations -- switch to expert mode)
 
 **Example tools available without approval:**
 - All safe mode tools
+
+**Example tools requiring approval:**
 - Create projects
 - Update WBEs
 - Generate forecasts
 - Create change orders
 
-**Example tools requiring approval:**
+**Example tools BLOCKED (switch to expert mode):**
 - Delete projects
 - Bulk update WBEs
 - Approve/reject change orders
@@ -155,13 +158,13 @@ Every AI tool is categorized by risk level:
 - Approving/rejecting change orders
 - Modifying user permissions
 
-**Available in:** Expert mode (or with approval in Standard mode)
+**Available in:** Expert mode only (blocked in Standard mode)
 
 ---
 
 ## Approval Workflow
 
-When you use Standard mode and the AI needs to execute a critical tool, the approval workflow ensures you review and approve the action first.
+When you use Standard mode and the AI needs to execute a high-risk tool (create, update, generate), the approval workflow ensures you review and approve the action first.
 
 ### How Approval Works
 
@@ -341,11 +344,13 @@ AI: (Uses list_projects and analyze_cost_variance)
 ```
 User: "Create a new project called 'Test Automation'"
 
-AI: (Uses create_project - high risk tool)
-"✓ Created project 'Test Automation' with ID: 12345"
+AI: (Uses create_project - high risk tool, approval required)
+[Approval dialog appears for create_project (high risk)]
+User: [Clicks Approve]
+AI: "Created project 'Test Automation' with ID: 12345"
 ```
 
-**Mode:** Standard works (high risk, no approval needed)
+**Mode:** Standard with approval (high-risk tool requires approval)
 
 ---
 
@@ -354,28 +359,10 @@ AI: (Uses create_project - high risk tool)
 ```
 User: "Delete the Test Project"
 
-AI: (Detects delete_project - critical tool)
-┌─────────────────────────────────────┐
-│  🔒 Approval Required                │
-├─────────────────────────────────────┤
-│  Tool: delete_project                │
-│  Risk: Critical                      │
-│                                     │
-│  Arguments:                          │
-│  - project_id: abc-123-def           │
-│                                     │
-│  This will permanently delete       │
-│  the project and all its data.      │
-│                                     │
-│  [Cancel]  [Approve]                 │
-└─────────────────────────────────────┘
-
-User: (Clicks Approve)
-
-AI: "✓ Deleted project 'Test Project'"
+AI: "I cannot delete the project in Standard mode. Critical operations like deletion are blocked. Please switch to Expert mode if you need to perform this action."
 ```
 
-**Mode:** Standard with approval (critical tool requires approval)
+**Mode:** Standard (critical tools are blocked, not just requiring approval)
 
 ---
 
@@ -408,7 +395,7 @@ A: No, approvals are session-specific. Each new chat session requires fresh appr
 
 **Q: Can I override the approval requirement?**
 
-A: Yes, by switching to Expert mode. However, this should be done cautiously and only when you fully understand the implications.
+A: Yes, by switching to Expert mode. Note that in Standard mode, critical tools are not just requiring approval -- they are blocked entirely. Only high-risk tools go through the approval workflow.
 
 **Q: Is there a way to see which tools were executed?**
 
