@@ -61,11 +61,13 @@ htmlcov/
 .claude/skills/
 skills-lock.json
 
-# Test screenshots (temporary artifacts)
-markdown-rendering.png
-mermaid-fix-test.png
-mermaid-rendering.png
+# Screenshots and temporary artifacts
+*.png
+!backend/**/*.png
+!frontend/public/**/*.png
 frontend-screenshots/
+network.json
+context_search_results.md
 
 #deploy backups
 deploy/backup*.gz
