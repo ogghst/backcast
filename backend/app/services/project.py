@@ -4,7 +4,7 @@ Provides Project-specific operations on top of generic temporal service.
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
@@ -18,6 +18,7 @@ from app.core.versioning.commands import (
 )
 from app.core.versioning.enums import BranchMode
 from app.models.domain.project import Project
+from app.models.domain.user import User
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
 
 if TYPE_CHECKING:
@@ -82,14 +83,28 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             ...     limit=20
             ... )
         """
-        from typing import Any, cast
+        from typing import cast
 
         from sqlalchemy import and_, func, or_
 
         from app.core.filtering import FilterParser
+        from app.models.domain.user import User
 
-        # Base query: versions in specified branch(es)
-        stmt = select(Project)
+        # Creator lookup subquery - get the most recent version of each user
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+
+        # Base query: versions in specified branch(es) with creator name
+        stmt = select(Project, creator_subq.c.full_name.label("created_by_name"))
+        stmt = stmt.outerjoin(
+            creator_subq,
+            cast(Any, Project).created_by == creator_subq.c.user_id,
+        )
 
         # Apply branch mode filter (STRICT vs MERGE)
         stmt = self._apply_branch_mode_filter(
@@ -153,13 +168,24 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
 
         # Execute query
         result = await self.session.execute(stmt)
-        projects = list(result.scalars().all())
+        projects = []
+        for row in result.all():
+            project = row[0]
+            created_by_name = row[1]
+            project.created_by_name = created_by_name
+
+            # Populate created_at from transaction_time lower bound
+            if hasattr(project, 'transaction_time') and project.transaction_time:
+                if hasattr(project.transaction_time, 'lower'):
+                    project.created_at = project.transaction_time.lower
+
+            projects.append(project)
 
         return projects, total
 
     async def get_by_code(self, code: str, branch: str = "main") -> Project | None:
         """Get project by code (current version in specified branch)."""
-        from typing import Any, cast
+        from typing import cast
 
         from sqlalchemy import func
 
@@ -202,7 +228,11 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             control_date=control_date,
             **project_data,
         )
-        return await cmd.execute(self.session)
+        project = await cmd.execute(self.session)
+
+        # Populate created_by_name and created_at
+        await self._populate_project_metadata_from_db(project)
+        return project
 
     async def update_project(
         self,
@@ -227,7 +257,11 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             control_date=control_date,
             updates=update_data,
         )
-        return await cmd.execute(self.session)
+        project = await cmd.execute(self.session)
+
+        # Populate created_by_name and created_at
+        await self._populate_project_metadata_from_db(project)
+        return project
 
     async def delete_project(
         self, project_id: UUID, actor_id: UUID, control_date: datetime | None = None
@@ -239,7 +273,11 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             actor_id=actor_id,
             control_date=control_date,
         )
-        return await cmd.execute(self.session)
+        project = await cmd.execute(self.session)
+
+        # Populate created_by_name and created_at
+        await self._populate_project_metadata_from_db(project)
+        return project
 
     async def get_project_history(self, project_id: UUID) -> list[Project]:
         """Get all versions of a project by root project_id (with creator name)."""
@@ -278,7 +316,46 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             ...     as_of=as_of
             ... )
         """
-        return await self.get_as_of(project_id, as_of, branch, branch_mode)
+
+        project = await self.get_as_of(project_id, as_of, branch, branch_mode)
+        if project:
+            await self._populate_project_metadata_from_db(project)
+        return project
+
+    async def _populate_project_metadata_from_db(self, project: Project) -> None:
+        """Populate created_by_name and created_at for a single project.
+
+        Performs a separate query to fetch the creator's name.
+
+        Args:
+            project: The project entity to populate
+        """
+        from typing import cast
+
+        if not project.created_by:
+            return
+
+        # Query the user table to get the creator's name
+        UserAlias = cast(Any, User)
+        creator_subq = (
+            select(UserAlias.user_id, UserAlias.full_name)
+            .distinct(UserAlias.user_id)
+            .order_by(UserAlias.user_id, UserAlias.transaction_time.desc())
+            .subquery("creator_lookup")
+        )
+
+        stmt = select(creator_subq.c.full_name).where(
+            creator_subq.c.user_id == project.created_by
+        )
+
+        result = await self.session.execute(stmt)
+        creator_name = result.scalar_one_or_none()
+        project.created_by_name = creator_name  # type: ignore
+
+        # Populate created_at from transaction_time lower bound
+        if hasattr(project, 'transaction_time') and project.transaction_time:
+            if hasattr(project.transaction_time, 'lower'):
+                project.created_at = project.transaction_time.lower  # type: ignore
 
     async def get_project_branches(
         self, project_id: UUID, as_of: datetime | None = None
@@ -291,7 +368,7 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
 
         Requires read permission.
         """
-        from typing import Any, cast
+        from typing import cast
 
         from sqlalchemy import func
 
@@ -411,7 +488,7 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         Returns:
             List of recently updated projects ordered by transaction_time descending
         """
-        from typing import Any, cast
+        from typing import cast
 
         from sqlalchemy import desc
 

@@ -8,11 +8,10 @@ import {
   useUpdateWBE,
   useDeleteWBE,
 } from "@/features/wbes/api/useWBEs";
-import { ProjectSummaryCard } from "@/components/hierarchy/ProjectSummaryCard";
 import { WBETable } from "@/components/hierarchy/WBETable";
 import { WBECreate, WBERead, WBEUpdate, ProjectUpdate } from "@/api/generated";
-import { Button, Breadcrumb, Skeleton, Card, theme, Typography, Space, Flex } from "antd";
-import { PlusOutlined, EditOutlined, HistoryOutlined, DeleteOutlined } from "@ant-design/icons";
+import { Button, Breadcrumb, Skeleton, Card, theme, Typography, Space, Flex, Row, Col, Tag, Descriptions, Grid } from "antd";
+import { PlusOutlined, EditOutlined, HistoryOutlined, DeleteOutlined, FileTextOutlined, ClockCircleOutlined, DollarOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import { useState } from "react";
 import { WBEModal } from "@/features/wbes/components/WBEModal";
 import { DeleteWBEModal } from "@/components/hierarchy/DeleteWBEModal";
@@ -22,6 +21,48 @@ import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { ProjectsService } from "@/api/generated";
 import { ProjectEditModal } from "@/components/projects/ProjectEditModal";
+import { getProjectStatusColor } from "@/lib/status";
+
+/**
+ * Format a numeric value as EUR currency.
+ */
+const formatCurrency = (value: string | number | null | undefined): string => {
+  if (!value) return "-";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "EUR",
+  }).format(Number(value));
+};
+
+/**
+ * Format an ISO date string for display.
+ */
+const formatDate = (dateString: string | null | undefined): string => {
+  if (!dateString) return "-";
+  return new Date(dateString).toLocaleDateString();
+};
+
+/**
+ * Format an ISO timestamp string for display with time.
+ */
+const formatTimestamp = (timestamp: string | null | undefined): string => {
+  if (!timestamp) return "-";
+  return new Date(timestamp).toLocaleString();
+};
+
+/**
+ * Calculate the duration in days between two dates.
+ */
+const calculateDuration = (
+  start: string | null | undefined,
+  end: string | null | undefined
+): string | null => {
+  if (!start || !end) return null;
+  const days = Math.ceil(
+    (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24)
+  );
+  return `${Math.abs(days)} day${Math.abs(days) !== 1 ? "s" : ""}`;
+};
 
 /**
  * ProjectOverview component
@@ -31,6 +72,9 @@ import { ProjectEditModal } from "@/components/projects/ProjectEditModal";
  */
 export const ProjectOverview = () => {
   const { token } = theme.useToken();
+  const { useBreakpoint } = Grid;
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -133,7 +177,7 @@ export const ProjectOverview = () => {
   };
 
   return (
-    <div style={{ padding: token.paddingXL }}>
+    <div style={{ padding: isMobile ? token.paddingMD : token.paddingXL }}>
       <Breadcrumb
         items={[
           { title: <Link to="/">Home</Link> },
@@ -144,20 +188,28 @@ export const ProjectOverview = () => {
       />
       <Flex
         justify="space-between"
-        align="center"
+        align={isMobile ? "flex-start" : "center"}
+        vertical={isMobile}
+        gap={isMobile ? token.marginSM : 0}
         style={{ marginBottom: token.paddingMD }}
       >
-        <Typography.Title level={1} style={{ margin: 0 }}>
+        <Typography.Title
+          level={1}
+          style={{
+            margin: 0,
+            fontSize: isMobile ? token.fontSizeXL : undefined,
+          }}
+        >
           Project Details
         </Typography.Title>
-        <Space size={token.marginSM}>
+        <Space size={token.marginSM} wrap={isMobile}>
           <Can permission="project-update">
             <Button
               type="primary"
               icon={<EditOutlined />}
               onClick={() => setEditModalOpen(true)}
             >
-              Edit
+              {isMobile ? undefined : "Edit"}
             </Button>
           </Can>
           <Can permission="project-read">
@@ -165,7 +217,7 @@ export const ProjectOverview = () => {
               icon={<HistoryOutlined />}
               onClick={() => setHistoryOpen(true)}
             >
-              History
+              {isMobile ? undefined : "History"}
             </Button>
           </Can>
           <Can permission="project-delete">
@@ -174,7 +226,7 @@ export const ProjectOverview = () => {
               icon={<DeleteOutlined />}
               onClick={() => setDeleteProjectModalOpen(true)}
             >
-              Delete
+              {isMobile ? undefined : "Delete"}
             </Button>
           </Can>
         </Space>
@@ -186,10 +238,357 @@ export const ProjectOverview = () => {
 
       {project && (
         <>
-          <ProjectSummaryCard
-            project={project}
-            loading={projectLoading}
-          />
+          {/* Project Name Header */}
+          <Typography.Title
+            level={2}
+            style={{
+              marginBottom: token.paddingLG,
+              fontSize: isMobile ? token.fontSizeXL : token.fontSizeXXL,
+              fontWeight: token.fontWeightSemiBold,
+            }}
+          >
+            {project.name}
+          </Typography.Title>
+
+          {/* Scope Panel */}
+          <Card
+            title={
+              <Space>
+                <FileTextOutlined />
+                <span
+                  style={{
+                    fontSize: token.fontSizeLG,
+                    fontWeight: token.fontWeightSemiBold,
+                  }}
+                >
+                  Scope
+                </span>
+              </Space>
+            }
+            style={{
+              marginBottom: token.marginLG,
+              borderRadius: token.borderRadiusLG,
+              border: `1px solid ${token.colorBorder}`,
+            }}
+          >
+            <div style={{ padding: token.paddingLG }}>
+              {project.description && (
+                <Typography.Paragraph
+                  type="secondary"
+                  style={{
+                    marginBottom: token.paddingMD,
+                    fontSize: token.fontSize,
+                  }}
+                >
+                  {project.description}
+                </Typography.Paragraph>
+              )}
+              <Row gutter={[token.marginLG, token.marginMD]}>
+                <Col xs={24} sm={12} md={8}>
+                  <div>
+                    <Typography.Text
+                      type="secondary"
+                      style={{
+                        fontSize: token.fontSizeSM,
+                        display: "block",
+                        marginBottom: token.paddingXS,
+                        fontWeight: token.fontWeightMedium,
+                      }}
+                    >
+                      Code
+                    </Typography.Text>
+                    <Typography.Text
+                      style={{
+                        fontSize: token.fontSizeLG,
+                        fontWeight: token.fontWeightSemiBold,
+                        color: token.colorText,
+                      }}
+                    >
+                      {project.code}
+                    </Typography.Text>
+                  </div>
+                </Col>
+                <Col xs={24} sm={12} md={8}>
+                  <div>
+                    <Typography.Text
+                      type="secondary"
+                      style={{
+                        fontSize: token.fontSizeSM,
+                        display: "block",
+                        marginBottom: token.paddingXS,
+                        fontWeight: token.fontWeightMedium,
+                      }}
+                    >
+                      Status
+                    </Typography.Text>
+                    <Tag
+                      color={getProjectStatusColor(project.status)}
+                      style={{
+                        fontSize: token.fontSize,
+                        padding: `${token.paddingXS}px ${token.paddingSM}px`,
+                        borderRadius: token.borderRadius,
+                        fontWeight: token.fontWeightMedium,
+                        margin: 0,
+                      }}
+                    >
+                      {project.status || "Draft"}
+                    </Tag>
+                  </div>
+                </Col>
+              </Row>
+            </div>
+          </Card>
+
+          {/* Time Panel */}
+          <Card
+            title={
+              <Space>
+                <ClockCircleOutlined />
+                <span
+                  style={{
+                    fontSize: token.fontSizeLG,
+                    fontWeight: token.fontWeightSemiBold,
+                  }}
+                >
+                  Time
+                </span>
+              </Space>
+            }
+            style={{
+              marginBottom: token.marginLG,
+              borderRadius: token.borderRadiusLG,
+              border: `1px solid ${token.colorBorder}`,
+            }}
+          >
+            <div style={{ padding: token.paddingLG }}>
+              <Row gutter={[token.marginLG, token.marginMD]}>
+                <Col xs={24} sm={12} md={8}>
+                  <div>
+                    <Typography.Text
+                      type="secondary"
+                      style={{
+                        fontSize: token.fontSizeSM,
+                        display: "block",
+                        marginBottom: token.paddingXS,
+                        fontWeight: token.fontWeightMedium,
+                      }}
+                    >
+                      Start Date
+                    </Typography.Text>
+                    <Typography.Text
+                      style={{
+                        fontSize: token.fontSizeLG,
+                        fontWeight: token.fontWeightSemiBold,
+                        color: token.colorText,
+                      }}
+                    >
+                      {formatDate(project.start_date)}
+                    </Typography.Text>
+                  </div>
+                </Col>
+                <Col xs={24} sm={12} md={8}>
+                  <div>
+                    <Typography.Text
+                      type="secondary"
+                      style={{
+                        fontSize: token.fontSizeSM,
+                        display: "block",
+                        marginBottom: token.paddingXS,
+                        fontWeight: token.fontWeightMedium,
+                      }}
+                    >
+                      End Date
+                    </Typography.Text>
+                    <Typography.Text
+                      style={{
+                        fontSize: token.fontSizeLG,
+                        fontWeight: token.fontWeightSemiBold,
+                        color: token.colorText,
+                      }}
+                    >
+                      {formatDate(project.end_date)}
+                    </Typography.Text>
+                  </div>
+                </Col>
+                {calculateDuration(project.start_date, project.end_date) && (
+                  <Col xs={24} sm={12} md={8}>
+                    <div>
+                      <Typography.Text
+                        type="secondary"
+                        style={{
+                          fontSize: token.fontSizeSM,
+                          display: "block",
+                          marginBottom: token.paddingXS,
+                          fontWeight: token.fontWeightMedium,
+                        }}
+                      >
+                        Duration
+                      </Typography.Text>
+                      <Typography.Text
+                        style={{
+                          fontSize: token.fontSizeLG,
+                          fontWeight: token.fontWeightSemiBold,
+                          color: token.colorText,
+                        }}
+                      >
+                        {calculateDuration(project.start_date, project.end_date)}
+                      </Typography.Text>
+                    </div>
+                  </Col>
+                )}
+              </Row>
+            </div>
+          </Card>
+
+          {/* Costs Panel */}
+          <Card
+            title={
+              <Space>
+                <DollarOutlined />
+                <span
+                  style={{
+                    fontSize: token.fontSizeLG,
+                    fontWeight: token.fontWeightSemiBold,
+                  }}
+                >
+                  Costs
+                </span>
+              </Space>
+            }
+            style={{
+              marginBottom: token.marginLG,
+              borderRadius: token.borderRadiusLG,
+              border: `1px solid ${token.colorBorder}`,
+            }}
+          >
+            <div style={{ padding: token.paddingLG }}>
+              <Row gutter={[token.marginLG, token.marginMD]}>
+                <Col xs={24} sm={12} md={8}>
+                  <div>
+                    <Typography.Text
+                      type="secondary"
+                      style={{
+                        fontSize: token.fontSizeSM,
+                        display: "block",
+                        marginBottom: token.paddingXS,
+                        fontWeight: token.fontWeightMedium,
+                      }}
+                    >
+                      Budget
+                    </Typography.Text>
+                    <Typography.Text
+                      style={{
+                        fontSize: token.fontSizeLG,
+                        fontWeight: token.fontWeightSemiBold,
+                        color: token.colorText,
+                      }}
+                    >
+                      {formatCurrency(project.budget)}
+                    </Typography.Text>
+                  </div>
+                </Col>
+                <Col xs={24} sm={12} md={8}>
+                  <div>
+                    <Typography.Text
+                      type="secondary"
+                      style={{
+                        fontSize: token.fontSizeSM,
+                        display: "block",
+                        marginBottom: token.paddingXS,
+                        fontWeight: token.fontWeightMedium,
+                      }}
+                    >
+                      Contract Value
+                    </Typography.Text>
+                    <Typography.Text
+                      style={{
+                        fontSize: token.fontSizeLG,
+                        fontWeight: token.fontWeightSemiBold,
+                        color: token.colorText,
+                      }}
+                    >
+                      {formatCurrency(project.contract_value)}
+                    </Typography.Text>
+                  </div>
+                </Col>
+                {project.budget && project.contract_value && (
+                  <Col xs={24} sm={12} md={8}>
+                    <div>
+                      <Typography.Text
+                        type="secondary"
+                        style={{
+                          fontSize: token.fontSizeSM,
+                          display: "block",
+                          marginBottom: token.paddingXS,
+                          fontWeight: token.fontWeightMedium,
+                        }}
+                      >
+                        Variance
+                      </Typography.Text>
+                      <Typography.Text
+                        style={{
+                          fontSize: token.fontSizeLG,
+                          fontWeight: token.fontWeightSemiBold,
+                          color:
+                            Number(project.contract_value) - Number(project.budget) >= 0
+                              ? token.colorSuccess
+                              : token.colorError,
+                        }}
+                      >
+                        {formatCurrency(
+                          Number(project.contract_value) - Number(project.budget)
+                        )}
+                      </Typography.Text>
+                    </div>
+                  </Col>
+                )}
+              </Row>
+            </div>
+          </Card>
+
+          {/* System Info Panel */}
+          <Card
+            title={
+              <Space>
+                <InfoCircleOutlined />
+                <span
+                  style={{
+                    fontSize: token.fontSizeLG,
+                    fontWeight: token.fontWeightSemiBold,
+                  }}
+                >
+                  System Info
+                </span>
+              </Space>
+            }
+            style={{
+              marginBottom: token.marginLG,
+              borderRadius: token.borderRadiusLG,
+              border: `1px solid ${token.colorBorder}`,
+            }}
+          >
+            <div style={{ padding: token.paddingLG }}>
+              <Descriptions column={isMobile ? 1 : { xs: 1, sm: 2 }} size="small">
+                <Descriptions.Item label="ID">{project.id}</Descriptions.Item>
+                <Descriptions.Item label="Project ID">
+                  {project.project_id}
+                </Descriptions.Item>
+                <Descriptions.Item label="Branch">{project.branch}</Descriptions.Item>
+                <Descriptions.Item label="Created By">
+                  {project.created_by_name || "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Created At">
+                  {formatTimestamp(project.created_at)}
+                </Descriptions.Item>
+                <Descriptions.Item label="Valid Time">
+                  {formatTimestamp(project.valid_time)}
+                </Descriptions.Item>
+                <Descriptions.Item label="Transaction Time">
+                  {formatTimestamp(project.transaction_time)}
+                </Descriptions.Item>
+              </Descriptions>
+            </div>
+          </Card>
 
           <Card
             title="Root Work Breakdown Elements"
@@ -201,7 +600,7 @@ export const ProjectOverview = () => {
                   icon={<PlusOutlined />}
                   onClick={handleCreate}
                 >
-                  Add Root WBE
+                  {isMobile ? undefined : "Add Root WBE"}
                 </Button>
               </Can>
             }

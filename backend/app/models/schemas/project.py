@@ -84,8 +84,22 @@ class ProjectRead(ProjectBase):
 
     @field_validator("valid_time", "transaction_time", mode="before")
     @classmethod
-    def convert_range_to_str(cls, v: object) -> str | None:
+    def convert_range_to_iso(cls, v: object) -> str | None:
+        """Convert TSTZRANGE to ISO 8601 timestamp string (lower bound).
+
+        Extracts the lower bound from the temporal range and returns it as
+        an ISO 8601 formatted string for frontend consumption.
+
+        Args:
+            v: TSTZRANGE object or string
+
+        Returns:
+            ISO 8601 formatted timestamp string or None
+        """
         if v and not isinstance(v, str):
+            # Extract lower bound from TSTZRANGE and format as ISO 8601
+            if hasattr(v, 'lower') and v.lower:
+                return v.lower.isoformat()
             return str(v)
         return v  # type: ignore
 
