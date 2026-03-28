@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Card, Button, theme } from "antd";
+import { Card, Button, theme, Grid } from "antd";
 import { DownOutlined, UpOutlined } from "@ant-design/icons";
 
 interface CollapsibleCardProps {
@@ -29,6 +29,8 @@ export function CollapsibleCard({
   style,
 }: CollapsibleCardProps): JSX.Element {
   const { token } = theme.useToken();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   const toggleCollapse = () => {
@@ -48,18 +50,19 @@ export function CollapsibleCard({
             alignItems: "center",
             justifyContent: "space-between",
             width: "100%",
+            gap: isMobile ? token.marginXS : token.marginSM,
           }}
         >
-          <span>{title}</span>
+          <span style={{ flex: 1, minWidth: 0 }}>{title}</span>
           <Button
             type="text"
             size="small"
             icon={collapsed ? <DownOutlined /> : <UpOutlined />}
-            style={{ marginLeft: token.marginSM }}
+            style={{ flexShrink: 0 }}
           />
         </div>
       }
-      extra={extra}
+      extra={extra && <div style={{ marginLeft: token.marginXS }}>{extra}</div>}
     >
       {!collapsed && children}
     </Card>

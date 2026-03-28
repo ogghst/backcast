@@ -8,6 +8,7 @@ import {
   Alert,
   Button,
   Grid,
+  theme,
 } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import type { CostElementRead } from "@/api/generated";
@@ -32,10 +33,13 @@ const { useBreakpoint } = Grid;
 
 export const OverviewTab = ({ costElement }: OverviewTabProps) => {
   const screens = useBreakpoint();
+  const { token } = theme.useToken();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const queryClient = useQueryClient();
   const { branch, asOf } = useTimeMachineParams();
   const currentBranch = branch || costElement.branch || "main";
+  const isMobile = !screens.md;
+  const isSmallMobile = screens.xs;
 
   const { data: budgetStatus, isLoading } = useBudgetStatus(
     costElement.cost_element_id,
@@ -122,23 +126,41 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
       <CollapsibleCard
         id="budget-status-card"
         title="Budget Status"
-        style={{ marginBottom: 16 }}
+        style={{
+          marginBottom: isMobile ? token.marginSM : token.marginMD,
+        }}
+        styles={{
+          body: {
+            padding: isMobile ? token.paddingSM : token.paddingLG,
+          },
+        }}
       >
         {isLoading ? (
           <Progress percent={0} />
         ) : (
           <>
-            <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-              <Col span={6}>
+            <Row
+              gutter={[isMobile ? token.marginSM : token.marginLG, isMobile ? token.marginSM : token.marginMD]}
+              style={{ marginBottom: isMobile ? token.marginMD : token.marginLG }}
+            >
+              <Col xs={12} sm={12} md={6}>
                 <Statistic
                   title="Budget"
                   value={budget}
                   precision={2}
                   prefix="€"
-                  styles={{ content: { color: "#1890ff" } }}
+                  styles={{
+                    content: {
+                      color: token.colorInfo,
+                      fontSize: isSmallMobile ? token.fontSizeLG : token.fontSizeXL,
+                    },
+                    title: {
+                      fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
+                    },
+                  }}
                 />
               </Col>
-              <Col span={6}>
+              <Col xs={12} sm={12} md={6}>
                 <Statistic
                   title="Used"
                   value={used}
@@ -146,29 +168,47 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
                   prefix="€"
                   styles={{
                     content: {
-                      color: percentage >= 100 ? "#ff4d4f" : "#52c41a",
+                      color: percentage >= 100 ? token.colorError : token.colorSuccess,
+                      fontSize: isSmallMobile ? token.fontSizeLG : token.fontSizeXL,
+                    },
+                    title: {
+                      fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
                     },
                   }}
                 />
               </Col>
-              <Col span={6}>
+              <Col xs={12} sm={12} md={6}>
                 <Statistic
                   title="Remaining"
                   value={remaining}
                   precision={2}
                   prefix="€"
                   styles={{
-                    content: { color: remaining < 0 ? "#ff4d4f" : "#52c41a" },
+                    content: {
+                      color: remaining < 0 ? token.colorError : token.colorSuccess,
+                      fontSize: isSmallMobile ? token.fontSizeLG : token.fontSizeXL,
+                    },
+                    title: {
+                      fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
+                    },
                   }}
                 />
               </Col>
-              <Col span={6}>
+              <Col xs={12} sm={12} md={6}>
                 <Statistic
                   title="Used"
                   value={percentage}
                   precision={1}
                   suffix="%"
-                  styles={{ content: { color: statusColor } }}
+                  styles={{
+                    content: {
+                      color: statusColor,
+                      fontSize: isSmallMobile ? token.fontSizeLG : token.fontSizeXL,
+                    },
+                    title: {
+                      fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
+                    },
+                  }}
                 />
               </Col>
             </Row>
@@ -177,8 +217,13 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
               percent={Math.min(percentage, 100)}
               strokeColor={statusColor}
               status={percentage >= 100 ? "exception" : undefined}
+              strokeHeight={isMobile ? 8 : 10}
             />
-            <div style={{ marginTop: 8, color: "#666" }}>
+            <div style={{
+              marginTop: token.paddingXS,
+              color: token.colorTextSecondary,
+              fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
+            }}>
               Status:{" "}
               <strong style={{ color: statusColor }}>{statusText}</strong>
             </div>
@@ -186,20 +231,32 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
             {remaining < 0 && (
               <Alert
                 message="Budget Exceeded"
-                description={`This cost element has exceeded its budget by €${Math.abs(remaining).toFixed(2)}.`}
+                description={isSmallMobile
+                  ? `Over budget by €${Math.abs(remaining).toFixed(2)}`
+                  : `This cost element has exceeded its budget by €${Math.abs(remaining).toFixed(2)}.`
+                }
                 type="warning"
                 showIcon
-                style={{ marginTop: 16 }}
+                style={{
+                  marginTop: isMobile ? token.marginSM : token.marginMD,
+                  fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
+                }}
               />
             )}
 
             {percentage >= 90 && percentage < 100 && (
               <Alert
                 message="Budget Warning"
-                description={`This cost element has used ${percentage.toFixed(1)}% of its budget. Consider reviewing before adding more costs.`}
+                description={isSmallMobile
+                  ? `Used ${percentage.toFixed(1)}% of budget`
+                  : `This cost element has used ${percentage.toFixed(1)}% of its budget. Consider reviewing before adding more costs.`
+                }
                 type="warning"
                 showIcon
-                style={{ marginTop: 16 }}
+                style={{
+                  marginTop: isMobile ? token.marginSM : token.marginMD,
+                  fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
+                }}
               />
             )}
           </>
@@ -213,23 +270,42 @@ export const OverviewTab = ({ costElement }: OverviewTabProps) => {
         extra={
           <Button
             type="primary"
+            size={isMobile ? "small" : "middle"}
             icon={<EditOutlined />}
             onClick={() => setIsEditModalOpen(true)}
           >
-            Update
+            {!isSmallMobile && "Update"}
           </Button>
         }
+        styles={{
+          body: {
+            padding: isMobile ? token.paddingSM : token.paddingLG,
+          },
+        }}
       >
-        <Descriptions bordered column={{ xs: 1, sm: 1, md: 2, lg: 2 }}>
+        <Descriptions
+          bordered
+          column={{ xs: 1, sm: 1, md: 2, lg: 2 }}
+          size={isMobile ? "small" : "middle"}
+          styles={{
+            label: {
+              width: isSmallMobile ? "100px" : "130px",
+              fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
+            },
+            content: {
+              fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
+            },
+          }}
+        >
           <Descriptions.Item label="Code">{costElement.code}</Descriptions.Item>
           <Descriptions.Item label="Name">{costElement.name}</Descriptions.Item>
-          <Descriptions.Item label="Description" span={screens.md ? 2 : 1}>
+          <Descriptions.Item label="Description" span={isMobile ? 1 : screens.md ? 2 : 1}>
             {costElement.description || "-"}
           </Descriptions.Item>
-          <Descriptions.Item label="Budget Amount">
+          <Descriptions.Item label="Budget">
             €{Number(costElement.budget_amount).toLocaleString()}
           </Descriptions.Item>
-          <Descriptions.Item label="Cost Element Type">
+          <Descriptions.Item label="Type">
             {costElement.cost_element_type_name || "-"}
           </Descriptions.Item>
           <Descriptions.Item label="WBE">
