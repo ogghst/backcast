@@ -3,6 +3,7 @@
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -47,9 +48,66 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Configure logging on startup
     setup_logging()
 
+    # Clean up orphaned agent executions from previous server instance
+    await _cleanup_orphaned_executions()
+
     # Startup: could check db connection here
     yield
     # Shutdown: clean up resources
+
+
+async def _cleanup_orphaned_executions() -> None:
+    """Mark running/pending executions as errored after a server restart.
+
+    When the server restarts, in-memory event buses are destroyed but the
+    database may still contain executions with active statuses.  Sessions
+    referencing these via ``active_execution_id`` will fail on reconnect.
+    This handler reconciles that state on every startup.
+    """
+    from sqlalchemy import select, update
+
+    from app.db.session import async_session_maker
+    from app.models.domain.ai import AIAgentExecution, AIConversationSession
+
+    orphaned_statuses = ("running", "pending", "awaiting_approval")
+
+    async with async_session_maker() as db:
+        # Find orphaned execution ids
+        result = await db.execute(
+            select(AIAgentExecution.id).where(
+                AIAgentExecution.status.in_(orphaned_statuses)
+            )
+        )
+        orphaned_ids = [row[0] for row in result.all()]
+
+        if not orphaned_ids:
+            return
+
+        now = datetime.now(UTC)
+
+        # Mark orphaned executions as errored
+        await db.execute(
+            update(AIAgentExecution)
+            .where(AIAgentExecution.id.in_(orphaned_ids))
+            .values(
+                status="error",
+                error_message="Server restarted during execution",
+                completed_at=now,
+            )
+        )
+
+        # Clear active_execution_id on sessions referencing these executions
+        await db.execute(
+            update(AIConversationSession)
+            .where(AIConversationSession.active_execution_id.in_(orphaned_ids))
+            .values(active_execution_id=None)
+        )
+
+        await db.commit()
+        logger.info(
+            "Cleaned up %d orphaned agent execution(s) on startup",
+            len(orphaned_ids),
+        )
 
 
 app = FastAPI(

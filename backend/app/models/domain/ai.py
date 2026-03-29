@@ -8,11 +8,12 @@ Provides:
 - AIAssistantConfig: Assistant configuration with tool permissions
 - AIConversationSession: User conversation sessions
 - AIConversationMessage: Individual messages
+- AIAgentExecution: Agent execution tracking with status lifecycle
 """
 
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -177,6 +178,11 @@ class AIConversationSession(SimpleEntityBase):
     branch_id: Mapped[str | None] = mapped_column(
         PG_UUID, nullable=True, index=True, comment="Optional branch or change order context"
     )
+    active_execution_id: Mapped[str | None] = mapped_column(
+        PG_UUID,
+        nullable=True,
+        comment="Reference to the currently running or last agent execution",
+    )
 
     # Relationships
     assistant_config: Mapped["AIAssistantConfig"] = relationship(
@@ -189,6 +195,12 @@ class AIConversationSession(SimpleEntityBase):
         back_populates="session",
         cascade="all, delete-orphan",
         foreign_keys="[AIConversationMessage.session_id]",
+    )
+    executions: Mapped[list["AIAgentExecution"]] = relationship(
+        "AIAgentExecution",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        foreign_keys="[AIAgentExecution.session_id]",
     )
 
     def __repr__(self) -> str:
@@ -228,3 +240,51 @@ class AIConversationMessage(SimpleEntityBase):
 
     def __repr__(self) -> str:
         return f"<AIConversationMessage(id={self.id}, role={self.role})>"
+
+
+class AIAgentExecution(SimpleEntityBase):
+    """Agent execution tracking with status lifecycle.
+
+    Tracks individual agent executions independent of WebSocket
+    connections. Supports status transitions: pending -> running ->
+    completed | error | awaiting_approval.
+    """
+
+    __tablename__ = "ai_agent_executions"
+
+    session_id: Mapped[str] = mapped_column(
+        PG_UUID,
+        ForeignKey("ai_conversation_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="running"
+    )
+    started_at: Mapped[str] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    completed_at: Mapped[str | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    execution_mode: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="standard"
+    )
+    total_tokens: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
+    )
+    tool_calls_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
+    )
+
+    # Relationships
+    session: Mapped["AIConversationSession"] = relationship(
+        "AIConversationSession", back_populates="executions", foreign_keys=[session_id]
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<AIAgentExecution(id={self.id}, status={self.status}, "
+            f"session_id={self.session_id})>"
+        )

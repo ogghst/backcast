@@ -224,6 +224,65 @@ class AIToolPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# === Agent Execution Schemas ===
+
+
+# Execution status values
+EXECUTION_STATUS_PENDING = "pending"
+EXECUTION_STATUS_RUNNING = "running"
+EXECUTION_STATUS_COMPLETED = "completed"
+EXECUTION_STATUS_ERROR = "error"
+EXECUTION_STATUS_AWAITING_APPROVAL = "awaiting_approval"
+EXECUTION_STATUS_VALUES = [
+    EXECUTION_STATUS_PENDING,
+    EXECUTION_STATUS_RUNNING,
+    EXECUTION_STATUS_COMPLETED,
+    EXECUTION_STATUS_ERROR,
+    EXECUTION_STATUS_AWAITING_APPROVAL,
+]
+ExecutionStatus = Literal[
+    "pending",
+    "running",
+    "completed",
+    "error",
+    "awaiting_approval",
+]
+
+
+class AgentExecutionPublic(BaseModel):
+    """Schema for reading agent execution records."""
+
+    id: UUID
+    session_id: UUID
+    status: str
+    started_at: datetime
+    completed_at: datetime | None = None
+    error_message: str | None = None
+    execution_mode: str = "standard"
+    total_tokens: int = 0
+    tool_calls_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class InvokeAgentRequest(BaseModel):
+    """Request body for invoking an agent via REST API."""
+
+    message: str = Field(..., min_length=1, max_length=10000, description="User message content")
+    execution_mode: Literal["safe", "standard", "expert"] = Field(
+        "standard", description="AI tool execution mode (default: 'standard')"
+    )
+
+
+class ApprovalRequest(BaseModel):
+    """Request body for approving/rejecting a tool execution via REST."""
+
+    approval_id: str = Field(..., description="UUID of the approval request")
+    approved: bool = Field(..., description="True to approve, False to reject")
+
+
 # === Conversation Session Schemas ===
 
 
@@ -236,6 +295,9 @@ class AIConversationSessionPublic(BaseModel):
     title: str | None
     project_id: UUID | None = Field(None, description="Optional project context")
     branch_id: UUID | None = Field(None, description="Optional branch or change order context")
+    active_execution: AgentExecutionPublic | None = Field(
+        None, description="Currently active agent execution, if any"
+    )
     created_at: datetime
     updated_at: datetime
 
@@ -629,6 +691,38 @@ class WSPollingHeartbeatMessage(BaseModel):
     remaining_seconds: float = Field(..., description="Time remaining until timeout (seconds)")
 
 
+class WSSubscribeMessage(BaseModel):
+    """WebSocket subscribe message from client.
+
+    Client -> Server message for reconnecting to a running agent execution.
+    Sent when a client reconnects and wants to receive live progress for an
+    execution that is already in progress.
+    """
+
+    type: Literal["subscribe"] = Field(
+        default="subscribe", description="Message type discriminator"
+    )
+    execution_id: UUID = Field(..., description="ID of the execution to subscribe to")
+
+
+class WSExecutionStatusMessage(BaseModel):
+    """WebSocket execution status message from server.
+
+    Server -> Client message with agent execution status updates.
+    Sent when an execution transitions between statuses (e.g., running to
+    completed, running to awaiting_approval).
+    """
+
+    type: Literal["execution_status"] = Field(
+        default="execution_status", description="Message type discriminator"
+    )
+    execution_id: UUID = Field(..., description="ID of the execution")
+    status: ExecutionStatus = Field(..., description="Current execution status")
+    error_message: str | None = Field(
+        None, description="Error message if status is 'error'"
+    )
+
+
 # Union type for all server->client WebSocket messages
 WSMessage = (
     WSTokenMessage
@@ -645,6 +739,7 @@ WSMessage = (
     | WSSubagentResultMessage
     | WSAgentCompleteMessage
     | WSContentResetMessage
+    | WSExecutionStatusMessage
 )
 
 

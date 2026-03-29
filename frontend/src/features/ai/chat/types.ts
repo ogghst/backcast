@@ -74,6 +74,36 @@ export enum ProjectRole {
 export type ExecutionMode = "safe" | "standard" | "expert";
 
 /**
+ * Client -> Server: Subscribe to execution progress
+ * Sent when reconnecting to resume receiving events for an active execution
+ */
+export interface WSSubscribeMessage {
+  type: "subscribe";
+  execution_id: string;
+  last_seen_sequence: number;
+}
+
+/**
+ * Server -> Client: Execution started notification
+ * Sent immediately after an agent execution is created, before streaming begins
+ */
+export interface WSExecutionStartedMessage {
+  type: "execution_started";
+  execution_id: string;
+}
+
+/**
+ * Server -> Client: Execution status update
+ * Sent when an agent execution changes status (running, completed, error, awaiting_approval)
+ */
+export interface WSExecutionStatusMessage {
+  type: "execution_status";
+  execution_id: string;
+  status: string;
+  session_id: string;
+}
+
+/**
  * Client -> Server: Chat message request
  */
 export interface WSChatRequest {
@@ -280,7 +310,9 @@ export type WSServerMessage =
   | WSContentResetMessage
   | WSPollingHeartbeatMessage
   | WSPingMessage
-  | WSAgentCompleteMessage;
+  | WSAgentCompleteMessage
+  | WSExecutionStartedMessage
+  | WSExecutionStatusMessage;
 
 /**
  * Type guard to check if a server message is a token message.

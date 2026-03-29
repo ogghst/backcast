@@ -18,6 +18,7 @@ from langchain_core.tools import BaseTool
 from langgraph.prebuilt import ToolNode
 from starlette.websockets import WebSocketState
 
+from app.ai.execution.agent_event_bus import AgentEventBus
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
 from app.models.schemas.ai import WSApprovalRequestMessage, WSPollingHeartbeatMessage
 
@@ -89,16 +90,18 @@ class InterruptNode(ToolNode):
         self,
         tools: list[BaseTool],
         context: ToolContext,
-        websocket: WebSocket,
-        session_id: UUID,
+        websocket: WebSocket | None = None,
+        session_id: UUID | None = None,
+        event_bus: AgentEventBus | None = None,
     ) -> None:
-        """Initialize InterruptNode with tools, context, and WebSocket.
+        """Initialize InterruptNode with tools, context, and optional WebSocket or event bus.
 
         Args:
             tools: List of BaseTool instances to execute
             context: ToolContext with execution_mode for approval logic
-            websocket: WebSocket connection for sending approval requests
+            websocket: Optional WebSocket connection for sending approval requests
             session_id: Current chat session ID for approval tracking
+            event_bus: Optional AgentEventBus for publishing approval events
         """
         super().__init__(tools, awrap_tool_call=self._awrap_tool_call)
         self.context = context
@@ -106,6 +109,7 @@ class InterruptNode(ToolNode):
         self._tools_by_name: dict[str, BaseTool] = {t.name: t for t in tools}
         self.websocket = websocket
         self.session_id = session_id
+        self.event_bus: AgentEventBus | None = event_bus
         self.pending_approvals: dict[str, dict[str, Any]] = {}
         # Store interrupt state for graph resume
         # Key: approval_id, Value: dict with tool_call, execute function, etc.
@@ -195,7 +199,19 @@ class InterruptNode(ToolNode):
             expires_at=expires_at,
         )
 
-        if self._is_websocket_connected(self.websocket):
+        # Publish to event bus if available (decoupled execution path)
+        if self.event_bus:
+            from app.ai.execution.agent_event import AgentEvent
+            self.event_bus.publish(
+                AgentEvent(
+                    event_type="approval_request",
+                    data=approval_request.model_dump(mode="json"),
+                    timestamp=datetime.now(),
+                )
+            )
+            logger.info(f"APPROVAL_REQUEST_PUBLISHED_TO_BUS: approval_id={approval_id}, tool='{tool_name}'")
+
+        if self.websocket and self._is_websocket_connected(self.websocket):
             try:
                 await self.websocket.send_json(approval_request.model_dump(mode="json"))
                 logger.info(f"APPROVAL_REQUEST_SENT: approval_id={approval_id}, tool='{tool_name}'")
@@ -245,7 +261,22 @@ class InterruptNode(ToolNode):
             remaining_seconds=remaining_seconds,
         )
 
-        if self._is_websocket_connected(self.websocket):
+        # Publish to event bus if available (decoupled execution path)
+        if self.event_bus:
+            from app.ai.execution.agent_event import AgentEvent
+            self.event_bus.publish(
+                AgentEvent(
+                    event_type="polling_heartbeat",
+                    data=heartbeat.model_dump(mode="json"),
+                    timestamp=datetime.now(),
+                )
+            )
+            logger.debug(
+                f"POLLING_HEARTBEAT_PUBLISHED_TO_BUS: approval_id={approval_id}, "
+                f"elapsed={elapsed_seconds:.1f}s, remaining={remaining_seconds:.1f}s"
+            )
+
+        if self.websocket and self._is_websocket_connected(self.websocket):
             try:
                 await self.websocket.send_json(heartbeat.model_dump(mode="json"))
                 logger.debug(

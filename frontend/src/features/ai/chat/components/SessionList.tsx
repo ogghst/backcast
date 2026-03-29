@@ -11,7 +11,7 @@ import {
   DeleteOutlined,
   MessageOutlined,
 } from "@ant-design/icons";
-import type { AIConversationSessionPublic } from "../../types";
+import type { AIConversationSessionPublic, AgentExecutionPublic } from "../../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 
 const { Text } = Typography;
@@ -26,6 +26,39 @@ interface SessionListProps {
   /** Hide the "New Chat" button in the header (useful when embedded in ChatInterface) */
   hideNewChatButton?: boolean;
 }
+
+/**
+ * Status dot indicator for active agent executions.
+ * Uses Ant Design theme tokens for consistent coloring.
+ * Green pulsing for running, amber for awaiting_approval.
+ */
+const ExecutionStatusDot = ({ execution }: { execution: AgentExecutionPublic }) => {
+  const { token } = theme.useToken();
+
+  const dotColor =
+    execution.status === "running"
+      ? token.colorSuccess
+      : execution.status === "awaiting_approval"
+        ? token.colorWarning
+        : "transparent";
+
+  const needsPulse = execution.status === "running" || execution.status === "awaiting_approval";
+
+  return (
+    <span
+      title={`Execution ${execution.status}`}
+      style={{
+        display: "inline-block",
+        width: 8,
+        height: 8,
+        borderRadius: "50%",
+        backgroundColor: dotColor,
+        flexShrink: 0,
+        animation: needsPulse ? "status-pulse 2s ease-in-out infinite" : "none",
+      }}
+    />
+  );
+};
 
 const formatSessionTitle = (
   session: AIConversationSessionPublic
@@ -83,6 +116,14 @@ export const SessionList = ({
         backgroundColor: token.colorBgContainer,
       }}
     >
+      <style>
+        {`
+          @keyframes status-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.85); }
+          }
+        `}
+      </style>
       {/* Header - only show if not hiding the New Chat button */}
       {!hideNewChatButton && (
         <div
@@ -164,7 +205,11 @@ export const SessionList = ({
                       gap: spacing.sm,
                     }}
                   >
-                    <MessageOutlined style={{ color: token.colorPrimary }} />
+                    {session.active_execution ? (
+                      <ExecutionStatusDot execution={session.active_execution} />
+                    ) : (
+                      <MessageOutlined style={{ color: token.colorPrimary }} />
+                    )}
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <Text
                         ellipsis={{ tooltip: formatSessionTitle(session) }}
@@ -197,6 +242,7 @@ export const SessionList = ({
                       size="small"
                       className="delete-btn"
                       onClick={(e) => e.stopPropagation()}
+                      disabled={session.active_execution?.status === "running" || session.active_execution?.status === "awaiting_approval"}
                       style={{ padding: `0 ${spacing.sm}px` }}
                     />
                   </Popconfirm>

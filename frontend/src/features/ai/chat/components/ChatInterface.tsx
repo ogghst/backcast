@@ -619,6 +619,7 @@ export const ChatInterface = ({
     sessionId: currentSessionId,
     assistantId: selectedAssistantId ?? "",
     projectId,
+    activeExecutionId: currentSession?.active_execution?.id ?? null,
     onToken: handleToken,
     onComplete: handleComplete,
     onError: handleError,
@@ -633,6 +634,10 @@ export const ChatInterface = ({
     onMainAgentComplete: handleMainAgentComplete,
     onContentReset: handleContentReset,
     onRawMessage: handleRawMessage,
+    onExecutionStatus: useCallback(() => {
+      // Invalidate sessions cache to pick up execution status changes
+      queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.sessions() });
+    }, [queryClient]),
   });
 
   // Execution mode hook for managing AI tool risk level
