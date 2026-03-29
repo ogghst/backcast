@@ -225,9 +225,9 @@ pull_changes() {
 
     log_success "Git pull completed"
 
-    # Extract git commit SHA and build date
-    local git_sha=$(git rev-parse --short=7 HEAD)
-    local build_date=$(date +%Y-%m-%d)
+    # Extract git commit SHA and build date (global variables for use in rebuild_containers)
+    git_sha=$(git rev-parse --short=7 HEAD)
+    build_date=$(date +%Y-%m-%d)
     log_verbose "Git commit SHA: $git_sha"
     log_verbose "Build date: $build_date"
 }
