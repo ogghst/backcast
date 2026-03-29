@@ -4,6 +4,9 @@ import { Outlet, useParams } from "react-router-dom";
 
 import { UserProfile } from "@/components/UserProfile";
 import { HeaderNavigation } from "@/components/navigation/HeaderNavigation";
+
+const BUILD_SHA = import.meta.env.VITE_GIT_SHA || "dev";
+const BUILD_DATE = import.meta.env.VITE_BUILD_DATE || "dev";
 import {
   TimeMachineCompact,
   TimeMachineExpanded,
@@ -141,7 +144,14 @@ const AppLayout: React.FC = () => {
         </div>
       </Content>
       <Footer style={{ textAlign: "center" }}>
-        Backcast ©{new Date().getFullYear()}
+        <Space size="small">
+          <span>Backcast ©{new Date().getFullYear()}</span>
+          {BUILD_SHA && BUILD_SHA !== "dev" && BUILD_DATE && BUILD_DATE !== "dev" && (
+            <span style={{ fontSize: "0.85em", opacity: 0.7 }}>
+              Build: {BUILD_SHA} ({BUILD_DATE})
+            </span>
+          )}
+        </Space>
       </Footer>
     </Layout>
   );

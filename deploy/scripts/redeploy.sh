@@ -224,6 +224,12 @@ pull_changes() {
     git pull origin "${BRANCH:-$current_branch}"
 
     log_success "Git pull completed"
+
+    # Extract git commit SHA and build date
+    local git_sha=$(git rev-parse --short=7 HEAD)
+    local build_date=$(date +%Y-%m-%d)
+    log_verbose "Git commit SHA: $git_sha"
+    log_verbose "Build date: $build_date"
 }
 
 # Backup database
@@ -264,7 +270,9 @@ rebuild_containers() {
 
     cd "$DEPLOY_DIR"
 
-    if docker compose --env-file .env.production build; then
+    if docker compose --env-file .env.production build \
+      --build-arg VITE_GIT_SHA="$git_sha" \
+      --build-arg VITE_BUILD_DATE="$build_date"; then
         log_success "Container build completed"
     else
         log_error "Container build failed"

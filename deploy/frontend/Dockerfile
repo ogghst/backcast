@@ -16,10 +16,14 @@ COPY frontend/ ./
 # Build arguments for API URL
 ARG VITE_API_URL=https://api.yourdomain.com
 ARG VITE_WEBSOCKET_URL=wss://api.yourdomain.com
+ARG VITE_GIT_SHA=dev
+ARG VITE_BUILD_DATE=dev
 
 # Set build-time environment variables
 ENV VITE_API_URL=${VITE_API_URL}
 ENV VITE_WEBSOCKET_URL=${VITE_WEBSOCKET_URL}
+ENV VITE_GIT_SHA=${VITE_GIT_SHA}
+ENV VITE_BUILD_DATE=${VITE_BUILD_DATE}
 
 # Build the application (skip TypeScript check)
 # Increase Node.js heap size to prevent out of memory errors
