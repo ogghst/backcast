@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Responsive Header Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================
+       EDITORIAL MODERN HEADER - Responsive Design
+       ============================================ */
+
+    :root {
+      /* Palette - Sharp, Sophisticated, Unforgettable */
+      --color-ink: #0a0a0a;
+      --color-cream: #faf8f5;
+      --color-terracotta: #c44536;
+      --color-stone: #8b8680;
+      --color-warm-white: #fffbf7;
+
+      /* Typography */
+      --font-display: 'Playfair Display', Georgia, serif;
+      --font-body: 'DM Sans', sans-serif;
+
+      /* Animation */
+      --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+      --duration-normal: 350ms;
+      --duration-slow: 500ms;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--color-warm-white);
+      color: var(--color-ink);
+    }
+
+    /* Base Header */
+    header {
+      background: rgba(255, 251, 247, 0.9);
+      border-bottom: 1px solid rgba(10, 10, 10, 0.08);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+
+    .storybook-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.5rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* Logo Section */
+    .storybook-header > div:first-child {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      transition: transform var(--duration-normal) var(--ease-out-expo);
+    }
+
+    .storybook-header > div:first-child:hover {
+      transform: translateX(2px);
+    }
+
+    .storybook-header svg {
+      display: block;
+      width: 36px;
+      height: 36px;
+      transition: transform var(--duration-normal) cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    .storybook-header > div:first-child:hover svg {
+      transform: rotate(-5deg) scale(1.05);
+    }
+
+    .storybook-header h1 {
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-size: 1.5rem;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      color: var(--color-ink);
+      margin: 0;
+      transition: color 200ms ease;
+    }
+
+    .storybook-header > div:first-child:hover h1 {
+      color: var(--color-terracotta);
+    }
+
+    /* Actions Section - Desktop */
+    .storybook-header > div:last-child {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .storybook-header .welcome {
+      font-family: var(--font-body);
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--color-stone);
+      letter-spacing: -0.01em;
+      padding: 0.5rem 1rem;
+      border-left: 1px solid rgba(10, 10, 10, 0.1);
+    }
+
+    .storybook-header .welcome b {
+      color: var(--color-ink);
+      font-weight: 600;
+    }
+
+    /* Buttons */
+    .btn {
+      font-family: var(--font-body);
+      font-size: 0.875rem;
+      font-weight: 500;
+      padding: 0.625rem 1rem;
+      border: 1px solid rgba(10, 10, 10, 0.15);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--color-ink);
+      cursor: pointer;
+      transition: all 200ms ease;
+    }
+
+    .btn:hover {
+      background: rgba(10, 10, 10, 0.05);
+      border-color: var(--color-ink);
+    }
+
+    .btn.primary {
+      background: var(--color-ink);
+      color: var(--color-warm-white);
+      border-color: var(--color-ink);
+    }
+
+    .btn.primary:hover {
+      background: var(--color-terracotta);
+      border-color: var(--color-terracotta);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(196, 69, 54, 0.3);
+    }
+
+    /* Mobile Menu Toggle */
+    .mobile-menu-toggle {
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      position: relative;
+      z-index: 102;
+      border-radius: 12px;
+      transition: background 200ms ease;
+    }
+
+    .mobile-menu-toggle:hover {
+      background: rgba(10, 10, 10, 0.05);
+    }
+
+    .hamburger-line {
+      display: block;
+      width: 22px;
+      height: 2px;
+      background: var(--color-ink);
+      border-radius: 2px;
+      transition: all var(--duration-normal) var(--ease-out-expo);
+      transform-origin: center;
+    }
+
+    .hamburger-line:nth-child(1) {
+      transform: translateY(-6px);
+    }
+
+    .hamburger-line:nth-child(3) {
+      transform: translateY(6px);
+    }
+
+    .mobile-menu-toggle.active .hamburger-line:nth-child(1) {
+      transform: translateY(0) rotate(45deg);
+    }
+
+    .mobile-menu-toggle.active .hamburger-line:nth-child(2) {
+      opacity: 0;
+      transform: scaleX(0);
+    }
+
+    .mobile-menu-toggle.active .hamburger-line:nth-child(3) {
+      transform: translateY(0) rotate(-45deg);
+    }
+
+    /* Mobile Menu Drawer */
+    .mobile-menu-drawer {
+      display: none;
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 100%;
+      height: 100vh;
+      background: var(--color-warm-white);
+      z-index: 101;
+      padding: calc(60px + 2rem) 1.5rem 2rem;
+      flex-direction: column;
+      gap: 0.5rem;
+      transform: translateX(100%);
+      transition: transform var(--duration-slow) var(--ease-out-expo);
+      box-shadow: -4px 0 24px rgba(0, 0, 0, 0.08);
+    }
+
+    .mobile-menu-drawer.active {
+      transform: translateX(0);
+    }
+
+    .mobile-menu-drawer .drawer-welcome {
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all var(--duration-normal) var(--ease-out-expo);
+      transition-delay: 100ms;
+      padding: 1rem 0;
+      border-bottom: 1px solid rgba(10, 10, 10, 0.08);
+      margin-bottom: 1rem;
+      font-size: 0.875rem;
+      color: var(--color-stone);
+    }
+
+    .mobile-menu-drawer.active .drawer-welcome {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .mobile-menu-drawer .drawer-welcome b {
+      color: var(--color-ink);
+      font-weight: 600;
+    }
+
+    .mobile-menu-drawer .btn {
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all var(--duration-normal) var(--ease-out-expo);
+      transition-delay: 150ms;
+      width: 100%;
+      padding: 1rem;
+      font-size: 1rem;
+    }
+
+    .mobile-menu-drawer.active .btn {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .mobile-menu-drawer .btn:nth-child(3) {
+      transition-delay: 200ms;
+    }
+
+    /* Overlay */
+    .mobile-menu-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 10, 10, 0.4);
+      z-index: 100;
+      opacity: 0;
+      transition: opacity var(--duration-normal) ease;
+      backdrop-filter: blur(2px);
+    }
+
+    .mobile-menu-overlay.active {
+      opacity: 1;
+    }
+
+    /* Responsive Breakpoints */
+    @media (max-width: 1024px) {
+      .storybook-header h1 {
+        font-size: 1.25rem;
+      }
+
+      .storybook-header svg {
+        width: 32px;
+        height: 32px;
+      }
+    }
+
+    @media (max-width: 850px) {
+      .storybook-header .welcome {
+        display: none;
+      }
+    }
+
+    @media (max-width: 767px) {
+      .storybook-header {
+        padding: 0.5rem 1rem;
+        min-height: 52px;
+      }
+
+      .storybook-header > div:last-child {
+        display: none;
+      }
+
+      /* Hide logo text on mobile - keep only icon */
+      .storybook-header h1 {
+        display: none;
+      }
+
+      .mobile-menu-toggle {
+        display: flex;
+      }
+
+      .mobile-menu-drawer {
+        display: flex;
+      }
+
+      .mobile-menu-overlay {
+        display: block;
+      }
+
+      /* Smaller logo icon on mobile */
+      .storybook-header svg {
+        width: 24px;
+        height: 24px;
+      }
+
+      /* Compact hamburger button */
+      .mobile-menu-toggle {
+        width: 40px;
+        height: 40px;
+      }
+
+      .hamburger-line {
+        width: 18px;
+        height: 2px;
+      }
+
+      .hamburger-line:nth-child(1) {
+        transform: translateY(-5px);
+      }
+
+      .hamburger-line:nth-child(3) {
+        transform: translateY(5px);
+      }
+
+      body.menu-open {
+        overflow: hidden;
+      }
+    }
+
+    /* Demo Content */
+    .demo-content {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+    }
+
+    .demo-content h1 {
+      font-family: var(--font-display);
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .demo-content h2 {
+      font-size: 1.25rem;
+      margin: 2rem 0 0.75rem;
+    }
+
+    .demo-content p {
+      opacity: 0.8;
+      line-height: 1.7;
+    }
+
+    .demo-controls {
+      display: flex;
+      gap: 1rem;
+      margin: 1rem 0 2rem;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      background: var(--color-ink);
+      color: var(--color-warm-white);
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-left: 0.5rem;
+    }
+
+    .size-indicator {
+      position: fixed;
+      bottom: 1rem;
+      right: 1rem;
+      background: var(--color-ink);
+      color: var(--color-warm-white);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 0.75rem;
+      z-index: 50;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="storybook-header">
+      <div>
+        <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <g fill="none" fillRule="evenodd">
+            <path d="M10 0h12a10 10 0 0110 10v12a10 10 0 01-10 10H10A10 10 0 010 22V10A10 10 0 0110 0z" fill="#FFF" />
+            <path d="M5.3 10.6l10.4 6v11.1l-10.4-6v-11zm11.4-6.2l9.7 5.5-9.7 5.6V4.4z" fill="#555AB9" />
+            <path d="M27.2 10.6v11.2l-10.5 6V16.5l10.5-6zM15.7 4.4v11L6 10l9.7-5.5z" fill="#91BAF8" />
+          </g>
+        </svg>
+        <h1>Acme</h1>
+      </div>
+
+      <div id="desktopActions">
+        <!-- Dynamic content -->
+      </div>
+
+      <button class="mobile-menu-toggle" id="menuToggle" aria-label="Open menu" aria-expanded="false">
+        <span class="hamburger-line" aria-hidden="true"></span>
+        <span class="hamburger-line" aria-hidden="true"></span>
+        <span class="hamburger-line" aria-hidden="true"></span>
+      </button>
+    </div>
+
+    <div class="mobile-menu-overlay" id="menuOverlay" aria-hidden="true"></div>
+
+    <div class="mobile-menu-drawer" id="menuDrawer" role="dialog" aria-modal="true" aria-label="Mobile navigation menu">
+      <!-- Dynamic content -->
+    </div>
+  </header>
+
+  <main class="demo-content">
+    <h1>Responsive Header Demo <span class="badge" id="viewBadge">Desktop</span></h1>
+
+    <div class="demo-controls">
+      <button class="btn" onclick="setUser()">Login</button>
+      <button class="btn" onclick="clearUser()">Logout</button>
+      <button class="btn" onclick="toggleMenu()">Toggle Menu (Mobile)</button>
+    </div>
+
+    <h2>Responsive Breakpoints</h2>
+    <p>
+      <strong>Desktop (&gt;1024px):</strong> Full layout with welcome text<br>
+      <strong>Tablet (768-1024px):</strong> Condensed spacing, welcome hides at 850px<br>
+      <strong>Mobile (&lt;768px):</strong> Hamburger menu with slide-in drawer
+    </p>
+
+    <h2>Design Features</h2>
+    <p>
+      Playfair Display (serif) for logo, DM Sans (geometric) for body. Smooth hamburger → X transform animation.
+      Staggered reveal animations for drawer items. Body scroll lock when menu is open. Escape key to close menu.
+    </p>
+
+    <p style="margin-top: 2rem; opacity: 0.6;">
+      Resize your browser window or use browser DevTools responsive mode to see the header adapt to different screen sizes.
+    </p>
+
+    <!-- Content for scrolling -->
+    <p style="margin-top: 3rem; opacity: 0.6;">Scrolling content...</p>
+    <p style="opacity: 0.5;">Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+    <p style="opacity: 0.4;">Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+  </main>
+
+  <div class="size-indicator" id="sizeIndicator">Loading...</div>
+
+  <script>
+    let isLoggedIn = false;
+    let userName = '';
+
+    const menuToggle = document.getElementById('menuToggle');
+    const menuDrawer = document.getElementById('menuDrawer');
+    const menuOverlay = document.getElementById('menuOverlay');
+    const desktopActions = document.getElementById('desktopActions');
+    const sizeIndicator = document.getElementById('sizeIndicator');
+    const viewBadge = document.getElementById('viewBadge');
+
+    function render() {
+      // Desktop actions
+      if (isLoggedIn) {
+        desktopActions.innerHTML = `
+          <span class="welcome">Welcome, <b>${userName}</b>!</span>
+          <button class="btn" onclick="clearUser()">Log out</button>
+        `;
+      } else {
+        desktopActions.innerHTML = `
+          <button class="btn" onclick="setUser()">Log in</button>
+          <button class="btn primary" onclick="setUser()">Sign up</button>
+        `;
+      }
+
+      // Mobile drawer
+      if (isLoggedIn) {
+        menuDrawer.innerHTML = `
+          <div class="drawer-welcome">Welcome, <b>${userName}</b>!</div>
+          <button class="btn" onclick="clearUser(); closeMenu();">Log out</button>
+        `;
+      } else {
+        menuDrawer.innerHTML = `
+          <button class="btn" onclick="setUser(); closeMenu();">Log in</button>
+          <button class="btn primary" onclick="setUser(); closeMenu();">Sign up</button>
+        `;
+      }
+    }
+
+    function setUser() {
+      isLoggedIn = true;
+      userName = 'Demo User';
+      render();
+    }
+
+    function clearUser() {
+      isLoggedIn = false;
+      userName = '';
+      render();
+    }
+
+    function openMenu() {
+      menuToggle.classList.add('active');
+      menuDrawer.classList.add('active');
+      menuOverlay.classList.add('active');
+      document.body.classList.add('menu-open');
+      menuToggle.setAttribute('aria-label', 'Close menu');
+      menuToggle.setAttribute('aria-expanded', 'true');
+    }
+
+    function closeMenu() {
+      menuToggle.classList.remove('active');
+      menuDrawer.classList.remove('active');
+      menuOverlay.classList.remove('active');
+      document.body.classList.remove('menu-open');
+      menuToggle.setAttribute('aria-label', 'Open menu');
+      menuToggle.setAttribute('aria-expanded', 'false');
+    }
+
+    function toggleMenu() {
+      if (menuToggle.classList.contains('active')) {
+        closeMenu();
+      } else {
+        openMenu();
+      }
+    }
+
+    menuToggle.addEventListener('click', toggleMenu);
+    menuOverlay.addEventListener('click', closeMenu);
+
+    // Escape key to close
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeMenu();
+    });
+
+    // Update size indicator
+    function updateSizeIndicator() {
+      const width = window.innerWidth;
+      let breakpoint = '';
+
+      if (width > 1024) {
+        breakpoint = 'Desktop (>1024px)';
+        viewBadge.textContent = 'Desktop';
+      } else if (width > 767) {
+        breakpoint = 'Tablet (768-1024px)';
+        viewBadge.textContent = 'Tablet';
+      } else {
+        breakpoint = 'Mobile (<768px)';
+        viewBadge.textContent = 'Mobile';
+      }
+
+      sizeIndicator.textContent = `${breakpoint} • ${width}px`;
+    }
+
+    window.addEventListener('resize', updateSizeIndicator);
+    updateSizeIndicator();
+
+    // Initial render
+    render();
+  </script>
+</body>
+</html>

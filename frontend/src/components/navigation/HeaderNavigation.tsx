@@ -15,7 +15,7 @@ interface HeaderNavigationProps {
 }
 
 // Breakpoint for switching to icon-only mode
-const ICON_ONLY_BREAKPOINT = 900;
+const ICON_ONLY_BREAKPOINT = 1024; // Switch to icons on tablet and smaller
 
 export const HeaderNavigation: React.FC<HeaderNavigationProps> = ({
   className,

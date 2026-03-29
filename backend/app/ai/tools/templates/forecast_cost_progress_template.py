@@ -690,6 +690,258 @@ async def list_cost_registrations(
 
 
 @ai_tool(
+    name="get_cost_registration",
+    description="Get a single cost registration by its ID. "
+    "Returns amount, description, invoice number, vendor reference, and registration date.",
+    permissions=["cost-registration-read"],
+    category="cost-registration",
+    risk_level=RiskLevel.LOW,
+)
+async def get_cost_registration(
+    cost_registration_id: str,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Get a single cost registration by its ID.
+
+    Context: Provides database session and cost registration service for retrieving a registration.
+
+    Args:
+        cost_registration_id: UUID of the cost registration to retrieve
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with cost registration details
+
+    Raises:
+        ValueError: If cost_registration_id is invalid
+        KeyError: If cost registration not found
+
+    Example:
+        >>> result = await get_cost_registration(
+        ...     cost_registration_id="..."
+        ... )
+        >>> print(f"Amount: ${result['amount']}")
+    """
+    # Log temporal context for observability
+    log_temporal_context("get_cost_registration", context)
+
+    try:
+        from app.services.cost_registration_service import CostRegistrationService
+
+        service = CostRegistrationService(context.session)
+
+        # Call service method
+        registration = await service.get_by_id(UUID(cost_registration_id))
+
+        if registration is None:
+            error_result = {"error": f"Cost registration not found: {cost_registration_id}"}
+            return add_temporal_metadata(error_result, context)
+
+        # Convert to AI-friendly format and add temporal metadata
+        result = {
+            "id": str(registration.cost_registration_id),
+            "cost_element_id": str(registration.cost_element_id),
+            "amount": float(registration.amount) if registration.amount else None,
+            "description": registration.description,
+            "invoice_number": registration.invoice_number,
+            "vendor_reference": registration.vendor_reference,
+            "registration_date": registration.registration_date.isoformat()
+            if registration.registration_date
+            else None,
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        error_result = {"error": f"Invalid input: {e}"}
+        return add_temporal_metadata(error_result, context)
+    except KeyError as e:
+        error_result = {"error": f"Cost registration not found: {e}"}
+        return add_temporal_metadata(error_result, context)
+    except Exception as e:
+        logger.error(f"Error in get_cost_registration: {e}")
+        error_result = {"error": str(e)}
+        return add_temporal_metadata(error_result, context)
+
+
+@ai_tool(
+    name="update_cost_registration",
+    description="Update an existing cost registration. "
+    "Creates a new version preserving history. "
+    "Supports updating amount, description, invoice number, vendor reference, and registration date.",
+    permissions=["cost-registration-update"],
+    category="cost-registration",
+    risk_level=RiskLevel.HIGH,
+)
+async def update_cost_registration(
+    cost_registration_id: str,
+    amount: float | None = None,
+    description: str | None = None,
+    invoice_number: str | None = None,
+    vendor_reference: str | None = None,
+    registration_date: str | None = None,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Update an existing cost registration.
+
+    Context: Provides database session and cost registration service for updating registrations.
+
+    Args:
+        cost_registration_id: UUID of the cost registration to update
+        amount: New cost amount (must be positive if provided)
+        description: New description
+        invoice_number: New invoice reference
+        vendor_reference: New vendor/supplier reference
+        registration_date: New registration date (ISO format string)
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with updated cost registration details
+
+    Raises:
+        ValueError: If cost_registration_id is invalid or no fields to update
+        KeyError: If cost registration not found
+
+    Example:
+        >>> result = await update_cost_registration(
+        ...     cost_registration_id="...",
+        ...     amount=2000.00,
+        ...     description="Updated material cost"
+        ... )
+        >>> print(f"Updated registration: {result['id']}")
+    """
+    # Log temporal context for observability
+    log_temporal_context("update_cost_registration", context)
+
+    try:
+        from app.models.schemas.cost_registration import CostRegistrationUpdate
+        from app.services.cost_registration_service import CostRegistrationService
+
+        service = CostRegistrationService(context.session)
+
+        # Parse registration date if provided
+        reg_date = None
+        if registration_date:
+            reg_date = datetime.fromisoformat(registration_date)
+
+        # Build update schema with only provided fields
+        update_data: dict[str, Any] = {}
+        if amount is not None:
+            update_data["amount"] = Decimal(str(amount))
+        if description is not None:
+            update_data["description"] = description
+        if invoice_number is not None:
+            update_data["invoice_number"] = invoice_number
+        if vendor_reference is not None:
+            update_data["vendor_reference"] = vendor_reference
+        if reg_date is not None:
+            update_data["registration_date"] = reg_date
+
+        if not update_data:
+            error_result = {"error": "No fields provided to update"}
+            return add_temporal_metadata(error_result, context)
+
+        registration_in = CostRegistrationUpdate(**update_data)
+
+        # Call service method
+        registration = await service.update_cost_registration(
+            cost_registration_id=UUID(cost_registration_id),
+            registration_in=registration_in,
+            actor_id=UUID(context.user_id),
+        )
+
+        # Convert to AI-friendly format and add temporal metadata
+        result = {
+            "id": str(registration.cost_registration_id),
+            "cost_element_id": str(registration.cost_element_id),
+            "amount": float(registration.amount) if registration.amount else None,
+            "description": registration.description,
+            "invoice_number": registration.invoice_number,
+            "vendor_reference": registration.vendor_reference,
+            "registration_date": registration.registration_date.isoformat()
+            if registration.registration_date
+            else None,
+            "message": "Cost registration updated",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        error_result = {"error": f"Invalid input: {e}"}
+        return add_temporal_metadata(error_result, context)
+    except KeyError as e:
+        error_result = {"error": f"Cost registration not found: {e}"}
+        return add_temporal_metadata(error_result, context)
+    except Exception as e:
+        logger.error(f"Error in update_cost_registration: {e}")
+        error_result = {"error": str(e)}
+        return add_temporal_metadata(error_result, context)
+
+
+@ai_tool(
+    name="delete_cost_registration",
+    description="Soft delete a cost registration. "
+    "The registration is marked as deleted but preserved for audit trail. "
+    "This action cannot be undone.",
+    permissions=["cost-registration-delete"],
+    category="cost-registration",
+    risk_level=RiskLevel.CRITICAL,
+)
+async def delete_cost_registration(
+    cost_registration_id: str,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Soft delete a cost registration.
+
+    Context: Provides database session and cost registration service for deleting registrations.
+
+    Args:
+        cost_registration_id: UUID of the cost registration to delete
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with confirmation message
+
+    Raises:
+        ValueError: If cost_registration_id is invalid
+        KeyError: If cost registration not found
+
+    Example:
+        >>> result = await delete_cost_registration(
+        ...     cost_registration_id="..."
+        ... )
+        >>> print(result['message'])
+    """
+    # Log temporal context for observability
+    log_temporal_context("delete_cost_registration", context)
+
+    try:
+        from app.services.cost_registration_service import CostRegistrationService
+
+        service = CostRegistrationService(context.session)
+
+        # Call service method
+        await service.soft_delete(
+            cost_registration_id=UUID(cost_registration_id),
+            actor_id=UUID(context.user_id),
+        )
+
+        # Return confirmation
+        result = {
+            "id": cost_registration_id,
+            "message": "Cost registration soft deleted. "
+            "The registration is marked as deleted but preserved for audit trail.",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        error_result = {"error": f"Invalid input: {e}"}
+        return add_temporal_metadata(error_result, context)
+    except KeyError as e:
+        error_result = {"error": f"Cost registration not found: {e}"}
+        return add_temporal_metadata(error_result, context)
+    except Exception as e:
+        logger.error(f"Error in delete_cost_registration: {e}")
+        error_result = {"error": str(e)}
+        return add_temporal_metadata(error_result, context)
+
+
+@ai_tool(
     name="get_cost_trends",
     description="Get cost trends by time period (daily, weekly, monthly) for a cost element. "
     "Returns aggregated costs grouped by period for trend analysis.",

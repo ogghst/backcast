@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Layout, theme, Space } from "antd";
 import { Outlet, useParams } from "react-router-dom";
 
@@ -17,7 +17,12 @@ import { parseRangeLowerBound } from "@/utils/temporal";
 
 const { Header, Content, Footer } = Layout;
 
+// Mobile breakpoint for hiding logo text
+const MOBILE_BREAKPOINT = 768;
+
 const AppLayout: React.FC = () => {
+  const [isMobile, setIsMobile] = useState(false);
+
   const {
     token: {
       colorBgContainer,
@@ -31,6 +36,17 @@ const AppLayout: React.FC = () => {
       paddingXL,
     },
   } = theme.useToken();
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   // Extract projectId from URL if on project pages, or use store context
   const params = useParams<{ projectId?: string }>();
@@ -51,37 +67,40 @@ const AppLayout: React.FC = () => {
     <Layout style={{ minHeight: "100vh" }}>
       <Header
         style={{
-          padding: `${paddingMD}px ${paddingLG}px`,
+          padding: isMobile ? `${paddingMD}px ${paddingMD}px` : `${paddingMD}px ${paddingLG}px`,
           background: colorBgContainer,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           height: "auto",
-          minHeight: 64,
+          minHeight: isMobile ? 56 : 64,
           borderBottom: `1px solid ${colorBorder}`,
+          gap: isMobile ? paddingMD : paddingLG,
         }}
       >
         {/* Left: Logo + Navigation */}
-        <Space size="large" align="center">
-          <div
-            style={{
-              fontWeight: fontWeightBold,
-              fontSize: fontSizeXL,
-              color: colorPrimary,
-              whiteSpace: "nowrap",
-            }}
-          >
-            Backcast
-          </div>
+        <Space size={isMobile ? "small" : "large"} align="center">
+          {!isMobile && (
+            <div
+              style={{
+                fontWeight: fontWeightBold,
+                fontSize: fontSizeXL,
+                color: colorPrimary,
+                whiteSpace: "nowrap",
+              }}
+            >
+              Backcast
+            </div>
+          )}
           <HeaderNavigation />
         </Space>
 
-        {/* Center: TimeMachine */}
+        {/* Center: TimeMachine (temporal menu) - always visible */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: paddingMD,
+            gap: isMobile ? paddingMD : paddingLG,
             flex: 1,
             justifyContent: "flex-end",
           }}
@@ -89,7 +108,7 @@ const AppLayout: React.FC = () => {
           {projectId && <TimeMachineCompact projectId={projectId} />}
         </div>
 
-        {/* Right: UserProfile */}
+        {/* Right: UserProfile - always visible */}
         <UserProfile />
       </Header>
 

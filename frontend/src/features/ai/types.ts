@@ -189,6 +189,16 @@ export interface ToolResult {
   error: string | null;
 }
 
+export interface AgentExecutionPublic {
+  id: string;
+  session_id: string;
+  status: "running" | "completed" | "error" | "awaiting_approval";
+  started_at: string;
+  completed_at: string | null;
+  error_message: string | null;
+  execution_mode: string;
+}
+
 export interface AIConversationSessionPublic {
   id: string;
   user_id: string;
@@ -196,6 +206,7 @@ export interface AIConversationSessionPublic {
   title: string | null;
   created_at: string;
   updated_at: string;
+  active_execution: AgentExecutionPublic | null;
 }
 
 export interface AIConversationMessagePublic {

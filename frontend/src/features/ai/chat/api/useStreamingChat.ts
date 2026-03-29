@@ -17,6 +17,7 @@ import type {
   WSServerMessage,
   WSApprovalRequestMessage,
   WSApprovalResponseMessage,
+  WSSubscribeMessage,
 } from "../types";
 import {
   WSConnectionState,
@@ -47,6 +48,8 @@ export interface UseStreamingChatConfig {
   assistantId: string;
   /** Optional project ID to scope chat to a specific project */
   projectId?: string;
+  /** Optional active execution ID from session data for resubscription on reconnect */
+  activeExecutionId?: string | null;
   /** Callback invoked when a token is received */
   onToken: (token: string, sessionId: string, source?: "main" | "subagent", subagentName?: string, invocationId?: string) => void;
   /** Callback invoked when the complete response is received */
@@ -75,6 +78,8 @@ export interface UseStreamingChatConfig {
   onContentReset?: (reason: string) => void;
   /** Optional callback invoked with every raw WebSocket message (for debugging) */
   onRawMessage?: (message: unknown, direction: "in" | "out") => void;
+  /** Optional callback invoked when an execution status update is received */
+  onExecutionStatus?: (executionId: string, status: string, sessionId: string) => void;
 }
 
 /**
@@ -171,6 +176,7 @@ export const useStreamingChat = (
     sessionId,
     assistantId,
     projectId,
+    activeExecutionId,
     onToken,
     onComplete,
     onError,
@@ -185,6 +191,7 @@ export const useStreamingChat = (
     onMainAgentComplete,
     onContentReset,
     onRawMessage,
+    onExecutionStatus,
   } = config;
 
   // Get JWT token from auth store
@@ -202,6 +209,19 @@ export const useStreamingChat = (
   useEffect(() => {
     projectIdRef.current = projectId;
   }, [projectId]);
+
+  // Track last seen sequence number for resubscription after reconnect
+  const lastSequenceRef = useRef<number>(0);
+
+  // Track active execution ID for resubscription after reconnect
+  const activeExecutionIdRef = useRef<string | null>(null);
+
+  // Sync external activeExecutionId prop into the ref
+  useEffect(() => {
+    if (activeExecutionId) {
+      activeExecutionIdRef.current = activeExecutionId;
+    }
+  }, [activeExecutionId]);
 
   // WebSocket reference (not in state to avoid re-renders)
   const wsRef = useRef<WebSocket | null>(null);
@@ -231,6 +251,7 @@ export const useStreamingChat = (
     onMainAgentComplete,
     onContentReset,
     onRawMessage,
+    onExecutionStatus,
   });
 
   // Keep callbacks ref updated
@@ -340,6 +361,31 @@ export const useStreamingChat = (
 
     try {
       const message = JSON.parse(rawData);
+
+      // Track sequence number for resubscription support
+      if (typeof message.sequence === "number") {
+        lastSequenceRef.current = Math.max(lastSequenceRef.current, message.sequence);
+      }
+
+      // Handle execution_started — store execution_id for reconnection support
+      if (message.type === "execution_started") {
+        activeExecutionIdRef.current = message.execution_id;
+        return;
+      }
+
+      // Handle execution_status messages
+      if (message.type === "execution_status") {
+        const { execution_id, status, session_id } = message;
+        // Update active execution tracking
+        if (status === "running" || status === "awaiting_approval") {
+          activeExecutionIdRef.current = execution_id;
+        } else {
+          // completed, error — clear active execution
+          activeExecutionIdRef.current = null;
+        }
+        callbacks.onExecutionStatus?.(execution_id, status, session_id);
+        return;
+      }
 
       // Handle ping/pong keepalive — respond silently (before debug callback to prevent redraws).
       // No React state changes — ws.send() is a raw socket operation,
@@ -475,6 +521,9 @@ export const useStreamingChat = (
       // Handle completion messages
       if (isCompleteMessage(serverMessage)) {
         clearCompleteTimeout(); // Clear timeout when complete arrives
+        // Clear execution tracking — the execution is done
+        activeExecutionIdRef.current = null;
+        lastSequenceRef.current = 0;
         callbacks.onComplete(serverMessage.session_id, serverMessage.message_id);
         // Keep connection alive — do NOT close here.
         // The connection will be closed when the component unmounts
@@ -485,6 +534,9 @@ export const useStreamingChat = (
       // Handle error messages
       if (isErrorMessage(serverMessage)) {
         clearCompleteTimeout(); // Clear timeout on error too
+        // Clear execution tracking — the execution has errored
+        activeExecutionIdRef.current = null;
+        lastSequenceRef.current = 0;
         // Handle permission denied errors (403) with user-friendly message
         if (isPermissionDeniedMessage(serverMessage)) {
           const permissionMsg = formatPermissionDeniedError(serverMessage);
@@ -761,6 +813,20 @@ export const useStreamingChat = (
         ws.addEventListener("open", () => {
           setConnectionState(WSConnectionState.OPEN);
           reconnectAttemptsRef.current = 0; // Reset reconnection counter
+
+          // Resubscribe to active execution if reconnecting mid-execution
+          if (activeExecutionIdRef.current) {
+            const subscribe: WSSubscribeMessage = {
+              type: "subscribe",
+              execution_id: activeExecutionIdRef.current,
+              last_seen_sequence: lastSequenceRef.current,
+            };
+            try {
+              ws.send(JSON.stringify(subscribe));
+            } catch {
+              // Silently ignore — execution may have already completed
+            }
+          }
         });
 
         // Handle incoming messages

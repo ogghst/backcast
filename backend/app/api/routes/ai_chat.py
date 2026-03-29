@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
@@ -17,27 +18,53 @@ from fastapi import (
 )
 from jose import ExpiredSignatureError, JWTError, jwt
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from starlette.websockets import WebSocketState
 
 from app.ai.agent_service import AgentService
+from app.ai.execution.agent_event_bus import AgentEventBus
+from app.ai.execution.runner_manager import runner_manager
 from app.ai.tools.types import ExecutionMode
 from app.api.dependencies.auth import RoleChecker, get_current_active_user
 from app.core.config import settings
 from app.core.rbac import get_rbac_service
 from app.db.session import get_db
+from app.models.domain.ai import (
+    AIAgentExecution,
+    AIAssistantConfig,
+    AIConversationSession,
+)
 from app.models.domain.user import User
 from app.models.schemas.ai import (
+    AgentExecutionPublic,
     AIConversationMessagePublic,
     AIConversationSessionPublic,
+    ApprovalRequest,
+    InvokeAgentRequest,
     WSApprovalResponseMessage,
     WSChatRequest,
     WSErrorMessage,
+    WSSubscribeMessage,
 )
 from app.services.ai_config_service import AIConfigService
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai/chat", tags=["AI Chat"])
+
+
+def _is_websocket_connected(websocket: WebSocket) -> bool:
+    """Check if the WebSocket is still connected.
+
+    Args:
+        websocket: WebSocket connection to check.
+
+    Returns:
+        True if the client state is not DISCONNECTED.
+    """
+    return websocket.client_state != WebSocketState.DISCONNECTED
 
 
 class SessionIdHolder:
@@ -69,9 +96,39 @@ async def list_sessions(
     current_user: User = Depends(get_current_active_user),
     config_service: AIConfigService = Depends(get_ai_config_service),
 ) -> list[AIConversationSessionPublic]:
-    """List conversation sessions for the current user."""
+    """List conversation sessions for the current user.
+
+    Includes active agent execution status for each session, allowing
+    the frontend to display running indicators in the session list.
+    """
     sessions = await config_service.list_sessions(current_user.user_id)
-    return [AIConversationSessionPublic.model_validate(s) for s in sessions]
+    result: list[AIConversationSessionPublic] = []
+
+    if not sessions:
+        return result
+
+    # Collect session IDs and find active executions in a single query
+    session_ids = [s.id for s in sessions]
+    active_statuses = ("pending", "running", "awaiting_approval")
+    exec_stmt = select(AIAgentExecution).where(
+        AIAgentExecution.session_id.in_(session_ids),
+        AIAgentExecution.status.in_(active_statuses),
+    )
+    exec_result = await config_service.session.execute(exec_stmt)
+    active_executions: dict[str, AIAgentExecution] = {
+        str(e.session_id): e for e in exec_result.scalars().all()
+    }
+
+    for s in sessions:
+        session_public = AIConversationSessionPublic.model_validate(s)
+        execution = active_executions.get(str(s.id))
+        if execution is not None:
+            session_public.active_execution = AgentExecutionPublic.model_validate(
+                execution
+            )
+        result.append(session_public)
+
+    return result
 
 
 @router.get(
@@ -115,6 +172,215 @@ async def delete_session(
     if session.user_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Access denied")
     await config_service.delete_session(session_id)
+
+
+@router.post(
+    "/sessions/{session_id}/invoke",
+    response_model=AgentExecutionPublic,
+    operation_id="invoke_agent",
+    dependencies=[Depends(RoleChecker(required_permission="ai-chat"))],
+)
+async def invoke_agent(
+    session_id: UUID,
+    body: InvokeAgentRequest,
+    current_user: User = Depends(get_current_active_user),
+    config_service: AIConfigService = Depends(get_ai_config_service),
+    db: AsyncSession = Depends(get_db),
+) -> AgentExecutionPublic:
+    """Invoke an agent execution for a conversation session.
+
+    Derives the assistant_config_id from the session's relationship.
+    Starts a background agent run that can be polled via the status endpoint.
+    """
+    # Verify session exists and belongs to user
+    stmt = (
+        select(AIConversationSession)
+        .where(AIConversationSession.id == session_id)
+        .options(selectinload(AIConversationSession.assistant_config))
+    )
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    assistant_config = session.assistant_config
+    if assistant_config is None:
+        raise HTTPException(
+            status_code=500, detail="Session has no associated assistant config"
+        )
+    if not assistant_config.is_active:
+        raise HTTPException(
+            status_code=400, detail="Assistant config is not active"
+        )
+
+    agent_service = AgentService(db)
+    # Session model stores UUIDs as str (PG_UUID mapping); cast for typed service layer
+    project_uuid: UUID | None = (
+        UUID(session.project_id) if session.project_id else None
+    )
+    branch_uuid: UUID | None = (
+        UUID(session.branch_id) if session.branch_id else None
+    )
+    execution_id = await agent_service.start_execution(
+        message=body.message,
+        assistant_config=assistant_config,
+        session_id=session_id,
+        user_id=current_user.user_id,
+        project_id=project_uuid,
+        branch_id=branch_uuid,
+        execution_mode=ExecutionMode(body.execution_mode),
+    )
+
+    # Fetch the created execution record
+    exec_stmt = select(AIAgentExecution).where(
+        AIAgentExecution.id == execution_id
+    )
+    exec_result = await db.execute(exec_stmt)
+    execution = exec_result.scalar_one()
+    return AgentExecutionPublic.model_validate(execution)
+
+
+@router.get(
+    "/sessions/{session_id}/executions",
+    response_model=list[AgentExecutionPublic],
+    operation_id="list_session_executions",
+    dependencies=[Depends(RoleChecker(required_permission="ai-chat"))],
+)
+async def list_session_executions(
+    session_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    config_service: AIConfigService = Depends(get_ai_config_service),
+    db: AsyncSession = Depends(get_db),
+) -> list[AgentExecutionPublic]:
+    """List agent executions for a conversation session."""
+    # Verify session exists and belongs to user
+    session = await config_service.get_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    stmt = (
+        select(AIAgentExecution)
+        .where(AIAgentExecution.session_id == session_id)
+        .order_by(AIAgentExecution.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    executions = result.scalars().all()
+    return [AgentExecutionPublic.model_validate(e) for e in executions]
+
+
+@router.get(
+    "/executions/{execution_id}/status",
+    response_model=AgentExecutionPublic,
+    operation_id="get_execution_status",
+    dependencies=[Depends(RoleChecker(required_permission="ai-chat"))],
+)
+async def get_execution_status(
+    execution_id: UUID,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> AgentExecutionPublic:
+    """Get the status of an agent execution.
+
+    Verifies ownership by checking the execution's session belongs to
+    the current user.
+    """
+    # Fetch execution with session for ownership check
+    stmt = (
+        select(AIAgentExecution)
+        .where(AIAgentExecution.id == execution_id)
+    )
+    result = await db.execute(stmt)
+    execution = result.scalar_one_or_none()
+
+    if execution is None:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    # Verify ownership via session
+    session_stmt = select(AIConversationSession).where(
+        AIConversationSession.id == execution.session_id
+    )
+    session_result = await db.execute(session_stmt)
+    session = session_result.scalar_one_or_none()
+
+    if session is None or session.user_id != current_user.user_id:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    return AgentExecutionPublic.model_validate(execution)
+
+
+@router.post(
+    "/executions/{execution_id}/approve",
+    operation_id="approve_execution",
+    dependencies=[Depends(RoleChecker(required_permission="ai-chat"))],
+)
+async def approve_execution(
+    execution_id: UUID,
+    body: ApprovalRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Approve or reject a tool execution via REST.
+
+    Allows approving/rejecting a pending tool execution without an active
+    WebSocket connection. Looks up the InterruptNode for the execution's
+    session and registers the approval response.
+
+    Args:
+        execution_id: UUID of the execution to approve.
+        body: ApprovalRequest with approval_id and approved flag.
+        current_user: Authenticated user (injected).
+        db: Database session (injected).
+
+    Returns:
+        Dict with status and approved flag.
+
+    Raises:
+        HTTPException: 404 if execution not found, 400 if approval registration fails.
+    """
+    # Fetch execution with session for ownership check (same pattern as get_execution_status)
+    exec_stmt = select(AIAgentExecution).where(AIAgentExecution.id == execution_id)
+    exec_result = await db.execute(exec_stmt)
+    execution = exec_result.scalar_one_or_none()
+
+    if execution is None:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    # Verify ownership via session
+    session_stmt = select(AIConversationSession).where(
+        AIConversationSession.id == execution.session_id
+    )
+    session_result = await db.execute(session_stmt)
+    session = session_result.scalar_one_or_none()
+
+    if session is None or session.user_id != current_user.user_id:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    # Look up InterruptNode for the session via AgentService class-level dict
+    agent_service = AgentService(db)
+    interrupt_node = agent_service.get_interrupt_node(
+        UUID(str(execution.session_id))
+    )
+
+    if interrupt_node is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No pending approval found for this execution's session",
+        )
+
+    # Register the approval response
+    interrupt_node.register_approval_response(body.approval_id, body.approved)
+
+    logger.info(
+        f"REST approval registered: execution_id={execution_id}, "
+        f"approval_id={body.approval_id}, approved={body.approved}"
+    )
+
+    return {"status": "ok", "approved": body.approved}
 
 
 @router.websocket("/stream")
@@ -216,6 +482,10 @@ async def chat_stream(
 
         # Task tracking for concurrent message handling
         tasks: set[asyncio.Task[None]] = set()
+        # Agent execution tasks are tracked separately -- they must NOT be
+        # cancelled on WebSocket disconnect so the agent continues running
+        # and the client can re-subscribe after reconnection.
+        execution_tasks: set[asyncio.Task[None]] = set()
         current_chat_task: asyncio.Task[None] | None = None
 
         # Flag to stop the ping loop when connection closes
@@ -245,7 +515,8 @@ async def chat_stream(
 
             This function runs as a background task to process messages
             without blocking approval responses. Chat messages launch
-            chat_stream() as background tasks, while approval responses
+            start_execution() as background tasks and forward events from
+            the AgentEventBus to the WebSocket, while approval responses
             are handled immediately.
             """
             nonlocal current_chat_task, current_session_id
@@ -254,16 +525,79 @@ async def chat_stream(
                 data = await websocket.receive_json()
                 message_type = data.get("type", "chat")
 
-                # Handle pong keepalive — client responding to our ping, no action needed
+                # Handle pong keepalive -- client responding to our ping, no action needed
                 if message_type == "pong":
+                    continue
+
+                # Handle subscribe messages for reconnection to running executions
+                if message_type == "subscribe":
+                    try:
+                        sub_msg = WSSubscribeMessage.model_validate(data)
+                        bus = runner_manager.get_bus(str(sub_msg.execution_id))
+                        if bus is None:
+                            await websocket.send_json(
+                                WSErrorMessage(
+                                    type="error",
+                                    message=f"Execution {sub_msg.execution_id} not found or already completed",
+                                    code=404,
+                                ).model_dump()
+                            )
+                            continue
+
+                        # Replay missed events first
+                        for event in bus.replay():
+                            payload = {**event.data, "type": event.event_type}
+                            try:
+                                await websocket.send_json(payload)
+                            except Exception:
+                                break
+
+                        # If execution is already done, no need to subscribe live
+                        if bus.is_completed:
+                            continue
+
+                        # Subscribe to live events
+                        sub_queue = bus.subscribe()
+                        try:
+                            while not bus.is_completed:
+                                try:
+                                    event = await asyncio.wait_for(
+                                        sub_queue.get(), timeout=1.0,
+                                    )
+                                    if not _is_websocket_connected(websocket):
+                                        break
+                                    payload = {**event.data, "type": event.event_type}
+                                    await websocket.send_json(payload)
+                                    if event.event_type in ("complete", "error"):
+                                        break
+                                except TimeoutError:
+                                    if not _is_websocket_connected(websocket):
+                                        break
+                                    continue
+                        finally:
+                            bus.unsubscribe(sub_queue)
+                    except Exception as sub_err:
+                        logger.error(
+                            f"Error in subscribe handler for user {user_id}: {sub_err}",
+                            exc_info=True,
+                        )
+                        try:
+                            await websocket.send_json(
+                                WSErrorMessage(
+                                    type="error",
+                                    message=f"Error subscribing to execution: {str(sub_err)}",
+                                    code=500,
+                                ).model_dump()
+                            )
+                        except Exception:
+                            pass
                     continue
 
                 # Handle approval response messages immediately (non-blocking)
                 if message_type == "approval_response":
                     try:
                         approval_response = WSApprovalResponseMessage.model_validate(data)
-                        # Use session_holder.value — updated by chat_stream() when session is created
-                        # (not current_session_id which is only updated after chat_stream() completes)
+                        # Use session_holder.value -- updated when session is created
                         active_session_id = session_holder.value
                         if active_session_id is None:
                             await websocket.send_json(
@@ -277,7 +611,7 @@ async def chat_stream(
 
                         # Register the approval response with the AgentService
                         # The polling loop in BackcastSecurityMiddleware will detect this
-                        # and execute the tool — no need to call resume_graph_after_approval
+                        # and execute the tool
                         success = agent_service.register_approval_response(
                             session_id=active_session_id,
                             approval_id=approval_response.approval_id,
@@ -308,7 +642,7 @@ async def chat_stream(
                         )
                     continue
 
-                # Handle chat messages - launch as background task
+                # Handle chat messages -- create session, start execution, forward events
                 request = WSChatRequest.model_validate(data)
 
                 # Validate assistant config per message
@@ -345,91 +679,154 @@ async def chat_stream(
                     )
                     continue
 
-                # Update current session ID for approval handling
-                if request.session_id:
-                    current_session_id = request.session_id
-                    session_holder.value = request.session_id
+                # --- Session creation (duplicated from chat_stream) ---
+                effective_session_id: UUID | None = request.session_id
+                if effective_session_id:
+                    # Verify existing session
+                    existing_session = await config_service.get_session(effective_session_id)
+                    if not existing_session:
+                        await websocket.send_json(
+                            WSErrorMessage(
+                                type="error",
+                                message=f"Session {effective_session_id} not found",
+                                code=404,
+                            ).model_dump()
+                        )
+                        continue
+                else:
+                    # Create new session with context
+                    new_session = await config_service.create_session(
+                        user_id=user_id,
+                        assistant_config_id=assistant_config.id,
+                        title=request.title,
+                        project_id=request.project_id,
+                        branch_id=request.branch_id,
+                    )
+                    effective_session_id = new_session.id
+                    session_holder.value = effective_session_id
+                    current_session_id = effective_session_id
+                    await db.commit()
 
-                # Launch chat_stream as background task (non-blocking)
-                # Use a closure factory to avoid late binding issues with loop variables
-                def create_chat_stream_task(
+                # Update session holder for approval handling
+                session_holder.value = effective_session_id
+                current_session_id = effective_session_id
+
+                # Save user message to session
+                await config_service.add_message(
+                    session_id=effective_session_id,
+                    role="user",
+                    content=request.message,
+                )
+                await db.commit()
+
+                # --- Start execution as background task ---
+                exec_id = str(uuid.uuid4())
+                exec_bus = runner_manager.create_bus(exec_id)
+
+                exec_mode = ExecutionMode(request.execution_mode)
+
+                # Use a factory to capture loop variables by value, avoiding
+                # late-binding issues (B023) where the closure would reference
+                # the final loop iteration values instead of the current ones.
+                def create_execution_task(
                     msg: str,
-                    asst_config: Any,
-                    sess_id: UUID | None,
-                    tit: str | None,
+                    asst_config: AIAssistantConfig,
+                    sess_id: UUID,
                     proj_id: UUID | None,
                     br_id: UUID | None,
                     as_of_dt: datetime | None,
                     br_name: str | None,
                     br_mode: Literal["merged", "isolated"] | None,
-                    exec_mode: ExecutionMode,
+                    e_mode: ExecutionMode,
+                    e_id: str,
+                    e_bus: AgentEventBus,
                 ) -> asyncio.Task[None]:
-                    """Create a background task for chat_stream with captured values.
+                    """Create a background task for start_execution with captured values."""
 
-                    This factory function captures the current loop variables by value,
-                    avoiding late binding issues where all tasks would share the final
-                    loop iteration values.
-                    """
-                    async def run_chat_stream() -> None:
-                        """Run chat_stream and update session_id when complete."""
-                        nonlocal current_session_id
+                    async def run_execution() -> None:
+                        """Run start_execution with captured values."""
                         try:
-                            await agent_service.chat_stream(
+                            await agent_service.start_execution(
                                 message=msg,
                                 assistant_config=asst_config,
                                 session_id=sess_id,
                                 user_id=user_id,
-                                websocket=websocket,
-                                db=db,
-                                title=tit,
                                 project_id=proj_id,
                                 branch_id=br_id,
                                 as_of=as_of_dt,
                                 branch_name=br_name,
                                 branch_mode=br_mode,
-                                execution_mode=exec_mode,
-                                session_holder=session_holder,
+                                execution_mode=e_mode,
+                                execution_id=e_id,
+                                event_bus=e_bus,
                             )
-                            # Update current_session_id from session_holder in case a new session was created
-                            current_session_id = session_holder.value
-                            logger.info(f"WebSocket chat stream completed successfully for user {user_id}")
-                        except Exception as stream_err:
-                            err_msg = str(stream_err)
-                            logger.error(f"Error in chat_stream for user {user_id}: {err_msg}", exc_info=True)
-                            # CRITICAL: Roll back the session to reset transaction state
-                            # After a database error, the session enters a failed state and
-                            # all subsequent operations will fail without a rollback
-                            await db.rollback()
-                            try:
-                                await websocket.send_json(
-                                    WSErrorMessage(
-                                        type="error",
-                                        message=err_msg,
-                                        code=500,
-                                    ).model_dump()
-                                )
-                            except Exception:
-                                pass  # WebSocket may already be closing
+                        except Exception as exec_err:
+                            logger.error(
+                                f"Error in start_execution {e_id}: {exec_err}",
+                                exc_info=True,
+                            )
 
-                    return asyncio.create_task(run_chat_stream())
+                    return asyncio.create_task(run_execution())
 
-                # Create and track the background task with captured values
-                chat_task = create_chat_stream_task(
+                execution_task = create_execution_task(
                     msg=request.message,
                     asst_config=assistant_config,
-                    sess_id=request.session_id,
-                    tit=request.title,
+                    sess_id=effective_session_id,
                     proj_id=request.project_id,
                     br_id=request.branch_id,
                     as_of_dt=request.as_of,
                     br_name=request.branch_name,
                     br_mode=request.branch_mode,
-                    exec_mode=ExecutionMode(request.execution_mode),
+                    e_mode=exec_mode,
+                    e_id=exec_id,
+                    e_bus=exec_bus,
                 )
-                tasks.add(chat_task)
-                current_chat_task = chat_task
-                # Remove task from set when it completes
-                chat_task.add_done_callback(tasks.discard)
+                execution_tasks.add(execution_task)
+                current_chat_task = execution_task
+                execution_task.add_done_callback(execution_tasks.discard)
+
+                # --- Send execution_started immediately ---
+                try:
+                    await websocket.send_json({
+                        "type": "execution_started",
+                        "execution_id": exec_id,
+                    })
+                except Exception:
+                    logger.warning(
+                        f"Failed to send execution_started for user {user_id}"
+                    )
+                    # Continue anyway -- the execution is running
+
+                # --- Forward events from bus to WebSocket ---
+                chat_queue = exec_bus.subscribe()
+                try:
+                    while True:
+                        try:
+                            event = await asyncio.wait_for(
+                                chat_queue.get(), timeout=1.0,
+                            )
+                        except TimeoutError:
+                            if not _is_websocket_connected(websocket):
+                                break
+                            continue
+
+                        if not _is_websocket_connected(websocket):
+                            break
+
+                        # Merge event_type into the data dict
+                        payload = {**event.data, "type": event.event_type}
+                        try:
+                            await websocket.send_json(payload)
+                        except Exception:
+                            logger.warning(
+                                f"Failed to forward event to WebSocket for user {user_id}"
+                            )
+                            break
+
+                        if event.event_type in ("complete", "error"):
+                            break
+                finally:
+                    exec_bus.unsubscribe(chat_queue)
 
         try:
             # Start ping loop and message handler as background tasks
@@ -473,14 +870,21 @@ async def chat_stream(
             # Signal ping loop to stop
             stop_ping.set()
 
-            # Cancel all background tasks on disconnect
+            # Cancel infrastructure tasks (ping, message handler) but NOT agent
+            # execution tasks -- those continue running in the background so the
+            # client can re-subscribe after reconnection.
             for task in tasks:
                 if not task.done():
                     task.cancel()
-            # Wait for tasks to finish cancellation (with timeout)
+            # Wait for infrastructure tasks to finish cancellation (with timeout)
             if tasks:
                 await asyncio.wait(tasks, timeout=2.0, return_when=asyncio.ALL_COMPLETED)
             tasks.clear()
+
+            # Execution tasks are intentionally NOT cancelled here.
+            # They clean up via add_done_callback(execution_tasks.discard).
+            # The start_execution() finally block handles bus cleanup.
+
             # Clean up interrupt node for this session
             if current_session_id is not None:
                 agent_service.unregister_interrupt_node(current_session_id)

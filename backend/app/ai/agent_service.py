@@ -23,10 +23,14 @@ from langchain_core.messages import (
 )
 from langchain_openai import ChatOpenAI
 from langgraph.types import Command
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.websockets import WebSocketState
 
 from app.ai.deep_agent_orchestrator import DeepAgentOrchestrator
+from app.ai.execution.agent_event import AgentEvent
+from app.ai.execution.agent_event_bus import AgentEventBus
+from app.ai.execution.runner_manager import runner_manager
 from app.ai.graph import create_graph
 from app.ai.graph_cache import (
     BackcastRuntimeContext,
@@ -40,15 +44,13 @@ from app.ai.graph_cache import (
 from app.ai.telemetry import (
     initialize_telemetry,
     trace_context,
-    trace_subagent_delegation,
 )
-from app.ai.token_buffer import TokenBuffer, TokenBufferManager
 from app.ai.tools import ToolContext, create_project_tools
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.session_manager import ToolSessionManager
 from app.ai.tools.types import ExecutionMode
-from app.core.config import settings
 from app.models.domain.ai import (
+    AIAgentExecution,
     AIAssistantConfig,
     AIConversationSession,
     AIProvider,
@@ -60,7 +62,6 @@ from app.models.schemas.ai import (
     WSAgentCompleteMessage,
     WSCompleteMessage,
     WSContentResetMessage,
-    WSErrorMessage,
     WSPlanningMessage,
     WSSubagentMessage,
     WSSubagentResultMessage,
@@ -306,6 +307,7 @@ class AgentService:
         provider_type: str | None = None,
         model_name: str | None = None,
         available_tools: list[Any] | None = None,
+        event_bus: AgentEventBus | None = None,
     ) -> tuple[Any, InterruptNode | None]:
         """Create Deep Agent graph with Backcast context.
 
@@ -336,8 +338,11 @@ class AgentService:
         """
         # Create InterruptNode first (needed for middleware and always per-request)
         interrupt_node = None
-        if websocket and session_id and available_tools:
-            interrupt_node = InterruptNode(available_tools, tool_context, websocket, session_id)
+        if available_tools and session_id and (websocket or event_bus):
+            interrupt_node = InterruptNode(
+                available_tools, tool_context, websocket=websocket,
+                session_id=session_id, event_bus=event_bus,
+            )
 
         # Compute cache key from invariant properties
         allowed_tools = assistant_config.allowed_tools
@@ -597,96 +602,44 @@ class AgentService:
             tool_calls=tool_calls_data if tool_calls_data else None,
         )
 
-    async def chat_stream(
+
+    async def _run_agent_graph(
         self,
         message: str,
         assistant_config: AIAssistantConfig,
-        session_id: UUID | None,
+        session_id: UUID,
         user_id: UUID,
-        websocket: WebSocket,
-        db: AsyncSession,
-        title: str | None = None,
+        event_bus: AgentEventBus,
         project_id: UUID | None = None,
         branch_id: UUID | None = None,
         as_of: datetime | None = None,
         branch_name: str | None = None,
         branch_mode: Literal["merged", "isolated"] | None = None,
         execution_mode: ExecutionMode = ExecutionMode.STANDARD,
-        session_holder: Any | None = None,
     ) -> None:
-        """Process a chat message using LangGraph with streaming response.
+        """Run the agent graph publishing all events to an AgentEventBus.
 
-        Context: Streaming variant of chat() that sends tokens via WebSocket as they arrive.
-                Uses LangGraph's astream_events() for event-based streaming with proper
-                token, tool call, and tool result handling. Persists the complete message
-                to database after streaming completes.
+        Context: Decoupled variant of chat_stream() that publishes events to an
+        event bus instead of a WebSocket. Used by start_execution() for
+        background agent runs that can be consumed via REST or WebSocket
+        reconnection.
 
         Args:
             message: The user's input message
             assistant_config: Configuration defining the model and allowed tools
-            session_id: Optional existing session ID to continue. If None, a new session is created
-            user_id: ID of the user sending the message
-            websocket: WebSocket connection for streaming responses
-            db: Database session for persistence
-            title: Optional title for the session (only used when creating a new session)
-            project_id: Optional project context UUID for the session
-            branch_id: Optional branch or change order context UUID for the session
+            session_id: Existing session ID to continue
+            user_id: ID of the user who sent the message
+            event_bus: AgentEventBus to publish events to
+            project_id: Optional project context UUID
+            branch_id: Optional branch context UUID
             as_of: Optional historical date for temporal queries
             branch_name: Optional branch name for temporal queries
-            branch_mode: Optional branch mode for temporal queries ("merged" or "isolated")
-            execution_mode: Execution mode for tool filtering (safe/standard/expert)
-            session_holder: Optional mutable container to update with new session_id
+            branch_mode: Optional branch mode for temporal queries
+            execution_mode: Execution mode for tool filtering
 
         Returns:
-            None (communicates via WebSocket)
-
-        Raises:
-            ValueError: If session creation fails
+            None (communicates via event_bus)
         """
-        # Get or create session
-        db_session: AIConversationSession | None
-        if session_id:
-            db_session = await self.config_service.get_session(session_id)
-            if not db_session:
-                raise ValueError(f"Session {session_id} not found")
-        else:
-            # Create new session with context
-            db_session = await self.config_service.create_session(
-                user_id=user_id,
-                assistant_config_id=assistant_config.id,
-                title=title,
-                project_id=project_id,
-                branch_id=branch_id,
-            )
-            session_id = db_session.id
-            # Update session_holder so caller can track the new session_id
-            if session_holder is not None:
-                session_holder.value = session_id
-        if not session_id:
-            raise ValueError("Failed to create session")
-
-        # Log chat stream entry with session context
-        logger.info(
-            f"[CHAT_STREAM_ENTRY] chat_stream | "
-            f"session_id={session_id} | "
-            f"user_id={user_id} | "
-            f"assistant_id={assistant_config.id} | "
-            f"execution_mode={execution_mode.value} | "
-            f"project_id={project_id} | "
-            f"branch_id={branch_id} | "
-            f"as_of={as_of} | "
-            f"branch_name={branch_name} | "
-            f"branch_mode={branch_mode}"
-        )
-
-        # Add user message to session
-        _ = await self.config_service.add_message(
-            session_id=session_id,
-            role="user",
-            content=message,
-        )
-        await db.commit()
-
         # Build conversation history
         history = await self._build_conversation_history(session_id)
 
@@ -714,17 +667,15 @@ class AgentService:
             assistant_config.max_tokens,
         )
 
-        # Create tools
-        # Fetch user to get their role for RBAC
-        # Use UserService to properly handle temporal versioning
+        # Create tools with RBAC
         from app.services.user import UserService
 
-        user_service = UserService(db)
+        user_service = UserService(self.session)
         user = await user_service.get_user(user_id)
         user_role = user.role if user else "guest"
 
         tool_context = ToolContext(
-            db,
+            self.session,
             str(user_id),
             user_role=user_role,
             project_id=str(project_id) if project_id else None,
@@ -734,8 +685,6 @@ class AgentService:
             branch_mode=branch_mode,
             execution_mode=execution_mode,
         )
-        # DEBUG: Log execution mode for diagnostics
-        logger.info(f"DEBUG: Creating ToolContext with execution_mode={execution_mode.value} for user_id={user_id}")
         available_tools = create_project_tools(tool_context)
         tools_dict = {tool.name: tool for tool in available_tools}
 
@@ -747,613 +696,401 @@ class AgentService:
                 if name in assistant_config.allowed_tools
             }
 
-        # Create graph with Deep Agent SDK for planning and subagent delegation
-        # Falls back to regular LangGraph if Deep Agent SDK fails
+        # Create graph (no websocket, but pass event_bus for InterruptNode)
         graph, interrupt_node = await self._create_deep_agent_graph(
             llm=llm,
             tool_context=tool_context,
             assistant_config=assistant_config,
-            websocket=websocket,
+            websocket=None,
             session_id=session_id,
             enable_subagents=True,
             provider_type=provider_type,
             model_name=model_name,
             available_tools=available_tools,
+            event_bus=event_bus,
         )
-        logger.info(f"Created graph: {type(graph).__name__}")
 
-        # Set per-request context for middleware (ContextVar bridge)
+        # Set per-request context for middleware
         set_request_context(tool_context, interrupt_node)
 
         # Register InterruptNode for approval handling if created
         if interrupt_node is not None:
             self.register_interrupt_node(session_id, interrupt_node)
 
-        # Extract recursion_limit from assistant config with fallback to default
+        # Extract recursion_limit
         recursion_limit = assistant_config.recursion_limit if assistant_config.recursion_limit is not None else 25
 
-        # Initialize token buffer manager
-        buffer_manager = TokenBufferManager(
-            flush_interval_ms=settings.AI_TOKEN_BUFFER_INTERVAL_MS,
-            max_buffer_size=settings.AI_TOKEN_BUFFER_MAX_SIZE,
-            enabled=settings.AI_TOKEN_BUFFER_ENABLED,
-        )
-
-        async def flush_buffer(key: str, buffer: "TokenBuffer") -> None:
-            """Flush callback for buffer manager."""
-            if not buffer.is_empty() and self._is_websocket_connected(websocket):
-                try:
-                    # Extract invocation_id from buffer for both main agent and subagents
-                    invocation_id = buffer.invocation_id
-
-                    msg_data = WSTokenBatchMessage(
-                        type="token_batch",
-                        tokens=buffer.get_content(),
-                        session_id=buffer.session_id or session_id,
-                        source=buffer.source,
-                        subagent_name=buffer.subagent_name,
-                        invocation_id=invocation_id,
-                    ).model_dump(mode="json")
-                    logger.info(f"[TOKEN_BATCH] Sending: source={buffer.source}, invocation_id={invocation_id}, tokens_length={len(buffer.get_content())}")
-                    await websocket.send_json(msg_data)
-                except Exception as e:
-                    logger.warning(f"Failed to send token batch: {e}")
-
-        buffer_manager.set_flush_callback(flush_buffer)  # type: ignore[arg-type]
-        await buffer_manager.start()
-
-        # Stream using astream_events
         accumulated_content = ""
         all_tool_calls: list[dict[str, Any]] = []
         all_tool_results: list[dict[str, Any]] = []
-
-        # Track main agent content segments by invocation_id for separate message persistence
-        # This preserves the bubble separation in the frontend after response completes
         main_agent_segments: dict[str, list[str]] = {}
-
-        # Track subagent messages by the main agent invocation that triggered them
-        # This allows us to save messages in conversational order: main segment → subagents → next main segment
         from collections import defaultdict
         subagent_messages_by_main_invocation: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
-        # Track step count for progress indicators
         current_step = 0
-        estimated_total_steps = None
-
-        # Track timing for summary log
+        estimated_total_steps: int | None = None
         stream_start_time = time.time()
         total_tokens = 0
         tool_calls_count = 0
-
-        # Track subagent name and invocation_id for result reporting
         current_subagent_name: str | None = None
         current_invocation_id: str | None = None
-
-        # Track main agent invocation_id for separating main agent content before/after subagents
         main_invocation_id: str | None = None
-
-        # Track whether the current tool was initiated by the main agent (vs subagent)
-        main_agent_initiated_tool: bool = False
-
-        # Track the main_invocation_id that initiated the task tool (for subagent result association)
         task_initiating_main_invocation_id: str | None = None
 
-        # Create cancellation event that can be triggered by disconnect
-        # session_id is guaranteed to be a UUID at this point (line 632 ensures it)
-        cancellation_token = asyncio.Event()
-        assert session_id is not None  # for type checker
-        self._cancellation_tokens[session_id] = cancellation_token
+        # Per-invocation token accumulator for batched publishing
+        _token_accumulator: dict[str, list[str]] = {}
+
+        # Helper to publish events
+        def _publish(event_type: str, data: dict[str, Any]) -> None:
+            event_bus.publish(
+                AgentEvent(
+                    event_type=event_type,
+                    data=data,
+                    timestamp=datetime.now(),
+                )
+            )
+
+        def _flush_accumulated_tokens(invocation_id: str | None) -> None:
+            """Flush accumulated tokens for a given invocation to the event bus."""
+            if invocation_id is None:
+                return
+            buffered = _token_accumulator.pop(invocation_id, [])
+            if not buffered:
+                return
+            concatenated = "".join(buffered)
+            _publish(
+                "token_batch",
+                WSTokenBatchMessage(
+                    type="token_batch",
+                    tokens=concatenated,
+                    session_id=str(session_id),
+                    source="subagent" if current_subagent_name else "main",
+                    subagent_name=current_subagent_name,
+                    invocation_id=invocation_id,
+                ).model_dump(mode="json"),
+            )
 
         try:
-            logger.info(f"Starting astream_events for session {session_id}")
+            main_invocation_id = str(uuid.uuid4())
 
-            # Send thinking event to indicate agent is processing
-            if self._is_websocket_connected(websocket):
-                try:
-                    await websocket.send_json(
-                        WSThinkingMessage().model_dump(mode="json")
-                    )
-                    logger.info("Sent WebSocket thinking event")
-                except Exception:
-                    logger.debug("Failed to send thinking event, WebSocket may be closed")
+            # Send thinking event
+            _publish(
+                "thinking",
+                WSThinkingMessage().model_dump(mode="json"),
+            )
 
-            async def _consume_stream() -> None:
-                nonlocal current_step, estimated_total_steps, current_subagent_name, current_invocation_id, main_invocation_id, total_tokens, tool_calls_count, accumulated_content, main_agent_initiated_tool, task_initiating_main_invocation_id
+            async for event in graph.astream_events(
+                {
+                    "messages": history,
+                    "tool_call_count": 0,
+                    "next": "agent",
+                },
+                config={
+                    "recursion_limit": recursion_limit,
+                    "configurable": {"thread_id": str(session_id)},
+                },
+                version="v1",
+                context=BackcastRuntimeContext(
+                    user_id=str(user_id),
+                    user_role=user_role,
+                    project_id=str(project_id) if project_id else None,
+                    branch_id=str(branch_id) if branch_id else None,
+                    execution_mode=execution_mode.value,
+                ),
+            ):
+                event_type = event.get("event", "")
+                data = event.get("data", {})
 
-                # Generate initial main agent invocation_id at stream start
-                main_invocation_id = str(uuid.uuid4())
+                # Handle token streaming
+                if event_type == "on_chat_model_stream":
+                    chunk = data.get("chunk")
+                    if chunk:
+                        content = ""
+                        if hasattr(chunk, "text"):
+                            content = chunk.text
+                        elif hasattr(chunk, "content"):
+                            content = str(chunk.content)
 
-                async for event in graph.astream_events(
-                    {
-                        "messages": history,
-                        "tool_call_count": 0,
-                        "next": "agent",
-                    },
-                    config={
-                        "recursion_limit": recursion_limit,
-                        "configurable": {"thread_id": str(session_id)}
-                    },
-                    version="v1",
-                    context=BackcastRuntimeContext(
-                        user_id=str(user_id),
-                        user_role=user_role,
-                        project_id=str(project_id) if project_id else None,
-                        branch_id=str(branch_id) if branch_id else None,
-                        execution_mode=execution_mode.value,
-                    ),
-                ):
-                    # Check cancellation FIRST (before any other processing)
-                    if cancellation_token.is_set():
-                        logger.warning(f"Stream cancelled for session {session_id}")
-                        break
+                        if content:
+                            if current_subagent_name is None:
+                                if main_invocation_id not in main_agent_segments:
+                                    main_agent_segments[main_invocation_id] = []
+                                main_agent_segments[main_invocation_id].append(content)
 
-                    # Check if client is still connected before processing each event
-                    if not self._is_websocket_connected(websocket):
-                        logger.warning(
-                            f"WebSocket disconnected during streaming for session {session_id}, "
-                            f"aborting agent execution"
-                        )
-                        break
+                            accumulated_content += content
+                            total_tokens += len(content)
 
-                    event_type = event.get("event", "")
-                    data = event.get("data", {})
+                            # Accumulate tokens per invocation for batched publish
+                            invocation_id_to_use = current_invocation_id if current_subagent_name else main_invocation_id
+                            if invocation_id_to_use is not None:
+                                if invocation_id_to_use not in _token_accumulator:
+                                    _token_accumulator[invocation_id_to_use] = []
+                                _token_accumulator[invocation_id_to_use].append(content)
 
-                    # Handle token streaming
-                    if event_type == "on_chat_model_stream":
-                        chunk = data.get("chunk")
-                        if chunk:
-                            # AIMessageChunk objects support .text attribute for simple text content
-                            # For more complex content with multiple blocks, we iterate through content_blocks
-                            content = ""
-                            if hasattr(chunk, "text"):
-                                content = chunk.text
-                            elif hasattr(chunk, "content"):
-                                # Fallback to content attribute if text is not available
-                                content = str(chunk.content)
+                # Handle tool start
+                elif event_type == "on_tool_start":
+                    # Flush any accumulated main-agent tokens before tool execution
+                    _flush_accumulated_tokens(main_invocation_id)
 
-                            if content:
-                                # Track main agent content per invocation_id for separate message persistence
-                                if current_subagent_name is None:
-                                    # Main agent token - accumulate per invocation_id
-                                    if main_invocation_id not in main_agent_segments:
-                                        main_agent_segments[main_invocation_id] = []
-                                    main_agent_segments[main_invocation_id].append(content)
+                    tool_name = event.get("name", "")
+                    tool_input = data.get("input", {})
+                    tool_calls_count += 1
+                    current_step += 1
 
-                                # Legacy: also accumulate all content for backward compatibility
-                                accumulated_content += content
-                                total_tokens += len(content)
-                                if self._is_websocket_connected(websocket):
-                                    invocation_id_to_use = current_invocation_id if current_subagent_name else main_invocation_id
-                                    logger.debug(f"Adding token: source={'subagent' if current_subagent_name else 'main'}, invocation_id={invocation_id_to_use}")
-                                    buffer_manager.add_token(
-                                        token=content,
-                                        session_id=str(session_id),
-                                        source="subagent" if current_subagent_name else "main",
-                                        subagent_name=current_subagent_name,
-                                        invocation_id=invocation_id_to_use,
-                                    )
+                    if tool_name == "task":
+                        current_subagent_name = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
+                        current_invocation_id = str(uuid.uuid4())
+                        task_initiating_main_invocation_id = main_invocation_id
 
-                    # Handle tool start
-                    elif event_type == "on_tool_start":
-                        tool_name = event.get("name", "")
-                        tool_input = data.get("input", {})
-                        tool_calls_count += 1
-
-                        # Track whether this tool was initiated by the main agent
-                        main_agent_initiated_tool = (current_subagent_name is None)
-
-                        # Flush main agent buffer before tool execution
-                        # This ensures main agent content before the tool appears in its own bubble
-                        if current_subagent_name is None:
-                            logger.info(f"[TOOL_START] Flushing main agent buffer before tool='{tool_name}', invocation_id={main_invocation_id}")
-                            await buffer_manager.flush_agent(
-                                source="main",
+                    # Planning event
+                    if tool_name == "write_todos":
+                        plan = tool_input.get("plan") if isinstance(tool_input, dict) else None
+                        steps = None
+                        if isinstance(tool_input, dict):
+                            raw_steps = tool_input.get("steps")
+                            if isinstance(raw_steps, list):
+                                steps = [
+                                    PlanningStep(text=str(s), done=False) for s in raw_steps
+                                ]
+                                estimated_total_steps = len(steps)
+                        _publish(
+                            "planning",
+                            WSPlanningMessage(
+                                type="planning",
+                                plan=plan,
+                                steps=steps,
+                                step_number=current_step,
+                                total_steps=estimated_total_steps,
                                 invocation_id=main_invocation_id,
+                            ).model_dump(mode="json"),
+                        )
+
+                    # Subagent delegation event
+                    elif tool_name == "task":
+                        subagent_type = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
+                        description = tool_input.get("description") if isinstance(tool_input, dict) else None
+                        if subagent_type:
+                            _publish(
+                                "subagent",
+                                WSSubagentMessage(
+                                    type="subagent",
+                                    subagent=subagent_type,
+                                    message=description,
+                                    step_number=current_step,
+                                    total_steps=estimated_total_steps,
+                                    invocation_id=current_invocation_id,
+                                ).model_dump(mode="json"),
                             )
 
-                        # Track subagent name and invocation_id for result reporting
-                        if tool_name == "task":
-                            current_subagent_name = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
-                            current_invocation_id = str(uuid.uuid4())
-                            # Save the main_invocation_id that initiated this task tool
-                            # This will be used to associate the subagent result with the correct main segment
-                            task_initiating_main_invocation_id = main_invocation_id
+                    # Standard tool_call event
+                    _publish(
+                        "tool_call",
+                        WSToolCallMessage(
+                            type="tool_call",
+                            tool=tool_name,
+                            args=tool_input,
+                            step_number=current_step,
+                            total_steps=estimated_total_steps,
+                            invocation_id=current_invocation_id if current_subagent_name else main_invocation_id,
+                        ).model_dump(mode="json"),
+                    )
 
-                        # Increment step counter for all tool executions
-                        current_step += 1
+                # Handle tool end
+                elif event_type == "on_tool_end":
+                    tool_name = event.get("name", "")
 
-                        # Detect Deep Agent planning (write_todos tool)
-                        if tool_name == "write_todos" and self._is_websocket_connected(websocket):
-                            try:
-                                # Extract plan from tool input
-                                plan = tool_input.get("plan") if isinstance(tool_input, dict) else None
-                                # Extract steps if available
-                                steps = None
-                                if isinstance(tool_input, dict):
-                                    raw_steps = tool_input.get("steps")
-                                    if isinstance(raw_steps, list):
-                                        steps = [
-                                            PlanningStep(text=str(s), done=False) for s in raw_steps
-                                        ]
-                                        # Update estimated total based on planning steps
-                                        estimated_total_steps = len(steps)
-
-                                await websocket.send_json(
-                                    WSPlanningMessage(
-                                        type="planning",
-                                        plan=plan,
-                                        steps=steps,
-                                        step_number=current_step,
-                                        total_steps=estimated_total_steps,
-                                        invocation_id=main_invocation_id,
-                                    ).model_dump(mode="json")
-                                )
-                                logger.info(f"Sent WebSocket planning event: plan={plan}, steps={len(steps) if steps else 0}")
-                            except Exception:
-                                logger.debug("Failed to send planning event")
-                            pass
-
-                        # Detect Deep Agent subagent delegation (task tool)
-                        elif tool_name == "task" and self._is_websocket_connected(websocket):
-                            try:
-                                # Extract subagent_type and description from tool input
-                                subagent_type = tool_input.get("subagent_type") if isinstance(tool_input, dict) else None
-                                description = tool_input.get("description") if isinstance(tool_input, dict) else None
-
-                                logger.info(f"[SUBAGENT_DELEGATION] Main agent delegating to subagent '{subagent_type}': {description}")
-
-                                # Flush main agent buffer before switching to subagent
-                                await buffer_manager.flush_agent(source="main")
-
-                                if subagent_type:
-                                    # Add telemetry span for subagent delegation
-                                    with trace_subagent_delegation(subagent_type, description):
-                                        # The actual tool execution happens outside this context
-                                        # This span marks when the delegation occurs
-                                        pass
-
-                                    await websocket.send_json(
-                                        WSSubagentMessage(
-                                            type="subagent",
-                                            subagent=subagent_type,
-                                            message=description,
-                                            step_number=current_step,
-                                            total_steps=estimated_total_steps,
-                                            invocation_id=current_invocation_id,
-                                        ).model_dump(mode="json")
-                                    )
-                                    logger.info(f"Subagent delegation: {subagent_type}")
-                            except Exception:
-                                logger.debug("Failed to send subagent event")
-                            pass
-
-                        # Send standard tool_call message with step information
-                        if self._is_websocket_connected(websocket):
-                            try:
-                                await websocket.send_json(
-                                    WSToolCallMessage(
-                                        type="tool_call",
-                                        tool=tool_name,
-                                        args=tool_input,
-                                        step_number=current_step,
-                                        total_steps=estimated_total_steps,
-                                        invocation_id=current_invocation_id if current_subagent_name else main_invocation_id,
-                                    ).model_dump(mode="json")
-                                )
-                            except Exception:
-                                # WebSocket may be closed
-                                logger.warning("Failed to send tool_call, WebSocket may be closed")
-                                pass
-                        else:
-                            logger.debug("WebSocket not connected, skipping tool_call send")
-
-                    # Handle tool end
-                    elif event_type == "on_tool_end":
-                        tool_name = event.get("name", "")
-
-                        # Send subagent result when task tool completes
-                        if tool_name == "task":
-                            # Get subagent content from event output (no longer intercepted by middleware)
-                            tool_output = data.get("output", "")
-                            subagent_content = ""
-
-                            # Extract content from various output formats
-                            if isinstance(tool_output, ToolMessage):
-                                # ToolMessage.content can be str | list[str | dict[Any, Any]]
-                                raw_content = tool_output.content
-                                subagent_content = raw_content if isinstance(raw_content, str) else str(raw_content)
-                            elif isinstance(tool_output, Command):
-                                # Command objects from langgraph subagent delegation
-                                # The subagent's response is in the update field
-                                update_dict = tool_output.update
-                                if isinstance(update_dict, dict):
-                                    # Extract messages from the update
-                                    messages = update_dict.get("messages", [])
-                                    if messages:
-                                        # Get the last message which is the subagent's response
-                                        last_msg = messages[-1]
-                                        if isinstance(last_msg, dict):
-                                            subagent_content = last_msg.get("content", "")
-                                        elif hasattr(last_msg, "content"):
-                                            subagent_content = str(last_msg.content)
-                                        else:
-                                            subagent_content = str(last_msg)
-                            elif isinstance(tool_output, dict) and "content" in tool_output:
-                                subagent_content = tool_output["content"]
-                            elif isinstance(tool_output, str):
-                                subagent_content = tool_output
-
-                            # Ensure subagent_content is a string
-                            if not isinstance(subagent_content, str):
-                                subagent_content = str(subagent_content)
-
-                            if subagent_content:
-                                # Track subagent message for later persistence in correct order
-                                # The subagent should be associated with the CURRENT main_invocation_id
-                                # (the one that will become "old" after regeneration below)
-                                subagent_type = current_subagent_name or "subagent"
-                                if subagent_type not in self._subagent_invocation_counts:
-                                    self._subagent_invocation_counts[subagent_type] = 0
-                                self._subagent_invocation_counts[subagent_type] += 1
-                                invocation_number = self._subagent_invocation_counts[subagent_type]
-
-                                # Store subagent message with the main_invocation_id that initiated the task
-                                # Use task_initiating_main_invocation_id to ensure correct association
-                                # This ensures subagent messages are saved after the main segment that triggered them
-                                target_invocation_id = task_initiating_main_invocation_id or main_invocation_id
-                                subagent_messages_by_main_invocation[target_invocation_id].append({
-                                    "role": "assistant",
-                                    "content": subagent_content,
-                                    "message_metadata": {
-                                        "subagent_name": subagent_type,
-                                        "invocation_number": invocation_number,
-                                    } if current_subagent_name else None,
-                                })
-                                # Send WebSocket message
-                                if self._is_websocket_connected(websocket):
-                                    try:
-                                        await websocket.send_json(
-                                            WSSubagentResultMessage(
-                                                type="subagent_result",
-                                                subagent_name=current_subagent_name or "subagent",
-                                                content=subagent_content,
-                                                invocation_id=current_invocation_id,
-                                            ).model_dump(mode="json")
-                                        )
-                                        logger.info(
-                                            f"Sent subagent result: name={current_subagent_name}, "
-                                            f"content_length={len(subagent_content)}"
-                                        )
-                                    except Exception:
-                                        logger.debug("Failed to send subagent result, WebSocket may be closed")
-
-                            # Flush subagent buffer
-                            await buffer_manager.flush_agent(
-                                source="subagent",
-                                subagent_name=current_subagent_name,
-                                invocation_id=current_invocation_id,
-                            )
-
-                            # Send subagent completion message
-                            if self._is_websocket_connected(websocket):
-                                try:
-                                    await websocket.send_json(
-                                        WSAgentCompleteMessage(
-                                            type="agent_complete",
-                                            agent_type="subagent",
-                                            invocation_id=current_invocation_id,
-                                            agent_name=current_subagent_name,
-                                        ).model_dump(mode="json")
-                                    )
-                                    logger.debug(f"Sent subagent completion: invocation_id={current_invocation_id}")
-                                except Exception:
-                                    logger.debug("Failed to send subagent completion, WebSocket may be closed")
-
-                            # Send content reset to signal frontend to start new main agent bubble
-                            if self._is_websocket_connected(websocket):
-                                try:
-                                    # Flush main agent buffer BEFORE sending content_reset
-                                    # This ensures all tokens from the old invocation_id are sent first
-                                    await buffer_manager.flush_agent(source="main")
-                                    await websocket.send_json(
-                                        WSContentResetMessage(
-                                            type="content_reset",
-                                            reason="subagent_completed",
-                                        ).model_dump(mode="json")
-                                    )
-                                    logger.debug("Sent content reset message after subagent completion")
-                                except Exception:
-                                    logger.debug("Failed to send content reset, WebSocket may be closed")
-
-                            # Note: We NO LONGER reset accumulated_content here
-                            # The main agent's thoughts persist across subagent executions
-                            # to enable progressive acknowledgment and final synthesis
-
-                            current_subagent_name = None
-                            current_invocation_id = None
-                            task_initiating_main_invocation_id = None
-
-                        # Generate new invocation_id for main agent's continuation after ANY tool completion
-                        # This includes tools initiated by main agent AND tools initiated by subagents
-                        # Every tool completion creates a new main agent bubble
-                        # Note: old_invocation_id tracked for potential future use in debugging
-                        _old_invocation_id = main_invocation_id  # noqa: F841 (tracked for debugging)
-                        main_invocation_id = str(uuid.uuid4())
+                    # Subagent result handling
+                    if tool_name == "task":
+                        # Flush subagent tokens before processing result
+                        _flush_accumulated_tokens(current_invocation_id)
 
                         tool_output = data.get("output", "")
+                        subagent_content = ""
 
-                        # Extract content from ToolMessage if present
-                        result_content = tool_output
                         if isinstance(tool_output, ToolMessage):
-                            # ToolMessage objects have a content attribute that may be str, list, or dict
-                            result_content = tool_output.content
-                        elif isinstance(tool_output, dict) and "content" in tool_output:
-                            # Sometimes output is a dict with content field
-                            result_content = tool_output["content"]
+                            raw_content = tool_output.content
+                            subagent_content = raw_content if isinstance(raw_content, str) else str(raw_content)
                         elif isinstance(tool_output, Command):
-                            # Command objects from langgraph subagent delegation - convert to dict
-                            result_content = {"command": tool_output.update}
+                            update_dict = tool_output.update
+                            if isinstance(update_dict, dict):
+                                messages = update_dict.get("messages", [])
+                                if messages:
+                                    last_msg = messages[-1]
+                                    if isinstance(last_msg, dict):
+                                        subagent_content = last_msg.get("content", "")
+                                    elif hasattr(last_msg, "content"):
+                                        subagent_content = str(last_msg.content)
+                                    else:
+                                        subagent_content = str(last_msg)
+                        elif isinstance(tool_output, dict) and "content" in tool_output:
+                            subagent_content = tool_output["content"]
+                        elif isinstance(tool_output, str):
+                            subagent_content = tool_output
 
-                        # Convert to JSON-serializable format (handles nested ToolMessage objects)
-                        result_content = self._make_json_serializable(result_content)
+                        if not isinstance(subagent_content, str):
+                            subagent_content = str(subagent_content)
 
-                        # Record tool result (only for main agent — subagent tools
-                        # are not attributed to the main agent's persisted record)
-                        if current_subagent_name is None:
-                            tool_result: dict[str, Any] = {
-                                "tool": tool_name,
-                                "success": True,
-                                "result": result_content,
-                                "error": None,
-                            }
-                            all_tool_results.append(tool_result)
+                        if subagent_content:
+                            subagent_type = current_subagent_name or "subagent"
+                            if subagent_type not in self._subagent_invocation_counts:
+                                self._subagent_invocation_counts[subagent_type] = 0
+                            self._subagent_invocation_counts[subagent_type] += 1
+                            invocation_number = self._subagent_invocation_counts[subagent_type]
 
-                    # Handle tool error
-                    elif event_type == "on_tool_error":
-                        tool_name = event.get("name", "")
-                        error = data.get("error")
+                            target_invocation_id = task_initiating_main_invocation_id or main_invocation_id
+                            subagent_messages_by_main_invocation[target_invocation_id].append({
+                                "role": "assistant",
+                                "content": subagent_content,
+                                "message_metadata": {
+                                    "subagent_name": subagent_type,
+                                    "invocation_number": invocation_number,
+                                } if current_subagent_name else None,
+                            })
 
-                        # Record tool error (only for main agent)
-                        if current_subagent_name is None:
-                            error_result: dict[str, Any] = {
-                                "tool": tool_name,
-                                "success": False,
-                                "result": None,
-                                "error": str(error) if error else "Unknown error",
-                            }
-                            all_tool_results.append(error_result)
+                            _publish(
+                                "subagent_result",
+                                WSSubagentResultMessage(
+                                    type="subagent_result",
+                                    subagent_name=current_subagent_name or "subagent",
+                                    content=subagent_content,
+                                    invocation_id=current_invocation_id,
+                                ).model_dump(mode="json"),
+                            )
 
-                        if self._is_websocket_connected(websocket):
-                            try:
-                                msg_data = WSToolResultMessage(
-                                    type="tool_result",
-                                    tool=tool_name,
-                                    result=jsonable_encoder(tool_result),
-                                    invocation_id=current_invocation_id if current_subagent_name else main_invocation_id,
-                                ).model_dump(mode="json")
-                                logger.debug(f"Sending tool_result: tool={tool_name}, data_keys={list(tool_result.keys()) if isinstance(tool_result, dict) else 'not_dict'}, result_type={type(tool_result.get('result')).__name__ if isinstance(tool_result, dict) and 'result' in tool_result else 'unknown'}")
-                                await websocket.send_json(msg_data)
-                            except Exception as e:
-                                # WebSocket may be closed or serialization error
-                                logger.warning(f"Failed to send tool_result for {tool_name}: {e}")
-                                pass
-                        else:
-                            logger.debug("WebSocket not connected, skipping tool_result send")
-
-                    # Handle completion
-                    elif event_type == "on_end":
-                        output = data.get("output", {})
-                        messages = output.get("messages", [])
-
-                        # Extract tool calls from the final messages
-                        for msg in messages:
-                            if isinstance(msg, AIMessage) and msg.tool_calls:
-                                # Convert ToolCall objects to dict format
-                                for tc in msg.tool_calls:
-                                    all_tool_calls.append({
-                                        "id": tc.get("id", ""),
-                                        "name": tc.get("name", ""),
-                                        "args": tc.get("args", {}),
-                                    })
-
-                        logger.info(f"Graph execution completed for session {session_id}")
-
-            try:
-                await asyncio.wait_for(_consume_stream(), timeout=300)
-            except TimeoutError:
-                logger.error(f"Streaming timeout for session {session_id}")
-                if self._is_websocket_connected(websocket):
-                    try:
-                        await websocket.send_json(
-                            WSErrorMessage(
-                                type="error",
-                                message="Response generation timed out after 5 minutes",
-                                code=408,
-                            ).model_dump(mode="json")
+                        # Subagent completion
+                        _publish(
+                            "agent_complete",
+                            WSAgentCompleteMessage(
+                                type="agent_complete",
+                                agent_type="subagent",
+                                invocation_id=current_invocation_id,
+                                agent_name=current_subagent_name,
+                            ).model_dump(mode="json"),
                         )
-                    except Exception:
-                        pass
 
-            # CRITICAL: Check for tool errors and rollback session if needed
-            # Tool execution failures can leave the database session in a rolled back state
-            # We need to rollback explicitly to restore the session to a usable state
-            tool_errors_occurred = any(not tr["success"] for tr in all_tool_results)
-            if tool_errors_occurred:
-                logger.warning(
-                    f"Tool errors occurred during execution for session {session_id}. "
-                    f"Rolling back database session to restore usable state."
-                )
-                try:
-                    await db.rollback()
-                    logger.info(f"Database session rolled back successfully for session {session_id}")
-                except Exception as rollback_error:
-                    logger.error(f"Error during session rollback: {rollback_error}", exc_info=True)
+                        # Content reset after subagent
+                        _publish(
+                            "content_reset",
+                            WSContentResetMessage(
+                                type="content_reset",
+                                reason="subagent_completed",
+                            ).model_dump(mode="json"),
+                        )
+
+                        current_subagent_name = None
+                        current_invocation_id = None
+                        task_initiating_main_invocation_id = None
+
+                    # Generate new main invocation_id after tool completion
+                    _old_invocation_id = main_invocation_id  # noqa: F841
+                    main_invocation_id = str(uuid.uuid4())
+
+                    tool_output = data.get("output", "")
+                    result_content = tool_output
+                    if isinstance(tool_output, ToolMessage):
+                        result_content = tool_output.content
+                    elif isinstance(tool_output, dict) and "content" in tool_output:
+                        result_content = tool_output["content"]
+                    elif isinstance(tool_output, Command):
+                        result_content = {"command": tool_output.update}
+
+                    result_content = self._make_json_serializable(result_content)
+
+                    if current_subagent_name is None:
+                        tool_result_dict: dict[str, Any] = {
+                            "tool": tool_name,
+                            "success": True,
+                            "result": result_content,
+                            "error": None,
+                        }
+                        all_tool_results.append(tool_result_dict)
+
+                        _publish(
+                            "tool_result",
+                            WSToolResultMessage(
+                                type="tool_result",
+                                tool=tool_name,
+                                result=jsonable_encoder(tool_result_dict),
+                                invocation_id=current_invocation_id if current_subagent_name else main_invocation_id,
+                            ).model_dump(mode="json"),
+                        )
+
+                # Handle tool error
+                elif event_type == "on_tool_error":
+                    tool_name = event.get("name", "")
+                    error = data.get("error")
+
+                    if current_subagent_name is None:
+                        error_result_dict: dict[str, Any] = {
+                            "tool": tool_name,
+                            "success": False,
+                            "result": None,
+                            "error": str(error) if error else "Unknown error",
+                        }
+                        all_tool_results.append(error_result_dict)
+
+                        _publish(
+                            "tool_result",
+                            WSToolResultMessage(
+                                type="tool_result",
+                                tool=tool_name,
+                                result=jsonable_encoder(error_result_dict),
+                                invocation_id=current_invocation_id if current_subagent_name else main_invocation_id,
+                            ).model_dump(mode="json"),
+                        )
+
+                # Handle completion
+                elif event_type == "on_end":
+                    output = data.get("output", {})
+                    messages = output.get("messages", [])
+
+                    for msg in messages:
+                        if isinstance(msg, AIMessage) and msg.tool_calls:
+                            for tc in msg.tool_calls:
+                                all_tool_calls.append({
+                                    "id": tc.get("id", ""),
+                                    "name": tc.get("name", ""),
+                                    "args": tc.get("args", {}),
+                                })
+
+                    logger.info(f"Graph execution completed for execution event_bus {event_bus.execution_id}")
+
+            # Flush all remaining accumulated tokens after stream ends
+            for inv_id in list(_token_accumulator.keys()):
+                _flush_accumulated_tokens(inv_id)
 
         except Exception as e:
-            logger.error(f"Error in chat_stream astream_events: {e}", exc_info=True)
-            # Rollback session on any exception to ensure clean state
-            try:
-                await db.rollback()
-            except Exception:
-                pass  # Best effort rollback
-            # Send error message via WebSocket
-            if self._is_websocket_connected(websocket):
-                try:
-                    await websocket.send_json(
-                        WSErrorMessage(
-                            type="error",
-                            message=f"An error occurred: {str(e)}",
-                            code=500,
-                        ).model_dump(mode="json")
-                    )
-                except Exception:
-                    # WebSocket may be closed
-                    pass
-            else:
-                logger.debug("WebSocket not connected, skipping error send")
-
+            logger.error(f"Error in _run_agent_graph: {e}", exc_info=True)
+            event_bus.publish(
+                AgentEvent(
+                    event_type="error",
+                    data={"message": str(e), "code": 500},
+                    timestamp=datetime.now(),
+                )
+            )
         finally:
-            # Clear per-request context
+            # Flush any remaining tokens (covers error path)
+            for inv_id in list(_token_accumulator.keys()):
+                _flush_accumulated_tokens(inv_id)
             clear_request_context()
-            # Set cancellation token to ensure stream aborts if still running
-            cancellation_token.set()
-            # Clean up token from dict to prevent memory leaks
-            self._cancellation_tokens.pop(session_id, None)
             self.unregister_interrupt_node(session_id)
 
-        # Save assistant messages to session in conversational order
-        # Order: main segment → its subagents → next main segment → its subagents, etc.
-        # This preserves the correct conversational flow in the frontend after response completes
-        # Wrap in try/except to handle any session state issues
+        # Save assistant messages to session
         try:
-            # Get invocation IDs in the order they were created (maintains chronological order)
             invocation_ids_in_order = list(main_agent_segments.keys())
             total_main_segments = len(invocation_ids_in_order)
-
-            # Save messages in conversational order: main segment → subagents → main segment → subagents
             assistant_msg = None
-            message_count = 0
-            for idx, inv_id in enumerate(invocation_ids_in_order):
-                # Save main agent segment
-                segment_content = "".join(main_agent_segments[inv_id])
 
-                # Add metadata to track invocation_id and order
+            for idx, inv_id in enumerate(invocation_ids_in_order):
+                segment_content = "".join(main_agent_segments[inv_id])
                 metadata = {
                     "invocation_id": inv_id,
                     "segment_index": idx,
                     "total_segments": total_main_segments,
                 }
 
-                # Only attach tool_calls and tool_results to the first main segment
-                # This prevents duplication and maintains backward compatibility
                 segment_tool_calls = all_tool_calls if idx == 0 and all_tool_calls else None
                 segment_tool_results = all_tool_results if idx == 0 and all_tool_results else None
-
-                logger.info(
-                    f"[SAVE_MAIN_SEGMENT] Saving main segment {idx + 1}/{total_main_segments}: "
-                    f"invocation_id={inv_id}, content_length={len(segment_content)}, "
-                    f"has_tool_calls={segment_tool_calls is not None}"
-                )
 
                 segment_msg = await self.config_service.add_message(
                     session_id=session_id,
@@ -1363,125 +1100,232 @@ class AgentService:
                     tool_results=segment_tool_results,
                     message_metadata=metadata,
                 )
-                await db.commit()
-                await db.refresh(segment_msg)
-                message_count += 1
-
-                # Keep track of the last message for the completion message
+                await self.session.commit()
+                await self.session.refresh(segment_msg)
                 assistant_msg = segment_msg
 
-                # Save subagent messages that were triggered by this main agent segment
-                # These are already tracked in subagent_messages_by_main_invocation[inv_id]
                 if inv_id in subagent_messages_by_main_invocation:
-                    subagent_msgs = subagent_messages_by_main_invocation[inv_id]
-                    logger.info(
-                        f"[SAVE_SUBAGENT_MESSAGES] Saving {len(subagent_msgs)} subagent message(s) "
-                        f"triggered by main segment invocation_id={inv_id}"
-                    )
-
-                    for subagent_msg_data in subagent_msgs:
+                    for subagent_msg_data in subagent_messages_by_main_invocation[inv_id]:
                         subagent_msg = await self.config_service.add_message(
                             session_id=session_id,
-                            **subagent_msg_data
+                            **subagent_msg_data,
                         )
-                        await db.commit()
-                        await db.refresh(subagent_msg)
-                        message_count += 1
-
-                        # Update assistant_msg to the last message (could be subagent)
+                        await self.session.commit()
+                        await self.session.refresh(subagent_msg)
                         assistant_msg = subagent_msg
 
-                        logger.info(
-                            f"[SAVE_SUBAGENT_MESSAGE] Saved subagent message: "
-                            f"subagent_name={subagent_msg_data.get('message_metadata', {}).get('subagent_name')}, "
-                            f"content_length={len(subagent_msg_data.get('content', ''))}"
-                        )
-
-            logger.info(
-                f"[SAVE_COMPLETE] Saved {message_count} total messages to session {session_id} "
-                f"({total_main_segments} main segments + {message_count - total_main_segments} subagent messages)"
-            )
         except Exception as msg_error:
-            logger.error(f"Error saving assistant messages to session {session_id}: {msg_error}", exc_info=True)
-            # Rollback to ensure session is clean
+            logger.error(f"Error saving messages in _run_agent_graph: {msg_error}", exc_info=True)
             try:
-                await db.rollback()
+                await self.session.rollback()
             except Exception:
                 pass
-            # Try to save messages again with clean session (without tool results if they caused issues)
-            try:
-                # Fallback: save as single message with accumulated content
-                assistant_msg = await self.config_service.add_message(
-                    session_id=session_id,
-                    role="assistant",
-                    content=accumulated_content or "",
-                    tool_calls=None,  # Don't include tool calls on retry
-                    tool_results=None,  # Don't include tool results on retry
-                    message_metadata=None,
-                )
-                await db.commit()
-                await db.refresh(assistant_msg)
-                logger.info(f"Successfully saved fallback message to session {session_id} after cleanup")
-            except Exception as retry_error:
-                logger.error(f"Failed to save message even after cleanup: {retry_error}", exc_info=True)
-                # Continue anyway - we've done our best to save the state
 
-        # Flush all remaining buffers before completion
-        await buffer_manager.flush_all()
+        # Publish main agent completion
+        _publish(
+            "agent_complete",
+            WSAgentCompleteMessage(
+                type="agent_complete",
+                agent_type="main",
+                invocation_id=main_invocation_id,
+                agent_name="Assistant",
+            ).model_dump(mode="json"),
+        )
 
-        # Stop the buffer manager to clean up background tasks
-        # This ensures the background flush loop is properly terminated
-        try:
-            await buffer_manager.stop()
-        except Exception as buffer_error:
-            logger.warning(f"Error stopping buffer manager: {buffer_error}")
-            # Continue anyway - buffers are already flushed
+        # Publish final complete event
+        _publish(
+            "complete",
+            WSCompleteMessage(
+                type="complete",
+                session_id=session_id,
+                message_id=assistant_msg.id if assistant_msg else None,
+            ).model_dump(mode="json"),
+        )
 
-        # Send main agent completion message before final completion
-        if self._is_websocket_connected(websocket):
-            try:
-                await websocket.send_json(
-                    WSAgentCompleteMessage(
-                        type="agent_complete",
-                        agent_type="main",
-                        invocation_id=main_invocation_id,
-                        agent_name="Assistant",
-                    ).model_dump(mode="json")
-                )
-                logger.debug(f"Sent main agent completion: invocation_id={main_invocation_id}")
-            except Exception:
-                logger.debug("Failed to send main agent completion, WebSocket may be closed")
+        # Publish execution status so frontend clears activeExecutionIdRef
+        _publish(
+            "execution_status",
+            {
+                "type": "execution_status",
+                "execution_id": event_bus.execution_id,
+                "status": "completed",
+                "session_id": str(session_id),
+            },
+        )
 
-        # Send complete message
-        # Use the last message ID for the completion message (maintains backward compatibility)
-        if self._is_websocket_connected(websocket) and assistant_msg:
-            try:
-                await websocket.send_json(
-                    WSCompleteMessage(
-                        type="complete",
-                        session_id=session_id,
-                        message_id=assistant_msg.id,
-                    ).model_dump(mode="json")
-                )
-            except Exception:
-                # WebSocket may be closed, but message is persisted
-                logger.warning("WebSocket closed before sending complete message")
-        elif not assistant_msg:
-            logger.warning("No assistant message was saved, skipping completion message")
-        else:
-            logger.debug("WebSocket not connected, skipping complete send")
-
-        # Log chat stream complete with metrics
+        # Log summary
         stream_duration_ms = (time.time() - stream_start_time) * 1000
         logger.info(
-            f"[CHAT_STREAM_COMPLETE] chat_stream | "
+            f"[RUN_AGENT_GRAPH_COMPLETE] _run_agent_graph | "
             f"duration_ms={stream_duration_ms:.2f} | "
+            f"execution_id={event_bus.execution_id} | "
             f"session_id={session_id} | "
-            f"message_id={assistant_msg.id if assistant_msg else 'N/A'} | "
             f"total_tokens={total_tokens} | "
-            f"tool_calls_count={tool_calls_count} | "
-            f"tool_results_count={len(all_tool_results)}"
+            f"tool_calls_count={tool_calls_count}"
         )
+
+    async def start_execution(
+        self,
+        message: str,
+        assistant_config: AIAssistantConfig,
+        session_id: UUID,
+        user_id: UUID,
+        project_id: UUID | None = None,
+        branch_id: UUID | None = None,
+        as_of: datetime | None = None,
+        branch_name: str | None = None,
+        branch_mode: Literal["merged", "isolated"] | None = None,
+        execution_mode: ExecutionMode = ExecutionMode.STANDARD,
+        execution_id: str | None = None,
+        event_bus: AgentEventBus | None = None,
+    ) -> str:
+        """Start a background agent execution with its own DB session and event bus.
+
+        Context: Creates an independent execution context that decouples the agent
+        run from any specific WebSocket connection. Events are published to an
+        AgentEventBus registered with the runner_manager, allowing any consumer
+        (REST SSE, WebSocket reconnection) to subscribe by execution ID.
+
+        The caller may pre-create an execution_id and event_bus and pass them in.
+        This is useful when the caller needs to subscribe to the bus immediately
+        (e.g., a WebSocket handler that starts the execution and forwards events
+        in parallel).
+
+        Args:
+            message: The user's input message
+            assistant_config: Configuration defining the model and allowed tools
+            session_id: Existing session ID to continue
+            user_id: ID of the user who sent the message
+            project_id: Optional project context UUID
+            branch_id: Optional branch context UUID
+            as_of: Optional historical date for temporal queries
+            branch_name: Optional branch name for temporal queries
+            branch_mode: Optional branch mode for temporal queries
+            execution_mode: Execution mode for tool filtering
+            execution_id: Optional pre-generated execution ID. If not provided,
+                a new UUID is generated.
+            event_bus: Optional pre-created event bus. If not provided, a new
+                bus is created and registered with the runner_manager.
+
+        Returns:
+            execution_id string for tracking the agent execution
+
+        Raises:
+            ValueError: If session creation fails
+        """
+        from app.db.session import async_session_maker
+
+        if execution_id is None:
+            execution_id = str(uuid.uuid4())
+
+        # Use provided bus or create a new one
+        should_remove_bus = False
+        if event_bus is None:
+            event_bus = runner_manager.create_bus(execution_id)
+            should_remove_bus = True
+
+        # Create independent DB session for this execution
+        async with async_session_maker() as db:
+            # Pre-fetch the session row so it is accessible in except/finally blocks
+            session_stmt = select(AIConversationSession).where(
+                AIConversationSession.id == str(session_id)
+            )
+            session_result = await db.execute(session_stmt)
+            db_session = session_result.scalar_one_or_none()
+
+            try:
+                # Create execution tracking row
+                execution = AIAgentExecution(
+                    session_id=str(session_id),
+                    status="running",
+                    execution_mode=execution_mode.value,
+                )
+                db.add(execution)
+                await db.commit()
+                await db.refresh(execution)
+
+                # Set active_execution_id on session
+                if db_session is not None:
+                    db_session.active_execution_id = str(execution.id)
+                    await db.commit()
+
+                # Create agent service with this DB session
+                exec_service = AgentService(db)
+
+                # Run the agent graph, publishing events to the bus
+                await exec_service._run_agent_graph(
+                    message=message,
+                    assistant_config=assistant_config,
+                    session_id=session_id,
+                    user_id=user_id,
+                    event_bus=event_bus,
+                    project_id=project_id,
+                    branch_id=branch_id,
+                    as_of=as_of,
+                    branch_name=branch_name,
+                    branch_mode=branch_mode,
+                    execution_mode=execution_mode,
+                )
+
+                # Update execution tracking row
+                execution.status = "completed"
+                execution.completed_at = datetime.now()  # type: ignore[assignment]
+                await db.commit()
+
+                # Clear active_execution_id on session
+                if db_session is not None:
+                    db_session.active_execution_id = None
+                    await db.commit()
+
+            except Exception as e:
+                logger.error(f"Error in start_execution {execution_id}: {e}", exc_info=True)
+                # Update execution tracking row with error
+                try:
+                    execution.status = "error"
+                    execution.error_message = str(e)
+                    execution.completed_at = datetime.now()  # type: ignore[assignment]
+                    await db.commit()
+                except Exception:
+                    await db.rollback()
+
+                # Clear active_execution_id on session (best-effort)
+                if db_session is not None:
+                    try:
+                        db_session.active_execution_id = None
+                        await db.commit()
+                    except Exception:
+                        pass
+
+                # Publish error event
+                event_bus.publish(
+                    AgentEvent(
+                        event_type="error",
+                        data={"message": str(e), "code": 500},
+                        timestamp=datetime.now(),
+                    )
+                )
+
+                # Publish execution status so frontend clears activeExecutionIdRef
+                event_bus.publish(
+                    AgentEvent(
+                        event_type="execution_status",
+                        data={
+                            "type": "execution_status",
+                            "execution_id": execution_id,
+                            "status": "error",
+                            "session_id": str(session_id),
+                        },
+                        timestamp=datetime.now(),
+                    )
+                )
+
+                raise
+            finally:
+                # Clean up the event bus from runner_manager only if we created it
+                if should_remove_bus:
+                    runner_manager.remove_bus(execution_id)
+
+        return execution_id
 
     def _build_system_prompt(
         self,

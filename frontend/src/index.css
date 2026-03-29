@@ -106,6 +106,26 @@ body {
   textarea {
     font-size: 16px;
   }
+
+  /* Compact header navigation for mobile */
+  .header-navigation-menu {
+    min-width: unset !important;
+  }
+
+  .header-navigation-menu .ant-menu-item {
+    padding: 0 8px !important;
+    min-width: unset !important;
+  }
+
+  .header-navigation-menu .ant-menu-title-content {
+    display: none;
+  }
+
+  /* Ensure header doesn't overflow */
+  .ant-layout-header {
+    flex-wrap: nowrap !important;
+    overflow-x: hidden !important;
+  }
 }
 
 /* Technical grid pattern for chat backgrounds */
