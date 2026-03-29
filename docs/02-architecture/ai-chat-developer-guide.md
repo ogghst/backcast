@@ -63,7 +63,7 @@ Browser (React)                          Backend (FastAPI)
 
 | Path | When Used | Description |
 |------|-----------|-------------|
-| **LangChain Agent** (primary) | Default path | Multi-agent orchestration via `langchain.agents.create_agent()` with `task` delegation to 7 subagents |
+| **LangChain Agent** (primary) | Default path | Multi-agent orchestration via `langchain.agents.create_agent()` with `task` delegation to 6 subagents |
 | **StateGraph fallback** | Subagents disabled or no valid subagent tools | Direct LangGraph `StateGraph` with agent node, tool node, and conditional edges. Max 5 tool iterations. |
 
 The primary path lives in `deep_agent_orchestrator.py` (`DeepAgentOrchestrator.create_agent()`), which wraps `langchain.agents.create_agent()` with Backcast config. The fallback path lives in `graph.py` (`create_graph()`).
@@ -84,8 +84,8 @@ agent_service.py (orchestration)
     |
     +---> DeepAgentOrchestrator.create_agent()
     |         |
-    |         +---> tools/__init__.py  (create_project_tools - 66 tools)
-    |         +---> subagents/__init__.py  (7 subagent configs)
+    |         +---> tools/__init__.py  (create_project_tools - All tools (69, 8 template packages))
+    |         +---> subagents/__init__.py  (6 subagent configs)
     |         +---> middleware/
     |         |      +---> temporal_context.py   (inject as_of, branch)
     |         |      +---> backcast_security.py  (RBAC + approval)
@@ -238,7 +238,7 @@ This context flows through middleware to every tool call — the LLM cannot over
 File: `agent_service.py` (_create_deep_agent_graph) and `deep_agent_orchestrator.py` (create_agent)
 
 ```
-1. create_project_tools(context)     → 66 LangChain BaseTool instances (8 template packages)
+1. create_project_tools(context)     → 69 LangChain BaseTool instances (8 template packages)
 2. Filter by allowed_tools           → Assistant config whitelist
 3. Filter by execution_mode          → Risk-level filtering (safe/standard/expert)
 4. If subagents enabled:
@@ -247,7 +247,7 @@ File: `agent_service.py` (_create_deep_agent_graph) and `deep_agent_orchestrator
 5. Build middleware stack:
    - TemporalContextMiddleware(context)
    - BackcastSecurityMiddleware(context, tools=all_tools, interrupt_node)
-6. Create SubAgent objects (7 subagents)
+6. Create SubAgent objects (6 subagents)
 7. Build system prompt with delegation instructions
 8. langchain_create_agent(model, tools, system_prompt, middleware)
 9. Register InterruptNode for approval handling
@@ -299,22 +299,21 @@ This means middleware baked into a cached graph at compile time still gets fresh
 
 ### Subagents
 
-7 specialized subagents defined in `subagents/__init__.py`:
+6 specialized subagents defined in `subagents/__init__.py`:
 
 | Subagent | Purpose | Key Tools |
 |----------|---------|-----------|
-| `project_manager` | Project & WBE CRUD | `list_projects`, `get_project`, `create_project`, `update_project`, `list_wbes`, `get_wbe`, `create_wbe` |
+| `project_manager` | Projects, WBEs, cost elements & cost registrations | `list_projects`, `get_project`, `create_project`, `update_project`, `list_wbes`, `get_wbe`, `create_wbe`, `list_cost_elements`, `get_cost_element`, `create_cost_element`, `update_cost_element`, `delete_cost_element`, `list_cost_element_types`, `get_cost_element_type`, `create_cost_element_type`, `update_cost_element_type`, `delete_cost_element_type`, `get_cost_element_summary`, `get_cost_registration`, `create_cost_registration`, `update_cost_registration`, `delete_cost_registration`, `list_cost_registrations`, `get_budget_status` |
 | `evm_analyst` | EVM metrics & performance | `calculate_evm_metrics`, `get_evm_performance_summary`, `analyze_cost_variance`, `analyze_schedule_variance`, `get_project_kpis`, `assess_project_health`, `detect_evm_anomalies`, `generate_optimization_suggestions` |
 | `change_order_manager` | Change order workflows | `list_change_orders`, `get_change_order`, `create_change_order`, `generate_change_order_draft`, `submit_change_order_for_approval`, `approve_change_order`, `reject_change_order`, `analyze_change_order_impact` |
-| `cost_controller` | Cost elements & schedules | `list_cost_elements`, `get_cost_element`, `create_cost_element`, `update_cost_element`, `delete_cost_element`, `get_schedule_baseline`, `update_schedule_baseline`, `delete_schedule_baseline`, `list_cost_element_types`, `get_cost_element_type`, `create_cost_element_type`, `update_cost_element_type`, `delete_cost_element_type`, `get_cost_element_summary` |
 | `user_admin` | User & department management | `list_users`, `get_user`, `create_user`, `update_user`, `delete_users`, `list_departments`, `get_department`, `create_department`, `update_department`, `delete_department` |
 | `visualization_specialist` | Diagram generation | `generate_mermaid_diagram` |
-| `forecast_manager` | Forecasts & cost tracking | `get_forecast`, `create_forecast`, `update_forecast`, `compare_forecast_to_budget`, `get_budget_status`, `generate_project_forecast`, `compare_forecast_scenarios`, `get_forecast_accuracy`, `create_cost_registration`, `list_cost_registrations`, `get_cost_trends`, `get_cumulative_costs`, `get_latest_progress`, `create_progress_entry`, `get_progress_history`, `analyze_forecast_trends` |
+| `forecast_manager` | Forecasts, cost tracking & schedule baselines | `get_forecast`, `create_forecast`, `update_forecast`, `compare_forecast_to_budget`, `get_budget_status`, `generate_project_forecast`, `compare_forecast_scenarios`, `get_forecast_accuracy`, `create_cost_registration`, `list_cost_registrations`, `get_cost_trends`, `get_cumulative_costs`, `get_latest_progress`, `create_progress_entry`, `get_progress_history`, `analyze_forecast_trends`, `get_schedule_baseline`, `update_schedule_baseline`, `delete_schedule_baseline` |
 
 ### Tool Filtering Pipeline
 
 ```
-All tools (66, 8 template packages)
+All tools (69, 8 template packages)
     │
     ▼ allowed_tools whitelist (assistant config)
 Filtered to whitelist
@@ -729,7 +728,7 @@ Client                                Server
   |<-- WSSubagentResultMessage --------|  (subagent done)
   |<-- WSContentResetMessage ----------|  (clear buffer)
   |                                     |
-  |<-- WSSubagentMessage (cost_ctrl) --|  (second subagent)
+  |<-- WSSubagentMessage (forecast_mgr)|  (second subagent)
   |<-- WSApprovalRequestMessage -------|  (HIGH risk tool!)
   |<-- WSPollingHeartbeatMessage ------|
   |--- WSApprovalResponse (approved) ->|
@@ -942,7 +941,7 @@ docker run -d --name jaeger \
 
 | File | Purpose |
 |------|---------|
-| `backend/app/ai/subagents/__init__.py` | 7 subagent configs: name, description, system_prompt, allowed_tools |
+| `backend/app/ai/subagents/__init__.py` | 6 subagent configs: name, description, system_prompt, allowed_tools |
 
 ### Tools
 
