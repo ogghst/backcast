@@ -1,9 +1,0 @@
-[GET] http://192.168.1.15:8020/api/v1/users/me/preferences => [200] OK
-[GET] http://192.168.1.15:8020/api/v1/ai/config/assistants?include_inactive=true => [200] OK
-[GET] http://192.168.1.15:8020/api/v1/ai/config/providers?include_inactive=true => [200] OK
-[GET] http://192.168.1.15:8020/api/v1/ai/config/models?include_inactive=true => [200] OK
-[GET] http://192.168.1.15:8020/api/v1/users/me/preferences => [200] OK
-[GET] http://192.168.1.15:8020/api/v1/auth/me => [200] OK
-[GET] http://192.168.1.15:8020/api/v1/users/me/preferences => [200] OK
-[GET] http://192.168.1.15:8020/api/v1/ai/config/assistants => [200] OK
-[GET] http://192.168.1.15:8020/api/v1/ai/chat/sessions => [200] OK
