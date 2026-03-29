@@ -12,4 +12,4 @@ echo "PostgreSQL is up and running!"
 
 # Run alembic command with uv
 echo "Running alembic $@"
-exec uv run alembic "$@"
+exec /app/.venv/bin/alembic "$@"

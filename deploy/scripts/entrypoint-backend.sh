@@ -16,7 +16,7 @@ fi
 # Run database migrations
 if [ "$RUN_MIGRATIONS" = "true" ]; then
     echo "Running database migrations..."
-    uv run alembic upgrade head
+    /app/.venv/bin/alembic upgrade head
 fi
 
 # Execute the main command
