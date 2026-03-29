@@ -58,11 +58,11 @@ async def test_create_session_with_project_context(db_session: AsyncSession) -> 
 
     # Verify session was created with context
     assert session.id is not None
-    assert session.user_id == str(user_id)
-    assert session.assistant_config_id == str(assistant.id)
+    assert session.user_id == user_id
+    assert session.assistant_config_id == assistant.id
     assert session.title == "Test Session with Context"
-    assert session.project_id == str(project_id)
-    assert session.branch_id == str(branch_id)
+    assert session.project_id == project_id
+    assert session.branch_id == branch_id
 
 
 @pytest.mark.asyncio
@@ -110,8 +110,8 @@ async def test_create_session_without_context(db_session: AsyncSession) -> None:
 
     # Verify session was created without context
     assert session.id is not None
-    assert session.user_id == str(user_id)
-    assert session.assistant_config_id == str(assistant.id)
+    assert session.user_id == user_id
+    assert session.assistant_config_id == assistant.id
     assert session.title == "Test Session without Context"
     assert session.project_id is None
     assert session.branch_id is None
