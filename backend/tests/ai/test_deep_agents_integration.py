@@ -299,15 +299,14 @@ async def test_subagents_get_all():
 
     subagents = get_all_subagents()
 
-    # Should have exactly 7 domain-aligned subagents
-    assert len(subagents) == 7
+    # Should have exactly 6 domain-aligned subagents
+    assert len(subagents) == 6
     subagent_names = [s["name"] for s in subagents]
 
-    # Verify all 7 new subagent names are present
+    # Verify all 6 subagent names are present
     assert "project_manager" in subagent_names
     assert "evm_analyst" in subagent_names
     assert "change_order_manager" in subagent_names
-    assert "cost_controller" in subagent_names
     assert "user_admin" in subagent_names
     assert "visualization_specialist" in subagent_names
     assert "forecast_manager" in subagent_names

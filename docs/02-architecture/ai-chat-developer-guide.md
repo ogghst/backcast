@@ -8,12 +8,13 @@ Comprehensive reference for understanding, debugging, and extending the Backcast
 2. [WebSocket Connection Lifecycle](#2-websocket-connection-lifecycle)
 3. [Starting a Conversation](#3-starting-a-conversation)
 4. [Agent Setup & Orchestration](#4-agent-setup--orchestration)
-5. [Reply Flow & Streaming](#5-reply-flow--streaming)
-6. [Approval Flow (Human-in-the-Loop)](#6-approval-flow-human-in-the-loop)
-7. [WebSocket Protocol Reference](#7-websocket-protocol-reference)
-8. [Security Model](#8-security-model)
-9. [Troubleshooting Guide](#9-troubleshooting-guide)
-10. [Key Files Quick Reference](#10-key-files-quick-reference)
+5. [Decoupled Execution](#5-decoupled-execution)
+6. [Reply Flow & Streaming](#6-reply-flow--streaming)
+7. [Approval Flow (Human-in-the-Loop)](#7-approval-flow-human-in-the-loop)
+8. [WebSocket Protocol Reference](#8-websocket-protocol-reference)
+9. [Security Model](#9-security-model)
+10. [Troubleshooting Guide](#10-troubleshooting-guide)
+11. [Key Files Quick Reference](#11-key-files-quick-reference)
 
 ---
 
@@ -143,12 +144,37 @@ Authentication happens **before** `websocket.accept()`. If auth fails, the conne
 
 File: `ai_chat.py`
 
-The handler runs as `asyncio.create_task(message_handler())`. Two message types are dispatched:
+The handler runs as `asyncio.create_task(message_handler())`. Three message types are dispatched:
 
+- `"subscribe"` — reconnect to a running execution by execution ID, replay missed events
 - `"approval_response"` — handled immediately, non-blocking (updates `pending_approvals` dict)
 - `"chat"` (default) — processed via `agent_service.chat_stream()` as background task
 
 Chat messages are processed as concurrent background tasks via `asyncio.create_task()`. Multiple chat streams can run simultaneously on the same WebSocket connection.
+
+### Subscribe Message (Reconnection)
+
+After WebSocket connection, the client can send a subscribe message to rejoin a running execution:
+
+```json
+{
+  "type": "subscribe",
+  "execution_id": "550e8400-e29b-41d4-a716-446655440000",
+  "last_seen_sequence": 42
+}
+```
+
+**Server behavior:**
+
+1. Looks up event bus via `runner_manager.get_bus(execution_id)`
+2. If not found, returns error: `{"type":"error", "message":"Execution not found or already completed", "code":404}`
+3. If found, replays all events with sequence > `last_seen_sequence`
+4. If execution is still running (`!bus.is_completed`), subscribes to live events
+5. Live events forwarded until terminal event (`complete` or `error`)
+
+**Frontend auto-subscribe:**
+
+The `useStreamingChat` hook automatically sends subscribe messages on reconnection if `activeExecutionIdRef` is set. This enables seamless reconnection to running agents.
 
 ---
 
@@ -228,6 +254,61 @@ ToolContext(
 ```
 
 This context flows through middleware to every tool call — the LLM cannot override it.
+
+### REST Endpoint for Starting Executions
+
+Alternative to WebSocket chat messages, agents can be invoked via REST:
+
+```http
+POST /api/v1/ai/chat/sessions/{session_id}/invoke
+Authorization: Bearer <JWT>
+Content-Type: application/json
+
+{
+  "message": "What is the CPI for project X?",
+  "project_id": null,
+  "branch_id": null,
+  "as_of": null,
+  "branch_name": "main",
+  "branch_mode": "merged",
+  "execution_mode": "standard",
+  "attachments": [],
+  "images": []
+}
+```
+
+**Response:** `AgentExecutionPublic`
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "session_id": "a1b2c3d4-e89b-12d3-a456-426614174000",
+  "status": "running",
+  "started_at": "2026-03-29T12:30:00Z",
+  "completed_at": null,
+  "error_message": null,
+  "execution_mode": "standard",
+  "total_tokens": 0,
+  "tool_calls_count": 0,
+  "created_at": "2026-03-29T12:30:00Z",
+  "updated_at": "2026-03-29T12:30:00Z"
+}
+```
+
+Returns immediately with execution ID. Agent runs in background. Can then:
+
+- Subscribe via WebSocket with `{"type":"subscribe", "execution_id":"..."}`
+- Poll status via `GET /api/v1/ai/chat/executions/{execution_id}/status`
+- Approve tools via `POST /api/v1/ai/chat/executions/{execution_id}/approve`
+
+### Execution Status Polling
+
+```http
+GET /api/v1/ai/chat/executions/{execution_id}/status
+Authorization: Bearer <JWT>
+```
+
+**Response:** `AgentExecutionPublic` with current status, token counts, and error message if failed.
 
 ---
 
@@ -353,7 +434,197 @@ Tool node selection:
 
 ---
 
-## 5. Reply Flow & Streaming
+## 5. Decoupled Execution
+
+### Architecture Overview
+
+Agent execution is decoupled from WebSocket connections via an event bus architecture. This enables agents to continue running independently of network disruptions and supports multiple consumers (WebSocket, REST polling, test harnesses).
+
+```
+WebSocket Handler              Agent Execution               REST Endpoint
+     |                               |                              |
+     |---> POST /invoke -----------> |                              |
+     |                               |                              |
+     |                               |  Creates AIAgentExecution    |
+     |                               |  (DB: status="running")      |
+     |                               |                              |
+     |<-- WSExecutionStartedMessage -|                              |
+     |    {execution_id}             |                              |
+     |                               |                              |
+     |---> WS:subscribe ------------>|                              |
+     |    {execution_id,             |                              |
+     |     last_seen_sequence:0}     |                              |
+     |                               |                              |
+     |                               |  AgentEventBus publishes     |
+     |<------------------------------|-------------------------------|
+     |    events (tokens, tools)     |  AgentEventBus.publish()     |
+     |                               |                              |
+     |                               |  On complete/error:          |
+     |<------------------------------|  status="completed"/"error"  |
+     |    WSCompleteMessage          |                              |
+     |                               |                              |
+GET /executions/{id}/status -------->|                              |
+     |                               |                              |
+     |<------------------------------|  Return AgentExecutionPublic |
+```
+
+### Core Components
+
+#### AgentEventBus
+
+File: `backend/app/ai/execution/agent_event_bus.py`
+
+In-memory pub/sub event bus for a single agent execution. Features:
+
+- **Bounded event log**: Fixed-size circular buffer (`collections.deque`, max 1000 events) retains recent events for replay
+- **Subscriber queues**: Each subscriber gets its own `asyncio.Queue` for independent consumption
+- **Replay support**: Late subscribers can replay events since a given sequence number
+- **Completion tracking**: Marks bus as completed when terminal events (`complete`, `error`) are published
+
+```python
+# Create a bus for an execution
+bus = AgentEventBus(execution_id="exec-123", max_log_size=1000)
+
+# Subscribe to receive events
+queue = bus.subscribe()
+
+# Publish events (sequence numbers auto-assigned)
+event = AgentEvent(event_type="token_batch", data={"tokens": "Hello"})
+bus.publish(event)
+
+# Replay events for reconnection
+missed = bus.replay(since_sequence=50)
+```
+
+#### AgentRunnerManager
+
+File: `backend/app/ai/execution/runner_manager.py`
+
+Process-level singleton registry mapping execution IDs to event buses. Enables WebSocket handlers and REST endpoints to locate running executions.
+
+```python
+from app.ai.execution.runner_manager import runner_manager
+
+# Create and register a bus
+bus = runner_manager.create_bus("exec-123")
+
+# Look up a running execution's bus
+bus = runner_manager.get_bus("exec-123")
+if bus:
+    queue = bus.subscribe()
+
+# Remove when execution completes
+runner_manager.remove_bus("exec-123")
+```
+
+**Important**: This is an in-memory registry for single-server deployments. Executions are lost on server restart.
+
+#### AIAgentExecution Model
+
+File: `backend/app/models/domain/ai.py`
+
+Database entity tracking agent executions with status lifecycle.
+
+```python
+class AIAgentExecution(SimpleEntityBase):
+    session_id: UUID                    # FK to ai_conversation_sessions
+    status: str                          # "pending" | "running" | "completed" | "error" | "awaiting_approval"
+    started_at: datetime
+    completed_at: datetime | None
+    error_message: str | None
+    execution_mode: str                  # "safe" | "standard" | "expert"
+    total_tokens: int = 0
+    tool_calls_count: int = 0
+```
+
+Status lifecycle:
+```
+pending -> running -> [completed | error | awaiting_approval]
+```
+
+#### AIConversationSession.active_execution_id
+
+File: `backend/app/models/domain/ai.py`
+
+Optional field referencing the currently running agent execution. Used by frontend to auto-reconnect after network disruptions.
+
+```python
+active_execution_id: UUID | None  # Currently running or last execution
+```
+
+### AgentService._run_agent_graph()
+
+File: `backend/app/ai/agent_service.py`
+
+Decoupled variant of `chat_stream()` that publishes events to an `AgentEventBus` instead of sending WebSocket messages directly.
+
+```python
+async def _run_agent_graph(
+    message: str,
+    assistant_config: AIAssistantConfig,
+    session_id: UUID,
+    user_id: UUID,
+    event_bus: AgentEventBus,  # Publish to this bus instead of WS
+    project_id: UUID | None = None,
+    ...
+) -> None:
+    # Build agent graph
+    graph = await self._create_deep_agent_graph(...)
+
+    # Stream events to bus
+    async for event in graph.astream_events(...):
+        await event_bus.publish(AgentEvent(
+            event_type="token_batch",
+            data={"tokens": "..."}
+        ))
+```
+
+### AgentService.start_execution()
+
+File: `backend/app/ai/agent_service.py`
+
+Creates an independent agent execution with its own DB session and event bus. Runs as background task via `asyncio.create_task()`.
+
+```python
+execution_id = await agent_service.start_execution(
+    message="Calculate EVM metrics",
+    assistant_config=config,
+    session_id=session_id,
+    user_id=user_id,
+    project_id=project_id,
+)
+```
+
+Returns execution ID string. Execution status tracked in DB via `AIAgentExecution`.
+
+### Startup Cleanup Handler
+
+File: `backend/app/main.py` (`_cleanup_orphaned_executions`)
+
+On server startup, marks orphaned executions as errored:
+
+- Finds executions with status `running`, `pending`, or `awaiting_approval`
+- Updates status to `error` with message "Server restarted during execution"
+- Clears `active_execution_id` on sessions referencing orphaned executions
+
+This prevents stale references after in-memory event buses are destroyed.
+
+### Reconnection Flow
+
+When a WebSocket reconnects:
+
+1. Frontend checks `activeExecutionIdRef` from previous connection
+2. Sends subscribe message: `{"type":"subscribe", "execution_id":"...", "last_seen_sequence":N}`
+3. Server looks up bus via `runner_manager.get_bus()`
+4. If bus exists:
+   - Replays events since `last_seen_sequence`
+   - Subscribes to live events until completion
+5. If bus not found (execution completed or server restarted):
+   - Returns error message, client can poll `/executions/{id}/status` instead
+
+---
+
+## 6. Reply Flow & Streaming
 
 ### Event Streaming
 
@@ -428,7 +699,7 @@ Configuration comes from `settings.AI_TOKEN_BUFFER_INTERVAL_MS`, `settings.AI_TO
 
 ---
 
-## 6. Approval Flow (Human-in-the-Loop)
+## 7. Approval Flow (Human-in-the-Loop)
 
 ### When Approval is Required
 
@@ -501,7 +772,7 @@ Server                              Client (Browser)
 
 ---
 
-## 7. WebSocket Protocol Reference
+## 8. WebSocket Protocol Reference
 
 ### Client → Server Messages
 
@@ -536,6 +807,18 @@ Server                              Client (Browser)
   "timestamp": "2026-03-24T12:30:05Z"
 }
 ```
+
+#### Subscribe
+
+```json
+{
+  "type": "subscribe",
+  "execution_id": "550e8400-e29b-41d4-a716-446655440000",
+  "last_seen_sequence": 42
+}
+```
+
+Sent after WebSocket reconnection to resume receiving events from a running execution. The server replays all events with sequence number > `last_seen_sequence`, then subscribes to live events until completion.
 
 ### Server → Client Messages
 
@@ -712,6 +995,32 @@ Subagent token:
 }
 ```
 
+#### Execution Started
+
+```json
+{
+  "type": "execution_started",
+  "execution_id": "550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+Sent immediately after an agent execution is created via REST endpoint or WebSocket. Provides the execution ID for tracking and reconnection.
+
+#### Execution Status
+
+```json
+{
+  "type": "execution_status",
+  "execution_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "awaiting_approval",
+  "started_at": "2026-03-29T12:30:00Z",
+  "total_tokens": 450,
+  "tool_calls_count": 3
+}
+```
+
+Sent when an agent execution changes status. Useful for tracking execution lifecycle without polling.
+
 ### Message Sequence: Full Conversation with Subagent + Approval
 
 ```
@@ -743,7 +1052,7 @@ Client                                Server
 
 ---
 
-## 8. Security Model
+## 9. Security Model
 
 ### Three-Tier Security
 
@@ -795,7 +1104,7 @@ async def list_projects(context: InjectedToolArg[ToolContext], ...) -> ...:
 
 ---
 
-## 9. Troubleshooting Guide
+## 10. Troubleshooting Guide
 
 ### Log Markers
 
@@ -902,6 +1211,20 @@ SELECT id, name, model_id, is_active,
        array_length(allowed_tools, 1) as tool_count
 FROM ai_assistant_configs
 WHERE is_active = true;
+
+-- List agent executions for a session
+SELECT id, session_id, status, started_at, completed_at,
+       execution_mode, total_tokens, tool_calls_count, error_message
+FROM ai_agent_executions
+WHERE session_id = '<session_uuid>'
+ORDER BY started_at DESC;
+
+-- Find sessions with active/running executions
+SELECT s.id, s.title, s.active_execution_id, e.status, e.started_at
+FROM ai_conversation_sessions s
+LEFT JOIN ai_agent_executions e ON s.active_execution_id = e.id
+WHERE s.user_id = '<user_uuid>'
+ORDER BY s.updated_at DESC;
 ```
 
 ### Telemetry Setup
@@ -924,18 +1247,28 @@ docker run -d --name jaeger \
 
 ---
 
-## 10. Key Files Quick Reference
+## 11. Key Files Quick Reference
 
 ### Core
 
 | File | Purpose |
 |------|---------|
-| `backend/app/api/routes/ai_chat.py` | WebSocket endpoint (`/stream`), auth, message dispatch |
-| `backend/app/ai/agent_service.py` | Main orchestration: `chat_stream()`, `chat()`, approval registration, history building |
+| `backend/app/api/routes/ai_chat.py` | WebSocket endpoint (`/stream`), REST endpoints (`/invoke`, `/executions/*`), auth, message dispatch, subscribe handling |
+| `backend/app/ai/agent_service.py` | Main orchestration: `chat_stream()`, `chat()`, `_run_agent_graph()`, `start_execution()`, approval registration, history building |
 | `backend/app/ai/deep_agent_orchestrator.py` | `DeepAgentOrchestrator.create_agent()` — wraps `langchain.agents.create_agent()` with Backcast config |
 | `backend/app/ai/graph_cache.py` | Caching infrastructure: `LLMClientCache`, `CompiledGraphCache`, `GraphCacheKey`, `BackcastRuntimeContext`, shared checkpointer, ContextVar helpers |
 | `backend/app/ai/graph.py` | `create_graph()` — StateGraph fallback (no subagents) |
 | `backend/app/ai/state.py` | `AgentState` TypedDict (messages, tool_call_count, next) |
+
+### Execution Architecture
+
+| File | Purpose |
+|------|---------|
+| `backend/app/ai/execution/agent_event.py` | `AgentEvent` dataclass — immutable event structure for agent execution events |
+| `backend/app/ai/execution/agent_event_bus.py` | `AgentEventBus` — in-memory pub/sub with bounded replay buffer for agent events |
+| `backend/app/ai/execution/runner_manager.py` | `AgentRunnerManager` — process-level singleton registry mapping execution IDs to event buses |
+| `backend/app/alembic/versions/6c93c299c703_add_ai_agent_executions_table.py` | Migration creating `ai_agent_executions` table for execution tracking |
+| `backend/app/main.py` | Startup handler `_cleanup_orphaned_executions()` — marks orphaned executions as errored on server restart |
 
 ### Subagents
 
@@ -978,8 +1311,8 @@ docker run -d --name jaeger \
 
 | File | Purpose |
 |------|---------|
-| `backend/app/models/schemas/ai.py` | All Pydantic schemas: `WSChatRequest`, `WSTokenMessage`, `WSApprovalRequestMessage`, etc. |
-| `backend/app/models/domain/ai.py` | SQLAlchemy models: `AIConversationSession`, `AIConversationMessage` |
+| `backend/app/models/schemas/ai.py` | All Pydantic schemas: `WSChatRequest`, `WSTokenMessage`, `WSApprovalRequestMessage`, `WSSubscribeMessage`, `WSExecutionStartedMessage`, `WSExecutionStatusMessage`, `AgentExecutionPublic`, `InvokeAgentRequest`, etc. |
+| `backend/app/models/domain/ai.py` | SQLAlchemy models: `AIConversationSession`, `AIConversationMessage`, `AIAgentExecution` |
 
 ### Services
 
