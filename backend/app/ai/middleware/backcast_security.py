@@ -189,6 +189,7 @@ class BackcastSecurityMiddleware(AgentMiddleware):
                 f"tool_name={tool_name} | "
                 f"duration_ms={tool_call_duration_ms:.2f} | "
                 f"status=error | "
+                f"error_type={type(e).__name__} | "
                 f"error={str(e)}"
             )
             raise

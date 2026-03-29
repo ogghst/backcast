@@ -9,13 +9,18 @@ handle isolated tasks and return a single result via Command(update=...).
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from typing import Annotated, Any
 
+import httpx
 from langchain.tools import ToolRuntime
 from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.runnables import Runnable
 from langchain_core.tools import StructuredTool
 from langgraph.types import Command
+
+logger = logging.getLogger(__name__)
 
 # State keys excluded when passing state to subagents and when returning
 # updates from subagents. Matches the SDK's _EXCLUDED_STATE_KEYS exactly.
@@ -54,10 +59,9 @@ When a user request spans multiple domains, launch ALL relevant subagents in a s
 
 **Example 1: WBE + Cost Elements**
 User: "Show me the WBE hierarchy with cost breakdowns for project X"
-Assistant: Launches BOTH `project_manager` AND `cost_controller` in parallel
-- `project_manager`: Gets WBE structure, hierarchy, descriptions
-- `cost_controller`: Gets cost elements with budgets, actual costs
-Then synthesizes a unified response showing WBE tree with cost details
+Assistant: Launches `project_manager` to get WBE structure and cost elements
+- `project_manager`: Gets WBE hierarchy and cost elements with budgets, actual costs
+Then presents the WBE tree with integrated cost details
 
 **Example 2: Project + EVM Metrics**
 User: "What's the performance status of project X?"
@@ -173,9 +177,8 @@ When to use the task tool:
 When a user request spans multiple domains or data types, you MUST delegate to ALL relevant subagents in parallel. Common scenarios:
 
 1. **WBE + Cost Elements**: If the user asks for WBE structure AND cost elements/financial data:
-   - Call `project_manager` for WBE hierarchy and structure
-   - Call `cost_controller` for cost element details, budgets, actual costs
-   - Synthesize both results into a unified response
+   - Call `project_manager` for WBE hierarchy, structure, and cost element details
+   - Present WBE tree with integrated cost breakdown
 
 2. **Project + Forecasts**: If the user asks for project details AND forecast data:
    - Call `project_manager` for project metadata
@@ -365,8 +368,34 @@ def build_task_tool(
         subagent, subagent_state = _validate_and_prepare_state(
             subagent_type, description, runtime
         )
-        result = await subagent.ainvoke(subagent_state)
-        return _return_command_with_state_update(result, runtime.tool_call_id)
+        max_retries = 3
+        last_exc: BaseException | None = None
+        for attempt in range(max_retries + 1):
+            try:
+                result = await subagent.ainvoke(subagent_state)
+                return _return_command_with_state_update(
+                    result, runtime.tool_call_id
+                )
+            except (
+                httpx.ReadError,
+                httpx.ConnectError,
+                httpx.ConnectTimeout,
+                httpx.ReadTimeout,
+            ) as exc:
+                last_exc = exc
+                if attempt < max_retries:
+                    wait = 2**attempt  # 1s, 2s, 4s
+                    logger.warning(
+                        "Transient %s invoking subagent %s, "
+                        "attempt %d/%d, retrying in %ds",
+                        type(exc).__name__,
+                        subagent_type,
+                        attempt + 1,
+                        max_retries + 1,
+                        wait,
+                    )
+                    await asyncio.sleep(wait)
+        raise last_exc  # type: ignore[misc]
 
     return StructuredTool.from_function(
         name="task",
