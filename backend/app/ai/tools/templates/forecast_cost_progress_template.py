@@ -1352,6 +1352,325 @@ async def get_progress_history(
         return add_temporal_metadata(error_result, context)
 
 
+@ai_tool(
+    name="list_progress_entries",
+    description="List progress entries for a cost element with pagination. "
+    "Returns progress entries in descending order by date.",
+    permissions=["progress-entry-read"],
+    category="progress-entry",
+    risk_level=RiskLevel.LOW,
+)
+async def list_progress_entries(
+    cost_element_id: str,
+    skip: int = 0,
+    limit: int = 100,
+    as_of_date: str | None = None,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """List progress entries for a cost element.
+
+    Context: Provides database session and progress entry service for listing progress entries.
+
+    Args:
+        cost_element_id: UUID of the cost element to list progress entries for
+        skip: Number of records to skip (pagination)
+        limit: Maximum number of records to return
+        as_of_date: Optional date for time-travel query (ISO format string)
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with list of progress entries and total count
+
+    Raises:
+        ValueError: If cost_element_id is invalid or date format is wrong
+
+    Example:
+        >>> result = await list_progress_entries(
+        ...     cost_element_id="...",
+        ...     limit=10
+        ... )
+        >>> print(f"Found {result['total']} progress entries")
+        >>> for entry in result['progress_entries']:
+        ...     print(f"- {entry['progress_percentage']}%: {entry['notes']}")
+    """
+    # Log temporal context for observability
+    log_temporal_context("list_progress_entries", context)
+
+    try:
+        from app.services.progress_entry_service import ProgressEntryService
+
+        service = ProgressEntryService(context.session)
+
+        # Parse as_of date if provided
+        as_of = None
+        if as_of_date:
+            as_of = datetime.fromisoformat(as_of_date)
+
+        # Call service method (using get_progress_history for listing)
+        progress_entries, total = await service.get_progress_history(
+            cost_element_id=UUID(cost_element_id),
+            skip=skip,
+            limit=limit,
+            as_of=as_of,
+        )
+
+        # Convert to AI-friendly format and add temporal metadata
+        result = {
+            "progress_entries": [
+                {
+                    "id": str(entry.progress_entry_id),
+                    "cost_element_id": str(entry.cost_element_id),
+                    "progress_percentage": float(entry.progress_percentage)
+                    if entry.progress_percentage
+                    else None,
+                    "notes": entry.notes,
+                }
+                for entry in progress_entries
+            ],
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        error_result = {"error": f"Invalid input: {e}"}
+        return add_temporal_metadata(error_result, context)
+    except Exception as e:
+        logger.error(f"Error in list_progress_entries: {e}")
+        error_result = {"error": str(e)}
+        return add_temporal_metadata(error_result, context)
+
+
+@ai_tool(
+    name="get_progress_entry",
+    description="Get a single progress entry by its ID. "
+    "Returns progress percentage, notes, and related data. "
+    "Temporal context (branch, as_of date) is enforced by the system.",
+    permissions=["progress-entry-read"],
+    category="progress-entry",
+    risk_level=RiskLevel.LOW,
+)
+async def get_progress_entry(
+    progress_entry_id: str,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Get a single progress entry by its ID.
+
+    Context: Provides database session and progress entry service for retrieving a progress entry.
+
+    Args:
+        progress_entry_id: UUID of the progress entry to retrieve
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with progress entry details
+
+    Raises:
+        ValueError: If progress_entry_id is invalid
+        KeyError: If progress entry not found
+
+    Example:
+        >>> result = await get_progress_entry(
+        ...     progress_entry_id="..."
+        ... )
+        >>> print(f"Progress: {result['progress_percentage']}%")
+    """
+    # Log temporal context for observability
+    log_temporal_context("get_progress_entry", context)
+
+    try:
+        from app.services.progress_entry_service import ProgressEntryService
+
+        service = ProgressEntryService(context.session)
+
+        # Call service method
+        progress = await service.get_by_id(UUID(progress_entry_id))
+
+        if progress is None:
+            error_result = {"error": f"Progress entry not found: {progress_entry_id}"}
+            return add_temporal_metadata(error_result, context)
+
+        # Convert to AI-friendly format and add temporal metadata
+        result = {
+            "id": str(progress.progress_entry_id),
+            "cost_element_id": str(progress.cost_element_id),
+            "progress_percentage": float(progress.progress_percentage)
+            if progress.progress_percentage
+            else None,
+            "notes": progress.notes,
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        error_result = {"error": f"Invalid input: {e}"}
+        return add_temporal_metadata(error_result, context)
+    except KeyError as e:
+        error_result = {"error": f"Progress entry not found: {e}"}
+        return add_temporal_metadata(error_result, context)
+    except Exception as e:
+        logger.error(f"Error in get_progress_entry: {e}")
+        error_result = {"error": str(e)}
+        return add_temporal_metadata(error_result, context)
+
+
+@ai_tool(
+    name="update_progress_entry",
+    description="Update an existing progress entry. "
+    "Creates a new version preserving history. "
+    "Supports updating progress percentage and notes.",
+    permissions=["progress-entry-update"],
+    category="progress-entry",
+    risk_level=RiskLevel.HIGH,
+)
+async def update_progress_entry(
+    progress_entry_id: str,
+    progress_percentage: float | None = None,
+    notes: str | None = None,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Update an existing progress entry.
+
+    Context: Provides database session and progress entry service for updating progress entries.
+
+    Args:
+        progress_entry_id: UUID of the progress entry to update
+        progress_percentage: New progress percentage 0-100 (optional)
+        notes: New notes about the progress (optional)
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with updated progress entry details
+
+    Raises:
+        ValueError: If progress_entry_id is invalid or no fields to update
+        KeyError: If progress entry not found
+
+    Example:
+        >>> result = await update_progress_entry(
+        ...     progress_entry_id="...",
+        ...     progress_percentage=75.0,
+        ...     notes="Nearly complete"
+        ... )
+        >>> print(f"Updated progress: {result['progress_percentage']}%")
+    """
+    # Log temporal context for observability
+    log_temporal_context("update_progress_entry", context)
+
+    try:
+        from app.models.schemas.progress_entry import ProgressEntryUpdate
+        from app.services.progress_entry_service import ProgressEntryService
+
+        service = ProgressEntryService(context.session)
+
+        # Build update schema with only provided fields
+        update_data: dict[str, Any] = {}
+        if progress_percentage is not None:
+            update_data["progress_percentage"] = Decimal(str(progress_percentage))
+        if notes is not None:
+            update_data["notes"] = notes
+
+        if not update_data:
+            error_result = {"error": "No fields provided to update"}
+            return add_temporal_metadata(error_result, context)
+
+        progress_in = ProgressEntryUpdate(**update_data)
+
+        # Call service method
+        progress = await service.update(
+            entity_id=UUID(progress_entry_id),
+            progress_in=progress_in,
+            actor_id=UUID(context.user_id),
+        )
+
+        # Convert to AI-friendly format and add temporal metadata
+        result = {
+            "id": str(progress.progress_entry_id),
+            "cost_element_id": str(progress.cost_element_id),
+            "progress_percentage": float(progress.progress_percentage)
+            if progress.progress_percentage
+            else None,
+            "notes": progress.notes,
+            "message": "Progress entry updated",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        error_result = {"error": f"Invalid input: {e}"}
+        return add_temporal_metadata(error_result, context)
+    except KeyError as e:
+        error_result = {"error": f"Progress entry not found: {e}"}
+        return add_temporal_metadata(error_result, context)
+    except Exception as e:
+        logger.error(f"Error in update_progress_entry: {e}")
+        error_result = {"error": str(e)}
+        return add_temporal_metadata(error_result, context)
+
+
+@ai_tool(
+    name="delete_progress_entry",
+    description="Soft delete a progress entry. "
+    "The entry is marked as deleted but preserved for audit trail. "
+    "This action cannot be undone.",
+    permissions=["progress-entry-delete"],
+    category="progress-entry",
+    risk_level=RiskLevel.CRITICAL,
+)
+async def delete_progress_entry(
+    progress_entry_id: str,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Soft delete a progress entry.
+
+    Context: Provides database session and progress entry service for deleting progress entries.
+
+    Args:
+        progress_entry_id: UUID of the progress entry to delete
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with confirmation message
+
+    Raises:
+        ValueError: If progress_entry_id is invalid
+        KeyError: If progress entry not found
+
+    Example:
+        >>> result = await delete_progress_entry(
+        ...     progress_entry_id="..."
+        ... )
+        >>> print(result['message'])
+    """
+    # Log temporal context for observability
+    log_temporal_context("delete_progress_entry", context)
+
+    try:
+        from app.services.progress_entry_service import ProgressEntryService
+
+        service = ProgressEntryService(context.session)
+
+        # Call service method
+        await service.soft_delete(
+            progress_entry_id=UUID(progress_entry_id),
+            actor_id=UUID(context.user_id),
+        )
+
+        # Return confirmation
+        result = {
+            "id": progress_entry_id,
+            "message": "Progress entry soft deleted. "
+            "The entry is marked as deleted but preserved for audit trail.",
+        }
+        return add_temporal_metadata(result, context)
+    except ValueError as e:
+        error_result = {"error": f"Invalid input: {e}"}
+        return add_temporal_metadata(error_result, context)
+    except KeyError as e:
+        error_result = {"error": f"Progress entry not found: {e}"}
+        return add_temporal_metadata(error_result, context)
+    except Exception as e:
+        logger.error(f"Error in delete_progress_entry: {e}")
+        error_result = {"error": str(e)}
+        return add_temporal_metadata(error_result, context)
+
+
 # =============================================================================
 # SUMMARY TOOL
 # =============================================================================

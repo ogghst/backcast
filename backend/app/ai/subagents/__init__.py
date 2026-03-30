@@ -1,21 +1,21 @@
 """Subagent configurations for LangGraph.
 
 Defines specialized subagents for different domains, each mapped 1:1 to tool template packages:
-- project_manager: Projects, WBEs, cost elements, and cost registrations (crud_template + cost_element_template + forecast_cost_progress_template)
+- project_manager: Projects, WBEs, cost elements, cost tracking, and progress entries (crud_template + cost_element_template + forecast_cost_progress_template)
 - evm_analyst: EVM metrics and performance (analysis_template + advanced_analysis_template)
 - change_order_manager: Change order workflows (change_order_template)
 - user_admin: Users and departments (user_management_template)
 - visualization_specialist: Diagram generation (diagram_template)
-- forecast_manager: Forecasts, cost tracking, and schedule baselines (forecast_cost_progress_template)
+- forecast_manager: Forecasts and schedule baselines (forecast_cost_progress_template)
 """
 
 from typing import Any
 
 # Subagent: Project Manager
-# Specializes in project and WBE CRUD operations
+# Specializes in project, WBE, cost element, cost registration, and progress entry CRUD operations
 PROJECT_MANAGER_SUBAGENT: dict[str, Any] = {
     "name": "project_manager",
-    "description": "Specialist for project, Work Breakdown Element (WBE), cost element, and cost registration management",
+    "description": "Specialist for project, Work Breakdown Element (WBE), cost element, cost tracking, and progress entry management",
     "system_prompt": """You are a project management specialist.
 
 You help with:
@@ -24,13 +24,16 @@ You help with:
 - Managing cost elements and cost element types
 - Managing cost registrations (create, update, delete, and list actual costs)
 - Budget status tracking for cost elements
+- Cost trend analysis (daily, weekly, monthly)
+- Cumulative cost analysis over time
+- Managing progress entries (create, update, delete, list, and track work progress)
 - Cost element summaries and aggregations
 - Project structure organization
 - Project metadata management
 
 Always validate user permissions before making changes.
 Ensure data integrity and proper validation.
-Provide clear summaries of project structures.""",
+Provide clear summaries of project structures and cost/progress trends.""",
     "allowed_tools": [
         "list_projects",
         "get_project",
@@ -56,6 +59,15 @@ Provide clear summaries of project structures.""",
         "delete_cost_registration",
         "list_cost_registrations",
         "get_budget_status",
+        "get_cost_trends",
+        "get_cumulative_costs",
+        "list_progress_entries",
+        "get_progress_entry",
+        "get_latest_progress",
+        "create_progress_entry",
+        "update_progress_entry",
+        "delete_progress_entry",
+        "get_progress_history",
     ],
 }
 
@@ -178,11 +190,11 @@ Use appropriate diagram types for the information being presented.""",
 }
 
 # Subagent: Forecast Manager
-# Specializes in forecasts, cost tracking, and progress management
+# Specializes in project forecasting and schedule baseline management
 FORECAST_MANAGER_SUBAGENT: dict[str, Any] = {
     "name": "forecast_manager",
-    "description": "Specialist for project forecasting, cost tracking, progress management, and schedule baselines",
-    "system_prompt": """You are a forecasting, cost tracking, and schedule baseline specialist.
+    "description": "Specialist for project forecasting and schedule baseline management",
+    "system_prompt": """You are a forecasting and schedule baseline specialist.
 
 You help with:
 - Creating and updating project forecasts
@@ -190,33 +202,22 @@ You help with:
 - Generating project forecasts based on trends
 - Comparing forecast scenarios
 - Analyzing forecast accuracy
-- Budget status tracking
-- Cost registration and tracking
-- Cost trend analysis
-- Cumulative cost analysis
-- Progress entry and tracking
 - Forecast trend analysis
 - Schedule baseline management (retrieve, update, delete)
 
+For cost tracking and progress entry management, use the project_manager subagent.
+
 Provide clear explanations of forecast assumptions.
 Identify potential risks based on trends.
-Explain the impact of actual costs vs. forecasts.""",
+Explain the impact of forecasts vs. budgets.""",
     "allowed_tools": [
         "get_forecast",
         "create_forecast",
         "update_forecast",
         "compare_forecast_to_budget",
-        "get_budget_status",
         "generate_project_forecast",
         "compare_forecast_scenarios",
         "get_forecast_accuracy",
-        "create_cost_registration",
-        "list_cost_registrations",
-        "get_cost_trends",
-        "get_cumulative_costs",
-        "get_latest_progress",
-        "create_progress_entry",
-        "get_progress_history",
         "analyze_forecast_trends",
         "get_schedule_baseline",
         "update_schedule_baseline",
