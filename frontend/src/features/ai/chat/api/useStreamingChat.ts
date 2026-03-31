@@ -259,7 +259,8 @@ export const useStreamingChat = (
     onExecutionStatus,
   });
 
-  // Keep callbacks ref updated
+  // Keep callbacks ref updated (run on every render to capture latest callbacks)
+  // This effect intentionally has no dependencies - it should run after every render
   useEffect(() => {
     callbacksRef.current = {
       onToken,
@@ -276,7 +277,9 @@ export const useStreamingChat = (
       onMainAgentComplete,
       onContentReset,
       onRawMessage,
+      onExecutionStatus,
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   });
 
   // Track if this is the first mount to handle React Strict Mode
@@ -306,11 +309,13 @@ export const useStreamingChat = (
   } | null>(null);
 
   // Initialize last message time on mount
+  // Only run once on mount - no dependencies needed
   useEffect(() => {
     lastMessageTimeRef.current.current = Date.now();
   }, []);
 
   // Reset first mount ref when token or assistantId changes
+  // This ensures the effect reconnects when these critical values change
   useEffect(() => {
     isFirstMountRef.current = true;
   }, [token, assistantId]);

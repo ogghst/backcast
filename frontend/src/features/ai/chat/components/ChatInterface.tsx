@@ -86,9 +86,10 @@ export const ChatInterface = ({
   // Persistent last assistant selection
   const { lastAssistantId, setLastAssistantId } = useLastAssistantId();
 
+  // Initialize assistant ID from URL param, then fall back to persisted selection
   const [selectedAssistantId, setSelectedAssistantId] = useState<
     string | undefined
-  >(initialAssistantId ?? lastAssistantId);
+  >(() => initialAssistantId ?? lastAssistantId);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,9 +136,11 @@ export const ChatInterface = ({
 
   // Clear all cached data on mount. The AI can modify any entity,
   // so stale cache is purged to ensure fresh data on other pages.
+  // Note: This effect should only run once on mount.
   useEffect(() => {
     queryClient.clear();
-  }, [queryClient]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Queries
   const {
@@ -158,13 +161,13 @@ export const ChatInterface = ({
   // Find current session to get its assistant ID
   const currentSession = sessions?.find((s) => s.id === currentSessionId);
 
-  // Set assistant from session when session changes
+  // Set assistant from session when session changes (only if not already set)
   useEffect(() => {
     if (currentSession && !selectedAssistantId) {
       setSelectedAssistantId(currentSession.assistant_config_id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSession?.id, selectedAssistantId]);
+  }, [currentSession?.id]); // Only depend on session ID, not selectedAssistantId
 
   // Persist assistant selection to localStorage when it changes
   useEffect(() => {
@@ -175,12 +178,16 @@ export const ChatInterface = ({
 
   // Determine if currently streaming (we have streaming content, active tools, or are waiting for the first chunk)
   // Computed early so the cleanup useEffect below can reference it.
-  const isStreaming: boolean =
-    streamingState.main.length > 0 ||
-    Array.from(streamingState.mainStreams.values()).some(ms => ms.is_active) ||
-    Array.from(streamingState.subagents.values()).some(sa => sa.is_active) ||
-    activeToolCalls.length > 0 ||
-    isWaitingForResponse;
+  // Memoized to avoid recalculating on every render
+  const isStreaming = useMemo(
+    () =>
+      streamingState.main.length > 0 ||
+      Array.from(streamingState.mainStreams.values()).some(ms => ms.is_active) ||
+      Array.from(streamingState.subagents.values()).some(sa => sa.is_active) ||
+      activeToolCalls.length > 0 ||
+      isWaitingForResponse,
+    [streamingState.main, streamingState.mainStreams, streamingState.subagents, activeToolCalls.length, isWaitingForResponse]
+  );
 
   // Clear streaming subagents when persisted messages are available
   // (prevents duplicate subagent bubbles after query invalidation on complete)
@@ -661,8 +668,11 @@ export const ChatInterface = ({
     onMainAgentComplete: handleMainAgentComplete,
     onContentReset: handleContentReset,
     onRawMessage: handleRawMessage,
-    onExecutionStatus: useCallback(() => {
+    onExecutionStatus: useCallback((executionId: string, status: string, sessionId: string) => {
       // Invalidate sessions cache to pick up execution status changes
+      void executionId; // Unused but kept for interface consistency
+      void status; // Unused but kept for interface consistency
+      void sessionId; // Unused but kept for interface consistency
       queryClient.invalidateQueries({ queryKey: queryKeys.ai.chat.sessions() });
     }, [queryClient]),
   });
