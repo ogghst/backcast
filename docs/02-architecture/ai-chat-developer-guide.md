@@ -391,6 +391,49 @@ This means middleware baked into a cached graph at compile time still gets fresh
 | `visualization_specialist` | Diagram generation | `generate_mermaid_diagram` |
 | `forecast_manager` | Forecasts, cost tracking & schedule baselines | `get_forecast`, `create_forecast`, `update_forecast`, `compare_forecast_to_budget`, `get_budget_status`, `generate_project_forecast`, `compare_forecast_scenarios`, `get_forecast_accuracy`, `create_cost_registration`, `list_cost_registrations`, `get_cost_trends`, `get_cumulative_costs`, `get_latest_progress`, `create_progress_entry`, `get_progress_history`, `analyze_forecast_trends`, `get_schedule_baseline`, `update_schedule_baseline`, `delete_schedule_baseline` |
 
+#### Structured Output for Subagents
+
+Subagents can return typed Pydantic models via LangGraph's `with_structured_output()` pattern. This ensures type preservation and numeric precision (e.g., CPI as float instead of string).
+
+**Configuration:** Each subagent config includes an optional `structured_output_schema` field:
+
+```python
+EVM_ANALYST_SUBAGENT: dict[str, Any] = {
+    "name": "evm_analyst",
+    "description": "Specialist for earned value management calculations and performance analysis",
+    "system_prompt": "...",
+    "allowed_tools": [...],
+    "structured_output_schema": EVMMetricsRead,  # Returns typed EVM metrics
+}
+```
+
+**Schema mappings:**
+
+| Subagent | Schema | Source |
+|----------|--------|--------|
+| `evm_analyst` | `EVMMetricsRead` | `app.models.schemas.evm` |
+| `forecast_manager` | `ForecastRead` | `app.models.schemas.forecast` |
+| `change_order_manager` | `ImpactAnalysisResponse` | `app.models.schemas.impact_analysis` |
+
+**Implementation:**
+
+1. **Compilation** (`deep_agent_orchestrator.py:_build_subagent_dicts`):
+   - When `structured_output_schema` is defined, applies `.with_structured_output(schema)` wrapper
+   - Wrapped subagent returns Pydantic model instances instead of text
+
+2. **Result handling** (`subagent_task.py:_return_command_with_state_update`):
+   - Detects Pydantic model in subagent content
+   - Generates human-readable summary via `_summarize_structured_output()`
+   - Stores structured data in `ToolMessage.additional_kwargs["structured_output"]` as JSON
+   - Preserves type information for downstream processing
+
+**Benefits:**
+
+- **Type preservation**: Numeric values (CPI=0.25) returned as float, not "0.25" as string
+- **Schema reuse**: Leverages existing Pydantic schemas from `app.models.schemas.*`
+- **Human-readable**: Automatic summary generation for chat display
+- **Structured storage**: JSON data attached to messages for programmatic access
+
 ### Tool Filtering Pipeline
 
 ```
@@ -675,16 +718,29 @@ Every `WSToolCallMessage`, `WSSubagentMessage`, and `WSPlanningMessage` includes
 Handled inline in `agent_service.py:_consume_stream()` within the `on_tool_end` event handler.
 
 When a subagent completes via the `task` tool:
-1. Subagent content is extracted from the tool output (ToolMessage, Command, or dict)
-2. Content is tracked in `subagent_messages_by_main_invocation` for ordered persistence
-3. `WSSubagentResultMessage` is sent to the client (displayed in Activity Panel)
-4. Subagent token buffer is flushed
-5. `WSAgentCompleteMessage` is sent (completion indicator for UI)
-6. `WSContentResetMessage` is sent to clear the streaming buffer
-7. `accumulated_content` is NOT reset — main agent thoughts persist across subagent executions
-8. A new `main_invocation_id` is generated for the next main agent bubble
+
+1. **Content extraction**: Subagent content is extracted from the tool output (ToolMessage, Command, or dict)
+2. **Structured output detection** (`subagent_task.py:_return_command_with_state_update`):
+   - If the subagent has a `structured_output_schema`, content is checked for a Pydantic model instance
+   - When detected, structured data is extracted and serialized to JSON
+   - Human-readable summary is generated via `_summarize_structured_output()`
+   - Structured data is attached to `ToolMessage.additional_kwargs["structured_output"]`
+   - Preserves type information (e.g., CPI=0.25 as float, not "0.25" as string)
+3. **Persistence**: Content is tracked in `subagent_messages_by_main_invocation` for ordered persistence
+4. **Client notification**: `WSSubagentResultMessage` is sent (displayed in Activity Panel)
+5. **Buffer flush**: Subagent token buffer is flushed
+6. **Completion**: `WSAgentCompleteMessage` is sent (completion indicator for UI)
+7. **Reset**: `WSContentResetMessage` is sent to clear the streaming buffer
+8. **State preservation**: `accumulated_content` is NOT reset — main agent thoughts persist across subagent executions
+9. **Next invocation**: A new `main_invocation_id` is generated for the next main agent bubble
 
 Messages are persisted to DB in conversational order: main segment → subagents → next main segment.
+
+**Structured output schemas** and their summaries:
+
+- `EVMMetricsRead`: EVM metrics (CPI, SPI, CV, SV, EAC, ETC) with status indicators
+- `ForecastRead`: Forecast projections with budget variance and basis of estimate
+- `ImpactAnalysisResponse`: Change order impact with KPI scorecard and entity changes
 
 ### Token Buffering
 
@@ -1274,7 +1330,9 @@ docker run -d --name jaeger \
 
 | File | Purpose |
 |------|---------|
-| `backend/app/ai/subagents/__init__.py` | 6 subagent configs: name, description, system_prompt, allowed_tools |
+| `backend/app/ai/subagents/__init__.py` | 6 subagent configs: name, description, system_prompt, allowed_tools, `structured_output_schema` |
+| `backend/app/ai/deep_agent_orchestrator.py` | `_build_subagent_dicts()` — applies `.with_structured_output()` wrapper when schema defined |
+| `backend/app/ai/tools/subagent_task.py` | `build_task_tool()`, `_return_command_with_state_update()`, `_summarize_structured_output()` — task tool for subagent delegation with structured output handling |
 
 ### Tools
 
@@ -1312,6 +1370,9 @@ docker run -d --name jaeger \
 | File | Purpose |
 |------|---------|
 | `backend/app/models/schemas/ai.py` | All Pydantic schemas: `WSChatRequest`, `WSTokenMessage`, `WSApprovalRequestMessage`, `WSSubscribeMessage`, `WSExecutionStartedMessage`, `WSExecutionStatusMessage`, `AgentExecutionPublic`, `InvokeAgentRequest`, etc. |
+| `backend/app/models/schemas/evm.py` | `EVMMetricsRead` — structured output schema for EVM analyst subagent |
+| `backend/app/models/schemas/forecast.py` | `ForecastRead` — structured output schema for forecast manager subagent |
+| `backend/app/models/schemas/impact_analysis.py` | `ImpactAnalysisResponse` — structured output schema for change order manager subagent |
 | `backend/app/models/domain/ai.py` | SQLAlchemy models: `AIConversationSession`, `AIConversationMessage`, `AIAgentExecution` |
 
 ### Services

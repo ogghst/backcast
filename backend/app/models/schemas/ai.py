@@ -585,7 +585,7 @@ class WSApprovalRequestMessage(BaseModel):
     tool_args: dict[str, Any] = Field(
         default_factory=dict, description="Arguments that will be passed to the tool"
     )
-    risk_level: Literal[RISK_LEVEL_LOW, RISK_LEVEL_HIGH, RISK_LEVEL_CRITICAL] = Field(
+    risk_level: Literal[RISK_LEVEL_LOW, RISK_LEVEL_HIGH, RISK_LEVEL_CRITICAL] = Field(  # type: ignore[valid-type]
         ..., description="Risk level of the tool requiring approval ('low', 'high', or 'critical')"
     )
     expires_at: datetime = Field(

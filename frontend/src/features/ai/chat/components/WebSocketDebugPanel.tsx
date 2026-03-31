@@ -294,7 +294,7 @@ export const WebSocketDebugPanel: React.FC<WebSocketDebugPanelProps> = ({
           />
         ) : (
           <Space direction="vertical" size="small" style={{ width: "100%" }}>
-            {filteredMessages.map((msg) => {
+            {[...filteredMessages].reverse().map((msg) => {
               const msgColor = getMessageColor(msg.data);
               const msgLabel = getMessageLabel(msg.data);
 

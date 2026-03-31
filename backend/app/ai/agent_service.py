@@ -1410,6 +1410,9 @@ class AgentService:
         Handles ToolMessage, Command, and other LangChain/LangGraph objects
         that may be nested in tool results.
 
+        Also parses JSON strings back to objects to prevent type information
+        loss when tool results return stringified JSON (e.g., from ToolMessage.content).
+
         Args:
             obj: The object to convert
 
@@ -1429,7 +1432,19 @@ class AgentService:
             return {k: self._make_json_serializable(v) for k, v in obj.items()}
         elif isinstance(obj, list):
             return [self._make_json_serializable(item) for item in obj]
-        elif isinstance(obj, (str, int, float, bool, type(None))):
+        elif isinstance(obj, str):
+            # Try to parse JSON strings back to objects
+            # This handles stringified JSON from ToolMessage.content
+            try:
+                import json
+
+                parsed = json.loads(obj)
+                # Recursively process parsed object to handle nested structures
+                return self._make_json_serializable(parsed)
+            except (json.JSONDecodeError, TypeError):
+                # Not valid JSON, return as-is
+                return obj
+        elif isinstance(obj, (int, float, bool, type(None))):
             return obj
         else:
             # For other types, try string conversion

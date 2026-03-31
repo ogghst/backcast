@@ -10,15 +10,16 @@ handle isolated tasks and return a single result via Command(update=...).
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from typing import Annotated, Any
 
 import httpx
 from langchain.tools import ToolRuntime
 from langchain_core.messages import HumanMessage, ToolMessage
-from langchain_core.runnables import Runnable
 from langchain_core.tools import StructuredTool
 from langgraph.types import Command
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -216,6 +217,108 @@ When NOT to use the task tool:
 - **Cross-domain requests**: When a user asks for information that spans multiple subagent domains, launch ALL relevant subagents in parallel, then synthesize their results into a cohesive response."""  # noqa: E501
 
 
+def _summarize_structured_output(model: BaseModel) -> str:
+    """Generate human-readable summary from Pydantic model.
+
+    Args:
+        model: Pydantic model instance from structured output
+
+    Returns:
+        Human-readable summary string for display in chat
+    """
+    # Import schemas here to avoid circular imports
+    from app.models.schemas.dashboard import DashboardData
+    from app.models.schemas.evm import EVMMetricsRead
+    from app.models.schemas.forecast import ForecastRead
+    from app.models.schemas.impact_analysis import ImpactAnalysisResponse
+
+    if isinstance(model, EVMMetricsRead):
+        # Summarize EVM metrics
+        parts = [
+            f"**EVM Metrics for Cost Element {model.cost_element_id}**",
+        ]
+        if model.cpi is not None:
+            cpi_status = "on track" if model.cpi >= 1.0 else "over budget"
+            parts.append(f"- CPI: {model.cpi:.2f} ({cpi_status})")
+        if model.spi is not None:
+            spi_status = "on track" if model.spi >= 1.0 else "behind schedule"
+            parts.append(f"- SPI: {model.spi:.2f} ({spi_status})")
+        parts.append(f"- Cost Variance (CV): {model.cv:,.2f}")
+        parts.append(f"- Schedule Variance (SV): {model.sv:,.2f}")
+        if model.eac is not None:
+            parts.append(f"- Estimate at Completion (EAC): {model.eac:,.2f}")
+        if model.etc is not None:
+            parts.append(f"- Estimate to Complete (ETC): {model.etc:,.2f}")
+        if model.warning:
+            parts.append(f"- Warning: {model.warning}")
+        return "\n".join(parts)
+
+    elif isinstance(model, DashboardData):
+        # Summarize dashboard data
+        parts = ["**Dashboard Data**"]
+        if model.last_edited_project:
+            lep = model.last_edited_project
+            parts.append(f"- Last edited: {lep.project_name} ({lep.project_code})")
+            parts.append(f"  - Budget: {lep.metrics.total_budget:,.2f}")
+            parts.append(f"  - WBEs: {lep.metrics.total_wbes}")
+            parts.append(f"  - Cost Elements: {lep.metrics.total_cost_elements}")
+        activity_count = sum(len(acts) for acts in model.recent_activity.values())
+        parts.append(f"- Recent activity: {activity_count} updates")
+        return "\n".join(parts)
+
+    elif isinstance(model, ImpactAnalysisResponse):
+        # Summarize impact analysis
+        parts = [
+            f"**Impact Analysis for Change Order {model.change_order_id}**",
+            f"- Branch: {model.branch_name} vs {model.main_branch_name}",
+        ]
+        # Summarize KPIs
+        kpi = model.kpi_scorecard
+        if kpi.bac.delta != 0:
+            parts.append(f"- BAC change: {kpi.bac.delta:,.2f}")
+        if kpi.eac and kpi.eac.delta != 0:
+            parts.append(f"- EAC change: {kpi.eac.delta:,.2f}")
+        # Summarize entity changes
+        ec = model.entity_changes
+        total_changes = (
+            len(ec.wbes) + len(ec.cost_elements) + len(ec.cost_registrations)
+        )
+        if total_changes > 0:
+            parts.append(f"- Entity changes: {total_changes} total")
+            if ec.wbes:
+                parts.append(f"  - WBEs: {len(ec.wbes)} changes")
+            if ec.cost_elements:
+                parts.append(f"  - Cost Elements: {len(ec.cost_elements)} changes")
+        return "\n".join(parts)
+
+    elif isinstance(model, ForecastRead):
+        # Summarize forecast
+        parts = [
+            f"**Forecast {model.forecast_id}**",
+            f"- Cost Element: {model.cost_element_code or model.cost_element_id}",
+            f"- Estimate at Completion: {model.eac_amount:,.2f}",
+            f"- Basis: {model.basis_of_estimate[:100]}{'...' if len(model.basis_of_estimate) > 100 else ''}",
+        ]
+        if model.cost_element_budget_amount:
+            budget_diff = model.eac_amount - model.cost_element_budget_amount
+            parts.append(f"- Budget variance: {budget_diff:,.2f}")
+        if model.approved_date:
+            parts.append(f"- Approved: {model.approved_date.strftime('%Y-%m-%d')}")
+        return "\n".join(parts)
+
+    else:
+        # Fallback: generic summary
+        try:
+            data_dict = model.model_dump(mode="json")
+            # Truncate for display
+            json_str = json.dumps(data_dict, indent=2, default=str)
+            if len(json_str) > 500:
+                json_str = json_str[:500] + "\n... (truncated)"
+            return f"Structured output ({model.__class__.__name__}):\n{json_str}"
+        except Exception:
+            return str(model)
+
+
 def build_task_tool(
     subagents: list[dict[str, Any]],
     task_description: str | None = None,
@@ -238,8 +341,12 @@ def build_task_tool(
         A StructuredTool named 'task' that invokes subagents by type.
     """
     # Build lookup dict and description string
-    subagent_graphs: dict[str, Runnable] = {
+    subagent_graphs: dict[str, Any] = {
         spec["name"]: spec["runnable"] for spec in subagents
+    }
+    # Store schema for each subagent
+    subagent_schemas: dict[str, type[BaseModel] | None] = {
+        spec["name"]: spec.get("structured_output_schema") for spec in subagents
     }
     subagent_description_str = "\n".join(
         f"- {s['name']}: {s['description']}" for s in subagents
@@ -260,8 +367,21 @@ def build_task_tool(
     def _return_command_with_state_update(
         result: dict[str, Any],
         tool_call_id: str,
-    ) -> Command:
-        """Build a Command that updates parent state with subagent result."""
+        subagent_schema: type[BaseModel] | None = None,
+    ) -> Command[Any]:
+        """Build a Command that updates parent state with subagent result.
+
+        Args:
+            result: Subagent execution result state
+            tool_call_id: Tool call ID for the ToolMessage
+            subagent_schema: Optional Pydantic schema for structured output
+
+        Returns:
+            Command with state update including ToolMessage
+
+        Raises:
+            ValueError: If result doesn't contain 'messages' key
+        """
         if "messages" not in result:
             raise ValueError(
                 "CompiledSubAgent must return a state containing a 'messages' key. "
@@ -277,20 +397,72 @@ def build_task_tool(
             if k not in _EXCLUDED_STATE_KEYS
         }
 
-        # Strip trailing whitespace to prevent API errors
+        # Extract the last message from subagent
         last_message = result["messages"][-1]
-        message_text = (
-            last_message.content.rstrip()
-            if last_message.content
-            else ""
-        )
+
+        # Handle structured output (Pydantic model)
+        additional_kwargs = {}
+        message_text = ""
+
+        if subagent_schema is not None:
+            try:
+                # Check if content is a Pydantic model instance
+                if isinstance(last_message.content, subagent_schema):
+                    # Extract structured data
+                    structured_model = last_message.content
+                    # Generate human-readable summary
+                    message_text = _summarize_structured_output(structured_model)
+                    # Serialize model to dict for JSON storage in additional_kwargs
+                    additional_kwargs["structured_output"] = {
+                        "schema": subagent_schema.__name__,
+                        "data": structured_model.model_dump(mode="json"),
+                    }
+                    logger.debug(
+                        f"Extracted structured output {subagent_schema.__name__} "
+                        f"from subagent result"
+                    )
+                else:
+                    # Content is not a Pydantic model, treat as regular text
+                    message_text = (
+                        last_message.content.rstrip()
+                        if last_message.content
+                        else ""
+                    )
+                    logger.debug(
+                        f"Subagent schema {subagent_schema.__name__} was "
+                        f"specified but content is not a Pydantic instance"
+                    )
+            except Exception as e:
+                # Error processing structured output, fall back to text
+                logger.warning(
+                    f"Error extracting structured output from subagent: {e}. "
+                    f"Falling back to text content."
+                )
+                message_text = (
+                    last_message.content.rstrip()
+                    if last_message.content
+                    else ""
+                )
+        else:
+            # Regular text content (no structured output)
+            message_text = (
+                last_message.content.rstrip()
+                if last_message.content
+                else ""
+            )
+
+        # Build ToolMessage with or without additional_kwargs
+        tool_message_kwargs: dict[str, Any] = {
+            "content": message_text,
+            "tool_call_id": tool_call_id,
+        }
+        if additional_kwargs:
+            tool_message_kwargs["additional_kwargs"] = additional_kwargs
 
         return Command(
             update={
                 **state_update,
-                "messages": [
-                    ToolMessage(message_text, tool_call_id=tool_call_id)
-                ],
+                "messages": [ToolMessage(**tool_message_kwargs)],
             }
         )
 
@@ -298,9 +470,19 @@ def build_task_tool(
         subagent_type: str,
         description: str,
         runtime: ToolRuntime,
-    ) -> tuple[Runnable, dict[str, Any]]:
-        """Validate subagent_type and prepare state for invocation."""
+    ) -> tuple[Any, dict[str, Any], type[BaseModel] | None]:
+        """Validate subagent_type and prepare state for invocation.
+
+        Args:
+            subagent_type: Name of the subagent to invoke
+            description: Task description for the subagent
+            runtime: ToolRuntime instance with state and config
+
+        Returns:
+            Tuple of (subagent_runnable, subagent_state, subagent_schema)
+        """
         subagent = subagent_graphs[subagent_type]
+        schema = subagent_schemas.get(subagent_type)
         # Filter excluded keys from parent state
         subagent_state = {
             k: v
@@ -309,7 +491,7 @@ def build_task_tool(
         }
         # Replace messages with the task description
         subagent_state["messages"] = [HumanMessage(content=description)]
-        return subagent, subagent_state
+        return subagent, subagent_state, schema
 
     def task(
         description: Annotated[
@@ -324,7 +506,7 @@ def build_task_tool(
             "agent types listed in the tool description.",
         ],
         runtime: ToolRuntime,
-    ) -> str | Command:
+    ) -> str | Command[Any]:
         if subagent_type not in subagent_graphs:
             allowed_types = ", ".join(
                 f"`{k}`" for k in subagent_graphs
@@ -335,11 +517,13 @@ def build_task_tool(
             )
         if not runtime.tool_call_id:
             raise ValueError("Tool call ID is required for subagent invocation")
-        subagent, subagent_state = _validate_and_prepare_state(
+        subagent, subagent_state, schema = _validate_and_prepare_state(
             subagent_type, description, runtime
         )
         result = subagent.invoke(subagent_state)
-        return _return_command_with_state_update(result, runtime.tool_call_id)
+        return _return_command_with_state_update(
+            result, runtime.tool_call_id, subagent_schema=schema
+        )
 
     async def atask(
         description: Annotated[
@@ -354,7 +538,7 @@ def build_task_tool(
             "agent types listed in the tool description.",
         ],
         runtime: ToolRuntime,
-    ) -> str | Command:
+    ) -> str | Command[Any]:
         if subagent_type not in subagent_graphs:
             allowed_types = ", ".join(
                 f"`{k}`" for k in subagent_graphs
@@ -365,7 +549,7 @@ def build_task_tool(
             )
         if not runtime.tool_call_id:
             raise ValueError("Tool call ID is required for subagent invocation")
-        subagent, subagent_state = _validate_and_prepare_state(
+        subagent, subagent_state, schema = _validate_and_prepare_state(
             subagent_type, description, runtime
         )
         max_retries = 3
@@ -374,7 +558,7 @@ def build_task_tool(
             try:
                 result = await subagent.ainvoke(subagent_state)
                 return _return_command_with_state_update(
-                    result, runtime.tool_call_id
+                    result, runtime.tool_call_id, subagent_schema=schema
                 )
             except (
                 httpx.ReadError,
