@@ -159,9 +159,13 @@ class DeepAgentOrchestrator:
             )
 
             if subagent_dicts:
-                # Main agent delegates via task tool only
+                # Main agent delegates via task tool, but also gets get_temporal_context
+                # for direct access to temporal context information (LOW risk, read-only)
                 task_tool = build_task_tool(subagent_dicts)
-                tools = [task_tool]
+                temporal_context_tool = next((t for t in all_tools if t.name == "get_temporal_context"), None)
+                tools: list[BaseTool] = [task_tool]
+                if temporal_context_tool:
+                    tools.append(temporal_context_tool)
                 final_system_prompt = base_prompt + TASK_SYSTEM_PROMPT + subagent_prompt_suffix
                 middleware = [TodoListMiddleware(), *backcast_middleware]
                 logger.info(
@@ -192,7 +196,7 @@ class DeepAgentOrchestrator:
             model=self.model,
             tools=tools,
             system_prompt=final_system_prompt,
-            middleware=middleware,
+            middleware=middleware,  # type: ignore[arg-type]
             checkpointer=checkpointer,
             context_schema=context_schema,
         )
@@ -354,10 +358,13 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
                 middleware=subagent_middleware,
             )
 
+            schema = config.get("structured_output_schema")
+
             subagent_dicts.append({
                 "name": name,
                 "description": description,
                 "runnable": runnable,
+                "structured_output_schema": schema,
             })
             logger.info(
                 f"Compiled subagent '{name}' with {len(subagent_tools)} tools"

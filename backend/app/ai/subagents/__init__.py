@@ -11,6 +11,10 @@ Defines specialized subagents for different domains, each mapped 1:1 to tool tem
 
 from typing import Any
 
+from app.models.schemas.evm import EVMMetricsRead
+from app.models.schemas.forecast import ForecastRead
+from app.models.schemas.impact_analysis import ImpactAnalysisResponse
+
 # Subagent: Project Manager
 # Specializes in project, WBE, cost element, cost registration, and progress entry CRUD operations
 PROJECT_MANAGER_SUBAGENT: dict[str, Any] = {
@@ -35,6 +39,7 @@ Always validate user permissions before making changes.
 Ensure data integrity and proper validation.
 Provide clear summaries of project structures and cost/progress trends.""",
     "allowed_tools": [
+        "get_temporal_context",
         "list_projects",
         "get_project",
         "create_project",
@@ -69,6 +74,7 @@ Provide clear summaries of project structures and cost/progress trends.""",
         "delete_progress_entry",
         "get_progress_history",
     ],
+    "structured_output_schema": None,  # No structured output for project_manager (varied responses)
 }
 
 # Subagent: EVM Analyst
@@ -98,6 +104,7 @@ Always use the calculate_evm_metrics tool for accurate calculations.
 Provide clear explanations of what the metrics mean and actionable insights.
 Identify trends and potential risks early.""",
     "allowed_tools": [
+        "get_temporal_context",
         "calculate_evm_metrics",
         "get_evm_performance_summary",
         "analyze_cost_variance",
@@ -107,6 +114,7 @@ Identify trends and potential risks early.""",
         "detect_evm_anomalies",
         "generate_optimization_suggestions",
     ],
+    "structured_output_schema": EVMMetricsRead,  # Returns structured EVM metrics
 }
 
 # Subagent: Change Order Manager
@@ -128,6 +136,7 @@ Critical operations require user approval. Always explain the impact
 of proposed changes before proceeding.
 Ensure proper documentation and audit trails.""",
     "allowed_tools": [
+        "get_temporal_context",
         "list_change_orders",
         "get_change_order",
         "create_change_order",
@@ -137,6 +146,7 @@ Ensure proper documentation and audit trails.""",
         "reject_change_order",
         "analyze_change_order_impact",
     ],
+    "structured_output_schema": ImpactAnalysisResponse,  # Returns structured impact analysis
 }
 
 # Subagent: User Administrator
@@ -156,6 +166,7 @@ Always validate admin permissions before making changes.
 Ensure data integrity and proper validation.
 Follow security best practices for user management.""",
     "allowed_tools": [
+        "get_temporal_context",
         "list_users",
         "get_user",
         "create_user",
@@ -167,6 +178,7 @@ Follow security best practices for user management.""",
         "update_department",
         "delete_department",
     ],
+    "structured_output_schema": None,  # No structured output for user_admin (varied responses)
 }
 
 # Subagent: Visualization Specialist
@@ -185,8 +197,10 @@ You help with:
 Always ensure diagrams are clear and well-structured.
 Use appropriate diagram types for the information being presented.""",
     "allowed_tools": [
+        "get_temporal_context",
         "generate_mermaid_diagram",
     ],
+    "structured_output_schema": None,  # No structured output for visualization_specialist (returns diagrams/text)
 }
 
 # Subagent: Forecast Manager
@@ -211,6 +225,7 @@ Provide clear explanations of forecast assumptions.
 Identify potential risks based on trends.
 Explain the impact of forecasts vs. budgets.""",
     "allowed_tools": [
+        "get_temporal_context",
         "get_forecast",
         "create_forecast",
         "update_forecast",
@@ -223,6 +238,7 @@ Explain the impact of forecasts vs. budgets.""",
         "update_schedule_baseline",
         "delete_schedule_baseline",
     ],
+    "structured_output_schema": ForecastRead,  # Returns structured forecast data
 }
 
 
