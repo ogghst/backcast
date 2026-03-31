@@ -42,6 +42,7 @@ import { WSConnectionState, type WSApprovalRequestMessage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { generateSessionTitle } from "../utils/sessionTitle";
 import { useExecutionMode } from "../../hooks/useExecutionMode";
+import { useLastAssistantId } from "../../hooks/useLastAssistantId";
 import { ApprovalDialog } from "../../components/ApprovalDialog";
 
 const { Sider, Content, Header } = Layout;
@@ -81,9 +82,13 @@ export const ChatInterface = ({
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(
     initialSessionId
   );
+
+  // Persistent last assistant selection
+  const { lastAssistantId, setLastAssistantId } = useLastAssistantId();
+
   const [selectedAssistantId, setSelectedAssistantId] = useState<
     string | undefined
-  >(initialAssistantId);
+  >(initialAssistantId ?? lastAssistantId);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -145,6 +150,13 @@ export const ChatInterface = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSession?.id, selectedAssistantId]);
+
+  // Persist assistant selection to localStorage when it changes
+  useEffect(() => {
+    if (selectedAssistantId) {
+      setLastAssistantId(selectedAssistantId);
+    }
+  }, [selectedAssistantId, setLastAssistantId]);
 
   // Determine if currently streaming (we have streaming content, active tools, or are waiting for the first chunk)
   // Computed early so the cleanup useEffect below can reference it.
@@ -646,11 +658,11 @@ export const ChatInterface = ({
   // Handle new chat
   const handleNewChat = useCallback(() => {
     setCurrentSessionId(undefined);
-    setSelectedAssistantId(undefined);
+    setSelectedAssistantId(lastAssistantId);
     setSidebarOpen(false);
     setError(null);
     setPendingUserMessage(null);
-  }, []);
+  }, [lastAssistantId]);
 
   // Handle session selection
   const handleSessionSelect = useCallback(
