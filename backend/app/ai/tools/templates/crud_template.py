@@ -521,7 +521,8 @@ async def get_wbe(
 
 @ai_tool(
     name="create_wbe",
-    description="Create a new Work Breakdown Element (WBE) under a project.",
+    description="Create a new Work Breakdown Element (WBE) under a project. "
+    "Optionally specify a parent_wbe_id to create it as a child of an existing WBE.",
     permissions=["wbe-create"],
     category="wbe",
     risk_level=RiskLevel.HIGH,
@@ -532,6 +533,7 @@ async def create_wbe(
     code: str,
     budget: float | None = None,
     description: str | None = None,
+    parent_wbe_id: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
     """Create a new WBE.
@@ -544,6 +546,7 @@ async def create_wbe(
         code: Unique WBE code
         budget: Optional budget allocation
         description: Optional description
+        parent_wbe_id: Optional UUID of the parent WBE to create as a child
         context: Injected tool execution context
 
     Returns:
@@ -575,6 +578,7 @@ async def create_wbe(
             code=code,
             budget=budget,
             description=description,
+            parent_wbe_id=UUID(parent_wbe_id) if parent_wbe_id else None,
         )
 
         # Call service method (Use specialized create_wbe method)
@@ -588,6 +592,7 @@ async def create_wbe(
             "project_id": str(wbe.project_id),
             "budget": float(wbe.budget) if hasattr(wbe, 'budget') and wbe.budget else None,
             "description": wbe.description if hasattr(wbe, 'description') else None,
+            "parent_wbe_id": str(wbe.parent_wbe_id) if hasattr(wbe, 'parent_wbe_id') and wbe.parent_wbe_id else None,
         }
     except ValueError as e:
         return {"error": f"Invalid input: {e}"}
