@@ -25,10 +25,10 @@ import {
   BugOutlined,
 } from "@ant-design/icons";
 import {
-  useChatSessions,
   useDeleteSession,
 } from "../api/useChatSessions";
 import { useChatMessages } from "../api/useChatSessions";
+import { useChatSessionsPaginated } from "../api/useChatSessionsPaginated";
 import { useStreamingChat } from "../api/useStreamingChat";
 import { AssistantSelector } from "./AssistantSelector";
 import { SessionList } from "./SessionList";
@@ -133,8 +133,23 @@ export const ChatInterface = ({
   // Query client for cache invalidation
   const queryClient = useQueryClient();
 
+  // Clear all cached data on mount. The AI can modify any entity,
+  // so stale cache is purged to ensure fresh data on other pages.
+  useEffect(() => {
+    queryClient.clear();
+  }, [queryClient]);
+
   // Queries
-  const { data: sessions, isLoading: sessionsLoading } = useChatSessions();
+  const {
+    data: paginatedData,
+    isLoading: sessionsLoading,
+    loadMore,
+    hasMore,
+    isLoading: loadingMore,
+  } = useChatSessionsPaginated({ limit: 10 });
+
+  const sessions = paginatedData?.sessions ?? [];
+
   const { data: messages, isLoading: messagesLoading } = useChatMessages(
     currentSessionId
   );
@@ -881,13 +896,16 @@ export const ChatInterface = ({
         >
           {!isCollapsed && (
             <SessionList
-              sessions={sessions ?? []}
+              sessions={sessions}
               currentSessionId={currentSessionId}
               onSessionSelect={handleSessionSelect}
               onNewChat={handleNewChat}
               onDeleteSession={handleDeleteSession}
               loading={sessionsLoading}
               hideNewChatButton
+              hasMore={hasMore}
+              onLoadMore={loadMore}
+              loadingMore={loadingMore}
             />
           )}
         </Sider>
@@ -902,13 +920,16 @@ export const ChatInterface = ({
           styles={{ body: { padding: 0 } }}
         >
           <SessionList
-            sessions={sessions ?? []}
+            sessions={sessions}
             currentSessionId={currentSessionId}
             onSessionSelect={handleSessionSelect}
             onNewChat={handleNewChat}
             onDeleteSession={handleDeleteSession}
             loading={sessionsLoading}
             hideNewChatButton
+            hasMore={hasMore}
+            onLoadMore={loadMore}
+            loadingMore={loadingMore}
           />
         </Drawer>
 
