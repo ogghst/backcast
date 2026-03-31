@@ -448,8 +448,7 @@ class BackcastSecurityMiddleware(AgentMiddleware):
             max_wait_time = 60.0  # seconds (increased from 10s for better UX)
             poll_interval = 0.2  # 200ms
             heartbeat_interval = 5.0  # Send heartbeat every 5 seconds
-            total_waited = 0.0
-            last_heartbeat = 0.0
+            last_heartbeat_time = time.time()
             polling_start_time = time.time()
 
             logger.info(
@@ -460,31 +459,45 @@ class BackcastSecurityMiddleware(AgentMiddleware):
             )
 
             try:
-                while total_waited < max_wait_time:
+                while (time.time() - polling_start_time) < max_wait_time:
                     # Check if task was cancelled (e.g., WebSocket disconnected)
                     current_task = asyncio.current_task()
                     if current_task is not None and current_task.cancelled():
+                        waited_seconds = time.time() - polling_start_time
                         logger.info(
                             f"[APPROVAL_POLLING_CANCELLED] _check_risk_level_with_approval | "
                             f"approval_id={approval_id} | "
                             f"tool_name={tool_name} | "
-                            f"waited_seconds={total_waited:.2f}"
+                            f"waited_seconds={waited_seconds:.2f}"
                         )
                         raise asyncio.CancelledError()
 
+                    # Check if WebSocket is still connected - user cannot approve if disconnected
+                    if interrupt_node.websocket and not interrupt_node._is_websocket_connected(interrupt_node.websocket):
+                        waited_seconds = time.time() - polling_start_time
+                        logger.warning(
+                            f"[APPROVAL_WEBSOCKET_DISCONNECTED] _check_risk_level_with_approval | "
+                            f"approval_id={approval_id} | "
+                            f"tool_name={tool_name} | "
+                            f"waited_seconds={waited_seconds:.2f}"
+                        )
+                        return False, "WebSocket connection lost. Approval request cancelled. Please reconnect and try again."
+
                     await asyncio.sleep(poll_interval)
-                    total_waited += poll_interval
+
+                    # Calculate actual elapsed wall-clock time
+                    elapsed_seconds = time.time() - polling_start_time
 
                     # Send heartbeat to keep WebSocket connection alive
                     # Prevents connection timeout due to inactivity (typically 20-30 seconds)
-                    if total_waited - last_heartbeat >= heartbeat_interval:
-                        remaining = max_wait_time - total_waited
+                    if elapsed_seconds - (last_heartbeat_time - polling_start_time) >= heartbeat_interval:
+                        remaining = max_wait_time - elapsed_seconds
                         await interrupt_node._send_heartbeat(
                             approval_id=approval_id,
-                            elapsed_seconds=total_waited,
+                            elapsed_seconds=elapsed_seconds,
                             remaining_seconds=remaining,
                         )
-                        last_heartbeat = total_waited
+                        last_heartbeat_time = time.time()
 
                     approved, approval_error = interrupt_node._check_approval(approval_id)
 
