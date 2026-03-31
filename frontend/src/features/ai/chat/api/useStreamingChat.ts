@@ -197,6 +197,9 @@ export const useStreamingChat = (
   // Get JWT token from auth store
   const token = useAuthStore((state): string | null => state.token);
 
+  // Store assistantId in a ref so connect() always has the latest value
+  const assistantIdRef = useRef(assistantId);
+
   // Get temporal context from Time Machine store
   const getSelectedTime = useTimeMachineStore((state) => state.getSelectedTime);
   const getSelectedBranch = useTimeMachineStore((state) => state.getSelectedBranch);
@@ -206,9 +209,11 @@ export const useStreamingChat = (
   const projectIdRef = useRef(projectId);
 
   // Keep projectIdRef updated when config.projectId changes
+  // Also update assistantIdRef to ensure connect() has the latest value
   useEffect(() => {
     projectIdRef.current = projectId;
-  }, [projectId]);
+    assistantIdRef.current = assistantId;
+  }, [projectId, assistantId]);
 
   // Track last seen sequence number for resubscription after reconnect
   const lastSequenceRef = useRef<number>(0);
@@ -289,6 +294,16 @@ export const useStreamingChat = (
   const completeTimeoutRef = useRef<number | null>(null);
   // Use a mutable object to track last message time (avoids purity issues)
   const lastMessageTimeRef = useRef({ current: 0 });
+
+  // Ref to store the connect function for lazy connection from sendMessage
+  const connectRef = useRef<(() => void) | null>(null);
+
+  // Ref to store pending message to send once connection is established
+  const pendingMessageRef = useRef<{
+    message: string;
+    title?: string;
+    executionMode?: "safe" | "standard" | "expert";
+  } | null>(null);
 
   // Initialize last message time on mount
   useEffect(() => {
@@ -596,19 +611,24 @@ export const useStreamingChat = (
     (message: string, title?: string, executionMode?: "safe" | "standard" | "expert") => {
       const ws = wsRef.current;
 
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        const errorMsg = "WebSocket is not connected";
-        onError(errorMsg);
-        setError(new Error(errorMsg));
-        return;
-      }
-
-      // Validate execution mode is provided
+      // Validate execution mode is provided (do this first for early error)
       if (!executionMode) {
         const errorMsg = "executionMode is required but was not provided";
         console.error(errorMsg);
         onError(errorMsg);
         setError(new Error(errorMsg));
+        return;
+      }
+
+      // If not connected, store pending message and initiate connection
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        // Store the pending message to be sent once connection opens
+        pendingMessageRef.current = { message, title, executionMode };
+
+        // Trigger connection if not already connecting
+        if (!ws || ws.readyState === WebSocket.CLOSED) {
+          connectRef.current?.();
+        }
         return;
       }
 
@@ -629,7 +649,7 @@ export const useStreamingChat = (
         type: "chat",
         message,
         session_id: sessionId ?? null,
-        assistant_config_id: assistantId,
+        assistant_config_id: assistantIdRef.current,
         title, // Pass title for new sessions
         as_of: asOf ?? null, // Convert undefined to null for "now"
         branch_name: branchName,
@@ -652,7 +672,7 @@ export const useStreamingChat = (
         setError(new Error(errorMsg));
       }
     },
-    [sessionId, assistantId, onError, getSelectedTime, getSelectedBranch, getViewMode, startCompleteTimeout]
+    [sessionId, onError, getSelectedTime, getSelectedBranch, getViewMode, startCompleteTimeout]
   );
 
   /**
@@ -802,6 +822,12 @@ export const useStreamingChat = (
         return;
       }
 
+      // Don't connect if assistantId is not provided (no assistant selected)
+      if (!assistantIdRef.current) {
+        setConnectionState(WSConnectionState.CLOSED);
+        return;
+      }
+
       setConnectionState(WSConnectionState.CONNECTING);
       setError(null);
 
@@ -825,6 +851,42 @@ export const useStreamingChat = (
               ws.send(JSON.stringify(subscribe));
             } catch {
               // Silently ignore — execution may have already completed
+            }
+          }
+
+          // Send pending message if connection was initiated by sendMessage
+          if (pendingMessageRef.current) {
+            const { message, title, executionMode } = pendingMessageRef.current;
+            pendingMessageRef.current = null;
+
+            // Reconstruct the message sending logic here
+            const asOf = getSelectedTime();
+            const branchName = getSelectedBranch();
+            const branchMode = getViewMode();
+
+            const request: WSChatRequest = {
+              type: "chat",
+              message,
+              session_id: null,
+              assistant_config_id: assistantIdRef.current,
+              title,
+              as_of: asOf ?? null,
+              branch_name: branchName,
+              branch_mode: branchMode,
+              project_id: projectIdRef.current,
+              execution_mode: executionMode,
+            };
+
+            try {
+              ws.send(JSON.stringify(request));
+            } catch (err) {
+              const callbacks = callbacksRef.current;
+              const errorMsg =
+                err instanceof Error
+                  ? err.message
+                  : "Failed to send message";
+              callbacks.onError(errorMsg);
+              setError(new Error(errorMsg));
             }
           }
         });
@@ -873,8 +935,14 @@ export const useStreamingChat = (
       }
     };
 
-    // Initial connection
-    connect();
+    // Store connect function in ref for lazy connection from sendMessage
+    connectRef.current = connect;
+
+    // Only connect immediately if there's an active execution to resume
+    // Otherwise, connect lazily when sendMessage is called
+    if (activeExecutionIdRef.current) {
+      connect();
+    }
 
     // Cleanup on unmount - directly close connection without using cancel()
     return () => {
@@ -900,7 +968,10 @@ export const useStreamingChat = (
         wsRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, assistantId, handleMessage, clearCompleteTimeout]); // Only reconnect when token or assistantId changes
+  // Note: getSelectedTime, getSelectedBranch, getViewMode are used inside ws.addEventListener("open") handler
+  // and don't need to be in dependencies - they're stable functions from Zustand store
 
   return {
     sendMessage,

@@ -38,7 +38,7 @@ import { AgentActivityPanel } from "./AgentActivityPanel";
 import type { AgentActivity, ActivityHistoryItem } from "./AgentActivityPanel";
 import { WebSocketDebugPanel, type DebugMessage } from "./WebSocketDebugPanel";
 import type { ChatMessage, MainAgentStream, SubagentStream, StreamingState } from "../../types";
-import { WSConnectionState, type WSApprovalRequestMessage } from "../types";
+import type { WSApprovalRequestMessage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { generateSessionTitle } from "../utils/sessionTitle";
 import { useExecutionMode } from "../../hooks/useExecutionMode";
@@ -737,16 +737,11 @@ export const ChatInterface = ({
       completionTurnRef.current = 0;
       setSubagentInvocationCounts({});
 
-      // Only send if the WebSocket is connected
-      if (streamingChat.connectionState !== WSConnectionState.OPEN) {
-        setError("Not connected to chat service. Please wait for connection.");
-        return;
-      }
-
       // Generate title for new sessions (when no current session exists)
       const title = currentSessionId ? undefined : generateSessionTitle(messageContent);
 
       // Send message via streaming hook with execution mode
+      // sendMessage now handles lazy connection if not connected
       streamingChat.sendMessage(messageContent, title ?? undefined, executionMode);
     },
     [selectedAssistantId, streamingChat, currentSessionId, executionMode]

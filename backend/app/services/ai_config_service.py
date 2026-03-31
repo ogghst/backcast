@@ -10,7 +10,7 @@ from typing import Any
 from uuid import UUID
 
 from cryptography.fernet import Fernet, InvalidToken
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -359,6 +359,52 @@ class AIConfigService:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def list_sessions_paginated(
+        self, user_id: UUID, skip: int = 0, limit: int = 10
+    ) -> tuple[list[AIConversationSession], bool]:
+        """List conversation sessions with pagination.
+
+        Args:
+            user_id: User ID to filter sessions by
+            skip: Number of sessions to skip (for pagination)
+            limit: Maximum number of sessions to return
+
+        Returns:
+            Tuple of (sessions, has_more) where has_more indicates if more
+            sessions exist beyond this page.
+        """
+        # Fetch requested sessions plus one extra to check for more
+        stmt = (
+            select(AIConversationSession)
+            .where(AIConversationSession.user_id == user_id)
+            .order_by(AIConversationSession.updated_at.desc())
+            .offset(skip)
+            .limit(limit + 1)  # Fetch one extra to check for more
+        )
+        result = await self.session.execute(stmt)
+        sessions = list(result.scalars().all())
+
+        has_more = len(sessions) > limit
+        if has_more:
+            sessions = sessions[:limit]  # Remove the extra item
+
+        return sessions, has_more
+
+    async def count_sessions(self, user_id: UUID) -> int:
+        """Count total sessions for a user.
+
+        Args:
+            user_id: User ID to count sessions for
+
+        Returns:
+            Total number of sessions for the user
+        """
+        stmt = select(func.count(AIConversationSession.id)).where(
+            AIConversationSession.user_id == user_id
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
 
     async def get_session(self, session_id: UUID) -> AIConversationSession | None:
         """Get a specific conversation session."""

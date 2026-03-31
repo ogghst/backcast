@@ -40,6 +40,7 @@ from app.models.domain.user import User
 from app.models.schemas.ai import (
     AgentExecutionPublic,
     AIConversationMessagePublic,
+    AIConversationSessionPaginated,
     AIConversationSessionPublic,
     ApprovalRequest,
     InvokeAgentRequest,
@@ -129,6 +130,77 @@ async def list_sessions(
         result.append(session_public)
 
     return result
+
+
+@router.get(
+    "/sessions/paginated",
+    response_model=AIConversationSessionPaginated,
+    operation_id="list_ai_sessions_paginated",
+    dependencies=[Depends(RoleChecker(required_permission="ai-chat"))],
+)
+async def list_sessions_paginated(
+    skip: int = 0,
+    limit: int = 10,
+    current_user: User = Depends(get_current_active_user),
+    config_service: AIConfigService = Depends(get_ai_config_service),
+) -> AIConversationSessionPaginated:
+    """List chat sessions with pagination.
+
+    Args:
+        skip: Number of sessions to skip (default: 0)
+        limit: Sessions per page (default: 10, max: 50)
+        current_user: Authenticated user (injected)
+        config_service: AI config service (injected)
+
+    Returns:
+        Paginated response with sessions, has_more flag, and total_count
+    """
+    limit = min(limit, 50)  # Cap at 50
+
+    sessions, has_more = await config_service.list_sessions_paginated(
+        user_id=current_user.user_id,
+        skip=skip,
+        limit=limit,
+    )
+
+    result: list[AIConversationSessionPublic] = []
+
+    if not sessions:
+        return AIConversationSessionPaginated(
+            sessions=result,
+            has_more=False,
+            total_count=0,
+        )
+
+    # Collect session IDs and find active executions in a single query
+    session_ids = [s.id for s in sessions]
+    active_statuses = ("pending", "running", "awaiting_approval")
+    exec_stmt = select(AIAgentExecution).where(
+        AIAgentExecution.session_id.in_(session_ids),
+        AIAgentExecution.status.in_(active_statuses),
+    )
+    exec_result = await config_service.session.execute(exec_stmt)
+    active_executions: dict[str, AIAgentExecution] = {
+        str(e.session_id): e for e in exec_result.scalars().all()
+    }
+
+    for s in sessions:
+        session_public = AIConversationSessionPublic.model_validate(s)
+        execution = active_executions.get(str(s.id))
+        if execution is not None:
+            session_public.active_execution = AgentExecutionPublic.model_validate(
+                execution
+            )
+        result.append(session_public)
+
+    # Get total count
+    total_count = await config_service.count_sessions(current_user.user_id)
+
+    return AIConversationSessionPaginated(
+        sessions=result,
+        has_more=has_more,
+        total_count=total_count,
+    )
 
 
 @router.get(

@@ -1,5 +1,6 @@
 """Tests for AI Config Service."""
 
+import asyncio
 from datetime import datetime
 from uuid import uuid4
 
@@ -548,4 +549,302 @@ async def test_encrypt_decrypt_roundtrip(db_session: AsyncSession) -> None:
 
         # Verify roundtrip
         assert decrypted == original
+
+
+# === Conversation Session Pagination Tests ===
+
+
+@pytest.mark.asyncio
+async def test_list_sessions_paginated_first_page(db_session: AsyncSession) -> None:
+    """Test pagination returns correct first page with has_more flag."""
+    from uuid import uuid4
+
+    from app.models.domain.ai import AIConversationSession
+    from app.models.domain.user import User
+
+    service = AIConfigService(db_session)
+
+    # Create a test user
+    user = User(
+        id=uuid4(),
+        user_id=uuid4(),
+        email="test@example.com",
+        hashed_password="hash",
+        full_name="Test User",
+        role="user",
+        is_active=True,
+        created_by=uuid4(),
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    # Create a provider and model
+    provider = await service.create_provider(
+        AIProviderCreate(
+            provider_type="openai",
+            name="Test Provider",
+            is_active=True,
+        )
+    )
+
+    model = await service.create_model(
+        AIModelCreate(
+            provider_id=provider.id,
+            model_id="gpt-4",
+            display_name="GPT-4",
+            is_active=True,
+        )
+    )
+
+    # Create assistant config
+    assistant = await service.create_assistant_config(
+        AIAssistantConfigCreate(
+            name="Test Assistant",
+            model_id=model.id,
+            system_prompt="You are helpful",
+        )
+    )
+
+    # Create 15 sessions for the user with explicit delays to ensure different timestamps
+    for i in range(15):
+        session = AIConversationSession(
+            user_id=user.user_id,
+            assistant_config_id=assistant.id,
+            title=f"Session {i}",
+        )
+        db_session.add(session)
+        await db_session.flush()
+        # Small delay to ensure different updated_at timestamps
+        await asyncio.sleep(0.001)
+
+    # Fetch first page with limit=10
+    sessions, has_more = await service.list_sessions_paginated(
+        user_id=user.user_id,
+        skip=0,
+        limit=10,
+    )
+
+    # Verify first page
+    assert len(sessions) == 10
+    assert has_more is True
+    # Verify all sessions are for the correct user
+    assert all(s.user_id == user.user_id for s in sessions)
+
+
+@pytest.mark.asyncio
+async def test_list_sessions_paginated_second_page(db_session: AsyncSession) -> None:
+    """Test pagination returns correct second page."""
+    from uuid import uuid4
+
+    from app.models.domain.ai import AIConversationSession
+    from app.models.domain.user import User
+
+    service = AIConfigService(db_session)
+
+    # Create a test user
+    user = User(
+        id=uuid4(),
+        user_id=uuid4(),
+        email="test@example.com",
+        hashed_password="hash",
+        full_name="Test User",
+        role="user",
+        is_active=True,
+        created_by=uuid4(),
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    # Create a provider and model
+    provider = await service.create_provider(
+        AIProviderCreate(
+            provider_type="openai",
+            name="Test Provider",
+            is_active=True,
+        )
+    )
+
+    model = await service.create_model(
+        AIModelCreate(
+            provider_id=provider.id,
+            model_id="gpt-4",
+            display_name="GPT-4",
+            is_active=True,
+        )
+    )
+
+    # Create assistant config
+    assistant = await service.create_assistant_config(
+        AIAssistantConfigCreate(
+            name="Test Assistant",
+            model_id=model.id,
+            system_prompt="You are helpful",
+        )
+    )
+
+    # Create 15 sessions for the user with explicit delays to ensure different timestamps
+    for i in range(15):
+        session = AIConversationSession(
+            user_id=user.user_id,
+            assistant_config_id=assistant.id,
+            title=f"Session {i}",
+        )
+        db_session.add(session)
+        await db_session.flush()
+        # Small delay to ensure different updated_at timestamps
+        await asyncio.sleep(0.001)
+
+    # Fetch second page
+    sessions, has_more = await service.list_sessions_paginated(
+        user_id=user.user_id,
+        skip=10,
+        limit=10,
+    )
+
+    # Verify second page
+    assert len(sessions) == 5
+    assert has_more is False
+    # Verify all sessions are for the correct user
+    assert all(s.user_id == user.user_id for s in sessions)
+
+
+@pytest.mark.asyncio
+async def test_list_sessions_paginated_last_page(db_session: AsyncSession) -> None:
+    """Test pagination has_more is False on last page."""
+    from uuid import uuid4
+
+    from app.models.domain.ai import AIConversationSession
+    from app.models.domain.user import User
+
+    service = AIConfigService(db_session)
+
+    # Create a test user
+    user = User(
+        id=uuid4(),
+        user_id=uuid4(),
+        email="test@example.com",
+        hashed_password="hash",
+        full_name="Test User",
+        role="user",
+        is_active=True,
+        created_by=uuid4(),
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    # Create a provider and model
+    provider = await service.create_provider(
+        AIProviderCreate(
+            provider_type="openai",
+            name="Test Provider",
+            is_active=True,
+        )
+    )
+
+    model = await service.create_model(
+        AIModelCreate(
+            provider_id=provider.id,
+            model_id="gpt-4",
+            display_name="GPT-4",
+            is_active=True,
+        )
+    )
+
+    # Create assistant config
+    assistant = await service.create_assistant_config(
+        AIAssistantConfigCreate(
+            name="Test Assistant",
+            model_id=model.id,
+            system_prompt="You are helpful",
+        )
+    )
+
+    # Create 5 sessions (less than a full page)
+    for i in range(5):
+        session = AIConversationSession(
+            user_id=user.user_id,
+            assistant_config_id=assistant.id,
+            title=f"Session {i}",
+        )
+        db_session.add(session)
+    await db_session.flush()
+
+    # Fetch with limit=10
+    sessions, has_more = await service.list_sessions_paginated(
+        user_id=user.user_id,
+        skip=0,
+        limit=10,
+    )
+
+    # Verify no more pages
+    assert len(sessions) == 5
+    assert has_more is False
+
+
+@pytest.mark.asyncio
+async def test_count_sessions(db_session: AsyncSession) -> None:
+    """Test counting sessions for a user."""
+    from uuid import uuid4
+
+    from app.models.domain.ai import AIConversationSession
+    from app.models.domain.user import User
+
+    service = AIConfigService(db_session)
+
+    # Create a test user
+    user = User(
+        id=uuid4(),
+        user_id=uuid4(),
+        email="test@example.com",
+        hashed_password="hash",
+        full_name="Test User",
+        role="user",
+        is_active=True,
+        created_by=uuid4(),
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    # Create a provider and model
+    provider = await service.create_provider(
+        AIProviderCreate(
+            provider_type="openai",
+            name="Test Provider",
+            is_active=True,
+        )
+    )
+
+    model = await service.create_model(
+        AIModelCreate(
+            provider_id=provider.id,
+            model_id="gpt-4",
+            display_name="GPT-4",
+            is_active=True,
+        )
+    )
+
+    # Create assistant config
+    assistant = await service.create_assistant_config(
+        AIAssistantConfigCreate(
+            name="Test Assistant",
+            model_id=model.id,
+            system_prompt="You are helpful",
+        )
+    )
+
+    # Create 7 sessions for the user
+    for i in range(7):
+        session = AIConversationSession(
+            user_id=user.user_id,
+            assistant_config_id=assistant.id,
+            title=f"Session {i}",
+        )
+        db_session.add(session)
+    await db_session.flush()
+
+    # Count sessions
+    count = await service.count_sessions(user.user_id)
+
+    # Verify count
+    assert count == 7
 

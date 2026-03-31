@@ -304,6 +304,14 @@ class AIConversationSessionPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AIConversationSessionPaginated(BaseModel):
+    """Paginated response for conversation sessions."""
+
+    sessions: list[AIConversationSessionPublic]
+    has_more: bool  # Whether more sessions exist
+    total_count: int  # Total sessions for user
+
+
 class AIConversationSessionCreate(BaseModel):
     """Schema for creating a conversation session."""
 

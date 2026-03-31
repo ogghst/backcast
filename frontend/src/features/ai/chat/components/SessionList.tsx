@@ -13,6 +13,7 @@ import {
 } from "@ant-design/icons";
 import type { AIConversationSessionPublic, AgentExecutionPublic } from "../../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
+import { LoadMoreButton } from "./LoadMoreButton";
 
 const { Text } = Typography;
 
@@ -25,6 +26,10 @@ interface SessionListProps {
   loading?: boolean;
   /** Hide the "New Chat" button in the header (useful when embedded in ChatInterface) */
   hideNewChatButton?: boolean;
+  /** Pagination props */
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  loadingMore?: boolean;
 }
 
 /**
@@ -102,6 +107,9 @@ export const SessionList = ({
   onDeleteSession,
   loading = false,
   hideNewChatButton = false,
+  hasMore = false,
+  onLoadMore,
+  loadingMore = false,
 }: SessionListProps) => {
   const { token } = theme.useToken();
   const { spacing, typography, borderRadius } = useThemeTokens();
@@ -152,10 +160,11 @@ export const SessionList = ({
             style={{ marginTop: spacing.xl }}
           />
         ) : (
-          <List
-            dataSource={sessions}
-            loading={loading}
-            renderItem={(session) => (
+          <>
+            <List
+              dataSource={sessions}
+              loading={loading}
+              renderItem={(session) => (
               <List.Item
                 style={{
                   padding: `${spacing.sm * 0.75}px ${spacing.md}px`,
@@ -249,7 +258,16 @@ export const SessionList = ({
                 </div>
               </List.Item>
             )}
-          />
+            />
+            {/* Load More Button */}
+            {hasMore && onLoadMore && (
+              <LoadMoreButton
+                onLoadMore={onLoadMore}
+                loading={loadingMore}
+                disabled={loading}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

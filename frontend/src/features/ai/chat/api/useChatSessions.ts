@@ -18,6 +18,7 @@ import { queryKeys } from "@/api/queryKeys";
 import type {
   AIConversationSessionPublic,
   AIConversationMessagePublic,
+  AIConversationSessionPaginated,
 } from "../../types";
 
 // API base URL - axios is configured with auth interceptors in client.ts
@@ -27,6 +28,17 @@ const sessionsApi = {
   list: async (): Promise<AIConversationSessionPublic[]> => {
     const response = await axios.get<AIConversationSessionPublic[]>(
       `${API_BASE}/sessions`
+    );
+    return response.data;
+  },
+
+  listPaginated: async (
+    skip: number = 0,
+    limit: number = 10
+  ): Promise<AIConversationSessionPaginated> => {
+    const response = await axios.get<AIConversationSessionPaginated>(
+      `${API_BASE}/sessions/paginated`,
+      { params: { skip, limit } }
     );
     return response.data;
   },

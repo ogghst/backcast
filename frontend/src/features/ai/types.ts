@@ -257,3 +257,12 @@ export interface ChatMessage {
     invocation_number?: number;
   };
 }
+
+/**
+ * Paginated response for AI chat sessions
+ */
+export interface AIConversationSessionPaginated {
+  sessions: AIConversationSessionPublic[];
+  has_more: boolean;
+  total_count: number;
+}

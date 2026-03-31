@@ -273,6 +273,33 @@ export const handlers = [
     ]);
   }),
 
+  // AI Chat Session Paginated Handler
+  http.get("*/api/v1/ai/chat/sessions/paginated", async ({ request }) => {
+    await delay(200);
+    const url = new URL(request.url);
+    const skip = parseInt(url.searchParams.get("skip") || "0");
+    const limit = parseInt(url.searchParams.get("limit") || "10");
+
+    // Mock sessions - generate 25 total for pagination testing
+    const allSessions = Array.from({ length: 25 }, (_, i) => ({
+      id: `session-${i + 1}`,
+      user_id: "user-1",
+      assistant_config_id: "assistant-1",
+      title: `Chat Session ${i + 1}`,
+      created_at: new Date(Date.now() - (i * 86400000)).toISOString(),
+      updated_at: new Date(Date.now() - (i * 86400000)).toISOString(),
+    }));
+
+    const sessions = allSessions.slice(skip, skip + limit);
+    const has_more = skip + limit < allSessions.length;
+
+    return HttpResponse.json({
+      sessions,
+      has_more,
+      total_count: allSessions.length,
+    });
+  }),
+
   http.get("*/api/v1/ai/chat/sessions/:sessionId/messages", async () => {
     await delay(100);
     return HttpResponse.json([
