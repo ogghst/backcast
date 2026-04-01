@@ -4,6 +4,7 @@ Implements StateGraph with agent node, ToolNode, conditional edges, and MemorySa
 Follows LangGraph 1.0+ patterns with TypedDict state and bind_tools().
 """
 
+import logging
 from collections.abc import Callable
 from typing import Any, Literal
 from uuid import UUID
@@ -21,11 +22,7 @@ from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.rbac_tool_node import RBACToolNode
 from app.ai.tools.types import ToolContext
 
-# Constants
-MAX_TOOL_ITERATIONS = 5
-
-# Constants
-MAX_TOOL_ITERATIONS = 5
+logger = logging.getLogger(__name__)
 
 
 def should_continue(state: AgentState) -> Literal["agent", "tools", "end"]:
@@ -40,12 +37,13 @@ def should_continue(state: AgentState) -> Literal["agent", "tools", "end"]:
     Returns:
         "tools" if the last message has tool calls and under iteration limit
         "end" if no tool calls or max iterations reached
-        "agent" (currently not used, reserved for future logic)
+        "agent" if the last message is a ToolMessage (tool result pending)
 
     Examples:
         >>> state = AgentState(
         ...     messages=[AIMessage(content="Hi", tool_calls=[...])],
         ...     tool_call_count=0,
+        ...     max_tool_iterations=5,
         ...     next="agent"
         ... )
         >>> should_continue(state)
@@ -53,6 +51,7 @@ def should_continue(state: AgentState) -> Literal["agent", "tools", "end"]:
     """
     messages = state["messages"]
     tool_call_count = state["tool_call_count"]
+    max_tool_iterations = state["max_tool_iterations"]
 
     if not messages:
         return "end"
@@ -66,7 +65,10 @@ def should_continue(state: AgentState) -> Literal["agent", "tools", "end"]:
     # If the last message has tool calls, route to tools
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
         # Check iteration limit
-        if tool_call_count >= MAX_TOOL_ITERATIONS:
+        if tool_call_count >= max_tool_iterations:
+            logger.warning(
+                f"Tool iteration limit reached: {tool_call_count}/{max_tool_iterations}"
+            )
             return "end"
         return "tools"
 
@@ -117,10 +119,9 @@ def create_agent_node(
             config: Optional configuration dict (may contain model parameters)
 
         Returns:
-            Dictionary with updated state (messages list and tool_call_count)
+            Dictionary with updated state (messages list and tool_call_count delta)
         """
         messages = state["messages"]
-        tool_call_count = state["tool_call_count"]
 
         # Bind tools to LLM
         # This is the LangGraph 1.0+ way to enable tool calling
@@ -130,14 +131,10 @@ def create_agent_node(
         # The response will be an AIMessage, possibly with tool_calls
         response_message: BaseMessage = await llm_with_tools.ainvoke(messages)
 
-        # Update tool_call_count if tool calls were made
-        new_tool_call_count = tool_call_count
-        if isinstance(response_message, AIMessage) and response_message.tool_calls:
-            new_tool_call_count += 1
-
+        # Return delta for tool_call_count (operator.add accumulates across nodes)
         return {
             "messages": [response_message],
-            "tool_call_count": new_tool_call_count,
+            "tool_call_count": 1 if isinstance(response_message, AIMessage) and response_message.tool_calls else 0,
         }
 
     return agent_node

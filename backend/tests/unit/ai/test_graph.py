@@ -88,6 +88,7 @@ class TestConditionalEdges:
                 )
             ],
             tool_call_count=0,
+            max_tool_iterations=5,
             next="agent",
         )
 
@@ -99,6 +100,7 @@ class TestConditionalEdges:
         state = AgentState(
             messages=[AIMessage(content="Here's your answer")],
             tool_call_count=0,
+            max_tool_iterations=5,
             next="agent",
         )
 
@@ -107,7 +109,7 @@ class TestConditionalEdges:
 
     def test_should_continues_routes_to_end_at_max_iterations(self) -> None:
         """Test that should_continue routes to end when max iterations reached."""
-        from app.ai.graph import MAX_TOOL_ITERATIONS
+        max_iters = 5
 
         state = AgentState(
             messages=[
@@ -116,7 +118,8 @@ class TestConditionalEdges:
                     tool_calls=[{"id": "1", "name": "test_tool", "args": {}}],
                 )
             ],
-            tool_call_count=MAX_TOOL_ITERATIONS,
+            tool_call_count=max_iters,
+            max_tool_iterations=max_iters,
             next="agent",
         )
 
@@ -128,6 +131,7 @@ class TestConditionalEdges:
         state = AgentState(
             messages=[HumanMessage(content="Hello")],
             tool_call_count=0,
+            max_tool_iterations=5,
             next="agent",
         )
 
@@ -139,6 +143,7 @@ class TestConditionalEdges:
         state = AgentState(
             messages=[],
             tool_call_count=0,
+            max_tool_iterations=5,
             next="agent",
         )
 
@@ -156,6 +161,7 @@ class TestConditionalEdges:
                 ToolMessage(content="Tool result", tool_call_id="1"),
             ],
             tool_call_count=1,
+            max_tool_iterations=5,
             next="agent",
         )
 
@@ -182,6 +188,7 @@ class TestAgentNodeBindTools:
         state = AgentState(
             messages=[HumanMessage(content="Hello")],
             tool_call_count=0,
+            max_tool_iterations=5,
             next="agent",
         )
         config: dict[str, Any] = {}
@@ -200,11 +207,12 @@ class TestAgentNodeBindTools:
         # Verify result contains updated messages
         assert "messages" in result
         assert result["messages"] == [mock_response]
+        # With operator.add reducer, returns delta 0 when no tool calls
         assert result["tool_call_count"] == 0
 
     @pytest.mark.asyncio
-    async def test_agent_node_increments_tool_call_count(self) -> None:
-        """Test that agent_node increments tool_call_count when tool_calls present."""
+    async def test_agent_node_returns_delta_1_when_tool_calls_present(self) -> None:
+        """Test that agent_node returns delta 1 for tool_call_count when tool_calls present."""
         # Arrange
         mock_llm = MagicMock()
         mock_llm_with_tools = AsyncMock()
@@ -220,6 +228,7 @@ class TestAgentNodeBindTools:
         state = AgentState(
             messages=[HumanMessage(content="Hello")],
             tool_call_count=2,
+            max_tool_iterations=5,
             next="agent",
         )
         config: dict[str, Any] = {}
@@ -228,12 +237,12 @@ class TestAgentNodeBindTools:
         node_fn = create_agent_node(mock_llm, mock_tools)
         result = await node_fn(state, config)
 
-        # Assert
-        assert result["tool_call_count"] == 3
+        # Assert - returns delta, not accumulated value
+        assert result["tool_call_count"] == 1
 
     @pytest.mark.asyncio
-    async def test_agent_node_does_not_increment_count_when_no_tool_calls(self) -> None:
-        """Test that agent_node doesn't increment tool_call_count when no tool_calls."""
+    async def test_agent_node_returns_delta_0_when_no_tool_calls(self) -> None:
+        """Test that agent_node returns delta 0 for tool_call_count when no tool_calls."""
         # Arrange
         mock_llm = MagicMock()
         mock_llm_with_tools = AsyncMock()
@@ -246,6 +255,7 @@ class TestAgentNodeBindTools:
         state = AgentState(
             messages=[HumanMessage(content="Hello")],
             tool_call_count=2,
+            max_tool_iterations=5,
             next="agent",
         )
         config: dict[str, Any] = {}
@@ -254,5 +264,5 @@ class TestAgentNodeBindTools:
         node_fn = create_agent_node(mock_llm, mock_tools)
         result = await node_fn(state, config)
 
-        # Assert
-        assert result["tool_call_count"] == 2
+        # Assert - returns delta 0, not the accumulated count
+        assert result["tool_call_count"] == 0

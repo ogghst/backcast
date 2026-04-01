@@ -19,19 +19,19 @@ class TestAgentState:
 
     def test_agentstate_has_messages_field(self) -> None:
         """Test that AgentState has a messages field."""
-        state = AgentState(messages=[], tool_call_count=0)
+        state = AgentState(messages=[], tool_call_count=0, max_tool_iterations=5)
         assert "messages" in state
         assert isinstance(state["messages"], list)
 
     def test_agentstate_has_tool_call_count_field(self) -> None:
         """Test that AgentState has a tool_call_count field."""
-        state = AgentState(messages=[], tool_call_count=0)
+        state = AgentState(messages=[], tool_call_count=0, max_tool_iterations=5)
         assert "tool_call_count" in state
         assert state["tool_call_count"] == 0
 
     def test_agentstate_has_next_field(self) -> None:
         """Test that AgentState has a next field."""
-        state = AgentState(messages=[], tool_call_count=0, next="agent")
+        state = AgentState(messages=[], tool_call_count=0, max_tool_iterations=5, next="agent")
         assert "next" in state
         assert state["next"] == "agent"
 
@@ -39,7 +39,7 @@ class TestAgentState:
         """Test that AgentState accepts valid next values."""
         valid_values = ["agent", "tools", "end"]
         for value in valid_values:
-            state = AgentState(messages=[], tool_call_count=0, next=value)
+            state = AgentState(messages=[], tool_call_count=0, max_tool_iterations=5, next=value)
             assert state["next"] == value
 
     def test_agentstate_messages_append_behavior(self) -> None:
@@ -49,10 +49,12 @@ class TestAgentState:
         state1 = AgentState(
             messages=[HumanMessage(content="Hello")],
             tool_call_count=0,
+            max_tool_iterations=5,
         )
         state2 = AgentState(
             messages=[AIMessage(content="Hi there!")],
             tool_call_count=0,
+            max_tool_iterations=5,
         )
 
         # In StateGraph with operator.add, these should merge
@@ -72,13 +74,13 @@ class TestAgentState:
             AIMessage(content="Hi there!"),
         ]
 
-        state = AgentState(messages=messages, tool_call_count=0)
+        state = AgentState(messages=messages, tool_call_count=0, max_tool_iterations=5)
         assert len(state["messages"]) == 3
         assert all(isinstance(msg, object) for msg in state["messages"])
 
     def test_agentstate_tool_call_count_increment(self) -> None:
         """Test that tool_call_count can be incremented."""
-        state = AgentState(messages=[], tool_call_count=0)
+        state = AgentState(messages=[], tool_call_count=0, max_tool_iterations=5)
         assert state["tool_call_count"] == 0
 
         # Simulate increment
@@ -88,7 +90,7 @@ class TestAgentState:
     def test_agentstate_default_values(self) -> None:
         """Test AgentState with minimal required fields."""
         # TypedDict doesn't enforce defaults, but we test creation
-        state = AgentState(messages=[], tool_call_count=0)
+        state = AgentState(messages=[], tool_call_count=0, max_tool_iterations=5)
         assert state["messages"] == []
         assert state["tool_call_count"] == 0
         # 'next' is optional

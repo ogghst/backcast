@@ -106,6 +106,7 @@ async def test_simple_tool_execution_p50(mock_fast_llm_with_tool_call, simple_to
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Execute simple tool")],
         "tool_call_count": 0,
+        "max_tool_iterations": 25,
         "next": "agent",
     }
 
@@ -159,6 +160,7 @@ async def test_simple_tool_execution_percentiles(mock_fast_llm_with_tool_call, s
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Use the simple tool")],
         "tool_call_count": 0,
+        "max_tool_iterations": 25,
         "next": "agent",
     }
 
@@ -213,6 +215,7 @@ async def test_complex_tool_execution_p50(mock_slow_llm_with_tool_call, complex_
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Use the complex tool")],
         "tool_call_count": 0,
+        "max_tool_iterations": 25,
         "next": "agent",
     }
 
@@ -308,6 +311,7 @@ async def test_tool_chaining_performance(simple_tool):
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Chain tools")],
         "tool_call_count": 0,
+        "max_tool_iterations": 25,
         "next": "agent",
     }
 

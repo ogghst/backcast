@@ -537,6 +537,7 @@ class AgentService:
                 input_state={
                     "messages": history,
                     "tool_call_count": 0,
+                    "max_tool_iterations": recursion_limit,
                     "next": "agent",
                 },
                 config={
@@ -783,6 +784,7 @@ class AgentService:
                 {
                     "messages": history,
                     "tool_call_count": 0,
+                    "max_tool_iterations": recursion_limit,
                     "next": "agent",
                 },
                 config={
@@ -1433,6 +1435,11 @@ class AgentService:
         elif isinstance(obj, list):
             return [self._make_json_serializable(item) for item in obj]
         elif isinstance(obj, str):
+            obj_size = len(obj)
+            logger.debug(f"_make_json_serializable: string size={obj_size:,} chars")
+            # Skip JSON parsing for very large strings to prevent CPU spikes
+            if obj_size > 100_000:  # 100KB limit
+                return obj
             # Try to parse JSON strings back to objects
             # This handles stringified JSON from ToolMessage.content
             try:

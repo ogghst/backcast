@@ -143,6 +143,7 @@ class TestWebSocketStreaming:
             input_state={
                 "messages": [HumanMessage(content="Hi")],
                 "tool_call_count": 0,
+                "max_tool_iterations": 25,
                 "next": "agent",
             },
             config={"configurable": {"thread_id": thread_id}},
@@ -211,6 +212,7 @@ class TestWebSocketStreaming:
                 input_state={
                     "messages": [HumanMessage(content="Hi")],
                     "tool_call_count": 0,
+                    "max_tool_iterations": 25,
                     "next": "agent",
                 },
                 config={"configurable": {"thread_id": "test-thread-error"}},
@@ -304,6 +306,7 @@ class TestWebSocketStreaming:
             input_state={
                 "messages": [HumanMessage(content="Use tools")],
                 "tool_call_count": 0,
+                "max_tool_iterations": 25,
                 "next": "agent",
             },
             config={"configurable": {"thread_id": "test-thread-multi"}},

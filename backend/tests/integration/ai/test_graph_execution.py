@@ -69,6 +69,7 @@ class TestStateGraphCompilation:
             {
                 "messages": [HumanMessage(content="Hello")],
                 "tool_call_count": 0,
+                "max_tool_iterations": 25,
                 "next": "agent",
             },
             config={"configurable": {"thread_id": "test-thread-1"}},
@@ -127,6 +128,7 @@ class TestToolNodeExecution:
             {
                 "messages": [HumanMessage(content="Use the tools")],
                 "tool_call_count": 0,
+                "max_tool_iterations": 25,
                 "next": "agent",
             },
             config={"configurable": {"thread_id": "test-thread-2"}},
@@ -197,6 +199,7 @@ class TestToolNodeExecution:
             {
                 "messages": [HumanMessage(content="Use one tool")],
                 "tool_call_count": 0,
+                "max_tool_iterations": 25,
                 "next": "agent",
             },
             config={"configurable": {"thread_id": "test-thread-3"}},
@@ -245,6 +248,7 @@ class TestToolNodeExecution:
             {
                 "messages": [HumanMessage(content="Start multi-turn")],
                 "tool_call_count": 0,
+                "max_tool_iterations": 25,
                 "next": "agent",
             },
             config={"configurable": {"thread_id": "test-thread-4"}},

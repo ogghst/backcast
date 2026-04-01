@@ -69,6 +69,7 @@ async def test_first_token_latency_p50(mock_streaming_llm):
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Hello, what can you help with?")],
         "tool_call_count": 0,
+        "max_tool_iterations": 25,
         "next": "agent",
     }
 
@@ -124,6 +125,7 @@ async def test_first_token_latency_percentiles(mock_streaming_llm):
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Hello")],
         "tool_call_count": 0,
+        "max_tool_iterations": 25,
         "next": "agent",
     }
 
@@ -183,6 +185,7 @@ async def test_token_throughput(mock_streaming_llm):
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Tell me about projects")],
         "tool_call_count": 0,
+        "max_tool_iterations": 25,
         "next": "agent",
     }
 
@@ -234,6 +237,7 @@ async def test_concurrent_streams(mock_streaming_llm):
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Hello")],
         "tool_call_count": 0,
+        "max_tool_iterations": 25,
         "next": "agent",
     }
 
@@ -304,6 +308,7 @@ async def test_websocket_message_overhead(mock_streaming_llm):
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Hello")],
         "tool_call_count": 0,
+        "max_tool_iterations": 25,
         "next": "agent",
     }
 

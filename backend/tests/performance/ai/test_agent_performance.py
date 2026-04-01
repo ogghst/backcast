@@ -64,6 +64,7 @@ async def test_simple_query_latency_p50(mock_fast_llm):
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Hello, what can you help with?")],
         "tool_call_count": 0,
+        "max_tool_iterations": 25,
         "next": "agent",
     }
 
@@ -112,6 +113,7 @@ async def test_simple_query_latency_percentiles(mock_fast_llm):
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Hello")],
         "tool_call_count": 0,
+        "max_tool_iterations": 25,
         "next": "agent",
     }
 
@@ -186,6 +188,7 @@ async def test_complex_query_latency_p50(mock_slow_llm):
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Search for project data")],
         "tool_call_count": 0,
+        "max_tool_iterations": 25,
         "next": "agent",
     }
 
@@ -231,6 +234,7 @@ async def test_concurrent_requests_scaling(mock_fast_llm):
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Hello")],
         "tool_call_count": 0,
+        "max_tool_iterations": 25,
         "next": "agent",
     }
 
@@ -292,6 +296,7 @@ async def test_memory_usage_simple_query(mock_fast_llm):
     initial_state: AgentState = {
         "messages": [HumanMessage(content="Hello")],
         "tool_call_count": 0,
+        "max_tool_iterations": 25,
         "next": "agent",
     }
 

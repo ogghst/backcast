@@ -51,6 +51,7 @@ class TestStatePersistence:
         initial_state = {
             "messages": [HumanMessage(content="Hello")],
             "tool_call_count": 0,
+            "max_tool_iterations": 25,
             "next": "agent",
         }
 
@@ -76,6 +77,7 @@ class TestStatePersistence:
             {
                 "messages": [HumanMessage(content="Goodbye")],
                 "tool_call_count": 0,
+                "max_tool_iterations": 25,
                 "next": "agent",
             },
             config={"configurable": {"thread_id": thread_id}},
@@ -124,6 +126,7 @@ class TestStatePersistence:
             {
                 "messages": [HumanMessage(content="Use the tool")],
                 "tool_call_count": 0,
+                "max_tool_iterations": 25,
                 "next": "agent",
             },
             config={"configurable": {"thread_id": thread_id}},
@@ -167,6 +170,7 @@ class TestStatePersistence:
             {
                 "messages": [HumanMessage(content="Thread 1")],
                 "tool_call_count": 0,
+                "max_tool_iterations": 25,
                 "next": "agent",
             },
             config={"configurable": {"thread_id": "thread-1"}},
@@ -177,6 +181,7 @@ class TestStatePersistence:
             {
                 "messages": [HumanMessage(content="Thread 2")],
                 "tool_call_count": 0,
+                "max_tool_iterations": 25,
                 "next": "agent",
             },
             config={"configurable": {"thread_id": "thread-2"}},

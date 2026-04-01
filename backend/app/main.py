@@ -25,6 +25,7 @@ from app.api.routes import (
     departments,
     evm,
     forecasts,
+    gantt,
     progress_entries,
     project_members,
     projects,
@@ -199,6 +200,11 @@ app.include_router(
     projects.router,
     prefix=f"{settings.API_V1_STR}/projects",
     tags=["Projects"],
+)
+app.include_router(
+    gantt.router,
+    prefix=f"{settings.API_V1_STR}/projects",
+    tags=["Gantt"],
 )
 app.include_router(
     project_members.router,
