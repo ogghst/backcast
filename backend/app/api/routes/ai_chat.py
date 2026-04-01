@@ -840,6 +840,42 @@ async def chat_stream(
 
                     return asyncio.create_task(run_execution())
 
+                def create_event_forwarding_task(
+                    bus: AgentEventBus,
+                    ws: WebSocket,
+                    uid: UUID,
+                ) -> asyncio.Task[None]:
+                    """Create a background task that forwards bus events to the WebSocket."""
+
+                    async def _forward() -> None:
+                        queue = bus.subscribe()
+                        try:
+                            while True:
+                                try:
+                                    event = await asyncio.wait_for(
+                                        queue.get(), timeout=1.0,
+                                    )
+                                except TimeoutError:
+                                    if not _is_websocket_connected(ws):
+                                        break
+                                    continue
+                                if not _is_websocket_connected(ws):
+                                    break
+                                payload = {**event.data, "type": event.event_type}
+                                try:
+                                    await ws.send_json(payload)
+                                except Exception:
+                                    logger.warning(
+                                        f"Failed to forward event to WebSocket for user {uid}"
+                                    )
+                                    break
+                                if event.event_type in ("complete", "error"):
+                                    break
+                        finally:
+                            bus.unsubscribe(queue)
+
+                    return asyncio.create_task(_forward())
+
                 execution_task = create_execution_task(
                     msg=request.message,
                     asst_config=assistant_config,
@@ -869,36 +905,12 @@ async def chat_stream(
                     )
                     # Continue anyway -- the execution is running
 
-                # --- Forward events from bus to WebSocket ---
-                chat_queue = exec_bus.subscribe()
-                try:
-                    while True:
-                        try:
-                            event = await asyncio.wait_for(
-                                chat_queue.get(), timeout=1.0,
-                            )
-                        except TimeoutError:
-                            if not _is_websocket_connected(websocket):
-                                break
-                            continue
-
-                        if not _is_websocket_connected(websocket):
-                            break
-
-                        # Merge event_type into the data dict
-                        payload = {**event.data, "type": event.event_type}
-                        try:
-                            await websocket.send_json(payload)
-                        except Exception:
-                            logger.warning(
-                                f"Failed to forward event to WebSocket for user {user_id}"
-                            )
-                            break
-
-                        if event.event_type in ("complete", "error"):
-                            break
-                finally:
-                    exec_bus.unsubscribe(chat_queue)
+                # --- Forward events from bus to WebSocket (non-blocking) ---
+                forwarding_task = create_event_forwarding_task(
+                    exec_bus, websocket, user_id,
+                )
+                execution_tasks.add(forwarding_task)
+                forwarding_task.add_done_callback(execution_tasks.discard)
 
         try:
             # Start ping loop and message handler as background tasks
