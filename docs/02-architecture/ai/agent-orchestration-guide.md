@@ -22,31 +22,15 @@ How the Backcast AI agent system turns a user message into a response: prompt co
 
 When a user sends a message, the system follows this sequence:
 
-```
-┌────────┐    ┌──────────────┐    ┌───────────────┐    ┌─────────────────────┐
-│ Browser │───>│ WebSocket    │───>│ AgentService  │───>│ DeepAgentOrchestrator│
-│ (React) │    │ Endpoint     │    │ .start_execution()│ │  .create_agent()   │
-└────────┘    │ ai_chat.py   │    └───────────────┘    └─────────────────────┘
-              └──────────────┘           │                       │
-                    │                    │                ┌──────┴──────┐
-                    │                    │                │ LangChain   │
-                    │                    │                │ create_agent│
-                    │                    │                └──────┬──────┘
-                    │                    │                       │
-                    │              ┌─────┴───────────────────────┘
-                    │              ▼
-                    │    ┌──────────────────┐
-                    │    │ graph.astream_   │
-                    │    │ events() loop    │
-                    │    └────────┬─────────┘
-                    │             │
-                    │    ┌────────┴─────────┐
-                    │    │ AgentEventBus    │
-                    │    │ .publish()       │
-                    │    └────────┬─────────┘
-                    │             │
-                    ◀─────────────┘
-                  WebSocket messages streamed to browser
+```mermaid
+flowchart LR
+    Browser["Browser\n(React)"] --> WS["WebSocket Endpoint\nai_chat.py"]
+    WS --> AS["AgentService\n.start_execution()"]
+    AS --> DAO["DeepAgentOrchestrator\n.create_agent()"]
+    DAO --> LC["LangChain\ncreate_agent"]
+    AS --> GAE["graph.astream_events()\nloop"]
+    GAE --> AEB["AgentEventBus\n.publish()"]
+    AEB -->|WebSocket messages| Browser
 ```
 
 ### Step-by-step
@@ -133,26 +117,26 @@ Two sections are appended by `DeepAgentOrchestrator._build_system_prompt_suffix(
 
 ### Final Prompt Structure (Subagents Enabled)
 
-```
-┌────────────────────────────────────────────────┐
-│ Base Prompt (from assistant config)             │
-├────────────────────────────────────────────────┤
-│ Project Context (if project-scoped session)     │
-├────────────────────────────────────────────────┤
-│ TASK_SYSTEM_PROMPT (when/how to use task tool)  │
-├────────────────────────────────────────────────┤
-│ Subagent listing + delegation instructions      │
-└────────────────────────────────────────────────┘
+```mermaid
+block-beta
+    columns 1
+    block:prompt:1
+        A["Base Prompt (from assistant config)"]
+        B["Project Context (if project-scoped session)"]
+        C["TASK_SYSTEM_PROMPT (when/how to use task tool)"]
+        D["Subagent listing + delegation instructions"]
+    end
 ```
 
 ### Final Prompt Structure (Subagents Disabled)
 
-```
-┌────────────────────────────────────────────────┐
-│ Base Prompt (from assistant config)             │
-├────────────────────────────────────────────────┤
-│ Project Context (if project-scoped session)     │
-└────────────────────────────────────────────────┘
+```mermaid
+block-beta
+    columns 1
+    block:prompt:1
+        A["Base Prompt (from assistant config)"]
+        B["Project Context (if project-scoped session)"]
+    end
 ```
 
 ---
@@ -171,21 +155,19 @@ All tools are created via `create_project_tools(tool_context)` in `tools/__init_
 
 Tools go through three filtering stages before reaching the LLM:
 
-```
-All Tools (69)
-    │
-    ▼ filter by allowed_tools (assistant config whitelist)
-    │
-    ▼ filter_tools_by_execution_mode()
-    │
-    ├─ SAFE mode:      only LOW risk tools
-    ├─ STANDARD mode:  LOW + HIGH risk tools (CRITICAL blocked)
-    └─ EXPERT mode:    all tools
-    │
-    ▼ subagent tool assignment (if subagents enabled)
-    │
-    ├─ Main agent gets: task tool + get_temporal_context
-    └─ Subagents get:   their allowed_tools subset
+```mermaid
+flowchart TD
+    All["All Tools (69)"]
+    All --> WL["filter by allowed_tools\n(assistant config whitelist)"]
+    WL --> FEM["filter_tools_by_execution_mode()"]
+    FEM --> SAFE["SAFE mode:\nonly LOW risk tools"]
+    FEM --> STD["STANDARD mode:\nLOW + HIGH risk tools\n(CRITICAL blocked)"]
+    FEM --> EXP["EXPERT mode:\nall tools"]
+    SAFE --> SA["subagent tool assignment\n(if subagents enabled)"]
+    STD --> SA
+    EXP --> SA
+    SA --> MA["Main agent gets:\ntask tool + get_temporal_context"]
+    SA --> SUB["Subagents get:\ntheir allowed_tools subset"]
 ```
 
 ### Risk Levels
@@ -237,42 +219,21 @@ Built by `build_task_tool()` in `tools/subagent_task.py`. It's a `StructuredTool
 
 ### Invocation Flow
 
-```
-Main Agent                     Task Tool                        Subagent
-   │                              │                                │
-   │  tool_call("task",           │                                │
-   │    subagent_type="evm_       │                                │
-   │    analyst",                 │                                │
-   │    description="Calculate    │                                │
-   │    EVM for project X...")    │                                │
-   │─────────────────────────────>│                                │
-   │                              │  Validate subagent_type        │
-   │                              │  Prepare isolated state:       │
-   │                              │    messages = [HumanMessage(   │
-   │                              │      content=description)]     │
-   │                              │    (excluded: todos, memory,   │
-   │                              │     structured_response, etc.) │
-   │                              │                                │
-   │                              │  subagent.ainvoke(state)       │
-   │                              │───────────────────────────────>│
-   │                              │                                │
-   │                              │                                │ Agent loop:
-   │                              │                                │ LLM → tools → LLM...
-   │                              │                                │
-   │                              │  result (final state)          │
-   │                              │<───────────────────────────────│
-   │                              │                                │
-   │                              │  Extract last message          │
-   │                              │  Build Command(update={        │
-   │                              │    messages: [ToolMessage(     │
-   │                              │      content=result_text)]     │
-   │                              │  })                            │
-   │                              │                                │
-   │  ToolMessage returned        │                                │
-   │<─────────────────────────────│                                │
-   │                              │                                │
-   │  LLM synthesizes response    │                                │
-   │  for user                    │                                │
+```mermaid
+sequenceDiagram
+    participant MA as Main Agent
+    participant TT as Task Tool
+    participant SA as Subagent
+
+    MA->>TT: tool_call("task", {subagent_type, description})
+    Note over TT: Validate subagent_type
+    Note over TT: Prepare isolated state:<br/>messages = [HumanMessage(description)]<br/>(excluded: todos, memory, etc.)
+    TT->>SA: subagent.ainvoke(state)
+    Note over SA: Agent loop:<br/>LLM → tools → LLM...
+    SA-->>TT: result (final state)
+    Note over TT: Extract last message<br/>Build Command(update={messages: [ToolMessage]})
+    TT-->>MA: ToolMessage returned
+    Note over MA: LLM synthesizes response for user
 ```
 
 ### Key Behaviors
@@ -289,17 +250,15 @@ Main Agent                     Task Tool                        Subagent
 
 ### Architecture
 
-```
-_run_agent_graph()
-       │
-       │ graph.astream_events()
-       ▼
-  AgentEventBus  ──── subscribe() ────> WebSocket handler ────> Browser
-       │                                     │
-       │ publish(AgentEvent)                  │ subscribe()
-       │                                      │ (reconnection)
-       │                                      ▼
-       └─── bounded_log (1000 events) ──> replay() ────> late subscriber
+```mermaid
+flowchart TD
+    RAG["_run_agent_graph()"]
+    RAG -->|graph.astream_events()| AEB["AgentEventBus"]
+    AEB -->|subscribe()| WSH["WebSocket handler"]
+    WSH --> Browser["Browser"]
+    AEB -->|publish(AgentEvent)| WSH
+    AEB --> BL["bounded_log\n(1000 events)"]
+    BL -->|replay()| LS["late subscriber\n(reconnection)"]
 ```
 
 ### Event Types
@@ -333,17 +292,22 @@ The global `RunnerManager` singleton maps `execution_id` → `AgentEventBus`. Th
 
 The routing is driven entirely by the **system prompt** and **available tools**:
 
-```
-Subagents ENABLED:
-  Main agent sees: [task, get_temporal_context]
-  System prompt says: "You do NOT have direct access to Backcast tools.
-                       ALL operations must be delegated to subagents."
-  → Main agent ALWAYS delegates via task tool for Backcast operations.
-
-Subagents DISABLED:
-  Main agent sees: [list_projects, get_project, create_wbe, ...]
-  System prompt says: (base prompt only)
-  → Main agent calls tools directly.
+```mermaid
+flowchart LR
+    subgraph Enabled ["Subagents ENABLED"]
+        direction TB
+        E1["Main agent sees: [task, get_temporal_context]"]
+        E2["System prompt: \"You do NOT have direct access\nto Backcast tools. ALL operations must\nbe delegated to subagents.\""]
+        E3["Main agent ALWAYS delegates\nvia task tool"]
+        E1 --> E2 --> E3
+    end
+    subgraph Disabled ["Subagents DISABLED"]
+        direction TB
+        D1["Main agent sees: [list_projects,\nget_project, create_wbe, ...]"]
+        D2["System prompt: (base prompt only)"]
+        D3["Main agent calls tools directly"]
+        D1 --> D2 --> D3
+    end
 ```
 
 The LLM decides which subagent to use based on the `task` tool description, which lists all available subagents with their capabilities:
@@ -373,27 +337,15 @@ Examples from the prompt:
 
 Each subagent runs a standard LangGraph `StateGraph` with the routing function `should_continue()`:
 
-```
-                     ┌─────────────┐
-                     │ Agent Node  │
-                     │ (LLM call)  │
-                     └──────┬──────┘
-                            │
-                    AIMessage has tool_calls?
-                       /            \
-                     YES             NO
-                      │               │
-               count < MAX (5)?    ┌──┘
-                /          \       │
-              YES           NO     ▼
-               │             │    END
-        ┌──────┴──────┐    END
-        │ Tools Node  │
-        │ (execute)   │
-        └──────┬──────┘
-               │
-               ▼
-        ToolMessage → back to Agent Node
+```mermaid
+flowchart TD
+    AN["Agent Node\n(LLM call)"]
+    AN --> HT{AIMessage has\ntool_calls?}
+    HT -->|YES| CM{count < MAX (5)?}
+    HT -->|NO| END1((END))
+    CM -->|YES| TN["Tools Node\n(execute)"]
+    CM -->|NO| END2((END))
+    TN -->|"ToolMessage"| AN
 ```
 
 - **Max iterations**: 5 tool calls per agent loop.
@@ -405,38 +357,29 @@ Each subagent runs a standard LangGraph `StateGraph` with the routing function `
 
 When subagents are enabled, both the main agent and each subagent receive the same middleware stack (applied in `DeepAgentOrchestrator.create_agent()`):
 
-```
-Incoming Tool Call
-       │
-       ▼
-┌──────────────────────────────┐
-│ 1. TemporalContextMiddleware  │  Injects as_of, branch_name, branch_mode,
-│                              │  project_id into tool arguments.
-│                              │  OVERRIDES any values the LLM tried to set.
-│                              │  Prevents temporal context injection.
-└──────────────┬───────────────┘
-               │
-               ▼
-┌──────────────────────────────┐
-│ 2. BackcastSecurityMiddleware │  Three-tier check:
-│                              │
-│  a. RBAC permission check    │  Does user_role have access to this tool?
-│     _check_tool_permission() │  If no → return ToolMessage(error)
-│                              │
-│  b. Risk level check         │  Is the tool allowed in current execution_mode?
-│     _check_risk_level_       │  SAFE: only LOW
-│     with_approval()          │  STANDARD: LOW + HIGH (with approval)
-│                              │  EXPERT: all
-│                              │
-│  c. Approval workflow        │  For HIGH risk in STANDARD mode:
-│     (InterruptNode)          │  Send WSApprovalRequestMessage to browser
-│                              │  Poll for response (max 60 seconds)
-│                              │  User approves → execute
-│                              │  User rejects → return ToolMessage(error)
-└──────────────┬───────────────┘
-               │
-               ▼
-         Execute tool handler
+```mermaid
+flowchart TD
+    INC["Incoming Tool Call"]
+
+    subgraph MW1 ["1. TemporalContextMiddleware"]
+        direction TB
+        TC1["Injects as_of, branch_name, branch_mode,<br/>project_id into tool arguments."]
+        TC2["OVERRIDES any values the LLM tried to set."]
+        TC3["Prevents temporal context injection."]
+        TC1 --> TC2 --> TC3
+    end
+
+    subgraph MW2 ["2. BackcastSecurityMiddleware"]
+        direction TB
+        RBAC["a. RBAC permission check<br/>Does user_role have access?<br/>If no → return ToolMessage(error)"]
+        RISK["b. Risk level check<br/>SAFE: only LOW<br/>STANDARD: LOW + HIGH (with approval)<br/>EXPERT: all"]
+        APPROVAL["c. Approval workflow (InterruptNode)<br/>For HIGH risk in STANDARD mode:<br/>Send WSApprovalRequestMessage to browser<br/>Poll for response (max 60 seconds)<br/>User approves → execute<br/>User rejects → return ToolMessage(error)"]
+        RBAC --> RISK --> APPROVAL
+    end
+
+    EXEC["Execute tool handler"]
+
+    INC --> MW1 --> MW2 --> EXEC
 ```
 
 ### Bypass Rules
@@ -459,234 +402,115 @@ Both middleware classes use `ContextVar` to pass per-request context:
 
 #### Phase 1: Connection & Setup
 
-```
-Browser                     Backend
-  │                           │
-  │ ws://host/api/v1/ai/chat/ │
-  │ stream?token=<JWT>        │
-  │──────────────────────────>│
-  │                           │ JWT validation ✓
-  │                           │ RBAC check: ai-chat ✓
-  │ 101 Switching Protocols   │
-  │<──────────────────────────│
-  │                           │
-  │ {type:"chat",             │
-  │  message:"What's the EVM  │
-  │  performance of PRJ-001?",│
-  │  assistant_config_id:     │
-  │   "<uuid>",               │
-  │  execution_mode:          │
-  │   "standard"}             │
-  │──────────────────────────>│
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant BE as Backend
+
+    B->>BE: ws://host/api/v1/ai/chat/stream?token=<JWT>
+    Note over BE: JWT validation ✓<br/>RBAC check: ai-chat ✓
+    BE-->>B: 101 Switching Protocols
+    B->>BE: {type:"chat", message:"What's the EVM<br/>performance of PRJ-001?",<br/>assistant_config_id: "<uuid>",<br/>execution_mode: "standard"}
 ```
 
 **What happens server-side:**
 
-```
-chat_stream()
-  │
-  ├── Resolve assistant_config (model, tools, system_prompt)
-  ├── Find/create session with project context
-  ├── Create event_bus, register in runner_manager
-  ├── Create AIAgentExecution row (status=running)
-  │
-  └── start_execution()
-        │
-        ├── _run_agent_graph()
-        │     │
-        │     ├── _build_conversation_history(session_id)
-        │     │     → [HumanMessage("list projects"), AIMessage("here are...")]
-        │     │
-        │     ├── _build_system_prompt(base_prompt, project_id)
-        │     │     → base + project context + TASK_SYSTEM_PROMPT + subagent suffix
-        │     │
-        │     ├── _get_llm_client_config(model_id)
-        │     │     → (client_config, "gpt-4o", "openai")
-        │     │
-        │     ├── _create_langchain_llm(client_config, model_name, temp, tokens)
-        │     │     → ChatOpenAI(model="gpt-4o", ...)
-        │     │
-        │     ├── Create ToolContext(user_id, user_role="admin", project_id, execution_mode=STANDARD)
-        │     │
-        │     ├── create_project_tools(tool_context) → 69 tools
-        │     │     filter by allowed_tools (assistant config) → ~60 tools
-        │     │     filter by execution_mode (STANDARD) → ~55 tools (no CRITICAL)
-        │     │
-        │     └── _create_deep_agent_graph(llm, tool_context, ...)
-        │           │
-        │           └── DeepAgentOrchestrator(model, context, system_prompt, enable_subagents=True)
-        │                 │
-        │                 ├── _build_subagent_dicts(6 subagent configs)
-        │                 │     Each compiled with:
-        │                 │       - Its own system_prompt
-        │                 │       - Its own tool subset
-        │                 │       - TemporalContextMiddleware + BackcastSecurityMiddleware
-        │                 │
-        │                 ├── build_task_tool(subagent_dicts)
-        │                 │     → StructuredTool(name="task", func=task, coroutine=atask)
-        │                 │
-        │                 └── langchain_create_agent(
-        │                       model=ChatOpenAI(model="gpt-4o"),
-        │                       tools=[task, get_temporal_context],
-        │                       system_prompt=final_prompt,
-        │                       middleware=[TodoListMiddleware, TemporalContextMiddleware, BackcastSecurityMiddleware]
-        │                     )
+```mermaid
+flowchart TD
+    CS["chat_stream()"]
+    CS --> RAC["Resolve assistant_config\n(model, tools, system_prompt)"]
+    CS --> SES["Find/create session\nwith project context"]
+    CS --> CEB["Create event_bus,\nregister in runner_manager"]
+    CS --> CAE["Create AIAgentExecution row\n(status=running)"]
+    CS --> SE["start_execution()"]
+
+    SE --> RAG["_run_agent_graph()"]
+    RAG --> BCH["_build_conversation_history(session_id)\n→ [HumanMessage, AIMessage, ...]"]
+    RAG --> BSP["_build_system_prompt(base_prompt, project_id)\n→ base + project context + TASK_SYSTEM_PROMPT + subagent suffix"]
+    RAG --> GLC["_get_llm_client_config(model_id)\n→ (client_config, 'gpt-4o', 'openai')"]
+    RAG --> CLL["_create_langchain_llm(...)\n→ ChatOpenAI(model='gpt-4o', ...)"]
+    RAG --> CTC["Create ToolContext(user_id, user_role='admin',\nproject_id, execution_mode=STANDARD)"]
+    RAG --> CPT["create_project_tools(tool_context) → 69 tools\nfilter by allowed_tools → ~60 tools\nfilter by execution_mode (STANDARD) → ~55 tools"]
+    RAG --> CDAG["_create_deep_agent_graph(llm, tool_context, ...)"]
+
+    CDAG --> DAO["DeepAgentOrchestrator(model, context,\nsystem_prompt, enable_subagents=True)"]
+    DAO --> BSD["_build_subagent_dicts(6 subagent configs)\nEach compiled with:\n- Its own system_prompt\n- Its own tool subset\n- TemporalContextMiddleware + BackcastSecurityMiddleware"]
+    DAO --> BTT["build_task_tool(subagent_dicts)\n→ StructuredTool(name='task')"]
+    DAO --> LCA["langchain_create_agent(\n  model=ChatOpenAI(model='gpt-4o'),\n  tools=[task, get_temporal_context],\n  system_prompt=final_prompt,\n  middleware=[TodoListMiddleware,\n    TemporalContextMiddleware,\n    BackcastSecurityMiddleware])"]
 ```
 
 #### Phase 2: Agent Execution
 
-```
-Browser                     Event Bus                   Main Agent              Subagents
-  │                           │                           │                       │
-  │  {type:"thinking"}        │                           │                       │
-  │<──────────────────────────│                           │                       │
-  │                           │                           │                       │
-  │                           │              LLM processes prompt:               │
-  │                           │              "What's EVM of PRJ-001?"             │
-  │                           │                           │                       │
-  │                           │              LLM decides: "This needs both       │
-  │                           │              project details AND EVM metrics.     │
-  │                           │              I'll call project_manager and        │
-  │                           │              evm_analyst in parallel."            │
-  │                           │                           │                       │
-  │  {type:"planning",        │                           │                       │
-  │   steps:["Get project     │                           │                       │
-  │   details","Calculate     │                           │                       │
-  │   EVM metrics"]}          │                           │                       │
-  │<──────────────────────────│                           │                       │
-  │                           │                           │                       │
-  │                           │              tool_call("task", {                 │
-  │                           │                subagent_type: "project_manager", │
-  │                           │                description: "Get project details │
-  │                           │                for PRJ-001..."                    │
-  │                           │              })                                        │
-  │                           │              AND                                       │
-  │                           │              tool_call("task", {                   │
-  │                           │                subagent_type: "evm_analyst",      │
-  │                           │                description: "Calculate EVM metrics│
-  │                           │                for all cost elements in PRJ-001." │
-  │                           │              })                                        │
-  │                           │                           │                       │
-  │  {type:"subagent",        │                           │                       │
-  │   subagent:               │                           │                       │
-  │   "project_manager"}      │                           │                       │
-  │<──────────────────────────│                           │                       │
-  │                           │                           │                       │
-  │  {type:"subagent",        │                           │                       │
-  │   subagent:               │                           │          ┌────────────┤
-  │   "evm_analyst"}          │                           │          │ Two isolated│
-  │<──────────────────────────│                           │          │ agents run  │
-  │                           │                           │          │ in parallel │
-  │                           │                           │          └─────┬──────┤
-  │                           │                           │                │
-  │                           │         Inside each subagent:               │
-  │                           │                           │                │
-  │                           │         project_manager:                   │
-  │                           │           → calls list_projects(code="PRJ-001")  │
-  │                           │           → TemporalContextMiddleware injects
-  │                           │             project_id from ToolContext
-  │                           │           → BackcastSecurityMiddleware checks
-  │                           │             RBAC (admin → allowed)
-  │                           │           → returns project details
-  │                           │                           │                │
-  │                           │         evm_analyst:                       │
-  │                           │           → calls calculate_evm_metrics(project_id=...)│
-  │                           │           → BackcastSecurityMiddleware: risk=LOW → allowed│
-  │                           │           → returns EVMMetricsRead (structured) │
-  │                           │                           │                │
-  │                           │                           │◀───────────────┘
-  │                           │                           │
-  │                           │  Both subagents return ToolMessages:            │
-  │                           │    project_manager → project details text       │
-  │                           │    evm_analyst → EVM metrics (structured)       │
-  │                           │                           │
-  │  {type:"subagent_result", │                           │
-  │   subagent:               │                           │
-  │   "project_manager"}      │                           │
-  │<──────────────────────────│                           │
-  │                           │                           │
-  │  {type:"subagent_result", │                           │
-  │   subagent:               │                           │
-  │   "evm_analyst"}          │                           │
-  │<──────────────────────────│                           │
-  │                           │                           │
-  │  {type:"content_reset"}   │                           │
-  │<──────────────────────────│                           │
-  │                           │                           │
-  │                           │              Main agent receives both results:   │
-  │                           │              LLM synthesizes:                    │
-  │                           │              "Project PRJ-001 shows CPI=0.95     │
-  │                           │               (slightly over budget), SPI=1.02   │
-  │                           │               (ahead of schedule)..."            │
-  │                           │                           │
-  │  {type:"token_batch",     │                           │
-  │   tokens:"Project PRJ-001"}                           │
-  │<──────────────────────────│                           │
-  │  ...more tokens...        │                           │
-  │                           │                           │
-  │  {type:"complete",        │                           │
-  │   session_id:"..."}       │                           │
-  │<──────────────────────────│                           │
+```mermaid
+sequenceDiagram
+    participant B as Browser
+    participant EB as Event Bus
+    participant MA as Main Agent
+    participant PM as project_manager
+    participant EA as evm_analyst
+
+    EB->>B: {type:"thinking"}
+    Note over MA: LLM processes prompt:<br/>"What's EVM of PRJ-001?"
+    Note over MA: LLM decides: "This needs both<br/>project details AND EVM metrics.<br/>Call project_manager and evm_analyst in parallel."
+    EB->>B: {type:"planning", steps:["Get project details","Calculate EVM metrics"]}
+
+    par Parallel subagent calls
+        MA->>EB: tool_call("task", {subagent_type: "project_manager", description: "..."})
+        EB->>B: {type:"subagent", subagent: "project_manager"}
+        Note over PM: calls list_projects(code="PRJ-001")<br/>TemporalContextMiddleware injects project_id<br/>BackcastSecurityMiddleware checks RBAC<br/>→ returns project details
+        PM-->>MA: ToolMessage (project details)
+        EB->>B: {type:"subagent_result", subagent: "project_manager"}
+    and
+        MA->>EB: tool_call("task", {subagent_type: "evm_analyst", description: "..."})
+        EB->>B: {type:"subagent", subagent: "evm_analyst"}
+        Note over EA: calls calculate_evm_metrics(project_id=...)<br/>BackcastSecurityMiddleware: risk=LOW → allowed<br/>→ returns EVMMetricsRead (structured)
+        EA-->>MA: ToolMessage (EVM metrics)
+        EB->>B: {type:"subagent_result", subagent: "evm_analyst"}
+    end
+
+    EB->>B: {type:"content_reset"}
+    Note over MA: LLM synthesizes:<br/>"Project PRJ-001 shows CPI=0.95<br/>(slightly over budget), SPI=1.02<br/>(ahead of schedule)..."
+    EB->>B: {type:"token_batch", tokens:"Project PRJ-001..."}
+    EB->>B: {type:"complete", session_id:"..."}
 ```
 
 #### Phase 3: What the Agent "Saw"
 
 The main agent's context window at the point of delegation:
 
-```
-[SystemMessage]
-  You are a helpful AI assistant for the Backcast project budget management system.
-  ...
-  You are operating in the context of a specific project (ID: abc-123).
-  ...
-  ## `task` (subagent spawner)
-  You have access to a `task` tool to launch short-lived subagents...
-  ...
-  IMPORTANT: You do NOT have direct access to Backcast tools.
-  ALL Backcast operations must be delegated to specialized subagents:
-  - project_manager: ...
-  - evm_analyst: ...
-  - change_order_manager: ...
-  ...
-
-[HumanMessage]
-  list projects
-
-[AIMessage]
-  Here are the available projects...
-
-[HumanMessage]  ← new user message
-  What's the EVM performance of PRJ-001?
+```mermaid
+block-beta
+    columns 1
+    block:main:1
+        SM["[SystemMessage]<br/>You are a helpful AI assistant for the Backcast project budget management system.<br/>...<br/>You are operating in the context of a specific project (ID: abc-123).<br/>...<br/>## `task` (subagent spawner)<br/>You have access to a `task` tool to launch short-lived subagents...<br/>...<br/>IMPORTANT: You do NOT have direct access to Backcast tools.<br/>ALL Backcast operations must be delegated to specialized subagents:<br/>- project_manager: ...<br/>- evm_analyst: ...<br/>- change_order_manager: ...<br/>..."]
+        HM1["[HumanMessage]<br/>list projects"]
+        AM1["[AIMessage]<br/>Here are the available projects..."]
+        HM2["[HumanMessage] ← new user message<br/>What's the EVM performance of PRJ-001?"]
+    end
 ```
 
 The main agent's **available tools**: `task`, `get_temporal_context`. It has no other tools.
 
 The `project_manager` subagent's context window:
 
-```
-[SystemMessage]
-  You are a project management specialist.
-  You help with:
-  - Creating, updating, and retrieving projects
-  ...
-
-[HumanMessage]  ← injected by task tool
-  Get project details for PRJ-001. Return the project name, status,
-  total budget, and WBE structure.
+```mermaid
+block-beta
+    columns 1
+    block:pm:1
+        PMSM["[SystemMessage]<br/>You are a project management specialist.<br/>You help with:<br/>- Creating, updating, and retrieving projects<br/>..."]
+        PMHM["[HumanMessage] ← injected by task tool<br/>Get project details for PRJ-001. Return the project name, status,<br/>total budget, and WBE structure."]
+    end
 ```
 
 The `evm_analyst` subagent's context window:
 
-```
-[SystemMessage]
-  You are an EVM analysis specialist.
-  You calculate and analyze earned value metrics including:
-  - CPI, SPI, CV, SV, EAC, ETC...
-  ...
-
-[HumanMessage]  ← injected by task tool
-  Calculate EVM metrics for all cost elements in project PRJ-001.
-  Return CPI, SPI, CV, SV, EAC, and a health assessment.
+```mermaid
+block-beta
+    columns 1
+    block:ea:1
+        EASM["[SystemMessage]<br/>You are an EVM analysis specialist.<br/>You calculate and analyze earned value metrics including:<br/>- CPI, SPI, CV, SV, EAC, ETC...<br/>..."]
+        EAHM["[HumanMessage] ← injected by task tool<br/>Calculate EVM metrics for all cost elements in project PRJ-001.<br/>Return CPI, SPI, CV, SV, EAC, and a health assessment."]
+    end
 ```
 
 ---
@@ -695,52 +519,25 @@ The `evm_analyst` subagent's context window:
 
 User: "Create a new WBE called 'Assembly' under project PRJ-001"
 
-```
-Main Agent                     Task Tool              project_manager subagent
-   │                              │                            │
-   │  tool_call("task",           │                            │
-   │    subagent_type=            │                            │
-   │    "project_manager",        │                            │
-   │    description="Create a     │                            │
-   │    new WBE called Assembly   │                            │
-   │    under PRJ-001")           │                            │
-   │─────────────────────────────>│                            │
-   │                              │  ainvoke(subagent_state)   │
-   │                              │───────────────────────────>│
-   │                              │                            │
-   │                              │              Agent decides: call create_wbe()
-   │                              │                            │
-   │                              │              BackcastSecurityMiddleware:
-   │                              │                create_wbe risk = HIGH
-   │                              │                execution_mode = STANDARD
-   │                              │                → Approval required!
-   │                              │                            │
-   │                              │              InterruptNode:
-   │                              │                Send WSApprovalRequestMessage
-   │                              │                            │
-   │  {type:"approval_request",   │                            │
-   │   tool:"create_wbe",         │                            │
-   │   args:{...}}                │                            │
-   │<─────────────────────────────│────────────────────────────│
-   │                              │                            │
-   │  User clicks "Approve"       │                            │
-   │                              │                            │
-   │  {type:"approval_response",  │                            │
-   │   approved:true}             │                            │
-   │─────────────────────────────>│────────────────────────────>│
-   │                              │                            │
-   │                              │              Tool executes: create_wbe()
-   │                              │              Returns ToolMessage with result
-   │                              │                            │
-   │                              │  Command(update={messages: [ToolMessage(...)]})
-   │                              │<───────────────────────────│
-   │                              │                            │
-   │  ToolMessage(result)         │                            │
-   │<─────────────────────────────│                            │
-   │                              │                            │
-   │  LLM synthesizes:            │                            │
-   │  "I've created the WBE       │                            │
-   │   'Assembly' under PRJ-001." │                            │
+```mermaid
+sequenceDiagram
+    participant MA as Main Agent
+    participant TT as Task Tool
+    participant PM as project_manager subagent
+    participant B as Browser
+
+    MA->>TT: tool_call("task", {subagent_type: "project_manager",<br/>description: "Create a new WBE called Assembly under PRJ-001"})
+    TT->>PM: ainvoke(subagent_state)
+    Note over PM: Agent decides: call create_wbe()
+    Note over PM: BackcastSecurityMiddleware:<br/>create_wbe risk = HIGH<br/>execution_mode = STANDARD<br/>→ Approval required!
+    Note over PM: InterruptNode:<br/>Send WSApprovalRequestMessage
+    PM-->>B: {type:"approval_request", tool:"create_wbe", args:{...}}
+    Note over B: User clicks "Approve"
+    B-->>PM: {type:"approval_response", approved:true}
+    Note over PM: Tool executes: create_wbe()<br/>Returns ToolMessage with result
+    PM-->>TT: Command(update={messages: [ToolMessage(...)]})
+    TT-->>MA: ToolMessage(result)
+    Note over MA: LLM synthesizes:<br/>"I've created the WBE 'Assembly' under PRJ-001."
 ```
 
 ---
