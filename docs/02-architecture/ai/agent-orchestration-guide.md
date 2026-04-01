@@ -8,13 +8,14 @@ How the Backcast AI agent system turns a user message into a response: prompt co
 
 1. [End-to-End Request Flow](#1-end-to-end-request-flow)
 2. [System Prompt Composition](#2-system-prompt-composition)
-3. [Tool Registry & Filtering](#3-tool-registry--filtering)
-4. [Subagent Architecture](#4-subagent-architecture)
-5. [The Task Tool: How Delegation Works](#5-the-task-tool-how-delegation-works)
-6. [Inter-Agent Communication: Event Bus](#6-inter-agent-communication-event-bus)
-7. [Routing Decisions](#7-routing-decisions)
-8. [Security Middleware Stack](#8-security-middleware-stack)
-9. [Simulated Conversation Walkthrough](#9-simulated-conversation-walkthrough)
+3. [Context Management & LLM Calls](#3-context-management--llm-calls)
+4. [Tool Registry & Filtering](#4-tool-registry--filtering)
+5. [Subagent Architecture](#5-subagent-architecture)
+6. [The Task Tool: How Delegation Works](#6-the-task-tool-how-delegation-works)
+7. [Inter-Agent Communication: Event Bus](#7-inter-agent-communication-event-bus)
+8. [Routing Decisions](#8-routing-decisions)
+9. [Security Middleware Stack](#9-security-middleware-stack)
+10. [Simulated Conversation Walkthrough](#10-simulated-conversation-walkthrough)
 
 ---
 
@@ -141,7 +142,175 @@ Two sections are appended by `DeepAgentOrchestrator._build_system_prompt_suffix(
 
 ---
 
-## 3. Tool Registry & Filtering
+## 3. Context Management & LLM Calls
+
+This section describes what the LLM actually receives at invocation time: how state is structured, how conversation history is loaded, and how runtime context flows through the agent graph.
+
+### AgentState
+
+The LangGraph `StateGraph` operates on a `AgentState` TypedDict (defined in `ai/state.py`):
+
+```python
+class AgentState(TypedDict):
+    messages: Annotated[list[BaseMessage], operator.add]  # append-only via operator.add
+    tool_call_count: int                                   # iteration guard
+    next: Literal["agent", "tools", "end"]                 # routing control
+```
+
+The `Annotated[list[BaseMessage], operator.add]` annotation means `messages` uses **append-only semantics**: each graph node returns new messages that get appended to the list rather than replacing it.
+
+### Conversation History Loading
+
+`AgentService._build_conversation_history(session_id)` loads prior messages from the database:
+
+1. Calls `AIConfigService.list_messages(session_id)` → returns `AIConversationMessage` rows ordered by creation time.
+2. Converts each row to a LangChain message:
+   - `role == "user"` → `HumanMessage(content=msg.content)`
+   - `role == "assistant"` → `AIMessage(content=msg.content)`
+   - `role == "tool"` → **skipped** (tool messages from previous turns are not replayed)
+3. Returns a `list[BaseMessage]`.
+
+There is **no token-based truncation or summarization** — the full conversation history is loaded every turn. Long sessions rely on the LLM's native context window.
+
+### Graph Input Assembly
+
+`_run_agent_graph()` assembles the initial state passed to the compiled graph:
+
+```python
+{
+    "messages": history,        # from _build_conversation_history()
+    "tool_call_count": 0,
+    "next": "agent",
+}
+```
+
+The **system prompt** is not part of the state. It is passed to `langchain_create_agent()` at graph compilation time and injected as a `SystemMessage` by the LangGraph framework at the start of every agent node invocation.
+
+### What the LLM Receives
+
+Each time the agent node fires, the LLM API call contains three things:
+
+1. **System prompt** — The composed prompt from Section 2 (base + project context + subagent instructions).
+2. **Tool definitions** — The filtered tool list as JSON Schema function declarations (e.g., `[task, get_temporal_context]` for the main agent, or `[list_projects, get_project, ...]` for a subagent).
+3. **Message history** — The full `messages` list from state, which grows over the turn as tool calls and results are appended.
+
+```
+┌─ LLM API Call ───────────────────────────────────────────────────────────┐
+│                                                                          │
+│  system:    [SystemMessage] composed prompt (Section 2)                  │
+│                                                                          │
+│  messages:  [HumanMessage] "What's the EVM of PRJ-001?"                 │
+│             [AIMessage] tool_calls=[{name:"task", args:{...}}]           │
+│             [ToolMessage] "Subagent result: ..."                         │
+│             [AIMessage] tool_calls=[{name:"task", args:{...}}]           │
+│             [ToolMessage] "Subagent result: ..."                         │
+│             ← growing list, each tool round adds 2 messages              │
+│                                                                          │
+│  tools:     [task, get_temporal_context]  ← function schemas             │
+│                                                                          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### BackcastRuntimeContext
+
+Per-request security and scoping data is passed via LangGraph's **Runtime** mechanism — not through state or the prompt. This is set in `graph_cache.py`:
+
+```python
+@dataclass
+class BackcastRuntimeContext:
+    user_id: str                    # authenticated user ID
+    user_role: str                  # RBAC role (e.g. "admin", "viewer")
+    project_id: str | None = None   # project scope from session
+    branch_id: str | None = None    # branch / change-order scope
+    execution_mode: str = "standard" # SAFE / STANDARD / EXPERT
+```
+
+Passed to the graph via `context=BackcastRuntimeContext(...)` in the `astream_events()` call. Middleware reads this via `ContextVar` (see `set_request_context()`) rather than from state, so that cached compiled graphs can serve multiple requests with different security contexts.
+
+### Context Flow Through the Agent Loop
+
+```
+_build_conversation_history()
+        │
+        ▼
+   graph input state
+   {messages: [...], tool_call_count: 0, next: "agent"}
+        │
+        ▼
+┌─ Agent Node ────────────────────────────────────────┐
+│  LLM receives: system prompt + messages + tools     │
+│  LLM responds: AIMessage (text or tool_calls)       │
+│  State update: messages += [AIMessage]               │
+│  Routing: tool_calls? → tools : end                 │
+└──────────────────────────┬──────────────────────────┘
+                           │ tool_calls present
+                           ▼
+┌─ Tools Node ────────────────────────────────────────┐
+│  Each tool call passes through middleware stack:     │
+│    1. TemporalContextMiddleware injects params       │
+│    2. BackcastSecurityMiddleware checks RBAC + risk  │
+│  Tool executes → ToolMessage                        │
+│  State update: messages += [ToolMessage, ...]        │
+│  State update: tool_call_count += N                  │
+│  Routing: count < 5? → agent : end                  │
+└──────────────────────────┬──────────────────────────┘
+                           │
+                           └──► back to Agent Node
+```
+
+### Subagent Context Isolation
+
+When the `task` tool spawns a subagent, it constructs a new state from the parent:
+
+1. **Copy parent state** but exclude keys that have no meaning for the subagent:
+   ```
+   _EXCLUDED_STATE_KEYS = {
+       "messages",              # replaced with [HumanMessage(description)]
+       "todos",                 # no reducer defined for subagent
+       "structured_response",   # subagent has its own schema
+       "skills_metadata",       # private state attr, would leak
+       "memory_contents",       # private state attr, would leak
+   }
+   ```
+2. **Replace messages** with `[HumanMessage(content=description)]` where `description` is the main agent's task instruction.
+3. **Reset** `tool_call_count` to 0 and `next` to `"agent"`.
+
+The subagent gets its own **system prompt** (domain-specific), **tool list** (filtered to its domain), and **middleware stack** (same `TemporalContextMiddleware` + `BackcastSecurityMiddleware`). It runs a fresh agent loop with no access to the parent conversation.
+
+```
+Main Agent state                     Subagent state
+┌────────────────────────┐          ┌────────────────────────┐
+│ messages: [             │          │ messages: [             │
+│   HumanMessage(...),    │  ──►    │   HumanMessage(desc)    │  ← replaced
+│   AIMessage(...),       │          │ ]                       │
+│   ToolMessage(...),     │          │ tool_call_count: 0      │  ← reset
+│   ...                   │          │ next: "agent"           │  ← reset
+│ ]                       │          └────────────────────────┘
+│ tool_call_count: 3      │
+│ next: "tools"           │          Subagent gets:
+└────────────────────────┘          - Own system prompt (domain-specific)
+                                    - Own tool list (domain-filtered)
+                                    - Same BackcastRuntimeContext (via ContextVar)
+                                    - Same middleware stack
+```
+
+### Message Persistence
+
+After execution, `_run_agent_graph()` saves messages back to the database:
+
+1. **User message** — saved before execution starts (`role="user"`, `content=message`).
+2. **Assistant segments** — saved during streaming. Each segment captures:
+   - `role="assistant"`, `content` (text content)
+   - `tool_calls` (JSONB — name, args, invocation IDs)
+   - `tool_results` (JSONB — tool outputs)
+   - `message_metadata` (JSONB — subagent type, segment index, etc.)
+3. **Subagent messages** — saved with metadata linking them to the parent execution.
+
+On the next turn, `_build_conversation_history()` loads user and assistant messages. Tool messages are skipped because the LLM only needs the conversation flow, not the raw tool payloads.
+
+---
+
+## 4. Tool Registry & Filtering
 
 ### Tool Creation
 
@@ -180,7 +349,7 @@ flowchart TD
 
 ---
 
-## 4. Subagent Architecture
+## 5. Subagent Architecture
 
 Six specialized subagents, each mapped to a domain:
 
@@ -206,7 +375,7 @@ Each subagent runs with its own isolated context window — it sees only the tas
 
 ---
 
-## 5. The Task Tool: How Delegation Works
+## 6. The Task Tool: How Delegation Works
 
 The `task` tool is the main agent's **only** mechanism for performing Backcast operations when subagents are enabled.
 
@@ -246,7 +415,7 @@ sequenceDiagram
 
 ---
 
-## 6. Inter-Agent Communication: Event Bus
+## 7. Inter-Agent Communication: Event Bus
 
 ### Architecture
 
@@ -286,7 +455,7 @@ The global `RunnerManager` singleton maps `execution_id` → `AgentEventBus`. Th
 
 ---
 
-## 7. Routing Decisions
+## 8. Routing Decisions
 
 ### Main Agent: "Should I delegate or respond directly?"
 
@@ -350,7 +519,7 @@ Agent Node (LLM call)
 
 ---
 
-## 8. Security Middleware Stack
+## 9. Security Middleware Stack
 
 When subagents are enabled, both the main agent and each subagent receive the same middleware stack (applied in `DeepAgentOrchestrator.create_agent()`):
 
@@ -393,7 +562,7 @@ Both middleware classes use `ContextVar` to pass per-request context:
 
 ---
 
-## 9. Simulated Conversation Walkthrough
+## 10. Simulated Conversation Walkthrough
 
 ### Scenario: User asks "What's the EVM performance of project PRJ-001?"
 
@@ -582,7 +751,9 @@ sequenceDiagram
 | `api/routes/ai_chat.py` | WebSocket endpoint, JWT auth, session creation |
 | `ai/agent_service.py` | Orchestration: `_run_agent_graph()`, `_build_system_prompt()`, `start_execution()` |
 | `ai/deep_agent_orchestrator.py` | `DeepAgentOrchestrator`: subagent compilation, tool filtering, prompt composition |
+| `ai/state.py` | `AgentState` TypedDict: `messages`, `tool_call_count`, `next` |
 | `ai/graph.py` | LangGraph `StateGraph` with `should_continue()` routing |
+| `ai/graph_cache.py` | `BackcastRuntimeContext`, `CompiledGraphCache`, `set_request_context()` |
 | `ai/subagents/__init__.py` | Six subagent configurations (name, prompt, allowed_tools) |
 | `ai/tools/__init__.py` | `create_project_tools()`, `filter_tools_by_execution_mode()` |
 | `ai/tools/subagent_task.py` | `build_task_tool()`, `TASK_SYSTEM_PROMPT`, `TASK_TOOL_DESCRIPTION` |
@@ -590,4 +761,3 @@ sequenceDiagram
 | `ai/middleware/backcast_security.py` | `BackcastSecurityMiddleware`: RBAC + risk checks + approval workflow |
 | `ai/execution/agent_event_bus.py` | `AgentEventBus`: pub/sub with bounded log |
 | `ai/execution/runner_manager.py` | `RunnerManager`: execution_id → event_bus registry |
-| `ai/graph_cache.py` | `LLMClientCache`, `CompiledGraphCache`, `set_request_context()` |
