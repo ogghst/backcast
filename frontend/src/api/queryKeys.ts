@@ -269,6 +269,13 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     batch: (entityType: string, entityIds: string[], context?: unknown) =>
       ["evm", "batch", entityType, entityIds, context] as const,
   },
+
+  // Gantt Chart
+  gantt: {
+    all: ["gantt"] as const,
+    project: (projectId: string, context?: unknown) =>
+      ["gantt", "project", projectId, context] as const,
+  },
 });
 
 /**
