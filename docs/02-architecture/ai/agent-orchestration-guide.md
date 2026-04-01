@@ -253,12 +253,12 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     RAG["_run_agent_graph()"]
-    RAG -->|processes events from| GAE["graph.astream_events()"]
-    RAG -->|calls _publish() helper| AEB["AgentEventBus"]
-    AEB -->|"subscribe() → asyncio.Queue"| WSH["WebSocket handler\npolls queue in loop"]
-    WSH -->|"send_json(payload)"| Browser["Browser"]
-    AEB -->|"append to _log<br/>(deque, maxlen=1000)"| BL["bounded_log\n(1000 events)"]
-    BL -->|"replay(since_sequence)"| LS["late subscriber\n(reconnection)"]
+    RAG -->|processes events from| GAE["graph.astream_events"]
+    RAG -->|calls _publish helper| AEB["AgentEventBus"]
+    AEB -->|"subscribe returns asyncio.Queue"| WSH["WebSocket handler\npolls queue in loop"]
+    WSH -->|"send_json payload"| Browser["Browser"]
+    AEB -->|"append to _log<br/>deque maxlen=1000"| BL["bounded_log\n1000 events"]
+    BL -->|"replay since_sequence"| LS["late subscriber\nreconnection"]
 ```
 
 ### Event Types
