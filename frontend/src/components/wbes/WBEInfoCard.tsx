@@ -1,5 +1,5 @@
 import React from "react";
-import { Descriptions, Typography, Tag, Divider, theme, Space } from "antd";
+import { Typography, Tag, Divider, theme, Space, Row, Col } from "antd";
 import { WBERead } from "@/api/generated";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
 
@@ -96,73 +96,162 @@ export const WBEInfoCard = ({
             >
               Technical Details
             </Title>
-            <Descriptions
-              size="middle"
-              column={{ xs: 1, sm: 2 }}
-              colon={true}
-              labelStyle={{
-                fontWeight: token.fontWeightMedium,
-                color: token.colorTextSecondary,
-                fontSize: token.fontSize,
-              }}
-              contentStyle={{
-                color: token.colorText,
-                fontSize: token.fontSize,
-              }}
-            >
-              <Descriptions.Item label="WBE ID">
-                <Text style={{ color: token.colorText }}>
-                  {wbe.wbe_id}
-                </Text>
-              </Descriptions.Item>
+            <Row gutter={[token.marginLG, token.marginMD]}>
+              <Col xs={12} sm={8}>
+                <div>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: token.fontSizeSM,
+                      display: "block",
+                      marginBottom: token.paddingXS,
+                      fontWeight: token.fontWeightMedium,
+                    }}
+                  >
+                    WBE ID
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: token.fontSizeLG,
+                      fontWeight: token.fontWeightSemiBold,
+                      color: token.colorText,
+                    }}
+                  >
+                    {wbe.wbe_id}
+                  </Text>
+                </div>
+              </Col>
 
-              <Descriptions.Item label="Project ID">
-                <Text style={{ color: token.colorText }}>
-                  {wbe.project_id}
-                </Text>
-              </Descriptions.Item>
+              <Col xs={12} sm={8}>
+                <div>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: token.fontSizeSM,
+                      display: "block",
+                      marginBottom: token.paddingXS,
+                      fontWeight: token.fontWeightMedium,
+                    }}
+                  >
+                    Project ID
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: token.fontSizeLG,
+                      fontWeight: token.fontWeightSemiBold,
+                      color: token.colorText,
+                    }}
+                  >
+                    {wbe.project_id}
+                  </Text>
+                </div>
+              </Col>
 
-              <Descriptions.Item label="Parent WBE ID">
-                <Text style={{ color: token.colorText }}>
-                  {wbe.parent_wbe_id || "-"}
-                </Text>
-              </Descriptions.Item>
+              <Col xs={12} sm={8}>
+                <div>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: token.fontSizeSM,
+                      display: "block",
+                      marginBottom: token.paddingXS,
+                      fontWeight: token.fontWeightMedium,
+                    }}
+                  >
+                    Parent WBE ID
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: token.fontSizeLG,
+                      fontWeight: token.fontWeightSemiBold,
+                      color: token.colorText,
+                    }}
+                  >
+                    {wbe.parent_wbe_id || "-"}
+                  </Text>
+                </div>
+              </Col>
 
-              <Descriptions.Item label="Branch">
-                <Tag
-                  color={wbe.branch === "main" ? "blue" : "orange"}
-                  style={{
-                    padding: `${token.paddingXS}px ${token.paddingSM}px`,
-                    borderRadius: token.borderRadiusSM,
-                  }}
-                >
-                  {wbe.branch || "main"}
-                </Tag>
-              </Descriptions.Item>
+              <Col xs={12} sm={8}>
+                <div>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: token.fontSizeSM,
+                      display: "block",
+                      marginBottom: token.paddingXS,
+                      fontWeight: token.fontWeightMedium,
+                    }}
+                  >
+                    Branch
+                  </Text>
+                  <Tag
+                    color={wbe.branch === "main" ? "blue" : "orange"}
+                    style={{
+                      padding: `${token.paddingXS}px ${token.paddingSM}px`,
+                      borderRadius: token.borderRadiusSM,
+                    }}
+                  >
+                    {wbe.branch || "main"}
+                  </Tag>
+                </div>
+              </Col>
 
-              <Descriptions.Item label="Level">
-                <Tag
-                  color="cyan"
-                  style={{
-                    padding: `${token.paddingXS}px ${token.paddingSM}px`,
-                    borderRadius: token.borderRadiusSM,
-                  }}
-                >
-                  L{wbe.level}
-                </Tag>
-              </Descriptions.Item>
+              <Col xs={12} sm={8}>
+                <div>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: token.fontSizeSM,
+                      display: "block",
+                      marginBottom: token.paddingXS,
+                      fontWeight: token.fontWeightMedium,
+                    }}
+                  >
+                    Level
+                  </Text>
+                  <Tag
+                    color="cyan"
+                    style={{
+                      padding: `${token.paddingXS}px ${token.paddingSM}px`,
+                      borderRadius: token.borderRadiusSM,
+                    }}
+                  >
+                    L{wbe.level}
+                  </Tag>
+                </div>
+              </Col>
 
-              <Descriptions.Item label="Revenue Allocation">
-                <Text style={{ color: token.colorText }}>
-                  {wbe.revenue_allocation
-                    ? new Intl.NumberFormat("en-US", {
-                        style: "currency",
-                        currency: "EUR",
-                      }).format(Number(wbe.revenue_allocation))
-                    : "-"}
-                </Text>
-              </Descriptions.Item>
-            </Descriptions>
+              <Col xs={12} sm={8}>
+                <div>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: token.fontSizeSM,
+                      display: "block",
+                      marginBottom: token.paddingXS,
+                      fontWeight: token.fontWeightMedium,
+                    }}
+                  >
+                    Revenue Allocation
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: token.fontSizeLG,
+                      fontWeight: token.fontWeightSemiBold,
+                      color: token.colorText,
+                    }}
+                  >
+                    {wbe.revenue_allocation
+                      ? new Intl.NumberFormat("en-US", {
+                          style: "currency",
+                          currency: "EUR",
+                        }).format(Number(wbe.revenue_allocation))
+                      : "-"}
+                  </Text>
+                </div>
+              </Col>
+            </Row>
           </div>
 
           <Divider style={{ margin: `${token.marginLG}px 0` }} />
@@ -180,32 +269,57 @@ export const WBEInfoCard = ({
             >
               Audit Information
             </Title>
-            <Descriptions
-              size="middle"
-              column={{ xs: 1, sm: 2 }}
-              colon={true}
-              labelStyle={{
-                fontWeight: token.fontWeightMedium,
-                color: token.colorTextSecondary,
-                fontSize: token.fontSize,
-              }}
-              contentStyle={{
-                color: token.colorText,
-                fontSize: token.fontSize,
-              }}
-            >
-              <Descriptions.Item label="Created">
-                <Text style={{ color: token.colorText }}>
-                  {formatDateTime(wbe.created_at)}
-                </Text>
-              </Descriptions.Item>
+            <Row gutter={[token.marginLG, token.marginMD]}>
+              <Col xs={12} sm={8}>
+                <div>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: token.fontSizeSM,
+                      display: "block",
+                      marginBottom: token.paddingXS,
+                      fontWeight: token.fontWeightMedium,
+                    }}
+                  >
+                    Created
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: token.fontSizeLG,
+                      fontWeight: token.fontWeightSemiBold,
+                      color: token.colorText,
+                    }}
+                  >
+                    {formatDateTime(wbe.created_at)}
+                  </Text>
+                </div>
+              </Col>
 
-              <Descriptions.Item label="Created By">
-                <Text style={{ color: token.colorText }}>
-                  {wbe.created_by_name || "System"}
-                </Text>
-              </Descriptions.Item>
-            </Descriptions>
+              <Col xs={12} sm={8}>
+                <div>
+                  <Text
+                    type="secondary"
+                    style={{
+                      fontSize: token.fontSizeSM,
+                      display: "block",
+                      marginBottom: token.paddingXS,
+                      fontWeight: token.fontWeightMedium,
+                    }}
+                  >
+                    Created By
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: token.fontSizeLG,
+                      fontWeight: token.fontWeightSemiBold,
+                      color: token.colorText,
+                    }}
+                  >
+                    {wbe.created_by_name || "System"}
+                  </Text>
+                </div>
+              </Col>
+            </Row>
           </div>
         </Space>
       </div>

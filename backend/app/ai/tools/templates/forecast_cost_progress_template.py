@@ -731,7 +731,7 @@ async def get_cost_registration(
         service = CostRegistrationService(context.session)
 
         # Call service method
-        registration = await service.get_by_id(UUID(cost_registration_id))
+        registration = await service.get_as_of(UUID(cost_registration_id))
 
         if registration is None:
             error_result = {"error": f"Cost registration not found: {cost_registration_id}"}
@@ -1484,7 +1484,7 @@ async def get_progress_entry(
         service = ProgressEntryService(context.session)
 
         # Call service method
-        progress = await service.get_by_id(UUID(progress_entry_id))
+        progress = await service.get_as_of(UUID(progress_entry_id))
 
         if progress is None:
             error_result = {"error": f"Progress entry not found: {progress_entry_id}"}

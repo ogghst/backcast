@@ -177,7 +177,9 @@ async def get_change_order(
         service = ChangeOrderService(context.session)
 
         # Call service method
-        change_order = await service.get_by_id(UUID(change_order_id))
+        change_order = await service.get_as_of(
+            UUID(change_order_id), branch=context.branch_name or "main"
+        )
 
         if not change_order:
             return {"error": f"Change order {change_order_id} not found"}
@@ -624,7 +626,9 @@ async def analyze_change_order_impact(
         service = ChangeOrderService(context.session)
 
         # Get change order
-        change_order = await service.get_by_id(UUID(change_order_id))
+        change_order = await service.get_as_of(
+            UUID(change_order_id), branch=context.branch_name or "main"
+        )
 
         if not change_order:
             return {"error": f"Change order {change_order_id} not found"}

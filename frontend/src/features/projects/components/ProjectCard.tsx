@@ -9,6 +9,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import type { ProjectRead } from "@/api/generated";
 import { Can } from "@/components/auth/Can";
+import { EntityCard } from "@/components/common/EntityCard";
 
 interface ProjectCardProps {
   project: ProjectRead;
@@ -46,84 +47,23 @@ export const ProjectCard = ({
   const navigate = useNavigate();
 
   return (
-    <div
-      onClick={() => navigate(`/projects/${project.project_id}`)}
-      style={{
-        background: token.colorBgContainer,
-        border: `1px solid ${token.colorBorderSecondary}`,
-        borderRadius: token.borderRadiusLG,
-        padding: token.paddingMD,
-        cursor: "pointer",
-        transition: "all 150ms ease",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = token.colorPrimary;
-        e.currentTarget.style.boxShadow = `0 2px 8px ${token.colorPrimary}20`;
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = token.colorBorderSecondary;
-        e.currentTarget.style.boxShadow = "none";
-      }}
-    >
-      {/* Header: Name + Status */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: token.marginSM,
-          gap: token.marginSM,
-        }}
-      >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: token.fontSizeLG,
-              fontWeight: 600,
-              color: token.colorText,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {project.name}
-          </div>
-          <div
-            style={{
-              fontSize: token.fontSizeSM,
-              color: token.colorTextSecondary,
-            }}
-          >
-            {project.code}
-          </div>
-        </div>
+    <EntityCard
+      title={project.name}
+      subtitle={project.code}
+      badge={
         <Tag color={statusColorMap[project.status] || "default"}>
           {project.status}
         </Tag>
-      </div>
-
-      {/* Metrics row */}
-      <div
-        style={{
-          display: "flex",
-          gap: token.marginMD,
-          marginBottom: token.marginSM,
-          flexWrap: "wrap",
-        }}
-      >
+      }
+      onClick={() => navigate(`/projects/${project.project_id}`)}
+      metrics={
         <div
           style={{
             display: "flex",
-            alignItems: "center",
-            gap: token.marginXS,
-            fontSize: token.fontSizeSM,
-            color: token.colorTextSecondary,
+            gap: token.marginMD,
+            flexWrap: "wrap",
           }}
         >
-          <DollarOutlined />
-          <span>Budget: {formatCurrency(project.budget)}</span>
-        </div>
-        {project.contract_value && (
           <div
             style={{
               display: "flex",
@@ -134,40 +74,43 @@ export const ProjectCard = ({
             }}
           >
             <DollarOutlined />
-            <span>Contract: {formatCurrency(project.contract_value)}</span>
+            <span>Budget: {formatCurrency(project.budget)}</span>
           </div>
-        )}
-      </div>
-
-      {/* Dates row */}
-      {(project.start_date || project.end_date) && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: token.marginXS,
-            fontSize: token.fontSizeSM,
-            color: token.colorTextTertiary,
-            marginBottom: token.marginSM,
-          }}
-        >
-          <CalendarOutlined />
-          <span>
-            {formatDate(project.start_date)} — {formatDate(project.end_date)}
-          </span>
+          {project.contract_value && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: token.marginXS,
+                fontSize: token.fontSizeSM,
+                color: token.colorTextSecondary,
+              }}
+            >
+              <DollarOutlined />
+              <span>Contract: {formatCurrency(project.contract_value)}</span>
+            </div>
+          )}
         </div>
-      )}
-
-      {/* Actions */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          borderTop: `1px solid ${token.colorBorderSecondary}`,
-          paddingTop: token.marginSM,
-          marginTop: token.marginXS,
-        }}
-      >
+      }
+      meta={
+        (project.start_date || project.end_date) ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: token.marginXS,
+              fontSize: token.fontSizeSM,
+              color: token.colorTextTertiary,
+            }}
+          >
+            <CalendarOutlined />
+            <span>
+              {formatDate(project.start_date)} — {formatDate(project.end_date)}
+            </span>
+          </div>
+        ) : undefined
+      }
+      actions={
         <Space size="small">
           <Can permission="project-read">
             <Button
@@ -204,7 +147,7 @@ export const ProjectCard = ({
             />
           </Can>
         </Space>
-      </div>
-    </div>
+      }
+    />
   );
 };

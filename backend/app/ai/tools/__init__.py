@@ -119,6 +119,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
         crud_template.list_wbes,
         crud_template.get_wbe,
         crud_template.create_wbe,
+        crud_template.update_wbe,
     ]
     tools.extend(crud_tools)
 

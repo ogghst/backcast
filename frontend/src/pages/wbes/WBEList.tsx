@@ -1,15 +1,12 @@
-import { App, Button, Input, Space, Tag, theme } from "antd";
+import { App, Button, Select, Tag } from "antd";
 import {
-  HistoryOutlined,
   NodeIndexOutlined,
-  EditOutlined,
-  DeleteOutlined,
   PlusOutlined,
-  SearchOutlined,
 } from "@ant-design/icons";
-import { useMemo, useState } from "react";
-import type { ColumnType } from "antd/es/table";
-import { StandardTable } from "@/components/common/StandardTable";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import type { FilterValue, SorterResult } from "antd/es/table/interface";
+import { EntityGrid, type SortOption } from "@/components/common/EntityGrid";
 import { useTableParams } from "@/hooks/useTableParams";
 import {
   WbEsService,
@@ -21,6 +18,7 @@ import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { Can } from "@/components/auth/Can";
 import { WBEModal } from "@/features/wbes/components/WBEModal";
+import { WBECard } from "@/features/wbes/components/WBECard";
 
 import {
   useWBEs,
@@ -31,12 +29,20 @@ import {
 
 import { WBEFilters } from "@/types/filters";
 
+const SORT_OPTIONS: SortOption[] = [
+  { label: "Code", value: "code" },
+  { label: "Name", value: "name" },
+  { label: "Level", value: "level" },
+  { label: "Budget", value: "budget_allocation" },
+];
+
 interface WBEListProps {
   projectId?: string;
 }
 
 export const WBEList = ({ projectId }: WBEListProps) => {
-  const { token } = theme.useToken();
+  const navigate = useNavigate();
+
   const { tableParams, handleTableChange, handleSearch } = useTableParams<
     WBERead,
     WBEFilters
@@ -80,221 +86,116 @@ export const WBEList = ({ projectId }: WBEListProps) => {
 
   const { mutate: deleteWBE } = useDeleteWBE({ onSuccess: () => refetch() });
 
-  const handleDelete = (id: string) => {
+  const handleDelete = (wbe: WBERead) => {
     modal.confirm({
       title: "Are you sure you want to delete this WBE?",
       content: "This action cannot be undone.",
       okText: "Yes, Delete",
       okType: "danger",
-      onOk: () => deleteWBE(id),
+      onOk: () => deleteWBE(wbe.wbe_id),
     });
   };
 
-  const getColumnSearchProps = (
-    dataIndex: keyof WBERead
-  ): ColumnType<WBERead> => ({
-    filterDropdown: ({
-      setSelectedKeys,
-      selectedKeys,
-      confirm,
-      clearFilters,
-    }) => (
-      <div style={{ padding: token.paddingSM }}>
-        <Input
-          placeholder={`Search ${dataIndex}`}
-          value={selectedKeys[0]}
-          onChange={(e) =>
-            setSelectedKeys(e.target.value ? [e.target.value] : [])
-          }
-          onPressEnter={() => confirm()}
-          style={{ width: 188, marginBottom: token.marginSM, display: "block" }}
-        />
-        <Space>
-          <Button
-            type="primary"
-            onClick={() => confirm()}
-            icon={<SearchOutlined />}
-            size="small"
-            style={{ width: 90 }}
-          >
-            Search
-          </Button>
-          <Button
-            onClick={() => clearFilters && clearFilters()}
-            size="small"
-            style={{ width: 90 }}
-          >
-            Reset
-          </Button>
-        </Space>
-      </div>
-    ),
-    filterIcon: (filtered: boolean) => (
-      <SearchOutlined
-        style={{ color: filtered ? token.colorPrimary : undefined }}
-      />
-    ),
-    onFilter: (value, record) => {
-      const fieldVal = record[dataIndex];
-      return fieldVal
-        ? fieldVal
-            .toString()
-            .toLowerCase()
-            .includes((value as string).toLowerCase())
-        : false;
-    },
-  });
+  const handleOpen = (wbe: WBERead) => {
+    if (projectId) {
+      navigate(`/projects/${projectId}/wbes/${wbe.wbe_id}`);
+    } else {
+      navigate(`/projects/${wbe.project_id}/wbes/${wbe.wbe_id}`);
+    }
+  };
 
-  // Extract unique levels for filters (static list)
-  const levelFilters = useMemo(() => {
-    // Common WBE levels - could be fetched from API in the future
-    return [
-      { text: "L1", value: 1 },
-      { text: "L2", value: 2 },
-      { text: "L3", value: 3 },
-      { text: "L4", value: 4 },
-      { text: "L5", value: 5 },
-    ];
-  }, []);
+  const handleGridSortChange = (field: string, order: "ascend" | "descend") => {
+    handleTableChange(
+      tableParams.pagination!,
+      tableParams.filters || {},
+      { field, order } as SorterResult<WBERead>
+    );
+  };
 
-  const columns: ColumnType<WBERead>[] = [
-    {
-      title: "Code",
-      dataIndex: "code",
-      key: "code",
-      width: 120,
-      sorter: true, // Enable server-side sorting
-      ...getColumnSearchProps("code"),
-    },
-    {
-      title: "Name",
-      dataIndex: "name",
-      key: "name",
-      sorter: true, // Enable server-side sorting
-      ...getColumnSearchProps("name"),
-    },
-    {
-      title: "Level",
-      dataIndex: "level",
-      key: "level",
-      render: (level: number) => <Tag color="cyan">L{level}</Tag>,
-      width: 80,
-      filters: levelFilters,
-      // Remove onFilter - server-side filtering will handle this
-      sorter: true, // Enable server-side sorting
-    },
-    {
-      title: "Budget Allocation",
-      dataIndex: "budget_allocation",
-      key: "budget_allocation",
-      render: (budget: number) =>
-        budget
-          ? new Intl.NumberFormat("en-US", {
-              style: "currency",
-              currency: "EUR",
-              currencyDisplay: "narrowSymbol",
-            }).format(budget)
-          : "-",
-      width: 150,
-      sorter: true, // Enable server-side sorting
-    },
-    {
-      title: "Parent WBE",
-      dataIndex: "parent_wbe_id",
-      key: "parent_wbe_id",
-      render: (parentId: string) => (parentId ? parentId : "Root"),
-      width: 150,
-      sorter: true, // Enable server-side sorting
-    },
-    {
-      title: "Actions",
-      key: "actions",
-      width: 120,
-      render: (_, record) => (
-        <Space>
-          <Can permission="wbe-read">
-            <Button
-              icon={<HistoryOutlined />}
-              onClick={() => {
-                setSelectedWBE(record);
-                setHistoryOpen(true);
-              }}
-              title="View History"
-            />
-          </Can>
-          <Can permission="wbe-update">
-            <Button
-              icon={<EditOutlined />}
-              onClick={() => {
-                setSelectedWBE(record);
-                setModalOpen(true);
-              }}
-              title="Edit WBE"
-            />
-          </Can>
-          <Can permission="wbe-delete">
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => handleDelete(record.wbe_id)}
-              title="Delete WBE"
-            />
-          </Can>
-        </Space>
-      ),
-    },
-  ];
+  const handleGridPageChange = (page: number, pageSize: number) => {
+    handleTableChange(
+      { current: page, pageSize },
+      tableParams.filters || {},
+      {} as SorterResult<WBERead>
+    );
+  };
 
   return (
     <div>
-      <StandardTable<WBERead>
-        tableParams={{
-          ...tableParams,
-          pagination: { ...tableParams.pagination, total },
-        }}
-        onChange={handleTableChange}
+      <EntityGrid<WBERead>
+        items={wbes}
+        total={total}
         loading={isLoading}
-        dataSource={wbes} // Use raw data - hierarchical queries return arrays
-        columns={columns}
-        rowKey="wbe_id"
-        searchable={true}
-        searchPlaceholder="Search WBEs..."
-        onSearch={handleSearch}
-        toolbar={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
+        renderCard={(wbe) => (
+          <WBECard
+            wbe={wbe}
+            onEdit={(w) => {
+              setSelectedWBE(w);
+              setModalOpen(true);
             }}
-          >
-            <div
-              style={{
-                fontSize: token.fontSizeLG,
-                fontWeight: "bold",
-                display: "flex",
-                alignItems: "center",
-                gap: token.marginSM,
+            onDelete={handleDelete}
+            onOpen={handleOpen}
+          />
+        )}
+        keyExtractor={(w) => w.wbe_id}
+        title={
+          <>
+            <NodeIndexOutlined /> Work Breakdown Elements
+            {projectId && <Tag color="blue">Project: {projectId}</Tag>}
+          </>
+        }
+        addContent={
+          <Can permission="wbe-create">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setSelectedWBE(null);
+                setModalOpen(true);
               }}
             >
-              <NodeIndexOutlined />
-              Work Breakdown Elements
-              {projectId && <Tag color="blue">Project: {projectId}</Tag>}
-            </div>
-            <Can permission="wbe-create">
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  setSelectedWBE(null);
-                  setModalOpen(true);
-                }}
-              >
-                Add WBE
-              </Button>
-            </Can>
-          </div>
+              Add WBE
+            </Button>
+          </Can>
         }
+        searchValue={tableParams.search || ""}
+        onSearch={handleSearch}
+        searchPlaceholder="Search WBEs..."
+        sortOptions={SORT_OPTIONS}
+        sortField={tableParams.sortField}
+        sortOrder={tableParams.sortOrder}
+        onSortChange={handleGridSortChange}
+        filters={
+          <Select
+            placeholder="Level"
+            allowClear
+            style={{ minWidth: 100 }}
+            options={[
+              { label: "L1", value: 1 },
+              { label: "L2", value: 2 },
+              { label: "L3", value: 3 },
+              { label: "L4", value: 4 },
+              { label: "L5", value: 5 },
+            ]}
+            value={tableParams.filters?.level?.[0] as number | undefined}
+            onChange={(val) => {
+              const newFilters = {
+                ...tableParams.filters,
+                level: val != null ? [val] : null,
+              };
+              handleTableChange(
+                tableParams.pagination!,
+                newFilters as Record<string, FilterValue | null>,
+                {} as SorterResult<WBERead>
+              );
+            }}
+          />
+        }
+        pagination={{
+          current: tableParams.pagination?.current || 1,
+          pageSize: tableParams.pagination?.pageSize || 10,
+        }}
+        onPageChange={handleGridPageChange}
       />
 
       <WBEModal

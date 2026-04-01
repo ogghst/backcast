@@ -818,7 +818,7 @@ async def get_cost_element_type(
         service = CostElementTypeService(context.session)
 
         # Call service method
-        cost_element_type = await service.get_by_id(UUID(cost_element_type_id))
+        cost_element_type = await service.get_as_of(UUID(cost_element_type_id))
 
         if not cost_element_type:
             return {"error": f"Cost element type {cost_element_type_id} not found"}

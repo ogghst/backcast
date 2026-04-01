@@ -40,7 +40,7 @@ from app.ai.tools.decorator import ai_tool
 from app.ai.tools.temporal_logging import add_temporal_metadata, log_temporal_context
 from app.ai.tools.types import RiskLevel, ToolContext
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
-from app.models.schemas.wbe import WBECreate
+from app.models.schemas.wbe import WBECreate, WBEUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +180,7 @@ async def get_project(
         service = context.project_service
 
         # Call service method
-        project = await service.get_by_id(UUID(project_id))
+        project = await service.get_as_of(UUID(project_id))
 
         if not project:
             not_found_result = {"error": f"Project {project_id} not found"}
@@ -496,7 +496,7 @@ async def get_wbe(
         service = WBEService(context.session)
 
         # Call service method
-        wbe = await service.get_by_id(UUID(wbe_id))
+        wbe = await service.get_as_of(UUID(wbe_id))
 
         if not wbe:
             return {"error": f"WBE {wbe_id} not found"}
@@ -598,6 +598,96 @@ async def create_wbe(
         return {"error": f"Invalid input: {e}"}
     except Exception as e:
         logger.error(f"Error in create_wbe: {e}")
+        return {"error": str(e)}
+
+
+@ai_tool(
+    name="update_wbe",
+    description="Update an existing Work Breakdown Element (WBE) with new information. "
+    "Only updates fields that are provided.",
+    permissions=["wbe-update"],
+    category="wbe",
+    risk_level=RiskLevel.HIGH,
+)
+async def update_wbe(
+    wbe_id: str,
+    name: str | None = None,
+    description: str | None = None,
+    revenue_allocation: float | None = None,
+    context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
+) -> dict[str, Any]:
+    """Update an existing WBE.
+
+    Context: Provides database session and WBE service for updating WBEs.
+
+    Args:
+        wbe_id: UUID of the WBE to update
+        name: New WBE name (optional)
+        description: New description (optional)
+        revenue_allocation: New revenue allocation as a decimal value (optional)
+        context: Injected tool execution context
+
+    Returns:
+        Dictionary with updated WBE details
+
+    Raises:
+        ValueError: If wbe_id is invalid or no fields provided
+        KeyError: If WBE not found
+
+    Example:
+        >>> result = await update_wbe(
+        ...     wbe_id="123e4567-e89b-12d3-a456-426614174000",
+        ...     name="Updated WBE Name",
+        ...     revenue_allocation=0.35
+        ... )
+        >>> print(f"Updated WBE: {result['name']}")
+    """
+    try:
+        from decimal import Decimal
+        from uuid import UUID
+
+        from app.services.wbe import WBEService
+
+        service = WBEService(context.session)
+
+        # Build update kwargs with only non-None values to prevent
+        # passing null values to the database which violates NOT NULL constraints
+        update_kwargs: dict[str, object] = {}
+        if name is not None:
+            update_kwargs["name"] = name
+        if description is not None:
+            update_kwargs["description"] = description
+        if revenue_allocation is not None:
+            update_kwargs["revenue_allocation"] = Decimal(str(revenue_allocation))
+
+        if not update_kwargs:
+            return {"error": "No fields provided for update"}
+
+        # Create update schema with only provided fields
+        update_data = WBEUpdate(**update_kwargs)
+
+        # Call service method
+        wbe = await service.update_wbe(
+            wbe_id=UUID(wbe_id),
+            wbe_in=update_data,
+            actor_id=UUID(context.user_id),
+        )
+
+        # Convert to AI-friendly format
+        return {
+            "id": str(wbe.wbe_id),
+            "name": wbe.name,
+            "code": wbe.code,
+            "project_id": str(wbe.project_id),
+            "budget": float(wbe.budget) if hasattr(wbe, "budget") and wbe.budget else None,
+            "description": wbe.description if hasattr(wbe, "description") else None,
+        }
+    except ValueError as e:
+        return {"error": f"Invalid input: {e}"}
+    except KeyError:
+        return {"error": f"WBE {wbe_id} not found"}
+    except Exception as e:
+        logger.error(f"Error in update_wbe: {e}")
         return {"error": str(e)}
 
 

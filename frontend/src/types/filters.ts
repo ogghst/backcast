@@ -33,7 +33,7 @@ export type ProjectFilters = Filterable<
 // Whitelist: level (mapped from 'type' in UI often, but let's check), code, name
 // Note: WBERead might not have 'level' if it's computed, but let's assume it matches backend model.
 // API docs say 'level' in whitelist.
-export type WBEFilters = Filterable<WBERead, "code" | "name">;
+export type WBEFilters = Filterable<WBERead, "code" | "name" | "level">;
 
 // Cost Elements
 // Whitelist: code, name

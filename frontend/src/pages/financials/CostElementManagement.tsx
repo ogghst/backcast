@@ -1,15 +1,9 @@
-import { App, Button, Space, Tag, Input } from "antd";
+import { App, Button, Select } from "antd";
 import {
-  DeleteOutlined,
-  EditOutlined,
   PlusOutlined,
-  HistoryOutlined,
-  SearchOutlined,
-  EyeOutlined,
 } from "@ant-design/icons";
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
-import type { ColumnType } from "antd/es/table";
+import type { FilterValue, SorterResult } from "antd/es/table/interface";
 import {
   CostElementsService,
   WbEsService,
@@ -31,7 +25,8 @@ import {
   CreateWithBranch,
 } from "@/features/cost-elements/api/useCostElements";
 import { CostElementModal } from "@/features/cost-elements/components/CostElementModal";
-import { StandardTable } from "@/components/common/StandardTable";
+import { CostElementCard } from "@/features/cost-elements/components/CostElementCard";
+import { EntityGrid, type SortOption } from "@/components/common/EntityGrid";
 import { useTableParams } from "@/hooks/useTableParams";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
@@ -58,11 +53,16 @@ interface CostElementManagementProps {
 
 import { CostElementFilters } from "@/types/filters";
 
+const SORT_OPTIONS: SortOption[] = [
+  { label: "Code", value: "code" },
+  { label: "Name", value: "name" },
+  { label: "Budget", value: "budget_amount" },
+];
+
 export const CostElementManagement = ({
   wbeId,
   wbeName,
 }: CostElementManagementProps) => {
-  const navigate = useNavigate();
   const { tableParams, handleTableChange, handleSearch } = useTableParams<
     CostElementRead,
     CostElementFilters
@@ -112,8 +112,6 @@ export const CostElementManagement = ({
           WbEsService.getWbes(1, 1000),
           CostElementTypesService.getCostElementTypes(1, 1000),
         ]);
-        // Unwrap paginated responses
-        // Unwrap paginated responses (wbesRes is any, typesRes is any)
         const w = Array.isArray(wbesRes) ? wbesRes : wbesRes.items || [];
         const t = Array.isArray(typesRes) ? typesRes : typesRes.items || [];
         setWbes(w);
@@ -126,12 +124,6 @@ export const CostElementManagement = ({
   }, []);
 
   // Create Lookup Maps
-  const wbeMap = useMemo(() => {
-    const m: Record<string, string> = {};
-    wbes.forEach((x) => (m[x.wbe_id] = x.code));
-    return m;
-  }, [wbes]);
-
   const typeMap = useMemo(() => {
     const m: Record<string, string> = {};
     types.forEach((x) => (m[x.cost_element_type_id] = x.name));
@@ -147,9 +139,6 @@ export const CostElementManagement = ({
       enabled: historyOpen,
     },
   );
-
-  // Note: Branch is controlled by Time Machine context
-  // The currentBranch variable is now from useTimeMachineParams()
 
   const { mutateAsync: createCostElement } = useCreateCostElement({
     onSuccess: () => {
@@ -181,219 +170,124 @@ export const CostElementManagement = ({
     });
   };
 
-  const getColumnSearchProps = (
-    dataIndex: keyof CostElementRead,
-  ): ColumnType<CostElementRead> => ({
-    filterDropdown: ({
-      setSelectedKeys,
-      selectedKeys,
-      confirm,
-      clearFilters,
-    }) => (
-      <div style={{ padding: 8 }}>
-        <Input
-          placeholder={`Search ${dataIndex}`}
-          value={selectedKeys[0]}
-          onChange={(e) =>
-            setSelectedKeys(e.target.value ? [e.target.value] : [])
-          }
-          onPressEnter={() => confirm()}
-          style={{ width: 188, marginBottom: 8, display: "block" }}
+  const handleGridSortChange = (field: string, order: "ascend" | "descend") => {
+    handleTableChange(
+      tableParams.pagination!,
+      tableParams.filters || {},
+      { field, order } as SorterResult<CostElementRead>
+    );
+  };
+
+  const handleGridPageChange = (page: number, pageSize: number) => {
+    handleTableChange(
+      { current: page, pageSize },
+      tableParams.filters || {},
+      {} as SorterResult<CostElementRead>
+    );
+  };
+
+  // Build filter controls: Type select + optional WBE select
+  const filterControls = (
+    <>
+      <Select
+        placeholder="Type"
+        allowClear
+        style={{ minWidth: 140 }}
+        options={types.map((t) => ({
+          label: t.name,
+          value: t.cost_element_type_id,
+        }))}
+        value={
+          tableParams.filters?.cost_element_type_id?.[0] as string | undefined
+        }
+        onChange={(val) => {
+          const newFilters = {
+            ...tableParams.filters,
+            cost_element_type_id: val ? [val] : null,
+          };
+          handleTableChange(
+            tableParams.pagination!,
+            newFilters as Record<string, FilterValue | null>,
+            {} as SorterResult<CostElementRead>
+          );
+        }}
+      />
+      {!wbeId && (
+        <Select
+          placeholder="WBE"
+          allowClear
+          style={{ minWidth: 160 }}
+          options={wbes.map((w) => ({
+            label: w.code,
+            value: w.wbe_id,
+          }))}
+          value={tableParams.filters?.wbe_id?.[0] as string | undefined}
+          onChange={(val) => {
+            const newFilters = {
+              ...tableParams.filters,
+              wbe_id: val ? [val] : null,
+            };
+            handleTableChange(
+              tableParams.pagination!,
+              newFilters as Record<string, FilterValue | null>,
+              {} as SorterResult<CostElementRead>
+            );
+          }}
         />
-        <Space>
-          <Button
-            type="primary"
-            onClick={() => confirm()}
-            icon={<SearchOutlined />}
-            size="small"
-            style={{ width: 90 }}
-          >
-            Search
-          </Button>
-          <Button
-            onClick={() => clearFilters && clearFilters()}
-            size="small"
-            style={{ width: 90 }}
-          >
-            Reset
-          </Button>
-        </Space>
-      </div>
-    ),
-    filterIcon: (filtered: boolean) => (
-      <SearchOutlined style={{ color: filtered ? "#1890ff" : undefined }} />
-    ),
-    onFilter: (value, record) => {
-      const fieldVal = record[dataIndex];
-      return fieldVal
-        ? fieldVal
-            .toString()
-            .toLowerCase()
-            .includes((value as string).toLowerCase())
-        : false;
-    },
-  });
-
-  const columns: ColumnType<CostElementRead>[] = [
-    {
-      title: "Code",
-      dataIndex: "code",
-      key: "code",
-      sorter: true, // Enable server-side sorting
-      render: (code) => <Tag>{code}</Tag>,
-      ...getColumnSearchProps("code"),
-    },
-    {
-      title: "Name",
-      dataIndex: "name",
-      key: "name",
-      sorter: true, // Enable server-side sorting
-      ...getColumnSearchProps("name"),
-    },
-    {
-      title: "Type",
-      dataIndex: "cost_element_type_id",
-      key: "cost_element_type_id",
-      render: (id, record) =>
-        record.cost_element_type_name || typeMap[id] || id,
-      filters: types.map((t) => ({
-        text: t.name,
-        value: t.cost_element_type_id,
-      })),
-      // Remove onFilter - server-side filtering will handle this
-    },
-    {
-      title: "WBE",
-      dataIndex: "wbe_id",
-      key: "wbe_id",
-      render: (id, record) => record.wbe_name || wbeMap[id] || id,
-      // Hide WBE filter when wbeId prop is provided (already filtered)
-      filters: wbeId
-        ? undefined
-        : wbes.map((w) => ({ text: w.code, value: w.wbe_id })),
-      // Remove onFilter - server-side filtering will handle this
-      // Optionally hide column entirely when wbeId is provided
-      hidden: !!wbeId,
-    },
-    {
-      title: "Budget",
-      dataIndex: "budget_amount",
-      key: "budget_amount",
-      align: "right",
-      render: (val) => (val ? `€${Number(val).toLocaleString()}` : "-"),
-      sorter: true, // Enable server-side sorting
-    },
-    {
-      title: "Branch",
-      dataIndex: "branch",
-      key: "branch",
-      render: (val) => (val ? <Tag>{val}</Tag> : "-"),
-      sorter: true,
-      ...getColumnSearchProps("branch"),
-    },
-    {
-      title: "Actions",
-      key: "actions",
-      render: (_, record) => (
-        <Space onClick={stopPropagation}>
-          <Can permission="cost-element-read">
-            <Button
-              icon={<EyeOutlined />}
-              onClick={() => {
-                navigate(`/cost-elements/${record.cost_element_id}`);
-              }}
-              title="View Details"
-            />
-          </Can>
-          <Can permission="cost-element-read">
-            <Button
-              icon={<HistoryOutlined />}
-              onClick={() => {
-                setSelectedElement(record);
-                setHistoryOpen(true);
-              }}
-              title="View History"
-            />
-          </Can>
-          <Can permission="cost-element-update">
-            <Button
-              icon={<EditOutlined />}
-              onClick={() => {
-                setSelectedElement(record);
-                setModalOpen(true);
-              }}
-              title="Edit"
-            />
-          </Can>
-          <Can permission="cost-element-delete">
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => handleDelete(record.cost_element_id)}
-              title="Delete"
-            />
-          </Can>
-        </Space>
-      ),
-    },
-  ];
-
-  // Handle row click to navigate to cost element detail page
-  const handleRowClick = (record: CostElementRead) => {
-    navigate(`/cost-elements/${record.cost_element_id}`);
-  };
-
-  // Stop propagation on action buttons to prevent row click
-  const stopPropagation = (e: React.MouseEvent) => {
-    e.stopPropagation();
-  };
+      )}
+    </>
+  );
 
   return (
     <div>
-      <StandardTable<CostElementRead>
-        tableParams={{
-          ...tableParams,
-          pagination: { ...tableParams.pagination, total },
-        }}
-        onChange={handleTableChange}
+      <EntityGrid<CostElementRead>
+        items={costElements}
+        total={total}
         loading={isLoading}
-        dataSource={costElements || []} // Use raw data - server handles filtering
-        columns={columns}
-        rowKey="cost_element_id"
-        onRow={(record) => ({
-          onClick: () => handleRowClick(record),
-          style: { cursor: "pointer" },
-        })}
-        searchable={true}
-        searchPlaceholder="Search cost elements..."
-        onSearch={handleSearch}
-        toolbar={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              width: "100%",
+        renderCard={(ce) => (
+          <CostElementCard
+            costElement={ce}
+            typeNames={typeMap}
+            onEdit={(el) => {
+              setSelectedElement(el);
+              setModalOpen(true);
             }}
-          >
-            <div style={{ fontSize: "16px", fontWeight: "bold" }}>
-              Cost Elements
-            </div>
-
-            <Can permission="cost-element-create">
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => {
-                  setSelectedElement(null);
-                  setModalOpen(true);
-                }}
-              >
-                Add Cost Element
-              </Button>
-            </Can>
-          </div>
+            onDelete={handleDelete}
+            onViewHistory={(el) => {
+              setSelectedElement(el);
+              setHistoryOpen(true);
+            }}
+          />
+        )}
+        keyExtractor={(ce) => ce.cost_element_id}
+        title={wbeName ? `Cost Elements - ${wbeName}` : "Cost Elements"}
+        addContent={
+          <Can permission="cost-element-create">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setSelectedElement(null);
+                setModalOpen(true);
+              }}
+            >
+              Add Cost Element
+            </Button>
+          </Can>
         }
+        searchValue={tableParams.search || ""}
+        onSearch={handleSearch}
+        searchPlaceholder="Search cost elements..."
+        sortOptions={SORT_OPTIONS}
+        sortField={tableParams.sortField}
+        sortOrder={tableParams.sortOrder}
+        onSortChange={handleGridSortChange}
+        filters={filterControls}
+        pagination={{
+          current: tableParams.pagination?.current || 1,
+          pageSize: tableParams.pagination?.pageSize || 10,
+        }}
+        onPageChange={handleGridPageChange}
       />
 
       <CostElementModal
@@ -409,9 +303,7 @@ export const CostElementManagement = ({
             await createCostElement({
               ...(values as CostElementCreate),
               branch: branch,
-              // Pre-fill wbeId when creating from WBE detail page
               wbe_id: wbeId || (values as CostElementCreate).wbe_id,
-              // Force cast to solve type mismatch since CreateWithBranch is derived type
               control_date: null,
             } as CreateWithBranch);
           }
@@ -427,7 +319,6 @@ export const CostElementManagement = ({
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
         versions={(historyVersions || []).map((version, idx, arr) => {
-          // Helper type for history object variations
           type HistoryItem = {
             valid_from?: string;
             valid_time?: string | { lower: string };

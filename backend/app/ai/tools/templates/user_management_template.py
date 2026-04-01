@@ -533,7 +533,7 @@ async def get_department(
         service = DepartmentService(context.session)
 
         # Call service method
-        department = await service.get_department(UUID(department_id))
+        department = await service.get_as_of(UUID(department_id))
 
         if not department:
             return {"error": f"Department {department_id} not found"}

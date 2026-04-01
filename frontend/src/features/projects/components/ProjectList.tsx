@@ -1,16 +1,11 @@
-import { App, Button, Empty, Grid, Input, List, Space, Spin, theme } from "antd";
-import { useNavigate } from "react-router-dom";
+import { App, Button, Select } from "antd";
 import {
-  HistoryOutlined,
   ProjectOutlined,
-  EditOutlined,
-  DeleteOutlined,
   PlusOutlined,
-  SearchOutlined,
 } from "@ant-design/icons";
-import { useMemo, useState } from "react";
-import type { ColumnType } from "antd/es/table";
-import { StandardTable } from "@/components/common/StandardTable";
+import { useState } from "react";
+import type { FilterValue, SorterResult } from "antd/es/table/interface";
+import { EntityGrid, type SortOption } from "@/components/common/EntityGrid";
 import { useTableParams } from "@/hooks/useTableParams";
 import type {
   ProjectRead,
@@ -31,15 +26,14 @@ import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { ProjectFilters } from "@/types/filters";
 import { ProjectsService } from "@/api/generated";
 
-const { useBreakpoint } = Grid;
+const SORT_OPTIONS: SortOption[] = [
+  { label: "Code", value: "code" },
+  { label: "Name", value: "name" },
+  { label: "Budget", value: "budget" },
+  { label: "Start Date", value: "start_date" },
+];
 
 export const ProjectList = () => {
-  const { token } = theme.useToken();
-  const navigate = useNavigate();
-  const screens = useBreakpoint();
-  const isMobile = !screens.md;
-  const isTablet = screens.md && !screens.lg;
-
   const { tableParams, handleTableChange, handleSearch } = useTableParams<
     ProjectRead,
     ProjectFilters
@@ -94,274 +88,94 @@ export const ProjectList = () => {
     setHistoryOpen(true);
   };
 
-  const getColumnSearchProps = (
-    dataIndex: keyof ProjectRead
-  ): ColumnType<ProjectRead> => ({
-    filterDropdown: ({
-      setSelectedKeys,
-      selectedKeys,
-      confirm,
-      clearFilters,
-    }) => (
-      <div style={{ padding: token.paddingSM }}>
-        <Input
-          placeholder={`Search ${dataIndex}`}
-          value={selectedKeys[0]}
-          onChange={(e) =>
-            setSelectedKeys(e.target.value ? [e.target.value] : [])
-          }
-          onPressEnter={() => confirm()}
-          style={{ width: 188, marginBottom: token.marginSM, display: "block" }}
-        />
-        <Space>
-          <Button
-            type="primary"
-            onClick={() => confirm()}
-            icon={<SearchOutlined />}
-            size="small"
-            style={{ width: 90 }}
-          >
-            Search
-          </Button>
-          <Button
-            onClick={() => clearFilters && clearFilters()}
-            size="small"
-            style={{ width: 90 }}
-          >
-            Reset
-          </Button>
-        </Space>
-      </div>
-    ),
-    filterIcon: (filtered: boolean) => (
-      <SearchOutlined
-        style={{ color: filtered ? token.colorPrimary : undefined }}
-      />
-    ),
-    onFilter: (value, record) => {
-      const fieldVal = record[dataIndex];
-      return fieldVal
-        ? fieldVal
-            .toString()
-            .toLowerCase()
-            .includes((value as string).toLowerCase())
-        : false;
-    },
-  });
+  const handleGridSortChange = (field: string, order: "ascend" | "descend") => {
+    handleTableChange(
+      tableParams.pagination!,
+      tableParams.filters || {},
+      { field, order } as SorterResult<ProjectRead>
+    );
+  };
 
-  // Extract unique status values for filter dropdown
-  const statusFilters = useMemo(() => {
-    // Common project statuses - could be fetched from API in the future
-    return [
-      { text: "Draft", value: "Draft" },
-      { text: "Active", value: "Active" },
-      { text: "Completed", value: "Completed" },
-      { text: "On Hold", value: "On Hold" },
-    ];
-  }, []);
-
-  const columns: ColumnType<ProjectRead>[] = (() => {
-    const cols: ColumnType<ProjectRead>[] = [
-      {
-        title: "Code",
-        dataIndex: "code",
-        key: "code",
-        width: 120,
-        sorter: true,
-        ...getColumnSearchProps("code"),
-      },
-      {
-        title: "Name",
-        dataIndex: "name",
-        key: "name",
-        sorter: true,
-        ...getColumnSearchProps("name"),
-      },
-      {
-        title: "Status",
-        dataIndex: "status",
-        key: "status",
-        width: 120,
-        filters: statusFilters,
-      },
-      {
-        title: "Budget",
-        dataIndex: "budget",
-        key: "budget",
-        render: (budget: number) =>
-          budget
-            ? new Intl.NumberFormat("en-US", {
-                style: "currency",
-                currency: "EUR",
-                currencyDisplay: "narrowSymbol",
-              }).format(budget)
-            : "-",
-        width: 150,
-        sorter: true,
-      },
-    ];
-
-    // Hide Contract Value and dates on tablet
-    if (!isTablet) {
-      cols.push(
-        {
-          title: "Contract Value",
-          dataIndex: "contract_value",
-          key: "contract_value",
-          render: (value: number) =>
-            value
-              ? new Intl.NumberFormat("en-US", {
-                  style: "currency",
-                  currency: "EUR",
-                  currencyDisplay: "narrowSymbol",
-                }).format(value)
-              : "-",
-          width: 150,
-          sorter: true,
-        },
-        {
-          title: "Start Date",
-          dataIndex: "start_date",
-          key: "start_date",
-          render: (date: string) =>
-            date ? new Date(date).toLocaleDateString() : "-",
-          width: 120,
-          sorter: true,
-        },
-        {
-          title: "End Date",
-          dataIndex: "end_date",
-          key: "end_date",
-          render: (date: string) =>
-            date ? new Date(date).toLocaleDateString() : "-",
-          width: 120,
-          sorter: true,
-        }
-      );
-    }
-
-    cols.push({
-      title: "Actions",
-      key: "actions",
-      width: 120,
-      render: (_, record) => (
-        <Space>
-          <Can permission="project-read">
-            <Button
-              icon={<HistoryOutlined />}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleViewHistory(record);
-              }}
-              title="View History"
-            />
-          </Can>
-          <Can permission="project-update">
-            <Button
-              icon={<EditOutlined />}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleEdit(record);
-              }}
-              title="Edit Project"
-            />
-          </Can>
-          <Can permission="project-delete">
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDelete(record.project_id);
-              }}
-              title="Delete Project"
-            />
-          </Can>
-        </Space>
-      ),
-    });
-
-    return cols;
-  })();
-
-  const toolbarContent = (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-      }}
-    >
-      <div
-        style={{
-          fontSize: token.fontSizeLG,
-          fontWeight: "bold",
-          display: "flex",
-          alignItems: "center",
-          gap: token.marginSM,
-        }}
-      >
-        <ProjectOutlined />
-        Projects
-      </div>
-      <Can permission="project-create">
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => {
-            setSelectedProject(null);
-            setModalOpen(true);
-          }}
-        >
-          {isMobile ? null : "Add Project"}
-        </Button>
-      </Can>
-    </div>
-  );
+  const handleGridPageChange = (page: number, pageSize: number) => {
+    handleTableChange(
+      { current: page, pageSize },
+      tableParams.filters || {},
+      {} as SorterResult<ProjectRead>
+    );
+  };
 
   return (
     <div>
-      {isMobile ? (
-        <MobileProjectList
-          projects={projects}
-          isLoading={isLoading}
-          searchValue={tableParams.search || ""}
-          onSearch={handleSearch}
-          toolbar={toolbarContent}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onViewHistory={handleViewHistory}
-          total={total}
-          pagination={tableParams.pagination}
-          onPageChange={(page, pageSize) =>
-            handleTableChange(
-              { current: page, pageSize },
-              {},
-              {}
-            )
-          }
-        />
-      ) : (
-        <StandardTable<ProjectRead>
-          tableParams={{
-            ...tableParams,
-            pagination: { ...tableParams.pagination, total },
-          }}
-          onChange={handleTableChange}
-          loading={isLoading}
-          dataSource={projects}
-          columns={columns}
-          rowKey="project_id"
-          searchable={true}
-          searchPlaceholder="Search projects..."
-          onSearch={handleSearch}
-          onRow={(record) => ({
-            onClick: () => navigate(`/projects/${record.project_id}`),
-            style: { cursor: "pointer" },
-          })}
-          toolbar={toolbarContent}
-        />
-      )}
+      <EntityGrid<ProjectRead>
+        items={projects}
+        total={total}
+        loading={isLoading}
+        renderCard={(project) => (
+          <ProjectCard
+            project={project}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onViewHistory={handleViewHistory}
+          />
+        )}
+        keyExtractor={(p) => p.project_id}
+        title={
+          <>
+            <ProjectOutlined /> Projects
+          </>
+        }
+        addContent={
+          <Can permission="project-create">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setSelectedProject(null);
+                setModalOpen(true);
+              }}
+            >
+              Add Project
+            </Button>
+          </Can>
+        }
+        searchValue={tableParams.search || ""}
+        onSearch={handleSearch}
+        searchPlaceholder="Search projects..."
+        sortOptions={SORT_OPTIONS}
+        sortField={tableParams.sortField}
+        sortOrder={tableParams.sortOrder}
+        onSortChange={handleGridSortChange}
+        filters={
+          <Select
+            placeholder="Status"
+            allowClear
+            style={{ minWidth: 120 }}
+            options={[
+              { label: "Draft", value: "Draft" },
+              { label: "Active", value: "Active" },
+              { label: "Completed", value: "Completed" },
+              { label: "On Hold", value: "On Hold" },
+            ]}
+            value={tableParams.filters?.status?.[0] as string | undefined}
+            onChange={(val) => {
+              const newFilters = {
+                ...tableParams.filters,
+                status: val ? [val] : null,
+              };
+              handleTableChange(
+                tableParams.pagination!,
+                newFilters as Record<string, FilterValue | null>,
+                {} as SorterResult<ProjectRead>
+              );
+            }}
+          />
+        }
+        pagination={{
+          current: tableParams.pagination?.current || 1,
+          pageSize: tableParams.pagination?.pageSize || 10,
+        }}
+        onPageChange={handleGridPageChange}
+      />
 
       <ProjectModal
         open={modalOpen}
@@ -427,96 +241,3 @@ const HistoryDrawerWrapper = ({
   );
 };
 
-const MobileProjectList = ({
-  projects,
-  isLoading,
-  searchValue,
-  onSearch,
-  toolbar,
-  onEdit,
-  onDelete,
-  onViewHistory,
-  total,
-  pagination,
-  onPageChange,
-}: {
-  projects: ProjectRead[];
-  isLoading: boolean;
-  searchValue: string;
-  onSearch: (value: string) => void;
-  toolbar: React.ReactNode;
-  onEdit: (project: ProjectRead) => void;
-  onDelete: (projectId: string) => void;
-  onViewHistory: (project: ProjectRead) => void;
-  total: number;
-  pagination?: { current?: number; pageSize?: number };
-  onPageChange: (page: number, pageSize: number) => void;
-}) => {
-  const { token } = theme.useToken();
-  const [localSearch, setLocalSearch] = useState(searchValue);
-
-  // Debounced search
-  const [debounceTimer, setDebounceTimer] = useState<ReturnType<
-    typeof setTimeout
-  > | null>(null);
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setLocalSearch(val);
-    if (debounceTimer) clearTimeout(debounceTimer);
-    setDebounceTimer(setTimeout(() => onSearch(val), 300));
-  };
-
-  return (
-    <div>
-      {/* Toolbar */}
-      <div style={{ marginBottom: token.marginMD }}>{toolbar}</div>
-
-      {/* Search */}
-      <Input.Search
-        placeholder="Search projects..."
-        allowClear
-        value={localSearch}
-        onChange={handleSearchChange}
-        onSearch={onSearch}
-        style={{ marginBottom: token.marginMD }}
-      />
-
-      {/* Card list */}
-      {isLoading ? (
-        <div style={{ textAlign: "center", padding: token.paddingXL }}>
-          <Spin />
-        </div>
-      ) : projects.length === 0 ? (
-        <Empty description="No projects found" />
-      ) : (
-        <List
-          grid={{ gutter: 12, column: 1 }}
-          dataSource={projects}
-          renderItem={(project) => (
-            <List.Item>
-              <ProjectCard
-                project={project}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onViewHistory={onViewHistory}
-              />
-            </List.Item>
-          )}
-          pagination={
-            total > (pagination?.pageSize || 10)
-              ? {
-                  current: pagination?.current || 1,
-                  pageSize: pagination?.pageSize || 10,
-                  total,
-                  onChange: onPageChange,
-                  size: "small",
-                  style: { textAlign: "center", marginTop: 16 },
-                }
-              : undefined
-          }
-        />
-      )}
-    </div>
-  );
-};

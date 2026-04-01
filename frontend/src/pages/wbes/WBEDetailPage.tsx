@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Button, Card, Tabs, Collapse, Space, theme, Typography, Flex } from "antd";
+import { Button, Card, Grid, Tabs, Collapse, Space, theme, Typography, Flex } from "antd";
 import { PlusOutlined, LineChartOutlined, EditOutlined, DeleteOutlined, HistoryOutlined } from "@ant-design/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
@@ -15,7 +15,7 @@ import {
 } from "@/features/wbes/api/useWBEs";
 import { WBECreate, WBERead, WBEUpdate } from "@/api/generated";
 import { WBESummaryCard } from "@/components/hierarchy/WBESummaryCard";
-import { WBETable } from "@/components/hierarchy/WBETable";
+import { WBECard } from "@/features/wbes/components/WBECard";
 import { BreadcrumbBuilder } from "@/components/hierarchy/BreadcrumbBuilder";
 import { WBEModal } from "@/features/wbes/components/WBEModal";
 import { CostElementManagement } from "@/pages/financials/CostElementManagement";
@@ -24,6 +24,7 @@ import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { Can } from "@/components/auth/Can";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { WbEsService } from "@/api/generated";
+import { EntityGrid } from "@/components/common/EntityGrid";
 
 import {
   useEVMMetrics,
@@ -42,6 +43,8 @@ export const WBEDetailPage = () => {
   const navigate = useNavigate();
   const { token } = theme.useToken();
   const queryClient = useQueryClient();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
 
   // Pagination State
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
@@ -186,10 +189,21 @@ export const WBEDetailPage = () => {
       )}
 
       {/* Child WBEs Section */}
-      <Card
+      <EntityGrid<WBERead>
+        items={childWbes}
+        total={data?.total || 0}
+        loading={childrenLoading}
+        renderCard={(childWbe) => (
+          <WBECard
+            wbe={childWbe}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onOpen={handleRowClick}
+          />
+        )}
+        keyExtractor={(w) => w.wbe_id}
         title="Child WBEs"
-        style={{ marginTop: token.paddingMD }}
-        extra={
+        addContent={
           <Can permission="wbe-create">
             <Button
               type="primary"
@@ -200,36 +214,23 @@ export const WBEDetailPage = () => {
             </Button>
           </Can>
         }
-      >
-        {childWbes && childWbes.length > 0 ? (
-          <WBETable
-            wbes={childWbes}
-            loading={childrenLoading}
-            onRowClick={handleRowClick}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            pagination={{
-              current: pagination.current,
-              pageSize: pagination.pageSize,
-              total: data?.total || 0,
-              onChange: (page, pageSize) =>
-                setPagination({ current: page, pageSize }),
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              textAlign: "center",
-              padding: token.paddingXL,
-              color: token.colorTextTertiary,
-            }}
-          >
-            {childrenLoading
-              ? "Loading..."
-              : "No child WBEs. Click 'Add Child WBE' to create one."}
-          </div>
-        )}
-      </Card>
+        searchValue=""
+        onSearch={() => {}}
+        searchPlaceholder="Search child WBEs..."
+        sortOptions={[
+          { label: "Code", value: "code" },
+          { label: "Name", value: "name" },
+          { label: "Budget", value: "budget_allocation" },
+        ]}
+        sortField={undefined}
+        sortOrder={undefined}
+        onSortChange={() => {}}
+        pagination={pagination}
+        onPageChange={(page, pageSize) =>
+          setPagination({ current: page, pageSize })
+        }
+        minCardWidth={280}
+      />
 
       {/* Cost Elements Section */}
       <Card title="Cost Elements">
@@ -305,7 +306,9 @@ export const WBEDetailPage = () => {
                 {/* Page Title with Action Buttons */}
                 <Flex
                   justify="space-between"
-                  align="center"
+                  align={isMobile ? "stretch" : "center"}
+                  vertical={isMobile}
+                  gap={isMobile ? token.marginSM : 0}
                   style={{ marginBottom: token.paddingMD }}
                 >
                   <Typography.Title level={1} style={{ margin: 0 }}>
@@ -356,7 +359,9 @@ export const WBEDetailPage = () => {
                 {/* Page Title with Action Buttons */}
                 <Flex
                   justify="space-between"
-                  align="center"
+                  align={isMobile ? "stretch" : "center"}
+                  vertical={isMobile}
+                  gap={isMobile ? token.marginSM : 0}
                   style={{ marginBottom: token.paddingMD }}
                 >
                   <Typography.Title level={1} style={{ margin: 0 }}>
