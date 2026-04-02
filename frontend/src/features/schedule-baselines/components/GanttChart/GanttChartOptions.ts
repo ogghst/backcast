@@ -343,14 +343,16 @@ ${
 
           const barWidth = Math.max(endCoord[0] - startCoord[0], 2);
 
-          // WBE group bar: single rect, taller, no rounded corners
+          // WBE group bar: thin container/summary bar with start marker
           if (row.isWbe) {
-            const wbeBarHeight = barHeight * 1.4;
+            const wbeBarHeight = barHeight * 0.35;
             const wbeY = startCoord[1] - wbeBarHeight / 2;
+            const markerRadius = Math.max(wbeBarHeight * 1.2, 3);
 
             return {
               type: "group",
               children: [
+                // Thin horizontal bar spanning the full duration
                 {
                   type: "rect",
                   shape: {
@@ -362,7 +364,20 @@ ${
                   },
                   style: {
                     fill: colors.textSecondary,
-                    opacity: 0.3,
+                    opacity: 0.35,
+                  },
+                },
+                // Small colored dot at the start of the bar
+                {
+                  type: "circle",
+                  shape: {
+                    cx: startCoord[0] + markerRadius,
+                    cy: startCoord[1],
+                    r: markerRadius,
+                  },
+                  style: {
+                    fill: colors.textSecondary,
+                    opacity: 0.5,
                   },
                 },
               ],
