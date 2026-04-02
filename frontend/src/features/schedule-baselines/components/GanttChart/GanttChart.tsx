@@ -14,7 +14,7 @@ import { EChartsBaseChart } from "@/features/evm/components/charts/EChartsBaseCh
 import { useEChartsTheme } from "@/features/evm/utils/echartsTheme";
 import { useGanttData } from "../../api/useGanttData";
 import { transformGanttData, type GanttRow } from "./GanttDataTransformer";
-import { buildGanttOptions } from "./GanttChartOptions";
+import { buildGanttOptions, TIME_LEGEND_HEIGHT, CHART_BOTTOM_PADDING } from "./GanttChartOptions";
 
 interface GanttChartProps {
   projectId: string;
@@ -71,7 +71,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   const ROW_HEIGHT = 32;
   const MIN_HEIGHT = 200;
   const MAX_HEIGHT = 1200;
-  const HEADER_FOOTER = 100; // dataZoom + x-axis + padding
+  const HEADER_FOOTER = TIME_LEGEND_HEIGHT + CHART_BOTTOM_PADDING; // time legend + x-axis + padding
 
   const chartHeight = useMemo(() => {
     const visibleRows = rows.length;
@@ -100,6 +100,30 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     () => (data?.project_end ? new Date(data.project_end) : null),
     [data],
   );
+
+  // Dynamic width: ensure full timeline is always rendered (all bars visible)
+  const MIN_PX_PER_DAY = 5;
+  const outerRef = useRef<HTMLDivElement>(null);
+  const [outerWidth, setOuterWidth] = useState(800);
+
+  useEffect(() => {
+    const el = outerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        setOuterWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const chartWidth = useMemo(() => {
+    if (!projectStart || !projectEnd) return outerWidth;
+    const days = (projectEnd.getTime() - projectStart.getTime()) / (1000 * 60 * 60 * 24);
+    const minWidth = Math.ceil(days) * MIN_PX_PER_DAY;
+    return Math.max(minWidth, outerWidth);
+  }, [projectStart, projectEnd, outerWidth]);
 
   // Build ECharts options
   const chartOption = useMemo(
@@ -156,8 +180,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({
       const currentGridLeft = gridLeftRef.current;
       if (params.offsetX >= currentGridLeft) return;
 
-      const gridTop = 20; // matches grid.top
-      const gridHeight = chart.getHeight() - gridTop - 80; // approximate
+      const gridTop = TIME_LEGEND_HEIGHT; // matches main grid.top
+      const gridHeight = chart.getHeight() - gridTop - CHART_BOTTOM_PADDING;
       const relativeY = params.offsetY - gridTop;
       if (relativeY < 0 || relativeY > gridHeight) return;
 
@@ -186,8 +210,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({
         return;
       }
 
-      const gridTop = 20;
-      const gridHeight = chart.getHeight() - gridTop - 80;
+      const gridTop = TIME_LEGEND_HEIGHT;
+      const gridHeight = chart.getHeight() - gridTop - CHART_BOTTOM_PADDING;
       const relativeY = params.offsetY - gridTop;
       if (relativeY < 0 || relativeY > gridHeight) {
         dom.style.cursor = '';
@@ -231,42 +255,44 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   }
 
   return (
-    <div ref={containerRef} style={{ position: "relative" }}>
-      <EChartsBaseChart
-        option={chartOption}
-        height={chartHeight}
-        loading={isLoading}
-        showWhenEmpty={false}
-        emptyDescription="No schedule data available"
-        onChartReady={handleChartReady}
-        onEvents={handleEvents}
-      />
-      {/* Vertical separator for resizing task panel vs chart area */}
-      <div
-        style={{
-          position: "absolute",
-          left: gridLeft - 2,
-          top: 0,
-          bottom: 0,
-          width: 4,
-          cursor: "col-resize",
-          zIndex: 10,
-          backgroundColor: "transparent",
-        }}
-        onMouseDown={handleSeparatorMouseDown}
-        onMouseEnter={(e) => {
-          if (!isDraggingRef.current) {
-            (e.currentTarget as HTMLDivElement).style.backgroundColor =
-              "rgba(0, 0, 0, 0.15)";
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (!isDraggingRef.current) {
-            (e.currentTarget as HTMLDivElement).style.backgroundColor =
-              "transparent";
-          }
-        }}
-      />
+    <div ref={outerRef} style={{ overflowX: "auto" }}>
+      <div ref={containerRef} style={{ position: "relative", minWidth: chartWidth }}>
+        <EChartsBaseChart
+          option={chartOption}
+          height={chartHeight}
+          loading={isLoading}
+          showWhenEmpty={false}
+          emptyDescription="No schedule data available"
+          onChartReady={handleChartReady}
+          onEvents={handleEvents}
+        />
+        {/* Vertical separator for resizing task panel vs chart area */}
+        <div
+          style={{
+            position: "absolute",
+            left: gridLeft - 2,
+            top: 0,
+            bottom: 0,
+            width: 4,
+            cursor: "col-resize",
+            zIndex: 10,
+            backgroundColor: "transparent",
+          }}
+          onMouseDown={handleSeparatorMouseDown}
+          onMouseEnter={(e) => {
+            if (!isDraggingRef.current) {
+              (e.currentTarget as HTMLDivElement).style.backgroundColor =
+                "rgba(0, 0, 0, 0.15)";
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!isDraggingRef.current) {
+              (e.currentTarget as HTMLDivElement).style.backgroundColor =
+                "transparent";
+            }
+          }}
+        />
+      </div>
     </div>
   );
 };

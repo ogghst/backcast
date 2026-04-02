@@ -3,6 +3,7 @@
  *
  * Builds the ECharts option object for the Gantt chart, including
  * custom renderItem for bars, dataZoom, tooltip, and today marker.
+ * Uses dual grids: a time legend header and the main chart area.
  *
  * @module features/schedule-baselines/components/GanttChart
  */
@@ -18,6 +19,12 @@ const PROGRESSION_COLORS: Record<string, string> = {
   GAUSSIAN: "#5ad8a6",
   LOGARITHMIC: "#faad14",
 };
+
+/** Height of the time legend header grid in pixels. */
+export const TIME_LEGEND_HEIGHT = 40;
+
+/** Bottom padding for x-axis labels + spacing. */
+export const CHART_BOTTOM_PADDING = 30;
 
 /**
  * Build ECharts option for the Gantt chart.
@@ -55,6 +62,9 @@ export function buildGanttOptions(
   const xMax = projectEnd
     ? Math.max(projectEnd.getTime(), now.getTime())
     : now.getTime() + 365 * 24 * 3600 * 1000;
+
+  // One week in milliseconds -- used as tick interval for weekly markers
+  const ONE_WEEK_MS = 7 * 24 * 3600 * 1000;
 
   return {
     tooltip: {
@@ -116,55 +126,135 @@ ${
 }`;
       },
     },
-    grid: {
-      left: gridLeft,
-      right: 40,
-      top: 20,
-      bottom: 80,
-    },
-    xAxis: {
-      type: "time",
-      position: "bottom",
-      min: xMin,
-      max: xMax,
-      axisLabel: {
-        color: colors.textSecondary,
-        fontSize: 11,
-        formatter: (value: number) => {
-          const d = new Date(value);
-          return d.toLocaleDateString("en-US", {
-            month: "short",
-            year: "2-digit",
-          });
+    grid: [
+      // Grid 0: time legend header
+      {
+        left: gridLeft,
+        right: 40,
+        top: 0,
+        height: TIME_LEGEND_HEIGHT,
+      },
+      // Grid 1: main chart area
+      {
+        left: gridLeft,
+        right: 40,
+        top: TIME_LEGEND_HEIGHT,
+        bottom: CHART_BOTTOM_PADDING,
+      },
+    ],
+    xAxis: [
+      // xAxis 0: time legend header (top, on grid 0)
+      // Shows month names centered and week-start markers in dd/mm format
+      {
+        type: "time",
+        position: "top",
+        gridIndex: 0,
+        min: xMin,
+        max: xMax,
+        axisLabel: {
+          color: colors.text,
+          fontSize: 11,
+          fontWeight: "bold" as const,
+          formatter: (value: number) => {
+            const d = new Date(value);
+            const day = d.getDay();
+            // Monday (day=1): show dd/mm format in secondary color
+            if (day === 1) {
+              const dd = String(d.getDate()).padStart(2, "0");
+              const mm = String(d.getMonth() + 1).padStart(2, "0");
+              return `{week|${dd}/${mm}}`;
+            }
+            // Month labels
+            return d.toLocaleDateString("en-US", {
+              month: "short",
+              year: "numeric",
+            });
+          },
+          rich: {
+            week: {
+              color: colors.textSecondary,
+              fontSize: 10,
+              fontWeight: "normal" as const,
+            },
+          },
         },
+        axisLine: {
+          lineStyle: { color: colors.border },
+        },
+        axisTick: {
+          show: true,
+          alignWithLabel: true,
+          lineStyle: { color: colors.border },
+        },
+        splitLine: {
+          show: true,
+          lineStyle: { color: colors.border, type: "dashed" as const, opacity: 0.25 },
+        },
+        // Force ticks at weekly intervals (each Monday)
+        interval: ONE_WEEK_MS,
       },
-      axisLine: {
-        lineStyle: { color: colors.border },
+      // xAxis 1: main chart axis (bottom, on grid 1)
+      // Shows month labels, with weekly splitLines for visual grid
+      {
+        type: "time",
+        position: "bottom",
+        gridIndex: 1,
+        min: xMin,
+        max: xMax,
+        axisLabel: {
+          color: colors.textSecondary,
+          fontSize: 11,
+          formatter: (value: number) => {
+            const d = new Date(value);
+            return d.toLocaleDateString("en-US", {
+              month: "short",
+              year: "2-digit",
+            });
+          },
+        },
+        axisLine: {
+          lineStyle: { color: colors.border },
+        },
+        // Weekly dashed gridlines across the chart area
+        splitLine: {
+          show: true,
+          lineStyle: { color: colors.border, type: "dashed" as const, opacity: 0.25 },
+        },
+        interval: ONE_WEEK_MS,
       },
-      splitLine: {
-        show: true,
-        lineStyle: { color: colors.border, type: "dashed", opacity: 0.4 },
+    ],
+    yAxis: [
+      // yAxis 0: hidden dummy for time legend grid (grid 0)
+      {
+        type: "category",
+        gridIndex: 0,
+        show: false,
+        data: [],
       },
-    },
-    yAxis: {
-      type: "category",
-      data: yLabels,
-      inverse: true,
-      axisLabel: {
-        color: colors.text,
-        fontSize: 11,
-        width: gridLeft - 20,
-        overflow: "truncate",
+      // yAxis 1: main chart category axis (grid 1)
+      {
+        type: "category",
+        data: yLabels,
+        inverse: true,
+        gridIndex: 1,
+        axisLabel: {
+          color: colors.text,
+          fontSize: 11,
+          width: gridLeft - 20,
+          overflow: "truncate",
+        },
+        axisLine: {
+          lineStyle: { color: colors.border },
+        },
+        axisTick: { show: false },
+        splitLine: { show: false },
       },
-      axisLine: {
-        lineStyle: { color: colors.border },
-      },
-      axisTick: { show: false },
-      splitLine: { show: false },
-    },
+    ],
     series: [
       {
         type: "custom",
+        xAxisIndex: 1,
+        yAxisIndex: 1,
         renderItem: (
           params: { coordSys: { x: number; y: number; width: number; height: number; top: number },
             dataIndex: number },
@@ -275,25 +365,6 @@ ${
           },
           data: [{ xAxis: now.getTime() }],
         },
-      },
-    ],
-    dataZoom: [
-      {
-        type: "slider",
-        xAxisIndex: 0,
-        bottom: 10,
-        height: 20,
-        borderColor: "transparent",
-        backgroundColor: "transparent",
-        handleSize: "80%",
-        showDetail: false,
-        brushSelect: true,
-      },
-      {
-        type: "inside",
-        xAxisIndex: 0,
-        zoomOnMouseWheel: true,
-        moveOnMouseMove: true,
       },
     ],
   };
