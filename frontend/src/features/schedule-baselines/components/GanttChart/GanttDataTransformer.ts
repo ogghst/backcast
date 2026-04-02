@@ -36,19 +36,6 @@ export interface GanttRow {
   collapsed: boolean;
   /** Total descendants for display */
   childrenCount: number;
-  /**
-   * Whether this row is the last child of its parent.
-   * Used for tree connector rendering (└ vs ├).
-   * Root-level rows have this set to true.
-   */
-  isLastChild: boolean;
-  /**
-   * Continuation flags for ancestor levels.
-   * Each boolean indicates whether the ancestor at that depth
-   * has more siblings below (requiring a │ vertical line).
-   * Length equals level - 1 for non-root rows, empty for roots.
-   */
-  ancestorContinuations: boolean[];
 }
 
 /** Internal tree node used during hierarchy construction. */
@@ -165,21 +152,7 @@ export function transformGanttData(
   // Depth-first flatten
   const rows: GanttRow[] = [];
 
-  /**
-   * Flatten a WBE node into display rows.
-   *
-   * @param node - The WBE node to flatten
-   * @param collapsedWbeIds - Set of collapsed WBE IDs
-   * @param ancestorContinuations - For each ancestor level, whether that
-   *   ancestor has more siblings below (for tree connector │ lines)
-   * @param isLastChild - Whether this node is the last child of its parent
-   */
-  function flattenNode(
-    node: WbeNode,
-    collapsedWbeIds: Set<string>,
-    ancestorContinuations: boolean[] = [],
-    isLastChild: boolean = true,
-  ): void {
+  function flattenNode(node: WbeNode, collapsedWbeIds: Set<string>): void {
     const isCollapsed = collapsedWbeIds.has(node.wbeId);
 
     // Add WBE group header with aggregated dates
@@ -196,19 +169,10 @@ export function transformGanttData(
       isWbe: true,
       collapsed: isCollapsed,
       childrenCount: node.children.length + node.items.length,
-      isLastChild,
-      ancestorContinuations: [...ancestorContinuations],
     });
 
     // If collapsed, skip cost elements and child WBEs
     if (isCollapsed) return;
-
-    // The continuation flag for THIS node's level: does this WBE have
-    // more siblings below? This is used by children to draw │ lines.
-    const nodeContinuation = !isLastChild;
-
-    // Children inherit ancestor continuations plus this node's continuation
-    const childAncestors = [...ancestorContinuations, nodeContinuation];
 
     // Add cost element items directly under this WBE first
     // so they appear right after the WBE header, before any child WBEs
@@ -218,11 +182,7 @@ export function transformGanttData(
       }),
     );
 
-    const hasChildWbes = node.children.length > 0;
-
-    for (let i = 0; i < sortedItems.length; i++) {
-      const item = sortedItems[i];
-      const itemIsLast = i === sortedItems.length - 1 && !hasChildWbes;
+    for (const item of sortedItems) {
       rows.push({
         name: item.cost_element_name,
         level: node.wbeLevel + 1,
@@ -236,25 +196,17 @@ export function transformGanttData(
         isWbe: false,
         collapsed: false,
         childrenCount: 0,
-        isLastChild: itemIsLast,
-        ancestorContinuations: [...childAncestors],
       });
     }
 
     // Then add child WBE nodes (recursive)
-    for (let i = 0; i < node.children.length; i++) {
-      const childIsLast = i === node.children.length - 1;
-      flattenNode(
-        node.children[i],
-        collapsedWbeIds,
-        childAncestors,
-        childIsLast,
-      );
+    for (const child of node.children) {
+      flattenNode(child, collapsedWbeIds);
     }
   }
 
-  for (let i = 0; i < roots.length; i++) {
-    flattenNode(roots[i], collapsedWbeIds, [], i === roots.length - 1);
+  for (const root of roots) {
+    flattenNode(root, collapsedWbeIds);
   }
 
   return rows;

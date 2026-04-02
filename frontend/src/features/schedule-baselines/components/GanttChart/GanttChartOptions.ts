@@ -255,53 +255,24 @@ ${
         axisLabel: {
           width: gridLeft - 20,
           overflow: "truncate",
-          formatter: (_value: string, index: number) => {
+          formatter: (value: string, index: number) => {
             const row = rows[index];
-            if (!row) return _value;
-
-            // Build ancestor continuation prefix (│ chars for ancestors
-            // that have more siblings below)
-            const ancestorParts: string[] = [];
-            for (let i = 0; i < row.ancestorContinuations.length; i++) {
-              if (row.ancestorContinuations[i]) {
-                ancestorParts.push("{conn|\u2502  }");
-              } else {
-                ancestorParts.push("{gap|   }");
-              }
-            }
-            const ancestorPrefix = ancestorParts.join("");
-
+            if (!row) return value;
+            const indent = `{i${row.level}|}`;
             if (row.isWbe) {
               const icon = row.collapsed ? "\u25B6 " : "\u25BC ";
-              // Root-level WBEs (level 1, no ancestors): no connector prefix
-              if (row.ancestorContinuations.length === 0) {
-                return `${ancestorPrefix}{icon|${icon}}{wbe|${row.name}}`;
-              }
-              // Non-root WBEs: add ├ or └ connector
-              const connector = row.isLastChild ? "\u2514" : "\u251C";
-              return `${ancestorPrefix}{conn|${connector}}{icon|${icon}}{wbe|${row.name}}`;
+              return `${indent}{icon|${icon}}{wbe|${row.name}}`;
             }
-
-            // Cost elements: add ├── or └── connector
-            const connector = row.isLastChild ? "\u2514\u2500\u2500 " : "\u251C\u2500\u2500 ";
-            return `${ancestorPrefix}{conn|${connector}}{ce|${row.name}}`;
+            return `${indent}{ce|${row.name}}`;
           },
           rich: {
-            // Connector characters: │ ├ └ ─
-            conn: {
-              fontSize: 11,
-              fontFamily: "monospace",
-              color: colors.textSecondary,
-              opacity: 0.55,
-              padding: [0, 0, 0, 0],
-            },
-            // Gap spacer for ancestor levels without continuation
-            gap: {
-              fontSize: 11,
-              fontFamily: "monospace",
-              color: "transparent",
-              padding: [0, 0, 0, 0],
-            },
+            // Indent spacers: each level adds 35px left padding
+            ...Object.fromEntries(
+              Array.from({ length: 6 }, (_, i) => [
+                `i${i}`,
+                { padding: [0, 0, 0, i * 35] },
+              ]),
+            ),
             icon: {
               fontSize: 10,
               fontFamily: "monospace",
