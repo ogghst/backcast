@@ -213,14 +213,9 @@ export function transformGanttData(
 }
 
 /**
- * Build the Y-axis label with indentation.
- * Uses unicode triangle characters for WBE collapse state.
+ * Build the Y-axis label (raw name only).
+ * Visual indentation and icons are handled by ECharts rich text formatter.
  */
 export function formatRowLabel(row: GanttRow): string {
-  const indent = "\u00A0\u00A0\u00A0\u00A0".repeat(row.level);
-  if (row.isWbe) {
-    const prefix = row.collapsed ? "\u25B6" : "\u25BC";
-    return `${indent}${prefix} ${row.name}`;
-  }
-  return `${indent}${row.name}`;
+  return row.name;
 }

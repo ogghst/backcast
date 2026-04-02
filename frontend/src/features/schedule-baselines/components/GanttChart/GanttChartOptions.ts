@@ -11,7 +11,6 @@
 import type { EChartsOption } from "echarts";
 import type { EChartsColorPalette, EChartsTooltipConfig } from "@/features/evm/utils/echartsTheme";
 import type { GanttRow } from "./GanttDataTransformer";
-import { formatRowLabel } from "./GanttDataTransformer";
 
 /** Color mapping for progression types. */
 const PROGRESSION_COLORS: Record<string, string> = {
@@ -43,7 +42,7 @@ export function buildGanttOptions(
   tooltipConfig: EChartsTooltipConfig,
   gridLeft: number = 220,
 ): EChartsOption {
-  const yLabels = rows.map((row) => formatRowLabel(row));
+  const yLabels = rows.map((row) => row.name);
 
   // Build series data: each bar is [yIndex, startTimestamp, endTimestamp, row]
   // Include any row with valid dates (WBE rows with aggregated dates and cost elements)
@@ -254,10 +253,43 @@ ${
         inverse: true,
         gridIndex: 1,
         axisLabel: {
-          color: colors.text,
-          fontSize: 11,
           width: gridLeft - 20,
           overflow: "truncate",
+          formatter: (value: string, index: number) => {
+            const row = rows[index];
+            if (!row) return value;
+            const indent = `{i${row.level}|}`;
+            if (row.isWbe) {
+              const icon = row.collapsed ? "\u25B6 " : "\u25BC ";
+              return `${indent}{icon|${icon}}{wbe|${row.name}}`;
+            }
+            return `${indent}{ce|${row.name}}`;
+          },
+          rich: {
+            // Indent spacers: each level adds 35px left padding
+            ...Object.fromEntries(
+              Array.from({ length: 6 }, (_, i) => [
+                `i${i}`,
+                { padding: [0, 0, 0, i * 35] },
+              ]),
+            ),
+            icon: {
+              fontSize: 10,
+              fontFamily: "monospace",
+              color: colors.textSecondary,
+              padding: [0, 4, 0, 0],
+            },
+            wbe: {
+              fontWeight: "bold" as const,
+              fontSize: 11,
+              color: colors.text,
+            },
+            ce: {
+              fontWeight: "normal" as const,
+              fontSize: 11,
+              color: colors.textSecondary,
+            },
+          },
         },
         axisLine: {
           lineStyle: { color: colors.border },
