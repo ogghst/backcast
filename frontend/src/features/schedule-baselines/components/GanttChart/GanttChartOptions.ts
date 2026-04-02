@@ -256,8 +256,6 @@ ${
           width: gridLeft - 20,
           overflow: "truncate",
           align: "left",
-          margin: 0,
-          offset: 0,
           formatter: (_value: string, index: number) => {
             const row = rows[index];
             if (!row) return _value;
