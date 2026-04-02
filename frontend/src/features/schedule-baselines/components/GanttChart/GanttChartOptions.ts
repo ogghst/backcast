@@ -23,8 +23,8 @@ const PROGRESSION_COLORS: Record<string, string> = {
 /** Height of the time legend header grid in pixels. */
 export const TIME_LEGEND_HEIGHT = 40;
 
-/** Bottom padding for x-axis labels + spacing. */
-export const CHART_BOTTOM_PADDING = 30;
+/** Bottom padding for dataZoom slider + x-axis labels + spacing. */
+export const CHART_BOTTOM_PADDING = 80;
 
 /**
  * Build ECharts option for the Gantt chart.
@@ -365,6 +365,27 @@ ${
           },
           data: [{ xAxis: now.getTime() }],
         },
+      },
+    ],
+    dataZoom: [
+      {
+        type: "slider",
+        xAxisIndex: [0, 1],
+        bottom: 10,
+        height: 20,
+        borderColor: "transparent",
+        backgroundColor: "transparent",
+        handleSize: "80%",
+        showDetail: false,
+        brushSelect: true,
+        startValue: xMin,
+        endValue: xMin + 6 * 30 * 24 * 3600 * 1000, // 6 months from project start
+      },
+      {
+        type: "inside",
+        xAxisIndex: [0, 1],
+        zoomOnMouseWheel: true,
+        moveOnMouseMove: true,
       },
     ],
   };
