@@ -255,10 +255,13 @@ ${
         axisLabel: {
           width: gridLeft - 20,
           overflow: "truncate",
+          align: "left",
+          margin: 0,
           formatter: (value: string, index: number) => {
             const row = rows[index];
             if (!row) return value;
-            const indent = `{i${row.level}|}`;
+            // level is 1-based from DB; subtract 1 so root WBEs start at 0 indent
+            const indent = `{i${Math.max(0, row.level - 1)}|}`;
             if (row.isWbe) {
               const icon = row.collapsed ? "\u25B6 " : "\u25BC ";
               return `${indent}{icon|${icon}}{wbe|${row.name}}`;
