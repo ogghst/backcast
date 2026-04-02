@@ -255,6 +255,7 @@ ${
         axisLabel: {
           width: gridLeft - 20,
           overflow: "truncate",
+          align: "left",
           formatter: (_value: string, index: number) => {
             const row = rows[index];
             if (!row) return _value;
