@@ -20,8 +20,8 @@ const PROGRESSION_COLORS: Record<string, string> = {
   LOGARITHMIC: "#faad14",
 };
 
-/** Height of the time legend header grid in pixels. */
-export const TIME_LEGEND_HEIGHT = 40;
+/** Height of the time legend header grid in pixels (month row + week row). */
+export const TIME_LEGEND_HEIGHT = 56;
 
 /** Bottom padding for dataZoom slider + x-axis labels + spacing. */
 export const CHART_BOTTOM_PADDING = 80;
@@ -127,12 +127,14 @@ ${
       },
     },
     grid: [
-      // Grid 0: time legend header
+      // Grid 0: month header (xAxis[0] at top, xAxis[2] at bottom)
+      // Height is intentionally small — xAxis[2] labels render in the gap
+      // between grid 0 bottom and grid 1 top.
       {
         left: gridLeft,
         right: 40,
         top: 0,
-        height: TIME_LEGEND_HEIGHT,
+        height: 22,
       },
       // Grid 1: main chart area
       {
@@ -143,8 +145,7 @@ ${
       },
     ],
     xAxis: [
-      // xAxis 0: time legend header (top, on grid 0)
-      // Shows month names centered and week-start markers in dd/mm format
+      // xAxis 0: month row (top of grid 0) — cascading formatter auto-selects monthly ticks
       {
         type: "time",
         position: "top",
@@ -155,46 +156,30 @@ ${
           color: colors.text,
           fontSize: 11,
           fontWeight: "bold" as const,
+          // Callback formatter: only render text near month boundaries
+          // to avoid showing weekly day numbers between month labels.
           formatter: (value: number) => {
             const d = new Date(value);
-            const day = d.getDay();
-            // Monday (day=1): show dd/mm format in secondary color
-            if (day === 1) {
-              const dd = String(d.getDate()).padStart(2, "0");
-              const mm = String(d.getMonth() + 1).padStart(2, "0");
-              return `{week|${dd}/${mm}}`;
+            if (d.getDate() <= 7) {
+              const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+              return `${months[d.getMonth()]} '${String(d.getFullYear()).slice(2)}`;
             }
-            // Month labels
-            return d.toLocaleDateString("en-US", {
-              month: "short",
-              year: "numeric",
-            });
-          },
-          rich: {
-            week: {
-              color: colors.textSecondary,
-              fontSize: 10,
-              fontWeight: "normal" as const,
-            },
+            return "";
           },
         },
         axisLine: {
           lineStyle: { color: colors.border },
+          onZero: false,
         },
         axisTick: {
           show: true,
           alignWithLabel: true,
           lineStyle: { color: colors.border },
         },
-        splitLine: {
-          show: true,
-          lineStyle: { color: colors.border, type: "dashed" as const, opacity: 0.25 },
-        },
-        // Force ticks at weekly intervals (each Monday)
-        interval: ONE_WEEK_MS,
+        splitLine: { show: false },
       },
-      // xAxis 1: main chart axis (bottom, on grid 1)
-      // Shows month labels, with weekly splitLines for visual grid
+      // xAxis 1: main chart axis (bottom of grid 1) — weekly splitLines for grid
       {
         type: "time",
         position: "bottom",
@@ -215,21 +200,52 @@ ${
         axisLine: {
           lineStyle: { color: colors.border },
         },
-        // Weekly dashed gridlines across the chart area
         splitLine: {
           show: true,
-          lineStyle: { color: colors.border, type: "dashed" as const, opacity: 0.25 },
+          lineStyle: { color: colors.border, type: "dashed" as const, opacity: 0.6 },
         },
+        interval: ONE_WEEK_MS,
+      },
+      // xAxis 2: week-date row (bottom of grid 0) — dd/mm per week start
+      {
+        type: "time",
+        position: "bottom",
+        gridIndex: 0,
+        min: xMin,
+        max: xMax,
+        axisLabel: {
+          color: colors.textSecondary,
+          fontSize: 10,
+          formatter: (value: number) => {
+            const d = new Date(value);
+            const dd = String(d.getDate()).padStart(2, "0");
+            const mm = String(d.getMonth() + 1).padStart(2, "0");
+            return `${dd}/${mm}`;
+          },
+        },
+        axisLine: {
+          lineStyle: { color: colors.border },
+          onZero: false,
+        },
+        axisTick: {
+          show: true,
+          alignWithLabel: true,
+          lineStyle: { color: colors.border },
+        },
+        splitLine: { show: false },
         interval: ONE_WEEK_MS,
       },
     ],
     yAxis: [
-      // yAxis 0: hidden dummy for time legend grid (grid 0)
+      // yAxis 0: hidden value axis for time legend grid (grid 0)
+      // Must be type "value" with a range — a category axis with data:[] collapses the grid
+      // and prevents xAxis labels from rendering.
       {
-        type: "category",
+        type: "value",
         gridIndex: 0,
         show: false,
-        data: [],
+        min: 0,
+        max: 1,
       },
       // yAxis 1: main chart category axis (grid 1)
       {
@@ -251,10 +267,32 @@ ${
       },
     ],
     series: [
+      // Dummy series to force grid 0 (time legend) axis rendering.
+      // ECharts skips axis label rendering for grids with no series data.
+      // Two dummy series needed: one per xAxis in grid 0 (month row + week row).
+      {
+        type: "custom",
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        silent: true,
+        renderItem: () => ({ type: "group", children: [] }),
+        data: [[xMin + 1, 0.5]],
+        encode: { x: 0, y: 1 },
+      },
+      {
+        type: "custom",
+        xAxisIndex: 2,
+        yAxisIndex: 0,
+        silent: true,
+        renderItem: () => ({ type: "group", children: [] }),
+        data: [[xMin + 1, 0.5]],
+        encode: { x: 0, y: 1 },
+      },
       {
         type: "custom",
         xAxisIndex: 1,
         yAxisIndex: 1,
+        clip: true,
         renderItem: (
           params: { coordSys: { x: number; y: number; width: number; height: number; top: number },
             dataIndex: number },
@@ -370,7 +408,7 @@ ${
     dataZoom: [
       {
         type: "slider",
-        xAxisIndex: [0, 1],
+        xAxisIndex: [0, 1, 2],
         bottom: 10,
         height: 20,
         borderColor: "transparent",
@@ -378,12 +416,14 @@ ${
         handleSize: "80%",
         showDetail: false,
         brushSelect: true,
+        filterMode: "none",
         startValue: xMin,
         endValue: xMin + 6 * 30 * 24 * 3600 * 1000, // 6 months from project start
       },
       {
         type: "inside",
-        xAxisIndex: [0, 1],
+        xAxisIndex: [0, 1, 2],
+        filterMode: "none",
         zoomOnMouseWheel: true,
         moveOnMouseMove: true,
       },
