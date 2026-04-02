@@ -15,7 +15,6 @@ import { ProjectStructure } from "@/pages/projects/ProjectStructure";
 import { ProjectChangeOrdersPage } from "@/pages/projects/ProjectChangeOrdersPage";
 import { ProjectEVMAnalysis } from "@/pages/projects/ProjectEVMAnalysis";
 import { ProjectSchedulePage } from "@/pages/projects/ProjectSchedulePage";
-import { ProjectGanttComparePage } from "@/pages/projects/ProjectGanttComparePage";
 import { WBEList } from "@/pages/wbes/WBEList";
 import { WBEDetailPage } from "@/pages/wbes/WBEDetailPage";
 import { ChangeOrderUnifiedPage } from "@/pages/projects/change-orders/ChangeOrderUnifiedPage";
@@ -119,10 +118,6 @@ export const router = createBrowserRouter([
           {
             path: "schedule",
             element: <ProjectSchedulePage />,
-          },
-          {
-            path: "gantt-compare",
-            element: <ProjectGanttComparePage />,
           },
           {
             path: "chat",
