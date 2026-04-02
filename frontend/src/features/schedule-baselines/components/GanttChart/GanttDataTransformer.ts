@@ -171,15 +171,11 @@ export function transformGanttData(
       childrenCount: node.children.length + node.items.length,
     });
 
-    // If collapsed, skip children and cost elements
+    // If collapsed, skip cost elements and child WBEs
     if (isCollapsed) return;
 
-    // Add child WBE nodes first (recursive)
-    for (const child of node.children) {
-      flattenNode(child, collapsedWbeIds);
-    }
-
-    // Then add cost element items under this WBE
+    // Add cost element items directly under this WBE first
+    // so they appear right after the WBE header, before any child WBEs
     const sortedItems = [...node.items].sort((a, b) =>
       a.cost_element_code.localeCompare(b.cost_element_code, undefined, {
         numeric: true,
@@ -201,6 +197,11 @@ export function transformGanttData(
         collapsed: false,
         childrenCount: 0,
       });
+    }
+
+    // Then add child WBE nodes (recursive)
+    for (const child of node.children) {
+      flattenNode(child, collapsedWbeIds);
     }
   }
 
