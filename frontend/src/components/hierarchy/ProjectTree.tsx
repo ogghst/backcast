@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
-import { Tree, Empty, Spin, Alert, Typography } from "antd";
+import { useState, useCallback, useEffect, useRef, type ReactNode, type CSSProperties } from "react";
+import { Tree, Empty, Spin, Alert, Typography, theme } from "antd";
 import { FolderOutlined, AppstoreOutlined, PayCircleOutlined } from "@ant-design/icons";
 import type { DataNode, EventDataNode } from "antd/es/tree";
 import type { Key } from "react";
@@ -14,6 +14,26 @@ import { request as __request } from "@/api/generated/core/request";
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
 
 const { Text } = Typography;
+
+const InfoPill = ({ children, style }: { children: ReactNode; style?: CSSProperties }) => {
+  const { token } = theme.useToken();
+  return (
+    <span style={{
+      display: "inline-flex",
+      alignItems: "center",
+      padding: `1px ${token.paddingXS}px`,
+      borderRadius: token.borderRadiusSM,
+      backgroundColor: token.colorFillQuaternary,
+      color: token.colorTextSecondary,
+      fontSize: token.fontSizeSM,
+      lineHeight: token.lineHeightSM,
+      whiteSpace: "nowrap",
+      ...style,
+    }}>
+      {children}
+    </span>
+  );
+};
 
 const formatCurrency = (value: string | number | undefined): string => {
   if (value === undefined || value === null) return "€0.00";
@@ -99,8 +119,8 @@ const NodeTitle = ({
       </div>
       {showRight ? (
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
-          {showBudget && budget && <Text type="secondary">{budget}</Text>}
-          {showDates && dates && <Text type="secondary" style={{ fontSize: "0.8em" }}>{dates}</Text>}
+          {showBudget && budget && <InfoPill>{budget}</InfoPill>}
+          {showDates && dates && <InfoPill>{dates}</InfoPill>}
         </div>
       ) : null}
     </div>

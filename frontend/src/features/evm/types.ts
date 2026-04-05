@@ -142,6 +142,9 @@ export interface EVMMetricsResponse {
    */
   etc: number | null;
 
+  /** Overall progress percentage (0-100) */
+  progress_percentage: number;
+
   /** Control date for time-travel query */
   control_date: string;
 
@@ -406,6 +409,7 @@ export type MetricKey = keyof Pick<
   | "eac"
   | "vac"
   | "etc"
+  | "progress_percentage"
 >;
 
 /**
@@ -427,6 +431,7 @@ export function isMetricKey(key: string): key is MetricKey {
     "eac",
     "vac",
     "etc",
+    "progress_percentage",
   ].includes(key);
 }
 

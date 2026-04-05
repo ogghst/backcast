@@ -43,6 +43,7 @@ type MockedUseEVMMetrics = {
     etc: number;
     control_date: string;
     branch: string;
+    progress_percentage: number;
   } | undefined;
   isLoading: boolean;
   isError: boolean;
@@ -119,6 +120,7 @@ const mockMetrics = {
   etc: 291667,
   control_date: "2025-01-15T10:00:00Z",
   branch: "main",
+  progress_percentage: 72,
 };
 
 // Mock time series data

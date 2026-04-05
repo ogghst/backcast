@@ -14,6 +14,7 @@ import type {
   EChartsTooltipConfig,
   EChartsLegendConfig,
 } from "./echartsTheme";
+import { antDesignTheme } from "./echartsTheme";
 
 /**
  * Build gauge chart options for EVM metrics (CPI, SPI).
@@ -404,5 +405,519 @@ export function createDateFormatter(
       default:
         return value;
     }
+  };
+}
+
+/**
+ * Build budget overview grouped bar chart options.
+ *
+ * Compares BAC, Actual Cost, Earned Value, and EAC as a grouped bar chart.
+ * If EAC is null, only the first 3 bars are shown.
+ *
+ * @param options - Budget overview configuration
+ * @param colors - Color palette from useEChartsColors()
+ * @returns ECharts option object
+ */
+export interface BudgetOverviewConfigOptions {
+  /** EVM metrics for the budget comparison */
+  metrics: {
+    bac: number;
+    ac: number;
+    ev: number;
+    eac: number | null;
+  };
+  /** Currency formatter for axis and tooltip (defaults to raw number) */
+  currencyFormatter?: (v: number) => string;
+}
+
+export function buildBudgetOverviewOptions(
+  options: BudgetOverviewConfigOptions,
+  colors: EChartsColorPalette,
+): EChartsOption {
+  const { metrics, currencyFormatter: fmt } = options;
+  const formatValue = fmt ?? ((v: number) => v.toString());
+
+  const categories = ["BAC", "Actual Cost", "Earned Value"];
+  const values = [metrics.bac, metrics.ac, metrics.ev];
+  const barColors = ["#5b8ff9", "#5d7092", "#5ad8a6"];
+
+  if (metrics.eac !== null) {
+    categories.push("EAC");
+    values.push(metrics.eac);
+    barColors.push("#faad14");
+  }
+
+  return {
+    color: barColors,
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "shadow" },
+      formatter: (params: unknown) => {
+        if (!Array.isArray(params) || params.length === 0) return "";
+        return params
+          .map(
+            (p: { seriesName: string; value: number; color: string }) =>
+              `<div style="display: flex; justify-content: space-between; gap: 16px;">
+              <span style="display: flex; align-items: center;">
+                <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${p.color}; margin-right: 6px;"></span>
+                ${p.seriesName}
+              </span>
+              <span style="font-weight: 600;">${formatValue(p.value)}</span>
+            </div>`,
+          )
+          .join("");
+      },
+    },
+    legend: {
+      bottom: 0,
+      textStyle: { color: colors.text, fontSize: 12 },
+      itemGap: 16,
+      itemWidth: 16,
+      itemHeight: 12,
+    },
+    grid: {
+      left: "3%",
+      right: "3%",
+      bottom: "12%",
+      top: "8%",
+      containLabel: true,
+    },
+    xAxis: {
+      type: "category",
+      data: ["Budget Analysis"],
+      axisLabel: { color: colors.textSecondary, fontSize: 12 },
+      axisLine: { lineStyle: { color: colors.border } },
+      axisTick: { lineStyle: { color: colors.border } },
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: {
+        color: colors.textSecondary,
+        fontSize: 12,
+        formatter: (v: number) => formatValue(v),
+      },
+      splitLine: {
+        lineStyle: { color: colors.border, type: "dashed" },
+      },
+    },
+    series: categories.map((name, index) => ({
+      name,
+      type: "bar" as const,
+      barWidth: "40%",
+      data: [values[index]],
+      itemStyle: {
+        color: barColors[index],
+        borderRadius: [4, 4, 0, 0],
+      },
+    })),
+  };
+}
+
+/**
+ * Build variance horizontal bar chart options.
+ *
+ * Displays Cost Variance (CV) and Schedule Variance (SV) as horizontal bars,
+ * colored green for positive values and red for negative values.
+ *
+ * @param options - Variance bar configuration
+ * @param colors - Color palette from useEChartsColors()
+ * @returns ECharts option object
+ */
+export interface VarianceBarConfigOptions {
+  /** Variance metrics */
+  metrics: {
+    cv: number;
+    sv: number;
+  };
+  /** Currency formatter for tooltip (defaults to raw number) */
+  currencyFormatter?: (v: number) => string;
+}
+
+export function buildVarianceBarOptions(
+  options: VarianceBarConfigOptions,
+  colors: EChartsColorPalette,
+): EChartsOption {
+  const { metrics, currencyFormatter: fmt } = options;
+  const formatValue = fmt ?? ((v: number) => v.toString());
+
+  const categories = ["Cost Variance (CV)", "Schedule Variance (SV)"];
+  const values = [metrics.cv, metrics.sv];
+
+  return {
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "shadow" },
+      formatter: (params: unknown) => {
+        if (!Array.isArray(params) || params.length === 0) return "";
+        const p = params[0] as {
+          name: string;
+          value: number;
+          color: string;
+        };
+        return `<div style="display: flex; justify-content: space-between; gap: 16px;">
+          <span style="display: flex; align-items: center;">
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${p.color}; margin-right: 6px;"></span>
+            ${p.name}
+          </span>
+          <span style="font-weight: 600;">${formatValue(p.value)}</span>
+        </div>`;
+      },
+    },
+    grid: {
+      left: "3%",
+      right: "3%",
+      bottom: "6%",
+      top: "6%",
+      containLabel: true,
+    },
+    xAxis: {
+      type: "value",
+      axisLabel: {
+        color: colors.textSecondary,
+        fontSize: 12,
+        formatter: (v: number) => formatValue(v),
+      },
+      splitLine: {
+        lineStyle: { color: colors.border, type: "dashed" },
+      },
+    },
+    yAxis: {
+      type: "category",
+      data: categories,
+      axisLabel: { color: colors.textSecondary, fontSize: 12 },
+      axisLine: { lineStyle: { color: colors.border } },
+      axisTick: { show: false },
+    },
+    series: [
+      {
+        type: "bar" as const,
+        barWidth: "40%",
+        data: values.map((v) => ({
+          value: v,
+          itemStyle: {
+            color: v >= 0 ? colors.success : colors.error,
+            borderRadius: v >= 0 ? [0, 4, 4, 0] : [4, 0, 0, 4],
+          },
+        })),
+        markLine: {
+          silent: true,
+          symbol: "none",
+          lineStyle: {
+            type: "solid" as const,
+            color: colors.textSecondary,
+            width: 1,
+          },
+          label: { show: false },
+          data: [{ xAxis: 0 }],
+        },
+      },
+    ],
+  };
+}
+
+/**
+ * Build performance radar chart options.
+ *
+ * Displays CPI, SPI, and progress percentage on a radar chart with a
+ * target reference overlay. All values are normalized to 0-1 scale for
+ * consistent radar display while labels show actual scales.
+ *
+ * @param options - Performance radar configuration
+ * @param colors - Color palette from useEChartsColors()
+ * @returns ECharts option object
+ */
+export interface PerformanceRadarConfigOptions {
+  /** Performance metrics */
+  metrics: {
+    cpi: number | null;
+    spi: number | null;
+    progress_percentage: number;
+  };
+}
+
+export function buildPerformanceRadarOptions(
+  options: PerformanceRadarConfigOptions,
+  colors: EChartsColorPalette,
+): EChartsOption {
+  const { metrics } = options;
+
+  // Normalize values to 0-1 scale: cpi/2, spi/2, progress/100
+  const actualValues = [
+    metrics.cpi !== null ? metrics.cpi / 2 : 0,
+    metrics.spi !== null ? metrics.spi / 2 : 0,
+    metrics.progress_percentage / 100,
+  ];
+
+  // Target values normalized to same scale
+  const targetValues = [1.0 / 2, 1.0 / 2, 50 / 100];
+
+  return {
+    tooltip: {
+      formatter: (params: unknown) => {
+        if (!Array.isArray(params) || params.length === 0) return "";
+        return params
+          .map((p: { seriesName: string; value: number[] }) => {
+            const cpi = metrics.cpi !== null ? metrics.cpi.toFixed(2) : "N/A";
+            const spi = metrics.spi !== null ? metrics.spi.toFixed(2) : "N/A";
+            const progress = `${metrics.progress_percentage.toFixed(1)}%`;
+            if (p.seriesName === "Actual") {
+              return `<div style="font-weight: 600; margin-bottom: 4px;">${p.seriesName}</div>
+                <div>CPI: ${cpi}</div>
+                <div>SPI: ${spi}</div>
+                <div>Progress: ${progress}</div>`;
+            }
+            return `<div style="font-weight: 600; margin-bottom: 4px;">${p.seriesName}</div>
+              <div>CPI: 1.00</div>
+              <div>SPI: 1.00</div>
+              <div>Progress: 50%</div>`;
+          })
+          .join("<hr style=\"margin: 4px 0; border: none; border-top: 1px solid #ddd;\" />");
+      },
+    },
+    legend: {
+      bottom: 0,
+      textStyle: { color: colors.text, fontSize: 12 },
+      itemGap: 16,
+      itemWidth: 16,
+      itemHeight: 12,
+    },
+    radar: {
+      shape: "polygon" as const,
+      indicator: [
+        { name: "CPI", max: 1 },
+        { name: "SPI", max: 1 },
+        { name: "Progress", max: 1 },
+      ],
+      axisName: {
+        color: colors.textSecondary,
+        fontSize: 12,
+        formatter: (value: string) => {
+          if (value === "CPI" || value === "SPI") return `${value} (max 2)`;
+          return `${value} (max 100%)`;
+        },
+      },
+      splitArea: {
+        areaStyle: { color: ["transparent"] },
+      },
+      axisLine: { lineStyle: { color: colors.border } },
+      splitLine: { lineStyle: { color: colors.border } },
+    },
+    series: [
+      {
+        type: "radar" as const,
+        data: [
+          {
+            value: actualValues,
+            name: "Actual",
+            areaStyle: { color: colors.primary, opacity: 0.3 },
+            lineStyle: { color: colors.primary, width: 2 },
+            itemStyle: { color: colors.primary },
+          },
+          {
+            value: targetValues,
+            name: "Target",
+            lineStyle: { color: colors.success, width: 2, type: "dashed" },
+            itemStyle: { color: colors.success },
+            areaStyle: { opacity: 0 },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/**
+ * Build donut/pie chart options for budget distribution.
+ *
+ * Displays budget items as a donut chart with optional center label
+ * showing total value. Uses the Ant Design theme color palette.
+ *
+ * @param options - Donut chart configuration
+ * @param colors - Color palette from useEChartsColors()
+ * @returns ECharts option object
+ */
+export interface DonutConfigOptions {
+  /** Budget items to display as donut segments */
+  items: Array<{
+    name: string;
+    value: number;
+  }>;
+  /** Label displayed above the center value */
+  centerLabel?: string;
+  /** Value displayed in the donut center */
+  centerValue?: string;
+}
+
+export function buildDonutOptions(
+  options: DonutConfigOptions,
+  colors: EChartsColorPalette,
+): EChartsOption {
+  const { items, centerLabel, centerValue } = options;
+
+  const sliceColors = antDesignTheme.color;
+
+  const showCenter = centerLabel !== undefined || centerValue !== undefined;
+
+  return {
+    tooltip: {
+      trigger: "item",
+      formatter: (params: unknown) => {
+        const p = params as {
+          name: string;
+          value: number;
+          percent: number;
+        };
+        return `<div style="font-weight: 600; margin-bottom: 4px;">${p.name}</div>
+          <div>Value: ${createCurrencyFormatter()(p.value)}</div>
+          <div>Share: ${p.percent.toFixed(1)}%</div>`;
+      },
+    },
+    legend: {
+      bottom: 0,
+      type: "scroll",
+      textStyle: { color: colors.text, fontSize: 12 },
+      itemGap: 16,
+      itemWidth: 16,
+      itemHeight: 12,
+    },
+    series: [
+      {
+        type: "pie" as const,
+        radius: ["45%", "70%"],
+        center: ["50%", "48%"],
+        avoidLabelOverlap: true,
+        itemStyle: {
+          borderRadius: 4,
+        },
+        label: {
+          show: false,
+        },
+        emphasis: {
+          label: {
+            show: true,
+            fontSize: 14,
+            fontWeight: "bold" as const,
+            color: colors.text,
+          },
+        },
+        labelLine: { show: false },
+        data: items.map((item, index) => ({
+          name: item.name,
+          value: item.value,
+          itemStyle: {
+            color: sliceColors[index % sliceColors.length],
+          },
+        })),
+        ...(showCenter && {
+          label: {
+            show: true,
+            position: "center" as const,
+            formatter: () => "",
+          },
+        }),
+      },
+    ],
+    ...(showCenter && {
+      graphic: [
+        {
+          type: "text" as const,
+          left: "center",
+          top: "42%",
+          style: {
+            text: centerValue ?? "",
+            fontSize: 20,
+            fontWeight: 600,
+            fill: colors.text,
+            textAlign: "center" as const,
+          },
+        },
+        {
+          type: "text" as const,
+          left: "center",
+          top: "52%",
+          style: {
+            text: centerLabel ?? "",
+            fontSize: 12,
+            fill: colors.textSecondary,
+            textAlign: "center" as const,
+          },
+        },
+      ],
+    }),
+  };
+}
+
+/**
+ * Build mini sparkline chart options for trend indicators.
+ *
+ * Ultra-compact line chart with no axes, labels, legend, or tooltip.
+ * Designed for embedding in metric cards as a trend indicator.
+ *
+ * @param options - Sparkline configuration
+ * @param colors - Color palette from useEChartsColors()
+ * @returns ECharts option object
+ */
+export interface MiniSparklineConfigOptions {
+  /** Data points as [label, value] tuples (null values are connected) */
+  data: Array<[string, number | null]>;
+  /** Line color (defaults to primary) */
+  color?: string;
+  /** Show gradient area fill beneath the line */
+  showArea?: boolean;
+}
+
+export function buildMiniSparklineOptions(
+  options: MiniSparklineConfigOptions,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _colors: EChartsColorPalette,
+): EChartsOption {
+  const { data, color = "#5b8ff9", showArea = false } = options;
+
+  return {
+    grid: {
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
+    },
+    xAxis: {
+      type: "category",
+      show: false,
+      data: data.map((d) => d[0]),
+    },
+    yAxis: {
+      type: "value",
+      show: false,
+    },
+    series: [
+      {
+        type: "line" as const,
+        data: data.map((d) => d[1]),
+        smooth: true,
+        connectNulls: true,
+        symbol: "none",
+        lineStyle: {
+          color,
+          width: 2,
+        },
+        ...(showArea && {
+          areaStyle: {
+            color: {
+              type: "linear" as const,
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color },
+                { offset: 1, color: "transparent" },
+              ],
+            } as const,
+          },
+        }),
+      },
+    ],
+    tooltip: { show: false },
+    legend: { show: false },
   };
 }

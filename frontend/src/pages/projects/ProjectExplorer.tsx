@@ -1,37 +1,18 @@
 import { useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { Spin, Empty, theme } from "antd";
+import { Empty, theme } from "antd";
 import { Allotment } from "allotment";
 import "allotment/dist/style.css";
 import { ProjectTree, type TreeNodeData } from "@/components/hierarchy/ProjectTree";
-import { ProjectDetail } from "@/features/projects/pages/ProjectDetail";
-import { WBEDetail } from "@/features/wbes/pages/WBEDetail";
-import { CostElementDetail } from "@/pages/cost-elements/tabs/CostElementDetail";
-import { useCostElement } from "@/features/cost-elements/api/useCostElements";
+import { ProjectDetailCards } from "@/components/explorer/ProjectDetailCards";
+import { WBEDetailCards } from "@/components/explorer/WBEDetailCards";
+import { CostElementDetailCards } from "@/components/explorer/CostElementDetailCards";
 
 interface Selection {
   type: "project" | "wbe" | "cost_element";
   id: string;
   name: string;
 }
-
-const CostElementPanel = ({ costElementId }: { costElementId: string }) => {
-  const { data: costElement, isLoading } = useCostElement(costElementId);
-
-  if (isLoading) {
-    return (
-      <div style={{ display: "flex", justifyContent: "center", padding: 40 }}>
-        <Spin size="large" />
-      </div>
-    );
-  }
-
-  if (!costElement) {
-    return <Empty description="Cost element not found" />;
-  }
-
-  return <CostElementDetail costElement={costElement} />;
-};
 
 export const ProjectExplorer = () => {
   const { token } = theme.useToken();
@@ -71,7 +52,7 @@ export const ProjectExplorer = () => {
               projectId={projectId}
               onSelect={handleSelect}
               selectedKey={selectedKey}
-              showBudget={false}
+              showBudget
               showDates
             />
           </div>
@@ -91,11 +72,11 @@ export const ProjectExplorer = () => {
                 <Empty description="Select an item from the tree to view details" />
               </div>
             ) : selection.type === "project" ? (
-              <ProjectDetail projectId={selection.id} />
+              <ProjectDetailCards projectId={selection.id} />
             ) : selection.type === "wbe" ? (
-              <WBEDetail wbeId={selection.id} />
+              <WBEDetailCards wbeId={selection.id} />
             ) : (
-              <CostElementPanel costElementId={selection.id} />
+              <CostElementDetailCards costElementId={selection.id} />
             )}
           </div>
         </Allotment.Pane>

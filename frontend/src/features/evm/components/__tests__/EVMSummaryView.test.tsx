@@ -41,6 +41,7 @@ describe("EVMSummaryView", () => {
     etc: 291667,
     control_date: "2025-01-15T10:00:00Z",
     branch: "main",
+    progress_percentage: 72,
   };
 
   describe("Basic Rendering", () => {

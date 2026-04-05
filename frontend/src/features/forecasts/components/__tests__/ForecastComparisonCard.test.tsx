@@ -60,6 +60,7 @@ const mockEvmMetricsData: EVMMetricsResponse = {
   etc: 83205,
   control_date: "2024-01-15T00:00:00Z",
   branch: "main",
+  progress_percentage: 35,
 };
 
 // Mock the EVM-related hooks

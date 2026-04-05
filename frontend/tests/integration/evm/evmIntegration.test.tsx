@@ -176,6 +176,7 @@ const mockEVMMetrics: EVMMetricsResponse = {
   etc: 28636,
   control_date: "2024-01-15T00:00:00Z",
   branch: "main",
+  progress_percentage: 75,
 };
 
 /**
