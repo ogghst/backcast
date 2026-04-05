@@ -6,7 +6,7 @@ import {
   useCostElement,
   useCostElementBreadcrumb,
 } from "@/features/cost-elements/api/useCostElements";
-import { OverviewTab } from "./tabs/OverviewTab";
+import { CostElementDetail } from "./tabs/CostElementDetail";
 import { CostRegistrationsTab } from "./tabs/CostRegistrationsTab";
 import { ForecastsTab } from "./tabs/ForecastsTab";
 import { ScheduleBaselinesTab } from "./tabs/ScheduleBaselinesTab";
@@ -68,7 +68,7 @@ export const CostElementDetailPage = () => {
     {
       key: "overview",
       label: "Overview",
-      children: costElement ? <OverviewTab costElement={costElement} /> : null,
+      children: costElement ? <CostElementDetail costElement={costElement} /> : null,
     },
     {
       key: "forecasts",

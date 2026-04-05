@@ -45,6 +45,11 @@ from app.ai.telemetry import (
     initialize_telemetry,
     trace_context,
 )
+from app.ai.token_estimator import (
+    TokenUsageAccumulator,
+    log_actual_usage,
+    log_context_usage_estimate,
+)
 from app.ai.tools import ToolContext, create_project_tools
 from app.ai.tools.interrupt_node import InterruptNode
 from app.ai.tools.session_manager import ToolSessionManager
@@ -718,6 +723,14 @@ class AgentService:
         if interrupt_node is not None:
             self.register_interrupt_node(session_id, interrupt_node)
 
+        # Estimate context window usage before graph invocation
+        log_context_usage_estimate(
+            messages=history,
+            model_name=model_name,
+            session_id=str(session_id),
+            execution_id=event_bus.execution_id,
+        )
+
         # Extract recursion_limit
         recursion_limit = assistant_config.recursion_limit if assistant_config.recursion_limit is not None else 25
 
@@ -731,7 +744,8 @@ class AgentService:
         current_step = 0
         estimated_total_steps: int | None = None
         stream_start_time = time.time()
-        total_tokens = 0
+        total_output_chars = 0
+        token_accumulator = TokenUsageAccumulator()
         tool_calls_count = 0
         current_subagent_name: str | None = None
         current_invocation_id: str | None = None
@@ -820,7 +834,7 @@ class AgentService:
                                 main_agent_segments[main_invocation_id].append(content)
 
                             accumulated_content += content
-                            total_tokens += len(content)
+                            total_output_chars += len(content)
 
                             # Accumulate tokens per invocation for batched publish
                             invocation_id_to_use = current_invocation_id if current_subagent_name else main_invocation_id
@@ -828,6 +842,10 @@ class AgentService:
                                 if invocation_id_to_use not in _token_accumulator:
                                     _token_accumulator[invocation_id_to_use] = []
                                 _token_accumulator[invocation_id_to_use].append(content)
+
+                # Handle chat model end -- capture actual token usage
+                elif event_type == "on_chat_model_end":
+                    token_accumulator.accumulate_from_event(data)
 
                 # Handle tool start
                 elif event_type == "on_tool_start":
@@ -1141,6 +1159,7 @@ class AgentService:
                 type="complete",
                 session_id=session_id,
                 message_id=assistant_msg.id if assistant_msg else None,
+                token_usage=token_accumulator.to_dict(),
             ).model_dump(mode="json"),
         )
 
@@ -1157,13 +1176,25 @@ class AgentService:
 
         # Log summary
         stream_duration_ms = (time.time() - stream_start_time) * 1000
+        usage_dict = token_accumulator.to_dict()
         logger.info(
             f"[RUN_AGENT_GRAPH_COMPLETE] _run_agent_graph | "
             f"duration_ms={stream_duration_ms:.2f} | "
             f"execution_id={event_bus.execution_id} | "
             f"session_id={session_id} | "
-            f"total_tokens={total_tokens} | "
+            f"total_output_chars={total_output_chars} | "
+            f"prompt_tokens={usage_dict['prompt_tokens']} | "
+            f"completion_tokens={usage_dict['completion_tokens']} | "
+            f"total_tokens={usage_dict['total_tokens']} | "
             f"tool_calls_count={tool_calls_count}"
+        )
+
+        # Log actual token usage from API
+        log_actual_usage(
+            accumulator=token_accumulator,
+            model_name=model_name,
+            session_id=str(session_id),
+            execution_id=event_bus.execution_id,
         )
 
     async def start_execution(

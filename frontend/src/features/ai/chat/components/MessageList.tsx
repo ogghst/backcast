@@ -15,9 +15,10 @@ import {
   LoadingOutlined,
   CheckOutlined,
 } from "@ant-design/icons";
-import type { ChatMessage, SubagentStream, MainAgentStream, StreamingState } from "../../types";
+import type { ChatMessage, SubagentStream, MainAgentStream, StreamingState, TokenUsage } from "../../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import { TokenUsageBar } from "./TokenUsageBar";
 
 const { Text } = Typography;
 
@@ -42,6 +43,8 @@ interface MessageListProps {
   showSeparator?: boolean;
   /** Whether the current viewport is mobile (< 768px) */
   isMobile?: boolean;
+  /** Token usage metrics from the last completed response */
+  tokenUsage?: TokenUsage | null;
 }
 
 /**
@@ -540,6 +543,7 @@ export const MessageList = ({
   isStreaming = false,
   showSeparator = false,
   isMobile = false,
+  tokenUsage,
 }: MessageListProps) => {
   const { token } = theme.useToken();
   const { spacing, typography, borderRadius } = useThemeTokens();
@@ -768,6 +772,11 @@ export const MessageList = ({
           token={token}
           isMobile={isMobile}
         />
+      )}
+
+      {/* Token usage telemetry - appears after response completes */}
+      {tokenUsage && !isStreaming && (
+        <TokenUsageBar token_usage={tokenUsage} />
       )}
 
       {/* Invisible element for auto-scroll */}

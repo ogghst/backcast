@@ -173,6 +173,15 @@ export interface WSToolResultMessage {
 }
 
 /**
+ * Token usage metrics reported on message completion
+ */
+export interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
+/**
  * Server -> Client: Message completion event
  * Sent when the entire response is complete
  */
@@ -180,6 +189,7 @@ export interface WSCompleteMessage {
   type: "complete";
   session_id: string;
   message_id: string;
+  token_usage?: TokenUsage;
 }
 
 /**

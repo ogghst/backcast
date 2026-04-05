@@ -40,7 +40,7 @@ export function buildGanttOptions(
   projectEnd: Date | null,
   colors: EChartsColorPalette,
   tooltipConfig: EChartsTooltipConfig,
-  gridLeft: number = 220,
+  gridLeft: number = 300,
 ): EChartsOption {
   const yLabels = rows.map((row) => row.name);
 
@@ -134,13 +134,17 @@ ${
         right: 40,
         top: 0,
         height: 22,
+        show: true,
+        backgroundColor: "transparent",
       },
-      // Grid 1: main chart area
+      // Grid 1: main chart area — transparent so CSS overlay backgrounds show through
       {
         left: gridLeft,
         right: 40,
         top: TIME_LEGEND_HEIGHT,
         bottom: CHART_BOTTOM_PADDING,
+        show: true,
+        backgroundColor: "transparent",
       },
     ],
     xAxis: [
@@ -246,56 +250,14 @@ ${
         min: 0,
         max: 1,
       },
-      // yAxis 1: main chart category axis (grid 1)
+      // yAxis 1: main chart category axis (grid 1) - labels hidden, rendered by React
       {
         type: "category",
         data: yLabels,
         inverse: true,
         gridIndex: 1,
-        axisLabel: {
-          width: gridLeft - 20,
-          overflow: "truncate",
-          align: "left",
-          formatter: (value: string, index: number) => {
-            const row = rows[index];
-            if (!row) return value;
-            // level is 1-based from DB; subtract 1 so root WBEs start at 0 indent
-            const indent = `{i${Math.max(0, row.level - 1)}|}`;
-            if (row.isWbe) {
-              const icon = row.collapsed ? "\u25B6 " : "\u25BC ";
-              return `${indent}{icon|${icon}}{wbe|${row.name}}`;
-            }
-            return `${indent}{ce|${row.name}}`;
-          },
-          rich: {
-            // Indent spacers: each level adds 35px left padding
-            ...Object.fromEntries(
-              Array.from({ length: 6 }, (_, i) => [
-                `i${i}`,
-                { padding: [0, 0, 0, i * 35] },
-              ]),
-            ),
-            icon: {
-              fontSize: 10,
-              fontFamily: "monospace",
-              color: colors.textSecondary,
-              padding: [0, 4, 0, 0],
-            },
-            wbe: {
-              fontWeight: "bold" as const,
-              fontSize: 11,
-              color: colors.text,
-            },
-            ce: {
-              fontWeight: "normal" as const,
-              fontSize: 11,
-              color: colors.textSecondary,
-            },
-          },
-        },
-        axisLine: {
-          lineStyle: { color: colors.border },
-        },
+        show: false,
+        axisLine: { show: false },
         axisTick: { show: false },
         splitLine: { show: false },
       },

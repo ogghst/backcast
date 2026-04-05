@@ -18,6 +18,7 @@ import type {
   WSApprovalRequestMessage,
   WSApprovalResponseMessage,
   WSSubscribeMessage,
+  TokenUsage,
 } from "../types";
 import {
   WSConnectionState,
@@ -53,7 +54,7 @@ export interface UseStreamingChatConfig {
   /** Callback invoked when a token is received */
   onToken: (token: string, sessionId: string, source?: "main" | "subagent", subagentName?: string, invocationId?: string) => void;
   /** Callback invoked when the complete response is received */
-  onComplete: (sessionId: string, messageId: string) => void;
+  onComplete: (sessionId: string, messageId: string, tokenUsage?: TokenUsage) => void;
   /** Callback invoked when an error occurs */
   onError: (error: string) => void;
   /** Optional callback invoked when a tool is called */
@@ -544,7 +545,7 @@ export const useStreamingChat = (
         // Clear execution tracking — the execution is done
         activeExecutionIdRef.current = null;
         lastSequenceRef.current = 0;
-        callbacks.onComplete(serverMessage.session_id, serverMessage.message_id);
+        callbacks.onComplete(serverMessage.session_id, serverMessage.message_id, serverMessage.token_usage ?? undefined);
         // Keep connection alive — do NOT close here.
         // The connection will be closed when the component unmounts
         // or the user explicitly cancels (via the cancel() function).

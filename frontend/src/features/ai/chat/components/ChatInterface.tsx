@@ -37,7 +37,7 @@ import { MessageInput } from "./MessageInput";
 import { AgentActivityPanel } from "./AgentActivityPanel";
 import type { AgentActivity, ActivityHistoryItem } from "./AgentActivityPanel";
 import { WebSocketDebugPanel, type DebugMessage } from "./WebSocketDebugPanel";
-import type { ChatMessage, MainAgentStream, SubagentStream, StreamingState } from "../../types";
+import type { ChatMessage, MainAgentStream, SubagentStream, StreamingState, TokenUsage } from "../../types";
 import type { WSApprovalRequestMessage } from "../types";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { generateSessionTitle } from "../utils/sessionTitle";
@@ -106,6 +106,7 @@ export const ChatInterface = ({
   >([]);
   const [toolJustFinished, setToolJustFinished] = useState(false);
   const [showStreamSeparator, setShowStreamSeparator] = useState(false);
+  const [lastTokenUsage, setLastTokenUsage] = useState<TokenUsage | null>(null);
   const contentResetOccurredRef = useRef(false);
   const contentResetCounterRef = useRef(0);
   const [pendingUserMessage, setPendingUserMessage] = useState<ChatMessage | null>(null);
@@ -437,7 +438,7 @@ export const ChatInterface = ({
    * @param messageId - The ID of the persisted assistant message
    */
   const handleComplete = useCallback(
-    (sessionId: string, messageId: string) => {
+    (sessionId: string, messageId: string, tokenUsage?: TokenUsage) => {
       void messageId;
       // Update session ID if this was a new session (do this first)
       setCurrentSessionId((prev) => prev || sessionId);
@@ -447,6 +448,7 @@ export const ChatInterface = ({
       setShowStreamSeparator(false);
       setToolJustFinished(false);
       contentResetOccurredRef.current = false;
+      setLastTokenUsage(tokenUsage ?? null);
 
       // Increment turn counter to guard against stale completions
       const turn = ++completionTurnRef.current;
@@ -740,6 +742,7 @@ export const ChatInterface = ({
       setActiveToolCalls([]);
       setLatestActivity(null);
       setIsWaitingForResponse(true);
+      setLastTokenUsage(null);
       setShowStreamSeparator(false);
       setToolJustFinished(false);
       contentResetOccurredRef.current = false;
@@ -1167,6 +1170,7 @@ export const ChatInterface = ({
                 activeToolCalls={activeToolCalls}
                 showSeparator={showStreamSeparator}
                 isMobile={isMobile}
+                tokenUsage={lastTokenUsage}
               />
             </div>
 

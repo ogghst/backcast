@@ -8,6 +8,7 @@ export const ProjectLayout: React.FC = () => {
   const items = [
     { key: "overview", label: "Overview", path: `/projects/${projectId}` },
     { key: "structure", label: "Structure", path: `/projects/${projectId}/structure` },
+    { key: "explorer", label: "Explorer", path: `/projects/${projectId}/explorer` },
     { key: "schedule", label: "Schedule", path: `/projects/${projectId}/schedule` },
     { key: "change-orders", label: "Change Orders", path: `/projects/${projectId}/change-orders` },
     { key: "members", label: "Members", path: `/projects/${projectId}/members` },

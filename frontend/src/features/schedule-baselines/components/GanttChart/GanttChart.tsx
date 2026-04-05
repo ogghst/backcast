@@ -2,19 +2,29 @@
  * GanttChart Component
  *
  * Main component that fetches Gantt data, transforms it, builds ECharts options,
- * and renders the chart. Supports click navigation to cost element detail pages.
+ * and renders the chart. Y-axis labels are rendered by a React panel independent
+ * of ECharts, so they stay fixed when the separator is dragged.
  *
  * @module features/schedule-baselines/components/GanttChart
  */
 
 import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { theme } from "antd";
 import { useNavigate } from "react-router-dom";
-import type { ECharts } from "echarts";
 import { EChartsBaseChart } from "@/features/evm/components/charts/EChartsBaseChart";
 import { useEChartsTheme } from "@/features/evm/utils/echartsTheme";
 import { useGanttData } from "../../api/useGanttData";
 import { transformGanttData, type GanttRow } from "./GanttDataTransformer";
 import { buildGanttOptions, TIME_LEGEND_HEIGHT, CHART_BOTTOM_PADDING } from "./GanttChartOptions";
+
+/** Row height in pixels for each Gantt row. */
+const ROW_HEIGHT = 32;
+/** Minimum chart height in pixels. */
+const MIN_HEIGHT = 200;
+/** Maximum chart height in pixels. */
+const MAX_HEIGHT = 1200;
+/** Combined height of time legend header and bottom padding. */
+const HEADER_FOOTER = TIME_LEGEND_HEIGHT + CHART_BOTTOM_PADDING;
 
 interface GanttChartProps {
   projectId: string;
@@ -29,16 +39,17 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   projectId,
 }) => {
   const navigate = useNavigate();
+  const { token } = theme.useToken();
   const { data, isLoading, isError } = useGanttData(projectId);
   const { colors, tooltipConfig } = useEChartsTheme();
 
   // Resizable panel: left grid width
-  const GRID_LEFT_MIN = 120;
-  const GRID_LEFT_MAX = 500;
-  const GRID_LEFT_DEFAULT = 220;
+  const GRID_LEFT_MIN = 300;
+  const GRID_LEFT_MAX = 600;
+  const GRID_LEFT_DEFAULT = 300;
   const [gridLeft, setGridLeft] = useState(GRID_LEFT_DEFAULT);
 
-  // Refs for stale closure prevention in ZRender / drag handlers
+  // Refs for stale closure prevention in drag handler
   const containerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const gridLeftRef = useRef(gridLeft);
@@ -68,28 +79,14 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   );
 
   // Dynamic height computation based on visible row count
-  const ROW_HEIGHT = 32;
-  const MIN_HEIGHT = 200;
-  const MAX_HEIGHT = 1200;
-  const HEADER_FOOTER = TIME_LEGEND_HEIGHT + CHART_BOTTOM_PADDING; // time legend + x-axis + padding
-
   const chartHeight = useMemo(() => {
     const visibleRows = rows.length;
     return Math.max(MIN_HEIGHT, Math.min(visibleRows * ROW_HEIGHT + HEADER_FOOTER, MAX_HEIGHT));
   }, [rows.length]);
 
-  // Refs for stale closure prevention in ZRender handlers
-  const chartInstanceRef = useRef<ECharts | null>(null);
-  const rowsRef = useRef(rows);
-  const toggleRef = useRef(toggleWbeCollapse);
-
-  // Keep refs in sync outside of render (react-hooks/refs compliance)
-  useEffect(() => {
-    rowsRef.current = rows;
-  }, [rows]);
-  useEffect(() => {
-    toggleRef.current = toggleWbeCollapse;
-  }, [toggleWbeCollapse]);
+  // Grid height and per-row height for the React y-axis panel
+  const gridHeight = chartHeight - TIME_LEGEND_HEIGHT - CHART_BOTTOM_PADDING;
+  const rowHeight = rows.length > 0 ? gridHeight / rows.length : ROW_HEIGHT;
 
   // Parse project dates
   const projectStart = useMemo(
@@ -101,25 +98,23 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     [data],
   );
 
-  // Build ECharts options
+  // Build ECharts options (y-axis labels hidden — rendered by React panel)
   const chartOption = useMemo(
     () => buildGanttOptions(rows, projectStart, projectEnd, colors, tooltipConfig, gridLeft),
     [rows, projectStart, projectEnd, colors, tooltipConfig, gridLeft],
   );
 
-  // Handle click to navigate to cost element detail or toggle WBE collapse
+  // Handle bar clicks for cost element navigation only (WBE collapse handled by React panel)
   const handleEvents = useMemo(() => ({
     click: (params: ChartClickParams) => {
       if (params.data && params.data[3]) {
         const row = params.data[3];
-        if (row.isWbe) {
-          toggleWbeCollapse(row.wbeId);
-        } else if (row.costElementId) {
+        if (!row.isWbe && row.costElementId) {
           navigate(`/cost-elements/${row.costElementId}`);
         }
       }
     },
-  }), [navigate, toggleWbeCollapse]);
+  }), [navigate]);
 
   // Vertical separator drag handler
   const handleSeparatorMouseDown = useCallback((e: React.MouseEvent) => {
@@ -147,80 +142,17 @@ export const GanttChart: React.FC<GanttChartProps> = ({
     document.body.style.userSelect = "none";
   }, []);
 
-  const handleChartReady = useCallback((chart: ECharts) => {
-    chartInstanceRef.current = chart;
-    const zr = chart.getZr();
-
-    // Click handler for y-axis label area
-    zr.on('click', (params: { offsetX: number; offsetY: number }) => {
-      const currentGridLeft = gridLeftRef.current;
-      if (params.offsetX >= currentGridLeft) return;
-
-      const gridTop = TIME_LEGEND_HEIGHT; // matches main grid.top
-      const gridHeight = chart.getHeight() - gridTop - CHART_BOTTOM_PADDING;
-      const relativeY = params.offsetY - gridTop;
-      if (relativeY < 0 || relativeY > gridHeight) return;
-
-      const currentRows = rowsRef.current;
-      if (currentRows.length === 0) return;
-
-      const rowHeight = gridHeight / currentRows.length;
-      const clickedIndex = Math.floor(relativeY / rowHeight);
-
-      if (clickedIndex >= 0 && clickedIndex < currentRows.length) {
-        const clickedRow = currentRows[clickedIndex];
-        if (clickedRow.isWbe) {
-          toggleRef.current(clickedRow.wbeId);
-        }
-      }
-    });
-
-    // Mousemove handler for cursor feedback
-    zr.on('mousemove', (params: { offsetX: number; offsetY: number }) => {
-      const currentGridLeft = gridLeftRef.current;
-      const dom = chart.getDom();
-      if (!dom) return;
-
-      if (params.offsetX >= currentGridLeft) {
-        dom.style.cursor = '';
-        return;
-      }
-
-      const gridTop = TIME_LEGEND_HEIGHT;
-      const gridHeight = chart.getHeight() - gridTop - CHART_BOTTOM_PADDING;
-      const relativeY = params.offsetY - gridTop;
-      if (relativeY < 0 || relativeY > gridHeight) {
-        dom.style.cursor = '';
-        return;
-      }
-
-      const currentRows = rowsRef.current;
-      if (currentRows.length === 0) {
-        dom.style.cursor = '';
-        return;
-      }
-
-      const rowHeight = gridHeight / currentRows.length;
-      const hoverIndex = Math.floor(relativeY / rowHeight);
-
-      if (hoverIndex >= 0 && hoverIndex < currentRows.length && currentRows[hoverIndex].isWbe) {
-        dom.style.cursor = 'pointer';
-      } else {
-        dom.style.cursor = '';
-      }
-    });
-  }, []);
-
-  // Cleanup ZRender event listeners on unmount
-  useEffect(() => {
-    return () => {
-      const chart = chartInstanceRef.current;
-      if (chart && !chart.isDisposed()) {
-        chart.getZr().off('click');
-        chart.getZr().off('mousemove');
-      }
-    };
-  }, []);
+  // Memoize separator style
+  const separatorStyle = useMemo<React.CSSProperties>(() => ({
+    position: "absolute",
+    left: gridLeft - 2,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    cursor: "col-resize",
+    zIndex: 10,
+    backgroundColor: "transparent",
+  }), [gridLeft]);
 
   if (isError) {
     return (
@@ -231,28 +163,80 @@ export const GanttChart: React.FC<GanttChartProps> = ({
   }
 
   return (
-    <div ref={containerRef} style={{ position: "relative" }}>
+    <div ref={containerRef} style={{ position: "relative", width: "100%" }}>
+      {/* Y-axis label panel - renders labels independently from ECharts */}
+      <div style={{
+        position: "absolute",
+        left: 0,
+        top: TIME_LEGEND_HEIGHT,
+        width: gridLeft,
+        height: gridHeight,
+        background: token.colorBgLayout,
+        borderRight: `1px solid ${token.colorBorderSecondary}`,
+        overflow: "hidden",
+        zIndex: 2,
+      }}>
+        {rows.map((row, index) => {
+          const indent = Math.max(0, row.level - 1) * 35 + 8;
+          const isHoverable = row.isWbe;
+          return (
+            <div
+              key={`${row.wbeId}-${row.costElementId ?? 'wbe'}-${index}`}
+              onClick={() => {
+                if (row.isWbe) toggleWbeCollapse(row.wbeId);
+                else if (row.costElementId) navigate(`/cost-elements/${row.costElementId}`);
+              }}
+              style={{
+                height: rowHeight,
+                lineHeight: `${rowHeight}px`,
+                paddingLeft: indent,
+                paddingRight: 8,
+                boxSizing: "border-box",
+                cursor: isHoverable ? "pointer" : row.costElementId ? "pointer" : "default",
+                fontWeight: row.isWbe ? 600 : 400,
+                fontSize: 11,
+                color: row.isWbe ? token.colorText : token.colorTextSecondary,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                userSelect: "none",
+              }}
+              title={row.name}
+            >
+              {row.isWbe && (
+                <span style={{ fontSize: 10, marginRight: 4, fontFamily: "monospace" }}>
+                  {row.collapsed ? "\u25B6" : "\u25BC"}
+                </span>
+              )}
+              {row.name}
+            </div>
+          );
+        })}
+      </div>
+      {/* Chart area elevated background */}
+      <div style={{
+        position: "absolute",
+        left: gridLeft,
+        top: 0,
+        right: 0,
+        bottom: 0,
+        background: token.colorBgElevated,
+        boxShadow: `-2px 0 6px rgba(0, 0, 0, 0.06)`,
+        zIndex: 0,
+        pointerEvents: "none",
+      }} />
       <EChartsBaseChart
         option={chartOption}
         height={chartHeight}
         loading={isLoading}
         showWhenEmpty={false}
         emptyDescription="No schedule data available"
-        onChartReady={handleChartReady}
         onEvents={handleEvents}
+        style={{ width: "100%", position: "relative", zIndex: 1 }}
       />
       {/* Vertical separator for resizing task panel vs chart area */}
       <div
-        style={{
-          position: "absolute",
-          left: gridLeft - 2,
-          top: 0,
-          bottom: 0,
-          width: 4,
-          cursor: "col-resize",
-          zIndex: 10,
-          backgroundColor: "transparent",
-        }}
+        style={separatorStyle}
         onMouseDown={handleSeparatorMouseDown}
         onMouseEnter={(e) => {
           if (!isDraggingRef.current) {

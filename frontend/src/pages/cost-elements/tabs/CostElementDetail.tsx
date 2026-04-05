@@ -25,13 +25,13 @@ import { queryKeys } from "@/api/queryKeys";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
 
-interface OverviewTabProps {
+interface CostElementDetailProps {
   costElement: CostElementRead;
 }
 
 const { useBreakpoint } = Grid;
 
-export const OverviewTab = ({ costElement }: OverviewTabProps) => {
+export const CostElementDetail = ({ costElement }: CostElementDetailProps) => {
   const screens = useBreakpoint();
   const { token } = theme.useToken();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
