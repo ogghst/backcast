@@ -2,9 +2,41 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ConfigProvider } from "antd";
 import { WidgetShell } from "./WidgetShell";
+import {
+  WidgetInteractionContext,
+  type InteractionMode,
+} from "./WidgetInteractionContext";
 
-function renderWithTheme(ui: React.ReactElement) {
-  return render(<ConfigProvider>{ui}</ConfigProvider>);
+function renderWithTheme(
+  ui: React.ReactElement,
+  interactionValue?: {
+    getInteraction: (id: string) => InteractionMode | null;
+    setInteraction: (id: string, mode: InteractionMode) => void;
+    clearInteraction: () => void;
+    activeInteraction: {
+      instanceId: string;
+      mode: InteractionMode;
+    } | null;
+  },
+) {
+  const defaultInteractionValue = {
+    getInteraction: () => null,
+    setInteraction: vi.fn(),
+    clearInteraction: vi.fn(),
+    activeInteraction: null as {
+      instanceId: string;
+      mode: InteractionMode;
+    } | null,
+  };
+  return render(
+    <ConfigProvider>
+      <WidgetInteractionContext.Provider
+        value={interactionValue ?? defaultInteractionValue}
+      >
+        {ui}
+      </WidgetInteractionContext.Provider>
+    </ConfigProvider>,
+  );
 }
 
 /** Find a button that contains the given Ant Design icon class */
@@ -58,8 +90,22 @@ describe("WidgetShell", () => {
     expect(screen.getByText("Test Widget")).toBeInTheDocument();
   });
 
-  it("renders drag handle in edit mode action bar", () => {
+  it("does not show drag handle class by default in edit mode", () => {
     renderWithTheme(<WidgetShell {...defaultProps} isEditing={true} />);
+    const handle = document.querySelector(".react-grid-drag-handle");
+    expect(handle).not.toBeInTheDocument();
+  });
+
+  it("shows drag handle on Move button when interaction mode is move", () => {
+    renderWithTheme(<WidgetShell {...defaultProps} isEditing={true} />, {
+      getInteraction: (id) => (id === "test-1" ? "move" : null),
+      setInteraction: vi.fn(),
+      clearInteraction: vi.fn(),
+      activeInteraction: {
+        instanceId: "test-1",
+        mode: "move" as InteractionMode,
+      },
+    });
     const handle = document.querySelector(".react-grid-drag-handle");
     expect(handle).toBeInTheDocument();
   });
@@ -68,6 +114,73 @@ describe("WidgetShell", () => {
     renderWithTheme(<WidgetShell {...defaultProps} isEditing={false} />);
     const handle = document.querySelector(".react-grid-drag-handle");
     expect(handle).not.toBeInTheDocument();
+  });
+
+  it("shows Move and Resize icon buttons in edit mode", () => {
+    const { container } = renderWithTheme(
+      <WidgetShell {...defaultProps} isEditing={true} />,
+    );
+    expect(findIconButton(container, "anticon-drag")).toBeInTheDocument();
+    expect(
+      findIconButton(container, "anticon-column-width"),
+    ).toBeInTheDocument();
+  });
+
+  it("Move button calls setInteraction with move mode", () => {
+    const setInteraction = vi.fn();
+    const { container } = renderWithTheme(
+      <WidgetShell {...defaultProps} isEditing={true} />,
+      {
+        getInteraction: () => null,
+        setInteraction,
+        clearInteraction: vi.fn(),
+        activeInteraction: null,
+      },
+    );
+    const moveBtn = findIconButton(container, "anticon-drag")!.closest(
+      "button",
+    )!;
+    fireEvent.click(moveBtn);
+    expect(setInteraction).toHaveBeenCalledWith("test-1", "move");
+  });
+
+  it("Resize button calls setInteraction with resize mode", () => {
+    const setInteraction = vi.fn();
+    const { container } = renderWithTheme(
+      <WidgetShell {...defaultProps} isEditing={true} />,
+      {
+        getInteraction: () => null,
+        setInteraction,
+        clearInteraction: vi.fn(),
+        activeInteraction: null,
+      },
+    );
+    const resizeBtn = findIconButton(container, "anticon-column-width")!.closest(
+      "button",
+    )!;
+    fireEvent.click(resizeBtn);
+    expect(setInteraction).toHaveBeenCalledWith("test-1", "resize");
+  });
+
+  it("Move button calls clear when already in move mode", () => {
+    const clearInteraction = vi.fn();
+    const { container } = renderWithTheme(
+      <WidgetShell {...defaultProps} isEditing={true} />,
+      {
+        getInteraction: (id) => (id === "test-1" ? "move" : null),
+        setInteraction: vi.fn(),
+        clearInteraction,
+        activeInteraction: {
+          instanceId: "test-1",
+          mode: "move" as InteractionMode,
+        },
+      },
+    );
+    const moveBtn = findIconButton(container, "anticon-drag")!.closest(
+      "button",
+    )!;
+    fireEvent.click(moveBtn);
+    expect(clearInteraction).toHaveBeenCalled();
   });
 
   it("shows delete icon button in edit mode action bar directly", () => {
@@ -88,20 +201,19 @@ describe("WidgetShell", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("calls onRemove when Popconfirm is confirmed in edit mode", () => {
+  it("calls onRemove after two taps on delete button in edit mode", () => {
     const onRemove = vi.fn();
     const { container } = renderWithTheme(
       <WidgetShell {...defaultProps} isEditing={true} onRemove={onRemove} />,
     );
-    // No need to open toolbar - delete button is in the persistent edit bar
     const btn = findIconButton(container, "anticon-delete")!.closest("button")!;
+
+    // First tap — enters confirm state, does NOT remove
     fireEvent.click(btn);
-    // Popconfirm opens - find and click the "Remove" button in the popover
-    const popconfirmBtn = document.querySelector(
-      '.ant-popconfirm .ant-btn-primary',
-    ) as HTMLElement;
-    expect(popconfirmBtn).toBeTruthy();
-    fireEvent.click(popconfirmBtn);
+    expect(onRemove).not.toHaveBeenCalled();
+
+    // Second tap — confirms removal
+    fireEvent.click(btn);
     expect(onRemove).toHaveBeenCalledOnce();
   });
 

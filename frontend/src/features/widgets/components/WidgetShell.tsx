@@ -1,15 +1,17 @@
 import type { ReactNode } from "react";
-import { useState, useRef, useEffect } from "react";
-import { Button, Popconfirm, Skeleton, theme } from "antd";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Button, Skeleton, theme } from "antd";
 import {
   DeleteOutlined,
   DownOutlined,
-  HolderOutlined,
+  DragOutlined,
+  ColumnWidthOutlined,
   RightOutlined,
   ReloadOutlined,
   EllipsisOutlined,
 } from "@ant-design/icons";
 import { ErrorBoundary } from "react-error-boundary";
+import { useWidgetInteraction } from "./WidgetInteractionContext";
 
 /**
  * Props for the WidgetShell component.
@@ -121,6 +123,7 @@ function WidgetErrorFallback({
  *   a floating toolbar with title, collapse, and refresh actions.
  */
 export function WidgetShell({
+  instanceId,
   title,
   icon,
   isEditing,
@@ -133,8 +136,12 @@ export function WidgetShell({
   const { token } = theme.useToken();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isToolbarOpen, setIsToolbarOpen] = useState(false);
+  const [isConfirmingRemove, setIsConfirmingRemove] = useState(false);
+  const { mode: interactionMode, setMode, clear } = useWidgetInteraction(instanceId);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const deleteBtnRef = useRef<HTMLSpanElement>(null);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   // Click-outside dismissal for the floating toolbar (view mode only)
   useEffect(() => {
@@ -152,6 +159,38 @@ export function WidgetShell({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [isToolbarOpen, isEditing]);
+
+  // Auto-reset confirm state after 3 seconds
+  useEffect(() => {
+    if (!isConfirmingRemove) return;
+    confirmTimerRef.current = setTimeout(() => {
+      setIsConfirmingRemove(false);
+    }, 3000);
+    return () => {
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    };
+  }, [isConfirmingRemove]);
+
+  // Click-outside cancellation for the delete confirm state
+  useEffect(() => {
+    if (!isConfirmingRemove) return;
+    const handler = (e: MouseEvent) => {
+      if (deleteBtnRef.current?.contains(e.target as Node)) return;
+      setIsConfirmingRemove(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isConfirmingRemove]);
+
+  // Two-tap delete handler
+  const handleDeleteClick = useCallback(() => {
+    if (isConfirmingRemove) {
+      setIsConfirmingRemove(false);
+      onRemove();
+    } else {
+      setIsConfirmingRemove(true);
+    }
+  }, [isConfirmingRemove, onRemove]);
 
   // Build class names for the outer shell
   const shellClassName = [
@@ -207,58 +246,90 @@ export function WidgetShell({
               borderRadius: `${token.borderRadiusLG}px ${token.borderRadiusLG}px 0 0`,
             }}
           >
-            {/* Drag zone — only this span is the drag handle.
-                touch-action:none is required for react-draggable to work. */}
-            <span
-              className="react-grid-drag-handle"
+            {/* Move button — drag handle when active */}
+            <Button
+              type="text"
+              size="small"
+              icon={<DragOutlined />}
+              className={
+                interactionMode === "move" ? "react-grid-drag-handle" : undefined
+              }
+              onClick={() => {
+                if (interactionMode === "move") {
+                  clear();
+                } else {
+                  setMode("move");
+                }
+              }}
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: token.paddingXS,
+                flexShrink: 0,
+                touchAction: interactionMode === "move" ? "none" : undefined,
+                cursor: interactionMode === "move" ? "grab" : "pointer",
+                ...(interactionMode === "move" && {
+                  background: token.colorPrimaryBg,
+                }),
+              }}
+            />
+
+            {/* Resize button — toggles resize handle visibility */}
+            <Button
+              type="text"
+              size="small"
+              icon={<ColumnWidthOutlined />}
+              onClick={() => {
+                if (interactionMode === "resize") {
+                  clear();
+                } else {
+                  setMode("resize");
+                }
+              }}
+              style={{
+                flexShrink: 0,
+                ...(interactionMode === "resize" && {
+                  background: token.colorPrimaryBg,
+                }),
+              }}
+            />
+
+            {/* Title */}
+            <span
+              style={{
+                fontSize: token.fontSizeSM,
+                fontWeight: token.fontWeightSemiBold,
+                color: token.colorPrimary,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
                 flex: 1,
                 minWidth: 0,
-                height: "100%",
-                cursor: "grab",
-                touchAction: "none",
               }}
             >
-              <HolderOutlined
-                style={{
-                  color: token.colorPrimary,
-                  fontSize: 12,
-                  flexShrink: 0,
-                }}
-              />
-              <span
-                style={{
-                  fontSize: token.fontSizeSM,
-                  fontWeight: token.fontWeightSemiBold,
-                  color: token.colorPrimary,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {title}
-              </span>
+              {title}
             </span>
 
-            {/* Delete button — outside drag handle so taps work on touch */}
-            <Popconfirm
-              title="Remove this widget?"
-              okText="Remove"
-              cancelText="Cancel"
-              okButtonProps={{ danger: true }}
-              onConfirm={onRemove}
-            >
+            {/* Delete button — two-tap inline confirmation */}
+            <span ref={deleteBtnRef}>
               <Button
                 type="text"
                 size="small"
                 danger
                 icon={<DeleteOutlined />}
-                style={{ flexShrink: 0 }}
-              />
-            </Popconfirm>
+                onClick={handleDeleteClick}
+                style={{
+                  flexShrink: 0,
+                  ...(isConfirmingRemove && {
+                    background: token.colorErrorBg,
+                    fontWeight: token.fontWeightSemiBold,
+                  }),
+                }}
+              >
+                {isConfirmingRemove && (
+                  <span style={{ fontSize: token.fontSizeXS, marginLeft: -2 }}>
+                    Sure?
+                  </span>
+                )}
+              </Button>
+            </span>
           </div>
         )}
 

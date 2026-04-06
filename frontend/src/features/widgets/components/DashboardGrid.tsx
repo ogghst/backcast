@@ -16,6 +16,10 @@ import "react-resizable/css/styles.css";
 import { useDashboardCompositionStore } from "@/stores/useDashboardCompositionStore";
 import { getWidgetDefinition } from "@/features/widgets/registry";
 import { WidgetPalette } from "./WidgetPalette";
+import {
+  WidgetInteractionContext,
+  type InteractionMode,
+} from "./WidgetInteractionContext";
 
 const { Title, Text } = Typography;
 
@@ -49,6 +53,16 @@ export function DashboardGrid() {
   const updateDashboardLayout = useDashboardCompositionStore(
     (s) => s.updateDashboardLayout,
   );
+
+  // Per-widget interaction tracking (move/resize toggle)
+  const [activeInteraction, setActiveInteraction] = useState<{
+    instanceId: string;
+    mode: InteractionMode;
+  } | null>(null);
+
+  const clearActiveInteraction = useCallback(() => {
+    setActiveInteraction(null);
+  }, []);
 
   // Debounced layout change handler
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -86,17 +100,50 @@ export function DashboardGrid() {
       maxW: getWidgetDefinition(w.typeId)?.sizeConstraints.maxW,
       minH: getWidgetDefinition(w.typeId)?.sizeConstraints.minH,
       maxH: getWidgetDefinition(w.typeId)?.sizeConstraints.maxH,
-      isDraggable: isEditing,
-      isResizable: isEditing,
+      isDraggable: !!(
+        activeInteraction?.instanceId === w.instanceId &&
+        activeInteraction.mode === "move"
+      ),
+      isResizable: !!(
+        activeInteraction?.instanceId === w.instanceId &&
+        activeInteraction.mode === "resize"
+      ),
     }));
 
     return { lg: lgLayout };
-  }, [activeDashboard, isEditing]);
+  }, [activeDashboard, activeInteraction]);
+
+  // Context value for child widgets to read/toggle interaction mode
+  const interactionContextValue = useMemo(
+    () => ({
+      getInteraction: (instanceId: string): InteractionMode | null => {
+        if (!activeInteraction) return null;
+        return activeInteraction.instanceId === instanceId
+          ? activeInteraction.mode
+          : null;
+      },
+      setInteraction: (instanceId: string, mode: InteractionMode) => {
+        setActiveInteraction((prev) => {
+          if (
+            prev?.instanceId === instanceId &&
+            prev.mode === mode
+          ) {
+            return null;
+          }
+          return { instanceId, mode };
+        });
+      },
+      clearInteraction: () => setActiveInteraction(null),
+      activeInteraction,
+    }),
+    [activeInteraction],
+  );
 
   const widgets = activeDashboard?.widgets ?? [];
   const hasWidgets = widgets.length > 0;
 
   return (
+    <WidgetInteractionContext.Provider value={interactionContextValue}>
     <div
       ref={containerRef}
       style={{
@@ -133,6 +180,7 @@ export function DashboardGrid() {
           icon={isEditing ? <CheckOutlined /> : <EditOutlined />}
           onClick={() => {
             if (isEditing) {
+              setActiveInteraction(null);
               message.success("Layout saved");
             }
             setEditing(!isEditing);
@@ -191,9 +239,11 @@ export function DashboardGrid() {
           layouts={layouts}
           rowHeight={ROW_HEIGHT}
           margin={MARGIN}
-          isDraggable={isEditing}
-          isResizable={isEditing}
+          isDraggable={false}
+          isResizable={false}
           onLayoutChange={handleLayoutChange}
+          onDragStop={clearActiveInteraction}
+          onResizeStop={clearActiveInteraction}
           draggableHandle=".react-grid-drag-handle"
         >
           {widgets.map((widget) => {
@@ -238,5 +288,6 @@ export function DashboardGrid() {
         onClose={() => setPaletteOpen(false)}
       />
     </div>
+    </WidgetInteractionContext.Provider>
   );
 }
