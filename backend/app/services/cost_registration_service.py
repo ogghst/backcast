@@ -18,6 +18,7 @@ from app.core.versioning.enums import BranchMode
 from app.core.versioning.service import TemporalService
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_registration import CostRegistration
+from app.models.domain.wbe import WBE
 from app.models.schemas.cost_registration import (
     CostRegistrationCreate,
     CostRegistrationUpdate,
@@ -211,6 +212,8 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         skip: int = 0,
         limit: int = 100,
         as_of: datetime | None = None,
+        wbe_id: UUID | None = None,
+        project_id: UUID | None = None,
     ) -> tuple[list[CostRegistration], int]:
         """Get cost registrations with filtering, pagination, and time-travel support.
 
@@ -219,6 +222,8 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             skip: Number of records to skip (for pagination)
             limit: Maximum number of records to return
             as_of: Optional timestamp for time-travel query (Valid Time Travel semantics)
+            wbe_id: Optional WBE root ID to filter by (joins through CostElement)
+            project_id: Optional Project root ID to filter by (joins through CostElement -> WBE)
 
         Returns:
             Tuple of (list of cost registrations, total count)
@@ -244,6 +249,39 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
                 stmt = stmt.where(
                     CostRegistration.cost_element_id == filters["cost_element_id"]
                 )
+
+        # Join through CostElement to filter by WBE
+        if wbe_id is not None:
+            ce_subq = (
+                select(CostElement.cost_element_id)
+                .where(
+                    CostElement.wbe_id == wbe_id,
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                )
+                .correlate(CostRegistration)
+            )
+            stmt = stmt.where(
+                CostRegistration.cost_element_id.in_(ce_subq)
+            )
+
+        # Join through CostElement -> WBE to filter by Project
+        if project_id is not None:
+            wbe_subq = (
+                select(CostElement.cost_element_id)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None),
+                )
+                .correlate(CostRegistration)
+            )
+            stmt = stmt.where(
+                CostRegistration.cost_element_id.in_(wbe_subq)
+            )
 
         # Get total count
         count_stmt = select(func.count()).select_from(stmt.subquery())

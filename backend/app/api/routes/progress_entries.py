@@ -44,7 +44,16 @@ async def read_progress_entries(
         pattern="^(merged|isolated)$",
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
-    cost_element_id: UUID | None = Query(None, description="Filter by Cost Element ID"),
+    cost_element_id: UUID | None = Query(
+        None, description="Filter by Cost Element ID"
+    ),
+    wbe_id: UUID | None = Query(
+        None, description="Filter by WBE ID (aggregates across all cost elements)"
+    ),
+    project_id: UUID | None = Query(
+        None,
+        description="Filter by Project ID (aggregates across all WBEs and cost elements)",
+    ),
     as_of: datetime | None = Query(
         None,
         description="Time travel: get Progress Entries as of this timestamp (ISO 8601)",
@@ -57,12 +66,10 @@ async def read_progress_entries(
     They are versionable but NOT branchable (progress is global facts).
     Branch and mode parameters are provided for API consistency and context,
     though progress entries themselves are not branch-specific.
-    """
-    # Build filters dict
-    query_filters: dict[str, Any] = {}
-    if cost_element_id:
-        query_filters["cost_element_id"] = cost_element_id
 
+    Filtering priority: cost_element_id > wbe_id > project_id.
+    At least one filter is recommended for scoped queries.
+    """
     skip = (page - 1) * per_page
 
     # Default to current time if as_of is not provided
@@ -72,9 +79,9 @@ async def read_progress_entries(
         as_of = datetime.now(tz=UTC)
 
     items, total = await service.get_progress_history(
-        cost_element_id=cost_element_id
-        if cost_element_id
-        else UUID("00000000-0000-0000-0000-000000000000"),  # Dummy ID for list all
+        cost_element_id=cost_element_id,
+        wbe_id=wbe_id if not cost_element_id else None,
+        project_id=project_id if not cost_element_id and not wbe_id else None,
         skip=skip,
         limit=per_page,
         as_of=as_of,

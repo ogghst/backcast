@@ -27,9 +27,15 @@ import { queryKeys } from "@/api/queryKeys";
 
 /**
  * Cost Registration API parameters for filtering, pagination, and sorting.
+ *
+ * Filtering hierarchy: cost_element_id > wbe_id > project_id.
+ * At least one of cost_element_id, wbe_id, or project_id should be provided
+ * for scoped queries.
  */
 interface CostRegistrationListParams {
   cost_element_id?: string;
+  wbe_id?: string;
+  project_id?: string;
   pagination?: { current?: number; pageSize?: number };
   filters?: Record<string, (string | number | boolean)[] | null>;
   search?: string;
@@ -42,22 +48,26 @@ interface CostRegistrationListParams {
 }
 
 /**
- * Hook to fetch cost registrations for a cost element with pagination.
+ * Hook to fetch cost registrations with pagination.
  *
- * @param params - Query parameters including cost_element_id (required), pagination, filters, search, sort
+ * Supports filtering by cost_element_id, wbe_id, or project_id.
+ * Filtering hierarchy: cost_element_id > wbe_id > project_id.
+ *
+ * @param params - Query parameters including at least one filter id, pagination, filters, search, sort
  * @returns TanStack Query result with paginated cost registrations
  */
 export const useCostRegistrations = (params?: CostRegistrationListParams) => {
   const { asOf } = useTimeMachineParams();
+  const filterId =
+    params?.cost_element_id || params?.wbe_id || params?.project_id || "";
 
   return useQuery<PaginatedResponse<CostRegistrationRead>>({
-    queryKey: queryKeys.costRegistrations.list(
-      params?.cost_element_id || "",
-      { ...params, asOf },
-    ),
+    queryKey: queryKeys.costRegistrations.list(filterId, { ...params, asOf }),
     queryFn: async () => {
       const {
         cost_element_id,
+        wbe_id,
+        project_id,
         pagination,
         // filters,
         search,
@@ -65,27 +75,37 @@ export const useCostRegistrations = (params?: CostRegistrationListParams) => {
         sortOrder,
       } = params || {};
 
-      if (!cost_element_id) {
-        throw new Error("cost_element_id is required");
+      if (!cost_element_id && !wbe_id && !project_id) {
+        throw new Error(
+          "At least one of cost_element_id, wbe_id, or project_id is required",
+        );
       }
 
       const page = pagination?.current || 1;
       const perPage = pagination?.pageSize || 20;
-
       const serverSortOrder = sortOrder === "descend" ? "desc" : "asc";
 
-      const result = await CostRegistrationsService.getCostRegistrations(
-        page,
-        perPage,
-        "main", // branch - default value
-        "merged", // mode - default value
-        cost_element_id, // costElementId - correct position
-        search || null,
-        null, // filters string - can be enhanced later
-        sortField || null,
-        serverSortOrder,
-        asOf || undefined, // as_of - pass time machine context for time-travel queries
-      );
+      // Use __request to pass wbe_id and project_id which are not yet
+      // in the generated client.
+      const result = await __request(OpenAPI, {
+        method: "GET",
+        url: "/api/v1/cost-registrations",
+        query: {
+          page,
+          per_page: perPage,
+          branch: "main",
+          mode: "merged",
+          cost_element_id: cost_element_id || undefined,
+          wbe_id: wbe_id || undefined,
+          project_id: project_id || undefined,
+          search: search || undefined,
+          filters: undefined,
+          sort_field: sortField || undefined,
+          sort_order: serverSortOrder,
+          as_of: asOf || undefined,
+        },
+        errors: { 422: "Validation Error" },
+      });
 
       if (Array.isArray(result)) {
         return {
@@ -97,7 +117,10 @@ export const useCostRegistrations = (params?: CostRegistrationListParams) => {
       }
       return result as unknown as PaginatedResponse<CostRegistrationRead>;
     },
-    enabled: !!params?.cost_element_id, // Only run if cost_element_id is provided
+    enabled:
+      !!params?.cost_element_id ||
+      !!params?.wbe_id ||
+      !!params?.project_id,
     ...params?.queryOptions,
   });
 };

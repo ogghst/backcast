@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
@@ -51,6 +51,21 @@ class MockRBACService(RBACServiceABC):
             "cost-element-read",
             "cost-element-create",
         ]
+
+    async def has_project_access(
+        self,
+        user_id: UUID,
+        user_role: str,
+        project_id: UUID,
+        required_permission: str,
+    ) -> bool:
+        return True
+
+    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
+        return []
+
+    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
+        return "admin"
 
 
 def mock_get_rbac_service() -> MockRBACService:

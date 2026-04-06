@@ -7,6 +7,8 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
+import { OpenAPI } from "@/api/generated/core/OpenAPI";
+import { request as __request } from "@/api/generated/core/request";
 
 import {
   ProgressEntriesService,
@@ -19,9 +21,15 @@ import { queryKeys } from "@/api/queryKeys";
 
 /**
  * Progress Entry API parameters for filtering, pagination, and sorting.
+ *
+ * Filtering hierarchy: cost_element_id > wbe_id > project_id.
+ * At least one filter is recommended for scoped queries.
+ * cost_element_id is now optional - wbe_id or project_id can be used instead.
  */
 interface ProgressEntryListParams {
   cost_element_id?: string;
+  wbe_id?: string;
+  project_id?: string;
   page?: number;
   perPage?: number;
   asOf?: string;
@@ -33,28 +41,49 @@ interface ProgressEntryListParams {
 
 /**
  * Custom hook to get progress entries with pagination and filtering.
+ *
+ * Supports filtering by cost_element_id, wbe_id, or project_id.
  * Progress entries are NOT branchable but support time-travel queries.
  */
 export const useProgressEntries = (params?: ProgressEntryListParams) => {
   const { asOf, branch, mode } = useTimeMachineParams();
+  const filterId =
+    params?.cost_element_id || params?.wbe_id || params?.project_id || "";
 
   return useQuery<PaginatedResponse<ProgressEntryRead>>({
-    queryKey: queryKeys.progressEntries.list(params?.cost_element_id || "", {
+    queryKey: queryKeys.progressEntries.list(filterId, {
       asOf: params?.asOf || asOf,
       branch,
       mode,
+      wbe_id: params?.wbe_id,
+      project_id: params?.project_id,
     }),
     queryFn: async () => {
-      const { cost_element_id, page = 1, perPage = 20 } = params || {};
-
-      const res = await ProgressEntriesService.getProgressEntries(
-        page,
-        perPage,
-        branch,
-        mode,
+      const {
         cost_element_id,
-        params?.asOf || asOf || undefined,
-      );
+        wbe_id,
+        project_id,
+        page = 1,
+        perPage = 20,
+      } = params || {};
+
+      // Use __request to pass wbe_id and project_id which are not yet
+      // in the generated client.
+      const res = await __request(OpenAPI, {
+        method: "GET",
+        url: "/api/v1/progress-entries",
+        query: {
+          page,
+          per_page: perPage,
+          branch,
+          mode,
+          cost_element_id: cost_element_id || undefined,
+          wbe_id: wbe_id || undefined,
+          project_id: project_id || undefined,
+          as_of: params?.asOf || asOf || undefined,
+        },
+        errors: { 422: "Validation Error" },
+      });
 
       if (Array.isArray(res)) {
         return {
@@ -66,7 +95,10 @@ export const useProgressEntries = (params?: ProgressEntryListParams) => {
       }
       return res as unknown as PaginatedResponse<ProgressEntryRead>;
     },
-    enabled: !!params?.cost_element_id,
+    enabled:
+      !!params?.cost_element_id ||
+      !!params?.wbe_id ||
+      !!params?.project_id,
     ...params?.queryOptions,
   });
 };

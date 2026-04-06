@@ -1,7 +1,7 @@
 """API integration tests for Cost Registrations."""
 
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 import pytest_asyncio
@@ -54,6 +54,21 @@ class MockRBACService(RBACServiceABC):
             "department-create",
             "cost-element-type-create",
         ]
+
+    async def has_project_access(
+        self,
+        user_id: UUID,
+        user_role: str,
+        project_id: UUID,
+        required_permission: str,
+    ) -> bool:
+        return True
+
+    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
+        return []
+
+    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
+        return "admin"
 
 
 def mock_get_rbac_service() -> MockRBACService:
@@ -726,3 +741,204 @@ class TestCostRegistrationsAPI:
             f"Remaining should be {budget_amount - registration_amount}"
         )
         assert data["percentage"] == 20.0, "Percentage used should be 20%"
+
+    @pytest.mark.asyncio
+    async def test_filter_by_wbe_id(
+        self, client: AsyncClient, setup_dependencies: dict[str, Any]
+    ) -> None:
+        """Test filtering cost registrations by WBE ID.
+
+        Creates a cost registration under a known WBE, then filters by that
+        wbe_id and verifies the result is returned.
+        """
+        deps = setup_dependencies
+
+        # Create a cost registration under the setup WBE's cost element
+        await client.post(
+            "/api/v1/cost-registrations",
+            json={
+                "cost_element_id": deps["cost_element_id"],
+                "amount": 250.00,
+                "description": "WBE filter test",
+            },
+        )
+
+        # Filter by wbe_id
+        response = await client.get(
+            f"/api/v1/cost-registrations?wbe_id={deps['wbe_id']}"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] >= 1
+        # Verify all returned items belong to a cost element under this WBE
+        for item in data["items"]:
+            assert item["cost_element_id"] is not None
+
+    @pytest.mark.asyncio
+    async def test_filter_by_project_id(
+        self, client: AsyncClient, setup_dependencies: dict[str, Any]
+    ) -> None:
+        """Test filtering cost registrations by Project ID.
+
+        Creates a cost registration under a known project (via WBE -> CostElement),
+        then filters by that project_id and verifies the result is returned.
+        """
+        deps = setup_dependencies
+
+        # Create a cost registration under the setup project's hierarchy
+        await client.post(
+            "/api/v1/cost-registrations",
+            json={
+                "cost_element_id": deps["cost_element_id"],
+                "amount": 350.00,
+                "description": "Project filter test",
+            },
+        )
+
+        # Filter by project_id
+        response = await client.get(
+            f"/api/v1/cost-registrations?project_id={deps['project_id']}"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] >= 1
+
+    @pytest.mark.asyncio
+    async def test_filter_by_wbe_id_excludes_other_wbes(
+        self, client: AsyncClient, setup_dependencies: dict[str, Any]
+    ) -> None:
+        """Test that filtering by wbe_id excludes cost registrations from other WBEs.
+
+        Creates cost registrations under two different WBEs, then verifies that
+        filtering by one WBE only returns registrations belonging to that WBE.
+        """
+        deps = setup_dependencies
+
+        # Create cost registration under the first WBE
+        await client.post(
+            "/api/v1/cost-registrations",
+            json={
+                "cost_element_id": deps["cost_element_id"],
+                "amount": 100.00,
+                "description": "WBE 1 cost",
+            },
+        )
+
+        # Create a second WBE and cost element under the same project
+        wbe2_res = await client.post(
+            "/api/v1/wbes",
+            json={
+                "code": f"W2-{uuid4().hex[:4].upper()}",
+                "name": "Second WBE",
+                "project_id": deps["project_id"],
+                "branch": "main",
+            },
+        )
+        wbe2_id = wbe2_res.json()["wbe_id"]
+
+        ce2_res = await client.post(
+            "/api/v1/cost-elements",
+            json={
+                "code": f"CE2-{uuid4().hex[:4].upper()}",
+                "name": "Second Cost Element",
+                "budget_amount": 3000.00,
+                "wbe_id": wbe2_id,
+                "cost_element_type_id": deps["cost_element_type_id"],
+                "branch": "main",
+            },
+        )
+        ce2_id = ce2_res.json()["cost_element_id"]
+
+        # Create cost registration under the second WBE
+        await client.post(
+            "/api/v1/cost-registrations",
+            json={
+                "cost_element_id": ce2_id,
+                "amount": 200.00,
+                "description": "WBE 2 cost",
+            },
+        )
+
+        # Filter by the first WBE - should NOT include the second WBE's cost
+        response = await client.get(
+            f"/api/v1/cost-registrations?wbe_id={deps['wbe_id']}"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        for item in data["items"]:
+            assert item["cost_element_id"] != ce2_id, (
+                "Should not include cost registrations from other WBEs"
+            )
+
+    @pytest.mark.asyncio
+    async def test_filter_by_project_id_excludes_other_projects(
+        self, client: AsyncClient, setup_dependencies: dict[str, Any]
+    ) -> None:
+        """Test that filtering by project_id excludes cost registrations from other projects."""
+        deps = setup_dependencies
+
+        # Create cost registration under the setup project
+        await client.post(
+            "/api/v1/cost-registrations",
+            json={
+                "cost_element_id": deps["cost_element_id"],
+                "amount": 150.00,
+                "description": "Project 1 cost",
+            },
+        )
+
+        # Create a second project, WBE, and cost element
+        proj2_res = await client.post(
+            "/api/v1/projects",
+            json={
+                "code": f"P2-{uuid4().hex[:4].upper()}",
+                "name": "Second Project",
+                "budget": 20000,
+            },
+        )
+        proj2_id = proj2_res.json()["project_id"]
+
+        wbe2_res = await client.post(
+            "/api/v1/wbes",
+            json={
+                "code": f"W-{uuid4().hex[:4].upper()}",
+                "name": "WBE for Project 2",
+                "project_id": proj2_id,
+                "branch": "main",
+            },
+        )
+        wbe2_id = wbe2_res.json()["wbe_id"]
+
+        ce2_res = await client.post(
+            "/api/v1/cost-elements",
+            json={
+                "code": f"CE-{uuid4().hex[:4].upper()}",
+                "name": "CE for Project 2",
+                "budget_amount": 5000.00,
+                "wbe_id": wbe2_id,
+                "cost_element_type_id": deps["cost_element_type_id"],
+                "branch": "main",
+            },
+        )
+        ce2_id = ce2_res.json()["cost_element_id"]
+
+        # Create cost registration under the second project
+        await client.post(
+            "/api/v1/cost-registrations",
+            json={
+                "cost_element_id": ce2_id,
+                "amount": 250.00,
+                "description": "Project 2 cost",
+            },
+        )
+
+        # Filter by first project - should NOT include second project's cost
+        response = await client.get(
+            f"/api/v1/cost-registrations?project_id={deps['project_id']}"
+        )
+        assert response.status_code == 200
+        data = response.json()
+        for item in data["items"]:
+            assert item["cost_element_id"] != ce2_id, (
+                "Should not include cost registrations from other projects"
+            )

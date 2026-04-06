@@ -256,15 +256,22 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
 
     async def get_progress_history(
         self,
-        cost_element_id: UUID,
+        cost_element_id: UUID | None = None,
+        wbe_id: UUID | None = None,
+        project_id: UUID | None = None,
         skip: int = 0,
         limit: int = 100,
         as_of: datetime | None = None,
     ) -> tuple[list[ProgressEntry], int]:
-        """Get all progress entries for a cost element (for charts).
+        """Get progress entries with optional scope filtering.
+
+        At least one filter should be provided to scope the query.
+        Filters are mutually exclusive priority: cost_element_id > wbe_id > project_id.
 
         Args:
-            cost_element_id: The cost element to get progress history for
+            cost_element_id: Filter by specific cost element (direct filter)
+            wbe_id: Filter by WBE (joins through cost_element)
+            project_id: Filter by project (joins through cost_element -> wbe)
             skip: Number of records to skip (pagination)
             limit: Maximum number of records to return
             as_of: Optional timestamp for historical query (time-travel)
@@ -274,10 +281,43 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         """
         from sqlalchemy import func
 
+        from app.models.domain.cost_element import CostElement
+        from app.models.domain.wbe import WBE
+
         # Build query for progress entries
-        stmt = select(ProgressEntry).where(
-            ProgressEntry.cost_element_id == cost_element_id,
-        )
+        stmt = select(ProgressEntry)
+
+        # Apply scope filters (priority: cost_element_id > wbe_id > project_id)
+        if cost_element_id is not None:
+            stmt = stmt.where(
+                ProgressEntry.cost_element_id == cost_element_id,
+            )
+        elif wbe_id is not None:
+            ce_subq = (
+                select(CostElement.cost_element_id)
+                .where(
+                    CostElement.wbe_id == wbe_id,
+                    CostElement.deleted_at.is_(None),
+                )
+                .correlate(ProgressEntry)
+            )
+            stmt = stmt.where(
+                ProgressEntry.cost_element_id.in_(ce_subq),
+            )
+        elif project_id is not None:
+            ce_subq = (
+                select(CostElement.cost_element_id)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == project_id,
+                    CostElement.deleted_at.is_(None),
+                    WBE.deleted_at.is_(None),
+                )
+                .correlate(ProgressEntry)
+            )
+            stmt = stmt.where(
+                ProgressEntry.cost_element_id.in_(ce_subq),
+            )
 
         # Apply temporal filter based on as_of parameter
         if as_of is not None:

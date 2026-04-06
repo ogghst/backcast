@@ -48,6 +48,13 @@ async def read_cost_registrations(
         description="Branch mode: merged (combine with main) or isolated (current branch only)",
     ),
     cost_element_id: UUID | None = Query(None, description="Filter by Cost Element ID"),
+    wbe_id: UUID | None = Query(
+        None, description="Filter by WBE ID (returns all registrations under this WBE)"
+    ),
+    project_id: UUID | None = Query(
+        None,
+        description="Filter by Project ID (returns all registrations under this project)",
+    ),
     search: str | None = Query(
         None, description="Search term (description, invoice, vendor)"
     ),
@@ -73,6 +80,9 @@ async def read_cost_registrations(
     They are versionable but NOT branchable (costs are global facts).
     Branch and mode parameters are provided for API consistency and context,
     though cost registrations themselves are not branch-specific.
+
+    Filtering hierarchy: cost_element_id > wbe_id > project_id.
+    When multiple are provided, all applicable filters are applied (AND).
     """
     # Build filters dict
     query_filters: dict[str, Any] = {}
@@ -92,6 +102,8 @@ async def read_cost_registrations(
         skip=skip,
         limit=per_page,
         as_of=as_of,
+        wbe_id=wbe_id,
+        project_id=project_id,
     )
 
     # Convert to Pydantic models

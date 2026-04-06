@@ -451,3 +451,223 @@ class TestProgressEntryServiceGetHistory:
         )
         assert total == 2
         assert len(history) == 2
+
+
+class TestProgressEntryServiceAggregation:
+    """Test ProgressEntryService.get_progress_history() with WBE/project filtering."""
+
+    @pytest.mark.asyncio
+    async def test_filter_by_wbe_id(
+        self, db_session: AsyncSession, sample_cost_element_with_budget
+    ) -> None:
+        """Test filtering progress entries by WBE ID.
+
+        When wbe_id is provided, should return progress entries for all
+        cost elements under that WBE.
+        """
+        # Arrange
+        service = ProgressEntryService(db_session)
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
+        wbe_id = sample_cost_element_with_budget.wbe_id
+        actor_id = uuid4()
+
+        # Create progress entries on the cost element
+        await service.create(
+            actor_id,
+            progress_in=ProgressEntryCreate(
+                cost_element_id=cost_element_id,
+                progress_percentage=Decimal("50.00"),
+            ),
+        )
+
+        # Act - filter by WBE ID
+        history, total = await service.get_progress_history(wbe_id=wbe_id)
+
+        # Assert - should find the entry through the WBE -> cost_element join
+        assert total >= 1
+        assert any(
+            entry.cost_element_id == cost_element_id for entry in history
+        )
+
+    @pytest.mark.asyncio
+    async def test_filter_by_project_id(
+        self, db_session: AsyncSession, sample_cost_element_with_budget
+    ) -> None:
+        """Test filtering progress entries by project ID.
+
+        When project_id is provided, should return progress entries for all
+        cost elements under all WBEs of that project.
+        """
+        # Arrange
+        service = ProgressEntryService(db_session)
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
+        actor_id = uuid4()
+
+        # Get project_id through the WBE
+        from sqlalchemy import select
+
+        from app.models.domain.wbe import WBE
+
+        wbe_stmt = select(WBE.project_id).where(
+            WBE.wbe_id == sample_cost_element_with_budget.wbe_id,
+            WBE.deleted_at.is_(None),
+        )
+        wbe_result = await db_session.execute(wbe_stmt)
+        project_id = wbe_result.scalar_one()
+
+        # Create progress entries on the cost element
+        await service.create(
+            actor_id,
+            progress_in=ProgressEntryCreate(
+                cost_element_id=cost_element_id,
+                progress_percentage=Decimal("75.00"),
+            ),
+        )
+
+        # Act - filter by project ID
+        history, total = await service.get_progress_history(project_id=project_id)
+
+        # Assert - should find the entry through project -> wbe -> cost_element join
+        assert total >= 1
+        assert any(
+            entry.cost_element_id == cost_element_id for entry in history
+        )
+
+    @pytest.mark.asyncio
+    async def test_filter_by_wbe_id_excludes_other_wbes(
+        self, db_session: AsyncSession, sample_wbe, sample_department  # noqa: F811
+    ) -> None:
+        """Test that WBE filtering excludes cost elements from other WBEs.
+
+        Creates two WBEs with separate cost elements and verifies that
+        filtering by one WBE only returns its own entries.
+        """
+        from app.models.domain.cost_element import CostElement
+        from app.models.domain.cost_element_type import CostElementType
+        from app.models.domain.wbe import WBE
+
+        service = ProgressEntryService(db_session)
+        actor_id = uuid4()
+
+        # Create a second WBE under the same project
+        wbe2 = WBE(
+            wbe_id=uuid4(),
+            project_id=sample_wbe.project_id,
+            code="1.2",
+            name="Second WBE",
+            level=1,
+            created_by=uuid4(),
+        )
+        db_session.add(wbe2)
+        await db_session.flush()
+
+        # Create cost element type
+        cet = CostElementType(
+            cost_element_type_id=uuid4(),
+            department_id=sample_department.department_id,
+            code="TEST",
+            name="Test Type",
+            created_by=uuid4(),
+        )
+        db_session.add(cet)
+        await db_session.flush()
+
+        # Create cost elements on each WBE
+        ce1 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=sample_wbe.wbe_id,
+            cost_element_type_id=cet.cost_element_type_id,
+            code="CE-1",
+            name="Cost Element 1",
+            budget_amount=Decimal("1000.00"),
+            created_by=uuid4(),
+        )
+        ce2 = CostElement(
+            cost_element_id=uuid4(),
+            wbe_id=wbe2.wbe_id,
+            cost_element_type_id=cet.cost_element_type_id,
+            code="CE-2",
+            name="Cost Element 2",
+            budget_amount=Decimal("2000.00"),
+            created_by=uuid4(),
+        )
+        db_session.add_all([ce1, ce2])
+        await db_session.flush()
+
+        # Create progress entries on both cost elements
+        await service.create(
+            actor_id,
+            progress_in=ProgressEntryCreate(
+                cost_element_id=ce1.cost_element_id,
+                progress_percentage=Decimal("30.00"),
+            ),
+        )
+        await service.create(
+            actor_id,
+            progress_in=ProgressEntryCreate(
+                cost_element_id=ce2.cost_element_id,
+                progress_percentage=Decimal("60.00"),
+            ),
+        )
+
+        # Act - filter by first WBE only
+        history, total = await service.get_progress_history(
+            wbe_id=sample_wbe.wbe_id
+        )
+
+        # Assert - should only get entries from ce1
+        assert total == 1
+        assert history[0].cost_element_id == ce1.cost_element_id
+
+    @pytest.mark.asyncio
+    async def test_priority_cost_element_over_wbe(
+        self, db_session: AsyncSession, sample_cost_element_with_budget
+    ) -> None:
+        """Test that cost_element_id takes priority over wbe_id."""
+        # Arrange
+        service = ProgressEntryService(db_session)
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
+        wbe_id = sample_cost_element_with_budget.wbe_id
+        actor_id = uuid4()
+
+        await service.create(
+            actor_id,
+            progress_in=ProgressEntryCreate(
+                cost_element_id=cost_element_id,
+                progress_percentage=Decimal("40.00"),
+            ),
+        )
+
+        # Act - pass both cost_element_id and wbe_id
+        history, total = await service.get_progress_history(
+            cost_element_id=cost_element_id,
+            wbe_id=wbe_id,
+        )
+
+        # Assert - cost_element_id filter is used (wbe_id is ignored in service)
+        assert total == 1
+        assert history[0].cost_element_id == cost_element_id
+
+    @pytest.mark.asyncio
+    async def test_no_filters_returns_all(
+        self, db_session: AsyncSession, sample_cost_element_with_budget
+    ) -> None:
+        """Test that calling with no filters returns entries without scope."""
+        # Arrange
+        service = ProgressEntryService(db_session)
+        cost_element_id = sample_cost_element_with_budget.cost_element_id
+        actor_id = uuid4()
+
+        await service.create(
+            actor_id,
+            progress_in=ProgressEntryCreate(
+                cost_element_id=cost_element_id,
+                progress_percentage=Decimal("20.00"),
+            ),
+        )
+
+        # Act - no filters
+        history, total = await service.get_progress_history()
+
+        # Assert - should return at least the entry we created
+        assert total >= 1
