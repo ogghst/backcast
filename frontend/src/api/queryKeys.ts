@@ -276,6 +276,17 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     project: (projectId: string, context?: unknown) =>
       ["gantt", "project", projectId, context] as const,
   },
+
+  // Dashboard Layouts (widget composition)
+  dashboardLayouts: {
+    all: ["dashboard-layouts"] as const,
+    lists: () => ["dashboard-layouts", "list"] as const,
+    list: (projectId?: string) =>
+      ["dashboard-layouts", "list", projectId] as const,
+    templates: () => ["dashboard-layouts", "templates"] as const,
+    details: () => ["dashboard-layouts", "detail"] as const,
+    detail: (id: string) => ["dashboard-layouts", "detail", id] as const,
+  },
 });
 
 /**

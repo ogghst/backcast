@@ -22,6 +22,7 @@ from app.api.routes import (
     cost_elements,
     cost_registrations,
     dashboard,
+    dashboard_layouts,
     departments,
     evm,
     forecasts,
@@ -275,6 +276,11 @@ app.include_router(
     dashboard.router,
     prefix=f"{settings.API_V1_STR}/dashboard",
     tags=["Dashboard"],
+)
+app.include_router(
+    dashboard_layouts.router,
+    prefix=f"{settings.API_V1_STR}/dashboard-layouts",
+    tags=["Dashboard Layouts"],
 )
 
 # Add WebSocket route directly to app (bypasses router for better CORS handling)

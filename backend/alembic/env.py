@@ -20,6 +20,7 @@ from app.models.domain import (  # noqa: F401
     cost_element,
     cost_element_type,
     cost_registration,
+    dashboard_layout,
     department,
     forecast,
     progress_entry,

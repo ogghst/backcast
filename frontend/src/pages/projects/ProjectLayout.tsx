@@ -6,6 +6,7 @@ export const ProjectLayout: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
 
   const items = [
+    { key: "dashboard", label: "Dashboard", path: `/projects/${projectId}/dashboard` },
     { key: "overview", label: "Overview", path: `/projects/${projectId}` },
     { key: "structure", label: "Structure", path: `/projects/${projectId}/structure` },
     { key: "explorer", label: "Explorer", path: `/projects/${projectId}/explorer` },
