@@ -14,7 +14,7 @@ import { getWidgetDefinition } from "@/features/widgets/registry";
 /** Generate a UUID v4 without requiring a secure context (crypto.randomUUID needs HTTPS/localhost). */
 function uuid(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return uuid();
+    return crypto.randomUUID();
   }
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
@@ -37,11 +37,17 @@ interface DashboardCompositionState {
   backendId: string | null;
   /** Project ID set from the page route */
   projectId: string;
+  /** Whether the widget palette modal is open */
+  paletteOpen: boolean;
+  /** Toggle the widget palette modal */
+  setPaletteOpen: (open: boolean) => void;
 
   /** Toggle dashboard edit mode */
   setEditing: (editing: boolean) => void;
   /** Set the project ID from the route */
   setProjectId: (projectId: string) => void;
+  /** Update the dashboard name */
+  updateDashboardName: (name: string) => void;
   /** Add a new widget to the dashboard */
   addWidget: (
     typeId: WidgetTypeId,
@@ -109,6 +115,7 @@ export const useDashboardCompositionStore =
       selectedWidgetId: null,
       backendId: null,
       projectId: "",
+      paletteOpen: false,
 
       setEditing: (editing) =>
         set((state) => {
@@ -118,6 +125,19 @@ export const useDashboardCompositionStore =
       setProjectId: (projectId) =>
         set((state) => {
           state.projectId = projectId;
+        }),
+
+      setPaletteOpen: (open) =>
+        set((state) => {
+          state.paletteOpen = open;
+        }),
+
+      updateDashboardName: (name) =>
+        set((state) => {
+          if (state.activeDashboard) {
+            state.activeDashboard.name = name;
+            state.isDirty = true;
+          }
         }),
 
       addWidget: (typeId, position) =>

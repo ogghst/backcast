@@ -9,6 +9,7 @@ import { useCostRegistrations } from "@/features/cost-registration/api/useCostRe
 import type { CostRegistrationRead } from "@/api/generated";
 import { StandardTable, type TableParams } from "@/components/common/StandardTable";
 import { WidgetShell } from "../components/WidgetShell";
+import { CostRegistrationsConfigForm } from "../components/config-forms/CostRegistrationsConfigForm";
 import { registerWidget, widgetTypeId } from "..";
 import type { WidgetComponentProps } from "../types";
 
@@ -79,7 +80,7 @@ const columns: ColumnsType<CostRegistrationRead> = [
 
 const CostRegistrationsComponent: FC<
   WidgetComponentProps<CostRegistrationsConfig>
-> = ({ config, instanceId, isEditing, onRemove }) => {
+> = ({ config, instanceId, isEditing, onRemove, onConfigure }) => {
   const context = useDashboardContext();
 
   const [tableParams, setTableParams] = useState<TableParams>({
@@ -134,6 +135,7 @@ const CostRegistrationsComponent: FC<
       error={error}
       onRemove={onRemove}
       onRefresh={refetch}
+      onConfigure={onConfigure}
     >
       <StandardTable<CostRegistrationRead>
         columns={columns}
@@ -165,4 +167,5 @@ registerWidget<CostRegistrationsConfig>({
     pageSize: 10,
     showAddButton: false,
   },
+  configFormComponent: CostRegistrationsConfigForm,
 });

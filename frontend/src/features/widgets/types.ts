@@ -1,4 +1,5 @@
 import type { ReactNode, FC } from "react";
+import type { ConfigFormProps } from "./components/config-forms/ConfigFormProps";
 
 // ============================================================================
 // Branded Type for Widget Type IDs
@@ -93,6 +94,8 @@ export interface WidgetComponentProps<
   isEditing: boolean;
   /** Called when the user confirms widget removal */
   onRemove: () => void;
+  /** Called when the user clicks the settings gear icon */
+  onConfigure?: () => void;
 }
 
 // ============================================================================
@@ -126,6 +129,8 @@ export interface WidgetDefinition<
   component: FC<WidgetComponentProps<TConfig>>;
   /** Default configuration applied when the widget is first placed */
   defaultConfig: TConfig;
+  /** Optional configuration form component for the WidgetConfigDrawer */
+  configFormComponent?: FC<ConfigFormProps<TConfig>>;
 }
 
 // ============================================================================

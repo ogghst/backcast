@@ -3,9 +3,6 @@ import {
   Button,
   Space,
   Input,
-  Card,
-  Progress,
-  Alert,
   Tooltip,
 } from "antd";
 import {
@@ -27,12 +24,12 @@ import {
   useDeleteProgressEntry,
 } from "../api/useProgressEntries";
 import { ProgressEntryModal } from "./ProgressEntryModal";
+import { ProgressSummaryCard } from "./ProgressSummaryCard";
 import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
 import { Can } from "@/components/auth/Can";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
-import dayjs from "dayjs";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { ProgressEntriesService } from "@/api/generated";
@@ -298,50 +295,8 @@ export const ProgressEntriesTab = ({
   return (
     <div>
       <Space direction="vertical" style={{ width: "100%" }} size="large">
-        {/* Latest Progress Summary */}
-        {latestProgress && (
-          <Card>
-            <Space direction="vertical" style={{ width: "100%" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ fontWeight: "bold" }}>Latest Progress:</span>
-                <span>
-                  {dayjs(
-                    latestProgress.valid_time
-                      .split(",")[0]
-                      .substring(1)
-                      .replace(/"/g, ""),
-                  ).format("MMM D, YYYY HH:mm")}
-                </span>
-              </div>
-              <div>
-                <Progress
-                  percent={parseFloat(latestProgress.progress_percentage)}
-                  status={
-                    parseFloat(latestProgress.progress_percentage) === 100
-                      ? "success"
-                      : "active"
-                  }
-                />
-              </div>
-              {latestProgress.notes && (
-                <Alert
-                  message={latestProgress.notes}
-                  type="info"
-                  style={{ fontSize: "12px" }}
-                />
-              )}
-            </Space>
-          </Card>
-        )}
-
-        {!latestProgress && (
-          <Alert
-            message="No progress recorded yet"
-            description="Click 'Add Progress' to record the first progress entry for this cost element."
-            type="info"
-            showIcon
-          />
-        )}
+        {/* Latest Progress Summary - using shared component */}
+        <ProgressSummaryCard latestEntry={latestProgress} />
 
         {/* Progress Entries Table */}
         <StandardTable<ProgressEntryRead>

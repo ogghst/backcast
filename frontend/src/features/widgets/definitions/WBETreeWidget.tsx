@@ -3,6 +3,7 @@ import { useCallback, useState, type FC } from "react";
 import { ProjectTree, type TreeNodeData } from "@/components/hierarchy/ProjectTree";
 import { useDashboardContext } from "../context/useDashboardContext";
 import { WidgetShell } from "../components/WidgetShell";
+import { WBETreeConfigForm } from "../components/config-forms/WBETreeConfigForm";
 import { registerWidget, widgetTypeId } from "..";
 import type { WidgetComponentProps } from "../types";
 
@@ -23,6 +24,7 @@ const WBETreeComponent: FC<WidgetComponentProps<WBETreeConfig>> = ({
   instanceId,
   isEditing,
   onRemove,
+  onConfigure,
 }) => {
   const context = useDashboardContext();
   const [treeSelectedKey, setTreeSelectedKey] = useState<string | null>(null);
@@ -63,6 +65,7 @@ const WBETreeComponent: FC<WidgetComponentProps<WBETreeConfig>> = ({
       icon={<ApartmentOutlined />}
       isEditing={isEditing}
       onRemove={onRemove}
+      onConfigure={onConfigure}
     >
       <ProjectTree
         projectId={context.projectId}
@@ -92,4 +95,5 @@ registerWidget<WBETreeConfig>({
     showBudget: true,
     showDates: true,
   },
+  configFormComponent: WBETreeConfigForm,
 });

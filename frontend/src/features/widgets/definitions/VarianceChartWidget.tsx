@@ -4,6 +4,7 @@ import type { FC } from "react";
 import { EntityType } from "@/features/evm/types";
 import { VarianceChart } from "@/components/explorer/charts/VarianceChart";
 import { WidgetShell } from "../components/WidgetShell";
+import { VarianceChartConfigForm } from "../components/config-forms/VarianceChartConfigForm";
 import { useWidgetEVMData } from "./shared/useWidgetEVMData";
 import { registerWidget, widgetTypeId } from "..";
 import type { WidgetComponentProps } from "../types";
@@ -12,6 +13,8 @@ const { Text } = Typography;
 
 interface VarianceChartConfig {
   entityType: EntityType;
+  showThresholds?: boolean;
+  thresholdPercent?: number;
 }
 
 const VarianceChartComponent: FC<WidgetComponentProps<VarianceChartConfig>> = ({
@@ -19,6 +22,7 @@ const VarianceChartComponent: FC<WidgetComponentProps<VarianceChartConfig>> = ({
   instanceId,
   isEditing,
   onRemove,
+  onConfigure,
 }) => {
   const { token } = theme.useToken();
   const { metrics, isLoading, error, entityId, refetch } = useWidgetEVMData(
@@ -35,6 +39,7 @@ const VarianceChartComponent: FC<WidgetComponentProps<VarianceChartConfig>> = ({
       error={error}
       onRemove={onRemove}
       onRefresh={refetch}
+      onConfigure={onConfigure}
     >
       {metrics ? (
         <VarianceChart metrics={metrics} />
@@ -73,5 +78,8 @@ registerWidget<VarianceChartConfig>({
   component: VarianceChartComponent,
   defaultConfig: {
     entityType: EntityType.PROJECT,
+    showThresholds: false,
+    thresholdPercent: 10,
   },
+  configFormComponent: VarianceChartConfigForm,
 });

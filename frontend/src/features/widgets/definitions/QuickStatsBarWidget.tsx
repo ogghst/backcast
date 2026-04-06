@@ -20,6 +20,7 @@ const QuickStatsBarComponent: FC<WidgetComponentProps<QuickStatsBarConfig>> = ({
   instanceId,
   isEditing,
   onRemove,
+  onConfigure,
 }) => {
   const { token } = theme.useToken();
   const { metrics, isLoading, error, entityId, refetch } = useWidgetEVMData(
@@ -36,6 +37,7 @@ const QuickStatsBarComponent: FC<WidgetComponentProps<QuickStatsBarConfig>> = ({
       error={error}
       onRemove={onRemove}
       onRefresh={refetch}
+      onConfigure={onConfigure}
     >
       {metrics ? (
         <KPIStrip metrics={metrics} variant={config.variant} hideCard />

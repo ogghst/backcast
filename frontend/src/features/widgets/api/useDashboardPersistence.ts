@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useRef, useCallback } from "react";
+import { message } from "antd";
 import { useDashboardCompositionStore } from "@/stores/useDashboardCompositionStore";
 import {
   useCreateDashboardLayout,
@@ -23,10 +24,16 @@ import { layoutApi } from "./useDashboardLayouts";
 const SAVE_DEBOUNCE_MS = 500;
 
 /**
- * Provides dashboard persistence: loads from backend on mount,
- * auto-saves with debounce when the store is dirty.
+ * Dashboard Persistence Hook
  *
- * @param projectId - Project ID from the route
+ * React hook that wires the Zustand composition store to the backend API.
+ * Handles initial load on mount and debounced auto-save when isDirty changes.
+ *
+ * Uses TanStack Query mutations for POST/PUT and direct API call for GET.
+ *
+ * @returns Object containing:
+ * - save: Function to immediately save the current dashboard (bypasses debounce)
+ * - isSaving: Whether a save operation is currently in progress
  */
 export function useDashboardPersistence(projectId: string) {
   // Reactive subscription to isDirty -- triggers re-render on change
@@ -81,8 +88,8 @@ export function useDashboardPersistence(projectId: string) {
         useDashboardCompositionStore.getState().markSaved(result.id);
       }
     } catch {
-      // TanStack Query mutations handle error logging via onError callbacks.
-      // The store keeps isDirty=true so the next debounce will retry.
+      // Store keeps isDirty=true so the next debounce will retry.
+      message.error("Failed to save dashboard. Changes will retry automatically.");
     }
   }, [projectId]);
 
@@ -107,6 +114,7 @@ export function useDashboardPersistence(projectId: string) {
         }
       } catch {
         // If load fails, the user starts with an empty dashboard.
+        // The loadError return value lets the page show a retry option.
       } finally {
         loadDoneRef.current = true;
       }
@@ -146,4 +154,16 @@ export function useDashboardPersistence(projectId: string) {
       }
     };
   }, [isDirty, activeDashboard, backendId, storedProjectId, saveDashboard]);
+
+  // ------------------------------------------------------------------
+  // Return public API
+  // ------------------------------------------------------------------
+  return {
+    /** Immediately save the current dashboard, bypassing debounce */
+    save: saveDashboard,
+    /** Whether a save operation is currently in progress */
+    isSaving: createMutation.isPending || updateMutation.isPending,
+    /** Whether the initial dashboard load is still in progress */
+    isLoading: !loadDoneRef.current,
+  };
 }

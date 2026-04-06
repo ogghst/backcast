@@ -4,6 +4,7 @@ import type { FC } from "react";
 import { EntityType } from "@/features/evm/types";
 import { BudgetOverviewChart } from "@/components/explorer/charts/BudgetOverviewChart";
 import { WidgetShell } from "../components/WidgetShell";
+import { BudgetStatusConfigForm, type BudgetStatusChartType } from "../components/config-forms/BudgetStatusConfigForm";
 import { useWidgetEVMData } from "./shared/useWidgetEVMData";
 import { registerWidget, widgetTypeId } from "..";
 import type { WidgetComponentProps } from "../types";
@@ -12,6 +13,7 @@ const { Text } = Typography;
 
 interface BudgetStatusConfig {
   entityType: EntityType;
+  chartType?: BudgetStatusChartType;
 }
 
 const BudgetStatusComponent: FC<WidgetComponentProps<BudgetStatusConfig>> = ({
@@ -19,6 +21,7 @@ const BudgetStatusComponent: FC<WidgetComponentProps<BudgetStatusConfig>> = ({
   instanceId,
   isEditing,
   onRemove,
+  onConfigure,
 }) => {
   const { token } = theme.useToken();
   const { metrics, isLoading, error, entityId, refetch } = useWidgetEVMData(
@@ -35,6 +38,7 @@ const BudgetStatusComponent: FC<WidgetComponentProps<BudgetStatusConfig>> = ({
       error={error}
       onRemove={onRemove}
       onRefresh={refetch}
+      onConfigure={onConfigure}
     >
       {metrics ? (
         <BudgetOverviewChart metrics={metrics} />
@@ -71,5 +75,7 @@ registerWidget<BudgetStatusConfig>({
   component: BudgetStatusComponent,
   defaultConfig: {
     entityType: EntityType.PROJECT,
+    chartType: "bar",
   },
+  configFormComponent: BudgetStatusConfigForm,
 });

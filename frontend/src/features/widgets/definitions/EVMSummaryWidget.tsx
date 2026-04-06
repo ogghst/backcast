@@ -4,6 +4,7 @@ import type { FC } from "react";
 import { EntityType } from "@/features/evm/types";
 import { EVMSummaryView } from "@/features/evm/components/EVMSummaryView";
 import { WidgetShell } from "../components/WidgetShell";
+import { EVMSummaryConfigForm } from "../components/config-forms/EVMSummaryConfigForm";
 import { useWidgetEVMData } from "./shared/useWidgetEVMData";
 import { registerWidget, widgetTypeId } from "..";
 import type { WidgetComponentProps } from "../types";
@@ -19,6 +20,7 @@ const EVMSummaryComponent: FC<WidgetComponentProps<EVMSummaryConfig>> = ({
   instanceId,
   isEditing,
   onRemove,
+  onConfigure,
 }) => {
   const { token } = theme.useToken();
   const { metrics, isLoading, error, entityId, refetch } = useWidgetEVMData(
@@ -35,6 +37,7 @@ const EVMSummaryComponent: FC<WidgetComponentProps<EVMSummaryConfig>> = ({
       error={error}
       onRemove={onRemove}
       onRefresh={refetch}
+      onConfigure={onConfigure}
     >
       {metrics ? (
         <EVMSummaryView metrics={metrics} onAdvanced={undefined} hideHeader />
@@ -72,4 +75,5 @@ registerWidget<EVMSummaryConfig>({
   defaultConfig: {
     entityType: EntityType.PROJECT,
   },
+  configFormComponent: EVMSummaryConfigForm,
 });

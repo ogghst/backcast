@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import { ConfigProvider } from "antd";
+import { DashboardPage } from "./DashboardPage";
 import type { Dashboard } from "@/features/widgets/types";
 
 /**
@@ -20,6 +21,7 @@ vi.mock("react-router-dom", async () => {
   return {
     ...actual,
     useParams: () => mockParams,
+    useBlocker: () => ({ state: "unblocked" as const }),
   };
 });
 
@@ -53,30 +55,62 @@ vi.mock("react-grid-layout", () => ({
 /** Mock store state for the composition store */
 const mockStoreState: {
   isEditing: boolean;
+  isDirty: boolean;
   activeDashboard: Dashboard | null;
+  selectedWidgetId: string | null;
   setEditing: (v: boolean) => void;
   removeWidget: (id: string) => void;
   updateDashboardLayout: (
     items: Array<{ i: string; x: number; y: number; w: number; h: number }>,
   ) => void;
   addWidget: () => void;
+  selectWidget: (id: string | null) => void;
+  setPaletteOpen: (open: boolean) => void;
+  paletteOpen: boolean;
 } = {
   isEditing: false,
+  isDirty: false,
   activeDashboard: null,
+  selectedWidgetId: null,
   setEditing: vi.fn(),
   removeWidget: vi.fn(),
   updateDashboardLayout: vi.fn(),
   addWidget: vi.fn(),
+  selectWidget: vi.fn(),
+  setPaletteOpen: vi.fn(),
+  paletteOpen: false,
 };
+
+/**
+ * Mock useDashboardPersistence -- returns a stable save function.
+ */
+const mockSave = vi.fn();
+
+vi.mock("@/features/widgets/api/useDashboardPersistence", () => ({
+  useDashboardPersistence: () => ({
+    save: mockSave,
+    isSaving: false,
+    isLoading: false,
+  }),
+}));
 
 vi.mock("@/stores/useDashboardCompositionStore", () => ({
   useDashboardCompositionStore: (selector: (s: typeof mockStoreState) => unknown) =>
     selector(mockStoreState),
 }));
 
+vi.mock("@/features/widgets/api/useDashboardLayouts", () => ({
+  useDashboardLayoutTemplates: () => ({
+    data: [],
+    isLoading: false,
+  }),
+}));
+
 vi.mock("@/features/widgets/registry", () => ({
-  getWidgetDefinition: () => undefined,
-  getAllWidgetDefinitions: () => [],
+  registerWidget: vi.fn(),
+  getWidgetDefinition: vi.fn(() => undefined),
+  getWidgetsByCategory: vi.fn(() => []),
+  getAllWidgetDefinitions: vi.fn(() => []),
 }));
 
 /** Helper to render with Ant Design ConfigProvider */
@@ -84,38 +118,33 @@ function renderWithTheme(ui: React.ReactElement) {
   return render(<ConfigProvider>{ui}</ConfigProvider>);
 }
 
-/**
- * Dynamic import so the module picks up the current mockParams value.
- * Without this, the module is cached with the initial useParams return.
- */
-async function importDashboardPage() {
-  vi.resetModules();
-  const mod = await import("./DashboardPage");
-  return mod.DashboardPage;
-}
-
 describe("DashboardPage", () => {
   beforeEach(() => {
+    cleanup();
     mockParams = { projectId: "test-project-1" };
     mockStoreState.isEditing = false;
+    mockStoreState.isDirty = false;
     mockStoreState.activeDashboard = null;
+    mockStoreState.selectedWidgetId = null;
+    mockStoreState.paletteOpen = false;
     mockStoreState.setEditing = vi.fn();
     mockStoreState.removeWidget = vi.fn();
     mockStoreState.updateDashboardLayout = vi.fn();
     mockStoreState.addWidget = vi.fn();
+    mockStoreState.selectWidget = vi.fn();
+    mockStoreState.setPaletteOpen = vi.fn();
+    mockSave.mockReset();
   });
 
-  it("renders DashboardGrid when projectId is provided", async () => {
-    const DashboardPage = await importDashboardPage();
+  it("renders DashboardGrid when projectId is provided", () => {
     renderWithTheme(<DashboardPage />);
     expect(
-      screen.getByText("Start adding widgets to your dashboard"),
+      screen.getByText("Build Your Dashboard"),
     ).toBeInTheDocument();
   });
 
-  it("shows error result when no projectId", async () => {
+  it("shows error result when no projectId", () => {
     mockParams = {};
-    const DashboardPage = await importDashboardPage();
     renderWithTheme(<DashboardPage />);
     expect(screen.getByText("Project not found")).toBeInTheDocument();
     expect(
@@ -123,11 +152,73 @@ describe("DashboardPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the Customize button from DashboardGrid", async () => {
-    const DashboardPage = await importDashboardPage();
+  it("renders the Customize button from DashboardGrid", () => {
     renderWithTheme(<DashboardPage />);
     expect(
       screen.getByRole("button", { name: /customize/i }),
     ).toBeInTheDocument();
+  });
+
+  describe("Navigation guards", () => {
+    it("beforeunload event listener is added when isDirty is true", () => {
+      mockStoreState.isDirty = true;
+      const addSpy = vi.spyOn(window, "addEventListener");
+
+      renderWithTheme(<DashboardPage />);
+
+      expect(addSpy).toHaveBeenCalledWith(
+        "beforeunload",
+        expect.any(Function),
+      );
+
+      addSpy.mockRestore();
+    });
+
+    it("beforeunload event listener is removed when isDirty is false", () => {
+      mockStoreState.isDirty = false;
+      const removeSpy = vi.spyOn(window, "removeEventListener");
+
+      const { unmount } = renderWithTheme(<DashboardPage />);
+
+      // Unmount triggers the cleanup, which removes the listener
+      unmount();
+
+      expect(removeSpy).toHaveBeenCalledWith(
+        "beforeunload",
+        expect.any(Function),
+      );
+
+      removeSpy.mockRestore();
+    });
+
+    it("beforeunload handler calls preventDefault when isDirty", () => {
+      mockStoreState.isDirty = true;
+
+      renderWithTheme(<DashboardPage />);
+
+      const event = new Event("beforeunload", { cancelable: true });
+      const preventDefaultSpy = vi.spyOn(event, "preventDefault");
+
+      window.dispatchEvent(event);
+
+      expect(preventDefaultSpy).toHaveBeenCalled();
+
+      preventDefaultSpy.mockRestore();
+    });
+
+    it("beforeunload handler does not call preventDefault when not dirty", () => {
+      mockStoreState.isDirty = false;
+
+      renderWithTheme(<DashboardPage />);
+
+      const event = new Event("beforeunload", { cancelable: true });
+      const preventDefaultSpy = vi.spyOn(event, "preventDefault");
+
+      window.dispatchEvent(event);
+
+      expect(preventDefaultSpy).not.toHaveBeenCalled();
+
+      preventDefaultSpy.mockRestore();
+    });
   });
 });

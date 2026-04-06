@@ -9,6 +9,7 @@ import {
   RightOutlined,
   ReloadOutlined,
   EllipsisOutlined,
+  SettingOutlined,
 } from "@ant-design/icons";
 import { ErrorBoundary } from "react-error-boundary";
 import { useWidgetInteraction } from "./WidgetInteractionContext";
@@ -36,6 +37,8 @@ export interface WidgetShellProps {
   onRemove: () => void;
   /** Called when the refresh button is clicked */
   onRefresh?: () => void;
+  /** Called when the settings button is clicked (edit mode) */
+  onConfigure?: () => void;
   /** Widget content */
   children: ReactNode;
 }
@@ -131,6 +134,7 @@ export function WidgetShell({
   error,
   onRemove,
   onRefresh,
+  onConfigure,
   children,
 }: WidgetShellProps) {
   const { token } = theme.useToken();
@@ -290,6 +294,18 @@ export function WidgetShell({
                 }),
               }}
             />
+
+            {/* Settings button — opens config drawer */}
+            {onConfigure && (
+              <Button
+                type="text"
+                size="small"
+                icon={<SettingOutlined />}
+                onClick={onConfigure}
+                style={{ flexShrink: 0 }}
+                title="Configure widget"
+              />
+            )}
 
             {/* Title */}
             <span
