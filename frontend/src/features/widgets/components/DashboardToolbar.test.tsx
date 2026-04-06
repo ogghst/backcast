@@ -15,6 +15,8 @@ const mockStoreState: {
   updateDashboardName: (name: string) => void;
   resetDashboard: () => void;
   setPaletteOpen: (open: boolean) => void;
+  confirmChanges: () => void;
+  discardChanges: () => void;
   getState: () => typeof mockStoreState;
 } = {
   isEditing: false,
@@ -24,14 +26,18 @@ const mockStoreState: {
   updateDashboardName: vi.fn(),
   resetDashboard: vi.fn(),
   setPaletteOpen: vi.fn(),
+  confirmChanges: vi.fn(),
+  discardChanges: vi.fn(),
   getState() {
     return mockStoreState;
   },
 };
 
 vi.mock("@/stores/useDashboardCompositionStore", () => ({
-  useDashboardCompositionStore: (selector: (s: typeof mockStoreState) => unknown) =>
-    selector(mockStoreState),
+  useDashboardCompositionStore: Object.assign(
+    (selector: (s: typeof mockStoreState) => unknown) => selector(mockStoreState),
+    { getState: () => mockStoreState },
+  ),
 }));
 
 // ---------------------------------------------------------------------------
@@ -113,6 +119,8 @@ describe("DashboardToolbar", () => {
     mockStoreState.updateDashboardName = vi.fn();
     mockStoreState.resetDashboard = vi.fn();
     mockStoreState.setPaletteOpen = vi.fn();
+    mockStoreState.confirmChanges = vi.fn();
+    mockStoreState.discardChanges = vi.fn();
     mockSave.mockReset();
     mockTemplatesState.data = [];
     mockTemplatesState.isLoading = false;
@@ -152,11 +160,31 @@ describe("DashboardToolbar", () => {
     const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     expect(
-      screen.getByRole("button", { name: /finish customizing dashboard/i }),
+      screen.getByRole("button", { name: /save changes and finish editing/i }),
     ).toBeInTheDocument();
   });
 
-  it('clicking "Customize" toggles edit mode on', async () => {
+  it("shows Cancel button in edit mode", async () => {
+    mockStoreState.isEditing = true;
+    const DashboardToolbar = await importDashboardToolbar();
+    renderWithTheme(<DashboardToolbar onSave={mockSave} />);
+    expect(
+      screen.getByRole("button", { name: /cancel editing/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show Cancel or Done buttons in view mode", async () => {
+    const DashboardToolbar = await importDashboardToolbar();
+    renderWithTheme(<DashboardToolbar onSave={mockSave} />);
+    expect(
+      screen.queryByRole("button", { name: /cancel editing/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /save changes and finish editing/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('clicking "Customize" enters edit mode', async () => {
     const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     const btn = screen.getByRole("button", { name: /customize dashboard/i });
@@ -164,57 +192,32 @@ describe("DashboardToolbar", () => {
     expect(mockStoreState.setEditing).toHaveBeenCalledWith(true);
   });
 
-  it('clicking "Done" toggles edit mode off and auto-saves when dirty', async () => {
+  it('clicking "Done" saves and calls confirmChanges', async () => {
     mockStoreState.isEditing = true;
     mockStoreState.isDirty = true;
     mockSave.mockResolvedValue(undefined);
     const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
-    const btn = screen.getByRole("button", { name: /finish customizing dashboard/i });
+    const btn = screen.getByRole("button", { name: /save changes and finish editing/i });
     fireEvent.click(btn);
     await waitFor(() => {
       expect(mockSave).toHaveBeenCalled();
-      expect(mockStoreState.setEditing).toHaveBeenCalledWith(false);
+      expect(mockStoreState.confirmChanges).toHaveBeenCalled();
     });
   });
 
-  it('clicking "Done" when not dirty does not auto-save', async () => {
+  it('clicking "Done" saves even when not dirty', async () => {
     mockStoreState.isEditing = true;
     mockStoreState.isDirty = false;
-    const DashboardToolbar = await importDashboardToolbar();
-    renderWithTheme(<DashboardToolbar onSave={mockSave} />);
-    const btn = screen.getByRole("button", { name: /finish customizing dashboard/i });
-    fireEvent.click(btn);
-    expect(mockSave).not.toHaveBeenCalled();
-    expect(mockStoreState.setEditing).toHaveBeenCalledWith(false);
-  });
-
-  it("shows Save button when dirty", async () => {
-    mockStoreState.isDirty = true;
-    const DashboardToolbar = await importDashboardToolbar();
-    renderWithTheme(<DashboardToolbar onSave={mockSave} />);
-    expect(
-      screen.getByRole("button", { name: /save dashboard changes/i }),
-    ).toBeInTheDocument();
-  });
-
-  it("does not show Save button when not dirty", async () => {
-    mockStoreState.isDirty = false;
-    const DashboardToolbar = await importDashboardToolbar();
-    renderWithTheme(<DashboardToolbar onSave={mockSave} />);
-    expect(
-      screen.queryByRole("button", { name: /save dashboard changes/i }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("clicking Save calls save() and shows success message", async () => {
-    mockStoreState.isDirty = true;
     mockSave.mockResolvedValue(undefined);
     const DashboardToolbar = await importDashboardToolbar();
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
-    const btn = screen.getByRole("button", { name: /save dashboard changes/i });
+    const btn = screen.getByRole("button", { name: /save changes and finish editing/i });
     fireEvent.click(btn);
-    expect(mockSave).toHaveBeenCalledOnce();
+    await waitFor(() => {
+      expect(mockSave).toHaveBeenCalled();
+      expect(mockStoreState.confirmChanges).toHaveBeenCalled();
+    });
   });
 
   it('shows "Add Widget" button only in edit mode', async () => {
@@ -288,8 +291,7 @@ describe("DashboardToolbar", () => {
     expect(templateBtn).toBeDisabled();
   });
 
-  it("aria-labels are present on action buttons", async () => {
-    mockStoreState.isDirty = true;
+  it("aria-labels are present on action buttons in edit mode", async () => {
     mockStoreState.isEditing = true;
     mockStoreState.activeDashboard = {
       id: "dash-1",
@@ -319,13 +321,10 @@ describe("DashboardToolbar", () => {
       screen.getByRole("button", { name: /add widget to dashboard/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /save dashboard changes/i }),
+      screen.getByRole("button", { name: /cancel editing/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /reset dashboard to default/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /finish customizing dashboard/i }),
+      screen.getByRole("button", { name: /save changes and finish editing/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /select dashboard template/i }),

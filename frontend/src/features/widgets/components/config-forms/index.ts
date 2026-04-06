@@ -35,3 +35,5 @@ export {
   type EVMSummaryWidgetConfig,
   type EntityType,
 } from "./EVMSummaryConfigForm";
+
+export { ForecastConfigForm } from "./ForecastConfigForm";

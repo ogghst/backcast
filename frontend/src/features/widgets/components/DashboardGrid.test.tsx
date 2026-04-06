@@ -116,7 +116,7 @@ describe("DashboardGrid", () => {
   it('shows "Done" button when isEditing is true', () => {
     mockStoreState.isEditing = true;
     renderWithTheme(<DashboardGrid />);
-    expect(screen.getByRole("button", { name: /finish customizing/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save changes and finish editing/i })).toBeInTheDocument();
   });
 
   it('toggles edit mode when "Customize" button is clicked', () => {

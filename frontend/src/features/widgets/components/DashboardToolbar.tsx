@@ -4,15 +4,16 @@ import {
   Dropdown,
   Popconfirm,
   Space,
+  Tooltip,
   Typography,
   message,
   theme,
 } from "antd";
 import {
   CheckOutlined,
+  CloseOutlined,
   EditOutlined,
   PlusOutlined,
-  SaveOutlined,
   UndoOutlined,
   AppstoreOutlined,
 } from "@ant-design/icons";
@@ -23,16 +24,13 @@ import type { MenuProps } from "antd";
 const { Text } = Typography;
 
 /**
- * Enhanced toolbar for the dashboard composition page.
+ * Toolbar for the dashboard composition page.
  *
- * Features:
- * - Editable dashboard name (marks dirty on change)
- * - Save button with dirty-state indicator (red dot)
- * - Template selector dropdown (system + user templates)
- * - "Reset to Default" with confirmation
- * - Customize/Done toggle (auto-saves on Done)
- * - Add Widget button (edit mode only)
- * - Responsive layout
+ * View mode:  editable name | templates | [Reset] [Customize]
+ * Edit mode:  editable name | templates | [Add Widget] [Cancel] [Done]
+ *
+ * All buttons are icon-only with Tooltip wrappers.
+ * Edit mode uses transactional semantics: Done saves, Cancel discards.
  */
 export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
   const { token } = theme.useToken();
@@ -40,7 +38,6 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
 
   // Composition store state
   const isEditing = useDashboardCompositionStore((s) => s.isEditing);
-  const isDirty = useDashboardCompositionStore((s) => s.isDirty);
   const activeDashboard = useDashboardCompositionStore(
     (s) => s.activeDashboard,
   );
@@ -63,15 +60,17 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
     return { systemTemplates: system, userTemplates: user };
   }, [templates]);
 
-  // Toggle edit mode
-  const handleToggleEdit = useCallback(async () => {
-    if (isEditing && isDirty) {
-      // Auto-save before exiting edit mode
-      await onSave();
-      messageApi.success("Dashboard saved");
-    }
-    setEditing(!isEditing);
-  }, [isEditing, isDirty, onSave, setEditing, messageApi]);
+  // Enter edit mode
+  const handleCustomize = useCallback(() => {
+    setEditing(true);
+  }, [setEditing]);
+
+  // Done: save then confirm (exit edit mode)
+  const handleDone = useCallback(async () => {
+    await onSave();
+    useDashboardCompositionStore.getState().confirmChanges();
+    messageApi.success("Dashboard saved");
+  }, [onSave, messageApi]);
 
   // Handle name edit
   const handleNameChange = useCallback(
@@ -82,12 +81,6 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
     },
     [activeDashboard?.name, updateDashboardName],
   );
-
-  // Handle explicit save
-  const handleSave = useCallback(async () => {
-    await onSave();
-    messageApi.success("Dashboard saved");
-  }, [onSave, messageApi]);
 
   // Handle reset to default
   const handleReset = useCallback(() => {
@@ -101,7 +94,6 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
       const templateId = info.key;
       const template = templates.find((t) => t.id === templateId);
       if (template) {
-        // Load template into dashboard
         const store = useDashboardCompositionStore.getState();
         store.loadFromBackend(template);
         store.setEditing(true);
@@ -222,76 +214,79 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
           </Dropdown>
         </Space>
 
-        {/* Right side: Action buttons */}
+        {/* Right side: Action buttons (icon-only with tooltips) */}
         <Space size="small" wrap>
-          {/* Edit mode: Add widget button */}
-          {isEditing && (
-            <Button
-              icon={<PlusOutlined />}
-              aria-label="Add widget to dashboard"
-              onClick={() => {
-                useDashboardCompositionStore.getState().setPaletteOpen(true);
-              }}
-            >
-              Add Widget
-            </Button>
+          {isEditing ? (
+            <>
+              {/* Add Widget */}
+              <Tooltip title="Add Widget">
+                <Button
+                  icon={<PlusOutlined />}
+                  aria-label="Add widget to dashboard"
+                  onClick={() => {
+                    useDashboardCompositionStore.getState().setPaletteOpen(true);
+                  }}
+                />
+              </Tooltip>
+
+              {/* Cancel (always confirms discard) */}
+              <Popconfirm
+                title="Discard unsaved changes?"
+                onConfirm={() => {
+                  useDashboardCompositionStore.getState().discardChanges();
+                }}
+                okText="Discard"
+                cancelText="Keep Editing"
+                okButtonProps={{ danger: true }}
+              >
+                <Tooltip title="Cancel">
+                  <Button
+                    icon={<CloseOutlined />}
+                    aria-label="Cancel editing"
+                  />
+                </Tooltip>
+              </Popconfirm>
+
+              {/* Done */}
+              <Tooltip title="Done">
+                <Button
+                  type="primary"
+                  icon={<CheckOutlined />}
+                  aria-label="Save changes and finish editing"
+                  onClick={handleDone}
+                />
+              </Tooltip>
+            </>
+          ) : (
+            <>
+              {/* Reset to default */}
+              <Popconfirm
+                title="Reset to Default Template"
+                description="This will clear all your widgets and restore the default template. Continue?"
+                onConfirm={handleReset}
+                okText="Reset"
+                cancelText="Cancel"
+                okButtonProps={{ danger: true }}
+              >
+                <Tooltip title="Reset">
+                  <Button
+                    icon={<UndoOutlined />}
+                    disabled={!activeDashboard}
+                    aria-label="Reset dashboard to default"
+                  />
+                </Tooltip>
+              </Popconfirm>
+
+              {/* Customize */}
+              <Tooltip title="Customize">
+                <Button
+                  icon={<EditOutlined />}
+                  aria-label="Customize dashboard"
+                  onClick={handleCustomize}
+                />
+              </Tooltip>
+            </>
           )}
-
-          {/* Save button (shows when dirty) */}
-          {isDirty && (
-            <Button
-              type="primary"
-              icon={<SaveOutlined />}
-              aria-label="Save dashboard changes"
-              onClick={handleSave}
-            >
-              Save
-            </Button>
-          )}
-
-          {/* Reset to default button */}
-          <Popconfirm
-            title="Reset to Default Template"
-            description="This will clear all your widgets and restore the default template. Continue?"
-            onConfirm={handleReset}
-            okText="Reset"
-            cancelText="Cancel"
-            okButtonProps={{ danger: true }}
-          >
-            <Button icon={<UndoOutlined />} disabled={!activeDashboard} aria-label="Reset dashboard to default">
-              Reset
-            </Button>
-          </Popconfirm>
-
-          {/* Customize/Done toggle */}
-          <Button
-            aria-label={isEditing ? "Finish customizing dashboard" : "Customize dashboard"}
-            type={isEditing ? "primary" : "default"}
-            icon={
-              isEditing ? (
-                <>
-                  {isDirty && (
-                    <span
-                      style={{
-                        display: "inline-block",
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        background: token.colorError,
-                        marginRight: token.paddingXXS,
-                      }}
-                    />
-                  )}
-                  <CheckOutlined />
-                </>
-              ) : (
-                <EditOutlined />
-              )
-            }
-            onClick={handleToggleEdit}
-          >
-            {isEditing ? "Done" : "Customize"}
-          </Button>
         </Space>
       </div>
     </>

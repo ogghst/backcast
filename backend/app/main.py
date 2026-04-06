@@ -53,6 +53,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Clean up orphaned agent executions from previous server instance
     await _cleanup_orphaned_executions()
 
+    # Seed dashboard template layouts (idempotent)
+    from app.services.dashboard_layout_service import seed_dashboard_templates
+
+    await seed_dashboard_templates()
+
     # Startup: could check db connection here
     yield
     # Shutdown: clean up resources

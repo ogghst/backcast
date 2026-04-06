@@ -25,15 +25,16 @@ export function DashboardPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [modal, contextHolder] = Modal.useModal();
 
-  // Composition store for dirty state
+  // Composition store for dirty state and edit mode
   const isDirty = useDashboardCompositionStore((s) => s.isDirty);
+  const isEditing = useDashboardCompositionStore((s) => s.isEditing);
   // Wire dashboard persistence -- load from backend, auto-save on changes
   const { save, isLoading } = useDashboardPersistence(projectId ?? "");
 
   // Browser-level navigation guard (refresh, close, back/forward buttons)
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isDirty) {
+      if (isDirty || isEditing) {
         e.preventDefault();
         e.returnValue = ""; // Required for Chrome
       }
@@ -41,12 +42,12 @@ export function DashboardPage() {
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isDirty]);
+  }, [isDirty, isEditing]);
 
   // React Router navigation guard (tab changes, programmatic navigation)
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
-      isDirty && currentLocation.pathname !== nextLocation.pathname,
+      (isDirty || isEditing) && currentLocation.pathname !== nextLocation.pathname,
   );
 
   const modalShownRef = useRef(false);
@@ -55,29 +56,48 @@ export function DashboardPage() {
   useEffect(() => {
     if (blocker.state === "blocked" && !modalShownRef.current) {
       modalShownRef.current = true;
-      modal.confirm({
-        title: "Unsaved Changes",
-        content: "You have unsaved changes to your dashboard. What would you like to do?",
-        okText: "Leave",
-        cancelText: "Stay and Save",
-        okButtonProps: { danger: true },
-        onOk: () => {
-          // Proceed with navigation (discard changes)
-          blocker.proceed();
-        },
-        onCancel: async () => {
-          // Save changes and stay
-          await save();
-        },
-        afterClose: () => {
-          modalShownRef.current = false;
-        },
-      });
+
+      if (isEditing) {
+        modal.confirm({
+          title: "Unsaved Changes",
+          content: "You have unsaved changes to your dashboard. What would you like to do?",
+          okText: "Discard and Leave",
+          cancelText: "Stay and Save",
+          okButtonProps: { danger: true },
+          onOk: () => {
+            useDashboardCompositionStore.getState().discardChanges();
+            blocker.proceed();
+          },
+          onCancel: async () => {
+            await save();
+          },
+          afterClose: () => {
+            modalShownRef.current = false;
+          },
+        });
+      } else {
+        modal.confirm({
+          title: "Unsaved Changes",
+          content: "You have unsaved changes to your dashboard. What would you like to do?",
+          okText: "Leave",
+          cancelText: "Stay and Save",
+          okButtonProps: { danger: true },
+          onOk: () => {
+            blocker.proceed();
+          },
+          onCancel: async () => {
+            await save();
+          },
+          afterClose: () => {
+            modalShownRef.current = false;
+          },
+        });
+      }
     }
     if (blocker.state !== "blocked") {
       modalShownRef.current = false;
     }
-  }, [blocker, modal, save]);
+  }, [blocker, modal, save, isEditing]);
 
   if (!projectId) {
     return (

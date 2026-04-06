@@ -113,6 +113,10 @@ vi.mock("@/features/widgets/registry", () => ({
   getAllWidgetDefinitions: vi.fn(() => []),
 }));
 
+vi.mock("@/features/widgets/definitions/registerAll", () => ({
+  registerAllWidgets: vi.fn(),
+}));
+
 /** Helper to render with Ant Design ConfigProvider */
 function renderWithTheme(ui: React.ReactElement) {
   return render(<ConfigProvider>{ui}</ConfigProvider>);

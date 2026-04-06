@@ -4,12 +4,188 @@ Provides CRUD and utility operations for managing per-user dashboard
 layouts, including templates, defaults, and project-scoped configurations.
 """
 
+import logging
+import uuid
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.domain.dashboard_layout import DashboardLayout
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Template seeding definitions
+# ---------------------------------------------------------------------------
+# Each entry maps a template name to its widget layout.  The ``widgets``
+# list follows the frontend ``WidgetInstance`` shape so the dashboard grid
+# can render them without transformation.
+
+_TEMPLATES: dict[str, dict[str, Any]] = {
+    "Project Overview": {
+        "description": "Standard project dashboard with header, KPIs, and budget overview",
+        "widgets": [
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "project-header",
+                "config": {"showDates": True, "showStatus": True},
+                "layout": {"x": 0, "y": 0, "w": 4, "h": 1},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "quick-stats-bar",
+                "config": {"entityType": "PROJECT", "variant": "full"},
+                "layout": {"x": 4, "y": 0, "w": 4, "h": 1},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "evm-summary",
+                "config": {"entityType": "PROJECT"},
+                "layout": {"x": 8, "y": 0, "w": 2, "h": 2},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "budget-status",
+                "config": {"entityType": "PROJECT", "chartType": "bar"},
+                "layout": {"x": 0, "y": 1, "w": 4, "h": 2},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "variance-chart",
+                "config": {
+                    "entityType": "PROJECT",
+                    "showThresholds": False,
+                    "thresholdPercent": 10,
+                },
+                "layout": {"x": 4, "y": 1, "w": 4, "h": 2},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "wbe-tree",
+                "config": {"showBudget": True, "showDates": True},
+                "layout": {"x": 0, "y": 3, "w": 4, "h": 3},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "cost-registrations",
+                "config": {"pageSize": 10, "showAddButton": False},
+                "layout": {"x": 4, "y": 3, "w": 4, "h": 3},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "health-summary",
+                "config": {
+                    "entityType": "PROJECT",
+                    "goodThreshold": 1.0,
+                    "warningThreshold": 0.9,
+                },
+                "layout": {"x": 8, "y": 2, "w": 4, "h": 2},
+            },
+        ],
+    },
+    "EVM Analysis": {
+        "description": "Diagnostic EVM dashboard with trend analysis and efficiency gauges",
+        "widgets": [
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "project-header",
+                "config": {"showDates": True, "showStatus": True},
+                "layout": {"x": 0, "y": 0, "w": 4, "h": 1},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "evm-summary",
+                "config": {"entityType": "PROJECT"},
+                "layout": {"x": 4, "y": 0, "w": 4, "h": 2},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "evm-efficiency-gauges",
+                "config": {
+                    "entityType": "PROJECT",
+                    "goodThreshold": 1.0,
+                    "warningPercent": 0.9,
+                },
+                "layout": {"x": 8, "y": 0, "w": 4, "h": 2},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "evm-trend-chart",
+                "config": {"entityType": "PROJECT", "granularity": "MONTH"},
+                "layout": {"x": 0, "y": 2, "w": 6, "h": 3},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "variance-chart",
+                "config": {
+                    "entityType": "PROJECT",
+                    "showThresholds": False,
+                    "thresholdPercent": 10,
+                },
+                "layout": {"x": 6, "y": 2, "w": 6, "h": 3},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "forecast",
+                "config": {"showVAC": True, "showETC": True},
+                "layout": {"x": 0, "y": 5, "w": 4, "h": 2},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "health-summary",
+                "config": {
+                    "entityType": "PROJECT",
+                    "goodThreshold": 1.0,
+                    "warningThreshold": 0.9,
+                },
+                "layout": {"x": 4, "y": 5, "w": 4, "h": 2},
+            },
+        ],
+    },
+    "Cost Controller": {
+        "description": "Financial tracking with budget, costs, change orders, and forecasts",
+        "widgets": [
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "project-header",
+                "config": {"showDates": True, "showStatus": True},
+                "layout": {"x": 0, "y": 0, "w": 12, "h": 1},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "budget-status",
+                "config": {"entityType": "PROJECT", "chartType": "bar"},
+                "layout": {"x": 0, "y": 1, "w": 6, "h": 2},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "cost-registrations",
+                "config": {"pageSize": 10, "showAddButton": False},
+                "layout": {"x": 6, "y": 1, "w": 6, "h": 2},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "change-orders-list",
+                "config": {"statusFilter": "all", "pageSize": 5},
+                "layout": {"x": 0, "y": 3, "w": 6, "h": 3},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "change-order-analytics",
+                "config": {"chartType": "distribution"},
+                "layout": {"x": 6, "y": 3, "w": 6, "h": 3},
+            },
+            {
+                "instanceId": str(uuid.uuid4()),
+                "typeId": "forecast",
+                "config": {"showVAC": True, "showETC": True},
+                "layout": {"x": 0, "y": 6, "w": 6, "h": 2},
+            },
+        ],
+    },
+}
 
 
 class DashboardLayoutService:
@@ -306,5 +482,69 @@ class DashboardLayoutService:
             layout.is_default = True
             await self.session.flush()
 
+    async def seed_templates(self, system_user_id: uuid.UUID) -> int:
+        """Create template layouts that do not already exist.
+
+        Idempotent: queries existing template names first and only inserts
+        those that are missing.
+
+        Args:
+            system_user_id: UUID of the system user who owns the templates.
+
+        Returns:
+            Number of newly created templates.
+        """
+        existing = await self.get_templates()
+        existing_names = {t.name for t in existing}
+
+        created = 0
+        for name, tpl in _TEMPLATES.items():
+            if name in existing_names:
+                continue
+            layout = DashboardLayout(
+                name=name,
+                description=tpl["description"],
+                user_id=system_user_id,
+                project_id=None,
+                is_template=True,
+                is_default=False,
+                widgets=tpl["widgets"],
+            )
+            self.session.add(layout)
+            created += 1
+
+        if created:
+            await self.session.flush()
+            logger.info("Seeded %d dashboard template(s)", created)
+
+        return created
+
     def __repr__(self) -> str:
         return "<DashboardLayoutService>"
+
+
+async def seed_dashboard_templates() -> None:
+    """Seed template layouts on application startup.
+
+    Safe to call multiple times -- existing templates are skipped.
+    Opens its own session and commits independently.
+    """
+    from sqlalchemy import select as sa_select
+
+    from app.db.session import async_session_maker  # noqa: F811
+    from app.models.domain.user import User
+
+    async with async_session_maker() as db:
+        result = await db.execute(
+            sa_select(User).where(User.email == "admin@backcast.org").limit(1)
+        )
+        admin = result.scalar_one_or_none()
+        if admin is None:
+            logger.warning(
+                "Admin user not found; skipping dashboard template seeding"
+            )
+            return
+
+        service = DashboardLayoutService(db)
+        await service.seed_templates(admin.user_id)
+        await db.commit()

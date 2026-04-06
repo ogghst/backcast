@@ -75,7 +75,7 @@ export function useDashboardPersistence(projectId: string) {
       if (bid) {
         const result = await mutationsRef.current.updateMutation.mutateAsync({
           id: bid,
-          data: { widgets } as DashboardLayoutUpdate,
+          data: { name: dashboard.name, widgets } as DashboardLayoutUpdate,
         });
         useDashboardCompositionStore.getState().markSaved(result.id);
       } else {
@@ -139,6 +139,8 @@ export function useDashboardPersistence(projectId: string) {
     if (!isDirty) return;
     // Need an active dashboard to save
     if (!activeDashboard) return;
+    // Don't auto-save while in edit mode - changes are transactional
+    if (useDashboardCompositionStore.getState().isEditing) return;
 
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);

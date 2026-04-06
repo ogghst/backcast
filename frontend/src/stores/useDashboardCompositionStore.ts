@@ -39,10 +39,15 @@ interface DashboardCompositionState {
   projectId: string;
   /** Whether the widget palette modal is open */
   paletteOpen: boolean;
+  /**
+   * JSON-serialized snapshot of activeDashboard taken when entering edit mode.
+   * Used by discardChanges() to restore the pre-edit state.
+   */
+  _lastSavedSnapshot: string | null;
   /** Toggle the widget palette modal */
   setPaletteOpen: (open: boolean) => void;
 
-  /** Toggle dashboard edit mode */
+  /** Toggle dashboard edit mode (takes snapshot on enter) */
   setEditing: (editing: boolean) => void;
   /** Set the project ID from the route */
   setProjectId: (projectId: string) => void;
@@ -83,6 +88,10 @@ interface DashboardCompositionState {
   loadFromBackend: (layout: DashboardLayoutRead) => void;
   /** Mark the dashboard as saved, storing the backend layout ID */
   markSaved: (backendId: string) => void;
+  /** Restore dashboard to snapshot taken at edit-mode entry, then exit edit mode */
+  discardChanges: () => void;
+  /** Exit edit mode after a successful save (clears snapshot, deselects widget) */
+  confirmChanges: () => void;
 }
 
 /**
@@ -116,10 +125,16 @@ export const useDashboardCompositionStore =
       backendId: null,
       projectId: "",
       paletteOpen: false,
+      _lastSavedSnapshot: null,
 
       setEditing: (editing) =>
         set((state) => {
+          if (editing && state.activeDashboard) {
+            // Take a snapshot of the current dashboard before entering edit mode
+            state._lastSavedSnapshot = JSON.stringify(state.activeDashboard);
+          }
           state.isEditing = editing;
+          state.isDirty = false;
         }),
 
       setProjectId: (projectId) =>
@@ -262,6 +277,24 @@ export const useDashboardCompositionStore =
         set((state) => {
           state.backendId = backendId;
           state.isDirty = false;
+        }),
+
+      discardChanges: () =>
+        set((state) => {
+          if (state._lastSavedSnapshot) {
+            state.activeDashboard = JSON.parse(state._lastSavedSnapshot);
+          }
+          state._lastSavedSnapshot = null;
+          state.isDirty = false;
+          state.isEditing = false;
+          state.selectedWidgetId = null;
+        }),
+
+      confirmChanges: () =>
+        set((state) => {
+          state._lastSavedSnapshot = null;
+          state.isEditing = false;
+          state.selectedWidgetId = null;
         }),
     })),
   );
