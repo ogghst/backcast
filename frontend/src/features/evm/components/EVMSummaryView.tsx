@@ -19,6 +19,8 @@ export interface EVMSummaryViewProps {
   metrics: EVMMetricsResponse;
   /** Callback when Advanced button is clicked */
   onAdvanced?: () => void;
+  /** When true, skip the title and Advanced button header */
+  hideHeader?: boolean;
 }
 
 /**
@@ -116,6 +118,7 @@ function renderMetricCards(
 export const EVMSummaryView: React.FC<EVMSummaryViewProps> = ({
   metrics,
   onAdvanced,
+  hideHeader = false,
 }) => {
   /**
    * Handle Advanced button click.
@@ -154,24 +157,26 @@ export const EVMSummaryView: React.FC<EVMSummaryViewProps> = ({
       style={{ width: "100%" }}
     >
       {/* Header with Advanced button */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <Title level={3} style={{ margin: 0 }}>
-          EVM Summary
-        </Title>
-        <Button
-          type="primary"
-          icon={<LineChartOutlined />}
-          onClick={handleAdvancedClick}
+      {!hideHeader && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
         >
-          Advanced
-        </Button>
-      </div>
+          <Title level={3} style={{ margin: 0 }}>
+            EVM Summary
+          </Title>
+          <Button
+            type="primary"
+            icon={<LineChartOutlined />}
+            onClick={handleAdvancedClick}
+          >
+            Advanced
+          </Button>
+        </div>
+      )}
 
       {/* Collapsible metric categories */}
       <Collapse
