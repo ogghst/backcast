@@ -218,7 +218,6 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
             ? `radial-gradient(circle, ${token.colorBorderSecondary} 1px, transparent 1px)`
             : undefined,
           backgroundSize: isEditing ? "24px 24px" : undefined,
-          padding: token.paddingSM,
         }}
       >
         {/* Empty state */}
@@ -270,6 +269,7 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
           layouts={layouts}
           rowHeight={ROW_HEIGHT}
           margin={MARGIN}
+          containerPadding={[12, 12]}
           isDraggable={false}
           isResizable={false}
           onLayoutChange={handleLayoutChange}
@@ -312,21 +312,22 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
               const WidgetComponent = definition.component;
 
               return (
-                <WidgetErrorBoundary
-                  key={widget.instanceId}
-                  instanceId={widget.instanceId}
-                  onRemove={() => removeWidget(widget.instanceId)}
-                >
-                  <WidgetComponent
-                    config={
-                      widget.config as Parameters<typeof WidgetComponent>[0]["config"]
-                    }
+                <div key={widget.instanceId}>
+                  <WidgetErrorBoundary
                     instanceId={widget.instanceId}
-                    isEditing={isEditing}
                     onRemove={() => removeWidget(widget.instanceId)}
-                    onConfigure={() => selectWidget(widget.instanceId)}
-                  />
-                </WidgetErrorBoundary>
+                  >
+                    <WidgetComponent
+                      config={
+                        widget.config as Parameters<typeof WidgetComponent>[0]["config"]
+                      }
+                      instanceId={widget.instanceId}
+                      isEditing={isEditing}
+                      onRemove={() => removeWidget(widget.instanceId)}
+                      onConfigure={() => selectWidget(widget.instanceId)}
+                    />
+                  </WidgetErrorBoundary>
+                </div>
               );
             } catch (error) {
               console.error(`Error rendering widget ${widget.instanceId}:`, error);
