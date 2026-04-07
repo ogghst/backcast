@@ -115,8 +115,6 @@ export function DashboardPage() {
       <DashboardContextBus projectId={projectId}>
         <div
           style={{
-            height: "100%",
-            overflow: "auto",
             padding: token.paddingMD,
           }}
         >

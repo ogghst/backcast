@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button, theme, Typography } from "antd";
-import { LayoutOutlined, PlusOutlined } from "@ant-design/icons";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Button, Result, theme, Typography } from "antd";
+import { LayoutOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import {
   Responsive,
   useContainerWidth,
@@ -19,6 +19,51 @@ import {
 } from "./WidgetInteractionContext";
 
 const { Title, Text } = Typography;
+
+/**
+ * Error boundary for individual widgets.
+ * Catches errors in widget rendering without crashing the entire dashboard.
+ */
+class WidgetErrorBoundary extends React.Component<
+  { children: React.ReactNode; instanceId: string; onRemove: () => void },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode; instanceId: string; onRemove: () => void }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error(`[WidgetErrorBoundary] Widget ${this.props.instanceId} crashed:`, error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 16, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Result
+            status="warning"
+            title="Widget Error"
+            subTitle={this.state.error?.message || 'This widget failed to render'}
+            extra={[
+              <Button key="reload" icon={<ReloadOutlined />} onClick={() => this.setState({ hasError: false, error: null })}>
+                Retry
+              </Button>,
+              <Button key="remove" danger onClick={this.props.onRemove}>
+                Remove
+              </Button>,
+            ]}
+          />
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480 };
 const COLS = { lg: 12, md: 10, sm: 6, xs: 4 };
@@ -245,39 +290,59 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
           draggableHandle=".react-grid-drag-handle"
         >
           {widgets.map((widget) => {
-            const meta = widgetMeta.get(widget.instanceId);
-            const definition = meta?.definition;
+            try {
+              const meta = widgetMeta.get(widget.instanceId);
+              const definition = meta?.definition;
 
-            if (!definition) {
+              if (!definition) {
+                return (
+                  <div
+                    key={widget.instanceId}
+                    style={{
+                      padding: token.paddingMD,
+                      color: token.colorTextSecondary,
+                      textAlign: "center",
+                    }}
+                  >
+                    Widget type &quot;{widget.typeId}&quot; not found in registry
+                  </div>
+                );
+              }
+
+              const WidgetComponent = definition.component;
+
+              return (
+                <WidgetErrorBoundary
+                  key={widget.instanceId}
+                  instanceId={widget.instanceId}
+                  onRemove={() => removeWidget(widget.instanceId)}
+                >
+                  <WidgetComponent
+                    config={
+                      widget.config as Parameters<typeof WidgetComponent>[0]["config"]
+                    }
+                    instanceId={widget.instanceId}
+                    isEditing={isEditing}
+                    onRemove={() => removeWidget(widget.instanceId)}
+                    onConfigure={() => selectWidget(widget.instanceId)}
+                  />
+                </WidgetErrorBoundary>
+              );
+            } catch (error) {
+              console.error(`Error rendering widget ${widget.instanceId}:`, error);
               return (
                 <div
                   key={widget.instanceId}
                   style={{
                     padding: token.paddingMD,
-                    color: token.colorTextSecondary,
+                    color: token.colorError,
                     textAlign: "center",
                   }}
                 >
-                  Widget type &quot;{widget.typeId}&quot; not found in registry
+                  Widget failed to load
                 </div>
               );
             }
-
-            const WidgetComponent = definition.component;
-
-            return (
-              <div key={widget.instanceId}>
-                <WidgetComponent
-                  config={
-                    widget.config as Parameters<typeof WidgetComponent>[0]["config"]
-                  }
-                  instanceId={widget.instanceId}
-                  isEditing={isEditing}
-                  onRemove={() => removeWidget(widget.instanceId)}
-                  onConfigure={() => selectWidget(widget.instanceId)}
-                />
-              </div>
-            );
           })}
         </Responsive>
       )}

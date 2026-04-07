@@ -52,7 +52,12 @@ const BudgetStatusComponent: FC<WidgetComponentProps<BudgetStatusConfig>> = ({
               padding: token.paddingMD,
             }}
           >
-            <Text type="secondary">Select an entity to view budget status</Text>
+            <Text type="secondary">
+              {config.entityType === EntityType.PROJECT ||
+              config.entityType === "project"
+                ? "No project data available"
+                : "Select an entity to view budget status"}
+            </Text>
           </div>
         )
       )}

@@ -36,26 +36,26 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
             {
                 "instanceId": str(uuid.uuid4()),
                 "typeId": "quick-stats-bar",
-                "config": {"entityType": "PROJECT", "variant": "full"},
+                "config": {"entityType": "project", "variant": "full"},
                 "layout": {"x": 4, "y": 0, "w": 4, "h": 1},
             },
             {
                 "instanceId": str(uuid.uuid4()),
                 "typeId": "evm-summary",
-                "config": {"entityType": "PROJECT"},
+                "config": {"entityType": "project"},
                 "layout": {"x": 8, "y": 0, "w": 2, "h": 2},
             },
             {
                 "instanceId": str(uuid.uuid4()),
                 "typeId": "budget-status",
-                "config": {"entityType": "PROJECT", "chartType": "bar"},
+                "config": {"entityType": "project", "chartType": "bar"},
                 "layout": {"x": 0, "y": 1, "w": 4, "h": 2},
             },
             {
                 "instanceId": str(uuid.uuid4()),
                 "typeId": "variance-chart",
                 "config": {
-                    "entityType": "PROJECT",
+                    "entityType": "project",
                     "showThresholds": False,
                     "thresholdPercent": 10,
                 },
@@ -77,7 +77,7 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
                 "instanceId": str(uuid.uuid4()),
                 "typeId": "health-summary",
                 "config": {
-                    "entityType": "PROJECT",
+                    "entityType": "project",
                     "goodThreshold": 1.0,
                     "warningThreshold": 0.9,
                 },
@@ -97,14 +97,14 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
             {
                 "instanceId": str(uuid.uuid4()),
                 "typeId": "evm-summary",
-                "config": {"entityType": "PROJECT"},
+                "config": {"entityType": "project"},
                 "layout": {"x": 4, "y": 0, "w": 4, "h": 2},
             },
             {
                 "instanceId": str(uuid.uuid4()),
                 "typeId": "evm-efficiency-gauges",
                 "config": {
-                    "entityType": "PROJECT",
+                    "entityType": "project",
                     "goodThreshold": 1.0,
                     "warningPercent": 0.9,
                 },
@@ -113,14 +113,14 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
             {
                 "instanceId": str(uuid.uuid4()),
                 "typeId": "evm-trend-chart",
-                "config": {"entityType": "PROJECT", "granularity": "MONTH"},
+                "config": {"entityType": "project", "granularity": "MONTH"},
                 "layout": {"x": 0, "y": 2, "w": 6, "h": 3},
             },
             {
                 "instanceId": str(uuid.uuid4()),
                 "typeId": "variance-chart",
                 "config": {
-                    "entityType": "PROJECT",
+                    "entityType": "project",
                     "showThresholds": False,
                     "thresholdPercent": 10,
                 },
@@ -136,7 +136,7 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
                 "instanceId": str(uuid.uuid4()),
                 "typeId": "health-summary",
                 "config": {
-                    "entityType": "PROJECT",
+                    "entityType": "project",
                     "goodThreshold": 1.0,
                     "warningThreshold": 0.9,
                 },
@@ -156,7 +156,7 @@ _TEMPLATES: dict[str, dict[str, Any]] = {
             {
                 "instanceId": str(uuid.uuid4()),
                 "typeId": "budget-status",
-                "config": {"entityType": "PROJECT", "chartType": "bar"},
+                "config": {"entityType": "project", "chartType": "bar"},
                 "layout": {"x": 0, "y": 1, "w": 6, "h": 2},
             },
             {

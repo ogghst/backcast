@@ -31,7 +31,7 @@ async def service(db_session: AsyncSession) -> DashboardLayoutService:
 
 def _widget_payload() -> list[dict[str, object]]:
     """Return a minimal widget configuration for testing."""
-    return [{"typeId": "budget-status", "config": {"entityType": "PROJECT"}}]
+    return [{"typeId": "budget-status", "config": {"entityType": "project"}}]
 
 
 # ---------------------------------------------------------------------------

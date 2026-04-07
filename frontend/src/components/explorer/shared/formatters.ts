@@ -15,6 +15,19 @@ const currencyFormatter = new Intl.NumberFormat("en-US", {
 export const formatCurrency = (v: string | number | null | undefined) =>
   !v ? "-" : currencyFormatter.format(Number(v));
 
+export const formatCompactCurrency = (
+  v: string | number | null | undefined,
+): string => {
+  if (v === null || v === undefined) return "--";
+  const num = Number(v);
+  if (isNaN(num)) return "--";
+  const sign = num < 0 ? "-" : "";
+  const abs = Math.abs(num);
+  if (abs >= 1_000_000) return `${sign}€${(abs / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${sign}€${(abs / 1_000).toFixed(1)}K`;
+  return `${sign}€${abs.toFixed(0)}`;
+};
+
 export const formatDate = (d: string | null | undefined) =>
   !d ? "-" : new Date(d).toLocaleDateString();
 

@@ -36,6 +36,10 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
   const { token } = theme.useToken();
   const { message: messageApi, contextHolder } = message.useMessage();
 
+  // Fallback in case messageApi is undefined (shouldn't happen with proper hook usage)
+  const showMessage = messageApi ? messageApi.success : message.success;
+  const showError = messageApi ? messageApi.error : message.error;
+
   // Composition store state
   const isEditing = useDashboardCompositionStore((s) => s.isEditing);
   const activeDashboard = useDashboardCompositionStore(
@@ -69,8 +73,8 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
   const handleDone = useCallback(async () => {
     await onSave();
     useDashboardCompositionStore.getState().confirmChanges();
-    messageApi.success("Dashboard saved");
-  }, [onSave, messageApi]);
+    showMessage("Dashboard saved");
+  }, [onSave, showMessage]);
 
   // Handle name edit
   const handleNameChange = useCallback(
@@ -85,8 +89,8 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
   // Handle reset to default
   const handleReset = useCallback(() => {
     resetDashboard();
-    messageApi.success("Dashboard reset to default");
-  }, [resetDashboard, messageApi]);
+    showMessage("Dashboard reset to default");
+  }, [resetDashboard, showMessage]);
 
   // Handle template selection
   const handleTemplateSelect: MenuProps["onClick"] = useCallback(
@@ -97,10 +101,11 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
         const store = useDashboardCompositionStore.getState();
         store.loadFromBackend(template);
         store.setEditing(true);
-        messageApi.success(`Template "${template.name}" applied`);
+        // Use showMessage fallback to avoid undefined issues
+        showMessage(`Template "${template.name}" applied`);
       }
     },
-    [templates, messageApi],
+    [templates, showMessage],
   );
 
   // Build template dropdown menu

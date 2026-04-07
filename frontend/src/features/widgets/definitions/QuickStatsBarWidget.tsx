@@ -2,7 +2,7 @@ import { DashboardOutlined } from "@ant-design/icons";
 import { Typography, theme } from "antd";
 import type { FC } from "react";
 import { EntityType } from "@/features/evm/types";
-import { KPIStrip } from "@/components/explorer/charts/KPIStrip";
+import { CompactKPIStrip } from "./shared/CompactKPIStrip";
 import { WidgetShell } from "../components/WidgetShell";
 import { useWidgetEVMData } from "./shared/useWidgetEVMData";
 import { registerWidget, widgetTypeId } from "..";
@@ -12,7 +12,8 @@ const { Text } = Typography;
 
 interface QuickStatsBarConfig {
   entityType: EntityType;
-  variant: "full" | "compact";
+  /** @deprecated No longer used; kept for backward-compatible persisted configs. */
+  variant?: "full" | "compact";
 }
 
 const QuickStatsBarComponent: FC<WidgetComponentProps<QuickStatsBarConfig>> = ({
@@ -40,7 +41,7 @@ const QuickStatsBarComponent: FC<WidgetComponentProps<QuickStatsBarConfig>> = ({
       onConfigure={onConfigure}
     >
       {metrics ? (
-        <KPIStrip metrics={metrics} variant={config.variant} hideCard />
+        <CompactKPIStrip metrics={metrics} />
       ) : (
         !isLoading &&
         !error &&
@@ -62,7 +63,7 @@ const QuickStatsBarComponent: FC<WidgetComponentProps<QuickStatsBarConfig>> = ({
 registerWidget<QuickStatsBarConfig>({
   typeId: widgetTypeId("quick-stats-bar"),
   displayName: "Quick Stats Bar",
-  description: "At-a-glance KPI strip with CPI, SPI, progress, and EAC gauges",
+  description: "Compact KPI strip showing CPI, SPI, progress, CV, and VAC",
   category: "summary",
   icon: <DashboardOutlined />,
   sizeConstraints: {

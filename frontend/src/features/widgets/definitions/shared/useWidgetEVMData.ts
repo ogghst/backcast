@@ -12,6 +12,31 @@ interface WidgetEVMDataResult {
 }
 
 /**
+ * Maps widget config entity types to the lowercase API format.
+ * Handles both uppercase enum keys strings (e.g., "PROJECT", "WBE", "COST_ELEMENT")
+ * and lowercase values (e.g., "project", "wbe", "cost_element").
+ * Returns undefined for unknown entity types.
+ */
+function normalizeEntityType(raw: string | undefined): EntityType | undefined {
+  if (!raw) return undefined;
+  const str = String(raw);
+  switch (str) {
+    case "PROJECT":
+    case "project":
+      return EntityType.PROJECT;
+    case "WBE":
+    case "wbe":
+      return EntityType.WBE;
+    case "COST_ELEMENT":
+    case "cost_element":
+      return EntityType.COST_ELEMENT;
+    default:
+      console.warn(`Unknown entity type: ${raw}`);
+      return undefined;
+  }
+}
+
+/**
  * Resolves entity scope from dashboard context and fetches EVM metrics.
  *
  * Maps EntityType to the correct ID from context:
@@ -19,19 +44,26 @@ interface WidgetEVMDataResult {
  * - WBE -> wbeId
  * - COST_ELEMENT -> costElementId
  *
+ * Uses string-based comparison to handle both enum references and plain strings
+ * from deserialized backend JSON config.
+ *
  * When the needed ID is undefined, returns a disabled query.
  */
 export function useWidgetEVMData(entityType: EntityType): WidgetEVMDataResult {
   const context = useDashboardContext();
 
+  // Normalize to string for robust comparison against both enum and raw string values
+  const entityTypeStr = String(entityType);
+
   const entityId =
-    entityType === EntityType.PROJECT
+    entityTypeStr === EntityType.PROJECT || entityTypeStr === "project"
       ? context.projectId
-      : entityType === EntityType.WBE
+      : entityTypeStr === EntityType.WBE || entityTypeStr === "wbe"
         ? context.wbeId
         : context.costElementId;
 
-  const result = useEVMMetrics(entityType, entityId ?? "");
+  const normalizedType = normalizeEntityType(entityType);
+  const result = useEVMMetrics(normalizedType ?? EntityType.PROJECT, entityId ?? "");
 
   return {
     metrics: result.data,

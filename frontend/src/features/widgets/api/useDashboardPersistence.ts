@@ -7,7 +7,7 @@
  * Uses TanStack Query mutations for POST/PUT and direct API call for GET.
  */
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { message } from "antd";
 import { useDashboardCompositionStore } from "@/stores/useDashboardCompositionStore";
 import {
@@ -46,7 +46,7 @@ export function useDashboardPersistence(projectId: string) {
   const updateMutation = useUpdateDashboardLayout();
 
   // Track whether initial load has completed to avoid premature saves
-  const loadDoneRef = useRef(false);
+  const [loadDone, setLoadDone] = useState(false);
 
   // Ref-copy of mutations so the async save function stays current
   const mutationsRef = useRef({ createMutation, updateMutation });
@@ -116,7 +116,7 @@ export function useDashboardPersistence(projectId: string) {
         // If load fails, the user starts with an empty dashboard.
         // The loadError return value lets the page show a retry option.
       } finally {
-        loadDoneRef.current = true;
+        setLoadDone(true);
       }
     }
 
@@ -135,7 +135,7 @@ export function useDashboardPersistence(projectId: string) {
 
   useEffect(() => {
     // Don't save until the initial load finishes
-    if (!loadDoneRef.current) return;
+    if (!loadDone) return;
     if (!isDirty) return;
     // Need an active dashboard to save
     if (!activeDashboard) return;
@@ -155,7 +155,7 @@ export function useDashboardPersistence(projectId: string) {
         clearTimeout(debounceRef.current);
       }
     };
-  }, [isDirty, activeDashboard, backendId, storedProjectId, saveDashboard]);
+  }, [isDirty, activeDashboard, backendId, storedProjectId, saveDashboard, loadDone]);
 
   // ------------------------------------------------------------------
   // Return public API
@@ -166,6 +166,6 @@ export function useDashboardPersistence(projectId: string) {
     /** Whether a save operation is currently in progress */
     isSaving: createMutation.isPending || updateMutation.isPending,
     /** Whether the initial dashboard load is still in progress */
-    isLoading: !loadDoneRef.current,
+    isLoading: !loadDone,
   };
 }
