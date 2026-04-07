@@ -9,7 +9,7 @@ import { Row, Col } from "antd";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 
 /**
- * Shimmer animation keyframes
+ * Shimmer animation keyframes — injected once at module load.
  */
 const shimmerStyle = {
   background: "linear-gradient(90deg, #f5f3f0 0%, #faf9f7 50%, #f5f3f0 100%)",
@@ -17,20 +17,17 @@ const shimmerStyle = {
   animation: "shimmer 1.5s infinite",
 };
 
-// Add keyframes via style tag (will be added to document on mount)
-const addKeyframes = () => {
-  if (!document.getElementById("dashboard-skeleton-keyframes")) {
-    const style = document.createElement("style");
-    style.id = "dashboard-skeleton-keyframes";
-    style.textContent = `
-      @keyframes shimmer {
-        0% { background-position: 200% 0; }
-        100% { background-position: -200% 0; }
-      }
-    `;
-    document.head.appendChild(style);
-  }
-};
+if (typeof document !== "undefined" && !document.getElementById("dashboard-skeleton-keyframes")) {
+  const style = document.createElement("style");
+  style.id = "dashboard-skeleton-keyframes";
+  style.textContent = `
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 /**
  * Skeleton rectangle component
@@ -56,9 +53,6 @@ function SkeletonRect({ width, height, style }: { width?: string | number; heigh
  */
 export function DashboardSkeleton() {
   const { spacing, borderRadius } = useThemeTokens();
-
-  // Add keyframes on mount
-  addKeyframes();
 
   return (
     <div style={{ padding: spacing.xl }}>

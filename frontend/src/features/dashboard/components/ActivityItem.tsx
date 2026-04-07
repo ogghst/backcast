@@ -9,22 +9,20 @@ import { Typography } from "antd";
 import { useNavigate } from "react-router-dom";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { RelativeTime } from "./RelativeTime";
-import type { BaseActivityItemProps, ActivityType } from "../types";
+import type { BaseActivityItemProps } from "../types";
 
 const { Text } = Typography;
 
 /**
  * Get color for activity type badge
  */
-const getActivityBadgeColor = (activityType: ActivityType) => {
-  const colors: Record<string, { bg: string; text: string }> = {
-    created: { bg: "rgba(93, 165, 114, 0.15)", text: "#5da572" },
-    updated: { bg: "rgba(212, 165, 73, 0.15)", text: "#b8942f" },
-    deleted: { bg: "rgba(201, 93, 95, 0.15)", text: "#c95d5f" },
-    merged: { bg: "rgba(93, 139, 168, 0.15)", text: "#5d8ba8" },
-  };
-  return colors[activityType] || { bg: "rgba(150, 150, 150, 0.15)", text: "#888888" };
+const ACTIVITY_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
+  created: { bg: "rgba(93, 165, 114, 0.15)", text: "#5da572" },
+  updated: { bg: "rgba(212, 165, 73, 0.15)", text: "#b8942f" },
+  deleted: { bg: "rgba(201, 93, 95, 0.15)", text: "#c95d5f" },
+  merged: { bg: "rgba(93, 139, 168, 0.15)", text: "#5d8ba8" },
 };
+const DEFAULT_BADGE_COLOR = { bg: "rgba(150, 150, 150, 0.15)", text: "#888888" };
 
 /**
  * Generate URL for entity detail page
@@ -35,27 +33,23 @@ const getActivityBadgeColor = (activityType: ActivityType) => {
  * - Cost Elements: Navigate to cost element detail page
  * - Change Orders: Navigate to parent project page (change orders are viewed within project context)
  */
+const ENTITY_URL_MAP: Record<string, string> = {
+  project: "/projects/",
+  wbe: "/projects/",
+  cost_element: "/cost-elements/",
+  change_order: "/projects/",
+};
+
 const getEntityUrl = (
   entityType: string,
   entityId: string,
   projectId?: string | null
 ): string => {
-  // For WBEs and Change Orders, use project_id to navigate to parent project
-  if (entityType === "wbe" && projectId) {
+  if ((entityType === "wbe" || entityType === "change_order") && projectId) {
     return `/projects/${projectId}`;
   }
-  if (entityType === "change_order" && projectId) {
-    return `/projects/${projectId}`;
-  }
-
-  // Default routing
-  const urlMap: Record<string, string> = {
-    project: `/projects/${entityId}`,
-    wbe: `/projects/${entityId}`, // Fallback if no project_id
-    cost_element: `/cost-elements/${entityId}`,
-    change_order: `/projects/${entityId}`, // Fallback if no project_id
-  };
-  return urlMap[entityType] || `/`;
+  const prefix = ENTITY_URL_MAP[entityType];
+  return prefix ? `${prefix}${entityId}` : "/";
 };
 
 /**
@@ -63,8 +57,8 @@ const getEntityUrl = (
  */
 export function ActivityItem({ activity, onClick }: BaseActivityItemProps) {
   const navigate = useNavigate();
-  const { spacing, typography, colors } = useThemeTokens();
-  const badgeColor = getActivityBadgeColor(activity.activity_type);
+  const { spacing, typography, colors, borderRadius } = useThemeTokens();
+  const badgeColor = ACTIVITY_BADGE_COLORS[activity.activity_type] || DEFAULT_BADGE_COLOR;
 
   const handleClick = () => {
     if (onClick) {
@@ -84,7 +78,7 @@ export function ActivityItem({ activity, onClick }: BaseActivityItemProps) {
         alignItems: "center",
         justifyContent: "space-between",
         padding: `${spacing.sm}px ${spacing.md}px`,
-        borderRadius: 6, // borderRadiusMD
+        borderRadius: borderRadius.md,
         cursor: "pointer",
         transition: "background 150ms ease",
         textDecoration: "none",
@@ -153,7 +147,7 @@ export function ActivityItem({ activity, onClick }: BaseActivityItemProps) {
             fontSize: typography.sizes.xs,
             fontWeight: typography.weights.semiBold,
             padding: "2px 8px",
-            borderRadius: 4, // borderRadiusSM
+            borderRadius: borderRadius.sm,
             textTransform: "uppercase",
             letterSpacing: "0.5px",
             background: badgeColor.bg,

@@ -8,15 +8,66 @@
 import { Typography, Button } from "antd";
 import { useNavigate } from "react-router-dom";
 import { FolderOutlined, DollarOutlined, CheckCircleOutlined, BranchesOutlined } from "@ant-design/icons";
+import type { ReactNode } from "react";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { RelativeTime } from "./RelativeTime";
 import type { ProjectSpotlightProps } from "../types";
 
 const { Text, Title } = Typography;
 
-/**
- * Project spotlight card showing last edited project
- */
+interface MetricCardProps {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}
+
+function MetricCard({ icon, label, value }: MetricCardProps) {
+  const { colors, spacing, typography, borderRadius } = useThemeTokens();
+
+  return (
+    <div
+      style={{
+        background: colors.bgContainer,
+        borderRadius: borderRadius.lg,
+        padding: spacing.md,
+        textAlign: "center",
+      }}
+    >
+      <span
+        style={{
+          fontSize: typography.sizes.lg,
+          color: colors.textSecondary,
+          marginBottom: spacing.sm,
+          display: "block",
+        }}
+      >
+        {icon}
+      </span>
+      <Text
+        style={{
+          fontSize: typography.sizes.sm,
+          fontWeight: typography.weights.medium,
+          color: colors.textSecondary,
+          display: "block",
+          marginBottom: spacing.sm,
+        }}
+      >
+        {label}
+      </Text>
+      <Text
+        style={{
+          fontSize: typography.sizes.lg,
+          fontWeight: typography.weights.semiBold,
+          color: colors.text,
+          display: "block",
+        }}
+      >
+        {value}
+      </Text>
+    </div>
+  );
+}
+
 export function ProjectSpotlight({ project }: ProjectSpotlightProps) {
   const navigate = useNavigate();
   const { colors, spacing, typography, borderRadius } = useThemeTokens();
@@ -57,11 +108,7 @@ export function ProjectSpotlight({ project }: ProjectSpotlightProps) {
             color: colors.primary,
           }}
         />
-        <div
-          style={{
-            flex: 1,
-          }}
-        >
+        <div style={{ flex: 1 }}>
           <Title
             level={3}
             style={{
@@ -94,125 +141,9 @@ export function ProjectSpotlight({ project }: ProjectSpotlightProps) {
           marginBottom: spacing.lg,
         }}
       >
-        {/* Budget Metric */}
-        <div
-          style={{
-            background: colors.bgContainer,
-            borderRadius: borderRadius.lg,
-            padding: spacing.md,
-            textAlign: "center",
-          }}
-        >
-          <DollarOutlined
-            style={{
-              fontSize: typography.sizes.lg,
-              color: colors.textSecondary,
-              marginBottom: spacing.sm,
-              display: "block",
-            }}
-          />
-          <Text
-            style={{
-              fontSize: typography.sizes.sm,
-              fontWeight: typography.weights.medium,
-              color: colors.textSecondary,
-              display: "block",
-              marginBottom: spacing.sm,
-            }}
-          >
-            Budget
-          </Text>
-          <Text
-            style={{
-              fontSize: typography.sizes.lg,
-              fontWeight: typography.weights.semiBold,
-              color: colors.text,
-              display: "block",
-            }}
-          >
-            {project.budget}
-          </Text>
-        </div>
-
-        {/* EVM Status Metric */}
-        <div
-          style={{
-            background: colors.bgContainer,
-            borderRadius: borderRadius.lg,
-            padding: spacing.md,
-            textAlign: "center",
-          }}
-        >
-          <CheckCircleOutlined
-            style={{
-              fontSize: typography.sizes.lg,
-              color: colors.textSecondary,
-              marginBottom: spacing.sm,
-              display: "block",
-            }}
-          />
-          <Text
-            style={{
-              fontSize: typography.sizes.sm,
-              fontWeight: typography.weights.medium,
-              color: colors.textSecondary,
-              display: "block",
-              marginBottom: spacing.sm,
-            }}
-          >
-            EVM Status
-          </Text>
-          <Text
-            style={{
-              fontSize: typography.sizes.lg,
-              fontWeight: typography.weights.semiBold,
-              color: colors.text,
-              display: "block",
-            }}
-          >
-            {project.evm_status}
-          </Text>
-        </div>
-
-        {/* Active Changes Metric */}
-        <div
-          style={{
-            background: colors.bgContainer,
-            borderRadius: borderRadius.lg,
-            padding: spacing.md,
-            textAlign: "center",
-          }}
-        >
-          <BranchesOutlined
-            style={{
-              fontSize: typography.sizes.lg,
-              color: colors.textSecondary,
-              marginBottom: spacing.sm,
-              display: "block",
-            }}
-          />
-          <Text
-            style={{
-              fontSize: typography.sizes.sm,
-              fontWeight: typography.weights.medium,
-              color: colors.textSecondary,
-              display: "block",
-              marginBottom: spacing.sm,
-            }}
-          >
-            Changes
-          </Text>
-          <Text
-            style={{
-              fontSize: typography.sizes.lg,
-              fontWeight: typography.weights.semiBold,
-              color: colors.text,
-              display: "block",
-            }}
-          >
-            {project.active_changes} Active
-          </Text>
-        </div>
+        <MetricCard icon={<DollarOutlined />} label="Budget" value={project.budget} />
+        <MetricCard icon={<CheckCircleOutlined />} label="EVM Status" value={project.evm_status} />
+        <MetricCard icon={<BranchesOutlined />} label="Changes" value={`${project.active_changes} Active`} />
       </div>
 
       {/* Footer */}

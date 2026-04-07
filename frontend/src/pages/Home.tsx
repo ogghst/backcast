@@ -42,7 +42,13 @@ const Home: React.FC = () => {
   }
 
   // Empty state (no data)
-  if (!data || (!data.spotlight && !data.recent_activity)) {
+  const hasActivity = data?.recent_activity && (
+    data.recent_activity.projects.length > 0 ||
+    data.recent_activity.wbes.length > 0 ||
+    data.recent_activity.cost_elements.length > 0 ||
+    data.recent_activity.change_orders.length > 0
+  );
+  if (!data || (!data.spotlight && !hasActivity)) {
     return (
       <div style={{ padding: spacing.xl }}>
         <DashboardHeader />
