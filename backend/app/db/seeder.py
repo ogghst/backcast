@@ -956,6 +956,81 @@ class DataSeeder:
             f"AI Assistant seeding complete: {created_count} created, {skipped_count} skipped/failed"
         )
 
+    async def seed_dashboard_layouts(self, session: AsyncSession) -> None:
+        """Seed dashboard layouts from dashboard_layouts.json file.
+
+        Args:
+            session: Database session
+        """
+        from sqlalchemy import select as sql_select
+
+        from app.models.domain.dashboard_layout import DashboardLayout
+
+        logger.info("Starting dashboard layouts seeding...")
+        layout_data = self.load_seed_file("dashboard_layouts.json")
+
+        if not layout_data:
+            logger.info("No dashboard layout seed data found or file is empty")
+            return
+
+        created_count = 0
+        skipped_count = 0
+
+        with seed_operation():  # Allow explicit IDs from seed data
+            for idx, layout_dict in enumerate(layout_data):
+                try:
+                    layout_id = layout_dict.get("id")
+
+                    # Check if layout already exists
+                    stmt = sql_select(DashboardLayout).where(
+                        DashboardLayout.id == UUID(layout_id)
+                    )
+                    result = await session.execute(stmt)
+                    existing = result.scalar_one_or_none()
+
+                    if existing:
+                        logger.debug(
+                            f"Dashboard Layout {layout_dict.get('name')} already exists, skipping"
+                        )
+                        skipped_count += 1
+                        continue
+
+                    # Parse datetime strings if present
+                    created_at = layout_dict.pop("created_at", None)
+                    updated_at = layout_dict.pop("updated_at", None)
+
+                    # Create layout with explicit ID
+                    layout = DashboardLayout(
+                        id=UUID(layout_id) if layout_id else None,
+                        name=layout_dict["name"],
+                        description=layout_dict.get("description"),
+                        user_id=UUID(layout_dict["user_id"]),
+                        project_id=UUID(layout_dict["project_id"]) if layout_dict.get("project_id") else None,
+                        is_template=layout_dict.get("is_template", False),
+                        is_default=layout_dict.get("is_default", False),
+                        widgets=layout_dict.get("widgets", []),
+                    )
+                    session.add(layout)
+                    await session.flush()
+
+                    # Set timestamps if provided in seed data
+                    if created_at:
+                        layout.created_at = created_at
+                    if updated_at:
+                        layout.updated_at = updated_at
+
+                    created_count += 1
+                    logger.info(f"Created Dashboard Layout: {layout.name}")
+
+                except Exception as e:
+                    logger.error(f"Failed to seed dashboard layout at index {idx}: {e}")
+                    skipped_count += 1
+                    continue
+
+        logger.info(
+            f"Dashboard Layout seeding complete: {created_count} created, {skipped_count} skipped/failed"
+        )
+
     async def seed_all(self, session: AsyncSession) -> None:
         """Execute all seeding operations in the correct order.
 
@@ -1000,6 +1075,9 @@ class DataSeeder:
 
             # Seed AI Assistants
             await self.seed_ai_assistants(session)
+
+            # Seed Dashboard Layouts
+            await self.seed_dashboard_layouts(session)
 
             # Commit all changes (services usually commit internally for writes?
             # Or depend on session commit at end. If services use execute() they might depend on session commit.)
