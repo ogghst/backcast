@@ -1,164 +1,133 @@
 # Backcast
 
-# BackCast - Project Earned value Simulator, Time traveller and Analyzer
+**Project Budget Management & Earned Value Management System** for end-of-line automation projects.
 
 ![Favicon](frontend/public/assets/images/backcast.png)
 
-## Overview
+---
 
-BackCast is a comprehensive application designed for the Project Management Directorate to simulate, test, and validate financial management processes for end-of-line automation projects before implementing them in production environments.
+## Features
 
-The system enables organizations to:
+### Bitemporal Versioning & Time Travel
 
-- Model complex project scenarios with multiple machines (WBEs) and departmental cost elements
-- Track project financial performance using Earned Value Management (EVM) principles
-- Validate business rules and performance metrics under various conditions
-- Support complete project lifecycle financial management including budgets, costs, forecasts, change orders, and quality events
-- Generate accurate EVM calculations and reports for decision-making
+Every entity mutation is tracked with dual time dimensions — *valid time* (when the fact is true in business terms) and *transaction time* (when the system recorded it). A global **Time Machine** control lets you navigate to any point in history, query the database as it was on that date, and compare snapshots across branches.
 
-This tool serves as a simulation and validation platform, allowing the Project Management Directorate to refine business rules, test performance metrics, and establish best practices for project financial management without impacting production systems.
+### Branch Isolation & Change Orders
 
-The system provides:
+Change orders create dedicated Git-style branches (`BR-{code}`). Modifications to WBEs, cost elements, and budgets happen in isolation — the main timeline is untouched until the change order is **submitted, approved, and merged**. An **Impact Analysis** view provides side-by-side comparison of main vs. branch, hierarchical diffs, and KPI comparison cards. The full workflow includes SLA tracking, approval matrices, and audit trails.
 
-- **Git-like Versioning:** Complete entity history with branching and time-travel capabilities
-- **EVM Compliance:** Full Earned Value Management per ANSI/EIA-748
-- **EVM Analyzer UI:** Interactive master-detail interface for EVM analysis at all aggregation levels
-- **Change Order Isolation:** Test modifications in branches before merging
-- **Audit Trail:** Immutable history for compliance and analysis
+### Earned Value Management (EVM)
 
-## Key Features
+Full ANSI/EIA-748-compliant EVM at every aggregation level — cost element, WBE, and project:
 
-### EVM Analyzer Master-Detail UI
+- **Performance Indices** — CPI, SPI with gauge visualizations
+- **Variance Analysis** — Cost Variance (CV), Schedule Variance (SV), Variance at Completion (VAC)
+- **Forecasting** — Estimate at Completion (EAC), Estimate to Complete (ETC), To-Complete Performance Index (TCPI)
+- **Time-Series Charts** — PV/EV/AC progression with daily/weekly/monthly granularity
+- **Batch Aggregation** — Server-side roll-up with weighted averages for parent entities
 
-**Latest Feature (2026-01-22):** Generic EVM Analyzer supporting multiple entity types with comprehensive visualizations.
+All EVM queries respect time-travel and branch context.
 
-**Capabilities:**
+### AI Chat with Sub-Agents & Tools
 
-- **Multi-Level Analysis:** View EVM metrics for Cost Elements, WBEs, and Projects
-- **Summary View:** Quick overview with organized metric categories (Schedule, Cost, Performance, Forecast)
-- **Advanced Analysis Modal:** Detailed EVM analysis with:
-  - Performance gauges (CPI, SPI) with traditional semi-circle display
-  - Time-series charts (PV/EV/AC progression, Forecast vs. Actual)
-  - Granularity selector (Day/Week/Month)
-  - Historical trend analysis
-- **Time-Travel Support:** All queries respect control date, branch, and mode settings
-- **Generic Components:** Reusable UI components work across all entity types
-- **Batch Aggregation:** Server-side aggregation for WBEs and Projects (sum + weighted average)
+A conversational AI assistant backed by LangGraph orchestration, with specialized tools for project data:
 
-**Documentation:**
-- [EVM API Guide](docs/02-architecture/evm-api-guide.md) - API endpoint reference
-- [EVM Components Guide](docs/02-architecture/evm-components-guide.md) - Component usage
-- [EVM Time-Travel Semantics](docs/02-architecture/evm-time-travel-semantics.md) - Time-travel behavior
-- [EVM Calculation Guide](docs/02-architecture/evm-calculation-guide.md) - Formulas and interpretation
+- **Natural Language Queries** — Ask about projects, WBEs, cost elements, and EVM metrics in plain English
+- **AI Tools** — Purpose-built backend tools for CRUD operations, EVM calculations, change order drafts, and variance analysis
+- **Sub-Agent Orchestration** — LangGraph agents with tool-calling, streaming responses, and context management
+- **Execution Modes** — Safe (read-only), Standard (write with approval), Expert (full access) to control tool risk levels
+- **WebSocket Streaming** — Real-time token streaming with execution lifecycle tracking
 
-**Performance:**
-- Summary view renders in <500ms
-- Modal with charts renders in <2s
-- Time-series queries complete in <1s for 1-year ranges
+### Composable Widget Dashboard
 
-## Quick Start
+Per-user, per-project customizable dashboards built on a plugin architecture:
 
-### Development Setup
+- **15+ Widget Types** — Budget overview, EVM gauges, variance bars, Gantt chart, KPI cards, cost element tables, and more
+- **Drag & Drop Layout** — `react-grid-layout` with 12-column responsive grid
+- **Widget Registry** — Plugin-style registration; each widget self-registers on import
+- **Context Bus** — Cross-widget communication via entity selection and Time Machine integration
+- **Templates** — Pre-built dashboard templates (Project Overview, EVM Analysis) seeded on first use
+- **Auto-Save** — Changes persist automatically with dirty-state tracking and navigation guards
 
-```bash
-# Install dependencies
-uv sync
+### Project Explorer
 
-# Setup database
-docker-compose up -d postgres
+A master-detail interface for navigating project hierarchies:
 
-# Run migrations
-cd backend
-uv run alembic upgrade head
+- **Card-Based Views** — Project, WBE, and Cost Element detail cards with inline charts
+- **Interactive Project Tree** — Hierarchical tree with InfoPill labels (status, budget, EVM indices)
+- **Allotment Split Panels** — Resizable tree + detail layout
+- **Gantt Chart** — ECharts-based timeline with rich text labels, dual-grid layout, and branch/time-travel support
 
-# Start development server
-cd backend
-uv run uvicorn app.main:app --reload --port 8020 --host 0.0.0.0
+### Hierarchical Project Structure
 
-# Start frontend development server
-cd frontend
-npm run dev
-```
+- **Projects** — Top-level containers with contract value, customer info, and project manager
+- **WBEs** (Work Breakdown Elements) — Machines or deliverables with hierarchical nesting (sub-WBEs)
+- **Cost Elements** — Departmental budgets with type classification (Engineering, Electrical, etc.)
+- **Schedule Baselines** — Versioned, branchable schedule registrations with linear, Gaussian, and logarithmic progression types
+- **Revenue Allocation** — Revenue tracking at WBE level, distributed to cost elements via planned value
 
-### Running Tests
+### Quality Events
 
-```bash
-# Backend
-cd backend
-uv run pytest
-uv run pytest --cov=app --cov-report=html
+Track quality issues with cost impact, severity classification, root cause tracking, and resolution status — all versioned within the EVCS framework.
 
-# Frontend
-cd frontend
-npm test
-```
+---
 
-### Code Quality
+## Tech Stack
 
-```bash
-# Backend Linting
-uv run ruff check .
+| Layer | Technology |
+|-------|-----------|
+| Backend | Python 3.12+, FastAPI, SQLAlchemy 2.0 (async), Pydantic V2 |
+| Frontend | React 18, TypeScript, Vite 7, Ant Design 5 |
+| State | TanStack Query (server), Zustand (client) |
+| Database | PostgreSQL 15+ with TSTZRANGE bitemporal ranges |
+| AI | LangGraph, LangChain, WebSocket streaming |
+| Quality | MyPy strict, Ruff, Vitest, 80%+ coverage |
 
-# Frontend Linting
-cd frontend
-npm run lint
+---
 
-# Type checking
-uv run mypy app/
-```
+## Installation & Deployment
+
+- **[Development Setup](docs/00-meta/onboarding.md)** — Local dev environment setup
+- **[Docker Deployment Guide](docs/05-user-guide/docker-deployment-guide.md)** — Production deployment with Docker, Traefik, and Let's Encrypt SSL
+
+---
 
 ## Documentation
 
-**Start Here:** [Documentation Guide](docs/00-meta/README.md)
+Browse the full documentation starting from the **[Documentation Guide](docs/00-meta/README.md)**.
 
-**Quick Links:**
+### Architecture & Design
 
-- [Product Vision](docs/01-product-scope/vision.md) - Business goals
-- [System Map](docs/02-architecture/00-system-map.md) - Architecture overview
-- [EVM API Guide](docs/02-architecture/evm-api-guide.md) - EVM API reference
-- [EVM Components Guide](docs/02-architecture/evm-components-guide.md) - EVM UI components
-- [EVM Calculation Guide](docs/02-architecture/evm-calculation-guide.md) - EVM formulas
-- [PDCA Prompts](docs/04-pdca-prompts/) - AI collaboration templates
-- [Docker Deployment Guide](docs/05-user-guide/docker-deployment-guide.md) - Production deployment
+| Document | Description |
+|----------|-------------|
+| [System Map](docs/02-architecture/00-system-map.md) | Architecture overview |
+| [EVCS Implementation Guide](docs/02-architecture/backend/contexts/evcs-core/evcs-implementation-guide.md) | Entity Versioning Control System internals |
+| [EVM Calculation Guide](docs/02-architecture/evm-calculation-guide.md) | Formulas and interpretation |
+| [EVM API Guide](docs/02-architecture/evm-api-guide.md) | API endpoint reference |
+| [EVM Time-Travel Semantics](docs/02-architecture/evm-time-travel-semantics.md) | How time-travel interacts with EVM queries |
+| [AI Agent Orchestration](docs/02-architecture/ai/agent-orchestration-guide.md) | LangGraph agent architecture |
+| [AI Tool Development](docs/02-architecture/ai/tool-development-guide.md) | Building AI tools with `@ai_tool` |
+| [Widget Dashboard Guide](docs/02-architecture/widget-dashboard-guide.md) | Dashboard and widget developer reference |
+| [ADR Index](docs/02-architecture/decisions/adr-index.md) | Architecture Decision Records |
 
-## Project Status
+### User Guides
 
-- [Product Backlog](docs/03-project-plan/product-backlog.md) - Product backlog
+| Guide | Audience |
+|-------|----------|
+| [Dashboard & Widgets](docs/02-architecture/dashboard-user-guide.md) | All users |
+| [AI Chat](docs/05-user-guide/ai-chat-user-guide.md) | All users |
+| [AI Execution Modes](docs/05-user-guide/ai-execution-modes.md) | All users |
+| [Change Order Workflow](docs/05-user-guide/change-order-workflow-guide.md) | Developers, admins |
+| [EVCS & WBE Operations](docs/05-user-guide/evcs-wbe-user-guide.md) | Backend developers |
 
-## Technology Stack
+### Project Planning
 
-- **Runtime:** Python 3.12+
-- **Framework:** FastAPI (async ASGI)
-- **ORM:** SQLAlchemy 2.0 (async)
-- **Database:** PostgreSQL 15+
-- **Validation:** Pydantic V2
-- **Testing:** pytest, httpx
-- **Quality:** MyPy (strict), Ruff
-
-### Frontend
-
-- **Runtime:** Node.js
-- **Framework:** React 18, Vite 7
-- **UI Library:** Ant Design 5
-- **State Management:** Zustand, React Query
-- **Testing:** Vitest, Playwright
-
-## Contributing
-
-This project follows strict quality standards:
-
-- **Type Safety:** MyPy strict mode (100% coverage)
-- **Testing:** 80% minimum coverage
-- **Linting:** Zero Ruff errors
-- **Process:** PDCA cycle for all major changes
-
-See [Coding Standards](docs/00-meta/coding_standards.md) for detailed guidelines.
+| Document | Description |
+|----------|-------------|
+| [Product Vision](docs/01-product-scope/vision.md) | Business goals and scope |
+| [Functional Requirements](docs/01-product-scope/functional-requirements.md) | Detailed feature requirements |
+| [Product Backlog](docs/03-project-plan/product-backlog.md) | Current backlog |
 
 ## License
 
-[License TBD]
-
-## Contact
-
-- **Project Owner:** [TBD]
-- **Tech Lead:** [TBD]
+[TBD]
