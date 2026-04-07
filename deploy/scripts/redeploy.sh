@@ -88,7 +88,7 @@ Options:
     -b, --branch BRANCH Specify git branch to pull from (default: current branch)
     -s, --skip-backup   Skip database backup (NOT recommended for production)
     -n, --no-build      Skip container rebuild (use existing images)
-    -m, --no-migrate    Skip database migrations
+    -m, --no-migrate    Skip database migrations (NOT recommended - may cause errors)
     -y, --yes           Auto-confirm all prompts (non-interactive mode)
     -v, --verbose       Enable verbose output
 
@@ -309,11 +309,24 @@ run_migrations() {
 
     cd "$DEPLOY_DIR"
 
-    if docker compose --env-file .env.production run --rm alembic; then
+    if docker compose --env-file .env.production run --rm alembic upgrade head; then
         log_success "Database migrations completed"
     else
         log_error "Database migrations failed"
         exit 1
+    fi
+}
+
+# Run database seeding
+run_seed() {
+    log_info "Running database seeding..."
+
+    cd "$DEPLOY_DIR"
+
+    if docker compose --env-file .env.production run --rm backend python -m app.db.seed; then
+        log_success "Database seeding completed"
+    else
+        log_warning "Database seeding failed or completed with warnings"
     fi
 }
 
@@ -416,6 +429,7 @@ main() {
     rebuild_containers
     restart_services
     run_migrations
+    run_seed
     verify_deployment
     print_summary
 
