@@ -11,6 +11,11 @@ interface WidgetEVMDataResult {
   refetch: () => void;
 }
 
+interface UseWidgetEVMDataOptions {
+  /** Auto-refresh interval in milliseconds (undefined = off) */
+  refetchInterval?: number;
+}
+
 /**
  * Maps widget config entity types to the lowercase API format.
  * Handles both uppercase enum keys strings (e.g., "PROJECT", "WBE", "COST_ELEMENT")
@@ -49,7 +54,10 @@ function normalizeEntityType(raw: string | undefined): EntityType | undefined {
  *
  * When the needed ID is undefined, returns a disabled query.
  */
-export function useWidgetEVMData(entityType: EntityType): WidgetEVMDataResult {
+export function useWidgetEVMData(
+  entityType: EntityType,
+  options?: UseWidgetEVMDataOptions,
+): WidgetEVMDataResult {
   const context = useDashboardContext();
 
   // Normalize to string for robust comparison against both enum and raw string values
@@ -63,7 +71,11 @@ export function useWidgetEVMData(entityType: EntityType): WidgetEVMDataResult {
         : context.costElementId;
 
   const normalizedType = normalizeEntityType(entityType);
-  const result = useEVMMetrics(normalizedType ?? EntityType.PROJECT, entityId ?? "");
+  const result = useEVMMetrics(normalizedType ?? EntityType.PROJECT, entityId ?? "", {
+    queryOptions: options?.refetchInterval
+      ? { refetchInterval: options.refetchInterval }
+      : undefined,
+  });
 
   return {
     metrics: result.data,

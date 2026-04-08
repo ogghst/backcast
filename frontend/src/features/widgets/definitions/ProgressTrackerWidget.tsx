@@ -18,7 +18,7 @@ interface ProgressTrackerConfig {
 
 const ProgressTrackerComponent: FC<
   WidgetComponentProps<ProgressTrackerConfig>
-> = ({ config, instanceId, isEditing, onRemove, onConfigure }) => {
+> = ({ config, instanceId, isEditing, onRemove, onConfigure, onFullscreen, widgetType, dashboardName }) => {
   const context = useDashboardContext();
 
   const queryParams = useMemo(() => {
@@ -54,6 +54,9 @@ const ProgressTrackerComponent: FC<
       onRemove={onRemove}
       onRefresh={refetch}
       onConfigure={onConfigure}
+      onFullscreen={onFullscreen}
+      widgetType={widgetType}
+      dashboardName={dashboardName}
     >
       <ProgressSummaryCard
         latestEntry={latestEntry}

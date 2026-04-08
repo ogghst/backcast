@@ -28,6 +28,9 @@ const ProjectHeaderComponent: FC<WidgetComponentProps<ProjectHeaderConfig>> = ({
   isEditing,
   onRemove,
   onConfigure,
+  onFullscreen,
+  widgetType,
+  dashboardName,
 }) => {
   const { token } = theme.useToken();
   const { projectId } = useDashboardContext();
@@ -44,6 +47,9 @@ const ProjectHeaderComponent: FC<WidgetComponentProps<ProjectHeaderConfig>> = ({
       onRemove={onRemove}
       onRefresh={refetch}
       onConfigure={onConfigure}
+      onFullscreen={onFullscreen}
+      widgetType={widgetType}
+      dashboardName={dashboardName}
     >
       {project ? (
         <div

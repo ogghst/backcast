@@ -46,7 +46,7 @@ const IMPACT_ORDER: Record<string, number> = {
 
 const ChangeOrdersListComponent: FC<
   WidgetComponentProps<ChangeOrdersListConfig>
-> = ({ config, instanceId, isEditing, onRemove, onConfigure }) => {
+> = ({ config, instanceId, isEditing, onRemove, onConfigure, onFullscreen, widgetType, dashboardName }) => {
   const { token } = theme.useToken();
   const context = useDashboardContext();
 
@@ -147,6 +147,9 @@ const ChangeOrdersListComponent: FC<
         error={null}
         onRemove={onRemove}
         onConfigure={onConfigure}
+        onFullscreen={onFullscreen}
+        widgetType={widgetType}
+        dashboardName={dashboardName}
       >
         <Empty description="No project selected" />
       </WidgetShell>
@@ -164,6 +167,9 @@ const ChangeOrdersListComponent: FC<
       onRemove={onRemove}
       onRefresh={refetch}
       onConfigure={onConfigure}
+      onFullscreen={onFullscreen}
+      widgetType={widgetType}
+      dashboardName={dashboardName}
     >
       <Table<ChangeOrderPublic>
         columns={columns}

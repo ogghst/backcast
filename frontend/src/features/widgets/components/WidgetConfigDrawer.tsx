@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
-import { Button, Drawer, Empty, Spin, theme, Typography } from "antd";
+import { Button, Divider, Drawer, Empty, Select, Spin, theme, Typography } from "antd";
 import {
   SettingOutlined,
   CloseOutlined,
@@ -185,6 +185,36 @@ export function WidgetConfigDrawer() {
           config={currentConfig}
           onChange={handleConfigChange}
         />
+      )}
+
+      {/* Refresh interval (shared setting for all widgets) */}
+      {widget && (
+        <>
+          <Divider style={{ margin: `${token.paddingSM}px 0` }} />
+          <div>
+            <Text
+              strong
+              style={{ display: "block", marginBottom: token.paddingXS }}
+            >
+              Auto-Refresh
+            </Text>
+            <Select
+              style={{ width: "100%" }}
+              value={String(currentConfig.refreshInterval ?? 0)}
+              onChange={(val) =>
+                handleConfigChange({
+                  refreshInterval: val === "0" ? undefined : Number(val),
+                })
+              }
+              options={[
+                { value: "0", label: "Off" },
+                { value: "30000", label: "Every 30 seconds" },
+                { value: "60000", label: "Every minute" },
+                { value: "300000", label: "Every 5 minutes" },
+              ]}
+            />
+          </div>
+        </>
       )}
     </Drawer>
   );

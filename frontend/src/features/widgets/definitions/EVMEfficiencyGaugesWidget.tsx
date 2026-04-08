@@ -18,7 +18,7 @@ interface EVMEfficiencyGaugesConfig {
 
 const EVMEfficiencyGaugesComponent: FC<
   WidgetComponentProps<EVMEfficiencyGaugesConfig>
-> = ({ config, instanceId, isEditing, onRemove, onConfigure }) => {
+> = ({ config, instanceId, isEditing, onRemove, onConfigure, onFullscreen, widgetType, dashboardName }) => {
   const { token } = theme.useToken();
   const { metrics, isLoading, error, entityId, refetch } = useWidgetEVMData(
     config.entityType,
@@ -35,6 +35,9 @@ const EVMEfficiencyGaugesComponent: FC<
       onRemove={onRemove}
       onRefresh={refetch}
       onConfigure={onConfigure}
+      onFullscreen={onFullscreen}
+      widgetType={widgetType}
+      dashboardName={dashboardName}
     >
       {metrics ? (
         <div

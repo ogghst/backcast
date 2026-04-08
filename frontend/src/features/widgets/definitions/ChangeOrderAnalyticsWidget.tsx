@@ -17,7 +17,7 @@ interface ChangeOrderAnalyticsConfig {
 
 const ChangeOrderAnalyticsComponent: FC<
   WidgetComponentProps<ChangeOrderAnalyticsConfig>
-> = ({ config, instanceId, isEditing, onRemove, onConfigure }) => {
+> = ({ config, instanceId, isEditing, onRemove, onConfigure, onFullscreen, widgetType, dashboardName }) => {
   const { token } = theme.useToken();
   const { projectId } = useDashboardContext();
 
@@ -38,6 +38,9 @@ const ChangeOrderAnalyticsComponent: FC<
       onRemove={onRemove}
       onRefresh={refetch}
       onConfigure={onConfigure}
+      onFullscreen={onFullscreen}
+      widgetType={widgetType}
+      dashboardName={dashboardName}
     >
       {data ? (
         config.chartType === "costTrend" ? (

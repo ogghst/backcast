@@ -96,6 +96,28 @@ export interface WidgetComponentProps<
   onRemove: () => void;
   /** Called when the user clicks the settings gear icon */
   onConfigure?: () => void;
+  /** Called when the user clicks the fullscreen expand button */
+  onFullscreen?: () => void;
+  /** Widget type identifier for export filenames */
+  widgetType?: string;
+  /** Dashboard name for export filenames */
+  dashboardName?: string;
+  /** Provide an ECharts-compatible instance for PNG export */
+  getChartInstance?: (() => {
+    getDataURL: (opts: {
+      type: string;
+      pixelRatio: number;
+      backgroundColor: string;
+    }) => string;
+  } | null) | undefined;
+  /** Provide table data for CSV export */
+  getTableData?:
+    | (() => { columns: string[]; rows: string[][] })
+    | undefined;
+  /** Provide raw data for JSON export */
+  getRawData?: (() => unknown) | undefined;
+  /** Whether the widget data is stale (exceeded refresh interval) */
+  isStale?: boolean;
 }
 
 // ============================================================================

@@ -15,6 +15,7 @@ import {
   EditOutlined,
   PlusOutlined,
   UndoOutlined,
+  RedoOutlined,
   AppstoreOutlined,
 } from "@ant-design/icons";
 import { useDashboardCompositionStore } from "@/stores/useDashboardCompositionStore";
@@ -52,6 +53,10 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
   const resetDashboard = useDashboardCompositionStore(
     (s) => s.resetDashboard,
   );
+  const undoStack = useDashboardCompositionStore((s) => s._undoStack);
+  const redoStack = useDashboardCompositionStore((s) => s._redoStack);
+  const undo = useDashboardCompositionStore((s) => s.undo);
+  const redo = useDashboardCompositionStore((s) => s.redo);
 
   // Template query
   const { data: templates = [], isLoading: templatesLoading } =
@@ -231,6 +236,26 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
                   onClick={() => {
                     useDashboardCompositionStore.getState().setPaletteOpen(true);
                   }}
+                />
+              </Tooltip>
+
+              {/* Undo */}
+              <Tooltip title="Undo (Ctrl+Z)">
+                <Button
+                  icon={<UndoOutlined />}
+                  aria-label="Undo"
+                  disabled={undoStack.length === 0}
+                  onClick={undo}
+                />
+              </Tooltip>
+
+              {/* Redo */}
+              <Tooltip title="Redo (Ctrl+Shift+Z)">
+                <Button
+                  icon={<RedoOutlined />}
+                  aria-label="Redo"
+                  disabled={redoStack.length === 0}
+                  onClick={redo}
                 />
               </Tooltip>
 

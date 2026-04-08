@@ -44,6 +44,10 @@ interface DashboardCompositionState {
    * Used by discardChanges() to restore the pre-edit state.
    */
   _lastSavedSnapshot: string | null;
+  /** Undo stack of JSON-serialized dashboard snapshots (max 20) */
+  _undoStack: string[];
+  /** Redo stack of JSON-serialized dashboard snapshots (max 20) */
+  _redoStack: string[];
   /** Toggle the widget palette modal */
   setPaletteOpen: (open: boolean) => void;
 
@@ -92,6 +96,20 @@ interface DashboardCompositionState {
   discardChanges: () => void;
   /** Exit edit mode after a successful save (clears snapshot, deselects widget) */
   confirmChanges: () => void;
+  /** Undo the last composition change */
+  undo: () => void;
+  /** Redo the last undone composition change */
+  redo: () => void;
+}
+
+const MAX_UNDO = 20;
+
+/**
+ * Push a snapshot onto a stack, capping at MAX_UNDO entries.
+ */
+function pushToStack(stack: string[], snapshot: string): string[] {
+  const next = [...stack, snapshot];
+  return next.length > MAX_UNDO ? next.slice(-MAX_UNDO) : next;
 }
 
 /**
@@ -126,6 +144,8 @@ export const useDashboardCompositionStore =
       projectId: "",
       paletteOpen: false,
       _lastSavedSnapshot: null,
+      _undoStack: [],
+      _redoStack: [],
 
       setEditing: (editing) =>
         set((state) => {
@@ -157,6 +177,13 @@ export const useDashboardCompositionStore =
 
       addWidget: (typeId, position) =>
         set((state) => {
+          if (state.activeDashboard) {
+            state._undoStack = pushToStack(
+              state._undoStack,
+              JSON.stringify(state.activeDashboard),
+            );
+            state._redoStack = [];
+          }
           const definition = getWidgetDefinition(typeId);
           if (!definition) return;
 
@@ -192,6 +219,11 @@ export const useDashboardCompositionStore =
       removeWidget: (instanceId) =>
         set((state) => {
           if (!state.activeDashboard) return;
+          state._undoStack = pushToStack(
+            state._undoStack,
+            JSON.stringify(state.activeDashboard),
+          );
+          state._redoStack = [];
           state.activeDashboard.widgets =
             state.activeDashboard.widgets.filter(
               (w) => w.instanceId !== instanceId,
@@ -217,6 +249,11 @@ export const useDashboardCompositionStore =
       updateWidgetConfig: (instanceId, config) =>
         set((state) => {
           if (!state.activeDashboard) return;
+          state._undoStack = pushToStack(
+            state._undoStack,
+            JSON.stringify(state.activeDashboard),
+          );
+          state._redoStack = [];
           const widget = state.activeDashboard.widgets.find(
             (w) => w.instanceId === instanceId,
           );
@@ -229,6 +266,14 @@ export const useDashboardCompositionStore =
       updateDashboardLayout: (layouts) =>
         set((state) => {
           if (!state.activeDashboard) return;
+          // Only push undo snapshot for layout changes during edit mode
+          if (state.isEditing) {
+            state._undoStack = pushToStack(
+              state._undoStack,
+              JSON.stringify(state.activeDashboard),
+            );
+            state._redoStack = [];
+          }
           for (const layoutItem of layouts) {
             const widget = state.activeDashboard.widgets.find(
               (w) => w.instanceId === layoutItem.i,
@@ -288,6 +333,8 @@ export const useDashboardCompositionStore =
           state.isDirty = false;
           state.isEditing = false;
           state.selectedWidgetId = null;
+          state._undoStack = [];
+          state._redoStack = [];
         }),
 
       confirmChanges: () =>
@@ -295,6 +342,30 @@ export const useDashboardCompositionStore =
           state._lastSavedSnapshot = null;
           state.isEditing = false;
           state.selectedWidgetId = null;
+          state._undoStack = [];
+          state._redoStack = [];
+        }),
+
+      undo: () =>
+        set((state) => {
+          if (state._undoStack.length === 0 || !state.activeDashboard) return;
+          const current = JSON.stringify(state.activeDashboard);
+          const prev = state._undoStack[state._undoStack.length - 1];
+          state._undoStack = state._undoStack.slice(0, -1);
+          state._redoStack = pushToStack(state._redoStack, current);
+          state.activeDashboard = JSON.parse(prev);
+          state.isDirty = true;
+        }),
+
+      redo: () =>
+        set((state) => {
+          if (state._redoStack.length === 0 || !state.activeDashboard) return;
+          const current = JSON.stringify(state.activeDashboard);
+          const next = state._redoStack[state._redoStack.length - 1];
+          state._redoStack = state._redoStack.slice(0, -1);
+          state._undoStack = pushToStack(state._undoStack, current);
+          state.activeDashboard = JSON.parse(next);
+          state.isDirty = true;
         }),
     })),
   );

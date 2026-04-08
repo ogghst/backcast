@@ -21,6 +21,9 @@ const EVMSummaryComponent: FC<WidgetComponentProps<EVMSummaryConfig>> = ({
   isEditing,
   onRemove,
   onConfigure,
+  onFullscreen,
+  widgetType,
+  dashboardName,
 }) => {
   const { token } = theme.useToken();
   const { metrics, isLoading, error, entityId, refetch } = useWidgetEVMData(
@@ -38,6 +41,9 @@ const EVMSummaryComponent: FC<WidgetComponentProps<EVMSummaryConfig>> = ({
       onRemove={onRemove}
       onRefresh={refetch}
       onConfigure={onConfigure}
+      onFullscreen={onFullscreen}
+      widgetType={widgetType}
+      dashboardName={dashboardName}
     >
       {metrics ? (
         <EVMSummaryView metrics={metrics} onAdvanced={undefined} hideHeader />

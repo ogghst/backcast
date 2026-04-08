@@ -23,6 +23,9 @@ const EVMTrendChartComponent: FC<WidgetComponentProps<EVMTrendChartConfig>> = ({
   isEditing,
   onRemove,
   onConfigure,
+  onFullscreen,
+  widgetType,
+  dashboardName,
 }) => {
   const { token } = theme.useToken();
   const [granularity, setGranularity] = useState(config.granularity);
@@ -57,6 +60,9 @@ const EVMTrendChartComponent: FC<WidgetComponentProps<EVMTrendChartConfig>> = ({
       onRemove={onRemove}
       onRefresh={refetch}
       onConfigure={onConfigure}
+      onFullscreen={onFullscreen}
+      widgetType={widgetType}
+      dashboardName={dashboardName}
     >
       {entityId ? (
         <EVMTimeSeriesChart

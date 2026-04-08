@@ -9,14 +9,23 @@ import {
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { useDashboardCompositionStore } from "@/stores/useDashboardCompositionStore";
+import { useFullscreenWidgetStore } from "@/stores/useFullscreenWidgetStore";
 import { getWidgetDefinition } from "@/features/widgets/registry";
 import { DashboardToolbar } from "./DashboardToolbar";
 import { WidgetConfigDrawer } from "./WidgetConfigDrawer";
 import { WidgetPalette } from "./WidgetPalette";
+import { WidgetFullscreenModal } from "./WidgetFullscreenModal";
 import {
   WidgetInteractionContext,
   type InteractionMode,
 } from "./WidgetInteractionContext";
+import { injectWidgetMotionStyles } from "../utils/animations";
+import { useUndoRedoKeyboard } from "../hooks/useUndoRedoKeyboard";
+import { useResponsiveLayout } from "../hooks/useResponsiveLayout";
+import { MobileWidgetSheet } from "./MobileWidgetSheet";
+
+// Inject widget mount animation keyframes once at module load
+injectWidgetMotionStyles();
 
 const { Title, Text } = Typography;
 
@@ -81,6 +90,10 @@ const LAYOUT_DEBOUNCE_MS = 150;
  */
 export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
   const { token } = theme.useToken();
+  useUndoRedoKeyboard();
+  const responsiveConfig = useResponsiveLayout();
+  const { isMobile } = responsiveConfig;
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const { width, containerRef, mounted } = useContainerWidth({
     initialWidth: 1200,
   });
@@ -96,6 +109,10 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
   );
   const paletteOpen = useDashboardCompositionStore((s) => s.paletteOpen);
   const setPaletteOpen = useDashboardCompositionStore((s) => s.setPaletteOpen);
+  const openFullscreen = useFullscreenWidgetStore((s) => s.openFullscreen);
+  const fullscreenInstanceId = useFullscreenWidgetStore(
+    (s) => s.fullscreenInstanceId,
+  );
 
   // Per-widget interaction tracking (move/resize toggle)
   const [activeInteraction, setActiveInteraction] = useState<{
@@ -171,9 +188,16 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
     return map;
   }, [activeDashboard, activeInteraction]);
 
-  const layouts = useMemo(() => ({
-    lg: activeDashboard ? Array.from(widgetMeta.values()).map(m => m.layout) : [],
-  }), [widgetMeta, activeDashboard]);
+  const layouts = useMemo(() => {
+    if (!activeDashboard) return {};
+    const widgetLayouts = Array.from(widgetMeta.values()).map((m) => m.layout);
+    return {
+      lg: widgetLayouts,
+      md: widgetLayouts.map((l) => ({ ...l, x: l.x % 8, w: Math.min(l.w, 8) })),
+      sm: widgetLayouts.map((l) => ({ ...l, x: 0, w: 1 })),
+      xs: widgetLayouts.map((l) => ({ ...l, x: 0, w: 1 })),
+    };
+  }, [widgetMeta, activeDashboard]);
 
   // Context value for child widgets to read/toggle interaction mode
   const interactionContextValue = useMemo(
@@ -260,8 +284,40 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
         </div>
       )}
 
-      {/* Grid */}
-      {mounted && hasWidgets && (
+      {/* Mobile: stacked layout */}
+      {isMobile && hasWidgets && (
+        <div style={{ display: "flex", flexDirection: "column", gap: token.paddingSM }}>
+          {widgets.map((widget) => {
+            const definition = getWidgetDefinition(widget.typeId);
+            if (!definition) return null;
+            const WidgetComponent = definition.component;
+            return (
+              <div key={widget.instanceId} style={{ minHeight: 200 }}>
+                <WidgetErrorBoundary
+                  instanceId={widget.instanceId}
+                  onRemove={() => removeWidget(widget.instanceId)}
+                >
+                  <WidgetComponent
+                    config={
+                      widget.config as Parameters<typeof WidgetComponent>[0]["config"]
+                    }
+                    instanceId={widget.instanceId}
+                    isEditing={isEditing}
+                    onRemove={() => removeWidget(widget.instanceId)}
+                    onConfigure={() => selectWidget(widget.instanceId)}
+                    onFullscreen={() => openFullscreen(widget.instanceId)}
+                    widgetType={widget.typeId as string}
+                    dashboardName={activeDashboard?.name ?? "dashboard"}
+                  />
+                </WidgetErrorBoundary>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Grid (non-mobile only) */}
+      {!isMobile && mounted && hasWidgets && (
         <Responsive
           width={width}
           breakpoints={BREAKPOINTS}
@@ -289,7 +345,7 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
           }}
           draggableHandle=".react-grid-drag-handle"
         >
-          {widgets.map((widget) => {
+          {widgets.map((widget, index) => {
             try {
               const meta = widgetMeta.get(widget.instanceId);
               const definition = meta?.definition;
@@ -312,7 +368,11 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
               const WidgetComponent = definition.component;
 
               return (
-                <div key={widget.instanceId}>
+                <div
+                    key={widget.instanceId}
+                    className="widget-enter"
+                    style={{ "--widget-stagger-delay": `${Math.min(index * 50, 400)}ms` } as React.CSSProperties}
+                  >
                   <WidgetErrorBoundary
                     instanceId={widget.instanceId}
                     onRemove={() => removeWidget(widget.instanceId)}
@@ -325,6 +385,9 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
                       isEditing={isEditing}
                       onRemove={() => removeWidget(widget.instanceId)}
                       onConfigure={() => selectWidget(widget.instanceId)}
+                      onFullscreen={() => openFullscreen(widget.instanceId)}
+                      widgetType={widget.typeId as string}
+                      dashboardName={activeDashboard?.name ?? "dashboard"}
                     />
                   </WidgetErrorBoundary>
                 </div>
@@ -356,6 +419,59 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
 
       {/* Widget configuration drawer */}
       <WidgetConfigDrawer />
+
+      {/* Fullscreen widget modal */}
+      {fullscreenInstanceId &&
+        activeDashboard &&
+        (() => {
+          const widget = activeDashboard.widgets.find(
+            (w) => w.instanceId === fullscreenInstanceId,
+          );
+          if (!widget) return null;
+          return (
+            <WidgetFullscreenModal
+              key={widget.instanceId}
+              widget={widget}
+              isEditing={isEditing}
+            />
+          );
+        })()}
+
+      {/* Mobile manage widgets button */}
+      {isMobile && hasWidgets && (
+        <div style={{ textAlign: "center", padding: token.paddingSM }}>
+          <Button
+            onClick={() => setMobileSheetOpen(true)}
+            icon={<LayoutOutlined />}
+          >
+            Manage Widgets
+          </Button>
+        </div>
+      )}
+
+      {/* Mobile widget management sheet */}
+      <MobileWidgetSheet
+        open={mobileSheetOpen}
+        onClose={() => setMobileSheetOpen(false)}
+        widgets={widgets}
+        onReorder={(fromIndex, toIndex) => {
+          const reordered = [...widgets];
+          const [moved] = reordered.splice(fromIndex, 1);
+          reordered.splice(toIndex, 0, moved);
+          updateDashboardLayout(
+            reordered.map((w, i) => ({
+              i: w.instanceId,
+              x: 0,
+              y: i,
+              w: w.layout.w,
+              h: w.layout.h,
+            })),
+          );
+        }}
+        onRemove={(instanceId) => removeWidget(instanceId)}
+        onToggleHidden={() => {/* Hidden state managed per widget config */}}
+        hiddenWidgets={new Set()}
+      />
     </div>
     </WidgetInteractionContext.Provider>
   );

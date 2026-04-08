@@ -10,9 +10,11 @@ import {
   ReloadOutlined,
   EllipsisOutlined,
   SettingOutlined,
+  FullscreenOutlined,
 } from "@ant-design/icons";
 import { ErrorBoundary } from "react-error-boundary";
 import { useWidgetInteraction } from "./WidgetInteractionContext";
+import { WidgetExportMenu } from "./WidgetExportMenu";
 
 /**
  * Props for the WidgetShell component.
@@ -39,6 +41,28 @@ export interface WidgetShellProps {
   onRefresh?: () => void;
   /** Called when the settings button is clicked (edit mode) */
   onConfigure?: () => void;
+  /** Called when the fullscreen button is clicked */
+  onFullscreen?: () => void;
+  /** Widget type identifier for export filenames */
+  widgetType?: string;
+  /** Dashboard name for export filenames */
+  dashboardName?: string;
+  /** Provide an ECharts-compatible instance for PNG export */
+  getChartInstance?: (() => {
+    getDataURL: (opts: {
+      type: string;
+      pixelRatio: number;
+      backgroundColor: string;
+    }) => string;
+  } | null) | undefined;
+  /** Provide table data for CSV export */
+  getTableData?:
+    | (() => { columns: string[]; rows: string[][] })
+    | undefined;
+  /** Provide raw data for JSON export */
+  getRawData?: (() => unknown) | undefined;
+  /** Whether the widget data is stale (exceeded refresh interval) */
+  isStale?: boolean;
   /** Widget content */
   children: ReactNode;
 }
@@ -51,8 +75,12 @@ const WIDGET_SHELL_CSS = `
   from { opacity: 0; transform: translateY(-8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
 .widget-shell {
-  transition: border-color 0.2s ease;
+  transition: border-color 0.2s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .widget-shell:hover {
   border-color: var(--widget-shell-hover-border) !important;
@@ -135,6 +163,13 @@ export function WidgetShell({
   onRemove,
   onRefresh,
   onConfigure,
+  onFullscreen,
+  widgetType,
+  dashboardName,
+  getChartInstance,
+  getTableData,
+  getRawData,
+  isStale,
   children,
 }: WidgetShellProps) {
   const { token } = theme.useToken();
@@ -438,6 +473,18 @@ export function WidgetShell({
             >
               {icon}
               <span>{title}</span>
+              {isStale && (
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: token.colorWarning,
+                    animation: "pulse 2s infinite",
+                  }}
+                />
+              )}
             </span>
             <Button
               type="text"
@@ -445,6 +492,24 @@ export function WidgetShell({
               icon={isCollapsed ? <RightOutlined /> : <DownOutlined />}
               onClick={() => setIsCollapsed(!isCollapsed)}
             />
+            {onFullscreen && (
+              <Button
+                type="text"
+                size="small"
+                icon={<FullscreenOutlined />}
+                onClick={onFullscreen}
+                title="Fullscreen"
+              />
+            )}
+            {(widgetType || getChartInstance || getTableData || getRawData) && (
+              <WidgetExportMenu
+                widgetType={widgetType ?? ""}
+                dashboardName={dashboardName ?? "dashboard"}
+                getChartInstance={getChartInstance}
+                getTableData={getTableData}
+                getRawData={getRawData}
+              />
+            )}
             {onRefresh && (
               <Button
                 type="text"

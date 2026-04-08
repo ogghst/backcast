@@ -25,6 +25,9 @@ const WBETreeComponent: FC<WidgetComponentProps<WBETreeConfig>> = ({
   isEditing,
   onRemove,
   onConfigure,
+  onFullscreen,
+  widgetType,
+  dashboardName,
 }) => {
   const context = useDashboardContext();
   const [treeSelectedKey, setTreeSelectedKey] = useState<string | null>(null);
@@ -66,6 +69,9 @@ const WBETreeComponent: FC<WidgetComponentProps<WBETreeConfig>> = ({
       isEditing={isEditing}
       onRemove={onRemove}
       onConfigure={onConfigure}
+      onFullscreen={onFullscreen}
+      widgetType={widgetType}
+      dashboardName={dashboardName}
     >
       <ProjectTree
         projectId={context.projectId}

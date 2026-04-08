@@ -23,6 +23,9 @@ const VarianceChartComponent: FC<WidgetComponentProps<VarianceChartConfig>> = ({
   isEditing,
   onRemove,
   onConfigure,
+  onFullscreen,
+  widgetType,
+  dashboardName,
 }) => {
   const { token } = theme.useToken();
   const { metrics, isLoading, error, entityId, refetch } = useWidgetEVMData(
@@ -40,6 +43,9 @@ const VarianceChartComponent: FC<WidgetComponentProps<VarianceChartConfig>> = ({
       onRemove={onRemove}
       onRefresh={refetch}
       onConfigure={onConfigure}
+      onFullscreen={onFullscreen}
+      widgetType={widgetType}
+      dashboardName={dashboardName}
     >
       {metrics ? (
         <VarianceChart metrics={metrics} />

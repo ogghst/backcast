@@ -22,6 +22,9 @@ const BudgetStatusComponent: FC<WidgetComponentProps<BudgetStatusConfig>> = ({
   isEditing,
   onRemove,
   onConfigure,
+  onFullscreen,
+  widgetType,
+  dashboardName,
 }) => {
   const { token } = theme.useToken();
   const { metrics, isLoading, error, entityId, refetch } = useWidgetEVMData(
@@ -39,6 +42,9 @@ const BudgetStatusComponent: FC<WidgetComponentProps<BudgetStatusConfig>> = ({
       onRemove={onRemove}
       onRefresh={refetch}
       onConfigure={onConfigure}
+      onFullscreen={onFullscreen}
+      widgetType={widgetType}
+      dashboardName={dashboardName}
     >
       {metrics ? (
         <BudgetOverviewChart metrics={metrics} />

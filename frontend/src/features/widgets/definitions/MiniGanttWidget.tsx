@@ -105,6 +105,9 @@ const MiniGanttComponent: FC<WidgetComponentProps<MiniGanttConfig>> = ({
   isEditing,
   onRemove,
   onConfigure,
+  onFullscreen,
+  widgetType,
+  dashboardName,
 }) => {
   const { token } = theme.useToken();
   const { projectId } = useDashboardContext();
@@ -141,6 +144,9 @@ const MiniGanttComponent: FC<WidgetComponentProps<MiniGanttConfig>> = ({
       onRemove={onRemove}
       onRefresh={refetch}
       onConfigure={onConfigure}
+      onFullscreen={onFullscreen}
+      widgetType={widgetType}
+      dashboardName={dashboardName}
     >
       {rows.length === 0 ? (
         <div

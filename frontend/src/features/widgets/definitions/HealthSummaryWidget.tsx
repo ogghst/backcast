@@ -148,6 +148,9 @@ const HealthSummaryComponent: FC<WidgetComponentProps<HealthSummaryConfig>> = ({
   isEditing,
   onRemove,
   onConfigure,
+  onFullscreen,
+  widgetType,
+  dashboardName,
 }) => {
   const { token } = theme.useToken();
   const { metrics, isLoading, error, entityId, refetch } = useWidgetEVMData(
@@ -165,6 +168,9 @@ const HealthSummaryComponent: FC<WidgetComponentProps<HealthSummaryConfig>> = ({
       onRemove={onRemove}
       onRefresh={refetch}
       onConfigure={onConfigure}
+      onFullscreen={onFullscreen}
+      widgetType={widgetType}
+      dashboardName={dashboardName}
     >
       {metrics ? (
         <HealthContent metrics={metrics} config={config} />

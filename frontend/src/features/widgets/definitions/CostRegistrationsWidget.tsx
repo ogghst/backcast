@@ -80,7 +80,7 @@ const columns: ColumnsType<CostRegistrationRead> = [
 
 const CostRegistrationsComponent: FC<
   WidgetComponentProps<CostRegistrationsConfig>
-> = ({ config, instanceId, isEditing, onRemove, onConfigure }) => {
+> = ({ config, instanceId, isEditing, onRemove, onConfigure, onFullscreen, widgetType, dashboardName }) => {
   const context = useDashboardContext();
 
   const [tableParams, setTableParams] = useState<TableParams>({
@@ -136,6 +136,9 @@ const CostRegistrationsComponent: FC<
       onRemove={onRemove}
       onRefresh={refetch}
       onConfigure={onConfigure}
+      onFullscreen={onFullscreen}
+      widgetType={widgetType}
+      dashboardName={dashboardName}
     >
       <StandardTable<CostRegistrationRead>
         columns={columns}

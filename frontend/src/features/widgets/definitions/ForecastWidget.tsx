@@ -23,6 +23,9 @@ const ForecastWidgetComponent: FC<WidgetComponentProps<ForecastWidgetConfig>> = 
   isEditing,
   onRemove,
   onConfigure,
+  onFullscreen,
+  widgetType,
+  dashboardName,
 }) => {
   const { token } = theme.useToken();
   const { costElementId } = useDashboardContext();
@@ -43,6 +46,9 @@ const ForecastWidgetComponent: FC<WidgetComponentProps<ForecastWidgetConfig>> = 
       onRemove={onRemove}
       onRefresh={refetch}
       onConfigure={onConfigure}
+      onFullscreen={onFullscreen}
+      widgetType={widgetType}
+      dashboardName={dashboardName}
     >
       {costElementId ? (
         <ForecastComparisonCard
