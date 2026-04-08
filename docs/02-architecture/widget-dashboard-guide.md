@@ -1,6 +1,6 @@
 # Widget Dashboard Developer Guide
 
-**Last updated:** 2026-04-06
+**Last updated:** 2026-04-08
 
 A comprehensive reference for the project dashboard and widget system. Covers backend domain model, API, services, and frontend architecture.
 
@@ -30,6 +30,13 @@ A comprehensive reference for the project dashboard and widget system. Covers ba
   - [Configuration Forms](#configuration-forms)
   - [Persistence & Auto-Save](#persistence--auto-save)
   - [Navigation Guards](#navigation-guards)
+  - [Phase 6: Advanced Features](#phase-6-advanced-features)
+    - [Widget Fullscreen Mode](#widget-fullscreen-mode)
+    - [Widget Export](#widget-export)
+    - [Motion & Animation](#motion--animation)
+    - [Auto-Refresh](#auto-refresh)
+    - [Responsive Mobile Layout](#responsive-mobile-layout)
+    - [Undo/Redo for Composition](#undoredo-for-composition)
 
 ---
 
@@ -336,6 +343,13 @@ classDiagram
         isEditing: boolean
         onRemove: () => void
         onConfigure?: () => void
+        onFullscreen?: () => void
+        widgetType?: string
+        dashboardName?: string
+        getChartInstance?: () => ChartLike
+        getTableData?: () => TableData
+        getRawData?: () => unknown
+        isStale?: boolean
     }
 
     class WidgetDefinition~TConfig~ {
@@ -412,6 +426,8 @@ graph TD
     DG --> WP[WidgetPalette]
     DG --> WCD[WidgetConfigDrawer]
     DG --> WIC[WidgetInteractionContext]
+    DG --> WFM[WidgetFullscreenModal]
+    DG --> MWS[MobileWidgetSheet]
     DG --> RGL["react-grid-layout Responsive"]
 
     RGL --> WS1["WidgetShell (per instance)"]
@@ -423,7 +439,11 @@ graph TD
     WS3 --> WC3["Widget Component C"]
 
     WCD --> CF["ConfigForm (per widget type)"]
-```
+    WCD --> RI["Refresh Interval Selector"]
+
+    FWS["useFullscreenWidgetStore"] --> WFM
+    URK["useUndoRedoKeyboard"] --> DG
+    RLC["useResponsiveLayout"] --> DG```
 
 **Component responsibilities:**
 
@@ -438,6 +458,14 @@ graph TD
 | `WidgetConfigDrawer` | `components/WidgetConfigDrawer.tsx` | Ant Design Drawer for editing selected widget's config |
 | `WidgetShell` | `components/WidgetShell.tsx` | Universal widget wrapper: chrome, error boundary, toolbar, modes |
 | `WidgetInteractionContext` | `components/WidgetInteractionContext.tsx` | Per-widget move/resize interaction mode tracking |
+| `WidgetFullscreenModal` | `components/WidgetFullscreenModal.tsx` | Fullscreen modal rendering a single widget at viewport size |
+| `WidgetExportMenu` | `components/WidgetExportMenu.tsx` | Dropdown menu for PNG/CSV/JSON export actions |
+| `MobileWidgetSheet` | `components/MobileWidgetSheet.tsx` | Bottom sheet for mobile widget management (reorder, hide, remove) |
+| `useFullscreenWidgetStore` | `stores/useFullscreenWidgetStore.ts` | Zustand store for fullscreen widget instance ID |
+| `useUndoRedoKeyboard` | `hooks/useUndoRedoKeyboard.ts` | Keyboard listener for Ctrl+Z/Ctrl+Shift+Z in edit mode |
+| `useWidgetAutoRefresh` | `hooks/useWidgetAutoRefresh.ts` | Auto-refresh orchestration with IntersectionObserver |
+| `useWidgetVisibility` | `hooks/useWidgetVisibility.ts` | IntersectionObserver hook for widget viewport visibility |
+| `useResponsiveLayout` | `hooks/useResponsiveLayout.ts` | Responsive grid configuration per breakpoint |
 
 ### State Management
 
@@ -492,6 +520,8 @@ stateDiagram-v2
 | `projectId` | `string` | Current project from route params |
 | `paletteOpen` | `boolean` | Widget palette modal state |
 | `_lastSavedSnapshot` | `string \| null` | JSON snapshot for edit-mode rollback |
+| `_undoStack` | `string[]` | Undo stack of JSON dashboard snapshots (max 20) |
+| `_redoStack` | `string[]` | Redo stack of JSON dashboard snapshots (max 20) |
 
 **Key actions:**
 
@@ -507,6 +537,8 @@ stateDiagram-v2
 | `discardChanges()` | Restore snapshot, exit edit mode |
 | `confirmChanges()` | Clear snapshot, exit edit mode (after save) |
 | `markSaved(backendId)` | Clear dirty flag, store backend ID |
+| `undo()` | Pop undo stack, restore previous dashboard state |
+| `redo()` | Pop redo stack, restore undone dashboard state |
 
 ### Dashboard Context Bus
 
@@ -698,6 +730,135 @@ Two levels of protection:
 
 ---
 
+## Phase 6: Advanced Features
+
+### Widget Fullscreen Mode
+
+A fullscreen modal overlay for viewing a single widget at full viewport size.
+
+**State:** `useFullscreenWidgetStore` (minimal Zustand store)
+- `fullscreenInstanceId: string | null` — which widget is fullscreen
+- `openFullscreen(id)` / `closeFullscreen()` — actions
+
+**Flow:**
+1. User clicks expand button in widget's floating toolbar (view mode)
+2. `openFullscreen(instanceId)` sets the store
+3. `DashboardGrid` renders `WidgetFullscreenModal` for the matching widget
+4. Modal uses Ant Design Modal at `width="100vw"` with `destroyOnClose`
+5. ECharts charts resize via `window.dispatchEvent(new Event("resize"))` after 100ms
+6. Close with Escape key (built-in Modal behavior) or close button
+
+**Files:**
+- `stores/useFullscreenWidgetStore.ts` — Zustand store
+- `features/widgets/components/WidgetFullscreenModal.tsx` — Modal component
+- `features/widgets/components/WidgetShell.tsx` — Expand button in toolbar
+
+### Widget Export
+
+Export widget data as PNG, CSV, or JSON via a dropdown menu in the widget toolbar.
+
+**Export utilities** (`features/widgets/utils/exportUtils.ts`):
+
+| Function | Input | Output |
+|----------|-------|--------|
+| `exportChartAsPNG(chart, filename)` | ECharts instance | PNG via `getDataURL()` |
+| `exportTableAsCSV(columns, rows, filename)` | String arrays | CSV Blob (RFC 4180) |
+| `exportJSON(data, filename)` | Any serializable data | JSON Blob |
+| `buildExportFilename(type, name, ext)` | Strings | `{type}-{name}-{timestamp}.{ext}` |
+
+**PNG export pattern:** Reuses the proven `EChartsTimeSeries.tsx` approach — `chart.getDataURL({ type: "png", pixelRatio: 2, backgroundColor: "#fff" })` + programmatic `<a>` download.
+
+**`WidgetExportMenu`** renders a Dropdown with three items, each disabled when the corresponding getter is not provided. Chart widgets register `getChartInstance`, table widgets register `getTableData`, all widgets can provide `getRawData`.
+
+**Files:**
+- `features/widgets/utils/exportUtils.ts` — Pure export functions
+- `features/widgets/components/WidgetExportMenu.tsx` — Dropdown component
+
+### Motion & Animation
+
+CSS-based entrance animations for widgets, with staggered delays.
+
+**Implementation:**
+- `injectWidgetMotionStyles()` injects a `<style>` tag once at module load (follows `DashboardSkeleton.tsx` pattern)
+- `@keyframes widget-mount`: fade-in + 4px upward translate, 200ms ease-out
+- Stagger delay via CSS custom property `--widget-stagger-delay`, computed as `Math.min(index * 50, 400)ms`
+- `.widget-enter` class applied to each widget wrapper in `DashboardGrid`
+- Spring-like transform transition on WidgetShell: `cubic-bezier(0.34, 1.56, 0.64, 1)`
+- `@media (prefers-reduced-motion: reduce)` disables animations
+
+**Files:**
+- `features/widgets/utils/animations.ts` — CSS keyframe injection
+
+### Auto-Refresh
+
+Per-widget configurable data refresh using TanStack Query's `refetchInterval`, paused when the widget is off-screen.
+
+**Configuration:**
+- `refreshInterval` field in widget config (in milliseconds)
+- Options in WidgetConfigDrawer: Off / 30s / 1min / 5min (default: Off)
+- Stored as `config.refreshInterval` in the widget instance
+
+**Hooks:**
+
+| Hook | Purpose |
+|------|---------|
+| `useWidgetVisibility(ref)` | IntersectionObserver (10% threshold) — returns `boolean` |
+| `useWidgetAutoRefresh(queryKey, interval, isVisible)` | Refetch timer + stale detection |
+
+**Stale indicator:** Amber pulsing dot next to widget title in the floating toolbar when `isStale` is true.
+
+**`useWidgetEVMData` integration:** Accepts optional `options.refetchInterval` parameter, passed through to `useEVMMetrics` → `useQuery({ refetchInterval })`.
+
+**Files:**
+- `features/widgets/hooks/useWidgetVisibility.ts` — IntersectionObserver hook
+- `features/widgets/hooks/useWidgetAutoRefresh.ts` — Refresh orchestration
+- `features/widgets/definitions/shared/useWidgetEVMData.ts` — Updated with `refetchInterval` option
+
+### Responsive Mobile Layout
+
+Adaptive layout for desktop, tablet, and mobile viewports.
+
+| Breakpoint | Grid | Behavior |
+|------------|------|----------|
+| Desktop (>=1200px) | 12-column `react-grid-layout` | Full drag/resize, stagger animations |
+| Tablet (768-1199px) | 8-column grid | Larger touch handles, simplified composition |
+| Mobile (<768px) | Single-column stacked | No drag/resize, "Manage Widgets" bottom sheet |
+
+**`useResponsiveLayout` hook:** Returns `{ breakpoints, cols, rowHeight, margin, isMobile, isTablet }` based on `useBreakpoint`.
+
+**Mobile layout:** When `isMobile`, widgets render in a simple stacked `<div>` layout (no `react-grid-layout`). A "Manage Widgets" button opens `MobileWidgetSheet` — an Ant Design `Drawer` with `placement="bottom"` and `height="70vh"` — supporting drag-to-reorder, hide/show toggles, and delete.
+
+**Files:**
+- `features/widgets/hooks/useResponsiveLayout.ts` — Responsive grid config hook
+- `features/widgets/components/MobileWidgetSheet.tsx` — Mobile bottom sheet
+
+### Undo/Redo for Composition
+
+Undo/redo support for dashboard composition changes in edit mode.
+
+**State:** `_undoStack` and `_redoStack` in `useDashboardCompositionStore`
+- Each entry is a JSON-serialized `Dashboard` snapshot
+- Maximum 20 entries per stack (oldest pruned via `pushToStack` helper)
+- New mutations clear the redo stack
+
+**Snapshot triggers:**
+- `addWidget`, `removeWidget`, `updateWidgetConfig` — snapshot pushed before mutation
+- `updateDashboardLayout` — snapshot pushed only during edit mode (debounced in DashboardGrid)
+- `confirmChanges()` and `discardChanges()` — both stacks cleared
+
+**Keyboard shortcuts:** `useUndoRedoKeyboard` hook registers global listeners:
+- Ctrl+Z / Cmd+Z → undo
+- Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y → redo
+- Only active when `isEditing` is true
+
+**Toolbar buttons:** Undo/Redo icons in edit mode toolbar, disabled when stacks are empty.
+
+**Files:**
+- `features/widgets/hooks/useUndoRedoKeyboard.ts` — Keyboard hook
+- `stores/useDashboardCompositionStore.ts` — Updated with undo/redo stacks
+
+---
+
 ## File Reference
 
 ### Backend Files
@@ -726,10 +887,20 @@ Two levels of protection:
 | `frontend/src/features/widgets/components/WidgetPalette.tsx` | Add-widget modal |
 | `frontend/src/features/widgets/components/WidgetConfigDrawer.tsx` | Config editing drawer |
 | `frontend/src/features/widgets/components/WidgetInteractionContext.tsx` | Move/resize mode context |
+| `frontend/src/features/widgets/components/WidgetFullscreenModal.tsx` | Fullscreen widget modal |
+| `frontend/src/features/widgets/components/WidgetExportMenu.tsx` | Export dropdown menu |
+| `frontend/src/features/widgets/components/MobileWidgetSheet.tsx` | Mobile widget management sheet |
 | `frontend/src/features/widgets/components/config-forms/` | 7 config form components |
+| `frontend/src/features/widgets/hooks/useUndoRedoKeyboard.ts` | Undo/redo keyboard hook |
+| `frontend/src/features/widgets/hooks/useWidgetVisibility.ts` | IntersectionObserver visibility hook |
+| `frontend/src/features/widgets/hooks/useWidgetAutoRefresh.ts` | Auto-refresh orchestration hook |
+| `frontend/src/features/widgets/hooks/useResponsiveLayout.ts` | Responsive grid config hook |
+| `frontend/src/features/widgets/utils/animations.ts` | CSS mount animation injection |
+| `frontend/src/features/widgets/utils/exportUtils.ts` | PNG/CSV/JSON export utilities |
 | `frontend/src/features/widgets/pages/DashboardPage.tsx` | Route page component |
 | `frontend/src/features/widgets/pages/DashboardErrorBoundary.tsx` | Error boundary |
 | `frontend/src/features/widgets/context/DashboardContextBus.tsx` | Cross-widget context |
 | `frontend/src/features/widgets/api/useDashboardPersistence.ts` | Auto-save + load hook |
 | `frontend/src/features/widgets/api/useDashboardLayouts.ts` | TanStack Query CRUD hooks |
-| `frontend/src/stores/useDashboardCompositionStore.ts` | Zustand composition state |
+| `frontend/src/stores/useDashboardCompositionStore.ts` | Zustand composition state (with undo/redo) |
+| `frontend/src/stores/useFullscreenWidgetStore.ts` | Zustand fullscreen widget state |

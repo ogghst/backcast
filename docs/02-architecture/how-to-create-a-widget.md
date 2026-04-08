@@ -1,6 +1,6 @@
 # How to Create a New Widget
 
-**Last updated:** 2026-04-06
+**Last updated:** 2026-04-08
 
 A step-by-step guide for adding a new widget to the project dashboard. Covers choosing types, categories, size constraints, config interfaces, data patterns, and registration.
 
@@ -213,6 +213,12 @@ const { metrics, isLoading, error, entityId, refetch } = useWidgetEVMData(
   config.entityType,   // resolves projectId/wbeId/costElementId from context
 );
 
+// With auto-refresh (Phase 6):
+const { metrics, isLoading, error, entityId, refetch } = useWidgetEVMData(
+  config.entityType,
+  { refetchInterval: config.refreshInterval },  // optional: Off/30s/1min/5min
+);
+
 // metrics: { bac, ac, ev, eac, cpi, spi, cv, sv, tcpi, vac, ... }
 ```
 
@@ -303,6 +309,9 @@ const MyWidgetComponent: FC<WidgetComponentProps<MyWidgetConfig>> = ({
   isEditing,
   onRemove,
   onConfigure,
+  onFullscreen,       // Phase 6: forward to WidgetShell for fullscreen button
+  widgetType,         // Phase 6: forward to WidgetShell for export filename
+  dashboardName,      // Phase 6: forward to WidgetShell for export filename
 }) => {
   const { token } = theme.useToken();
 
@@ -319,6 +328,9 @@ const MyWidgetComponent: FC<WidgetComponentProps<MyWidgetConfig>> = ({
       onRemove={onRemove}
       onRefresh={undefined}    // pass refetch from data hook
       onConfigure={onConfigure}
+      onFullscreen={onFullscreen}    // Phase 6: fullscreen support
+      widgetType={widgetType}        // Phase 6: export support
+      dashboardName={dashboardName}  // Phase 6: export support
     >
       {/* Your widget content here */}
       <Text>Widget content</Text>
@@ -353,6 +365,7 @@ registerWidget<MyWidgetConfig>({
 - Use `theme.useToken()` for all styling -- no hardcoded colors or spacing
 - Handle the "no data" state: show a `<Text type="secondary">` message when there's no entity selected or no data available
 - The `onConfigure` prop opens the config drawer only if `configFormComponent` is set in the registration
+- **Phase 6 props** (`onFullscreen`, `widgetType`, `dashboardName`) must be destructured and forwarded to `WidgetShell` — they enable fullscreen mode and export functionality
 
 ---
 
@@ -526,10 +539,14 @@ const HealthScoreComponent: FC<WidgetComponentProps<HealthScoreConfig>> = ({
   isEditing,
   onRemove,
   onConfigure,
+  onFullscreen,
+  widgetType,
+  dashboardName,
 }) => {
   const { token } = theme.useToken();
   const { metrics, isLoading, error, entityId, refetch } = useWidgetEVMData(
     config.entityType,
+    { refetchInterval: config.refreshInterval },  // Phase 6: auto-refresh
   );
 
   return (
@@ -543,6 +560,9 @@ const HealthScoreComponent: FC<WidgetComponentProps<HealthScoreConfig>> = ({
       onRemove={onRemove}
       onRefresh={refetch}
       onConfigure={onConfigure}
+      onFullscreen={onFullscreen}
+      widgetType={widgetType}
+      dashboardName={dashboardName}
     >
       {metrics ? (
         <Space
@@ -754,6 +774,7 @@ Before submitting your widget, verify:
 - [ ] Size constraints allow the widget to render at `minW` x `minH`
 - [ ] Config interface is flat, JSON-serializable, and has sensible defaults
 - [ ] `WidgetShell` wraps all content with `isLoading`, `error`, and `onRefresh` props
+- [ ] Phase 6 props (`onFullscreen`, `widgetType`, `dashboardName`) are destructured and forwarded to `WidgetShell`
 - [ ] Empty state is handled (no entity selected, no data)
 - [ ] All styling uses `theme.useToken()` -- no hardcoded values
 - [ ] Widget file is imported in `registerAll.ts`

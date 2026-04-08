@@ -1,6 +1,6 @@
 # Dashboard & Widgets — User Guide
 
-**Last updated:** 2026-04-07
+**Last updated:** 2026-04-08
 
 A step-by-step introductory guide to the Backcast project dashboard and its widget system. Walks through login, navigation, and every feature available on the dashboard page.
 
@@ -24,7 +24,12 @@ A step-by-step introductory guide to the Backcast project dashboard and its widg
 - [14. Dashboard Templates](#14-dashboard-templates)
 - [15. Auto-Save Behavior](#15-auto-save-behavior)
 - [16. Navigation Guards](#16-navigation-guards)
-- [17. Troubleshooting](#17-troubleshooting)
+- [17. Fullscreen Mode](#17-fullscreen-mode)
+- [18. Exporting Widget Data](#18-exporting-widget-data)
+- [19. Undo and Redo](#19-undo-and-redo)
+- [20. Auto-Refresh](#20-auto-refresh)
+- [21. Mobile and Tablet Layout](#21-mobile-and-tablet-layout)
+- [22. Troubleshooting](#22-troubleshooting)
 
 ---
 
@@ -294,7 +299,136 @@ The dashboard protects against accidental data loss:
 
 ---
 
-## 17. Troubleshooting
+## 17. Fullscreen Mode
+
+Any widget can be expanded to fill the entire browser viewport for a closer look at its data.
+
+1. In **view mode**, hover over the widget's top-right corner to reveal the floating toolbar.
+2. Click the **expand** button (fullscreen icon).
+3. A fullscreen modal opens with the widget rendered at maximum size.
+4. Charts and tables automatically resize to fill the available space.
+5. To close, press **Escape** or click the **close** button in the modal header.
+
+> Fullscreen mode preserves your current context — entity selections, branch, and date settings carry over from the dashboard.
+
+---
+
+## 18. Exporting Widget Data
+
+You can export widget data in multiple formats directly from the dashboard.
+
+1. In **view mode**, hover over the widget's top-right corner to reveal the floating toolbar.
+2. Click the **download** icon to open the export menu.
+3. Choose a format:
+
+| Format | Availability | Description |
+|--------|-------------|-------------|
+| **PNG** | Chart widgets only | High-resolution screenshot of the chart (2x pixel ratio) |
+| **CSV** | Table widgets only | Comma-separated values with proper quoting |
+| **JSON** | All widgets | Raw widget data as a JSON file |
+
+4. The file downloads automatically with a filename pattern: `{widgetType}-{dashboardName}-{timestamp}.{ext}`
+
+> **PNG export** captures the chart exactly as displayed. **CSV export** includes column headers and handles special characters correctly.
+
+---
+
+## 19. Undo and Redo
+
+When editing your dashboard layout, you can undo and redo changes using keyboard shortcuts or toolbar buttons.
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Z` (or `Cmd+Z` on Mac) | **Undo** — revert the last change |
+| `Ctrl+Shift+Z` (or `Cmd+Shift+Z` on Mac) | **Redo** — re-apply a reverted change |
+| `Ctrl+Y` | **Redo** (alternative shortcut) |
+
+### Toolbar Buttons
+
+In edit mode, the toolbar displays **Undo** and **Redo** icon buttons. They are grayed out when there is nothing to undo or redo.
+
+### What can be undone
+
+- Adding a widget
+- Removing a widget
+- Moving or resizing a widget
+- Changing a widget's configuration
+
+### Undo behavior
+
+- Up to **20 changes** can be undone (older changes are pruned).
+- Making a new change after an undo clears the redo history.
+- Clicking **Done** or **Cancel** clears both undo and redo history.
+- Rapid drag operations are batched into a single undo entry.
+
+---
+
+## 20. Auto-Refresh
+
+Widgets can automatically refresh their data at a configurable interval — useful for dashboards displayed on a monitor or during live project updates.
+
+### Configuring auto-refresh
+
+1. Open the widget's **Settings** drawer (gear icon).
+2. Below the widget-specific options, find the **Auto-Refresh** section.
+3. Choose an interval:
+
+| Option | Interval |
+|--------|----------|
+| **Off** (default) | No automatic refresh |
+| **30 seconds** | Refresh every 30s |
+| **1 minute** | Refresh every 60s |
+| **5 minutes** | Refresh every 300s |
+
+4. Click **Apply** to save the setting.
+
+### Stale indicator
+
+When a widget's data is older than its refresh interval, a small **amber pulsing dot** appears next to the widget title in the floating toolbar. This indicates the data will refresh on the next cycle.
+
+### Smart visibility detection
+
+Auto-refresh is **paused** when a widget is scrolled off-screen. It resumes automatically when the widget comes back into view. This prevents unnecessary API calls for widgets you cannot see.
+
+---
+
+## 21. Mobile and Tablet Layout
+
+The dashboard adapts its layout and controls for smaller screens.
+
+### Desktop (1200px and wider)
+
+- Full **12-column grid** with drag-and-drop widget arrangement.
+- All editing features available.
+- Standard toolbar with all controls.
+
+### Tablet (768px – 1199px)
+
+- **8-column grid** with larger touch targets.
+- Drag and resize work with touch gestures.
+- Simplified toolbar controls.
+
+### Mobile (below 768px)
+
+- **Single-column stacked layout** — widgets display one after another, no grid.
+- Drag and resize are disabled. Instead, use the **Manage Widgets** button.
+- Widget toolbars use larger touch-friendly buttons (40px tap targets).
+
+#### Managing widgets on mobile
+
+1. Tap the **Manage Widgets** button in the toolbar.
+2. A bottom sheet opens showing all widgets in your dashboard.
+3. Available actions:
+   - **Drag to reorder** — press and hold the drag handle, then drag up or down.
+   - **Hide/Show** — toggle the switch to show or hide a widget without removing it.
+   - **Delete** — tap the trash icon to permanently remove a widget.
+4. Tap outside the sheet or swipe down to close.
+
+---
+
+## 22. Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
@@ -305,6 +439,11 @@ The dashboard protects against accidental data loss:
 | Changes not saving | Ensure you clicked **Done** to exit edit mode. View-mode config changes auto-save after 500ms. |
 | Cannot drag/resize a widget | You must be in **edit mode** and click the **Move** or **Resize** button on the specific widget first. Direct dragging is disabled by default to prevent accidental moves. |
 | Layout looks broken after resize | The widget may have been shrunk below its minimum size. Enter edit mode and resize it to a larger area. |
+| Fullscreen widget not resizing chart | Close and reopen fullscreen mode. Charts auto-resize on open. |
+| Export PNG is blank | Ensure the chart has finished loading before exporting. Wait for data to appear, then export. |
+| Undo not working | Undo/redo is only available in **edit mode**. Enter edit mode first, then use Ctrl+Z. |
+| Auto-refresh not updating | Auto-refresh pauses when the widget is off-screen. Scroll the widget into view to resume. |
+| Mobile layout not changing | Clear browser cache or hard-refresh (Ctrl+Shift+R). The responsive layout detects viewport width on load. |
 
 ---
 
@@ -324,3 +463,9 @@ The dashboard protects against accidental data loss:
 | Scope widgets to an entity | Click a node in the **WBE Tree** widget |
 | Switch dashboard template | Edit mode → template dropdown in toolbar |
 | Refresh widget data | Hover widget → click **refresh** icon |
+| Fullscreen a widget | View mode → hover widget → click **expand** icon |
+| Export widget data | View mode → hover widget → click **download** icon → choose format |
+| Undo a change | Edit mode → `Ctrl+Z` or click undo button |
+| Redo a change | Edit mode → `Ctrl+Shift+Z` or click redo button |
+| Set auto-refresh | Open widget settings → choose interval → Apply |
+| Manage widgets on mobile | Tap **Manage Widgets** → reorder, hide, or delete |

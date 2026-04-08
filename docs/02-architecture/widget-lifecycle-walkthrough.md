@@ -1,6 +1,6 @@
 # Widget Lifecycle Walkthrough: Budget Status Widget
 
-**Last updated:** 2026-04-06
+**Last updated:** 2026-04-08
 
 This document traces the complete lifecycle of the **Budget Status** widget (`budget-status`) from its initial configuration in a backend template through to its rendering on the user's dashboard page. Every code snippet is taken directly from the codebase.
 
@@ -939,3 +939,78 @@ sequenceDiagram
 | Config form | `frontend/src/features/widgets/components/config-forms/BudgetStatusConfigForm.tsx` | Chart type selector |
 | Shared hook | `frontend/src/features/widgets/definitions/shared/useWidgetEVMData.ts` | Entity-scoped EVM fetch |
 | Chart | `frontend/src/components/explorer/charts/BudgetOverviewChart.tsx` | ECharts bar/pie rendering |
+
+---
+
+## Phase 6: Advanced Feature Interactions
+
+The following interactions layer on top of the widget lifecycle described above.
+
+### Fullscreen Mode Interaction
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Shell as WidgetShell
+    participant FSStore as useFullscreenWidgetStore
+    participant Grid as DashboardGrid
+    participant Modal as WidgetFullscreenModal
+
+    User->>Shell: Click expand button (view mode toolbar)
+    Shell->>FSStore: openFullscreen(instanceId)
+    FSStore-->>Grid: fullscreenInstanceId updated
+    Grid->>Modal: Render WidgetFullscreenModal
+    Modal->>Modal: Look up widget instance + definition
+    Modal->>Modal: Render WidgetComponent at full viewport
+    Note over Modal: Ant Design Modal width="100vw"
+    User->>Modal: Press Escape / click close
+    Modal->>FSStore: closeFullscreen()
+```
+
+### Export Interaction
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Menu as WidgetExportMenu
+    participant Utils as exportUtils
+    participant Browser
+
+    User->>Menu: Click download icon in toolbar
+    Menu->>Menu: Show dropdown (PNG / CSV / JSON)
+    User->>Menu: Click "Export as PNG"
+    Menu->>Utils: exportChartAsPNG(chart, filename)
+    Utils->>Utils: chart.getDataURL({ type: "png", pixelRatio: 2 })
+    Utils->>Browser: Create <a> element + trigger download
+    Browser-->>User: File saved: budget-status-My Dashboard-2026-04-08.png
+```
+
+### Undo/Redo Interaction
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Grid as DashboardGrid
+    participant Store as CompositionStore
+    participant KB as useUndoRedoKeyboard
+
+    Note over User: User enters edit mode
+    User->>Store: setEditing(true)
+    Note over Store: Initial snapshot pushed to _undoStack
+
+    User->>Store: addWidget(typeId)
+    Note over Store: Snapshot pushed BEFORE mutation
+
+    User->>KB: Press Ctrl+Z
+    KB->>Store: undo()
+    Note over Store: Pop _undoStack, push current to _redoStack, restore
+    Grid->>Grid: Re-render with restored dashboard
+
+    User->>KB: Press Ctrl+Shift+Z
+    KB->>Store: redo()
+    Note over Store: Pop _redoStack, push current to _undoStack, restore
+    Grid->>Grid: Re-render with restored dashboard
+
+    User->>Store: confirmChanges()
+    Note over Store: _undoStack = [], _redoStack = []
+```
