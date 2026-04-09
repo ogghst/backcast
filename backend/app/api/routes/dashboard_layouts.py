@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import get_current_active_user
+from app.api.dependencies.auth import RoleChecker, get_current_active_user
 from app.db.session import get_db
 from app.models.domain.user import User
 from app.models.schemas.dashboard_layout import (
@@ -181,5 +181,34 @@ async def clone_dashboard_layout_template(
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
+    return DashboardLayoutRead.model_validate(layout)
+
+
+@router.put(
+    "/templates/{layout_id}",
+    response_model=DashboardLayoutRead,
+    operation_id="update_dashboard_layout_template",
+    dependencies=[Depends(RoleChecker(required_permission="dashboard-template-update"))],
+)
+async def update_dashboard_layout_template(
+    layout_id: UUID,
+    layout_update: DashboardLayoutUpdate,
+    current_user: User = Depends(get_current_active_user),
+    service: DashboardLayoutService = Depends(get_dashboard_layout_service),
+) -> DashboardLayoutRead:
+    """Update a template dashboard layout (admin only).
+
+    Allows administrators to modify template layouts. Non-admin users
+    receive a 403 response from the RoleChecker dependency.
+    """
+    try:
+        layout = await service.update_template(
+            layout_id,
+            **layout_update.model_dump(exclude_unset=True),
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(e)
         ) from e
     return DashboardLayoutRead.model_validate(layout)

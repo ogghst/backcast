@@ -58,7 +58,8 @@
         "ai-config-create",
         "ai-config-update",
         "ai-config-delete",
-        "ai-chat"
+        "ai-chat",
+        "dashboard-template-update"
       ]
     },
     "manager": {

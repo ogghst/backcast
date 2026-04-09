@@ -335,6 +335,8 @@ class DashboardLayoutService:
             raise ValueError(
                 f"DashboardLayout with id {entity_id} not found"
             )
+        if layout.is_template:
+            raise ValueError("Cannot modify a template layout")
         if layout.user_id != user_id:
             raise ValueError(
                 "Not authorized to update this dashboard layout"
@@ -344,6 +346,40 @@ class DashboardLayoutService:
             await self._clear_default_for_user_project(
                 user_id, layout.project_id
             )
+
+        for key, value in updates.items():
+            setattr(layout, key, value)
+
+        await self.session.flush()
+        await self.session.refresh(layout)
+        return layout
+
+    async def update_template(
+        self, entity_id: UUID, **updates: object
+    ) -> DashboardLayout:
+        """Update a template dashboard layout (admin only).
+
+        Validates that the entity exists and is a template, then applies
+        updates without ownership or default-scope checks.  Intended for
+        use by the admin-only API endpoint.
+
+        Args:
+            entity_id: UUID of the dashboard layout
+            **updates: Field values to update
+
+        Returns:
+            Updated DashboardLayout entity
+
+        Raises:
+            ValueError: If entity not found or is not a template
+        """
+        layout = await self.get(entity_id)
+        if layout is None:
+            raise ValueError(
+                f"DashboardLayout with id {entity_id} not found"
+            )
+        if not layout.is_template:
+            raise ValueError("Layout is not a template")
 
         for key, value in updates.items():
             setattr(layout, key, value)

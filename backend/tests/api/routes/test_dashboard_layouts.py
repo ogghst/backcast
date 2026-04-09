@@ -17,7 +17,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import get_current_active_user
+from app.api.dependencies.auth import get_current_active_user, get_current_user
 from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.db.session import get_db
 from app.main import app
@@ -124,6 +124,7 @@ async def auth_client(
         AsyncClient with auth and DB dependencies overridden.
     """
     app.dependency_overrides[get_current_active_user] = lambda: owner_user
+    app.dependency_overrides[get_current_user] = lambda: owner_user
     app.dependency_overrides[get_rbac_service] = lambda: _MockRBAC()
     app.dependency_overrides[get_db] = lambda: db_session
 
@@ -146,6 +147,7 @@ async def other_client(
         AsyncClient with auth overridden to the non-owner user.
     """
     app.dependency_overrides[get_current_active_user] = lambda: other_user
+    app.dependency_overrides[get_current_user] = lambda: other_user
     app.dependency_overrides[get_rbac_service] = lambda: _MockRBAC()
     app.dependency_overrides[get_db] = lambda: db_session
 
@@ -659,6 +661,88 @@ async def test_update_layout_set_default_clears_previous(
     defaults = [ly for ly in layouts if ly.is_default]
     assert len(defaults) == 1
     assert defaults[0].name == "New Default"
+
+
+@pytest.mark.asyncio
+async def test_update_template_layout_returns_403(
+    auth_client: AsyncClient,
+    owner_user: User,
+    db_session: AsyncSession,
+) -> None:
+    """Updating a template layout via the regular PUT endpoint returns 403."""
+    created = await _create_layout(
+        db_session,
+        user_id=owner_user.user_id,
+        name="Template",
+        is_template=True,
+    )
+
+    response = await auth_client.put(
+        f"{BASE_URL}/{created['id']}",
+        json={"name": "Hacked"},
+    )
+    assert response.status_code == 403
+    assert "template" in response.json()["detail"].lower()
+
+
+# ===========================================================================
+# 5b. PUT /api/v1/dashboard-layouts/templates/{layout_id} -- admin template update
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+async def test_admin_update_template(
+    auth_client: AsyncClient,
+    other_user: User,
+    db_session: AsyncSession,
+) -> None:
+    """Admin user can update a template via the admin endpoint."""
+    template = await _create_layout(
+        db_session,
+        user_id=other_user.user_id,
+        name="Admin Template",
+        is_template=True,
+        widgets=[{"typeId": "header", "config": {}}],
+    )
+
+    response = await auth_client.put(
+        f"{BASE_URL}/templates/{template['id']}",
+        json={"name": "Updated by Admin"},
+    )
+    assert response.status_code == 200
+    assert response.json()["name"] == "Updated by Admin"
+
+
+@pytest.mark.asyncio
+async def test_admin_update_template_not_found(auth_client: AsyncClient) -> None:
+    """Admin template update returns 404 for nonexistent ID."""
+    fake_id = uuid4()
+    response = await auth_client.put(
+        f"{BASE_URL}/templates/{fake_id}",
+        json={"name": "Nope"},
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_admin_update_template_non_template_returns_404(
+    auth_client: AsyncClient,
+    owner_user: User,
+    db_session: AsyncSession,
+) -> None:
+    """Admin template update returns 404 when layout is not a template."""
+    created = await _create_layout(
+        db_session,
+        user_id=owner_user.user_id,
+        name="Regular",
+        is_template=False,
+    )
+
+    response = await auth_client.put(
+        f"{BASE_URL}/templates/{created['id']}",
+        json={"name": "Nope"},
+    )
+    assert response.status_code == 404
 
 
 # ===========================================================================

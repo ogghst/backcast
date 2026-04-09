@@ -306,6 +306,46 @@ describe("DashboardToolbar", () => {
     expect(templateBtn).toBeDisabled();
   });
 
+  it("does not show editable name in view mode", async () => {
+    mockStoreState.isEditing = false;
+    mockStoreState.activeDashboard = {
+      id: "dash-1",
+      name: "Project Alpha Dashboard",
+      projectId: "proj-1",
+      widgets: [],
+      isDefault: false,
+    };
+    const DashboardToolbar = await importDashboardToolbar();
+    renderWithTheme(<DashboardToolbar onSave={mockSave} />);
+    // The name text should be present
+    expect(screen.getByText("Project Alpha Dashboard")).toBeInTheDocument();
+    // No editable icon should be present (the edit pencil icon from Typography.Text editable)
+    const editIcon = screen.queryByRole("button", {
+      name: /click to edit dashboard name/i,
+    });
+    expect(editIcon).not.toBeInTheDocument();
+  });
+
+  it("shows editable name in edit mode", async () => {
+    mockStoreState.isEditing = true;
+    mockStoreState.activeDashboard = {
+      id: "dash-1",
+      name: "Project Alpha Dashboard",
+      projectId: "proj-1",
+      widgets: [],
+      isDefault: false,
+    };
+    const DashboardToolbar = await importDashboardToolbar();
+    renderWithTheme(<DashboardToolbar onSave={mockSave} />);
+    // The name text should be present
+    expect(screen.getByText("Project Alpha Dashboard")).toBeInTheDocument();
+    // The editable icon should be present (Ant Design Typography editable renders a button)
+    const editIcon = screen.queryByRole("button", {
+      name: /click to edit dashboard name/i,
+    });
+    expect(editIcon).toBeInTheDocument();
+  });
+
   it("aria-labels are present on action buttons in edit mode", async () => {
     mockStoreState.isEditing = true;
     mockStoreState.activeDashboard = {
