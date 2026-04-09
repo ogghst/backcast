@@ -90,30 +90,45 @@ describe("WidgetShell", () => {
     expect(screen.getByText("Test Widget")).toBeInTheDocument();
   });
 
-  it("does not show drag handle class by default in edit mode", () => {
-    renderWithTheme(<WidgetShell {...defaultProps} isEditing={true} />);
-    const handle = document.querySelector(".react-grid-drag-handle");
-    expect(handle).not.toBeInTheDocument();
+  it("does not highlight Move button by default in edit mode", () => {
+    const { container } = renderWithTheme(
+      <WidgetShell {...defaultProps} isEditing={true} />,
+    );
+    const moveBtn = findIconButton(container, "anticon-drag")!.closest(
+      "button",
+    )!;
+    // No highlighted background when no interaction is active
+    expect(moveBtn.style.background).toBeFalsy();
   });
 
-  it("shows drag handle on Move button when interaction mode is move", () => {
-    renderWithTheme(<WidgetShell {...defaultProps} isEditing={true} />, {
-      getInteraction: (id) => (id === "test-1" ? "move" : null),
-      setInteraction: vi.fn(),
-      clearInteraction: vi.fn(),
-      activeInteraction: {
-        instanceId: "test-1",
-        mode: "move" as InteractionMode,
+  it("highlights Move button when interaction mode is move", () => {
+    const { container } = renderWithTheme(
+      <WidgetShell {...defaultProps} isEditing={true} />,
+      {
+        getInteraction: (id) => (id === "test-1" ? "move" : null),
+        setInteraction: vi.fn(),
+        clearInteraction: vi.fn(),
+        activeInteraction: {
+          instanceId: "test-1",
+          mode: "move" as InteractionMode,
+        },
       },
-    });
-    const handle = document.querySelector(".react-grid-drag-handle");
-    expect(handle).toBeInTheDocument();
+    );
+    const moveBtn = findIconButton(container, "anticon-drag")!.closest(
+      "button",
+    )!;
+    // Button gets a highlighted background when move mode is active
+    expect(moveBtn.style.background).toBeTruthy();
   });
 
-  it("hides drag handle when not editing", () => {
-    renderWithTheme(<WidgetShell {...defaultProps} isEditing={false} />);
-    const handle = document.querySelector(".react-grid-drag-handle");
-    expect(handle).not.toBeInTheDocument();
+  it("does not show Move button when not editing", () => {
+    const { container } = renderWithTheme(
+      <WidgetShell {...defaultProps} isEditing={false} />,
+    );
+    // Move button is part of the edit-mode action bar, absent in view mode
+    expect(
+      findIconButton(container, "anticon-drag"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows Move and Resize icon buttons in edit mode", () => {

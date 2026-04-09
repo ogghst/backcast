@@ -1,10 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Button, Result, theme, Typography } from "antd";
 import { LayoutOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import {
   Responsive,
   useContainerWidth,
-  type Layout,
 } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -78,15 +77,12 @@ const BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480 };
 const COLS = { lg: 12, md: 10, sm: 6, xs: 4 };
 const ROW_HEIGHT = 80;
 const MARGIN: [number, number] = [12, 12];
-const LAYOUT_DEBOUNCE_MS = 150;
-
 /**
  * Dashboard grid component wrapping react-grid-layout.
  *
  * Renders widget instances from the composition store on a responsive
  * 12-column grid. Each widget component manages its own WidgetShell.
- * Provides edit mode toggle, add-widget modal, and debounced layout
- * persistence.
+ * Provides edit mode toggle, add-widget modal, and layout persistence.
  */
 export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
   const { token } = theme.useToken();
@@ -120,84 +116,49 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
     mode: InteractionMode;
   } | null>(null);
 
-  const clearActiveInteraction = useCallback(() => {
-    setActiveInteraction(null);
-  }, []);
-
-  // Debounced layout change handler
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Cleanup debounce timer on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, []);
-
-  const handleLayoutChange = useCallback(
-    (layout: Layout) => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-      debounceRef.current = setTimeout(() => {
-        const items = layout.map((item) => ({
-          i: item.i,
-          x: item.x,
-          y: item.y,
-          w: item.w,
-          h: item.h,
-        }));
-        updateDashboardLayout(items);
-      }, LAYOUT_DEBOUNCE_MS);
-    },
-    [updateDashboardLayout],
-  );
-
   // Pre-compute widget definitions to avoid repeated lookups
   const widgetMeta = useMemo(() => {
-    if (!activeDashboard) return new Map<string, { layout: Layout; definition: ReturnType<typeof getWidgetDefinition> }>();
+    if (!activeDashboard) return new Map<string, { definition: ReturnType<typeof getWidgetDefinition> }>();
 
-    const map = new Map<string, { layout: Layout; definition: ReturnType<typeof getWidgetDefinition> }>();
+    const map = new Map<string, { definition: ReturnType<typeof getWidgetDefinition> }>();
     for (const w of activeDashboard.widgets) {
       const def = getWidgetDefinition(w.typeId);
-      map.set(w.instanceId, {
-        layout: {
-          i: w.instanceId,
-          x: w.layout.x,
-          y: w.layout.y,
-          w: w.layout.w,
-          h: w.layout.h,
-          minW: def?.sizeConstraints.minW,
-          maxW: def?.sizeConstraints.maxW,
-          minH: def?.sizeConstraints.minH,
-          maxH: def?.sizeConstraints.maxH,
-          isDraggable: !!(
-            activeInteraction?.instanceId === w.instanceId &&
-            activeInteraction.mode === "move"
-          ),
-          isResizable: !!(
-            activeInteraction?.instanceId === w.instanceId &&
-            activeInteraction.mode === "resize"
-          ),
-        },
-        definition: def,
-      });
+      map.set(w.instanceId, { definition: def });
     }
     return map;
-  }, [activeDashboard, activeInteraction]);
+  }, [activeDashboard]);
+
+  // Position-aware key so the layouts memo recomputes after drag/resize store updates.
+  // Includes coordinates so that when updateDashboardLayout writes new positions,
+  // the memo produces fresh layouts that match RGL's internal state (preventing snap-back).
+  const layoutsKey = activeDashboard?.widgets.map((w) =>
+    `${w.instanceId}:${w.typeId}:${w.layout.x},${w.layout.y},${w.layout.w},${w.layout.h}`,
+  ).join(",") ?? "";
 
   const layouts = useMemo(() => {
     if (!activeDashboard) return {};
-    const widgetLayouts = Array.from(widgetMeta.values()).map((m) => m.layout);
+    const widgetLayouts = activeDashboard.widgets.map((w) => {
+      const def = getWidgetDefinition(w.typeId);
+      return {
+        i: w.instanceId,
+        x: w.layout.x,
+        y: w.layout.y,
+        w: w.layout.w,
+        h: w.layout.h,
+        minW: def?.sizeConstraints.minW,
+        maxW: def?.sizeConstraints.maxW,
+        minH: def?.sizeConstraints.minH,
+        maxH: def?.sizeConstraints.maxH,
+      };
+    });
     return {
       lg: widgetLayouts,
       md: widgetLayouts.map((l) => ({ ...l, x: l.x % 8, w: Math.min(l.w, 8) })),
       sm: widgetLayouts.map((l) => ({ ...l, x: 0, w: 1 })),
       xs: widgetLayouts.map((l) => ({ ...l, x: 0, w: 1 })),
     };
-  }, [widgetMeta, activeDashboard]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- layoutsKey is a stable primitive string
+  }, [layoutsKey]);
 
   // Context value for child widgets to read/toggle interaction mode
   const interactionContextValue = useMemo(
@@ -318,6 +279,18 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
 
       {/* Grid (non-mobile only) */}
       {!isMobile && mounted && hasWidgets && (
+        <>
+        {/* CSS to hide resize handles and drag cursor on non-active widgets.
+            react-grid-layout's onDragStart/onResizeStart guards do NOT cancel
+            the interaction, so we use CSS to visually enforce single-widget mode. */}
+        <style>{`
+          .react-grid-item:not(.widget-resize-active) .react-resizable-handle {
+            display: none !important;
+          }
+          .react-grid-item:not(.widget-drag-active) {
+            cursor: default !important;
+          }
+        `}</style>
         <Responsive
           width={width}
           breakpoints={BREAKPOINTS}
@@ -326,24 +299,22 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
           rowHeight={ROW_HEIGHT}
           margin={MARGIN}
           containerPadding={[12, 12]}
-          isDraggable={false}
-          isResizable={false}
-          onLayoutChange={handleLayoutChange}
+          isDraggable={isEditing && activeInteraction?.mode === "move"}
+          isResizable={isEditing && activeInteraction?.mode === "resize"}
           onDragStop={(layout) => {
             const items = layout.map((item) => ({
               i: item.i, x: item.x, y: item.y, w: item.w, h: item.h,
             }));
             updateDashboardLayout(items);
-            clearActiveInteraction();
+            setActiveInteraction(null);
           }}
           onResizeStop={(layout) => {
             const items = layout.map((item) => ({
               i: item.i, x: item.x, y: item.y, w: item.w, h: item.h,
             }));
             updateDashboardLayout(items);
-            clearActiveInteraction();
+            setActiveInteraction(null);
           }}
-          draggableHandle=".react-grid-drag-handle"
         >
           {widgets.map((widget, index) => {
             try {
@@ -370,7 +341,11 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
               return (
                 <div
                     key={widget.instanceId}
-                    className="widget-enter"
+                    className={[
+                      "widget-enter",
+                      activeInteraction?.mode === "move" && activeInteraction.instanceId === widget.instanceId ? "widget-drag-active" : "",
+                      activeInteraction?.mode === "resize" && activeInteraction.instanceId === widget.instanceId ? "widget-resize-active" : "",
+                    ].filter(Boolean).join(" ")}
                     style={{ "--widget-stagger-delay": `${Math.min(index * 50, 400)}ms` } as React.CSSProperties}
                   >
                   <WidgetErrorBoundary
@@ -409,6 +384,7 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
             }
           })}
         </Responsive>
+        </>
       )}
 
       {/* Widget catalog modal */}

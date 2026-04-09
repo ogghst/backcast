@@ -39,7 +39,6 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
 
   // Fallback in case messageApi is undefined (shouldn't happen with proper hook usage)
   const showMessage = messageApi ? messageApi.success : message.success;
-  const showError = messageApi ? messageApi.error : message.error;
 
   // Composition store state
   const isEditing = useDashboardCompositionStore((s) => s.isEditing);

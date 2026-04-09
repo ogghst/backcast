@@ -17,6 +17,11 @@ const mockStoreState: {
   setPaletteOpen: (open: boolean) => void;
   confirmChanges: () => void;
   discardChanges: () => void;
+  _undoStack: string[];
+  _redoStack: string[];
+  undo: () => void;
+  redo: () => void;
+  loadFromBackend: (d: unknown) => void;
   getState: () => typeof mockStoreState;
 } = {
   isEditing: false,
@@ -28,6 +33,11 @@ const mockStoreState: {
   setPaletteOpen: vi.fn(),
   confirmChanges: vi.fn(),
   discardChanges: vi.fn(),
+  _undoStack: [],
+  _redoStack: [],
+  undo: vi.fn(),
+  redo: vi.fn(),
+  loadFromBackend: vi.fn(),
   getState() {
     return mockStoreState;
   },
@@ -121,6 +131,11 @@ describe("DashboardToolbar", () => {
     mockStoreState.setPaletteOpen = vi.fn();
     mockStoreState.confirmChanges = vi.fn();
     mockStoreState.discardChanges = vi.fn();
+    mockStoreState._undoStack = [];
+    mockStoreState._redoStack = [];
+    mockStoreState.undo = vi.fn();
+    mockStoreState.redo = vi.fn();
+    mockStoreState.loadFromBackend = vi.fn();
     mockSave.mockReset();
     mockTemplatesState.data = [];
     mockTemplatesState.isLoading = false;

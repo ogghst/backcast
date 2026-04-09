@@ -33,6 +33,15 @@ const mockStoreState: {
   ) => void;
   setPaletteOpen: (open: boolean) => void;
   selectWidget: (id: string | null) => void;
+  updateDashboardName: (name: string) => void;
+  resetDashboard: () => void;
+  confirmChanges: () => void;
+  discardChanges: () => void;
+  _undoStack: string[];
+  _redoStack: string[];
+  undo: () => void;
+  redo: () => void;
+  loadFromBackend: (d: unknown) => void;
 } = {
   isEditing: false,
   isDirty: false,
@@ -44,11 +53,22 @@ const mockStoreState: {
   updateDashboardLayout: vi.fn(),
   setPaletteOpen: vi.fn(),
   selectWidget: vi.fn(),
+  updateDashboardName: vi.fn(),
+  resetDashboard: vi.fn(),
+  confirmChanges: vi.fn(),
+  discardChanges: vi.fn(),
+  _undoStack: [],
+  _redoStack: [],
+  undo: vi.fn(),
+  redo: vi.fn(),
+  loadFromBackend: vi.fn(),
 };
 
 vi.mock("@/stores/useDashboardCompositionStore", () => ({
-  useDashboardCompositionStore: (selector: (s: typeof mockStoreState) => unknown) =>
-    selector(mockStoreState),
+  useDashboardCompositionStore: Object.assign(
+    (selector: (s: typeof mockStoreState) => unknown) => selector(mockStoreState),
+    { getState: () => mockStoreState },
+  ),
 }));
 
 /** Mock registry to return undefined for all widget types */
@@ -96,6 +116,15 @@ describe("DashboardGrid", () => {
     mockStoreState.updateDashboardLayout = vi.fn();
     mockStoreState.setPaletteOpen = vi.fn();
     mockStoreState.selectWidget = vi.fn();
+    mockStoreState.updateDashboardName = vi.fn();
+    mockStoreState.resetDashboard = vi.fn();
+    mockStoreState.confirmChanges = vi.fn();
+    mockStoreState.discardChanges = vi.fn();
+    mockStoreState._undoStack = [];
+    mockStoreState._redoStack = [];
+    mockStoreState.undo = vi.fn();
+    mockStoreState.redo = vi.fn();
+    mockStoreState.loadFromBackend = vi.fn();
   });
 
   it("renders empty state when activeDashboard is null", () => {
