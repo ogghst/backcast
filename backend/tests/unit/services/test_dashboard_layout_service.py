@@ -480,6 +480,19 @@ class TestUpdate:
             await service.update(layout.id, other, name="Hacked")
 
     @pytest.mark.asyncio
+    async def test_raises_for_template_layout(
+        self, service: DashboardLayoutService
+    ) -> None:
+        """Update raises ValueError when trying to update a template."""
+        owner = uuid4()
+        template = await service.create(
+            user_id=owner, name="Template", is_template=True
+        )
+
+        with pytest.raises(ValueError, match="Cannot modify a template layout"):
+            await service.update(template.id, owner, name="Hacked Template")
+
+    @pytest.mark.asyncio
     async def test_update_default_clears_previous_default(
         self, service: DashboardLayoutService
     ) -> None:
@@ -504,6 +517,65 @@ class TestUpdate:
         await service.session.flush()
         await service.session.refresh(old_default)
         assert old_default.is_default is False
+
+
+# ---------------------------------------------------------------------------
+# update_template
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateTemplate:
+    """Tests for DashboardLayoutService.update_template (admin-only)."""
+
+    @pytest.mark.asyncio
+    async def test_updates_template_name(
+        self, service: DashboardLayoutService
+    ) -> None:
+        """update_template changes fields on a template layout."""
+        owner = uuid4()
+        template = await service.create(
+            user_id=owner, name="Original Template", is_template=True
+        )
+
+        updated = await service.update_template(
+            template.id, name="Updated Template"
+        )
+        assert updated.name == "Updated Template"
+
+    @pytest.mark.asyncio
+    async def test_updates_template_widgets(
+        self, service: DashboardLayoutService
+    ) -> None:
+        """update_template replaces the widgets array on a template."""
+        owner = uuid4()
+        template = await service.create(
+            user_id=owner, name="T", is_template=True, widgets=_widget_payload()
+        )
+
+        new_widgets: list[dict[str, object]] = [
+            {"typeId": "evm-summary"},
+        ]
+        updated = await service.update_template(template.id, widgets=new_widgets)
+        assert updated.widgets == new_widgets
+
+    @pytest.mark.asyncio
+    async def test_raises_not_found_for_missing_id(
+        self, service: DashboardLayoutService
+    ) -> None:
+        """update_template raises ValueError for a nonexistent ID."""
+        with pytest.raises(ValueError, match="not found"):
+            await service.update_template(uuid4(), name="X")
+
+    @pytest.mark.asyncio
+    async def test_raises_for_non_template(
+        self, service: DashboardLayoutService
+    ) -> None:
+        """update_template raises ValueError when the layout is not a template."""
+        owner = uuid4()
+        layout = await service.create(user_id=owner, name="Regular")
+
+        with pytest.raises(ValueError, match="not a template"):
+            await service.update_template(layout.id, name="X")
 
 
 # ---------------------------------------------------------------------------

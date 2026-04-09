@@ -285,14 +285,11 @@ export function WidgetShell({
               borderRadius: `${token.borderRadiusLG}px ${token.borderRadiusLG}px 0 0`,
             }}
           >
-            {/* Move button — drag handle when active */}
+            {/* Move button — activates drag mode for this widget */}
             <Button
               type="text"
               size="small"
               icon={<DragOutlined />}
-              className={
-                interactionMode === "move" ? "react-grid-drag-handle" : undefined
-              }
               onClick={() => {
                 if (interactionMode === "move") {
                   clear();
@@ -302,7 +299,6 @@ export function WidgetShell({
               }}
               style={{
                 flexShrink: 0,
-                touchAction: interactionMode === "move" ? "none" : undefined,
                 cursor: interactionMode === "move" ? "grab" : "pointer",
                 ...(interactionMode === "move" && {
                   background: token.colorPrimaryBg,

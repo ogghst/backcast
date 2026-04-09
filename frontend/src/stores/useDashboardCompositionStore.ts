@@ -88,8 +88,8 @@ interface DashboardCompositionState {
   selectWidget: (instanceId: string | null) => void;
   /** Reset the dashboard to initial empty state */
   resetDashboard: () => void;
-  /** Load dashboard state from a backend response */
-  loadFromBackend: (layout: DashboardLayoutRead) => void;
+  /** Load dashboard state from a backend response. When isTemplate is true, backendId is cleared so saving creates a new layout. */
+  loadFromBackend: (layout: DashboardLayoutRead, isTemplate?: boolean) => void;
   /** Mark the dashboard as saved, storing the backend layout ID */
   markSaved: (backendId: string) => void;
   /** Restore dashboard to snapshot taken at edit-mode entry, then exit edit mode */
@@ -304,7 +304,7 @@ export const useDashboardCompositionStore =
           state.backendId = null;
         }),
 
-      loadFromBackend: (layout) =>
+      loadFromBackend: (layout, isTemplate) =>
         set((state) => {
           state.activeDashboard = {
             id: uuid(),
@@ -313,7 +313,7 @@ export const useDashboardCompositionStore =
             widgets: widgetConfigsToInstances(layout.widgets),
             isDefault: layout.is_default,
           };
-          state.backendId = layout.id;
+          state.backendId = isTemplate ? null : layout.id;
           state.isDirty = false;
           state.selectedWidgetId = null;
         }),

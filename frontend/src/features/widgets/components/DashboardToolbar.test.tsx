@@ -17,6 +17,11 @@ const mockStoreState: {
   setPaletteOpen: (open: boolean) => void;
   confirmChanges: () => void;
   discardChanges: () => void;
+  _undoStack: string[];
+  _redoStack: string[];
+  undo: () => void;
+  redo: () => void;
+  loadFromBackend: (d: unknown) => void;
   getState: () => typeof mockStoreState;
 } = {
   isEditing: false,
@@ -28,6 +33,11 @@ const mockStoreState: {
   setPaletteOpen: vi.fn(),
   confirmChanges: vi.fn(),
   discardChanges: vi.fn(),
+  _undoStack: [],
+  _redoStack: [],
+  undo: vi.fn(),
+  redo: vi.fn(),
+  loadFromBackend: vi.fn(),
   getState() {
     return mockStoreState;
   },
@@ -121,6 +131,11 @@ describe("DashboardToolbar", () => {
     mockStoreState.setPaletteOpen = vi.fn();
     mockStoreState.confirmChanges = vi.fn();
     mockStoreState.discardChanges = vi.fn();
+    mockStoreState._undoStack = [];
+    mockStoreState._redoStack = [];
+    mockStoreState.undo = vi.fn();
+    mockStoreState.redo = vi.fn();
+    mockStoreState.loadFromBackend = vi.fn();
     mockSave.mockReset();
     mockTemplatesState.data = [];
     mockTemplatesState.isLoading = false;
@@ -289,6 +304,46 @@ describe("DashboardToolbar", () => {
     renderWithTheme(<DashboardToolbar onSave={mockSave} />);
     const templateBtn = screen.getByRole("button", { name: /select dashboard template/i });
     expect(templateBtn).toBeDisabled();
+  });
+
+  it("does not show editable name in view mode", async () => {
+    mockStoreState.isEditing = false;
+    mockStoreState.activeDashboard = {
+      id: "dash-1",
+      name: "Project Alpha Dashboard",
+      projectId: "proj-1",
+      widgets: [],
+      isDefault: false,
+    };
+    const DashboardToolbar = await importDashboardToolbar();
+    renderWithTheme(<DashboardToolbar onSave={mockSave} />);
+    // The name text should be present
+    expect(screen.getByText("Project Alpha Dashboard")).toBeInTheDocument();
+    // No editable icon should be present (the edit pencil icon from Typography.Text editable)
+    const editIcon = screen.queryByRole("button", {
+      name: /click to edit dashboard name/i,
+    });
+    expect(editIcon).not.toBeInTheDocument();
+  });
+
+  it("shows editable name in edit mode", async () => {
+    mockStoreState.isEditing = true;
+    mockStoreState.activeDashboard = {
+      id: "dash-1",
+      name: "Project Alpha Dashboard",
+      projectId: "proj-1",
+      widgets: [],
+      isDefault: false,
+    };
+    const DashboardToolbar = await importDashboardToolbar();
+    renderWithTheme(<DashboardToolbar onSave={mockSave} />);
+    // The name text should be present
+    expect(screen.getByText("Project Alpha Dashboard")).toBeInTheDocument();
+    // The editable icon should be present (Ant Design Typography editable renders a button)
+    const editIcon = screen.queryByRole("button", {
+      name: /click to edit dashboard name/i,
+    });
+    expect(editIcon).toBeInTheDocument();
   });
 
   it("aria-labels are present on action buttons in edit mode", async () => {

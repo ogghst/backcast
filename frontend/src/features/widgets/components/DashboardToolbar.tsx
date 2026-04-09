@@ -39,7 +39,6 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
 
   // Fallback in case messageApi is undefined (shouldn't happen with proper hook usage)
   const showMessage = messageApi ? messageApi.success : message.success;
-  const showError = messageApi ? messageApi.error : message.error;
 
   // Composition store state
   const isEditing = useDashboardCompositionStore((s) => s.isEditing);
@@ -104,7 +103,7 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
       const template = templates.find((t) => t.id === templateId);
       if (template) {
         const store = useDashboardCompositionStore.getState();
-        store.loadFromBackend(template);
+        store.loadFromBackend(template, true);
         store.setEditing(true);
         // Use showMessage fallback to avoid undefined issues
         showMessage(`Template "${template.name}" applied`);
@@ -183,16 +182,20 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
           gap: token.paddingSM,
         }}
       >
-        {/* Left side: Name and template selector */}
+        {/* Left side: Name */}
         <Space
           size="middle"
           style={{ flex: 1, minWidth: 0, overflow: "hidden" }}
         >
           <Text
-            editable={{
-              onChange: handleNameChange,
-              tooltip: "Click to edit dashboard name",
-            }}
+            editable={
+              isEditing
+                ? {
+                    onChange: handleNameChange,
+                    tooltip: "Click to edit dashboard name",
+                  }
+                : false
+            }
             strong
             style={{
               fontSize: token.fontSizeLG,
@@ -203,31 +206,32 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
           >
             {activeDashboard?.name ?? "My Dashboard"}
           </Text>
-
-          <Dropdown
-            menu={{
-              items: templateMenuItems,
-              onClick: handleTemplateSelect,
-              loading: templatesLoading,
-            }}
-            trigger={["click"]}
-            disabled={templatesLoading || templates.length === 0}
-          >
-            <Button
-              icon={<AppstoreOutlined />}
-              loading={templatesLoading}
-              disabled={templates.length === 0}
-              aria-label="Select dashboard template"
-            >
-              Templates
-            </Button>
-          </Dropdown>
         </Space>
 
         {/* Right side: Action buttons (icon-only with tooltips) */}
         <Space size="small" wrap>
           {isEditing ? (
             <>
+              {/* Templates */}
+              <Dropdown
+                menu={{
+                  items: templateMenuItems,
+                  onClick: handleTemplateSelect,
+                  loading: templatesLoading,
+                }}
+                trigger={["click"]}
+                disabled={templatesLoading || templates.length === 0}
+              >
+                <Tooltip title="Templates">
+                  <Button
+                    icon={<AppstoreOutlined />}
+                    loading={templatesLoading}
+                    disabled={templates.length === 0}
+                    aria-label="Select dashboard template"
+                  />
+                </Tooltip>
+              </Dropdown>
+
               {/* Add Widget */}
               <Tooltip title="Add Widget">
                 <Button
@@ -289,6 +293,26 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
             </>
           ) : (
             <>
+              {/* Templates */}
+              <Dropdown
+                menu={{
+                  items: templateMenuItems,
+                  onClick: handleTemplateSelect,
+                  loading: templatesLoading,
+                }}
+                trigger={["click"]}
+                disabled={templatesLoading || templates.length === 0}
+              >
+                <Tooltip title="Templates">
+                  <Button
+                    icon={<AppstoreOutlined />}
+                    loading={templatesLoading}
+                    disabled={templates.length === 0}
+                    aria-label="Select dashboard template"
+                  />
+                </Tooltip>
+              </Dropdown>
+
               {/* Reset to default */}
               <Popconfirm
                 title="Reset to Default Template"
