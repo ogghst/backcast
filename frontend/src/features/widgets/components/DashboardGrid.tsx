@@ -139,6 +139,8 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
     if (!activeDashboard) return {};
     const widgetLayouts = activeDashboard.widgets.map((w) => {
       const def = getWidgetDefinition(w.typeId);
+      const isActiveWidget =
+        activeInteraction?.instanceId === w.instanceId;
       return {
         i: w.instanceId,
         x: w.layout.x,
@@ -149,6 +151,8 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
         maxW: def?.sizeConstraints.maxW,
         minH: def?.sizeConstraints.minH,
         maxH: def?.sizeConstraints.maxH,
+        isDraggable: isActiveWidget && activeInteraction.mode === "move",
+        isResizable: isActiveWidget && activeInteraction.mode === "resize",
       };
     });
     return {
@@ -158,7 +162,7 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
       xs: widgetLayouts.map((l) => ({ ...l, x: 0, w: 1 })),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- layoutsKey is a stable primitive string
-  }, [layoutsKey]);
+  }, [layoutsKey, activeInteraction]);
 
   // Context value for child widgets to read/toggle interaction mode
   const interactionContextValue = useMemo(
@@ -299,8 +303,8 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
           rowHeight={ROW_HEIGHT}
           margin={MARGIN}
           containerPadding={[12, 12]}
-          isDraggable={isEditing && activeInteraction?.mode === "move"}
-          isResizable={isEditing && activeInteraction?.mode === "resize"}
+          isDraggable={false}
+          isResizable={false}
           onDragStop={(layout) => {
             const items = layout.map((item) => ({
               i: item.i, x: item.x, y: item.y, w: item.w, h: item.h,
