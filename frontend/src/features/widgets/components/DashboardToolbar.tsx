@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   Button,
   Dropdown,
@@ -17,9 +17,12 @@ import {
   UndoOutlined,
   RedoOutlined,
   AppstoreOutlined,
+  SettingOutlined,
 } from "@ant-design/icons";
 import { useDashboardCompositionStore } from "@/stores/useDashboardCompositionStore";
 import { useDashboardLayoutTemplates } from "@/features/widgets/api/useDashboardLayouts";
+import { Can } from "@/components/auth/Can";
+import { TemplateManagementModal } from "./TemplateManagementModal";
 import type { MenuProps } from "antd";
 
 const { Text } = Typography;
@@ -36,6 +39,7 @@ const { Text } = Typography;
 export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
   const { token } = theme.useToken();
   const { message: messageApi, contextHolder } = message.useMessage();
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
 
   // Fallback in case messageApi is undefined (shouldn't happen with proper hook usage)
   const showMessage = messageApi ? messageApi.success : message.success;
@@ -168,6 +172,10 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
   return (
     <>
       {contextHolder}
+      <TemplateManagementModal
+        open={templateModalOpen}
+        onClose={() => setTemplateModalOpen(false)}
+      />
       <div
         style={{
           display: "flex",
@@ -231,6 +239,17 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
                   />
                 </Tooltip>
               </Dropdown>
+
+              {/* Manage Templates (admin) */}
+              <Can permission="dashboard-template-update">
+                <Tooltip title="Manage Templates">
+                  <Button
+                    icon={<SettingOutlined />}
+                    aria-label="Manage templates"
+                    onClick={() => setTemplateModalOpen(true)}
+                  />
+                </Tooltip>
+              </Can>
 
               {/* Add Widget */}
               <Tooltip title="Add Widget">
@@ -312,6 +331,17 @@ export function DashboardToolbar({ onSave }: { onSave: () => Promise<void> }) {
                   />
                 </Tooltip>
               </Dropdown>
+
+              {/* Manage Templates (admin) */}
+              <Can permission="dashboard-template-update">
+                <Tooltip title="Manage Templates">
+                  <Button
+                    icon={<SettingOutlined />}
+                    aria-label="Manage templates"
+                    onClick={() => setTemplateModalOpen(true)}
+                  />
+                </Tooltip>
+              </Can>
 
               {/* Reset to default */}
               <Popconfirm

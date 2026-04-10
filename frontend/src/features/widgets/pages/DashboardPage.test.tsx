@@ -104,6 +104,9 @@ vi.mock("@/features/widgets/api/useDashboardLayouts", () => ({
     data: [],
     isLoading: false,
   }),
+  useCreateDashboardLayout: () => ({ mutateAsync: vi.fn() }),
+  useUpdateDashboardTemplate: () => ({ mutateAsync: vi.fn() }),
+  useDeleteDashboardLayout: () => ({ mutateAsync: vi.fn() }),
 }));
 
 vi.mock("@/features/widgets/registry", () => ({

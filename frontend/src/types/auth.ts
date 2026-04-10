@@ -51,7 +51,8 @@ export type Permission =
   | "ai-config-create"
   | "ai-config-update"
   | "ai-config-delete"
-  | "ai-chat";
+  | "ai-chat"
+  | "dashboard-template-update";
 
 // Type alias for role strings
 export type Role = "admin" | "manager" | "viewer";
