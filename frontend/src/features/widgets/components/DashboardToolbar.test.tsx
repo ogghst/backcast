@@ -102,6 +102,20 @@ vi.mock("antd", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Mock auth / template management modal
+// ---------------------------------------------------------------------------
+
+let canRenderChildren = true;
+
+vi.mock("@/components/auth/Can", () => ({
+  Can: ({ children }: { children: React.ReactNode }) =>
+    canRenderChildren ? <>{children}</> : null,
+}));
+vi.mock("@/features/widgets/components/TemplateManagementModal", () => ({
+  TemplateManagementModal: () => <div data-testid="template-modal" />,
+}));
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -384,5 +398,24 @@ describe("DashboardToolbar", () => {
     expect(
       screen.getByRole("button", { name: /select dashboard template/i }),
     ).toBeInTheDocument();
+  });
+
+  it("shows manage templates button for admin", async () => {
+    // Can mock renders children by default
+    const DashboardToolbar = await importDashboardToolbar();
+    renderWithTheme(<DashboardToolbar onSave={mockSave} />);
+    expect(
+      screen.getByRole("button", { name: /manage templates/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show manage templates button for non-admin", async () => {
+    canRenderChildren = false;
+    const DashboardToolbar = await importDashboardToolbar();
+    renderWithTheme(<DashboardToolbar onSave={mockSave} />);
+    expect(
+      screen.queryByRole("button", { name: /manage templates/i }),
+    ).not.toBeInTheDocument();
+    canRenderChildren = true; // restore for subsequent tests
   });
 });

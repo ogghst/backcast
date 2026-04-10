@@ -78,6 +78,17 @@ export const layoutApi = {
       path: { layout_id: id },
     }),
 
+  updateTemplate: (args: {
+    id: string;
+    data: DashboardLayoutUpdate;
+  }): Promise<DashboardLayoutRead> =>
+    __request(OpenAPI, {
+      method: "PUT",
+      url: `${API_BASE}/templates/{layout_id}`,
+      path: { layout_id: args.id },
+      body: args.data,
+    }),
+
   clone: (args: {
     id: string;
     data: CloneTemplateRequest;
@@ -194,6 +205,39 @@ export const useUpdateDashboardLayout = (
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboardLayouts.all });
       queryClient.invalidateQueries({
         queryKey: queryKeys.dashboardLayouts.detail(variables.id),
+      });
+    },
+    ...options,
+  });
+};
+
+/**
+ * Update an existing template layout (admin only).
+ *
+ * Calls the dedicated admin endpoint PUT /templates/{id}.
+ */
+export const useUpdateDashboardTemplate = (
+  options?: Omit<
+    UseMutationOptions<
+      DashboardLayoutRead,
+      Error,
+      { id: string; data: DashboardLayoutUpdate }
+    >,
+    "mutationFn"
+  >,
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    DashboardLayoutRead,
+    Error,
+    { id: string; data: DashboardLayoutUpdate }
+  >({
+    mutationFn: (args) => layoutApi.updateTemplate(args),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboardLayouts.all });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.dashboardLayouts.templates(),
       });
     },
     ...options,

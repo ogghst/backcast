@@ -93,6 +93,10 @@ vi.mock("@/features/widgets/api/useDashboardLayouts", () => ({
     data: [],
     isLoading: false,
   }),
+  useCreateDashboardLayout: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateDashboardLayout: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateDashboardTemplate: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteDashboardLayout: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 /** Helper to render with Ant Design providers */

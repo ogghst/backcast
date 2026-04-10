@@ -200,6 +200,7 @@ export const useStreamingChat = (
 
   // Store assistantId in a ref so connect() always has the latest value
   const assistantIdRef = useRef(assistantId);
+  const sessionIdRef = useRef(sessionId);
 
   // Get temporal context from Time Machine store
   const getSelectedTime = useTimeMachineStore((state) => state.getSelectedTime);
@@ -214,7 +215,8 @@ export const useStreamingChat = (
   useEffect(() => {
     projectIdRef.current = projectId;
     assistantIdRef.current = assistantId;
-  }, [projectId, assistantId]);
+    sessionIdRef.current = sessionId;
+  }, [projectId, assistantId, sessionId]);
 
   // Track last seen sequence number for resubscription after reconnect
   const lastSequenceRef = useRef<number>(0);
@@ -873,7 +875,7 @@ export const useStreamingChat = (
             const request: WSChatRequest = {
               type: "chat",
               message,
-              session_id: null,
+              session_id: sessionIdRef.current ?? null,
               assistant_config_id: assistantIdRef.current,
               title,
               as_of: asOf ?? null,

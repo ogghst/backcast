@@ -80,7 +80,7 @@ const WIDGET_SHELL_CSS = `
   50% { opacity: 0.4; }
 }
 .widget-shell {
-  transition: border-color 0.2s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .widget-shell:hover {
   border-color: var(--widget-shell-hover-border) !important;
@@ -258,10 +258,11 @@ export function WidgetShell({
             borderRadius: token.borderRadiusLG,
             border: isEditing
               ? `1px dashed ${token.colorPrimary}`
-              : "1px solid transparent",
+              : `1px solid ${token.colorBorderSecondary}`,
             overflow: "visible",
-            background: token.colorBgContainer,
-            "--widget-shell-hover-border": token.colorBorderSecondary,
+            background: token.colorBgElevated,
+            boxShadow: token.boxShadowTertiary,
+            "--widget-shell-hover-border": token.colorBorder,
             "--widget-shell-edit-border": token.colorPrimary,
           } as React.CSSProperties
         }
@@ -280,7 +281,7 @@ export function WidgetShell({
               alignItems: "center",
               gap: token.paddingXS,
               padding: `0 ${token.paddingXS}px`,
-              background: `linear-gradient(180deg, ${token.colorPrimaryBg}, ${token.colorBgContainer})`,
+              background: `linear-gradient(180deg, ${token.colorPrimaryBg}, ${token.colorBgElevated})`,
               borderBottom: `1px dashed ${token.colorPrimaryBorder}`,
               borderRadius: `${token.borderRadiusLG}px ${token.borderRadiusLG}px 0 0`,
             }}

@@ -128,19 +128,28 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
     return map;
   }, [activeDashboard]);
 
-  // Position-aware key so the layouts memo recomputes after drag/resize store updates.
-  // Includes coordinates so that when updateDashboardLayout writes new positions,
-  // the memo produces fresh layouts that match RGL's internal state (preventing snap-back).
-  const layoutsKey = activeDashboard?.widgets.map((w) =>
-    `${w.instanceId}:${w.typeId}:${w.layout.x},${w.layout.y},${w.layout.w},${w.layout.h}`,
+  // Widget identity key — only changes when widgets are added/removed,
+  // NOT when positions change.  Used to detect structural changes.
+  const widgetListKey = activeDashboard?.widgets.map((w) =>
+    `${w.instanceId}:${w.typeId}`,
   ).join(",") ?? "";
 
-  const layouts = useMemo(() => {
+  // Position key — serializes all widget positions so baseLayouts recomputes
+  // after drag/resize updates the store.  Without this, baseLayouts returns
+  // cached (stale) positions when activeInteraction changes, causing widgets
+  // to snap back to their pre-drag/pre-resize positions.
+  const positionKey = activeDashboard?.widgets.map((w) =>
+    `${w.instanceId}:${w.layout.x},${w.layout.y},${w.layout.w},${w.layout.h}`,
+  ).join("|") ?? "";
+
+  // Base layouts (positions + size constraints only) — keyed on widget identity
+  // AND positions so the reference is stable across interaction toggles but
+  // recomputes when the store updates positions after drag/resize.
+  const baseLayouts = useMemo(() => {
     if (!activeDashboard) return {};
+
     const widgetLayouts = activeDashboard.widgets.map((w) => {
       const def = getWidgetDefinition(w.typeId);
-      const isActiveWidget =
-        activeInteraction?.instanceId === w.instanceId;
       return {
         i: w.instanceId,
         x: w.layout.x,
@@ -151,8 +160,6 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
         maxW: def?.sizeConstraints.maxW,
         minH: def?.sizeConstraints.minH,
         maxH: def?.sizeConstraints.maxH,
-        isDraggable: isActiveWidget && activeInteraction.mode === "move",
-        isResizable: isActiveWidget && activeInteraction.mode === "resize",
       };
     });
     return {
@@ -161,8 +168,33 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
       sm: widgetLayouts.map((l) => ({ ...l, x: 0, w: 1 })),
       xs: widgetLayouts.map((l) => ({ ...l, x: 0, w: 1 })),
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- layoutsKey is a stable primitive string
-  }, [layoutsKey, activeInteraction]);
+  // positionKey and widgetListKey are derived from activeDashboard but provide
+  // stable string identities to avoid recomputing on every immer reference change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [widgetListKey, positionKey, activeDashboard]);
+
+  // Derive final layouts with per-item isDraggable/isResizable overlaid.
+  // This recomputes on every render when activeInteraction changes, but since
+  // only the interaction flags change (not positions), RGL preserves internal
+  // state and does not reset widget positions.
+  const layouts = useMemo(() => {
+    if (!baseLayouts.lg) return {};
+    const overlay = (items: typeof baseLayouts.lg) =>
+      items.map((l) => {
+        const isActive = activeInteraction?.instanceId === l.i;
+        return {
+          ...l,
+          isDraggable: isActive && activeInteraction?.mode === "move",
+          isResizable: isActive && activeInteraction?.mode === "resize",
+        };
+      });
+    return {
+      lg: overlay(baseLayouts.lg),
+      md: overlay(baseLayouts.md ?? []),
+      sm: overlay(baseLayouts.sm ?? []),
+      xs: overlay(baseLayouts.xs ?? []),
+    };
+  }, [baseLayouts, activeInteraction]);
 
   // Context value for child widgets to read/toggle interaction mode
   const interactionContextValue = useMemo(
@@ -284,15 +316,25 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
       {/* Grid (non-mobile only) */}
       {!isMobile && mounted && hasWidgets && (
         <>
-        {/* CSS to hide resize handles and drag cursor on non-active widgets.
-            react-grid-layout's onDragStart/onResizeStart guards do NOT cancel
-            the interaction, so we use CSS to visually enforce single-widget mode. */}
+        {/* CSS to enforce single-widget drag/resize mode.
+            RGL wraps each child in a <div class="react-grid-item">, so our
+            .widget-drag-active / .widget-resize-active classes live on a
+            *descendant* of .react-grid-item, not on it directly.
+            RGL merges the child's className onto the grid-item wrapper,
+            so .widget-drag-active / .widget-resize-active end up directly
+            on .react-grid-item. Direct class selectors are sufficient. */}
         <style>{`
+          /* Hide resize handles except on the active widget */
           .react-grid-item:not(.widget-resize-active) .react-resizable-handle {
             display: none !important;
           }
+          /* Default cursor on non-draggable items */
           .react-grid-item:not(.widget-drag-active) {
             cursor: default !important;
+          }
+          /* Active drag widget: show grab cursor */
+          .react-grid-item.widget-drag-active {
+            cursor: grab !important;
           }
         `}</style>
         <Responsive
@@ -303,21 +345,24 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
           rowHeight={ROW_HEIGHT}
           margin={MARGIN}
           containerPadding={[12, 12]}
-          isDraggable={false}
-          isResizable={false}
+          isDraggable={isEditing}
+          isResizable={isEditing}
+          onLayoutChange={() => {
+            // No-op: position persistence is handled in onDragStop/onResizeStop.
+            // RGL fires onLayoutChange on every render when layouts prop changes,
+            // but we only care about user-initiated drag/resize completions.
+          }}
           onDragStop={(layout) => {
             const items = layout.map((item) => ({
               i: item.i, x: item.x, y: item.y, w: item.w, h: item.h,
             }));
             updateDashboardLayout(items);
-            setActiveInteraction(null);
           }}
           onResizeStop={(layout) => {
             const items = layout.map((item) => ({
               i: item.i, x: item.x, y: item.y, w: item.w, h: item.h,
             }));
             updateDashboardLayout(items);
-            setActiveInteraction(null);
           }}
         >
           {widgets.map((widget, index) => {
