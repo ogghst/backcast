@@ -41,7 +41,7 @@ For backend domain model, database schema, API endpoints, and the widget type ca
   - [6.4 Edit Mode Dot Grid](#64-edit-mode-dot-grid)
 - [7. Key Implementation Details](#7-key-implementation-details)
   - [7.1 WidgetInteractionContext](#71-widgetinteractioncontext)
-  - [7.2 baseLayouts vs layouts Memo Split](#62-baselayouts-vs-layouts-memo-split)
+  - [7.2 baseLayouts vs layouts Memo Split](#72-baselayouts-vs-layouts-memo-split)
   - [7.3 Undo/Redo](#73-undoredo)
   - [7.4 Template System](#74-template-system)
   - [7.5 Widget Error Boundaries](#75-widget-error-boundaries)
@@ -198,6 +198,7 @@ When `activeInteraction.mode === "move"` for a specific `instanceId`:
 - CSS rule `.react-grid-item.widget-drag-active { cursor: grab !important }` provides visual feedback
 - All other widgets have `isDraggable: false` and `cursor: default !important`
 - `onDragStop` fires `updateDashboardLayout(items)` to persist the new positions
+- The interaction mode persists after drag completes (not auto-cleared), allowing continuous repositioning
 
 **Activation:** Click the drag handle button (DragOutlined icon) on the widget's action bar.
 
@@ -211,6 +212,7 @@ When `activeInteraction.mode === "resize"` for a specific `instanceId`:
 - The `.widget-resize-active` CSS class is applied to the widget's wrapper div
 - CSS rule `.react-grid-item:not(.widget-resize-active) .react-resizable-handle { display: none !important }` hides all other resize handles
 - `onResizeStop` fires `updateDashboardLayout(items)` to persist the new size
+- The interaction mode persists after resize completes (not auto-cleared), allowing continuous resizing
 
 **Activation:** Click the resize button (ColumnWidthOutlined icon) on the widget's action bar.
 
@@ -237,7 +239,7 @@ setInteraction: (instanceId, mode) => {
 },
 ```
 
-**2. Per-item RGL flags** (`DashboardGrid.tsx:175-192`):
+**2. Per-item RGL flags** (`DashboardGrid.tsx:180-197`):
 
 The `layouts` memo overlays `isDraggable` and `isResizable` onto each grid item based on `activeInteraction`. Only the widget matching `activeInteraction.instanceId` with the matching mode gets `true`. All others get `false`.
 
@@ -253,7 +255,7 @@ const overlay = (items) =>
   });
 ```
 
-**3. CSS class selectors** (`DashboardGrid.tsx:321-334`):
+**3. CSS class selectors** (`DashboardGrid.tsx:326-339`):
 
 Injected `<style>` targets `.react-grid-item` directly (not descendants), using the merged class names:
 
@@ -505,7 +507,7 @@ Note: Auto-save is explicitly suppressed during edit mode. The persistence hook 
 
 `react-grid-layout` wraps each child element in a `<div class="react-grid-item">`. Critically, RGL merges the child's `className` prop onto this wrapper div. This means any class names you put on the child `<div>` inside `<Responsive>` end up directly on `.react-grid-item`.
 
-`DashboardGrid.tsx:388-394` applies classes to each widget wrapper:
+`DashboardGrid.tsx:393-397` applies classes to each widget wrapper:
 
 ```typescript
 <div
@@ -530,7 +532,7 @@ This is why direct class selectors on `.react-grid-item.widget-drag-active` work
 
 ### 6.2 Direct Class Selectors
 
-`DashboardGrid.tsx:321-334` injects a `<style>` tag with rules that leverage the merged classes:
+`DashboardGrid.tsx:326-339` injects a `<style>` tag with rules that leverage the merged classes:
 
 ```css
 /* Hide resize handles except on the active widget */
@@ -553,7 +555,7 @@ These rules work because the `.widget-drag-active` / `.widget-resize-active` cla
 
 ### 6.3 Per-Item Interaction Flags
 
-Drag and resize are controlled per-item through the RGL layout data, not through CSS `pointer-events`. Each item in the `layouts` object has:
+Drag and resize are controlled per-item through the RGL layout data, not through CSS `pointer-events`. The global RGL props `isDraggable={isEditing}` and `isResizable={isEditing}` (`DashboardGrid.tsx:348-349`) enable the drag/resize system globally in edit mode. The per-item flags then restrict behavior to only the active widget. Each item in the `layouts` object has:
 
 ```typescript
 {
@@ -564,7 +566,7 @@ Drag and resize are controlled per-item through the RGL layout data, not through
 }
 ```
 
-This is computed in the `layouts` memo (`DashboardGrid.tsx:175-192`). RGL reads these per-item flags and applies drag/resize behavior only to items where they are `true`.
+This is computed in the `layouts` memo (`DashboardGrid.tsx:180-197`). RGL reads these per-item flags and applies drag/resize behavior only to items where they are `true`.
 
 ### 6.4 Edit Mode Dot Grid
 
@@ -618,21 +620,28 @@ This means clicking Move on widget-A, then Move on widget-B, clears widget-A and
 
 ### 7.2 baseLayouts vs layouts Memo Split
 
-`DashboardGrid` computes layouts in two stages to prevent RGL from resetting internal positions when interaction flags change.
+`DashboardGrid` computes layouts in two stages to prevent RGL from resetting internal positions when interaction flags change, while still reacting to position updates after drag/resize.
 
-**`baseLayouts`** (`DashboardGrid.tsx:144-169`):
-- Keyed on `widgetListKey` (changes only when widgets are added/removed)
+**`positionKey`** (`DashboardGrid.tsx:141-143`):
+A serialized string encoding all widget positions (`instanceId:x,y,w,h` joined by `|`). Changes whenever any widget's position changes in the store (after drag/resize). Without this, `baseLayouts` would return cached stale positions when `activeInteraction` changes, causing widgets to snap back to their pre-drag/pre-resize locations.
+
+**`baseLayouts`** (`DashboardGrid.tsx:148-174`):
+- Keyed on `[widgetListKey, positionKey, activeDashboard]`
+- `widgetListKey` changes only when widgets are added/removed (structural changes)
+- `positionKey` changes after any drag/resize updates the store
 - Contains only position/size data plus min/max constraints from widget definitions
-- Sets `suppressLayoutChangeRef.current = true` to prevent `onLayoutChange` from firing
-- Stable reference across interaction toggles
+- Stable reference across interaction toggles (only `activeInteraction` changes, not positions)
 
-**`layouts`** (`DashboardGrid.tsx:175-192`):
+**`layouts`** (`DashboardGrid.tsx:180-197`):
 - Keyed on `baseLayouts` + `activeInteraction`
 - Overlays `isDraggable` and `isResizable` flags from `activeInteraction`
 - Only the interaction flags change between renders, not positions
 - RGL detects that positions are unchanged and preserves its internal state
 
-**Why this split matters:** Without it, changing `activeInteraction` would cause `baseLayouts` to recompute (because `layouts` depended on it directly), which would pass new position objects to RGL, which would reset its internal drag state and cause flickering.
+**`onLayoutChange` no-op** (`DashboardGrid.tsx:350-354`):
+RGL fires `onLayoutChange` on every render when the `layouts` prop changes. This handler is intentionally a no-op because position persistence is handled exclusively in `onDragStop` and `onResizeStop`, which only fire on user-initiated interactions.
+
+**Why this split matters:** Without it, changing `activeInteraction` would pass new position objects to RGL (because positions and interaction flags would be computed in a single memo), which would reset RGL's internal drag state and cause flickering. The two-memo split ensures that when only `activeInteraction` changes, the position data flows through unchanged from `baseLayouts`, and RGL preserves its internal positions.
 
 ### 7.3 Undo/Redo
 
