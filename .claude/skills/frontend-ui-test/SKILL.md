@@ -2,35 +2,12 @@
 name: frontend-ui-test
 description: Automated frontend UI testing using Playwright MCP in headless mode. Navigates pages, interacts with elements, captures screenshots, and analyzes UI behavior. Use for browser testing, UI verification, accessibility checks, visual regression, or when user mentions "UI test", "browser test", "screenshot", "click", "navigate", "playwright".
 argument-hint: "[URL or test description]"
-allowed-tools: [mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_click, mcp__playwright__browser_type, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_press_key, mcp__playwright__browser_hover, mcp__playwright__browser_wait_for, mcp__playwright__browser_evaluate, mcp__playwright__browser_console_messages, mcp__playwright__browser_network_requests, mcp__playwright__browser_close, mcp__playwright__browser_tabs, mcp__playwright__browser_select_option, mcp__playwright__browser_drag, mcp__postgres__query, Agent, AskUserQuestion]
+allowed-tools: [mcp__playwright__browser_navigate, mcp__playwright__browser_snapshot, mcp__playwright__browser_click, mcp__playwright__browser_type, mcp__playwright__browser_take_screenshot, mcp__playwright__browser_fill_form, mcp__playwright__browser_press_key, mcp__playwright__browser_hover, mcp__playwright__browser_wait_for, mcp__playwright__browser_evaluate, mcp__playwright__browser_console_messages, mcp__playwright__browser_network_requests, mcp__playwright__browser_close, mcp__playwright__browser_tabs, mcp__playwright__browser_select_option, mcp__playwright__browser_drag, mcp__postgres__query, Bash, Agent, AskUserQuestion]
 ---
 
 # Frontend UI Testing with Playwright MCP
 
-Automated browser testing for the Backcast  frontend using Playwright MCP tools in headless isolated mode.
-
-## Scope Validation
-
-Before proceeding, validate the request is related to **frontend UI testing**:
-
-### IS Frontend UI Testing
-- Navigating to pages and verifying content
-- Clicking buttons, links, or interactive elements
-- Filling and submitting forms
-- Capturing screenshots for visual verification
-- Checking accessibility tree
-- Verifying element visibility/state
-- Testing user interactions (hover, drag, type)
-- Analyzing console errors or network requests
-
-### IS NOT Frontend UI Testing (Refuse)
-- Backend API testing (use pytest or curl)
-- Database queries or migrations
-- Unit testing React components (use Vitest)
-- Code refactoring or implementation
-- Writing production code
-
-If the request is not related to UI testing, politely refuse and suggest the appropriate tool or approach.
+Automated browser testing for the Backcast frontend using Playwright MCP tools in headless isolated mode.
 
 ## Quick Start
 
@@ -54,6 +31,7 @@ If the request is not related to UI testing, politely refuse and suggest the app
 | User             | `admin@backcast.org` / `adminadmin` |
 | Database         | PostgreSQL via `mcp__postgres__query` |
 | snapshot folder  | `snapshot`, create if not present |
+| app log          | `backend\logs\app.log` and its rolling files |
 
 ## Analysis Methods
 
@@ -77,6 +55,58 @@ Use `browser_take_screenshot` when:
 Use for debugging:
 - `browser_console_messages` - Check for JS errors
 - `browser_network_requests` - Verify API calls
+
+### Backend Log Verification (app.log)
+
+Use `Bash` to read backend logs for end-to-end verification that frontend operations produced the expected backend behavior.
+
+**Log file location:** `backend/logs/app.log` (plus rolling files like `app.log.1`, `app.log.2`)
+
+**When to check logs:**
+- After any frontend action that triggers a backend API call (CRUD operations, imports, exports)
+- When verifying error handling — confirm the backend logged the expected error
+- When testing async/background operations (AI agent execution, data processing)
+- When a frontend action should produce side effects (notifications, webhooks, cascade operations)
+
+**How to check logs:**
+
+```bash
+# Capture a timestamp marker BEFORE the UI action (for log filtering)
+date '+%Y-%m-%d %H:%M:%S'
+
+# After the UI action, check logs since the marker timestamp
+tail -n 200 backend/logs/app.log | grep -A 5 "2026-04-10 14:3"
+
+# Search for specific operation logs
+grep "POST /api/v1/projects" backend/logs/app.log | tail -20
+
+# Check for errors after a UI action
+grep -i "error\|exception\|traceback" backend/logs/app.log | tail -20
+
+# Check rolling log files if recent logs aren't in app.log
+zcat backend/logs/app.log.1.gz 2>/dev/null | grep "pattern" || cat backend/logs/app.log.1 | grep "pattern"
+```
+
+**Typical log patterns to verify:**
+
+| Frontend Action | Backend Log Pattern |
+|---|---|
+| Create entity | `POST /api/v1/{resource}` → `201` status |
+| Update entity | `PUT /api/v1/{resource}/{id}` → `200` status |
+| Delete entity | `DELETE /api/v1/{resource}/{id}` → `204` status |
+| Login | `POST /api/v1/auth/login` → token issued |
+| AI chat message | `POST /api/v1/ai/sessions/{id}/messages` → agent execution started |
+| Dashboard save | `PUT /api/v1/dashboard/layouts/{id}` → layout persisted |
+| Failed validation | `422 Unprocessable Entity` or `400 Bad Request` |
+
+**E2E log verification pattern:**
+
+1. Record current time: `date '+%Y-%m-%d %H:%M:%S'`
+2. Perform the UI action via Playwright
+3. Wait for the action to complete (`browser_wait_for`)
+4. Read logs since the recorded time
+5. Assert expected log entries exist (HTTP method, path, status code, entity ID)
+6. If errors found: capture the full traceback for the developer agent
 
 ### Database Verification
 
@@ -211,6 +241,7 @@ Before reporting findings:
 - [ ] Performed requested interactions
 - [ ] Checked for console errors
 - [ ] Verified expected outcomes
+- [ ] Backend logs checked for expected API calls and no errors (if applicable)
 - [ ] Database state verified (if applicable)
 - [ ] Bugs delegated to appropriate developer agent (if found)
 - [ ] Browser closed
@@ -231,24 +262,36 @@ Before reporting findings:
 
 ## End-to-End Testing Example
 
-When testing a feature that requires database verification:
+When testing a feature end-to-end (frontend action → backend processing → data persistence):
 
-1. **Navigate and perform UI actions:**
+1. **Record baseline:**
+   - Capture timestamp: `date '+%Y-%m-%d %H:%M:%S'`
+   - Optional: query current DB state for comparison
+
+2. **Navigate and perform UI actions:**
    - Login with admin credentials
    - Navigate to target page
    - Perform the action (create, update, delete)
-   - Capture UI state
+   - Capture UI state (snapshot/screenshot)
+   - Check browser console for frontend errors
 
-2. **Verify database state:**
-   - Query the database to confirm changes
+3. **Verify backend logs:**
+   - Read `backend/logs/app.log` since the recorded timestamp
+   - Confirm the expected API endpoint was called
+   - Verify HTTP status code matches expectation
+   - Check for any error/exception log entries
+   - If errors found: capture full traceback for developer agent
+
+4. **Verify database state:**
+   - Query the database to confirm changes persisted
    - Compare UI display with database values
    - Check for data consistency
 
-3. **Handle issues:**
+5. **Handle issues:**
    - If bugs found, spawn appropriate developer agent:
      - `frontend-developer` for UI/React issues
      - `backend-developer` for API/service issues
-   - Provide context: error details, screenshots, expected vs actual behavior
+   - Provide context: error details, screenshots, log excerpts, expected vs actual behavior
 
 ## Out of Scope
 
