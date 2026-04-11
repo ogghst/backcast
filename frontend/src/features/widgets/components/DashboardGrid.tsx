@@ -150,23 +150,42 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
 
     const widgetLayouts = activeDashboard.widgets.map((w) => {
       const def = getWidgetDefinition(w.typeId);
-      return {
+      const item: Record<string, unknown> = {
         i: w.instanceId,
         x: w.layout.x,
         y: w.layout.y,
         w: w.layout.w,
         h: w.layout.h,
-        minW: def?.sizeConstraints.minW,
-        maxW: def?.sizeConstraints.maxW,
-        minH: def?.sizeConstraints.minH,
-        maxH: def?.sizeConstraints.maxH,
       };
+      // Only include constraint values that are actually defined.
+      // Passing `undefined` maxW/maxH to RGL causes calcGridItemWHPx to
+      // return undefined instead of Infinity, which breaks the resize
+      // constraint calculation in react-resizable.
+      const sc = def?.sizeConstraints;
+      if (sc) {
+        if (sc.minW != null) item.minW = sc.minW;
+        if (sc.maxW != null) item.maxW = sc.maxW;
+        if (sc.minH != null) item.minH = sc.minH;
+        if (sc.maxH != null) item.maxH = sc.maxH;
+      }
+      return item;
     });
     return {
       lg: widgetLayouts,
-      md: widgetLayouts.map((l) => ({ ...l, x: l.x % 8, w: Math.min(l.w, 8) })),
-      sm: widgetLayouts.map((l) => ({ ...l, x: 0, w: 1 })),
-      xs: widgetLayouts.map((l) => ({ ...l, x: 0, w: 1 })),
+      md: widgetLayouts.map((l) => ({ ...l, x: (l.x as number) % 8, w: Math.min(l.w as number, 8) })),
+      // For sm/xs breakpoints, clamp w to at least minW to avoid creating
+      // invalid layout items where w < minW.  react-resizable computes
+      // minConstraints from minW; if the current width is below that, the
+      // resize handle becomes non-functional because the clamped width
+      // immediately jumps to minW and may exceed the container boundary.
+      sm: widgetLayouts.map((l) => {
+        const minW = (l.minW as number | undefined) ?? 1;
+        return { ...l, x: 0, w: Math.max(1, minW) };
+      }),
+      xs: widgetLayouts.map((l) => {
+        const minW = (l.minW as number | undefined) ?? 1;
+        return { ...l, x: 0, w: Math.max(1, minW) };
+      }),
     };
   // positionKey and widgetListKey are derived from activeDashboard but provide
   // stable string identities to avoid recomputing on every immer reference change.
@@ -174,9 +193,10 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
   }, [widgetListKey, positionKey, activeDashboard]);
 
   // Derive final layouts with per-item isDraggable/isResizable overlaid.
-  // This recomputes on every render when activeInteraction changes, but since
-  // only the interaction flags change (not positions), RGL preserves internal
-  // state and does not reset widget positions.
+  // The positionKey dep on baseLayouts ensures RGL receives updated
+  // positions after drag/resize store updates, and the `changed` guard
+  // in onLayoutChange prevents unnecessary store writes that would cause
+  // a feedback loop.
   const layouts = useMemo(() => {
     if (!baseLayouts.lg) return {};
     const overlay = (items: typeof baseLayouts.lg) =>
@@ -345,23 +365,43 @@ export function DashboardGrid({ onSave }: { onSave: () => Promise<void> }) {
           rowHeight={ROW_HEIGHT}
           margin={MARGIN}
           containerPadding={[12, 12]}
+          compactType={isEditing ? null : "vertical"}
           isDraggable={isEditing}
           isResizable={isEditing}
-          onLayoutChange={() => {
-            // No-op: position persistence is handled in onDragStop/onResizeStop.
-            // RGL fires onLayoutChange on every render when layouts prop changes,
-            // but we only care about user-initiated drag/resize completions.
-          }}
-          onDragStop={(layout) => {
-            const items = layout.map((item) => ({
-              i: item.i, x: item.x, y: item.y, w: item.w, h: item.h,
-            }));
-            updateDashboardLayout(items);
-          }}
-          onResizeStop={(layout) => {
-            const items = layout.map((item) => ({
-              i: item.i, x: item.x, y: item.y, w: item.w, h: item.h,
-            }));
+          onLayoutChange={(layout) => {
+            // Persist layout to store.  RGL fires this after drag/resize
+            // completions AND when it internally recalculates positions.
+            // The `changed` guard prevents unnecessary store updates that
+            // would cause RGL Responsive to re-sync from props (snap-back).
+            // The layouts memo's positionKey dep ensures RGL receives
+            // updated positions after the store write, so RGL's deepEqual
+            // sees matching data and skips re-syncing.
+            if (!isEditing || !activeDashboard) return;
+            // Only update if positions actually changed to avoid creating
+            // unnecessary undo snapshots from interaction mode toggles.
+            let changed = false;
+            const items = layout.map((item) => {
+              const widget = activeDashboard.widgets.find(
+                (w) => w.instanceId === item.i,
+              );
+              if (
+                widget &&
+                (widget.layout.x !== item.x ||
+                  widget.layout.y !== item.y ||
+                  widget.layout.w !== item.w ||
+                  widget.layout.h !== item.h)
+              ) {
+                changed = true;
+              }
+              return {
+                i: item.i,
+                x: item.x,
+                y: item.y,
+                w: item.w,
+                h: item.h,
+              };
+            });
+            if (!changed) return;
             updateDashboardLayout(items);
           }}
         >

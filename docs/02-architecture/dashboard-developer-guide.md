@@ -197,7 +197,7 @@ When `activeInteraction.mode === "move"` for a specific `instanceId`:
 - The `.widget-drag-active` CSS class is applied to the widget's wrapper div
 - CSS rule `.react-grid-item.widget-drag-active { cursor: grab !important }` provides visual feedback
 - All other widgets have `isDraggable: false` and `cursor: default !important`
-- `onDragStop` fires `updateDashboardLayout(items)` to persist the new positions
+- `onLayoutChange` fires `updateDashboardLayout(items)` to persist the new positions (with position-change guard to avoid unnecessary undo snapshots)
 - The interaction mode persists after drag completes (not auto-cleared), allowing continuous repositioning
 
 **Activation:** Click the drag handle button (DragOutlined icon) on the widget's action bar.
@@ -211,7 +211,7 @@ When `activeInteraction.mode === "resize"` for a specific `instanceId`:
 - That widget's grid item gets `isResizable: true` in the RGL layout data
 - The `.widget-resize-active` CSS class is applied to the widget's wrapper div
 - CSS rule `.react-grid-item:not(.widget-resize-active) .react-resizable-handle { display: none !important }` hides all other resize handles
-- `onResizeStop` fires `updateDashboardLayout(items)` to persist the new size
+- `onLayoutChange` fires `updateDashboardLayout(items)` to persist the new size (with position-change guard)
 - The interaction mode persists after resize completes (not auto-cleared), allowing continuous resizing
 
 **Activation:** Click the resize button (ColumnWidthOutlined icon) on the widget's action bar.
@@ -629,7 +629,7 @@ A serialized string encoding all widget positions (`instanceId:x,y,w,h` joined b
 - Keyed on `[widgetListKey, positionKey, activeDashboard]`
 - `widgetListKey` changes only when widgets are added/removed (structural changes)
 - `positionKey` changes after any drag/resize updates the store
-- Contains only position/size data plus min/max constraints from widget definitions
+- Contains only position/size data plus min/max constraints from widget definitions (undefined constraints are omitted to prevent RGL's `calcGridItemWHPx` from breaking)
 - Stable reference across interaction toggles (only `activeInteraction` changes, not positions)
 
 **`layouts`** (`DashboardGrid.tsx:180-197`):
@@ -638,10 +638,13 @@ A serialized string encoding all widget positions (`instanceId:x,y,w,h` joined b
 - Only the interaction flags change between renders, not positions
 - RGL detects that positions are unchanged and preserves its internal state
 
-**`onLayoutChange` no-op** (`DashboardGrid.tsx:350-354`):
-RGL fires `onLayoutChange` on every render when the `layouts` prop changes. This handler is intentionally a no-op because position persistence is handled exclusively in `onDragStop` and `onResizeStop`, which only fire on user-initiated interactions.
+**`onLayoutChange` persistence** (`DashboardGrid.tsx`):
+RGL fires `onLayoutChange` after drag/resize completions and when it internally recalculates positions. This handler persists layout changes to the store with a position-change guard: skips the store update if positions haven't actually changed (avoids unnecessary undo snapshots from interaction mode toggles or RGL-internal recalculations). The `positionKey` dependency on `baseLayouts` ensures RGL receives updated positions after store writes, and the `changed` guard prevents feedback loops without needing ref-based caching.
 
 **Why this split matters:** Without it, changing `activeInteraction` would pass new position objects to RGL (because positions and interaction flags would be computed in a single memo), which would reset RGL's internal drag state and cause flickering. The two-memo split ensures that when only `activeInteraction` changes, the position data flows through unchanged from `baseLayouts`, and RGL preserves its internal positions.
+
+**Responsive breakpoint layout constraints:**
+The `sm`/`xs` breakpoint layouts clamp widget widths to at least `minW` (not a hardcoded `w: 1`). This prevents `react-resizable` from computing `minConstraints` that exceed the widget's actual width, which would make the resize handle non-functional. Layout items where `w < minW` cause `react-resizable`'s `runConstraints` to immediately clamp the drag delta to the constraint floor, blocking horizontal resize.
 
 ### 7.3 Undo/Redo
 
