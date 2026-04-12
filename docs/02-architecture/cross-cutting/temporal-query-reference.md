@@ -5,21 +5,29 @@
 
 ## Overview
 
-This document is the **definitive reference** for bitemporal queries and time travel in the Backcast  system. It covers:
+This document is the **definitive reference** for bitemporal query semantics and time travel in the Backcast  system. It covers:
 
 - **Bitemporal Fundamentals:** Two time dimensions (valid time, transaction time)
-- **Time Travel Semantics:** Current Knowledge vs System Time travel
-- **Query Patterns:** Standardized filters for temporal queries
+- **Time Travel Semantics:** Valid Time Travel (supported) vs System Time Travel (deprecated)
+- **Query Filter Pattern:** Standardized bitemporal filters for time-travel queries
 - **Branch Modes:** STRICT vs MERGE behavior for queries
-- **TDD Patterns:** Zombie check tests for temporal deletion
+- **Common Pitfalls:** Query mistakes to avoid when working with temporal data
+- **Compliance:** Detection patterns and justified deviations
 
-**Key Capabilities:**
+**What This Document Covers:**
 
-- **Time Travel:** Reconstruct entity state at any historical point
-- **Complete History:** Immutable audit trail of all entity changes
-- **Branch-Aware Queries:** STRICT and MERGE modes for different use cases
+- Query semantics and filter patterns
+- Time travel behavior and correctness
+- Branch mode resolution logic
+- Common pitfalls and mistakes
 
-> **Note:** For branching operations (create, merge, lock, etc.), see [EVCS Implementation Guide](../backend/contexts/evcs-core/evcs-implementation-guide.md). For choosing entity types, see [Entity Classification Guide](../backend/contexts/evcs-core/entity-classification.md).
+**What This Document Does NOT Cover:**
+
+- Code patterns for implementing queries → See [EVCS Implementation Guide](../backend/contexts/evcs-core/evcs-implementation-guide.md)
+- Choosing entity types → See [Entity Classification Guide](../backend/contexts/evcs-core/entity-classification.md)
+- Architecture and type system → See [EVCS Core Architecture](../backend/contexts/evcs-core/architecture.md)
+
+> **For code examples and implementation patterns, see [EVCS Implementation Guide](../backend/contexts/evcs-core/evcs-implementation-guide.md).**
 
 ---
 
@@ -100,81 +108,21 @@ If you need audit/reproducibility features, implement them separately without mi
 
 All list endpoints supporting `as_of` MUST use `TemporalService._apply_bitemporal_filter()`.
 
-**Location:** [backend/app/core/versioning/service.py](../../../backend/app/core/versioning/service.py)
+**Location:** `backend/app/core/versioning/service.py`
 
-**Implementation:**
+**Filters Applied:**
 
-```python
-def _apply_bitemporal_filter(self, stmt: Any, as_of: datetime) -> Any:
-    """Apply standardized bitemporal WHERE clauses to a statement.
+1. `valid_time @> as_of` - Check as_of is within valid_time range
+2. `func.lower(valid_time) <= as_of` - Check entity existed at as_of
+3. `deleted_at IS NULL OR deleted_at > as_of` - Zombie protection
 
-    Filters for:
-    - valid_time contains as_of (time travel based on business validity)
-    - deleted_at IS NULL OR deleted_at > as_of
+**Why This Matters:**
 
-    Note: Time travel queries are based on valid_time only. The transaction_time
-    dimension is used for audit/correction tracking but does not filter list results.
-    For overlapping valid_time ranges (corrections), the latest transaction_time
-    version should be used - this is handled by DISTINCT ON in branch mode filter
-    or by ordering in the specific service method.
-    """
-    return stmt.where(
-        # Check as_of is within valid_time range (time travel by business validity)
-        self.entity_class.valid_time.op("@>")(as_of),
-        # CRITICAL: Also check as_of >= lower bound (entity existed)
-        func.lower(self.entity_class.valid_time) <= as_of,
+The standardized filter includes critical components that custom implementations often miss:
+- `func.lower(valid_time) <= as_of` - Prevents future entities from being included
+- TIMESTAMP casting - Ensures proper timezone handling
 
-        # TEMPORAL DELETE CHECK: Entity visible if not deleted, or deleted AFTER as_of
-        or_(
-            self.entity_class.deleted_at.is_(None),
-            self.entity_class.deleted_at > as_of,
-        ),
-    )
-```
-
-### List Endpoint Pattern
-
-**Example from `ProjectService`:**
-
-```python
-async def get_projects(
-    self,
-    skip: int = 0,
-    limit: int = 100,
-    as_of: datetime | None = None,
-    branch: str = "main",
-) -> tuple[Sequence[Project], int]:
-    """Get projects with optional time travel."""
-    stmt = select(Project).where(Project.branch == branch)
-
-    if as_of:
-        # Use standardized bitemporal filter
-        stmt = self._apply_bitemporal_filter(stmt, as_of)
-    else:
-        # Standard "Current" Filter
-        stmt = stmt.where(
-            func.upper(Project.valid_time).is_(None),
-            Project.deleted_at.is_(None)
-        )
-
-    # Apply pagination and execute...
-```
-
-### Service Integration with `TemporalService[T]`
-
-When implementing a versioned entity service, inherit from `TemporalService`:
-
-```python
-from app.core.versioning.service import TemporalService
-
-class ProjectService(TemporalService[Project]):
-    """Service for Project entities with bitemporal support."""
-
-    async def get_projects(self, as_of: datetime | None = None, ...):
-        # _apply_bitemporal_filter is inherited
-        # Use it for any list/search with as_of parameter
-        ...
-```
+> **For implementation examples and service integration, see [EVCS Implementation Guide](../backend/contexts/evcs-core/evcs-implementation-guide.md).**
 
 ---
 
@@ -418,49 +366,6 @@ The following custom implementations are justified and documented:
 
 ---
 
-## Service-Level Time Travel Support
-
-The following services expose `get_as_of` methods for single-entity time-travel queries:
-
-| Service                | Method                          | Branch Modes  | Relations Included     |
-| ---------------------- | ------------------------------- | ------------- | ---------------------- |
-| ProjectService         | `get_project_as_of()`           | STRICT, MERGE | -                      |
-| WBEService             | `get_wbe_as_of()`               | STRICT, MERGE | -                      |
-| CostElementService     | `get_cost_element_as_of()`      | STRICT, MERGE | parent_name, type_name |
-| CostElementTypeService | `get_cost_element_type_as_of()` | STRICT, MERGE | -                      |
-| DepartmentService      | `get_department_as_of()`        | STRICT, MERGE | -                      |
-| UserService            | `get_user_as_of()`              | STRICT, MERGE | -                      |
-
-**Usage Example:**
-
-```python
-from datetime import datetime
-from app.services.project import ProjectService
-from app.core.versioning.enums import BranchMode
-
-service = ProjectService(session)
-
-# Get project as of January 1st, 2026
-as_of = datetime(2026, 1, 1, 12, 0, 0)
-project = await service.get_project_as_of(
-    project_id=project_id,
-    as_of=as_of,
-    branch="main",
-)
-
-# For change order preview, use MERGE mode
-project = await service.get_project_as_of(
-    project_id=project_id,
-    as_of=as_of,
-    branch="BR-123",
-    branch_mode=BranchMode.MERGE,  # fall back to main
-)
-```
-
-**Implementation:** All methods delegate to `TemporalService.get_as_of()` which implements full bitemporal filtering with System Time Travel semantics. See [`TemporalService.get_as_of()`](../../../backend/app/core/versioning/service.py) for implementation details.
-
----
-
 ## Implementation Notes
 
 ### Zombie Check Tests
@@ -472,40 +377,7 @@ The zombie check pattern documented above is a best-practice TDD pattern for ver
 1. Remain visible for queries targeting timestamps before their deletion
 2. Disappear for queries targeting timestamps after their deletion
 
----
-
-## Query Patterns for Branches
-
-### Current Version on Branch
-
-```sql
-SELECT * FROM project_versions
-WHERE project_id = :id
-  AND branch = :branch
-  AND valid_time @> NOW()
-  AND transaction_time @> NOW()
-  AND deleted_at IS NULL;
-```
-
-### Branch Fallback (MERGE mode)
-
-```python
-# Try target branch first, fall back to main if not found
-version = await get_current(root_id, branch="BR-123")
-if version is None:
-    version = await get_current(root_id, branch="main")
-```
-
-### Time Travel on Branch
-
-```sql
-SELECT * FROM project_versions
-WHERE project_id = :id
-  AND branch = :branch
-  AND valid_time @> :as_of
-  AND transaction_time @> :as_of
-  AND (deleted_at IS NULL OR deleted_at > :as_of);
-```
+> **For branch query implementation examples, see [EVCS Implementation Guide](../backend/contexts/evcs-core/evcs-implementation-guide.md).**
 
 ---
 
