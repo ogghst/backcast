@@ -247,7 +247,7 @@ async def delete_important(): ...
 
 ## Future Considerations
 
-1. **Database-backed RBAC (ADR-008)**: When multi-tenancy or dynamic role management is needed
+1. **Database-backed RBAC**: When multi-tenancy or dynamic role management is needed (open consideration, no ADR yet)
 2. **Role hierarchy**: Implement inheritance (e.g., admin inherits all manager permissions)
 3. **API for role management**: CRUD endpoints for roles/permissions
 4. **Audit logging**: Track authorization decisions for security analysis
