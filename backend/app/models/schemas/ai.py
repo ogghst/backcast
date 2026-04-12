@@ -331,7 +331,7 @@ class FileAttachment(BaseModel):
     filename: str = Field(..., max_length=255, description="Original filename")
     file_type: str = Field(..., max_length=100, description="MIME type or file extension")
     file_size: int = Field(..., ge=0, description="File size in bytes")
-    url: str = Field(..., max_length=500, description="URL to access the file")
+    content: str | None = Field(None, description="Extracted text or base64-encoded content")
     uploaded_at: datetime = Field(..., description="Upload timestamp")
 
 
@@ -387,6 +387,20 @@ class AIConversationMessagePublic(BaseModel):
                     # Explicitly handle None vs empty dict to preserve metadata content
                     metadata_value = getattr(data, 'message_metadata', None)
                     result[key] = metadata_value if metadata_value is not None else {}
+                elif key == 'attachments':
+                    # Map ORM AIConversationAttachment -> FileAttachment
+                    orm_attachments = getattr(data, 'attachments', [])
+                    result[key] = [
+                        FileAttachment(
+                            file_id=str(att.id),
+                            filename=att.filename,
+                            file_type=att.content_type,
+                            file_size=att.size,
+                            content=att.content,
+                            uploaded_at=att.created_at,
+                        )
+                        for att in orm_attachments
+                    ]
                 elif hasattr(data, key):
                     value = getattr(data, key)
                     result[key] = value
@@ -762,7 +776,7 @@ class ImageUploadResponse(BaseModel):
 
     file_id: str = Field(..., description="Unique file identifier")
     filename: str = Field(..., description="Original filename")
-    url: str = Field(..., description="URL to access the uploaded image")
+    content: str = Field(..., description="Base64-encoded image content")
     file_size: int = Field(..., description="File size in bytes")
     content_type: str = Field(..., description="MIME type of the image")
     uploaded_at: datetime = Field(..., description="Upload timestamp")
@@ -776,7 +790,7 @@ class FileUploadResponse(BaseModel):
 
     file_id: str = Field(..., description="Unique file identifier")
     filename: str = Field(..., description="Original filename")
-    url: str = Field(..., description="URL to access the uploaded file")
+    content: str | None = Field(None, description="Extracted text content (None if unsupported or extraction failed)")
     file_size: int = Field(..., description="File size in bytes")
     content_type: str = Field(..., description="MIME type of the file")
     file_type: str = Field(..., description="Category of file (document, spreadsheet, etc.)")

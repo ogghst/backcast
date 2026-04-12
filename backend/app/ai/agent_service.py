@@ -9,7 +9,7 @@ import os
 import time
 import uuid
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from uuid import UUID
 
 from fastapi import WebSocket
@@ -1415,12 +1415,15 @@ class AgentService:
         """Build conversation history from session messages.
 
         Context: Converts DB messages into LangChain message objects for context window.
+        Includes attachment metadata for multimodal messages with vision support.
 
         Args:
             session_id: The session ID corresponding to the current conversation
 
         Returns:
-            List of LangChain BaseMessage instances (HumanMessage, AIMessage, SystemMessage)
+            List of LangChain BaseMessage instances (HumanMessage, AIMessage, SystemMessage).
+            For user messages with attachments, HumanMessage content will be a list of
+            content blocks (text + image_url) for vision models.
 
         Raises:
             None
@@ -1429,13 +1432,107 @@ class AgentService:
         db_messages = await self.config_service.list_messages(session_id)
         for msg in db_messages:
             if msg.role == "user":
-                messages.append(HumanMessage(content=msg.content))
+                # Check if message has attachments and format accordingly
+                if msg.attachments:
+                    # Build attachment metadata for format_multimodal_messages
+                    attachment_dicts = [
+                        {
+                            "file_id": str(a.id),
+                            "filename": a.filename,
+                            "content_type": a.content_type,
+                            "content": a.content,
+                            "file_size": a.size,
+                        }
+                        for a in msg.attachments
+                    ]
+
+                    # Use format_multimodal_messages for proper LLM formatting
+                    content_blocks = await self.format_multimodal_messages(
+                        msg.content,
+                        attachments=attachment_dicts
+                    )
+                    # Type cast needed: list[dict[str, Any]] -> list[str | dict[Any, Any]]
+                    # for HumanMessage compatibility with MyPy strict mode
+                    messages.append(HumanMessage(content=cast(list[str | dict[Any, Any]], content_blocks)))
+                else:
+                    # Plain text message without attachments
+                    messages.append(HumanMessage(content=msg.content))
             elif msg.role == "assistant":
                 messages.append(AIMessage(content=msg.content))
             elif msg.role == "tool":
                 # Skip tool messages in history - they're implicit
                 pass
         return messages
+
+    async def format_multimodal_messages(
+        self,
+        text_content: str,
+        attachments: list[dict[str, Any]] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Format message content for vision models with image attachments.
+
+        Context: Vision models like GPT-4 Vision require messages with mixed content
+        types (text and image_url). This method formats user messages to include
+        image attachments as base64 data URLs and document attachments as inline
+        text blocks.
+
+        Args:
+            text_content: The text content of the user message
+            attachments: Optional list of attachment metadata dictionaries.
+                Each dict should have keys: content_type, filename, content.
+
+        Returns:
+            List of content blocks suitable for OpenAI API. Each block is a dict
+            with either:
+                - {"type": "text", "text": "..."}
+                - {"type": "image_url", "image_url": {"url": "data:image/...;base64,..."}}
+
+        Example:
+            >>> format_multimodal_messages(
+            ...     "What's in this image?",
+            ...     [{"content_type": "image/png", "content": "<base64>"}]
+            ... )
+            [
+                {"type": "text", "text": "What's in this image?"},
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64,<base64>"}}
+            ]
+        """
+        content_blocks: list[dict[str, Any]] = [{"type": "text", "text": text_content}]
+
+        if attachments:
+            # Process image attachments: use base64 data URLs
+            for attachment in attachments:
+                if not attachment.get("content_type", "").startswith("image/"):
+                    continue
+                attachment_content = attachment.get("content")
+                if attachment_content:
+                    content_type = attachment.get("content_type", "image/png")
+                    data_url = f"data:{content_type};base64,{attachment_content}"
+                    content_blocks.append({
+                        "type": "image_url",
+                        "image_url": {"url": data_url},
+                    })
+
+            # Process non-image attachments: inline as text blocks
+            non_image_attachments = [
+                a for a in attachments
+                if not a.get("content_type", "").startswith("image/")
+            ]
+            for attachment in non_image_attachments:
+                filename = attachment.get("filename", "unknown file")
+                attachment_content = attachment.get("content")
+                if attachment_content:
+                    content_blocks.append({
+                        "type": "text",
+                        "text": f"[File: {filename}]\n{attachment_content}",
+                    })
+                else:
+                    content_blocks.append({
+                        "type": "text",
+                        "text": f"[User attached: {filename}]",
+                    })
+
+        return content_blocks
 
     def _make_json_serializable(self, obj: Any) -> Any:
         """Convert non-JSON-serializable objects to JSON-serializable format.

@@ -9,11 +9,37 @@ import React, { useState, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { theme as antdTheme, Grid } from 'antd';
 import { CodeBlock } from './CodeBlock';
 import { MermaidDiagram } from './MermaidDiagram';
 import { InlineCode } from './InlineCode';
 import { useThemeTokens } from '@/hooks/useThemeTokens';
+
+/**
+ * Custom security schema for markdown sanitization
+ *
+ * Extends the default GitHub-flavored schema with strict security rules:
+ * - Blocks data: URLs for images and links (react-markdown strips data URLs anyway)
+ * - Only allows http/https protocols for links and images
+ * - Maintains all GitHub-flavored markdown features
+ */
+const customSchema: typeof defaultSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    // Only allow http/https protocols for images
+    img: [
+      ...(defaultSchema.attributes?.img || []),
+      ['src', /^https?:/], // Only http/https allowed
+    ],
+    // Only allow http/https protocols for links
+    a: [
+      ...(defaultSchema.attributes?.a || []),
+      ['href', /^https?:/], // Only http/https allowed
+    ],
+  },
+};
 
 interface MarkdownRendererProps {
   /** Markdown content to render */
@@ -419,6 +445,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isS
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
+        rehypePlugins={[[rehypeSanitize, customSchema]]}
         components={{
           code: InlineCode,
           pre: CodeBlockRenderer,

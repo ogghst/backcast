@@ -1,7 +1,8 @@
 # Migration Path: Automated Filter Types via OpenAPI
 
-**Status:** Proposed / Future
+**Status:** Analysis Complete (2026-04-11) — Awaiting Decision
 **Related:** TD-014 (Frontend Filter Type Safety)
+**Analysis:** [`docs/03-project-plan/iterations/2026-04-11-automated-filter-types/00-analysis.md`](../../03-project-plan/iterations/2026-04-11-automated-filter-types/00-analysis.md)
 
 ---
 

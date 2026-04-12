@@ -8,6 +8,7 @@ Provides:
 - AIAssistantConfig: Assistant configuration with tool permissions
 - AIConversationSession: User conversation sessions
 - AIConversationMessage: Individual messages
+- AIConversationAttachment: File attachments for messages
 - AIAgentExecution: Agent execution tracking with status lifecycle
 """
 
@@ -237,9 +238,49 @@ class AIConversationMessage(SimpleEntityBase):
     session: Mapped["AIConversationSession"] = relationship(
         "AIConversationSession", back_populates="messages", foreign_keys=[session_id]
     )
+    attachments: Mapped[list["AIConversationAttachment"]] = relationship(
+        "AIConversationAttachment",
+        back_populates="message",
+        cascade="all, delete-orphan",
+        foreign_keys="[AIConversationAttachment.message_id]",
+    )
 
     def __repr__(self) -> str:
         return f"<AIConversationMessage(id={self.id}, role={self.role})>"
+
+
+class AIConversationAttachment(SimpleEntityBase):
+    """File attachment for a conversation message.
+
+    Stores metadata and inline content for files uploaded by users
+    (images, PDFs, CSVs, etc.). File content is stored directly in the
+    database as extracted text or base64-encoded image data.
+    """
+    __tablename__ = "ai_conversation_attachments"
+
+    message_id: Mapped[str] = mapped_column(
+        PG_UUID,
+        ForeignKey("ai_conversation_messages.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    size: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Relationships
+    message: Mapped["AIConversationMessage"] = relationship(
+        "AIConversationMessage",
+        back_populates="attachments",
+        foreign_keys=[message_id],
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<AIConversationAttachment(id={self.id}, message_id={self.message_id}, "
+            f"filename={self.filename})>"
+        )
 
 
 class AIAgentExecution(SimpleEntityBase):

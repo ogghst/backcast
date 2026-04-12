@@ -33,7 +33,7 @@ import { useStreamingChat } from "../api/useStreamingChat";
 import { AssistantSelector } from "./AssistantSelector";
 import { SessionList } from "./SessionList";
 import { MessageList } from "./MessageList";
-import { MessageInput } from "./MessageInput";
+import { MessageInput, type PendingAttachment } from "./MessageInput";
 import { AgentActivityPanel } from "./AgentActivityPanel";
 import type { AgentActivity, ActivityHistoryItem } from "./AgentActivityPanel";
 import { WebSocketDebugPanel, type DebugMessage } from "./WebSocketDebugPanel";
@@ -119,6 +119,9 @@ export const ChatInterface = ({
   const [approvalRequest, setApprovalRequest] = useState<WSApprovalRequestMessage | null>(null);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [approvalRemaining, setApprovalRemaining] = useState<number | null>(null);
+
+  // Attachment state
+  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
 
   // Debug state for WebSocket messages
   const [debugMessages, setDebugMessages] = useState<DebugMessage[]>([]);
@@ -715,6 +718,12 @@ export const ChatInterface = ({
     [currentSessionId, handleNewChat, deleteSession]
   );
 
+  // Handle attachment changes from MessageInput
+  const handleAttachmentsChange = useCallback((attachments: PendingAttachment[]) => {
+    // Extract File objects from PendingAttachment array
+    setPendingAttachments(attachments.map((a) => a.file));
+  }, []);
+
   // Handle sending a message
   const handleSendMessage = useCallback(
     (messageContent: string) => {
@@ -753,11 +762,19 @@ export const ChatInterface = ({
       // Generate title for new sessions (when no current session exists)
       const title = currentSessionId ? undefined : generateSessionTitle(messageContent);
 
-      // Send message via streaming hook with execution mode
+      // Send message via streaming hook with execution mode and attachments
       // sendMessage now handles lazy connection if not connected
-      streamingChat.sendMessage(messageContent, title ?? undefined, executionMode);
+      streamingChat.sendMessage(
+        messageContent,
+        title ?? undefined,
+        executionMode,
+        pendingAttachments.length > 0 ? pendingAttachments : undefined
+      );
+
+      // Clear attachments after sending
+      setPendingAttachments([]);
     },
-    [selectedAssistantId, streamingChat, currentSessionId, executionMode]
+    [selectedAssistantId, streamingChat, currentSessionId, executionMode, pendingAttachments]
   );
 
   // Handle canceling the current stream
@@ -1187,6 +1204,7 @@ export const ChatInterface = ({
               connectionState={streamingChat.connectionState}
               executionMode={executionMode}
               onExecutionModeChange={setExecutionMode}
+              onAttachmentsChange={handleAttachmentsChange}
               placeholder={
                 !selectedAssistantId
                   ? isSmallMobile

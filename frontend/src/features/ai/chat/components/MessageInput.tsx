@@ -15,7 +15,14 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Input, Button, theme, Popover, Tooltip } from "antd";
-import { SendOutlined, StopOutlined, SecurityScanOutlined, SafetyOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import {
+  SendOutlined,
+  StopOutlined,
+  SecurityScanOutlined,
+  SafetyOutlined,
+  ThunderboltOutlined,
+  PaperClipOutlined,
+} from "@ant-design/icons";
 import { Grid } from "antd";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { WSConnectionState } from "../types";
@@ -24,6 +31,15 @@ const { TextArea } = Input;
 const { useBreakpoint } = Grid;
 
 type ExecutionMode = "safe" | "standard" | "expert";
+
+/**
+ * Represents a file pending upload
+ */
+interface PendingAttachment {
+  id: string;
+  file: File;
+  preview?: string; // URL for image preview
+}
 
 interface MessageInputProps {
   onSend: (message: string) => void;
@@ -41,6 +57,8 @@ interface MessageInputProps {
   executionMode?: ExecutionMode;
   /** Callback when execution mode changes */
   onExecutionModeChange?: (mode: ExecutionMode) => void;
+  /** Callback when attachments are added */
+  onAttachmentsChange?: (attachments: PendingAttachment[]) => void;
 }
 
 const MAX_LENGTH = 10000;
@@ -128,6 +146,7 @@ export const MessageInput = ({
   connectionState = WSConnectionState.CLOSED,
   executionMode = "standard",
   onExecutionModeChange,
+  onAttachmentsChange,
 }: MessageInputProps) => {
   const screens = useBreakpoint();
   const isMobile = !screens.md; // md breakpoint is 768px
@@ -136,7 +155,12 @@ export const MessageInput = ({
   const { spacing, typography } = useThemeTokens();
   const [message, setMessage] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [modePopoverOpen, setModePopoverOpen] = useState(false);
+
+  // Attachment state
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Focus textarea on mount (for desktop)
   useEffect(() => {
@@ -165,6 +189,160 @@ export const MessageInput = ({
       }
     },
     [handleSend]
+  );
+
+  // Attachment handlers
+  const handleAttachmentClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+
+      // Validate file types
+      const supportedImageTypes = ["image/png", "image/jpeg", "image/jpg"];
+      const supportedDocumentTypes = [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // DOCX
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // XLSX
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation", // PPTX
+        "text/plain",
+        "text/csv",
+        "application/json",
+      ];
+
+      const unsupportedFiles = files.filter(
+        (file) =>
+          !supportedImageTypes.includes(file.type) &&
+          !supportedDocumentTypes.includes(file.type)
+      );
+
+      if (unsupportedFiles.length > 0) {
+        const unsupportedNames = unsupportedFiles.map((f) => f.name).join(", ");
+        alert(
+          `Unsupported file type: ${unsupportedNames}\n\n` +
+            `Supported files:\n` +
+            `• Images: PNG, JPG, JPEG\n` +
+            `• Documents: PDF, DOCX, XLSX, PPTX, TXT, CSV, JSON\n\n` +
+            `HTML files are not supported for security reasons.`
+        );
+        // Reset file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+        return;
+      }
+
+      const newAttachments: PendingAttachment[] = files.map((file) => {
+        const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        let preview: string | undefined;
+
+        // Create preview for images
+        if (file.type.startsWith("image/")) {
+          preview = URL.createObjectURL(file);
+        }
+
+        return { id, file, preview };
+      });
+
+      setPendingAttachments((prev) => [...prev, ...newAttachments]);
+      onAttachmentsChange?.([...pendingAttachments, ...newAttachments]);
+
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    },
+    [pendingAttachments, onAttachmentsChange]
+  );
+
+  const handleRemoveAttachment = useCallback(
+    (id: string) => {
+      setPendingAttachments((prev) => {
+        const attachment = prev.find((a) => a.id === id);
+        if (attachment?.preview) {
+          URL.revokeObjectURL(attachment.preview);
+        }
+        return prev.filter((a) => a.id !== id);
+      });
+    },
+    []
+  );
+
+  // Drag and drop handlers
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length === 0) return;
+
+      // Validate file types (same validation as file input)
+      const supportedImageTypes = ["image/png", "image/jpeg", "image/jpg"];
+      const supportedDocumentTypes = [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // DOCX
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // XLSX
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation", // PPTX
+        "text/plain",
+        "text/csv",
+        "application/json",
+      ];
+
+      const unsupportedFiles = files.filter(
+        (file) =>
+          !supportedImageTypes.includes(file.type) &&
+          !supportedDocumentTypes.includes(file.type)
+      );
+
+      if (unsupportedFiles.length > 0) {
+        const unsupportedNames = unsupportedFiles.map((f) => f.name).join(", ");
+        alert(
+          `Unsupported file type: ${unsupportedNames}\n\n` +
+            `Supported files:\n` +
+            `• Images: PNG, JPG, JPEG\n` +
+            `• Documents: PDF, DOCX, XLSX, PPTX, TXT, CSV, JSON\n\n` +
+            `HTML files are not supported for security reasons.`
+        );
+        return;
+      }
+
+      const newAttachments: PendingAttachment[] = files.map((file) => {
+        const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        let preview: string | undefined;
+
+        if (file.type.startsWith("image/")) {
+          preview = URL.createObjectURL(file);
+        }
+
+        return { id, file, preview };
+      });
+
+      setPendingAttachments((prev) => [...prev, ...newAttachments]);
+      onAttachmentsChange?.([...pendingAttachments, ...newAttachments]);
+    },
+    [pendingAttachments, onAttachmentsChange]
   );
 
   const canSend = message.trim().length > 0 && !disabled && !loading && !isStreaming;
@@ -297,6 +475,100 @@ export const MessageInput = ({
     </Popover>
   ) : null;
 
+  // Attachment previews
+  const attachmentPreviews = pendingAttachments.length > 0 && (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: spacing.sm,
+        padding: `${spacing.xs}px ${spacing.sm}px`,
+        maxHeight: 120,
+        overflowY: "auto",
+      }}
+    >
+      {pendingAttachments.map((attachment) => (
+        <div
+          key={attachment.id}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: spacing.xs,
+            padding: spacing.xs,
+            backgroundColor: token.colorFillTertiary,
+            borderRadius: token.borderRadiusSM,
+            border: `1px solid ${token.colorBorderSecondary}`,
+          }}
+        >
+          {attachment.preview ? (
+            <img
+              data-testid={`thumbnail-${attachment.file.name}`}
+              src={attachment.preview}
+              alt={attachment.file.name}
+              style={{
+                width: 40,
+                height: 40,
+                objectFit: "cover",
+                borderRadius: token.borderRadiusXS,
+              }}
+            />
+          ) : (
+            <PaperClipOutlined
+              data-testid={`file-icon-${attachment.file.name.split(".").pop()}`}
+              style={{ fontSize: 24, color: token.colorTextSecondary }}
+            />
+          )}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              maxWidth: 150,
+            }}
+          >
+            <span
+              style={{
+                fontSize: typography.sizes.xs,
+                fontWeight: typography.weights.medium,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {attachment.file.name}
+            </span>
+            <span
+              style={{
+                fontSize: typography.sizes.xs,
+                color: token.colorTextSecondary,
+              }}
+            >
+              {attachment.file.size < 1024
+                ? `${attachment.file.size} B`
+                : attachment.file.size < 1024 * 1024
+                ? `${(attachment.file.size / 1024).toFixed(1)} KB`
+                : `${(attachment.file.size / (1024 * 1024)).toFixed(1)} MB`}
+            </span>
+          </div>
+          <Button
+            type="text"
+            size="small"
+            danger
+            aria-label={`Remove ${attachment.file.name}`}
+            onClick={() => handleRemoveAttachment(attachment.id)}
+            style={{
+              minWidth: 20,
+              height: 20,
+              borderRadius: "50%",
+              padding: 0,
+            }}
+          >
+            ×
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+
   // Mobile: inline button layout
   if (isMobile) {
     return (
@@ -308,6 +580,11 @@ export const MessageInput = ({
           }
         `}</style>
         <div
+          data-testid="message-input-container"
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
           style={{
             padding: spacing.sm,
             borderTop: `1px solid ${token.colorBorderSecondary}`,
@@ -315,6 +592,36 @@ export const MessageInput = ({
             paddingBottom: `calc(${spacing.sm}px + env(safe-area-inset-bottom))`,
           }}
         >
+          {/* Drop zone overlay */}
+          {isDragging && (
+            <div
+              data-testid="drop-zone-overlay"
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: `${token.colorPrimary}10`,
+                border: `2px dashed ${token.colorPrimary}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 10,
+                opacity: isDragging ? 1 : 0,
+                transition: "opacity 0.2s",
+                pointerEvents: "none",
+              }}
+            >
+              <div style={{ textAlign: "center" }}>
+                <PaperClipOutlined style={{ fontSize: 48, color: token.colorPrimary }} />
+                <div style={{ marginTop: spacing.sm, color: token.colorPrimary }}>
+                  Drop files to attach
+                </div>
+              </div>
+            </div>
+          )}
+
           <div
             style={{
               display: "flex",
@@ -322,6 +629,33 @@ export const MessageInput = ({
               alignItems: "flex-start",
             }}
           >
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              aria-label="Upload file"
+              style={{ display: "none" }}
+              accept="image/*,.pdf,.csv,.json,.txt,.docx,.xlsx,.pptx"
+              multiple
+              onChange={handleFileSelect}
+            />
+
+            {/* Attachment button */}
+            <Tooltip title="Attach file">
+              <Button
+                type="text"
+                icon={<PaperClipOutlined />}
+                onClick={handleAttachmentClick}
+                aria-label="Attach file"
+                style={{
+                  minWidth: 42,
+                  height: 42,
+                  borderRadius: 21,
+                  flexShrink: 0,
+                }}
+              />
+            </Tooltip>
+
             {/* Execution mode button - shown when handler provided */}
             {executionModeButton}
 
@@ -370,6 +704,9 @@ export const MessageInput = ({
             }}
           />
         </div>
+
+        {/* Attachment previews */}
+        {attachmentPreviews}
       </div>
       </>
     );
@@ -385,12 +722,47 @@ export const MessageInput = ({
         }
       `}</style>
       <div
+        data-testid="message-input-container"
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         style={{
           padding: spacing.md,
           borderTop: `1px solid ${token.colorBorderSecondary}`,
           backgroundColor: token.colorBgContainer,
         }}
       >
+        {/* Drop zone overlay */}
+        {isDragging && (
+          <div
+            data-testid="drop-zone-overlay"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: `${token.colorPrimary}10`,
+              border: `2px dashed ${token.colorPrimary}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 10,
+              opacity: isDragging ? 1 : 0,
+              transition: "opacity 0.2s",
+              pointerEvents: "none",
+            }}
+          >
+            <div style={{ textAlign: "center" }}>
+              <PaperClipOutlined style={{ fontSize: 48, color: token.colorPrimary }} />
+              <div style={{ marginTop: spacing.sm, color: token.colorPrimary }}>
+                Drop files to attach
+              </div>
+            </div>
+          </div>
+        )}
+
         <div
           style={{
             display: "flex",
@@ -398,6 +770,33 @@ export const MessageInput = ({
             alignItems: "flex-start",
           }}
         >
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            aria-label="Upload file"
+            style={{ display: "none" }}
+            accept="image/*,.pdf,.csv,.json,.txt,.docx,.xlsx,.pptx"
+            multiple
+            onChange={handleFileSelect}
+          />
+
+          {/* Attachment button */}
+          <Tooltip title="Attach file">
+            <Button
+              type="text"
+              icon={<PaperClipOutlined />}
+              onClick={handleAttachmentClick}
+              aria-label="Attach file"
+              style={{
+                minWidth: 42,
+                height: 42,
+                borderRadius: 21,
+                flexShrink: 0,
+              }}
+            />
+          </Tooltip>
+
           {/* Execution mode button - shown when handler provided */}
           {executionModeButton}
 
@@ -446,6 +845,9 @@ export const MessageInput = ({
             }}
           />
         </div>
+
+        {/* Attachment previews */}
+        {attachmentPreviews}
       </div>
     </>
   );

@@ -783,11 +783,26 @@ async def chat_stream(
                 session_holder.value = effective_session_id
                 current_session_id = effective_session_id
 
-                # Save user message to session
+                # Convert FileAttachment objects to dicts for service layer
+                attachment_dicts = None
+                if request.attachments:
+                    attachment_dicts = [
+                        {
+                            "file_id": a.file_id,
+                            "filename": a.filename,
+                            "content_type": a.file_type,  # file_type -> content_type
+                            "file_size": a.file_size,
+                            "content": a.content,
+                        }
+                        for a in request.attachments
+                    ]
+
+                # Save user message to session (with attachments if provided)
                 await config_service.add_message(
                     session_id=effective_session_id,
                     role="user",
                     content=request.message,
+                    attachments=attachment_dicts,
                 )
                 await db.commit()
 

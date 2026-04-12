@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models.domain.ai import (
     AIAssistantConfig,
+    AIConversationAttachment,
     AIConversationMessage,
     AIConversationSession,
     AIModel,
@@ -464,8 +465,11 @@ class AIConfigService:
 
     async def list_messages(self, session_id: UUID) -> list[AIConversationMessage]:
         """List all messages in a session."""
+        from sqlalchemy.orm import selectinload
+
         stmt = (
             select(AIConversationMessage)
+            .options(selectinload(AIConversationMessage.attachments))
             .where(AIConversationMessage.session_id == session_id)
             .order_by(AIConversationMessage.created_at)
         )
@@ -480,6 +484,7 @@ class AIConfigService:
         tool_calls: list[dict[str, Any]] | None = None,
         tool_results: list[dict[str, Any]] | None = None,
         message_metadata: dict[str, Any] | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> AIConversationMessage:
         """Add a message to a session.
 
@@ -490,6 +495,12 @@ class AIConfigService:
             tool_calls: Optional tool calls made by assistant
             tool_results: Optional tool results
             message_metadata: Optional metadata (e.g., subagent_name)
+            attachments: Optional list of attachment dicts with keys:
+                - file_id: UUID of the file
+                - filename: Original filename
+                - content_type: MIME type
+                - file_size: Size in bytes
+                - content: Extracted text or base64-encoded content
 
         Returns:
             Created message
@@ -503,5 +514,19 @@ class AIConfigService:
             message_metadata=message_metadata,
         )
         self.session.add(message)
+        await self.session.flush()
+
+        # Create attachment records if provided
+        if attachments:
+            for attachment_data in attachments:
+                attachment = AIConversationAttachment(
+                    message_id=str(message.id),  # Convert UUID to str
+                    filename=attachment_data["filename"],
+                    content_type=attachment_data["content_type"],
+                    content=attachment_data.get("content"),
+                    size=attachment_data["file_size"],
+                )
+                self.session.add(attachment)
+
         await self.session.flush()
         return message

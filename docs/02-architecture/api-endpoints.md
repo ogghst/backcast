@@ -3,10 +3,20 @@
 **Last Updated:** 2026-03-02
 **Status:** Active
 
-This document provides a comprehensive reference for all API endpoints in Backcast .
-
-> **Interactive Documentation:** Available at `/docs` (Swagger UI) when running the backend.
-> **OpenAPI Spec:** Available at `/openapi.json`
+> **Scope:** Quick reference catalog of all API endpoints in Backcast.
+>
+> **Purpose:**
+> - Browseable endpoint index without running the backend
+> - Human-readable overview of available resources
+> - Quick lookup of path parameters, query parameters, and response types
+> - Notes on domain-specific behaviors (e.g., computed fields, workflow actions)
+>
+> **Authoritative Source:**
+> This document is a **companion** to the auto-generated OpenAPI documentation. For the most up-to-date endpoint definitions, request/response schemas, and interactive testing, use the live Swagger UI at `/docs` or the OpenAPI spec at `/openapi.json` when the backend is running.
+>
+> **Related:**
+> - [API Conventions](./cross-cutting/api-conventions.md) — Protocol-level patterns (HTTP methods, context parameters, authentication)
+> - [API Response Patterns](./cross-cutting/api-response-patterns.md) — Server-side filtering, pagination, implementation patterns
 
 ---
 

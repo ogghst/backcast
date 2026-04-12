@@ -2,7 +2,9 @@
 
 ## Status
 
-Rejected
+Accepted
+
+> **Note:** Originally marked Rejected, then implemented on 2026-01-18. The 1:1 relationship is enforced at the application/service layer. A database-level unique constraint (`uq_cost_elements_schedule_baseline_id`) was initially added but later removed (migration `4295c725f05f`) because bitemporal versioning requires multiple historical cost element versions to reference the same baseline.
 
 ## Context
 

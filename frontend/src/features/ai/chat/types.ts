@@ -104,6 +104,18 @@ export interface WSExecutionStatusMessage {
 }
 
 /**
+ * File attachment metadata for chat messages
+ */
+export interface FileAttachment {
+  file_id: string; // Unique file identifier
+  filename: string; // Original filename
+  file_type: string; // MIME type or file extension
+  file_size: number; // File size in bytes
+  content?: string; // Inline content (base64 for images, extracted text for documents)
+  uploaded_at: string; // Upload timestamp (ISO datetime)
+}
+
+/**
  * Client -> Server: Chat message request
  */
 export interface WSChatRequest {
@@ -120,6 +132,9 @@ export interface WSChatRequest {
   branch_mode?: "merged" | "isolated"; // Branch view mode
   // Project context for project-specific chat
   project_id?: string; // Project ID to scope chat to a specific project
+  // File attachments for the message
+  attachments?: FileAttachment[]; // Document/file attachments
+  images?: string[]; // Image URLs (simplified format for images)
 }
 
 /**
