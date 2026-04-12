@@ -224,6 +224,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
 
                 # List of tables to truncate in dependency order (child tables first)
                 tables_to_truncate = [
+                    "ai_conversation_attachments",
                     "ai_conversation_messages",
                     "ai_conversation_sessions",
                     "ai_assistant_configs",
@@ -1170,3 +1171,63 @@ async def test_ai_provider_with_config(
     await db_session.flush()
 
     return test_ai_provider
+
+
+@pytest_asyncio.fixture
+async def ai_assistant_config_factory(
+    db_session: AsyncSession,
+    test_ai_model: Any,
+) -> Any:
+    """Factory fixture for creating AI assistant configs.
+
+    Returns:
+        AIAssistantConfig instance with test configuration.
+    """
+    from app.models.domain.ai import AIAssistantConfig
+
+    config = AIAssistantConfig(
+        id=str(uuid4()),
+        name="Factory Test Assistant",
+        description="A factory test assistant for attachment tests",
+        model_id=str(test_ai_model.id),
+        system_prompt="You are a helpful test assistant.",
+        temperature=0.0,
+        max_tokens=1000,
+        allowed_tools=[],
+        is_active=True,
+    )
+    db_session.add(config)
+    await db_session.flush()
+    await db_session.refresh(config)
+    return config
+
+
+@pytest_asyncio.fixture
+async def user_factory(db_session: AsyncSession) -> User:
+    """Factory fixture for creating test users.
+
+    Returns:
+        User instance with test user data.
+    """
+    from app.core.security import get_password_hash
+
+    test_password = "testpass123"
+    hashed = get_password_hash(test_password)
+
+    user = User(
+        id=uuid4(),
+        user_id=uuid4(),
+        email=f"user-{uuid4().hex[:8]}@test.com",
+        full_name="Test User",
+        role="viewer",
+        is_active=True,
+        hashed_password=hashed,
+        created_by=uuid4(),
+    )
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.refresh(user)
+
+    # Store password on user object for test access
+    user._test_password = test_password  # type: ignore
+    return user

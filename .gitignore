@@ -70,6 +70,9 @@ skills-lock.json
 frontend-screenshots/
 network.json
 context_search_results.md
+backend/uploads/
 
 #deploy backups
 deploy/backup*.gz
+
+node_modules/

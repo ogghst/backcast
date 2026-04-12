@@ -242,6 +242,15 @@ export interface ChatSession {
   updatedAt: string;
 }
 
+export interface FileAttachment {
+  file_id: string;
+  filename: string;
+  file_type: string;
+  file_size: number;
+  content?: string; // Inline content (base64 for images, extracted text for documents)
+  uploaded_at: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -255,6 +264,8 @@ export interface ChatMessage {
     subagent_name?: string;
     /** Invocation number for subagent messages (counts invocations per subagent name) */
     invocation_number?: number;
+    /** File attachments for this message */
+    attachments?: FileAttachment[];
   };
 }
 

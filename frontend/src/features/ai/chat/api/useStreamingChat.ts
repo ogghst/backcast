@@ -19,7 +19,12 @@ import type {
   WSApprovalResponseMessage,
   WSSubscribeMessage,
   TokenUsage,
+  FileAttachment,
 } from "../types";
+import {
+  uploadMultipleFiles,
+  type UploadError,
+} from "./attachmentUpload";
 import {
   WSConnectionState,
   isTokenMessage,
@@ -88,7 +93,7 @@ export interface UseStreamingChatConfig {
  */
 export interface UseStreamingChatReturn {
   /** Send a message to start/restart streaming */
-  sendMessage: (message: string, title?: string, executionMode?: "safe" | "standard" | "expert") => void;
+  sendMessage: (message: string, title?: string, executionMode?: "safe" | "standard" | "expert", attachments?: File[], images?: File[]) => void;
   /** Send an approval response for a critical tool execution */
   sendApprovalResponse: (approvalId: string, approved: boolean) => void;
   /** Cancel the current request and close the connection */
@@ -309,6 +314,8 @@ export const useStreamingChat = (
     message: string;
     title?: string;
     executionMode?: "safe" | "standard" | "expert";
+    attachments?: FileAttachment[];
+    images?: string[];
   } | null>(null);
 
   // Initialize last message time on mount
@@ -614,9 +621,11 @@ export const useStreamingChat = (
    * @param message - User's chat message text
    * @param title - Optional title for new chat sessions
    * @param executionMode - AI tool risk level (safe/standard/expert)
+   * @param attachments - Optional file attachments to upload and include
+   * @param images - Optional image files to upload and include
    */
   const sendMessage = useCallback(
-    (message: string, title?: string, executionMode?: "safe" | "standard" | "expert") => {
+    async (message: string, title?: string, executionMode?: "safe" | "standard" | "expert", attachments?: File[], images?: File[]) => {
       const ws = wsRef.current;
 
       // Validate execution mode is provided (do this first for early error)
@@ -628,10 +637,66 @@ export const useStreamingChat = (
         return;
       }
 
+      // Upload attachments if provided
+      let uploadedAttachments: FileAttachment[] = [];
+      const uploadedImages: string[] = [];
+
+      if (attachments && attachments.length > 0) {
+        try {
+          const uploadResults = await uploadMultipleFiles(attachments);
+          uploadedAttachments = uploadResults.map((result) => ({
+            file_id: result.file_id,
+            filename: result.filename,
+            file_type: result.content_type,
+            file_size: result.file_size,
+            content: result.content ?? undefined,
+            uploaded_at: result.uploaded_at,
+          }));
+          console.log(`Successfully uploaded ${uploadedAttachments.length} file(s)`);
+        } catch (uploadError) {
+          const error = uploadError as UploadError;
+          const errorMsg = `Failed to upload file: ${error.filename || "unknown"} - ${error.detail}`;
+          console.error(errorMsg, uploadError);
+          onError(errorMsg);
+          setError(new Error(errorMsg));
+          return; // Don't send message if upload fails
+        }
+      }
+
+      if (images && images.length > 0) {
+        try {
+          const uploadResults = await uploadMultipleFiles(images);
+          // Images are now included in attachments with their base64 content
+          const imageAttachments: FileAttachment[] = uploadResults.map((result) => ({
+            file_id: result.file_id,
+            filename: result.filename,
+            file_type: result.content_type,
+            file_size: result.file_size,
+            content: result.content ?? undefined,
+            uploaded_at: result.uploaded_at,
+          }));
+          uploadedAttachments = [...uploadedAttachments, ...imageAttachments];
+          console.log(`Successfully uploaded ${imageAttachments.length} image(s)`);
+        } catch (uploadError) {
+          const error = uploadError as UploadError;
+          const errorMsg = `Failed to upload image: ${error.filename || "unknown"} - ${error.detail}`;
+          console.error(errorMsg, uploadError);
+          onError(errorMsg);
+          setError(new Error(errorMsg));
+          return; // Don't send message if upload fails
+        }
+      }
+
       // If not connected, store pending message and initiate connection
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         // Store the pending message to be sent once connection opens
-        pendingMessageRef.current = { message, title, executionMode };
+        pendingMessageRef.current = {
+          message,
+          title,
+          executionMode,
+          attachments: uploadedAttachments,
+          images: uploadedImages,
+        };
 
         // Trigger connection if not already connecting
         if (!ws || ws.readyState === WebSocket.CLOSED) {
@@ -652,7 +717,7 @@ export const useStreamingChat = (
       const branchName = getSelectedBranch();
       const branchMode = getViewMode();
 
-      // Send chat request with temporal params and execution mode
+      // Send chat request with temporal params, execution mode, and attachments
       const request: WSChatRequest = {
         type: "chat",
         message,
@@ -664,9 +729,14 @@ export const useStreamingChat = (
         branch_mode: branchMode,
         project_id: projectIdRef.current, // Include project_id if provided
         execution_mode: executionMode, // No default fallback - must be provided
+        attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
+        images: uploadedImages.length > 0 ? uploadedImages : undefined,
       };
 
       console.log("Sending chat request with execution_mode:", executionMode);
+      if (uploadedAttachments.length > 0 || uploadedImages.length > 0) {
+        console.log(`Message includes ${uploadedAttachments.length} file(s) and ${uploadedImages.length} image(s)`);
+      }
 
       // Debug callback for raw outgoing message
       callbacksRef.current.onRawMessage?.(request, "out");
@@ -864,7 +934,7 @@ export const useStreamingChat = (
 
           // Send pending message if connection was initiated by sendMessage
           if (pendingMessageRef.current) {
-            const { message, title, executionMode } = pendingMessageRef.current;
+            const { message, title, executionMode, attachments, images } = pendingMessageRef.current;
             pendingMessageRef.current = null;
 
             // Reconstruct the message sending logic here
@@ -883,6 +953,8 @@ export const useStreamingChat = (
               branch_mode: branchMode,
               project_id: projectIdRef.current,
               execution_mode: executionMode,
+              attachments: attachments && attachments.length > 0 ? attachments : undefined,
+              images: images && images.length > 0 ? images : undefined,
             };
 
             try {

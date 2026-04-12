@@ -19,6 +19,7 @@ import type { ChatMessage, SubagentStream, MainAgentStream, StreamingState, Toke
 import { useThemeTokens } from "@/hooks/useThemeTokens";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { TokenUsageBar } from "./TokenUsageBar";
+import { FilePreview } from "./FilePreview";
 
 const { Text } = Typography;
 
@@ -719,6 +720,23 @@ export const MessageList = ({
                 ) : (
                   // Assistant messages render markdown
                   <MarkdownRenderer content={message.content} />
+                )}
+
+                {/* File attachments */}
+                {message.metadata?.attachments && message.metadata.attachments.length > 0 && (
+                  <div
+                    data-testid="attachment-container"
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: spacing.sm,
+                      marginTop: spacing.xs,
+                    }}
+                  >
+                    {message.metadata.attachments.map((attachment) => (
+                      <FilePreview key={attachment.file_id} attachment={attachment} />
+                    ))}
+                  </div>
                 )}
               </div>
             </List.Item>
