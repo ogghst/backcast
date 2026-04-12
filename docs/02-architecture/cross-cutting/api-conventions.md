@@ -2,13 +2,18 @@
 
 **Last Updated:** 2026-03-02
 
-> **This is the authoritative reference** for API patterns in Backcast .
+> **Scope:** This is the authoritative reference for **protocol-level API patterns** in Backcast.
 >
-> Other documents should link here for:
+> **Covers:**
+> - REST principles (URL structure, HTTP methods, resource naming)
 > - Branch/context parameters (`branch`, `mode`, `as_of`, `control_date`)
-> - Pagination patterns
-> - Error handling
-> - Temporal query patterns
+> - Status codes, error response format
+> - Authentication, CORS, rate limiting
+> - OpenAPI documentation standards
+>
+> **For detailed response patterns** (paginated vs. array responses, server-side filtering implementation, frontend integration), see [API Response Patterns](./api-response-patterns.md).
+>
+> **For a complete endpoint catalog**, see [API Endpoints Reference](../api-endpoints.md) or the live OpenAPI docs at `/docs`.
 
 ---
 

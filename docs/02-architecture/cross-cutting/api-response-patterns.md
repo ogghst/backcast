@@ -1,7 +1,20 @@
 # API Response Patterns
 
-**Last Updated:** 2026-01-10  
+**Last Updated:** 2026-01-10
 **Status:** Active
+
+> **Scope:** Implementation patterns for **server-side filtering, search, sorting, and pagination**.
+>
+> **Covers:**
+> - Response format patterns (PaginatedResponse, Array, Hybrid)
+> - Server-side filtering URL syntax and whitelisted fields
+> - Frontend integration patterns (TanStack Query, Ant Design table params)
+> - Backend implementation patterns (FilterParser, service layer)
+> - Migration checklist and common pitfalls
+>
+> **For protocol-level conventions** (HTTP methods, context parameters, authentication), see [API Conventions](./api-conventions.md).
+>
+> **For a complete endpoint catalog**, see [API Endpoints Reference](../api-endpoints.md) or the live OpenAPI docs at `/docs`.
 
 ---
 
