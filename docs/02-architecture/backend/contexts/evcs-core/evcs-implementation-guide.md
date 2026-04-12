@@ -9,14 +9,23 @@
 
 ## Overview
 
-This guide provides practical code patterns for implementing EVCS (Entity Versioning Control System) features:
+This guide provides practical **code patterns and implementation recipes** for working with EVCS (Entity Versioning Control System) entities.
 
-- **Query Patterns:** Get current, time travel, version history
-- **CRUD Patterns:** Create, update, soft delete operations
-- **Branching Patterns:** Create branches, work on branches, merge
-- **Relationship Patterns:** Same-branch and fallback relationships
-- **Revert Patterns:** Undo changes by reverting to previous versions
-- **Performance:** Query optimization and indexing strategies
+**What This Document Covers:**
+
+- Query patterns with full code examples
+- CRUD operations (create, update, soft delete)
+- Branching operations (create, merge, work on branches)
+- Relationship patterns (same-branch, fallback)
+- Revert patterns (undo changes)
+- Performance considerations and indexing
+- Service-level time travel methods
+
+**What This Document Does NOT Cover:**
+
+- Architecture and type system → See [EVCS Core Architecture](architecture.md)
+- Query semantics and theory → See [Temporal Query Reference](../../../cross-cutting/temporal-query-reference.md)
+- Choosing entity types → See [Entity Classification Guide](entity-classification.md)
 
 ---
 
@@ -198,6 +207,49 @@ async def compare_branches(
 
 ---
 
+### 6. Service-Level Time Travel Methods
+
+The following services expose `get_as_of` methods for single-entity time-travel queries:
+
+| Service | Method | Branch Modes | Relations Included |
+|---------|--------|--------------|-------------------|
+| ProjectService | `get_project_as_of()` | STRICT, MERGE | - |
+| WBEService | `get_wbe_as_of()` | STRICT, MERGE | - |
+| CostElementService | `get_cost_element_as_of()` | STRICT, MERGE | parent_name, type_name |
+| CostElementTypeService | `get_cost_element_type_as_of()` | STRICT, MERGE | - |
+| DepartmentService | `get_department_as_of()` | STRICT, MERGE | - |
+| UserService | `get_user_as_of()` | STRICT, MERGE | - |
+
+**Usage Example:**
+
+```python
+from datetime import datetime
+from app.services.project import ProjectService
+from app.core.versioning.enums import BranchMode
+
+service = ProjectService(session)
+
+# Get project as of January 1st, 2026
+as_of = datetime(2026, 1, 1, 12, 0, 0)
+project = await service.get_project_as_of(
+    project_id=project_id,
+    as_of=as_of,
+    branch="main",
+)
+
+# For change order preview, use MERGE mode
+project = await service.get_project_as_of(
+    project_id=project_id,
+    as_of=as_of,
+    branch="BR-123",
+    branch_mode=BranchMode.MERGE,  # fall back to main
+)
+```
+
+All these methods delegate to `TemporalService.get_as_of()` which implements full bitemporal filtering.
+
+---
+
 ## CRUD Operation Patterns
 
 ### Create Entity
@@ -288,7 +340,60 @@ merged = await service.merge_branch(
 await session.commit()
 ```
 
-> **For complete branching documentation (branch types, operations, locking), see [Temporal Query Reference](../../../cross-cutting/temporal-query-reference.md#branch-mode-behavior).**
+---
+
+## Branch Query Patterns
+
+### Get Current Version on Branch
+
+```python
+# Get current version on specific branch
+current = await service.get_current(
+    root_id=project_id,
+    branch="BR-123"
+)
+```
+
+**SQL Equivalent:**
+```sql
+SELECT * FROM project_versions
+WHERE project_id = :root_id
+  AND branch = :branch
+  AND valid_time @> NOW()
+  AND deleted_at IS NULL
+LIMIT 1;
+```
+
+### Time Travel on Branch
+
+```python
+from datetime import datetime
+
+# Get entity state as of specific time on branch
+as_of = datetime(2026, 1, 1, 12, 0, 0)
+version = await service.get_as_of(
+    root_id=project_id,
+    as_of=as_of,
+    branch="BR-123",
+    branch_mode=BranchMode.STRICT  # Only search in this branch
+)
+```
+
+### Branch Fallback (MERGE mode)
+
+```python
+# Get version from branch, falling back to main if not found
+version = await service.get_as_of(
+    root_id=project_id,
+    as_of=as_of,
+    branch="BR-123",
+    branch_mode=BranchMode.MERGE  # Fall back to main if not found
+)
+```
+
+This is useful for "what-if" analysis - show base project with change order changes overlaid.
+
+> **For query semantics and branch mode theory, see [Temporal Query Reference](../../../cross-cutting/temporal-query-reference.md#branch-mode-behavior).**
 
 ---
 
