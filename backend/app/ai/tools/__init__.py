@@ -108,6 +108,7 @@ def create_project_tools(context: ToolContext) -> list[BaseTool]:
     context_tools_list = [
         temporal_tools.get_temporal_context,
         context_tools.get_project_context,
+        context_tools.get_project_structure,
     ]
     tools.extend(context_tools_list)
 

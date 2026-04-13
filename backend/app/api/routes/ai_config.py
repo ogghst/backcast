@@ -354,6 +354,7 @@ async def list_ai_tools() -> list[AIToolPublic]:
     from app.ai.tools.registry import get_all_tools, get_registry
 
     registry = get_registry()
+    registry.discover_and_register("app.ai.tools.context_tools")
     registry.discover_and_register("app.ai.tools.project_tools")
     registry.discover_and_register("app.ai.tools.temporal_tools")
     registry.discover_and_register("app.ai.tools.templates.analysis_template")
