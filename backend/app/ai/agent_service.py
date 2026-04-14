@@ -622,6 +622,7 @@ class AgentService:
         branch_name: str | None = None,
         branch_mode: Literal["merged", "isolated"] | None = None,
         execution_mode: ExecutionMode = ExecutionMode.STANDARD,
+        context: dict[str, Any] | None = None,
     ) -> None:
         """Run the agent graph publishing all events to an AgentEventBus.
 
@@ -657,6 +658,7 @@ class AgentService:
             as_of=as_of,
             branch_name=branch_name,
             branch_mode=branch_mode,
+            context=context,
         )
         history.insert(0, SystemMessage(content=system_prompt))
 
@@ -1298,6 +1300,7 @@ class AgentService:
                     branch_name=branch_name,
                     branch_mode=branch_mode,
                     execution_mode=execution_mode,
+                    context=db_session.context if db_session else None,
                 )
 
                 # Update execution tracking row
@@ -1367,6 +1370,7 @@ class AgentService:
         as_of: datetime | None = None,
         branch_name: str | None = None,
         branch_mode: Literal["merged", "isolated"] | None = None,
+        context: dict[str, Any] | None = None,
     ) -> str:
         """Build system prompt with context awareness.
 
@@ -1384,15 +1388,51 @@ class AgentService:
             as_of: Optional historical date for temporal queries (unused in prompt)
             branch_name: Optional branch name for temporal queries (unused in prompt)
             branch_mode: Optional branch mode for temporal queries (unused in prompt)
+            context: Optional context dictionary with type, id, and name
 
         Returns:
-            Base system prompt with project context information (temporal enforcement
+            Base system prompt with context information (temporal enforcement
             happens at tool level via ToolContext)
         """
         context_sections = []
 
-        # Add project context awareness if in project scope
-        if project_id:
+        # Add context awareness from session context
+        if context:
+            context_type = context.get("type", "general")
+            context_name = context.get("name", "")
+
+            if context_type == "general":
+                context_sections.append(
+                    "This is a general conversation without specific context. "
+                    "You can help with projects, WBEs, and cost elements as needed."
+                )
+            elif context_type == "project" and context_name:
+                context_sections.append(
+                    f"This conversation is about the project: {context_name}. "
+                    f"Context is scoped to this project (ID: {context.get('id', project_id)}). "
+                    "Use project-scoped tools to query data within this project. "
+                    "The user's access is limited to this project's data. "
+                    "Use get_project_context tool to query project details. "
+                    "Project scope is locked for this session - you cannot switch to other projects."
+                )
+            elif context_type == "wbe" and context_name:
+                context_sections.append(
+                    f"This conversation is about the Work Breakdown Element (WBE): {context_name}. "
+                    f"WBE ID: {context.get('id')}. "
+                    f"Parent project ID: {context.get('project_id', project_id)}. "
+                    "Focus your responses on this specific WBE. "
+                    "Use WBE-scoped tools to query and analyze this element."
+                )
+            elif context_type == "cost_element" and context_name:
+                context_sections.append(
+                    f"This conversation is about the Cost Element: {context_name}. "
+                    f"Cost Element ID: {context.get('id')}. "
+                    f"Parent project ID: {context.get('project_id', project_id)}. "
+                    "Focus your responses on this specific cost element. "
+                    "Use cost element tools to query and analyze this element."
+                )
+        elif project_id:
+            # Legacy support for project_id without context
             context_sections.append(
                 f"You are operating in the context of a specific project (ID: {project_id}). "
                 "Use project-scoped tools to query data within this project. "

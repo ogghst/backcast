@@ -10,14 +10,16 @@ import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { ChatInterface } from "@/features/ai/chat/components/ChatInterface";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
+import { useProject } from "@/features/projects/api/useProjects";
 
 /**
  * Project-specific chat page component.
  *
  * This component:
  * 1. Extracts the projectId from route params
- * 2. Sets the Time Machine context to scope temporal queries to this project
- * 3. Passes the projectId to ChatInterface for project-scoped AI chat
+ * 2. Fetches the project data to get the stable root_id
+ * 3. Sets the Time Machine context to scope temporal queries to this project
+ * 4. Passes the stable project_id to ChatInterface for project-scoped AI chat
  *
  * @example
  * ```tsx
@@ -28,6 +30,7 @@ import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 export const ProjectChat = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const setCurrentProject = useTimeMachineStore((state) => state.setCurrentProject);
+  const { data: project } = useProject(projectId!);
 
   // Set Time Machine context to this project on mount
   useEffect(() => {
@@ -36,6 +39,6 @@ export const ProjectChat = () => {
     }
   }, [projectId, setCurrentProject]);
 
-  // Pass projectId to ChatInterface for project-scoped chat
-  return <ChatInterface projectId={projectId} />;
+  // Pass the stable root_id from project data to ChatInterface
+  return <ChatInterface projectId={project?.project_id} />;
 };

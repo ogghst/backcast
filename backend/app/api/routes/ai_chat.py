@@ -96,13 +96,21 @@ def get_ai_config_service(session: AsyncSession = Depends(get_db)) -> AIConfigSe
 async def list_sessions(
     current_user: User = Depends(get_current_active_user),
     config_service: AIConfigService = Depends(get_ai_config_service),
+    context_type: str | None = Query(None, description="Filter by context type (general, project, wbe, cost_element)"),
+    context_id: str | None = Query(None, description="Filter by specific entity ID (e.g., project UUID, WBE ID)"),
 ) -> list[AIConversationSessionPublic]:
     """List conversation sessions for the current user.
 
     Includes active agent execution status for each session, allowing
     the frontend to display running indicators in the session list.
+
+    Args:
+        context_type: Optional context type filter (general, project, wbe, cost_element)
+        context_id: Optional entity ID filter for scoped context
     """
-    sessions = await config_service.list_sessions(current_user.user_id)
+    sessions = await config_service.list_sessions(
+        current_user.user_id, context_type=context_type, context_id=context_id
+    )
     result: list[AIConversationSessionPublic] = []
 
     if not sessions:
@@ -143,12 +151,16 @@ async def list_sessions_paginated(
     limit: int = 10,
     current_user: User = Depends(get_current_active_user),
     config_service: AIConfigService = Depends(get_ai_config_service),
+    context_type: str | None = Query(None, description="Filter by context type (general, project, wbe, cost_element)"),
+    context_id: str | None = Query(None, description="Filter by specific entity ID (e.g., project UUID, WBE ID)"),
 ) -> AIConversationSessionPaginated:
     """List chat sessions with pagination.
 
     Args:
         skip: Number of sessions to skip (default: 0)
         limit: Sessions per page (default: 10, max: 50)
+        context_type: Optional context type filter (general, project, wbe, cost_element)
+        context_id: Optional entity ID filter for scoped context
         current_user: Authenticated user (injected)
         config_service: AI config service (injected)
 
@@ -161,6 +173,8 @@ async def list_sessions_paginated(
         user_id=current_user.user_id,
         skip=skip,
         limit=limit,
+        context_type=context_type,
+        context_id=context_id,
     )
 
     result: list[AIConversationSessionPublic] = []
@@ -773,6 +787,7 @@ async def chat_stream(
                         title=request.title,
                         project_id=request.project_id,
                         branch_id=request.branch_id,
+                        context=request.context,
                     )
                     effective_session_id = new_session.id
                     session_holder.value = effective_session_id

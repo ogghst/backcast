@@ -286,6 +286,44 @@ class ApprovalRequest(BaseModel):
 # === Conversation Session Schemas ===
 
 
+# Session Context Types
+SessionContextType = Literal["general", "project", "wbe", "cost_element"]
+
+
+class SessionContext(BaseModel):
+    """Structured session context for scoping AI conversations.
+
+    Uses discriminated union pattern to validate context-specific fields.
+    Ensures type safety and prevents invalid context combinations.
+    """
+    type: SessionContextType = Field(..., description="Context type discriminator")
+    id: str | None = Field(None, description="Entity ID (required for non-general contexts)")
+    project_id: str | None = Field(None, description="Project ID (for WBE and cost_element contexts)")
+    name: str | None = Field(None, description="Optional human-readable name for the context")
+
+    @model_validator(mode='after')
+    def validate_context_fields(self) -> Self:
+        """Validate that required fields are present based on context type."""
+        if self.type == "general":
+            # General context should not have entity-specific fields
+            if self.id or self.project_id:
+                raise ValueError("General context should not have id or project_id")
+        elif self.type == "project":
+            if not self.id:
+                raise ValueError("Project context requires 'id' field")
+        elif self.type == "wbe":
+            if not self.id:
+                raise ValueError("WBE context requires 'id' field")
+            if not self.project_id:
+                raise ValueError("WBE context requires 'project_id' field")
+        elif self.type == "cost_element":
+            if not self.id:
+                raise ValueError("Cost element context requires 'id' field")
+            if not self.project_id:
+                raise ValueError("Cost element context requires 'project_id' field")
+        return self
+
+
 class AIConversationSessionPublic(BaseModel):
     """Schema for reading conversation session."""
 
@@ -295,6 +333,9 @@ class AIConversationSessionPublic(BaseModel):
     title: str | None
     project_id: UUID | None = Field(None, description="Optional project context")
     branch_id: UUID | None = Field(None, description="Optional branch or change order context")
+    context: SessionContext | None = Field(
+        None, description="Session context (general, project, wbe, cost_element)"
+    )
     active_execution: AgentExecutionPublic | None = Field(
         None, description="Currently active agent execution, if any"
     )
@@ -319,6 +360,7 @@ class AIConversationSessionCreate(BaseModel):
     title: str | None = Field(None, max_length=255)
     project_id: UUID | None = Field(None, description="Optional project context")
     branch_id: UUID | None = Field(None, description="Optional branch or change order context")
+    context: SessionContext | None = Field(None, description="Session context")
 
 
 # === Conversation Message Schemas ===
@@ -438,6 +480,7 @@ class WSChatRequest(BaseModel):
     title: str | None = Field(None, max_length=255, description="Optional session title (for new sessions)")
     project_id: UUID | None = Field(None, description="Optional project context for the session")
     branch_id: UUID | None = Field(None, description="Optional branch or change order context for the session")
+    context: SessionContext | None = Field(None, description="Session context (type, id, name)")
     as_of: datetime | None = Field(None, description="Optional historical date for temporal queries")
     branch_name: str | None = Field("main", description="Branch name for temporal queries (default: 'main')")
     branch_mode: Literal["merged", "isolated"] | None = Field(

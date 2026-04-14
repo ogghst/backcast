@@ -30,6 +30,8 @@ interface SessionListProps {
   hasMore?: boolean;
   onLoadMore?: () => void;
   loadingMore?: boolean;
+  /** Context type filter for sessions (general, project, wbe, cost_element) */
+  contextType?: string;
 }
 
 /**

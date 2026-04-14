@@ -34,6 +34,14 @@ describe("useChatSessions", () => {
       expect(result.current.data?.[0].title).toBe("Project Analysis");
     });
 
+    it("should fetch sessions with context type filter", async () => {
+      const { result } = renderHook(() => useChatSessions({ contextType: "project" }), { wrapper });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(result.current.data).toBeDefined();
+    });
+
     it("should have correct query key", async () => {
       const { result } = renderHook(() => useChatSessions(), { wrapper });
 

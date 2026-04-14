@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Button, Card, Grid, Tabs, Collapse, Space, theme, Typography, Flex } from "antd";
-import { PlusOutlined, LineChartOutlined, EditOutlined, DeleteOutlined, HistoryOutlined } from "@ant-design/icons";
+import { PlusOutlined, LineChartOutlined, EditOutlined, DeleteOutlined, HistoryOutlined, RobotOutlined } from "@ant-design/icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 
@@ -34,6 +34,7 @@ import { EVMSummaryView } from "@/features/evm/components/EVMSummaryView";
 import { EVMTimeSeriesChart } from "@/features/evm/components/EVMTimeSeriesChart";
 import { EVMAnalyzerModal } from "@/features/evm/components/EVMAnalyzerModal";
 import { EVMTimeSeriesGranularity, EntityType } from "@/features/evm/types";
+import { ChatInterface } from "@/features/ai/chat/components/ChatInterface";
 
 export const WBEDetailPage = () => {
   const { projectId, wbeId } = useParams<{
@@ -398,6 +399,31 @@ export const WBEDetailPage = () => {
                 </Flex>
 
                 {evmTabContent}
+              </>
+            ),
+          },
+          {
+            key: "chat",
+            label: (
+              <Space>
+                <RobotOutlined />
+                <span>AI Chat</span>
+              </Space>
+            ),
+            children: (
+              <>
+                {/* Breadcrumb Navigation */}
+                <BreadcrumbBuilder breadcrumb={breadcrumb} loading={breadcrumbLoading} />
+
+                {/* Chat interface with WBE-specific context */}
+                <ChatInterface
+                  contextOverride={{
+                    type: "wbe",
+                    id: wbe?.wbe_id,
+                    project_id: wbe?.project_id,
+                    name: wbe?.name,
+                  }}
+                />
               </>
             ),
           },

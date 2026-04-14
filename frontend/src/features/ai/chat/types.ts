@@ -8,6 +8,8 @@
  * backend/app/api/v1/endpoints/ws/chat.py
  */
 
+import type { SessionContext } from "../types";
+
 /**
  * WebSocket connection states
  */
@@ -132,6 +134,8 @@ export interface WSChatRequest {
   branch_mode?: "merged" | "isolated"; // Branch view mode
   // Project context for project-specific chat
   project_id?: string; // Project ID to scope chat to a specific project
+  // Session context for scoping conversations (general, project, wbe, cost_element)
+  context?: SessionContext; // Session context (type, id, project_id, name)
   // File attachments for the message
   attachments?: FileAttachment[]; // Document/file attachments
   images?: string[]; // Image URLs (simplified format for images)

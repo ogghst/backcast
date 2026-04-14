@@ -139,4 +139,24 @@ describe("useChatSessionsPaginated", () => {
 
     expect(result.current.data?.sessions).toHaveLength(5);
   });
+
+  it("should accept contextType parameter", async () => {
+    const { result } = renderHook(
+      () => useChatSessionsPaginated({ limit: 10, contextType: "project" }),
+      { wrapper }
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toBeDefined();
+
+    // Verify the query key includes contextType
+    const cache = queryClient.getQueryCache();
+    const queries = cache.getAll();
+    const contextQuery = queries.find((q) =>
+      JSON.stringify(q.queryKey).includes('"project"')
+    );
+
+    expect(contextQuery).toBeDefined();
+  });
 });

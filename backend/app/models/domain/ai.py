@@ -179,6 +179,9 @@ class AIConversationSession(SimpleEntityBase):
     branch_id: Mapped[str | None] = mapped_column(
         PG_UUID, nullable=True, index=True, comment="Optional branch or change order context"
     )
+    context: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB(), nullable=False, default={"type": "general"}, comment="Session context (type, id, name)"
+    )
     active_execution_id: Mapped[str | None] = mapped_column(
         PG_UUID,
         nullable=True,
