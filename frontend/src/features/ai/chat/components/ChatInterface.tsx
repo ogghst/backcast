@@ -44,6 +44,8 @@ import { generateSessionTitle } from "../utils/sessionTitle";
 import { useExecutionMode } from "../../hooks/useExecutionMode";
 import { useLastAssistantId } from "../../hooks/useLastAssistantId";
 import { ApprovalDialog } from "../../components/ApprovalDialog";
+import { useAIChatContext } from "@/hooks/navigation/useAIChatContext";
+import type { SessionContext } from "../../types";
 
 const { Sider, Content, Header } = Layout;
 const { useBreakpoint } = Grid;
@@ -54,6 +56,8 @@ interface ChatInterfaceProps {
   assistantId?: string;
   // Optional project ID to scope chat to a specific project
   projectId?: string;
+  // Optional context to override route-based detection
+  contextOverride?: SessionContext;
 }
 
 /**
@@ -72,11 +76,19 @@ export const ChatInterface = ({
   sessionId: initialSessionId,
   assistantId: initialAssistantId,
   projectId,
+  contextOverride,
 }: ChatInterfaceProps) => {
   // Responsive breakpoints
   const screens = useBreakpoint();
   const isMobile = !screens.md; // md breakpoint is 768px
   const isSmallMobile = screens.xs; // xs is 480px
+
+  // Auto-detect context from route (can be overridden by props)
+  const routeContext = useAIChatContext();
+  const context: SessionContext = useMemo(
+    () => contextOverride ?? routeContext,
+    [contextOverride, routeContext]
+  );
 
   // State
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(
@@ -153,7 +165,7 @@ export const ChatInterface = ({
     loadMore,
     hasMore,
     isLoading: loadingMore,
-  } = useChatSessionsPaginated({ limit: 10 });
+  } = useChatSessionsPaginated({ limit: 10, contextType: context.type, contextId: context.id });
 
   const sessions = paginatedData?.sessions ?? [];
 
@@ -658,6 +670,7 @@ export const ChatInterface = ({
     sessionId: currentSessionId,
     assistantId: selectedAssistantId ?? "",
     projectId,
+    context,
     activeExecutionId: currentSession?.active_execution?.id ?? null,
     onToken: handleToken,
     onComplete: handleComplete,

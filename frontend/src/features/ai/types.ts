@@ -160,6 +160,17 @@ export interface AIToolPublic {
  * Matches backend schemas in backend/app/models/schemas/ai.py
  */
 
+/**
+ * Session context for scoping AI conversations
+ * Matches backend SessionContext schema
+ */
+export interface SessionContext {
+  type: "general" | "project" | "wbe" | "cost_element";
+  id?: string;
+  project_id?: string;
+  name?: string;
+}
+
 export interface AIChatRequest {
   message: string;
   session_id?: string | null;
@@ -204,6 +215,9 @@ export interface AIConversationSessionPublic {
   user_id: string;
   assistant_config_id: string;
   title: string | null;
+  project_id?: string;
+  branch_id?: string;
+  context?: SessionContext;
   created_at: string;
   updated_at: string;
   active_execution: AgentExecutionPublic | null;

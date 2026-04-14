@@ -31,6 +31,7 @@ from app.models.schemas.ai import (
     AIProviderConfigCreate,
     AIProviderCreate,
     AIProviderUpdate,
+    SessionContext,
 )
 
 logger = logging.getLogger(__name__)
@@ -349,20 +350,38 @@ class AIConfigService:
     # === Conversation Session Operations ===
 
     async def list_sessions(
-        self, user_id: UUID, limit: int = 50
+        self, user_id: UUID, limit: int = 50, context_type: str | None = None, context_id: str | None = None
     ) -> list[AIConversationSession]:
-        """List conversation sessions for a user."""
+        """List conversation sessions for a user.
+
+        Args:
+            user_id: User ID to filter sessions by
+            limit: Maximum number of sessions to return
+            context_type: Optional context type filter (general, project, wbe, cost_element)
+            context_id: Optional entity ID filter for scoped context
+
+        Returns:
+            List of conversation sessions
+        """
         stmt = (
             select(AIConversationSession)
             .where(AIConversationSession.user_id == user_id)
-            .order_by(AIConversationSession.updated_at.desc())
-            .limit(limit)
         )
+        if context_type:
+            stmt = stmt.where(AIConversationSession.context['type'].astext == context_type)
+        if context_id:
+            stmt = stmt.where(AIConversationSession.context['id'].astext == context_id)
+        stmt = stmt.order_by(AIConversationSession.updated_at.desc()).limit(limit)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
     async def list_sessions_paginated(
-        self, user_id: UUID, skip: int = 0, limit: int = 10
+        self,
+        user_id: UUID,
+        skip: int = 0,
+        limit: int = 10,
+        context_type: str | None = None,
+        context_id: str | None = None,
     ) -> tuple[list[AIConversationSession], bool]:
         """List conversation sessions with pagination.
 
@@ -370,6 +389,8 @@ class AIConfigService:
             user_id: User ID to filter sessions by
             skip: Number of sessions to skip (for pagination)
             limit: Maximum number of sessions to return
+            context_type: Optional context type filter (general, project, wbe, cost_element)
+            context_id: Optional entity ID filter for scoped context
 
         Returns:
             Tuple of (sessions, has_more) where has_more indicates if more
@@ -379,7 +400,13 @@ class AIConfigService:
         stmt = (
             select(AIConversationSession)
             .where(AIConversationSession.user_id == user_id)
-            .order_by(AIConversationSession.updated_at.desc())
+        )
+        if context_type:
+            stmt = stmt.where(AIConversationSession.context['type'].astext == context_type)
+        if context_id:
+            stmt = stmt.where(AIConversationSession.context['id'].astext == context_id)
+        stmt = (
+            stmt.order_by(AIConversationSession.updated_at.desc())
             .offset(skip)
             .limit(limit + 1)  # Fetch one extra to check for more
         )
@@ -422,6 +449,7 @@ class AIConfigService:
         title: str | None = None,
         project_id: UUID | None = None,
         branch_id: UUID | None = None,
+        context: SessionContext | dict[str, Any] | None = None,
     ) -> AIConversationSession:
         """Create a new conversation session with optional context.
 
@@ -431,6 +459,7 @@ class AIConfigService:
             title: Optional session title
             project_id: Optional project context UUID
             branch_id: Optional branch or change order context UUID
+            context: Optional SessionContext object or dict (type, id, project_id, name)
 
         Returns:
             Created conversation session
@@ -443,12 +472,25 @@ class AIConfigService:
         if not config:
             raise ValueError(f"Assistant config {assistant_config_id} not found")
 
+        # Default to general context if not provided
+        if context is None:
+            session_context = SessionContext(type="general")
+        elif isinstance(context, dict):
+            # Convert dict to SessionContext for validation
+            session_context = SessionContext(**context)
+        else:
+            session_context = context
+
+        # Convert SessionContext to dict for JSONB storage
+        context_dict = session_context.model_dump(mode='json', exclude_none=True)
+
         session = AIConversationSession(
             user_id=user_id,
             assistant_config_id=assistant_config_id,
             title=title,
             project_id=project_id,
             branch_id=branch_id,
+            context=context_dict,
         )
         self.session.add(session)
         await self.session.flush()

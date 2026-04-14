@@ -40,6 +40,7 @@ Ensure data integrity and proper validation.
 Provide clear summaries of project structures and cost/progress trends.""",
     "allowed_tools": [
         "get_temporal_context",
+        "get_project_structure",
         "list_projects",
         "get_project",
         "create_project",

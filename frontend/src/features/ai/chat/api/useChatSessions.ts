@@ -25,9 +25,11 @@ import type {
 const API_BASE = "/api/v1/ai/chat";
 
 const sessionsApi = {
-  list: async (): Promise<AIConversationSessionPublic[]> => {
+  list: async (contextType?: string): Promise<AIConversationSessionPublic[]> => {
+    const params = contextType ? { context_type: contextType } : {};
     const response = await axios.get<AIConversationSessionPublic[]>(
-      `${API_BASE}/sessions`
+      `${API_BASE}/sessions`,
+      { params }
     );
     return response.data;
   },
@@ -59,17 +61,19 @@ const sessionsApi = {
 
 /**
  * Hook to fetch all chat sessions for the current user
+ * @param options - Query options with optional contextType filter
  */
 export const useChatSessions = (
   options?: Omit<
     UseQueryOptions<AIConversationSessionPublic[], Error>,
     "queryKey" | "queryFn"
-  >
+  > & { contextType?: string }
 ) => {
+  const { contextType, ...restOptions } = options || {};
   return useTanstackQuery<AIConversationSessionPublic[], Error>({
     queryKey: queryKeys.ai.chat.sessions(),
-    queryFn: () => sessionsApi.list(),
-    ...options,
+    queryFn: () => sessionsApi.list(contextType),
+    ...restOptions,
   });
 };
 

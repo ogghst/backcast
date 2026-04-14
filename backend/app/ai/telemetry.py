@@ -3,9 +3,14 @@
 Exports traces to Jaeger for distributed tracing with OpenInference semantic conventions.
 """
 
+import logging
 import os
 from collections.abc import Generator
 from contextlib import contextmanager
+
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 from openinference.instrumentation.langchain import LangChainInstrumentor
 from openinference.instrumentation.openai import OpenAIInstrumentor
@@ -14,10 +19,13 @@ from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 
-# Environment variables
-OTEL_ENABLED = os.getenv("OTEL_ENABLED", "false").lower() == "true"
-OTLP_ENDPOINT = os.getenv("OTLP_ENDPOINT", "http://localhost:4317")
+# Environment variables (read at import time, before logging is configured)
+OTEL_ENABLED = settings.OTEL_ENABLED
+OTLP_ENDPOINT = settings.OTLP_ENDPOINT
 ENABLE_CONSOLE_EXPORT = os.getenv("OTEL_CONSOLE_EXPORT", "false").lower() == "true"
+
+# Debug: print to stdout since logging isn't configured yet
+print(f"[DEBUG] OTEL_ENABLED={OTEL_ENABLED}, OTLP_ENDPOINT={OTLP_ENDPOINT}")
 
 
 def initialize_telemetry(
@@ -41,7 +49,10 @@ def initialize_telemetry(
     Returns:
         Configured TracerProvider, or None if telemetry is disabled
     """
+    print(f"[DEBUG] initialize_telemetry called: OTEL_ENABLED={OTEL_ENABLED}")
+
     if not OTEL_ENABLED:
+        logger.info("[OPEN_TELEMETRY] Disabled (OTEL_ENABLED=false)")
         return None
 
     # Set up trace provider with resource attributes
@@ -70,6 +81,8 @@ def initialize_telemetry(
 
     # Instrument OpenAI (for token usage tracking)
     OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
+
+    logger.info(f"[OPEN_TELEMETRY] Initialized with OTLP endpoint: {otlp_endpoint or OTLP_ENDPOINT}")
 
     return tracer_provider
 

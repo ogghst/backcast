@@ -20,6 +20,7 @@ import type {
   WSSubscribeMessage,
   TokenUsage,
   FileAttachment,
+  SessionContext,
 } from "../types";
 import {
   uploadMultipleFiles,
@@ -54,6 +55,8 @@ export interface UseStreamingChatConfig {
   assistantId: string;
   /** Optional project ID to scope chat to a specific project */
   projectId?: string;
+  /** Optional session context (general, project, wbe, cost_element) */
+  context?: SessionContext;
   /** Optional active execution ID from session data for resubscription on reconnect */
   activeExecutionId?: string | null;
   /** Callback invoked when a token is received */
@@ -182,6 +185,7 @@ export const useStreamingChat = (
     sessionId,
     assistantId,
     projectId,
+    context,
     activeExecutionId,
     onToken,
     onComplete,
@@ -212,16 +216,19 @@ export const useStreamingChat = (
   const getSelectedBranch = useTimeMachineStore((state) => state.getSelectedBranch);
   const getViewMode = useTimeMachineStore((state) => state.getViewMode);
 
-  // Store projectId in a ref for the connection lifetime
+  // Store projectId and context in refs for the connection lifetime
   const projectIdRef = useRef(projectId);
+  const contextRef = useRef(context);
 
-  // Keep projectIdRef updated when config.projectId changes
+  // Keep refs updated when config values change
   // Also update assistantIdRef to ensure connect() has the latest value
   useEffect(() => {
     projectIdRef.current = projectId;
+    contextRef.current = context;
     assistantIdRef.current = assistantId;
     sessionIdRef.current = sessionId;
-  }, [projectId, assistantId, sessionId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, context, assistantId, sessionId]);
 
   // Track last seen sequence number for resubscription after reconnect
   const lastSequenceRef = useRef<number>(0);
@@ -717,7 +724,21 @@ export const useStreamingChat = (
       const branchName = getSelectedBranch();
       const branchMode = getViewMode();
 
-      // Send chat request with temporal params, execution mode, and attachments
+      // Derive project_id from context if not explicitly provided
+      // This ensures WBE and cost_element contexts include their project_id
+      const effectiveProjectId = projectIdRef.current ?? contextRef.current?.project_id;
+
+      // Log context derivation for debugging
+      if (contextRef.current?.type === "wbe" || contextRef.current?.type === "cost_element") {
+        console.log(
+          `[AI Chat Context] Deriving project_id for ${contextRef.current.type}: ` +
+          `projectId=${projectIdRef.current}, ` +
+          `context.project_id=${contextRef.current.project_id}, ` +
+          `effective=${effectiveProjectId}`
+        );
+      }
+
+      // Send chat request with temporal params, execution mode, context, and attachments
       const request: WSChatRequest = {
         type: "chat",
         message,
@@ -727,7 +748,8 @@ export const useStreamingChat = (
         as_of: asOf ?? null, // Convert undefined to null for "now"
         branch_name: branchName,
         branch_mode: branchMode,
-        project_id: projectIdRef.current, // Include project_id if provided
+        project_id: effectiveProjectId, // Include project_id from props or context
+        context: contextRef.current, // Include session context
         execution_mode: executionMode, // No default fallback - must be provided
         attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
         images: uploadedImages.length > 0 ? uploadedImages : undefined,
@@ -942,6 +964,9 @@ export const useStreamingChat = (
             const branchName = getSelectedBranch();
             const branchMode = getViewMode();
 
+            // Derive project_id from context if not explicitly provided
+            const effectiveProjectId = projectIdRef.current ?? contextRef.current?.project_id;
+
             const request: WSChatRequest = {
               type: "chat",
               message,
@@ -951,7 +976,8 @@ export const useStreamingChat = (
               as_of: asOf ?? null,
               branch_name: branchName,
               branch_mode: branchMode,
-              project_id: projectIdRef.current,
+              project_id: effectiveProjectId,
+              context: contextRef.current,
               execution_mode: executionMode,
               attachments: attachments && attachments.length > 0 ? attachments : undefined,
               images: images && images.length > 0 ? images : undefined,

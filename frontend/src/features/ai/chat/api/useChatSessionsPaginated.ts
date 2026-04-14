@@ -17,11 +17,16 @@ const API_BASE = "/api/v1/ai/chat";
 
 const listSessionsPaginated = async (
   skip: number = 0,
-  limit: number = 10
+  limit: number = 10,
+  contextType?: string,
+  contextId?: string
 ): Promise<AIConversationSessionPaginated> => {
+  const params: Record<string, number | string> = { skip, limit };
+  if (contextType) params.context_type = contextType;
+  if (contextId) params.context_id = contextId;
   const response = await axios.get<AIConversationSessionPaginated>(
     `${API_BASE}/sessions/paginated`,
-    { params: { skip, limit } }
+    { params }
   );
   return response.data;
 };
@@ -29,17 +34,19 @@ const listSessionsPaginated = async (
 interface UseChatSessionsPaginatedOptions {
   initialSkip?: number;
   limit?: number;
+  contextType?: string;
+  contextId?: string;
 }
 
 export function useChatSessionsPaginated(
   options: UseChatSessionsPaginatedOptions = {}
 ) {
-  const { initialSkip = 0, limit = 10 } = options;
+  const { initialSkip = 0, limit = 10, contextType, contextId } = options;
   const [skip, setSkip] = useState(initialSkip);
 
   const query = useTanstackQuery<AIConversationSessionPaginated>({
-    queryKey: queryKeys.ai.chat.sessionsPaginated(skip, limit),
-    queryFn: () => listSessionsPaginated(skip, limit),
+    queryKey: queryKeys.ai.chat.sessionsPaginated(skip, limit, contextType, contextId),
+    queryFn: () => listSessionsPaginated(skip, limit, contextType, contextId),
   });
 
   const loadMore = useCallback(() => {

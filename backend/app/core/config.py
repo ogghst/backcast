@@ -44,5 +44,9 @@ class Settings(BaseSettings):
     # Refresh Token Configuration
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 days default
 
+    # OpenTelemetry
+    OTEL_ENABLED: bool = False
+    OTLP_ENDPOINT: str = "http://localhost:4317"
+
 
 settings = Settings()

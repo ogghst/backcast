@@ -76,3 +76,4 @@ backend/uploads/
 deploy/backup*.gz
 
 node_modules/
+snapshot/
