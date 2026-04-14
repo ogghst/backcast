@@ -1,7 +1,8 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { Tabs, theme } from "antd";
+import { Tabs, theme, Space } from "antd";
 import { useEffect } from "react";
 import { Grid } from "antd";
+import { RobotOutlined } from "@ant-design/icons";
 import {
   useCostElement,
   useCostElementBreadcrumb,
@@ -16,6 +17,7 @@ import {
   type CostElementBreadcrumb,
 } from "@/components/cost-elements/CostElementBreadcrumbBuilder";
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
+import { ChatInterface } from "@/features/ai/chat/components/ChatInterface";
 
 export const CostElementDetailPage = () => {
   const { token } = theme.useToken();
@@ -94,6 +96,35 @@ export const CostElementDetailPage = () => {
       label: "Progress",
       children: costElement ? (
         <ProgressEntriesTab costElement={costElement} />
+      ) : null,
+    },
+    {
+      key: "chat",
+      label: (
+        <Space>
+          <RobotOutlined />
+          <span>AI Chat</span>
+        </Space>
+      ),
+      children: costElement ? (
+        <>
+          {/* Breadcrumb Navigation */}
+          <CostElementBreadcrumbBuilder
+            breadcrumb={breadcrumb}
+            loading={breadcrumbLoading}
+            isMobile={isMobile}
+          />
+
+          {/* Chat interface with cost element-specific context */}
+          <ChatInterface
+            contextOverride={{
+              type: "cost_element",
+              id: costElement.cost_element_id,
+              project_id: breadcrumb?.project?.project_id,
+              name: costElement.name,
+            }}
+          />
+        </>
       ) : null,
     },
   ];
