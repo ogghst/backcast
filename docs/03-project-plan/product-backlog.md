@@ -3,7 +3,7 @@
 **Last Updated:** 2026-04-14
 **Total Items:** 35
 **Total Estimated Points:** 213
-**Completed:** 23 items (137 points)
+**Completed:** 26 items (152 points)
 
 ---
 
@@ -248,26 +248,26 @@
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 8
 - **Business Value:** HIGH - Budget control
-- **Dependencies:** E04-U03 ✅, E05-U01
+- **Dependencies:** E04-U03 ✅, E05-U01 ✅
 - **Acceptance Criteria:**
   - Real-time validation: Total costs ≤ allocated budget
   - Warning when approaching budget limit
   - Block when exceeding budget (configurable)
 - **Estimated Complexity:** Medium
-- **Ready for Iteration:** No (blocked by E05-U01)
+- **Ready for Iteration:** Yes (dependencies resolved)
 
 #### [E05-U06] View Cost History and Trends
 
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 5
 - **Business Value:** HIGH - Historical analysis
-- **Dependencies:** E03-U04 ✅, E05-U01
+- **Dependencies:** E03-U04 ✅, E05-U01 ✅
 - **Acceptance Criteria:**
   - Timeline view of cost registrations
   - Trend analysis (burn rate)
   - Export to CSV
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E05-U01)
+- **Ready for Iteration:** Yes (dependencies resolved)
 
 #### [E08-U01] Calculate PV using Schedule Baselines ✅
 
@@ -351,44 +351,68 @@
 
 ### Medium Priority
 
-#### [E04-U04] Allocate Revenue across WBEs
+#### [E04-U04] Allocate Revenue across WBEs ✅
 
 - **Epic:** E004 (Project Structure Management)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Revenue tracking
-- **Dependencies:** E04-U02
+- **Dependencies:** E04-U02 ✅
 - **Acceptance Criteria:**
-  - Allocate revenue amounts to WBEs
-  - Revenue validation rules
-  - Versioning support
+  - Allocate revenue amounts to WBEs ✅
+  - Revenue validation rules ✅
+  - Versioning support ✅
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** Yes (E04-U02 complete)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-02-03
+- **Implementation Notes:**
+  - Migration: `20260203_add_revenue_allocation_to_wbes.py`
+  - WBE model: `revenue_allocation` field implemented
+  - API integration: Full CRUD with revenue allocation
+  - Tests: `test_wbe_service_revenue.py`, `test_wbe_revenue_api.py`
+- **Ready for Iteration:** No (already complete)
 
-#### [E04-U05] Allocate Budgets to Cost Elements
+#### [E04-U05] Allocate Budgets to Cost Elements ✅
 
 - **Epic:** E004 (Project Structure Management)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Budget distribution
 - **Dependencies:** E04-U03 ✅
 - **Acceptance Criteria:**
-  - Allocate budget amounts to cost elements
-  - Budget validation (WBE total ≥ sum of cost elements)
-  - Versioning support
+  - Allocate budget amounts to cost elements ✅
+  - Budget validation (WBE total ≥ sum of cost elements) ✅
+  - Versioning support ✅
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** Yes (E04-U03 complete)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-02-28
+- **Implementation Notes:**
+  - Architecture change: Budgets now exist only in CostElement.budget_amount
+  - Migration: `20260228_remove_wbe_budget_allocation.py`
+  - CostElement model: `budget_amount` field (DECIMAL(15, 2), default=0, required)
+  - WBE budget computed on-the-fly as sum of child cost element budgets
+  - Budget validation: `test_cost_registration_budget_validation.py`
+  - API: Full CRUD for cost elements with budget amounts
+- **Ready for Iteration:** No (already complete)
 
-#### [E04-U07] Tree View of Project Structure
+#### [E04-U07] Tree View of Project Structure ✅
 
 - **Epic:** E004 (Project Structure Management)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Visual hierarchy
 - **Dependencies:** E04-U03 ✅
 - **Acceptance Criteria:**
-  - Tree view: Project → WBEs → Cost Elements
-  - Expandable/collapsible nodes
-  - Quick navigation to entity details
+  - Tree view: Project → WBEs → Cost Elements ✅
+  - Expandable/collapsible nodes ✅
+  - Quick navigation to entity details ✅
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** Yes (E04-U03 complete)
+- **Status:** ✅ Complete (Frontend)
+- **Completed:** 2026-04-04
+- **Implementation Notes:**
+  - Component: `frontend/src/components/hierarchy/ProjectTree.tsx`
+  - Page: `frontend/src/pages/projects/ProjectStructure.tsx`
+  - Widget: `frontend/src/features/widgets/definitions/WBETreeWidget.tsx`
+  - Features: Expandable/collapsible, InfoPill display, currency formatting, navigation
+  - Integration with TimeMachineContext for temporal queries
+- **Ready for Iteration:** No (already complete)
 
 #### [E05-U04] Define Schedule Baselines with Progression Types ✅
 
@@ -467,26 +491,26 @@
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Preview before merge
-- **Dependencies:** E06-U03
+- **Dependencies:** E06-U03 ✅
 - **Acceptance Criteria:**
   - Show main + branch changes combined
   - Highlight conflicts
   - Preview of merged state
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E06-U03)
+- **Ready for Iteration:** Yes (dependencies resolved)
 
 #### [E07-U01] Create Baselines at Milestones
 
 - **Epic:** E007 (Baseline Management)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Milestone tracking
-- **Dependencies:** E04-U03, E05-U04
+- **Dependencies:** E04-U03 ✅, E05-U04 ✅
 - **Acceptance Criteria:**
   - Create baseline at project milestones
   - Immutable snapshot
   - Baseline metadata (date, creator, milestone type)
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E04-U03, E05-U04)
+- **Ready for Iteration:** Yes (dependencies resolved)
 
 #### [E07-U03] Compare Current State to Any Baseline
 
@@ -624,6 +648,9 @@
 | Date       | Item                                              | Points | Iteration                | Notes                              |
 | ---------- | ------------------------------------------------- | ------ | ------------------------ | ---------------------------------- |
 | 2026-04-14 | E06-U06-UI: Workflow-Aware Status Management      | 5      | -                        | Dynamic status options, locking UX |
+| 2026-04-04 | E04-U07: Tree View of Project Structure           | 5      | -                        | ProjectTree component, navigation  |
+| 2026-02-28 | E04-U05: Allocate Budgets to Cost Elements        | 5      | -                        | Budgets in CostElement only        |
+| 2026-02-03 | E04-U04: Allocate Revenue across WBEs             | 5      | -                        | Revenue allocation in WBE model    |
 | 2026-02-03 | E08-U05/E08-U08: Variances & Historical Metrics   | 10     | EVM Foundation           | CV/SV/VAC, time series trends      |
 | 2026-02-03 | E08-U02/E08-U04: EV Calculation & Performance Indices | 13 | EVM Foundation           | EV rollup, CPI/SPI with gauges     |
 | 2026-01-29 | Branch Entity Versionable                         | 3      | Infrastructure           | Temporal queries for Branch entity |
