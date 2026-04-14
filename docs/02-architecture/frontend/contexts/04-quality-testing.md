@@ -1,5 +1,7 @@
 # Context: Quality & Testing
 
+**Last Updated:** 2026-04-14
+
 ## 1. Overview
 
 Ensures application stability, maintainability, and code quality through automated tooling and rigorous testing standards.

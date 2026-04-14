@@ -1,6 +1,6 @@
 # Entity Classification Guide
 
-**Last Updated:** 2026-01-02  
+**Last Updated:** 2026-04-14 (import paths corrected)  
 **Context:** [EVCS Core](./architecture.md)  
 **Related:** [ADR-006: Protocol-Based Type System](../../decisions/ADR-006-protocol-based-type-system.md)
 
@@ -80,7 +80,7 @@ graph TD
 ### Implementation
 
 ```python
-from app.models.domain.base import SimpleEntityBase
+from app.core.base.base import SimpleEntityBase
 
 class UserPreference(SimpleEntityBase):
     """User UI preferences - no version history needed."""
@@ -130,7 +130,7 @@ class UserPreference(SimpleEntityBase):
 ### Implementation
 
 ```python
-from app.models.domain.base import EntityBase
+from app.core.base.base import EntityBase
 from app.models.mixins import VersionableMixin
 
 class AuditLog(EntityBase, VersionableMixin):
@@ -180,7 +180,7 @@ class AuditLog(EntityBase, VersionableMixin):
 ### Implementation
 
 ```python
-from app.models.domain.base import EntityBase
+from app.core.base.base import EntityBase
 from app.models.mixins import VersionableMixin, BranchableMixin
 
 class ProjectVersion(EntityBase, VersionableMixin, BranchableMixin):

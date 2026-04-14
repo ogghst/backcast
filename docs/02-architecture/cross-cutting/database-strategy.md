@@ -222,7 +222,7 @@ stmt = select(Model).limit(100).offset(skip)
 
 See [EVCS Core Architecture](../backend/contexts/evcs-core/architecture.md) for complete documentation.
 
-> [!NOTE] > **Non-versioned entities** (user preferences, system config) use `SimpleBase` with standard `created_at`/`updated_at` timestamps instead of TSTZRANGE. See [Non-Versioned Entities](../backend/contexts/evcs-core/architecture.md#non-versioned-entities).
+> [!NOTE] > **Non-versioned entities** (user preferences, system config) use `SimpleEntityBase` with standard `created_at`/`updated_at` timestamps instead of TSTZRANGE. See [Non-Versioned Entities](../backend/contexts/evcs-core/architecture.md#non-versioned-entities).
 
 ### PostgreSQL Range Types
 
@@ -289,13 +289,14 @@ WHERE entity_id = :id
 ```python
 from sqlalchemy.dialects.postgresql import TSTZRANGE
 from sqlalchemy import func
+from app.core.base.base import EntityBase
+from app.models.mixins import VersionableMixin
 
-class TemporalBase(Base):
-    valid_time: Mapped[TSTZRANGE] = mapped_column(
-        TSTZRANGE,
-        nullable=False,
-        server_default=func.tstzrange(func.now(), None, "[]")
-    )
+class VersionedEntity(EntityBase, VersionableMixin):
+    """Versioned entity with temporal tracking."""
+    __tablename__ = "versioned_entities"
+    
+    # valid_time, transaction_time, deleted_at inherited from VersionableMixin
 
 # Query with range operator
 stmt = select(Entity).where(

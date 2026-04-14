@@ -404,7 +404,10 @@ This is useful for "what-if" analysis - show base project with change order chan
 For parent-child relationships where children should stay on same branch:
 
 ```python
-class ProjectVersion(TemporalBase):
+from app.core.base.base import EntityBase
+from app.models.mixins import VersionableMixin, BranchableMixin
+
+class ProjectVersion(EntityBase, VersionableMixin, BranchableMixin):
     __tablename__ = "project_versions"
 
     project_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)

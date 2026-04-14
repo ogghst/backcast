@@ -1,6 +1,6 @@
 # EVM Components Guide
 
-**Last Updated:** 2026-01-22
+**Last Updated:** 2026-04-14
 **Related Iteration:** [2026-01-22-evm-analyzer-master-detail-ui](../../03-project-plan/iterations/2026-01-22-evm-analyzer-master-detail-ui/)
 
 ---

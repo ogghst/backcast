@@ -1,6 +1,6 @@
 # EVCS Core Architecture
 
-**Last Updated:** 2026-01-02  
+**Last Updated:** 2026-04-14  
 **Owner:** Backend Team  
 **ADR:** [ADR-005: Bitemporal Versioning](../../decisions/ADR-005-bitemporal-versioning.md)
 
@@ -57,7 +57,7 @@ graph TB
     end
 
     subgraph "Model Layer"
-        J[TemporalBase]
+        J[EntityBase + Mixins]
         K[EntityVersion]
     end
 
@@ -80,7 +80,7 @@ graph TB
 | **API**      | HTTP endpoints, request/response handling | FastAPI routers                                                  |
 | **Service**  | Business logic orchestration              | `TemporalService[TVersionable]`, entity-specific services        |
 | **Command**  | Atomic versioning operations              | `CreateCommand[TBranchable]`, `UpdateCommand[TBranchable]`, etc. |
-| **Model**    | Data structures, ORM mapping              | `TemporalBase`, entity models                                    |
+| **Model**    | Data structures, ORM mapping              | `EntityBase + VersionableMixin`, entity models                   |
 | **Database** | Persistence, indexing, constraints        | PostgreSQL with GIST indexes                                     |
 
 ---

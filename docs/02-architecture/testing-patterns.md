@@ -1,6 +1,6 @@
 # Testing Patterns
 
-**Last Updated:** 2026-02-07
+**Last Updated:** 2026-04-14
 **Context:** Integration and temporal testing best practices
 
 ---

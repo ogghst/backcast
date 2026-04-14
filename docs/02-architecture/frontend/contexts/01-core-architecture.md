@@ -1,5 +1,7 @@
 # Context: Core Architecture & Layout
 
+**Last Updated:** 2026-04-14
+
 ## 1. Overview
 
 The Core context defines the application shell, routing strategy, and foundational patterns that support all other features. It is responsible for the "skeleton" of the Single Page Application (SPA).

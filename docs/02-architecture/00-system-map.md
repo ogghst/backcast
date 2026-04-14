@@ -1,6 +1,6 @@
 # System Map: Backcast 
 
-**Last Updated:** 2026-01-01
+**Last Updated:** 2026-04-14
 **Technology:** Python 3.12, FastAPI, React 18, PostgreSQL, AsyncIO
 
 ## High-Level Architecture
@@ -54,8 +54,8 @@ The system is partitioned into the following bounded contexts. See [01-bounded-c
 - **Branching:** All entities support branch isolation for change orders
 - **Soft Delete:** Reversible deletion with `deleted_at` timestamp
 - **Version Chain:** DAG structure via `parent_id` for history traversal
-- **Generic Framework:** `TemporalBase`, `TemporalService[T]`, generic commands
-- **Non-Versioned:** `SimpleBase` for config/preferences (standard CRUD)
+- **Generic Framework:** `EntityBase + VersionableMixin`, `TemporalService[T]`, generic commands
+- **Non-Versioned:** `SimpleEntityBase` for config/preferences (standard CRUD)
 
 **Documentation:** [EVCS Core Architecture](backend/contexts/evcs-core/architecture.md)
 

@@ -292,7 +292,7 @@ class ToolContext:
 
 ## WebSocket API
 
-### Endpoint: `/api/v1/chat/ws/{conversation_id}`
+### Endpoint: `/api/v1/chat/stream`
 
 WebSocket endpoint for streaming conversations.
 

@@ -1,5 +1,6 @@
 # Frontend Coding Standards (TypeScript/React)
 
+**Last Updated:** 2026-04-14
 **Scope:** Frontend, State Management, UI Components
 
 ---

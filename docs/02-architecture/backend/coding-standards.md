@@ -1,5 +1,6 @@
 # Backend Coding Standards (Python/FastAPI)
 
+**Last Updated:** 2026-04-14
 **Scope:** Backend, Database, EVCS Core
 
 ---
@@ -64,11 +65,13 @@ async def calculate_earned_value(
 - **Immutable:** Append-only, never overwrite
 - **Branched:** Support branch isolation
 
+**Implementation:** Versioned entities use `EntityBase + VersionableMixin`. Non-versioned entities use `SimpleEntityBase`.
+
 **ADRs:** [Bitemporal](../decisions/ADR-005-bitemporal-versioning.md), [Command Pattern](../decisions/ADR-003-command-pattern.md)
 
 #### Foreign Key Constraints for Temporal Entities
 
-**Pattern:** Temporal entities (using `VersionableMixin`) should **NOT** use database-level FK constraints to other temporal entities' root IDs (e.g., `project_id`, `user_id`, `wbe_id`).
+**Pattern:** Temporal entities (using `EntityBase + VersionableMixin`) should **NOT** use database-level FK constraints to other temporal entities' root IDs (e.g., `project_id`, `user_id`, `wbe_id`).
 
 **Rationale:**
 - Root IDs are **NOT UNIQUE** in bitemporal tables (multiple versions share the same root ID)

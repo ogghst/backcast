@@ -1,6 +1,6 @@
 # Database Migration Troubleshooting Guide
 
-**Last Updated:** 2026-01-18
+**Last Updated:** 2026-04-14
 **Related:** EVM Foundation Iteration (2026-01-18-evm-foundation)
 
 This guide provides troubleshooting steps for common database migration issues, particularly those related to bitemporal versioning with PostgreSQL TSTZRANGE columns.
