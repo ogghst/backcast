@@ -647,3 +647,34 @@ def set_rbac_service(service: RBACServiceABC) -> None:
     """
     global _rbac_service
     _rbac_service = service
+
+
+def inject_rbac_session(
+    rbac_service: RBACServiceABC,
+    session: Any,
+) -> bool:
+    """Inject database session into RBAC service for project-level access checks.
+
+    Some RBAC service implementations (like JsonRBACService) require a database
+    session to perform project-level access checks. This helper function safely
+    injects the session if the service supports it.
+
+    Args:
+        rbac_service: The RBAC service instance
+        session: The database session to inject
+
+    Returns:
+        True if session was injected (or already set), False otherwise
+
+    Example:
+        ```python
+        from app.core.rbac import get_rbac_service, inject_rbac_session
+
+        rbac_service = get_rbac_service()
+        inject_rbac_session(rbac_service, context.session)
+        ```
+    """
+    if hasattr(rbac_service, "session") and rbac_service.session is None:
+        rbac_service.session = session
+        return True
+    return False

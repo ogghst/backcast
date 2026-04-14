@@ -1,5 +1,7 @@
 """Type definitions for AI tool system."""
 
+import collections
+import collections.abc
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -7,7 +9,63 @@ from typing import Any, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rbac import inject_rbac_session
 from app.services.project import ProjectService
+
+
+class _LRUCache(dict[str, bool]):
+    """Simple LRU cache with maximum size limit.
+
+    Inherits from dict for compatibility with existing code that treats
+    _permission_cache as a dictionary. Automatically evicts least recently
+    used entries when capacity is exceeded.
+    """
+
+    def __init__(self, max_size: int = 1000) -> None:
+        """Initialize LRU cache with maximum size.
+
+        Args:
+            max_size: Maximum number of entries to cache (default: 1000)
+        """
+        self._max_size = max_size
+        self._usage_order: collections.OrderedDict[str, None] = (
+            collections.OrderedDict()
+        )
+        super().__init__()
+
+    def __setitem__(self, key: str, value: bool) -> None:
+        """Set item and update usage order.
+
+        If key already exists, updates its value and moves to most recent.
+        If at capacity, evicts least recently used entry before adding new one.
+        """
+        if key in self:
+            # Move to end (most recently used)
+            self._usage_order.move_to_end(key)
+        else:
+            # Add new entry
+            self._usage_order[key] = None
+            # Evict LRU if at capacity
+            if len(self._usage_order) > self._max_size:
+                lru_key, _ = self._usage_order.popitem(last=False)
+                super().__delitem__(lru_key)
+
+        super().__setitem__(key, value)
+
+    def __getitem__(self, key: str) -> bool:
+        """Get item and mark as recently used."""
+        if key in self._usage_order:
+            self._usage_order.move_to_end(key)
+        return super().__getitem__(key)
+
+    def __contains__(self, key: object) -> bool:
+        """Check if key exists in cache."""
+        return key in self._usage_order
+
+    def clear(self) -> None:
+        """Clear all entries from cache."""
+        self._usage_order.clear()
+        super().clear()
 
 # Module-level ordering dict for RiskLevel (outside the enum to avoid it becoming a member)
 _RISK_LEVEL_ORDERING = {
@@ -98,7 +156,7 @@ class ToolContext:
         as_of: Optional historical date for temporal queries (None for current state)
         branch_name: Optional branch name for temporal queries (e.g., "main", "BR-001")
         branch_mode: Optional branch mode for temporal queries ("merged" or "isolated")
-        _permission_cache: Cache for permission checks
+        _permission_cache: LRU cache for permission checks (max 1000 entries)
 
     Note:
         The `session` property returns a task-local session using SQLAlchemy's
@@ -106,6 +164,7 @@ class ToolContext:
         its own isolated session to prevent "Session is already flushing" errors.
         The original session passed during construction is stored as `_root_session`
         for potential fallback or WebSocket-level operations.
+        The permission cache uses LRU eviction to prevent unbounded memory growth.
     """
 
     _root_session: AsyncSession = field(init=False, repr=False)
@@ -117,7 +176,9 @@ class ToolContext:
     as_of: datetime | None = None
     branch_name: str | None = None
     branch_mode: Literal["merged", "isolated"] | None = None
-    _permission_cache: dict[str, bool] = field(default_factory=dict)
+    _permission_cache: collections.abc.MutableMapping[str, bool] = field(
+        default_factory=lambda: _LRUCache(max_size=1000)
+    )
 
     def __init__(
         self,
@@ -130,7 +191,7 @@ class ToolContext:
         as_of: datetime | None = None,
         branch_name: str | None = None,
         branch_mode: Literal["merged", "isolated"] | None = None,
-        _permission_cache: dict[str, bool] | None = None,
+        _permission_cache: collections.abc.MutableMapping[str, bool] | None = None,
     ) -> None:
         """Initialize ToolContext with session and user context.
 
@@ -144,7 +205,7 @@ class ToolContext:
             as_of: Optional historical date for temporal queries
             branch_name: Optional branch name for temporal queries
             branch_mode: Optional branch mode for temporal queries
-            _permission_cache: Optional permission cache
+            _permission_cache: Optional permission cache (uses LRU with 1000-entry limit if not provided)
         """
         self._root_session = session
         self.user_id = user_id
@@ -155,7 +216,11 @@ class ToolContext:
         self.as_of = as_of
         self.branch_name = branch_name
         self.branch_mode = branch_mode
-        self._permission_cache = _permission_cache if _permission_cache is not None else {}
+        # Use provided cache or create new LRU cache
+        if _permission_cache is not None:
+            self._permission_cache = _permission_cache
+        else:
+            self._permission_cache = _LRUCache(max_size=1000)
 
     @property
     def session(self) -> AsyncSession:
@@ -216,8 +281,7 @@ class ToolContext:
                 # Check if rbac_service supports project-level access
                 if hasattr(rbac_service, "has_project_access"):
                     # Inject session if service supports it
-                    if hasattr(rbac_service, "session") and rbac_service.session is None:
-                        rbac_service.session = self.session
+                    inject_rbac_session(rbac_service, self.session)
 
                     granted = await rbac_service.has_project_access(
                         user_id=user_uuid,

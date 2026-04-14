@@ -19,6 +19,33 @@ from app.ai.tools.types import ToolContext
 logger = logging.getLogger(__name__)
 
 
+def _inject_temporal_params(
+    tool_args: dict[str, Any],
+    ctx: ToolContext,
+) -> dict[str, Any]:
+    """Inject temporal parameters into tool arguments.
+
+    This helper function centralizes temporal parameter injection to avoid
+    code duplication between async and synchronous code paths.
+
+    Args:
+        tool_args: Original tool arguments (will be modified in-place)
+        ctx: ToolContext containing temporal parameters
+
+    Returns:
+        The modified tool_args dictionary (same object, modified in-place)
+    """
+    if ctx.as_of:
+        tool_args["as_of"] = ctx.as_of.isoformat()
+    if ctx.branch_name:
+        tool_args["branch_name"] = ctx.branch_name
+    if ctx.branch_mode:
+        tool_args["branch_mode"] = ctx.branch_mode
+    if ctx.project_id:
+        tool_args["project_id"] = str(ctx.project_id)
+    return tool_args
+
+
 class TemporalContextMiddleware(AgentMiddleware):
     """Middleware for injecting temporal context into tool calls.
 
@@ -80,17 +107,10 @@ class TemporalContextMiddleware(AgentMiddleware):
             f"execution_mode={ctx.execution_mode.value}"
         )
 
-        # Override temporal parameters (prevents LLM bypass)
+        # Inject temporal parameters (prevents LLM bypass)
         # This ensures the temporal context from the session is used,
         # not any values the LLM might try to inject
-        if ctx.as_of:
-            tool_args["as_of"] = ctx.as_of.isoformat()
-        if ctx.branch_name:
-            tool_args["branch_name"] = ctx.branch_name
-        if ctx.branch_mode:
-            tool_args["branch_mode"] = ctx.branch_mode
-        if ctx.project_id:
-            tool_args["project_id"] = str(ctx.project_id)
+        _inject_temporal_params(tool_args, ctx)
 
         # Create new tool_call dictionary with modified args
         # Note: tool_call is already a ToolCall (TypedDict), so we need to cast
@@ -124,16 +144,6 @@ class TemporalContextMiddleware(AgentMiddleware):
         # Resolve per-request context (supports cached graphs)
         ctx = get_request_tool_context() or self.context
 
-        # Create a copy to avoid modifying the original
+        # Create a copy to avoid modifying the original, then inject
         result = dict(tool_args)
-
-        if ctx.as_of:
-            result["as_of"] = ctx.as_of.isoformat()
-        if ctx.branch_name:
-            result["branch_name"] = ctx.branch_name
-        if ctx.branch_mode:
-            result["branch_mode"] = ctx.branch_mode
-        if ctx.project_id:
-            result["project_id"] = str(ctx.project_id)
-
-        return result
+        return _inject_temporal_params(result, ctx)
