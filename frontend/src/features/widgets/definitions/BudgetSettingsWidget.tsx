@@ -1,12 +1,16 @@
 import { SettingOutlined } from "@ant-design/icons";
+import { Typography, theme } from "antd";
 import type { FC } from "react";
 import { BudgetSettingsWidget as BudgetSettingsComponent } from "@/features/projects/widgets/BudgetSettingsWidget";
+import { useDashboardContext } from "../context/useDashboardContext";
 import { WidgetShell } from "../components/WidgetShell";
 import { registerWidget, widgetTypeId } from "..";
 import type { WidgetComponentProps } from "../types";
 
+const { Text } = Typography;
+
 interface BudgetSettingsConfig {
-  // No additional config needed - projectId comes from context
+  // No additional config needed - projectId comes from dashboard context
 }
 
 /**
@@ -28,13 +32,10 @@ const BudgetSettingsWidget: FC<WidgetComponentProps<BudgetSettingsConfig>> = ({
   widgetType,
   dashboardName,
 }) => {
-  // Get projectId from dashboard context or widget config
-  // For now, we'll extract it from the dashboard name or context
-  // In a real implementation, this might come from a dashboard context provider
-
-  // TODO: Get projectId from dashboard context
-  // For now, we'll need to pass it through the widget config or context
-  const projectId = ""; // This would come from dashboard context
+  const { token } = theme.useToken();
+  // Get projectId from dashboard context
+  const context = useDashboardContext();
+  const projectId = context.projectId;
 
   if (!projectId) {
     return (
@@ -49,8 +50,15 @@ const BudgetSettingsWidget: FC<WidgetComponentProps<BudgetSettingsConfig>> = ({
         widgetType={widgetType}
         dashboardName={dashboardName}
       >
-        <div style={{ padding: "16px", textAlign: "center" }}>
-          This widget requires a project context. Please add it to a project-specific dashboard.
+        <div
+          style={{
+            padding: token.paddingMD,
+            textAlign: "center",
+          }}
+        >
+          <Text type="secondary">
+            This widget requires a project context. Please add it to a project-specific dashboard.
+          </Text>
         </div>
       </WidgetShell>
     );
