@@ -1,6 +1,6 @@
 # Bounded Contexts
 
-**Last Updated:** 2026-01-18
+**Last Updated:** 2026-04-14
 
 This document defines the bounded contexts used to partition the Backcast  system. Each context represents a cohesive functional area with clear boundaries.
 
@@ -15,14 +15,16 @@ This document defines the bounded contexts used to partition the Backcast  syste
 
 > [!NOTE]
 >
-> - **Versioned entities** (Project, WBE, CostElement) inherit from `TemporalBase`
-> - **Non-versioned entities** (UserPreferences, SystemConfig) inherit from `SimpleBase`
+> - **Versioned entities** (Project, WBE, CostElement) use `EntityBase + VersionableMixin`
+> - **Non-versioned entities** (UserPreferences, SystemConfig) use `SimpleEntityBase`
 
 **Key Files:**
 
-- `app/core/versioning/temporal.py` - `TemporalBase`, `TemporalService[T]`
+- `app/core/base/base.py` - `EntityBase`, `SimpleEntityBase`
+- `app/models/mixins.py` - `VersionableMixin`, `BranchableMixin`
+- `app/core/versioning/service.py` - `TemporalService[T]`
 - `app/core/versioning/commands.py` - Generic Create/Update/Delete commands
-- `app/core/versioning/simple.py` - `SimpleBase`, `SimpleService` for standard CRUD
+- `app/core/simple/service.py` - `SimpleService` for standard CRUD
 
 ---
 
@@ -254,11 +256,11 @@ Quality events capture costs associated with rework, defects, warranty claims, a
 
 **Responsibility:** Provide intelligent analysis, natural language interaction, and AI-assisted data operations
 **Owner:** Backend Team
-**Status:** Planned
+**Status:** ✅ Implemented (E09-MULTIMODAL)
 **Versioning:** AI operations are logged; entity changes follow EVCS versioning
 
 **Description:**
-AI/ML Integration provides a generalistic conversational AI interface built on LangGraph, enabling natural language interaction and AI-assisted CRUD operations with controlled write access through explicit user confirmation workflows.
+AI/ML Integration provides a conversational AI interface built on LangGraph, enabling natural language interaction and AI-assisted CRUD operations with controlled write access through explicit user confirmation workflows. Supports multimodal input/output including text, images, and file attachments.
 
 **Architecture Components:**
 
@@ -316,15 +318,23 @@ AI/ML Integration provides a generalistic conversational AI interface built on L
   - Timeline/Gantt charts
   - Entity relationship diagrams
 
+**Key Files:**
+
+- `backend/app/ai/agent_service.py` - LangGraph agent orchestration
+- `backend/app/ai/tools/` - AI tool implementations
+- `backend/app/ai/tools/templates/` - AI tool template system
+- `backend/app/ai/tools/context_tools.py` - Context-aware tools
+- `backend/app/ai/file_extractors.py` - File extraction for attachments
+- `backend/app/ai/telemetry.py` - OpenTelemetry integration
+- `backend/app/api/routes/ai_chat.py` - Chat endpoints with WebSocket streaming
+- `backend/app/api/routes/ai_upload.py` - Image/file upload endpoints
+- `backend/app/api/routes/ai_config.py` - AI configuration management
+- `backend/app/models/domain/ai.py` - AI entities (sessions, messages, attachments)
+- `backend/app/services/ai_config_service.py` - AI configuration service
+- `frontend/src/features/ai/chat/` - React chat interface components
+- `frontend/src/hooks/navigation/` - Navigation abstraction hooks
+
 **Dependencies:**
-
-- All bounded contexts (full CRUD access via tools)
-- LangGraph (agent orchestration)
-- OpenAI SDK (LLM provider)
-- WebSocket infrastructure (real-time streaming)
-- Authentication & Authorization (RBAC enforcement for tool calls)
-
-**Boundaries:**
 
 - Does NOT replace human decision-making
 - All AI-initiated write operations require explicit user confirmation
@@ -464,7 +474,7 @@ Portfolio Management enables executive-level oversight by aggregating data acros
 
 **Key Files:**
 
-- `frontend/src/stores/authStore.ts` - Zustand auth state (token, user, permissions)
+- `frontend/src/stores/useAuthStore.ts` - Zustand auth state (token, user, permissions)
 - `frontend/src/hooks/usePermission.ts` - Permission checking hook
 - `frontend/src/components/permissions/Can.tsx` - Declarative `<Can>` component
 - `frontend/src/api/auth.ts` - Auth API calls (login, refresh)

@@ -1,6 +1,6 @@
 # EVM API Guide
 
-**Last Updated:** 2026-01-22
+**Last Updated:** 2026-04-14
 **Related Iteration:** [2026-01-22-evm-analyzer-master-detail-ui](../../03-project-plan/iterations/2026-01-22-evm-analyzer-master-detail-ui/)
 
 ---
@@ -152,39 +152,31 @@ GET /api/v1/evm/{entity_type}/{entity_id}/timeseries
 
 ```json
 {
-  "entity_type": "cost_element",
-  "entity_id": "123e4567-e89b-12d3-a456-426614174000",
   "granularity": "week",
   "points": [
     {
       "date": "2026-01-01T00:00:00Z",
-      "bac": "100000.00",
       "pv": "5000.00",
-      "ac": "6000.00",
       "ev": "4000.00",
-      "cv": "-2000.00",
-      "sv": "-1000.00",
+      "ac": "6000.00",
+      "forecast": "5000.00",
+      "actual": "6000.00",
       "cpi": 0.67,
-      "spi": 0.80,
-      "eac": null,
-      "vac": null,
-      "etc": null
+      "spi": 0.80
     },
     {
       "date": "2026-01-08T00:00:00Z",
-      "bac": "100000.00",
       "pv": "10000.00",
-      "ac": "12000.00",
       "ev": "8000.00",
-      "cv": "-4000.00",
-      "sv": "-2000.00",
+      "ac": "12000.00",
+      "forecast": "10000.00",
+      "actual": "12000.00",
       "cpi": 0.67,
-      "spi": 0.80,
-      "eac": null,
-      "vac": null,
-      "etc": null
+      "spi": 0.80
     }
   ],
+  "start_date": "2026-01-01T00:00:00Z",
+  "end_date": "2026-12-31T23:59:59Z",
   "total_points": 52
 }
 ```

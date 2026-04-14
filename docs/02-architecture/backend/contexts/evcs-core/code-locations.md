@@ -1,13 +1,9 @@
 # EVCS Core Code Locations
 
-**Last Updated:** 2026-01-01  
+**Last Updated:** 2026-04-14
 **Context:** [EVCS Core Architecture](architecture.md)
 
 This document provides a reference to all code files implementing the EVCS Core functionality.
-
-> [!IMPORTANT] > **Target Architecture:** This document describes the planned file structure for the new versioning system.
-> Some files may not exist yet and will be created during the migration from the current dual-table pattern.
-> See [ADR-005](../../decisions/ADR-005-bitemporal-versioning.md) for migration notes.
 
 ---
 
@@ -15,15 +11,15 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 ### Base Model
 
-| File                                                                                    | Description                                                        |
-| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| [`app/core/base/base.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/base/base.py) | `EntityBase` and `SimpleEntityBase` abstract classes |
-| [`app/models/mixins.py`](file:///home/nicola/dev/backcast_evs/backend/app/models/mixins.py) | `VersionableMixin` and `BranchableMixin` for temporal composition |
+| File                                                            | Description                                                        |
+| --------------------------------------------------------------- | ------------------------------------------------------------------ |
+| [`app/core/base/base.py`](../../../../../backend/app/core/base/base.py) | `EntityBase` and `SimpleEntityBase` abstract classes |
+| [`app/models/mixins.py`](../../../../../backend/app/models/mixins.py) | `VersionableMixin` and `BranchableMixin` for temporal composition |
 
 **Key Classes:**
 
-- `EntityBase` - Abstract base for all entities (provides ID)
-- `SimpleEntityBase` - Non-versioned entities with `created_at`/`updated_at`
+- `EntityBase` - Abstract base for all entities (provides UUID primary key)
+- `SimpleEntityBase` - Non-versioned entities with `created_at`/`updated_at` (extends `EntityBase`)
 - `VersionableMixin` - Adds bitemporal fields (`valid_time`, `transaction_time`, `deleted_at`)
 - `BranchableMixin` - Adds branching fields (`branch`, `parent_id`, `merge_from_branch`)
 
@@ -33,7 +29,7 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 | File                                                                                                              | Description                                       |
 | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| [`app/core/versioning/commands.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/versioning/commands.py) | Generic command classes for versioning operations |
+| [`app/core/versioning/commands.py`](../../../../../../backend/app/core/versioning/commands.py) | Generic command classes for versioning operations |
 
 **Key Classes:**
 
@@ -48,7 +44,7 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 | File                                                                                                            | Description                              |
 | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| [`app/core/versioning/service.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/versioning/service.py) | Base service class for temporal entities |
+| [`app/core/versioning/service.py`](../../../../../../backend/app/core/versioning/service.py) | Base service class for temporal entities |
 
 **Key Classes:**
 
@@ -62,7 +58,7 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 | File                                                                                                            | Description                             |
 | --------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| [`app/core/branching/commands.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/branching/commands.py) | Command classes for branchable entities |
+| [`app/core/branching/commands.py`](../../../../../../backend/app/core/branching/commands.py) | Command classes for branchable entities |
 
 **Key Classes:**
 
@@ -75,11 +71,11 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 | File                                                                                                          | Description                           |
 | ------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| [`app/core/branching/service.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/branching/service.py) | Service class for branchable entities |
+| [`app/core/branching/service.py`](../../../../../../backend/app/core/branching/service.py) | Service class for branchable entities |
 
 **Key Classes:**
 
-- `BranchableService[T]` - Service for full EVCS operations
+- `BranchableService[T]` - Combines `TemporalService` with branch operations (create, merge, revert)
 
 ---
 
@@ -89,7 +85,7 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 | File                                                                                           | Description                              |
 | ---------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| [`app/core/base/base.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/base/base.py) | `SimpleEntityBase` for non-versioned entities |
+| [`app/core/base/base.py`](../../../../../../backend/app/core/base/base.py) | `SimpleEntityBase` for non-versioned entities |
 
 **Key Classes:**
 
@@ -101,7 +97,7 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 | File                                                                                                      | Description                         |
 | --------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| [`app/core/simple/commands.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/simple/commands.py) | Commands for non-versioned entities |
+| [`app/core/simple/commands.py`](../../../../../../backend/app/core/simple/commands.py) | Commands for non-versioned entities |
 
 **Key Classes:**
 
@@ -115,7 +111,7 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 | File                                                                                                  | Description                              |
 | ----------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| [`app/core/simple/service.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/simple/service.py) | Base service for non-versioned entities |
+| [`app/core/simple/service.py`](../../../../../../backend/app/core/simple/service.py) | Base service for non-versioned entities |
 
 **Key Classes:**
 
@@ -127,10 +123,10 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 | File                                                                                                                          | Description              |
 | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| [`app/models/domain/user_preferences.py`](file:///home/nicola/dev/backcast_evs/backend/app/models/domain/user_preferences.py) | `UserPreferences` model  |
-| [`app/models/domain/system_config.py`](file:///home/nicola/dev/backcast_evs/backend/app/models/domain/system_config.py)       | `SystemConfig` model     |
-| [`app/services/user_preferences.py`](file:///home/nicola/dev/backcast_evs/backend/app/services/user_preferences.py)           | `UserPreferencesService` |
-| [`app/services/system_config.py`](file:///home/nicola/dev/backcast_evs/backend/app/services/system_config.py)                 | `SystemConfigService`    |
+| [`app/models/domain/user_preferences.py`](../../../../../../backend/app/models/domain/user_preferences.py) | `UserPreferences` model  |
+| [`app/models/domain/system_config.py`](../../../../../../backend/app/models/domain/system_config.py)       | `SystemConfig` model     |
+| [`app/services/user_preferences.py`](../../../../../../backend/app/services/user_preferences.py)           | `UserPreferencesService` |
+| [`app/services/system_config.py`](../../../../../../backend/app/services/system_config.py)                 | `SystemConfigService`    |
 
 ---
 
@@ -140,9 +136,9 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 | File                                                                                                        | Description                                  |
 | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| [`app/models/domain/project.py`](file:///home/nicola/dev/backcast_evs/backend/app/models/domain/project.py) | `ProjectVersion` model                       |
-| [`app/services/project.py`](file:///home/nicola/dev/backcast_evs/backend/app/services/project.py)           | `ProjectService` (extends `TemporalService`) |
-| [`app/api/routes/projects.py`](file:///home/nicola/dev/backcast_evs/backend/app/api/routes/projects.py)     | Project API endpoints                        |
+| [`app/models/domain/project.py`](../../../../../../backend/app/models/domain/project.py) | `ProjectVersion` model                       |
+| [`app/services/project.py`](../../../../../../backend/app/services/project.py)           | `ProjectService` (extends `TemporalService`) |
+| [`app/api/routes/projects.py`](../../../../../../backend/app/api/routes/projects.py)     | Project API endpoints                        |
 
 ---
 
@@ -150,9 +146,9 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 | File                                                                                                | Description                              |
 | --------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| [`app/models/domain/wbe.py`](file:///home/nicola/dev/backcast_evs/backend/app/models/domain/wbe.py) | `WBEVersion` model                       |
-| [`app/services/wbe.py`](file:///home/nicola/dev/backcast_evs/backend/app/services/wbe.py)           | `WBEService` (extends `TemporalService`) |
-| [`app/api/routes/wbes.py`](file:///home/nicola/dev/backcast_evs/backend/app/api/routes/wbes.py)     | WBE API endpoints                        |
+| [`app/models/domain/wbe.py`](../../../../../../backend/app/models/domain/wbe.py) | `WBEVersion` model                       |
+| [`app/services/wbe.py`](../../../../../../backend/app/services/wbe.py)           | `WBEService` (extends `TemporalService`) |
+| [`app/api/routes/wbes.py`](../../../../../../backend/app/api/routes/wbes.py)     | WBE API endpoints                        |
 
 ---
 
@@ -160,9 +156,29 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 | File                                                                                                                  | Description                                      |
 | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| [`app/models/domain/cost_element.py`](file:///home/nicola/dev/backcast_evs/backend/app/models/domain/cost_element.py) | `CostElementVersion` model                       |
-| [`app/services/cost_element.py`](file:///home/nicola/dev/backcast_evs/backend/app/services/cost_element.py)           | `CostElementService` (extends `TemporalService`) |
-| [`app/api/routes/cost_elements.py`](file:///home/nicola/dev/backcast_evs/backend/app/api/routes/cost_elements.py)     | Cost Element API endpoints                       |
+| [`app/models/domain/cost_element.py`](../../../../../../backend/app/models/domain/cost_element.py) | `CostElementVersion` model                       |
+| [`app/services/cost_element.py`](../../../../../../backend/app/services/cost_element.py)           | `CostElementService` (extends `TemporalService`) |
+| [`app/api/routes/cost_elements.py`](../../../../../../backend/app/api/routes/cost_elements.py)     | Cost Element API endpoints                       |
+
+---
+
+### AI (Non-Versioned)
+
+| File                                                                                              | Description                        |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| [`app/models/domain/ai.py`](../../../../../../backend/app/models/domain/ai.py)                    | AI-related models                  |
+| [`app/services/ai_config_service.py`](../../../../../../backend/app/services/ai_config_service.py) | AI configuration service           |
+
+**Key Entities:**
+
+- `AIProvider` - AI provider configuration (OpenAI, Anthropic, etc.)
+- `AIProviderConfig` - Provider-specific configuration (API keys, endpoints)
+- `AIModel` - AI model definitions
+- `AIAssistantConfig` - Assistant system prompts and settings
+- `AIConversationSession` - Chat session management
+- `AIConversationMessage` - Individual messages within sessions
+- `AIConversationAttachment` - File attachments (images, documents)
+- `AIAgentExecution` - Agent execution tracking
 
 ---
 
@@ -172,7 +188,7 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 | File                                                                                                            | Description                                 |
 | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| [`app/models/schemas/temporal.py`](file:///home/nicola/dev/backcast_evs/backend/app/models/schemas/temporal.py) | Base Pydantic schemas for temporal entities |
+| [`app/models/schemas/temporal.py`](../../../../../../backend/app/models/schemas/temporal.py) | Base Pydantic schemas for temporal entities |
 
 **Key Schemas:**
 
@@ -186,7 +202,7 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 | File                                                                                  | Description         |
 | ------------------------------------------------------------------------------------- | ------------------- |
-| [`alembic/versions/`](file:///home/nicola/dev/backcast_evs/backend/alembic/versions/) | All migration files |
+| [`alembic/versions/`](../../../../../../backend/alembic/versions/) | All migration files |
 
 **Key Migration Patterns:**
 
@@ -196,39 +212,12 @@ This document provides a reference to all code files implementing the EVCS Core 
 
 ---
 
-## Tests
-
-### Unit Tests
-
-| File                                                                                                                                | Description               |
-| ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| [`tests/unit/core/test_temporal_base.py`](file:///home/nicola/dev/backcast_evs/backend/tests/unit/core/test_temporal_base.py)       | TemporalBase method tests |
-| [`tests/unit/core/test_commands.py`](file:///home/nicola/dev/backcast_evs/backend/tests/unit/core/test_commands.py)                 | Generic command tests     |
-| [`tests/unit/core/test_temporal_service.py`](file:///home/nicola/dev/backcast_evs/backend/tests/unit/core/test_temporal_service.py) | TemporalService tests     |
-
-### Integration Tests
-
-| File                                                                                                                              | Description             |
-| --------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| [`tests/integration/test_temporal_crud.py`](file:///home/nicola/dev/backcast_evs/backend/tests/integration/test_temporal_crud.py) | CRUD integration tests  |
-| [`tests/integration/test_branching.py`](file:///home/nicola/dev/backcast_evs/backend/tests/integration/test_branching.py)         | Branch operation tests  |
-| [`tests/integration/test_time_travel.py`](file:///home/nicola/dev/backcast_evs/backend/tests/integration/test_time_travel.py)     | Time travel query tests |
-
-### API Tests
-
-| File                                                                                                    | Description                |
-| ------------------------------------------------------------------------------------------------------- | -------------------------- |
-| [`tests/api/test_projects.py`](file:///home/nicola/dev/backcast_evs/backend/tests/api/test_projects.py) | Project API endpoint tests |
-| [`tests/api/test_wbes.py`](file:///home/nicola/dev/backcast_evs/backend/tests/api/test_wbes.py)         | WBE API endpoint tests     |
-
----
-
 ## Configuration
 
 | File                                                                                    | Description              |
 | --------------------------------------------------------------------------------------- | ------------------------ |
-| [`app/core/config.py`](file:///home/nicola/dev/backcast_evs/backend/app/core/config.py) | Application settings     |
-| [`app/db/session.py`](file:///home/nicola/dev/backcast_evs/backend/app/db/session.py)   | Database session factory |
+| [`app/core/config.py`](../../../../../../backend/app/core/config.py) | Application settings     |
+| [`app/db/session.py`](../../../../../../backend/app/db/session.py)   | Database session factory |
 
 ---
 
@@ -255,26 +244,55 @@ backend/app/
 │   ├── mixins.py                # VersionableMixin, BranchableMixin
 │   ├── protocols.py             # EntityProtocol, VersionableProtocol, etc.
 │   ├── domain/
-│   │   ├── project.py           # Project (EntityBase + mixins)
-│   │   ├── wbe.py               # WBE (EntityBase + mixins)
-│   │   ├── cost_element.py      # CostElement (EntityBase + mixins)
-│   │   ├── cost_element_type.py # CostElementType (EntityBase + mixins)
-│   │   ├── department.py        # Department (EntityBase + mixins)
-│   │   └── user.py              # User (EntityBase + mixins)
+│   │   ├── project.py               # Project (versioned)
+│   │   ├── wbe.py                   # WBE (versioned)
+│   │   ├── cost_element.py          # CostElement (versioned)
+│   │   ├── cost_element_type.py     # CostElementType (versioned)
+│   │   ├── department.py            # Department (versioned)
+│   │   ├── user.py                  # User (versioned)
+│   │   ├── change_order.py          # ChangeOrder (versioned, branchable)
+│   │   ├── change_order_audit_log.py # ChangeOrderAuditLog (non-versioned)
+│   │   ├── schedule_baseline.py     # ScheduleBaseline (versioned, 1:1 with project)
+│   │   ├── forecast.py              # Forecast (versioned)
+│   │   ├── branch.py                # Branch (non-versioned)
+│   │   ├── progress_entry.py        # ProgressEntry (versioned)
+│   │   ├── cost_registration.py     # CostRegistration (versioned)
+│   │   ├── project_member.py        # ProjectMember (non-versioned)
+│   │   ├── refresh_token.py         # RefreshToken (non-versioned)
+│   │   ├── dashboard_layout.py      # DashboardLayout (non-versioned)
+│   │   └── ai.py                    # AI entities (all non-versioned)
 │   └── schemas/
-│       └── ...                  # Pydantic schemas
+│       └── ...                      # Pydantic schemas
 ├── services/
-│   ├── project.py               # ProjectService (extends TemporalService)
-│   ├── wbe.py                   # WBEService (extends TemporalService)
-│   ├── cost_element.py          # CostElementService (extends TemporalService)
-│   ├── cost_element_type.py     # CostElementTypeService
-│   ├── department.py            # DepartmentService
-│   └── user.py                  # UserService
+│   ├── project.py                   # ProjectService
+│   ├── wbe.py                       # WBEService
+│   ├── cost_element.py              # CostElementService
+│   ├── cost_element_type.py         # CostElementTypeService
+│   ├── department.py                # DepartmentService
+│   ├── user.py                      # UserService
+│   ├── change_order_service.py      # ChangeOrderService
+│   ├── change_order_workflow_service.py # ChangeOrderWorkflowService
+│   ├── change_order_reporting_service.py # ChangeOrderReportingService
+│   ├── schedule_baseline_service.py # ScheduleBaselineService
+│   ├── forecast_service.py          # ForecastService
+│   ├── gantt_service.py             # GanttService
+│   ├── dashboard_service.py         # DashboardService
+│   ├── dashboard_layout_service.py  # DashboardLayoutService
+│   ├── cost_registration_service.py # CostRegistrationService
+│   ├── progress_entry_service.py    # ProgressEntryService
+│   ├── impact_analysis_service.py   # ImpactAnalysisService
+│   ├── financial_impact_service.py  # FinancialImpactService
+│   ├── approval_matrix_service.py   # ApprovalMatrixService
+│   ├── sla_service.py               # SLAService
+│   ├── branch_service.py            # BranchService
+│   ├── entity_discovery_service.py  # EntityDiscoveryService
+│   ├── evm_service.py               # EVM calculations
+│   └── ai_config_service.py         # AIConfigService
 └── api/
     └── routes/
-        ├── projects.py          # /api/v1/projects
-        ├── wbes.py              # /api/v1/wbes
-        └── cost_elements.py     # /api/v1/cost-elements
+        ├── projects.py              # /api/v1/projects
+        ├── wbes.py                  # /api/v1/wbes
+        └── cost_elements.py         # /api/v1/cost-elements
 ```
 
 ---

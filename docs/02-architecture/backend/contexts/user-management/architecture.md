@@ -1,11 +1,13 @@
 # User Management Context
 
-**Last Updated:** 2025-12-29  
+**Last Updated:** 2026-04-14
 **Owner:** Backend Team
 
 ## Responsibility
 
-Manages user profiles, roles, and permissions. Implements versioned user data with complete history tracking. Provides CRUD operations with admin authorization.
+Manages user profiles, roles, and permissions. Implements non-versioned user data with standard CRUD operations and admin authorization.
+
+> **Note:** Users are non-versioned entities using `SimpleEntityBase` (standard CRUD, no temporal tracking).
 
 ---
 
@@ -16,15 +18,8 @@ Manages user profiles, roles, and permissions. Implements versioned user data wi
 ```mermaid
 graph TB
     A[User Routes] --> B[UserService]
-    B --> C[UserRepository]
-    B --> D[UserCommands]
-    D --> E[CreateUserCommand]
-    D --> F[UpdateUserCommand]
-    D --> G[DeleteUserCommand]
-    C --> H[(User Tables)]
-    E --> H
-    F --> H
-    G --> H
+    B --> C[(Users Table)]
+    A --> D[Pydantic Schemas]
 ```
 
 ### Layers
@@ -39,70 +34,37 @@ graph TB
 
 **Service** (`app/services/user.py`)
 
-- `get_all_users(skip, limit)` - Paginated user list
-- `get_user(user_id)` - Single user retrieval
-- `create_user(data, actor_id)` - New user via command
-- `update_user(user_id, changes, actor_id)` - Update via command
-- `delete_user(user_id, actor_id)` - Soft delete via command
-
-**Repository** (`app/repositories/user.py`)
-
-- `get_by_id(user_id)` - Retrieve by ID
+- `get_all(skip, limit)` - Paginated user list
+- `get_by_id(user_id)` - Single user retrieval
 - `get_by_email(email)` - Retrieve by email
-- `get_all(skip, limit)` - Paginated retrieval
-- Lower-level data access
+- `create(user_in)` - New user creation
+- `update(id, user_in)` - In-place update
+- `delete(id)` - Soft delete
 
-**Commands** (`app/commands/user.py`)
+**Models** (`app/models/domain/user.py`)
 
-- `CreateUserCommand` - Creates User + initial UserVersion
-- `UpdateUserCommand` - Creates new UserVersion, closes old
-- `DeleteUserCommand` - Soft delete (is_active=False)
+- `User` - Non-versioned entity with `SimpleEntityBase`
+- `Role` - Enum: admin, viewer, editor
 
 ---
 
 ## Data Model
 
-## Data Model
+### User (Non-Versioned)
 
-### User (Single Table)
+**Purpose:** Standard CRUD entity using `SimpleEntityBase`. Stores user profile data without temporal versioning.
 
-**Purpose:** Single-table bitemporal entity. Stores both identity and versioned profile data using `VersionableMixin`.
+| Field      | Type      | Description                      |
+| ---------- | --------- | -------------------------------- |
+| id         | UUID      | Primary Key (auto-generated)     |
+| email      | String    | Login email (unique)             |
+| full_name  | String    | Display name                     |
+| role       | Role      | admin/viewer/editor              |
+| is_active  | Boolean   | Soft delete flag                 |
+| created_at | TIMESTAMPTZ | Creation timestamp             |
+| updated_at | TIMESTAMPTZ | Last update timestamp           |
 
-| Field            | Type      | Description                      |
-| ---------------- | --------- | -------------------------------- |
-| id               | UUID      | Primary Key (Version ID)         |
-| user_id          | UUID      | Root Entity ID (Stable Identity) |
-| email            | String    | Login email                      |
-| full_name        | String    | Display name                     |
-| role             | String    | admin/viewer/editor              |
-| valid_time       | TSTZRANGE | Business validity range          |
-| transaction_time | TSTZRANGE | System transaction time range    |
-| is_active        | Boolean   | Soft delete flag                 |
-
-**Note:** Unlike the dual-table pattern, proper bitemporal versioning is achieved via PostgreSQL `TSTZRANGE` columns on a single table, where `user_id` groups all versions of the same user.
-
----
-
-## Versioning Pattern
-
-**Type:** Bitemporal Single-Table (via EVCS Core)
-
-### Create
-
-1. Insert new row with new `id`, specific `user_id`.
-2. `valid_time` defaults to `[now, infinity)`.
-3. `transaction_time` defaults to `[now, infinity)`.
-
-### Update
-
-1. "Close" current version (update `valid_time` upper bound).
-2. Insert new row (clone) with same `user_id`, new `id`, new data.
-3. `valid_time` starts from update timestamp.
-
-### Delete (Soft)
-
-1. Close current version.
-2. Insert new row with `is_active=False` (or `deleted_at` set).
+**Note:** Users are non-versioned. User profile changes do not create history versions. For audit trails of user actions, see the audit logging system.
 
 ---
 
@@ -153,13 +115,11 @@ graph TB
 
 ## Code Locations
 
-- **Routes:** [`app/api/routes/users.py`](file:///home/nicola/dev/backcast_evs/backend/app/api/routes/users.py)
-- **Service:** [`app/services/user.py`](file:///home/nicola/dev/backcast_evs/backend/app/services/user.py)
-- **Repository:** [`app/repositories/user.py`](file:///home/nicola/dev/backcast_evs/backend/app/repositories/user.py)
-- **Commands:** [`app/commands/user.py`](file:///home/nicola/dev/backcast_evs/backend/app/commands/user.py)
-- **Models:** [`app/models/domain/user.py`](file:///home/nicola/dev/backcast_evs/backend/app/models/domain/user.py)
-- **Schemas:** [`app/models/schemas/user.py`](file:///home/nicola/dev/backcast_evs/backend/app/models/schemas/user.py)
-- **Tests:** [`tests/api/test_users.py`](file:///home/nicola/dev/backcast_evs/backend/tests/api/test_users.py), [`tests/unit/services/test_user.py`](file:///home/nicola/dev/backcast_evs/backend/tests/unit/services/test_user.py)
+- **Routes:** `app/api/routes/users.py` - User endpoints with RBAC enforcement
+- **Service:** `app/services/user.py` - UserService with standard CRUD operations
+- **Models:** `app/models/domain/user.py` - User model with SimpleEntityBase
+- **Schemas:** `app/models/schemas/user.py` - Pydantic schemas for validation
+- **Tests:** `tests/api/test_users.py`, `tests/unit/services/test_user.py`
 
 ---
 

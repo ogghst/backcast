@@ -1,5 +1,7 @@
 # Context: Authentication & Authorization
 
+**Last Updated:** 2026-04-14
+
 ## 1. Overview
 
 This context handles user identity verification (Authentication) and access control (Authorization). It ensures that:

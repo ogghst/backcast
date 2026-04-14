@@ -2,7 +2,7 @@
 
 **Purpose:** Guide for choosing appropriate test types and writing effective tests
 
-**Last Updated:** 2026-03-15
+**Last Updated:** 2026-04-14
 **Status:** Active
 
 ---

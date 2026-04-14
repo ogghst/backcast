@@ -1,5 +1,7 @@
 # Context: State Management & Data
 
+**Last Updated:** 2026-04-14
+
 ## 1. Overview
 
 This context governs how data flows through the application, distinguishing clearly between **Server State** (data owned by the backend) and **Client State** (UI state owned by the user session).

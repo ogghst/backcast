@@ -1,6 +1,6 @@
 # Security Practices
 
-**Last Updated:** 2025-12-29
+**Last Updated:** 2026-04-14
 
 ## Authentication
 

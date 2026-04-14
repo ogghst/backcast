@@ -134,8 +134,8 @@ def list_projects(context: ToolContext) -> list[dict]:
 
 ### Best Practices
 
-1. **Always use temporal params for versioned entities**: For any entity that inherits from `TemporalBase`, use `get_as_of()` or temporal-aware service methods
-2. **Don't use temporal params for non-versioned entities**: For entities that inherit from `SimpleBase` (Users, AI Configs), ignore temporal params
+1. **Always use temporal params for versioned entities**: For any entity that uses `EntityBase + VersionableMixin`, use `get_as_of()` or temporal-aware service methods
+2. **Don't use temporal params for non-versioned entities**: For entities that use `SimpleEntityBase` (Users, AI Configs), ignore temporal params
 3. **Pass temporal params to service layer**: Never bypass the service layer to query versioned entities directly
 4. **Handle None values**: When `as_of` is `None`, query current state. When `branch_name` is `"main"`, query main branch
 
