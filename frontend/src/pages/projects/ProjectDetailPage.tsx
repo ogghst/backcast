@@ -9,7 +9,7 @@ import {
 import { ProjectSummaryCard } from "@/components/hierarchy/ProjectSummaryCard";
 import { WBETable } from "@/components/hierarchy/WBETable";
 import { WBECreate, WBERead, WBEUpdate } from "@/api/generated";
-import { Button, Breadcrumb, Skeleton, Card, theme } from "antd";
+import { Button, Breadcrumb, Skeleton, Card, theme, Row, Col } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { useState } from "react";
 import { WBEModal } from "@/features/wbes/components/WBEModal";
@@ -19,6 +19,7 @@ import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { ProjectsService } from "@/api/generated";
 import { ChangeOrderList } from "@/features/change-orders";
+import { BudgetSettingsWidget } from "@/features/projects/widgets/BudgetSettingsWidget";
 
 export const ProjectDetailPage = () => {
   const { token } = theme.useToken();
@@ -116,11 +117,25 @@ export const ProjectDetailPage = () => {
 
       {project && (
         <>
-          <ProjectSummaryCard
-            project={project}
-            loading={projectLoading}
-            onViewHistory={() => setHistoryOpen(true)}
-          />
+          <Row gutter={token.paddingMD}>
+            <Col xs={24} lg={16}>
+              <ProjectSummaryCard
+                project={project}
+                loading={projectLoading}
+                onViewHistory={() => setHistoryOpen(true)}
+              />
+            </Col>
+            <Col xs={24} lg={8}>
+              <Can permission="project-budget-settings-read">
+                <BudgetSettingsWidget
+                  projectId={projectId!}
+                  onSuccess={() => {
+                    // Optionally refetch or show success message
+                  }}
+                />
+              </Can>
+            </Col>
+          </Row>
 
           <Card
             title="Root Work Breakdown Elements"

@@ -17,11 +17,16 @@ export class ProgressEntriesService {
      * They are versionable but NOT branchable (progress is global facts).
      * Branch and mode parameters are provided for API consistency and context,
      * though progress entries themselves are not branch-specific.
+     *
+     * Filtering priority: cost_element_id > wbe_id > project_id.
+     * At least one filter is recommended for scoped queries.
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param branch Branch to query (for context)
      * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param costElementId Filter by Cost Element ID
+     * @param wbeId Filter by WBE ID (aggregates across all cost elements)
+     * @param projectId Filter by Project ID (aggregates across all WBEs and cost elements)
      * @param asOf Time travel: get Progress Entries as of this timestamp (ISO 8601)
      * @returns any Successful Response
      * @throws ApiError
@@ -32,6 +37,8 @@ export class ProgressEntriesService {
         branch: string = 'main',
         mode: string = 'merged',
         costElementId?: (string | null),
+        wbeId?: (string | null),
+        projectId?: (string | null),
         asOf?: (string | null),
     ): CancelablePromise<any> {
         return __request(OpenAPI, {
@@ -43,6 +50,8 @@ export class ProgressEntriesService {
                 'branch': branch,
                 'mode': mode,
                 'cost_element_id': costElementId,
+                'wbe_id': wbeId,
+                'project_id': projectId,
                 'as_of': asOf,
             },
             errors: {

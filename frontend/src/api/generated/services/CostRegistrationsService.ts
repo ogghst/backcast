@@ -17,11 +17,16 @@ export class CostRegistrationsService {
      * They are versionable but NOT branchable (costs are global facts).
      * Branch and mode parameters are provided for API consistency and context,
      * though cost registrations themselves are not branch-specific.
+     *
+     * Filtering hierarchy: cost_element_id > wbe_id > project_id.
+     * When multiple are provided, all applicable filters are applied (AND).
      * @param page Page number (1-indexed)
      * @param perPage Items per page
      * @param branch Branch to query (for context)
      * @param mode Branch mode: merged (combine with main) or isolated (current branch only)
      * @param costElementId Filter by Cost Element ID
+     * @param wbeId Filter by WBE ID (returns all registrations under this WBE)
+     * @param projectId Filter by Project ID (returns all registrations under this project)
      * @param search Search term (description, invoice, vendor)
      * @param filters Filters in format 'column:value;column:value1,value2'
      * @param sortField Field to sort by
@@ -36,6 +41,8 @@ export class CostRegistrationsService {
         branch: string = 'main',
         mode: string = 'merged',
         costElementId?: (string | null),
+        wbeId?: (string | null),
+        projectId?: (string | null),
         search?: (string | null),
         filters?: (string | null),
         sortField?: (string | null),
@@ -51,6 +58,8 @@ export class CostRegistrationsService {
                 'branch': branch,
                 'mode': mode,
                 'cost_element_id': costElementId,
+                'wbe_id': wbeId,
+                'project_id': projectId,
                 'search': search,
                 'filters': filters,
                 'sort_field': sortField,
@@ -66,21 +75,26 @@ export class CostRegistrationsService {
      * Create Cost Registration
      * Create a new cost registration.
      *
-     * Validates that the cost does not exceed the cost element's budget.
-     * Raises BudgetExceededError if budget would be exceeded.
+     * Validates budget status and includes warning if threshold exceeded.
+     * Registration succeeds even when over budget (non-blocking validation).
      *
      * The control_date parameter allows setting the valid_time start date,
      * useful for backdated cost registrations or testing time-travel scenarios.
      * @param requestBody
-     * @returns CostRegistrationRead Successful Response
+     * @param branch Branch to check budget against
+     * @returns any Successful Response
      * @throws ApiError
      */
     public static createCostRegistration(
         requestBody: CostRegistrationCreate,
-    ): CancelablePromise<CostRegistrationRead> {
+        branch: string = 'main',
+    ): CancelablePromise<Record<string, any>> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/cost-registrations',
+            query: {
+                'branch': branch,
+            },
             body: requestBody,
             mediaType: 'application/json',
             errors: {

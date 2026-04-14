@@ -4,7 +4,7 @@
 /* eslint-disable */
 export type Body_upload_ai_file = {
     /**
-     * Document file (PDF, DOCX, XLSX, TXT, CSV, JSON, max 10MB)
+     * Document file (PDF, DOCX, XLSX, PPTX, TXT, CSV, JSON, MD, max 10MB)
      */
     file: string;
 };

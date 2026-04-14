@@ -2,6 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { AgentExecutionPublic } from './AgentExecutionPublic';
+import type { SessionContext } from './SessionContext';
 /**
  * Schema for reading conversation session.
  */
@@ -18,6 +20,14 @@ export type AIConversationSessionPublic = {
      * Optional branch or change order context
      */
     branch_id?: (string | null);
+    /**
+     * Session context (general, project, wbe, cost_element)
+     */
+    context?: (SessionContext | null);
+    /**
+     * Currently active agent execution, if any
+     */
+    active_execution?: (AgentExecutionPublic | null);
     created_at: string;
     updated_at: string;
 };
