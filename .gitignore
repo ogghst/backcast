@@ -63,6 +63,7 @@ skills-lock.json
 
 # Screenshots and temporary artifacts
 .tmp/
+snapshot/
 *-snapshot.yml
 *.png
 !backend/**/*.png
