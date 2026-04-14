@@ -122,29 +122,110 @@ async def read_cost_registrations(
 
 @router.post(
     "",
-    response_model=CostRegistrationRead,
+    response_model=dict,  # Custom response with CostRegistrationRead + budget_warning
     status_code=status.HTTP_201_CREATED,
     operation_id="create_cost_registration",
     dependencies=[Depends(RoleChecker(required_permission="cost-registration-create"))],
 )
 async def create_cost_registration(
     registration_in: CostRegistrationCreate,
+    branch: str = Query("main", description="Branch to check budget against"),
     current_user: User = Depends(get_current_active_user),
     service: CostRegistrationService = Depends(get_cost_registration_service),
-) -> CostRegistration:
+) -> dict[str, object]:
     """Create a new cost registration.
 
-    Validates that the cost does not exceed the cost element's budget.
-    Raises BudgetExceededError if budget would be exceeded.
+    Validates budget status and includes warning if threshold exceeded.
+    Registration succeeds even when over budget (non-blocking validation).
 
     The control_date parameter allows setting the valid_time start date,
     useful for backdated cost registrations or testing time-travel scenarios.
     """
     try:
-        return await service.create_cost_registration(
+        # First, we need to get the project_id for budget validation
+        # This requires querying the CostElement and WBE
+        from typing import Any, cast
+
+        from sqlalchemy import func, select
+
+        from app.models.domain.cost_element import CostElement
+        from app.models.domain.wbe import WBE
+
+        # Get Cost Element to find project_id
+        ce_stmt = select(CostElement).where(
+            CostElement.cost_element_id == registration_in.cost_element_id,
+            CostElement.branch == branch,
+            func.upper(cast(Any, CostElement).valid_time).is_(None),
+            cast(Any, CostElement).deleted_at.is_(None),
+        )
+        ce_result = await service.session.execute(ce_stmt.limit(1))
+        cost_element = ce_result.scalar_one_or_none()
+
+        if cost_element is None and branch != "main":
+            # Fallback to main branch
+            ce_stmt_main = select(CostElement).where(
+                CostElement.cost_element_id == registration_in.cost_element_id,
+                CostElement.branch == "main",
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            ce_result_main = await service.session.execute(ce_stmt_main.limit(1))
+            cost_element = ce_result_main.scalar_one_or_none()
+
+        if cost_element is None:
+            raise ValueError(
+                f"Cost Element {registration_in.cost_element_id} not found on branch {branch} or main"
+            )
+
+        # Get WBE to fetch project_id
+        wbe_stmt = select(WBE).where(
+            WBE.wbe_id == cost_element.wbe_id,
+            WBE.branch == branch,
+            func.upper(cast(Any, WBE).valid_time).is_(None),
+            cast(Any, WBE).deleted_at.is_(None),
+        )
+        wbe_result = await service.session.execute(wbe_stmt.limit(1))
+        wbe = wbe_result.scalar_one_or_none()
+
+        if wbe is None and branch != "main":
+            # Fallback to main branch
+            wbe_stmt_main = select(WBE).where(
+                WBE.wbe_id == cost_element.wbe_id,
+                WBE.branch == "main",
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
+            )
+            wbe_result_main = await service.session.execute(wbe_stmt_main.limit(1))
+            wbe = wbe_result_main.scalar_one_or_none()
+
+        if wbe is None:
+            raise ValueError(
+                f"WBE {cost_element.wbe_id} not found on branch {branch} or main"
+            )
+
+        project_id = wbe.project_id
+
+        # Create the cost registration
+        registration = await service.create_cost_registration(
             registration_in=registration_in,
             actor_id=current_user.user_id,
         )
+
+        # Validate budget status (non-blocking)
+        budget_warning = await service.validate_budget_status(
+            cost_element_id=registration_in.cost_element_id,
+            project_id=project_id,
+            user_id=current_user.user_id,
+            branch=branch,
+        )
+
+        # Prepare response
+        response = {
+            **CostRegistrationRead.model_validate(registration).model_dump(),
+            "budget_warning": budget_warning.model_dump() if budget_warning else None,
+        }
+
+        return response
 
     except Exception as e:
         raise HTTPException(

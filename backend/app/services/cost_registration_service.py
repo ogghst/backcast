@@ -23,6 +23,10 @@ from app.models.schemas.cost_registration import (
     CostRegistrationCreate,
     CostRegistrationUpdate,
 )
+from app.models.schemas.project_budget_settings import BudgetWarning
+from app.services.project_budget_settings_service import (
+    ProjectBudgetSettingsService,
+)
 
 
 class BudgetStatus(BaseModel):
@@ -49,6 +53,51 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             db: Async database session
         """
         super().__init__(CostRegistration, db)
+
+    async def validate_budget_status(
+        self,
+        cost_element_id: UUID,
+        project_id: UUID,
+        user_id: UUID,
+        branch: str = "main",
+    ) -> BudgetWarning | None:
+        """Validate budget status and return warning if threshold exceeded.
+
+        Checks if the cost element's budget usage exceeds the project's
+        warning threshold. Returns None if no warning needed.
+
+        Args:
+            cost_element_id: The cost element being charged
+            project_id: The project context for validation
+            user_id: The user making the registration (for admin override check)
+            branch: Branch to check budget against (defaults to "main")
+
+        Returns:
+            BudgetWarning if threshold exceeded, None otherwise
+        """
+        # Get project budget settings
+        settings_service = ProjectBudgetSettingsService(self.session)
+        threshold = await settings_service.get_warning_threshold(project_id)
+
+        # Get current budget status
+        budget_status = await self.get_budget_status(
+            cost_element_id=cost_element_id, as_of=None, branch=branch
+        )
+
+        # Check if threshold exceeded
+        if budget_status.percentage < threshold:
+            return None
+
+        # Threshold exceeded - create warning
+        return BudgetWarning(
+            exceeds_threshold=True,
+            threshold_percent=threshold,
+            current_percent=budget_status.percentage,
+            message=(
+                f"Budget usage at {budget_status.percentage:.1f}% "
+                f"exceeds warning threshold of {threshold:.1f}%"
+            ),
+        )
 
     async def create_cost_registration(
         self,
@@ -121,8 +170,60 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
                     f"Cost Element {registration_in.cost_element_id} not found on branch {branch} or main"
                 )
 
-        # Budget validation removed - allowing over-budget registration with frontend warning
+        # Get Cost Element to validate budget and fetch project_id
+        ce_stmt = select(CostElement).where(
+            CostElement.cost_element_id == registration_in.cost_element_id,
+            CostElement.branch == branch,
+            func.upper(cast(Any, CostElement).valid_time).is_(None),
+            cast(Any, CostElement).deleted_at.is_(None),
+        )
+        ce_result = await self.session.execute(ce_stmt.limit(1))
+        cost_element = ce_result.scalar_one_or_none()
 
+        if cost_element is None and branch != "main":
+            # Fallback to main branch
+            ce_stmt_main = select(CostElement).where(
+                CostElement.cost_element_id == registration_in.cost_element_id,
+                CostElement.branch == "main",
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            ce_result_main = await self.session.execute(ce_stmt_main.limit(1))
+            cost_element = ce_result_main.scalar_one_or_none()
+
+        if cost_element is None:
+            raise ValueError(
+                f"Cost Element {registration_in.cost_element_id} not found on branch {branch} or main"
+            )
+
+        # Get WBE to fetch project_id for budget validation
+        wbe_stmt = select(WBE).where(
+            WBE.wbe_id == cost_element.wbe_id,
+            WBE.branch == branch,
+            func.upper(cast(Any, WBE).valid_time).is_(None),
+            cast(Any, WBE).deleted_at.is_(None),
+        )
+        wbe_result = await self.session.execute(wbe_stmt.limit(1))
+        wbe = wbe_result.scalar_one_or_none()
+
+        if wbe is None and branch != "main":
+            # Fallback to main branch
+            wbe_stmt_main = select(WBE).where(
+                WBE.wbe_id == cost_element.wbe_id,
+                WBE.branch == "main",
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
+            )
+            wbe_result_main = await self.session.execute(wbe_stmt_main.limit(1))
+            wbe = wbe_result_main.scalar_one_or_none()
+
+        if wbe is None:
+            raise ValueError(
+                f"WBE {cost_element.wbe_id} not found on branch {branch} or main"
+            )
+
+        # Create the cost registration (budget validation is non-blocking)
+        # The warning will be included in the response via the API layer
         cmd = CreateVersionCommand(
             entity_class=CostRegistration,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,

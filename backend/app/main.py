@@ -28,6 +28,7 @@ from app.api.routes import (
     forecasts,
     gantt,
     progress_entries,
+    project_budget_settings,
     project_members,
     projects,
     schedule_baselines,
@@ -216,6 +217,11 @@ app.include_router(
     project_members.router,
     prefix=settings.API_V1_STR,
     tags=["Project Members"],
+)
+app.include_router(
+    project_budget_settings.router,
+    prefix=f"{settings.API_V1_STR}/projects",
+    tags=["Project Budget Settings"],
 )
 app.include_router(
     wbes.router,

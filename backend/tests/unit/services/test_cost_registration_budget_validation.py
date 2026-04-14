@@ -13,6 +13,9 @@ from app.models.schemas.cost_registration import (
     CostRegistrationCreate,
 )
 from app.services.cost_registration_service import CostRegistrationService
+from app.services.project_budget_settings_service import (
+    ProjectBudgetSettingsService,
+)
 
 # Import fixtures
 from tests.unit.fixtures.cost_element_fixtures import (  # noqa: F401
@@ -280,3 +283,191 @@ class TestBudgetValidation:
 
         # Assert - Only active registration counted
         assert total == Decimal("150.00")
+
+
+class TestServerSideBudgetWarnings:
+    """Test server-side budget warning functionality."""
+
+    @pytest.mark.asyncio
+    async def test_validate_budget_status_returns_none_when_below_threshold(
+        self, db_session: AsyncSession, sample_cost_element_with_budget
+    ) -> None:
+        """Test that validation returns None when budget usage is below threshold."""
+        # Arrange
+        service = CostRegistrationService(db_session)
+        cost_element = sample_cost_element_with_budget  # budget=1000
+
+        # Create costs totaling 500 (50%)
+        for _ in range(5):
+            await service.create_cost_registration(
+                CostRegistrationCreate(
+                    cost_element_id=cost_element.cost_element_id,
+                    amount=Decimal("100.00"),
+                ),
+                actor_id=uuid4(),
+            )
+
+        # Act - Validate with default threshold (80%)
+        warning = await service.validate_budget_status(
+            cost_element_id=cost_element.cost_element_id,
+            project_id=cost_element.wbe_id,  # Using wbe_id as proxy for project_id
+            user_id=uuid4(),
+        )
+
+        # Assert - No warning when below threshold
+        assert warning is None
+
+    @pytest.mark.asyncio
+    async def test_validate_budget_status_returns_warning_when_above_threshold(
+        self, db_session: AsyncSession, sample_cost_element_with_budget
+    ) -> None:
+        """Test that validation returns warning when budget usage exceeds threshold."""
+        # Arrange
+        service = CostRegistrationService(db_session)
+        cost_element = sample_cost_element_with_budget  # budget=1000
+
+        # Create costs totaling 850 (85%)
+        for _ in range(8):
+            await service.create_cost_registration(
+                CostRegistrationCreate(
+                    cost_element_id=cost_element.cost_element_id,
+                    amount=Decimal("100.00"),
+                ),
+                actor_id=uuid4(),
+            )
+        await service.create_cost_registration(
+            CostRegistrationCreate(
+                cost_element_id=cost_element.cost_element_id,
+                amount=Decimal("50.00"),
+            ),
+            actor_id=uuid4(),
+        )
+
+        # Act - Validate with default threshold (80%)
+        warning = await service.validate_budget_status(
+            cost_element_id=cost_element.cost_element_id,
+            project_id=cost_element.wbe_id,  # Using wbe_id as proxy for project_id
+            user_id=uuid4(),
+        )
+
+        # Assert - Warning returned when above threshold
+        assert warning is not None
+        assert warning.exceeds_threshold is True
+        assert warning.current_percent >= Decimal("80.0")
+        assert warning.message is not None
+
+    @pytest.mark.asyncio
+    async def test_validate_budget_status_uses_custom_threshold(
+        self, db_session: AsyncSession, sample_cost_element_with_budget, test_user
+    ) -> None:
+        """Test that validation uses custom project threshold when set."""
+        # Arrange
+        service = CostRegistrationService(db_session)
+        settings_service = ProjectBudgetSettingsService(db_session)
+        cost_element = sample_cost_element_with_budget  # budget=1000
+
+        # Set custom threshold to 90%
+        await settings_service.upsert_settings(
+            project_id=cost_element.wbe_id,  # Using wbe_id as proxy for project_id
+            actor_id=test_user.user_id,
+            warning_threshold_percent=Decimal("90.0"),
+        )
+
+        # Create costs totaling 850 (85% - below custom threshold)
+        for _ in range(8):
+            await service.create_cost_registration(
+                CostRegistrationCreate(
+                    cost_element_id=cost_element.cost_element_id,
+                    amount=Decimal("100.00"),
+                ),
+                actor_id=uuid4(),
+            )
+        await service.create_cost_registration(
+            CostRegistrationCreate(
+                cost_element_id=cost_element.cost_element_id,
+                amount=Decimal("50.00"),
+            ),
+            actor_id=uuid4(),
+        )
+
+        # Act - Validate with custom threshold (90%)
+        warning = await service.validate_budget_status(
+            cost_element_id=cost_element.cost_element_id,
+            project_id=cost_element.wbe_id,
+            user_id=uuid4(),
+        )
+
+        # Assert - No warning when below custom threshold
+        assert warning is None
+
+    @pytest.mark.asyncio
+    async def test_validate_budget_status_with_exactly_threshold(
+        self, db_session: AsyncSession, sample_cost_element_with_budget
+    ) -> None:
+        """Test validation behavior when usage exactly equals threshold."""
+        # Arrange
+        service = CostRegistrationService(db_session)
+        cost_element = sample_cost_element_with_budget  # budget=1000
+
+        # Create costs totaling 800 (exactly 80%)
+        for _ in range(8):
+            await service.create_cost_registration(
+                CostRegistrationCreate(
+                    cost_element_id=cost_element.cost_element_id,
+                    amount=Decimal("100.00"),
+                ),
+                actor_id=uuid4(),
+            )
+
+        # Act - Validate with default threshold (80%)
+        warning = await service.validate_budget_status(
+            cost_element_id=cost_element.cost_element_id,
+            project_id=cost_element.wbe_id,
+            user_id=uuid4(),
+        )
+
+        # Assert - Warning when at or above threshold
+        assert warning is not None
+        assert warning.exceeds_threshold is True
+        assert warning.current_percent == Decimal("80.0")
+
+    @pytest.mark.asyncio
+    async def test_validate_budget_status_includes_correct_percentages(
+        self, db_session: AsyncSession, sample_cost_element_with_budget
+    ) -> None:
+        """Test that warning includes accurate current and threshold percentages."""
+        # Arrange
+        service = CostRegistrationService(db_session)
+        cost_element = sample_cost_element_with_budget  # budget=1000
+
+        # Create costs totaling 950 (95%)
+        for _ in range(9):
+            await service.create_cost_registration(
+                CostRegistrationCreate(
+                    cost_element_id=cost_element.cost_element_id,
+                    amount=Decimal("100.00"),
+                ),
+                actor_id=uuid4(),
+            )
+        await service.create_cost_registration(
+            CostRegistrationCreate(
+                cost_element_id=cost_element.cost_element_id,
+                amount=Decimal("50.00"),
+            ),
+            actor_id=uuid4(),
+        )
+
+        # Act
+        warning = await service.validate_budget_status(
+            cost_element_id=cost_element.cost_element_id,
+            project_id=cost_element.wbe_id,
+            user_id=uuid4(),
+        )
+
+        # Assert - Accurate percentages in warning
+        assert warning is not None
+        assert warning.current_percent == Decimal("95.0")
+        assert warning.threshold_percent == Decimal("80.0")
+        assert "95" in warning.message
+        assert "80" in warning.message
+
