@@ -1,9 +1,9 @@
 # Backlog
 
-**Last Updated:** 2026-02-03
+**Last Updated:** 2026-04-14
 **Total Items:** 35
 **Total Estimated Points:** 213
-**Completed:** 22 items (132 points)
+**Completed:** 23 items (137 points)
 
 ---
 
@@ -436,23 +436,31 @@
 - **Status:** ✅ Complete (Phase 2 Backend)
 - **Ready for Iteration:** No (blocked by E06-U02)
 
-#### [E06-U06-UI] Workflow-Aware Status Management
+#### [E06-U06-UI] Workflow-Aware Status Management ✅
 
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 5
 - **Business Value:** HIGH - User experience & data integrity
 - **Dependencies:** E06-U06 ✅
 - **Acceptance Criteria:**
-  - Create mode: Status dropdown shows only "Draft" (or disabled)
-  - Edit mode: Status dropdown shows only valid transitions from current state
-  - Status field disabled when branch is locked
-  - Status field disabled when `can_edit_on_status()` returns false
-  - Visual warning when working on locked branch
-  - Backend provides `available_transitions` in ChangeOrderPublic schema
-  - Frontend uses `useWorkflowInfo()` hook for dynamic options
+  - Create mode: Status dropdown shows only "Draft" (or disabled) ✅
+  - Edit mode: Status dropdown shows only valid transitions from current state ✅
+  - Status field disabled when branch is locked ✅
+  - Status field disabled when `can_edit_on_status()` returns false ✅
+  - Visual warning when working on locked branch ✅
+  - Backend provides `available_transitions` in ChangeOrderPublic schema ✅
+  - Frontend uses `useWorkflowInfo()` hook for dynamic options ✅
 - **Estimated Complexity:** Simple
-- **Related Docs:** [`iterations/2026-01-11-change-orders-implementation/workflow-ui/00-analysis.md`](iterations/2026-01-11-change-orders-implementation/workflow-ui/00-analysis.md)
-- **Ready for Iteration:** Yes (backend complete)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-04-14
+- **Implementation Notes:**
+  - All 7 acceptance criteria met
+  - 20 backend tests passing (workflow service + metadata)
+  - 12+ frontend tests passing (hook + components)
+  - Zero type/lint errors (TypeScript strict + MyPy strict)
+  - Clean architecture with separation of concerns
+- **Related Docs:** [`iterations/2026-04-14-e06-u06-ui-workflow-aware-status-management/00-analysis.md`](iterations/2026-04-14-e06-u06-ui-workflow-aware-status-management/00-analysis.md)
+- **Ready for Iteration:** No (already complete)
 
 #### [E06-U07] Merged View Showing Main + Branch Changes
 
@@ -615,6 +623,7 @@
 
 | Date       | Item                                              | Points | Iteration                | Notes                              |
 | ---------- | ------------------------------------------------- | ------ | ------------------------ | ---------------------------------- |
+| 2026-04-14 | E06-U06-UI: Workflow-Aware Status Management      | 5      | -                        | Dynamic status options, locking UX |
 | 2026-02-03 | E08-U05/E08-U08: Variances & Historical Metrics   | 10     | EVM Foundation           | CV/SV/VAC, time series trends      |
 | 2026-02-03 | E08-U02/E08-U04: EV Calculation & Performance Indices | 13 | EVM Foundation           | EV rollup, CPI/SPI with gauges     |
 | 2026-01-29 | Branch Entity Versionable                         | 3      | Infrastructure           | Temporal queries for Branch entity |
