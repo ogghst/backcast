@@ -287,6 +287,45 @@ async def get_budget_status(
 
 
 @router.get(
+    "/project-budget-status/{project_id}",
+    operation_id="get_project_budget_status",
+    dependencies=[Depends(RoleChecker(required_permission="cost-registration-read"))],
+)
+async def get_project_budget_status(
+    project_id: UUID,
+    branch: str = Query(
+        "main", description="Branch context to resolve Project budget"
+    ),
+    service: CostRegistrationService = Depends(get_cost_registration_service),
+) -> dict[str, Any]:
+    """Get project-level budget status (aggregated across all cost elements).
+
+    Returns the project budget, total spend across all cost elements,
+    remaining amount, and percentage used. This is used for project-level
+    budget validation in the cost registration modal.
+
+    The total spend is aggregated across all cost registrations in all
+    cost elements belonging to the project.
+    """
+    try:
+        budget_status = await service.get_project_budget_status(
+            project_id=project_id, branch=branch
+        )
+        return {
+            "project_id": str(budget_status.project_id),
+            "project_budget": str(budget_status.project_budget),
+            "total_spend": str(budget_status.total_spend),
+            "remaining": str(budget_status.remaining),
+            "percentage": float(budget_status.percentage),
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
+
+
+@router.get(
     "/aggregated",
     operation_id="get_aggregated_costs",
     dependencies=[Depends(RoleChecker(required_permission="cost-registration-read"))],

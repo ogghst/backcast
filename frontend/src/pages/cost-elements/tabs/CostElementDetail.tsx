@@ -12,7 +12,11 @@ import {
 } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import type { CostElementRead } from "@/api/generated";
-import { useBudgetStatus } from "@/features/cost-registration/api/useCostRegistrations";
+import {
+  useBudgetStatus,
+  useProjectBudgetSettings,
+} from "@/features/cost-registration/api/useCostRegistrations";
+import { useWBE } from "@/features/wbes/api/useWBEs";
 import {
   useUpdateCostElement,
   useCostElementForecast,
@@ -43,6 +47,14 @@ export const CostElementDetail = ({ costElement }: CostElementDetailProps) => {
 
   const { data: budgetStatus, isLoading } = useBudgetStatus(
     costElement.cost_element_id,
+  );
+
+  // Fetch WBE to get project_id for budget settings
+  const { data: wbe } = useWBE(costElement.wbe_id);
+
+  // Fetch project budget settings to get warning threshold
+  const { data: projectBudgetSettings } = useProjectBudgetSettings(
+    wbe?.project_id || "",
   );
 
   // Fetch forecast for this cost element (1:1 relationship)
@@ -95,17 +107,22 @@ export const CostElementDetail = ({ costElement }: CostElementDetailProps) => {
       ? (used / budget) * 100
       : 0;
 
-  // Determine status color
+  // Get warning threshold from project settings (default to 85% if not configured)
+  const warningThresholdPercent = projectBudgetSettings
+    ? Number(projectBudgetSettings.warning_threshold_percent || 85)
+    : 85;
+
+  // Determine status color based on project warning threshold
   let statusColor = "#52c41a"; // green
   let statusText = "Healthy";
 
   if (percentage >= 100) {
     statusColor = "#ff4d4f"; // red
     statusText = "Exceeded";
-  } else if (percentage >= 90) {
+  } else if (percentage >= warningThresholdPercent) {
     statusColor = "#faad14"; // orange
     statusText = "Warning";
-  } else if (percentage >= 75) {
+  } else if (percentage >= warningThresholdPercent - 10) {
     statusColor = "#1890ff"; // blue
     statusText = "Monitoring";
   }
@@ -244,12 +261,12 @@ export const CostElementDetail = ({ costElement }: CostElementDetailProps) => {
               />
             )}
 
-            {percentage >= 90 && percentage < 100 && (
+            {percentage >= warningThresholdPercent && percentage < 100 && (
               <Alert
                 message="Budget Warning"
                 description={isSmallMobile
-                  ? `Used ${percentage.toFixed(1)}% of budget`
-                  : `This cost element has used ${percentage.toFixed(1)}% of its budget. Consider reviewing before adding more costs.`
+                  ? `Used ${percentage.toFixed(1)}% of budget (threshold: ${warningThresholdPercent}%)`
+                  : `This cost element has used ${percentage.toFixed(1)}% of its budget (warning threshold: ${warningThresholdPercent}%). Consider reviewing before adding more costs.`
                 }
                 type="warning"
                 showIcon

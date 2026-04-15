@@ -30,6 +30,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { queryKeys } from "@/api/queryKeys";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
+import { useWBE } from "@/features/wbes/api/useWBEs";
 
 interface CostRegistrationsTabProps {
   costElement: CostElementRead;
@@ -56,6 +57,9 @@ export const CostRegistrationsTab = ({
   const { asOf } = useTimeMachineParams();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
+
+  // Fetch WBE to get project_id for project-level budget validation
+  const { data: wbe } = useWBE(costElement.wbe_id);
 
   // Build query params
   const queryParams: CostRegistrationApiParams = {
@@ -383,6 +387,7 @@ export const CostRegistrationsTab = ({
         confirmLoading={isLoading}
         initialValues={selectedRegistration}
         costElementId={costElement.cost_element_id}
+        projectId={wbe?.project_id ?? ""}
       />
 
       <VersionHistoryDrawer

@@ -7,7 +7,10 @@ import type {
 } from "@/api/generated";
 import dayjs from "dayjs";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
-import { useBudgetStatus } from "../api/useCostRegistrations";
+import {
+  useBudgetStatus,
+  useProjectBudgetSettings,
+} from "../api/useCostRegistrations";
 
 interface CostRegistrationModalProps {
   open: boolean;
@@ -16,6 +19,7 @@ interface CostRegistrationModalProps {
   confirmLoading: boolean;
   initialValues?: CostRegistrationRead | null;
   costElementId: string;
+  projectId: string;
 }
 
 // Common unit of measure options
@@ -38,11 +42,13 @@ export const CostRegistrationModal = ({
   confirmLoading,
   initialValues,
   costElementId,
+  projectId,
 }: CostRegistrationModalProps) => {
   const [form] = Form.useForm();
   const { asOf } = useTimeMachineParams();
   const { modal } = App.useApp();
   const { data: budgetStatus } = useBudgetStatus(costElementId);
+  const { data: projectBudgetSettings } = useProjectBudgetSettings(projectId);
   const isEdit = !!initialValues;
 
   useEffect(() => {
@@ -88,22 +94,37 @@ export const CostRegistrationModal = ({
       const values = await form.validateFields();
 
       const newAmount = Number(values.amount || 0);
-      const budget = budgetStatus ? Number(budgetStatus.budget) : 0;
-      const currentUsed = budgetStatus ? Number(budgetStatus.used) : 0;
+
+      // Cost element-level budget validation
+      const costElementBudget = budgetStatus
+        ? Number(budgetStatus.budget)
+        : 0;
+      const costElementUsed = budgetStatus ? Number(budgetStatus.used) : 0;
 
       // Calculate effective used amount (subtract old amount if editing)
-      let effectiveUsed = currentUsed;
+      let effectiveCostElementUsed = costElementUsed;
       if (isEdit && initialValues) {
-        effectiveUsed -= Number(initialValues.amount);
+        effectiveCostElementUsed -= Number(initialValues.amount);
       }
 
-      // Check if including this new amount exceeds budget (only if there is a budget)
-      if (budget > 0 && effectiveUsed + newAmount > budget) {
+      // Get project warning threshold (default to 85% if not configured)
+      const warningThresholdPercent = projectBudgetSettings
+        ? Number(projectBudgetSettings.warning_threshold_percent || 85)
+        : 85;
+
+      // Calculate cost element warning limit
+      const costElementWarningLimit = costElementBudget * (warningThresholdPercent / 100);
+      const projectedCostElementSpend = effectiveCostElementUsed + newAmount;
+
+      // Check if cost element budget will be exceeded
+      if (costElementBudget > 0 && projectedCostElementSpend > costElementBudget) {
         modal.confirm({
-          title: "Budget Exceeded Warning",
+          title: "Cost Element Budget Exceeded",
           content: (
             <div>
-              <p>This cost registration will exceed the budget.</p>
+              <p>
+                This cost registration will exceed the <strong>cost element budget</strong>.
+              </p>
               <div
                 style={{
                   marginTop: 8,
@@ -115,20 +136,26 @@ export const CostRegistrationModal = ({
                 }}
               >
                 <p style={{ margin: 0 }}>
-                  <strong>Budget:</strong> €
-                  {budget.toLocaleString(undefined, {
+                  <strong>Cost Element Budget:</strong> €
+                  {costElementBudget.toLocaleString(undefined, {
                     minimumFractionDigits: 2,
                   })}
                 </p>
                 <p style={{ margin: 0 }}>
                   <strong>Currently Used:</strong> €
-                  {effectiveUsed.toLocaleString(undefined, {
+                  {effectiveCostElementUsed.toLocaleString(undefined, {
                     minimumFractionDigits: 2,
                   })}
                 </p>
                 <p style={{ margin: 0, color: "#cf1322" }}>
                   <strong>Projected Total:</strong> €
-                  {(effectiveUsed + newAmount).toLocaleString(undefined, {
+                  {projectedCostElementSpend.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                  })}
+                </p>
+                <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
+                  Over budget by: €
+                  {(projectedCostElementSpend - costElementBudget).toLocaleString(undefined, {
                     minimumFractionDigits: 2,
                   })}
                 </p>
@@ -138,6 +165,64 @@ export const CostRegistrationModal = ({
           ),
           okText: "Yes, Proceed",
           okButtonProps: { danger: true },
+          cancelText: "Cancel",
+          onOk: () => processSubmit(values),
+        });
+        return;
+      }
+
+      // Check if cost element spend exceeds warning threshold
+      if (costElementBudget > 0 && projectedCostElementSpend > costElementWarningLimit) {
+        const projectedPercentage = (projectedCostElementSpend / costElementBudget) * 100;
+        modal.confirm({
+          title: "Cost Element Budget Warning",
+          content: (
+            <div>
+              <p>
+                This cost registration will <strong>exceed the cost element threshold</strong> (warning threshold: {warningThresholdPercent}%).
+              </p>
+              <div
+                style={{
+                  marginTop: 8,
+                  marginBottom: 8,
+                  padding: 8,
+                  background: "#fffbe6",
+                  borderRadius: 4,
+                  border: "1px solid #ffe58f",
+                }}
+              >
+                <p style={{ margin: 0 }}>
+                  <strong>Cost Element Budget:</strong> €
+                  {costElementBudget.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                  })}
+                </p>
+                <p style={{ margin: 0 }}>
+                  <strong>Currently Used:</strong> €
+                  {effectiveCostElementUsed.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                  })}{" "}
+                  ({((effectiveCostElementUsed / costElementBudget) * 100).toFixed(1)}%)
+                </p>
+                <p style={{ margin: 0, color: "#d46b08" }}>
+                  <strong>Projected Total:</strong> €
+                  {projectedCostElementSpend.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                  })}{" "}
+                  ({projectedPercentage.toFixed(1)}%)
+                </p>
+                <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
+                  <strong>Warning threshold:</strong> {warningThresholdPercent}% (€
+                  {costElementWarningLimit.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                  })})
+                </p>
+              </div>
+              <p>Are you sure you want to proceed?</p>
+            </div>
+          ),
+          okText: "Yes, Proceed",
+          okButtonProps: { danger: false },
           cancelText: "Cancel",
           onOk: () => processSubmit(values),
         });

@@ -18,6 +18,7 @@ from app.core.versioning.enums import BranchMode
 from app.core.versioning.service import TemporalService
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_registration import CostRegistration
+from app.models.domain.project import Project
 from app.models.domain.wbe import WBE
 from app.models.schemas.cost_registration import (
     CostRegistrationCreate,
@@ -39,6 +40,16 @@ class BudgetStatus(BaseModel):
     percentage: Decimal
 
 
+class ProjectBudgetStatus(BaseModel):
+    """Budget status for a project (aggregated across all cost elements)."""
+
+    project_id: UUID
+    project_budget: Decimal
+    total_spend: Decimal
+    remaining: Decimal
+    percentage: Decimal
+
+
 class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignore[type-var,unused-ignore]
     """Service for Cost Registration management (versionable, not branchable).
 
@@ -54,6 +65,81 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         """
         super().__init__(CostRegistration, db)
 
+    async def get_project_budget_status(
+        self, project_id: UUID, branch: str = "main"
+    ) -> ProjectBudgetStatus:
+        """Get project-level budget status (aggregated across all cost elements).
+
+        Calculates total spend across all cost registrations in the project
+        and compares against the project's overall budget.
+
+        Args:
+            project_id: The project to get status for
+            branch: Branch context for queries (defaults to "main")
+
+        Returns:
+            ProjectBudgetStatus with project_budget, total_spend, remaining, percentage
+        """
+        # Get project budget
+        project_stmt = select(Project).where(
+            Project.project_id == project_id,
+            Project.branch == branch,
+            func.upper(Project.valid_time).is_(None),
+            Project.deleted_at.is_(None),
+        )
+        project_result = await self.session.execute(project_stmt.limit(1))
+        project = project_result.scalar_one_or_none()
+
+        if project is None and branch != "main":
+            # Fallback to main branch
+            project_stmt_main = select(Project).where(
+                Project.project_id == project_id,
+                Project.branch == "main",
+                func.upper(Project.valid_time).is_(None),
+                Project.deleted_at.is_(None),
+            )
+            project_result_main = await self.session.execute(project_stmt_main.limit(1))
+            project = project_result_main.scalar_one_or_none()
+
+        if project is None:
+            raise ValueError(f"Project {project_id} not found on branch {branch} or main")
+
+        project_budget = project.budget
+
+        # Calculate total spend across all cost elements in the project
+        # Join: Project -> WBE -> CostElement -> CostRegistration
+        # Cost registrations are global (not branchable), so we don't need to check multiple branches
+        total_spend_stmt = (
+            select(func.sum(CostRegistration.amount))
+            .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id == project_id,
+                func.upper(CostRegistration.valid_time).is_(None),
+                CostRegistration.deleted_at.is_(None),
+                func.upper(CostElement.valid_time).is_(None),
+                CostElement.deleted_at.is_(None),
+                func.upper(WBE.valid_time).is_(None),
+                WBE.deleted_at.is_(None),
+            )
+        )
+
+        result = await self.session.execute(total_spend_stmt)
+        total_spend = result.scalar_one() or Decimal("0")
+        total_spend = Decimal(str(total_spend))
+
+        # Calculate remaining and percentage
+        remaining = project_budget - total_spend
+        percentage = (total_spend / project_budget * Decimal("100")) if project_budget > 0 else Decimal("0")
+
+        return ProjectBudgetStatus(
+            project_id=project_id,
+            project_budget=project_budget,
+            total_spend=total_spend,
+            remaining=remaining,
+            percentage=percentage,
+        )
+
     async def validate_budget_status(
         self,
         cost_element_id: UUID,
@@ -63,39 +149,41 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
     ) -> BudgetWarning | None:
         """Validate budget status and return warning if threshold exceeded.
 
-        Checks if the cost element's budget usage exceeds the project's
-        warning threshold. Returns None if no warning needed.
+        Checks if the PROJECT's total budget usage exceeds the project's
+        warning threshold (aggregated across all cost elements).
+        Returns None if no warning needed.
 
         Args:
-            cost_element_id: The cost element being charged
+            cost_element_id: The cost element being charged (for context)
             project_id: The project context for validation
             user_id: The user making the registration (for admin override check)
             branch: Branch to check budget against (defaults to "main")
 
         Returns:
-            BudgetWarning if threshold exceeded, None otherwise
+            BudgetWarning if project-level threshold exceeded, None otherwise
         """
         # Get project budget settings
         settings_service = ProjectBudgetSettingsService(self.session)
         threshold = await settings_service.get_warning_threshold(project_id)
 
-        # Get current budget status
-        budget_status = await self.get_budget_status(
-            cost_element_id=cost_element_id, as_of=None, branch=branch
+        # Get PROJECT-level budget status (aggregated across all cost elements)
+        project_budget_status = await self.get_project_budget_status(
+            project_id=project_id, branch=branch
         )
 
         # Check if threshold exceeded
-        if budget_status.percentage < threshold:
+        if project_budget_status.percentage < threshold:
             return None
 
         # Threshold exceeded - create warning
         return BudgetWarning(
             exceeds_threshold=True,
             threshold_percent=threshold,
-            current_percent=budget_status.percentage,
+            current_percent=project_budget_status.percentage,
             message=(
-                f"Budget usage at {budget_status.percentage:.1f}% "
-                f"exceeds warning threshold of {threshold:.1f}%"
+                f"Project budget usage at {project_budget_status.percentage:.1f}% "
+                f"exceeds warning threshold of {threshold:.1f}% "
+                f"(€{project_budget_status.total_spend:,.2f} of €{project_budget_status.project_budget:,.2f})"
             ),
         )
 
