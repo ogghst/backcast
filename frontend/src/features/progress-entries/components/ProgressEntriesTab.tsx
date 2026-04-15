@@ -34,6 +34,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
+import { mapHistoryVersions } from "@/utils/versionHistory";
 import { ProgressEntriesService } from "@/api/generated";
 
 interface ProgressEntriesTabProps {
@@ -362,30 +363,7 @@ export const ProgressEntriesTab = ({
       <VersionHistoryDrawer
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
-        versions={(historyVersions || []).map((version, idx, arr) => {
-          type HistoryItem = {
-            valid_from?: string;
-            valid_time?: string | { lower: string };
-            transaction_time?: string | { lower: string };
-            created_by_name?: string;
-            progress_percentage?: string;
-          };
-          const v = version as unknown as HistoryItem;
-
-          return {
-            id: `v${arr.length - idx}`,
-            valid_from:
-              v.valid_from ||
-              (typeof v.valid_time === "object" ? v.valid_time?.lower : v.valid_time) ||
-              "",
-            transaction_time:
-              (typeof v.transaction_time === "object"
-                ? v.transaction_time?.lower
-                : v.transaction_time) || "",
-            valid_to: null,
-            changed_by: v.created_by_name || "System",
-          };
-        })}
+        versions={mapHistoryVersions(historyVersions)}
         entityName={`Progress Entry: ${
           selectedEntry?.progress_percentage
             ? `${selectedEntry.progress_percentage}%`

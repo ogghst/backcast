@@ -9,6 +9,7 @@ import {
 import { useState } from "react";
 import type { ColumnType } from "antd/es/table";
 import type { FilterValue } from "antd/es/table/interface";
+import { formatDate } from "@/utils/formatters";
 import {
   CostRegistrationsService,
   type CostRegistrationRead,
@@ -26,6 +27,7 @@ import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
+import { mapHistoryVersions } from "@/utils/versionHistory";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
@@ -235,7 +237,7 @@ export const CostRegistrationsTab = ({
       key: "registration_date",
       sorter: true,
       width: 140,
-      render: (date) => (date ? dayjs(date).format("YYYY-MM-DD") : "-"),
+      render: (date) => formatDate(date, { style: "short", fallback: "-" }),
     },
     {
       title: "Description",
@@ -392,24 +394,7 @@ export const CostRegistrationsTab = ({
       <VersionHistoryDrawer
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
-        versions={(historyVersions || []).map((version, idx, arr) => {
-          // Helper type for history object variations
-          type HistoryItem = {
-            valid_from?: string;
-            valid_time?: string | { lower: string; start?: string };
-            transaction_time?: string | { lower: string; start?: string };
-            created_by_name?: string;
-          };
-          const v = version as unknown as HistoryItem;
-
-          return {
-            id: `v${arr.length - idx}`,
-            valid_from: v.valid_from || (typeof v.valid_time === "string" ? v.valid_time : ""),
-            transaction_time: (typeof v.transaction_time === "string" ? v.transaction_time : ""),
-            valid_to: null,
-            changed_by: v.created_by_name || "System",
-          };
-        })}
+        versions={mapHistoryVersions(historyVersions)}
         entityName={`Cost Registration: ${
           selectedRegistration?.description ||
           `€${selectedRegistration?.amount}`
