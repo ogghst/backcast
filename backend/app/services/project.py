@@ -230,7 +230,9 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         )
         project = await cmd.execute(self.session)
 
-        # Populate created_by_name and created_at
+        await self._apply_project_creation_defaults(root_id, actor_id)
+
+        await self._populate_project_metadata_from_db(project)
         await self._populate_project_metadata_from_db(project)
         return project
 
@@ -356,6 +358,22 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         if hasattr(project, 'transaction_time') and project.transaction_time:
             if hasattr(project.transaction_time, 'lower'):
                 project.created_at = project.transaction_time.lower  # type: ignore
+
+    async def _apply_project_creation_defaults(
+        self, project_id: UUID, actor_id: UUID
+    ) -> None:
+        """Apply default configurations to a newly created project."""
+        from app.core.project_defaults import apply_project_creation_defaults
+        from app.services.project_budget_settings_service import (
+            ProjectBudgetSettingsService,
+        )
+
+        budget_service = ProjectBudgetSettingsService(self.session)
+        await apply_project_creation_defaults(
+            project_id=project_id,
+            actor_id=actor_id,
+            budget_settings_service=budget_service,
+        )
 
     async def get_project_branches(
         self, project_id: UUID, as_of: datetime | None = None
