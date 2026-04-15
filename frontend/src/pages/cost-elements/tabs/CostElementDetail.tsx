@@ -3,11 +3,9 @@ import {
   Descriptions,
   Progress,
   Statistic,
-  Row,
-  Col,
-  Alert,
   Button,
   Grid,
+  Typography,
   theme,
 } from "antd";
 import { EditOutlined } from "@ant-design/icons";
@@ -34,6 +32,7 @@ interface CostElementDetailProps {
 }
 
 const { useBreakpoint } = Grid;
+const { Text } = Typography;
 
 export const CostElementDetail = ({ costElement }: CostElementDetailProps) => {
   const screens = useBreakpoint();
@@ -155,128 +154,46 @@ export const CostElementDetail = ({ costElement }: CostElementDetailProps) => {
         {isLoading ? (
           <Progress percent={0} />
         ) : (
-          <>
-            <Row
-              gutter={[isMobile ? token.marginSM : token.marginLG, isMobile ? token.marginSM : token.marginMD]}
-              style={{ marginBottom: isMobile ? token.marginMD : token.marginLG }}
-            >
-              <Col xs={12} sm={12} md={6}>
-                <Statistic
-                  title="Budget"
-                  value={budget}
-                  precision={2}
-                  prefix="€"
-                  styles={{
-                    content: {
-                      color: token.colorInfo,
-                      fontSize: isSmallMobile ? token.fontSizeLG : token.fontSizeXL,
-                    },
-                    title: {
-                      fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
-                    },
-                  }}
-                />
-              </Col>
-              <Col xs={12} sm={12} md={6}>
-                <Statistic
-                  title="Used"
-                  value={used}
-                  precision={2}
-                  prefix="€"
-                  styles={{
-                    content: {
-                      color: percentage >= 100 ? token.colorError : token.colorSuccess,
-                      fontSize: isSmallMobile ? token.fontSizeLG : token.fontSizeXL,
-                    },
-                    title: {
-                      fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
-                    },
-                  }}
-                />
-              </Col>
-              <Col xs={12} sm={12} md={6}>
-                <Statistic
-                  title="Remaining"
-                  value={remaining}
-                  precision={2}
-                  prefix="€"
-                  styles={{
-                    content: {
-                      color: remaining < 0 ? token.colorError : token.colorSuccess,
-                      fontSize: isSmallMobile ? token.fontSizeLG : token.fontSizeXL,
-                    },
-                    title: {
-                      fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
-                    },
-                  }}
-                />
-              </Col>
-              <Col xs={12} sm={12} md={6}>
-                <Statistic
-                  title="Used"
-                  value={percentage}
-                  precision={1}
-                  suffix="%"
-                  styles={{
-                    content: {
-                      color: statusColor,
-                      fontSize: isSmallMobile ? token.fontSizeLG : token.fontSizeXL,
-                    },
-                    title: {
-                      fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
-                    },
-                  }}
-                />
-              </Col>
-            </Row>
-
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: token.paddingMD,
+            }}
+          >
             <Progress
-              percent={Math.min(percentage, 100)}
+              type="circle"
+              percent={Math.round(Math.min(percentage, 100))}
+              size={80}
+              format={(percent) => `${percent}%`}
               strokeColor={statusColor}
-              status={percentage >= 100 ? "exception" : undefined}
-              strokeHeight={isMobile ? 8 : 10}
             />
-            <div style={{
-              marginTop: token.paddingXS,
-              color: token.colorTextSecondary,
-              fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
-            }}>
-              Status:{" "}
-              <strong style={{ color: statusColor }}>{statusText}</strong>
+            <div>
+              <Text strong style={{ fontSize: token.fontSizeLG }}>
+                {statusText}
+              </Text>
+              <br />
+              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                Budget: €{budget.toFixed(2)} · Used: €{used.toFixed(2)} · Remaining: €{remaining.toFixed(2)}
+              </Text>
+              {remaining < 0 && (
+                <>
+                  <br />
+                  <Text type="danger" style={{ fontSize: token.fontSizeSM }}>
+                    ⚠ Over budget by €{Math.abs(remaining).toFixed(2)}
+                  </Text>
+                </>
+              )}
+              {percentage >= warningThresholdPercent && percentage < 100 && (
+                <>
+                  <br />
+                  <Text type="warning" style={{ fontSize: token.fontSizeSM }}>
+                    ⚠ Approaching budget limit (threshold: {warningThresholdPercent}%)
+                  </Text>
+                </>
+              )}
             </div>
-
-            {remaining < 0 && (
-              <Alert
-                message="Budget Exceeded"
-                description={isSmallMobile
-                  ? `Over budget by €${Math.abs(remaining).toFixed(2)}`
-                  : `This cost element has exceeded its budget by €${Math.abs(remaining).toFixed(2)}.`
-                }
-                type="warning"
-                showIcon
-                style={{
-                  marginTop: isMobile ? token.marginSM : token.marginMD,
-                  fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
-                }}
-              />
-            )}
-
-            {percentage >= warningThresholdPercent && percentage < 100 && (
-              <Alert
-                message="Budget Warning"
-                description={isSmallMobile
-                  ? `Used ${percentage.toFixed(1)}% of budget (threshold: ${warningThresholdPercent}%)`
-                  : `This cost element has used ${percentage.toFixed(1)}% of its budget (warning threshold: ${warningThresholdPercent}%). Consider reviewing before adding more costs.`
-                }
-                type="warning"
-                showIcon
-                style={{
-                  marginTop: isMobile ? token.marginSM : token.marginMD,
-                  fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
-                }}
-              />
-            )}
-          </>
+          </div>
         )}
       </CollapsibleCard>
 
