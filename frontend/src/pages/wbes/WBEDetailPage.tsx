@@ -25,6 +25,11 @@ import { Can } from "@/components/auth/Can";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { WbEsService } from "@/api/generated";
 import { EntityGrid } from "@/components/common/EntityGrid";
+import {
+  parseTemporalRangeLowerBound,
+  parseRangeUpperBound,
+  isRangeUnbounded,
+} from "@/utils/temporal";
 
 import {
   useEVMMetrics,
@@ -466,30 +471,25 @@ export const WBEDetailPage = () => {
           entityName={`WBE: ${wbe.code} - ${wbe.name}`}
           isLoading={historyLoading}
           versions={(historyVersions || []).map((version, idx, arr) => {
-            // Basic parsing of stringified range "[start, end)"
-            let start = new Date().toISOString();
-            if (version.valid_time && typeof version.valid_time === "string") {
-              const clean = version.valid_time
-                .replace("[", "")
-                .replace(")", "")
-                .split(",")[0];
-              if (clean) start = clean.trim();
-            } else if (
-              Array.isArray(
-                (version as unknown as { valid_time: string[] }).valid_time,
-              )
-            ) {
-              start = (version as unknown as { valid_time: string[] })
-                .valid_time[0];
-            }
+            // Parse valid_time range using temporal utilities
+            const validFrom = parseTemporalRangeLowerBound(version.valid_time);
+            const validTo = parseRangeUpperBound(version.valid_time);
+            const isCurrentlyValid = isRangeUnbounded(version.valid_time);
+
+            // Parse transaction_time (when this version was recorded)
+            const transactionTime = parseTemporalRangeLowerBound(version.transaction_time);
 
             return {
               id: `v${arr.length - idx}`,
-              valid_from: start,
-              transaction_time: new Date().toISOString(), // Placeholder if not parsed
+              valid_from: validFrom?.toISOString() || new Date().toISOString(),
+              // Include valid_to in changes for display
+              changes: {
+                valid_from: validFrom?.toISOString() || "",
+                valid_to: validTo?.toISOString() || (isCurrentlyValid ? "Present" : ""),
+                transaction_time: transactionTime?.toISOString() || "",
+              },
+              transaction_time: transactionTime?.toISOString() || new Date().toISOString(),
               changed_by: version.created_by_name || "System",
-              changes:
-                idx === 0 ? { created: "initial" } : { updated: "changed" },
             };
           })}
         />

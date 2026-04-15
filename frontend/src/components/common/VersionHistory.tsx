@@ -1,6 +1,8 @@
-import { Drawer, List, Button, Tag, Typography, Space } from "antd";
-import { HistoryOutlined, UndoOutlined } from "@ant-design/icons";
-import dayjs from "dayjs";
+import { Drawer, List, Button, Typography, Space, Divider } from "antd";
+import { HistoryOutlined, UndoOutlined, ClockCircleOutlined } from "@ant-design/icons";
+import { formatTemporalDate } from "@/utils/temporal";
+
+const { Text } = Typography;
 
 interface Version {
   id: string;
@@ -38,49 +40,82 @@ export const VersionHistoryDrawer = ({
       placement="right"
       onClose={onClose}
       open={open}
-      size={400}
+      size={450}
     >
       <List
         loading={isLoading}
         itemLayout="vertical"
         dataSource={versions}
-        renderItem={(item) => (
-          <List.Item
-            actions={[
-              onRestore && (
-                <Button
-                  size="small"
-                  icon={<UndoOutlined />}
-                  onClick={() => onRestore(item.id)}
-                >
-                  Restore
-                </Button>
-              ),
-            ]}
-          >
-            <List.Item.Meta
-              title={
-                <Space>
-                  <Tag color="blue">v{item.id}</Tag>
-                  <Typography.Text type="secondary">
-                    {dayjs(item.valid_from).format("YYYY-MM-DD HH:mm")}
-                  </Typography.Text>
-                </Space>
-              }
-              description={
-                <div>
-                  <div>Changed by: {item.changed_by || "Unknown"}</div>
-                  {/* Simplistic diff view for now */}
-                  {item.changes && (
-                    <Typography.Text code>
-                      {Object.keys(item.changes).join(", ")} changed
-                    </Typography.Text>
-                  )}
-                </div>
-              }
-            />
-          </List.Item>
-        )}
+        renderItem={(item, index) => {
+          const changes = item.changes as Record<string, string> | undefined;
+          const validFrom = changes?.valid_from
+            ? formatTemporalDate(changes.valid_from)
+            : "Unknown";
+          const validTo = changes?.valid_to;
+          const validToDisplay = validTo === "Present"
+            ? "Present"
+            : (validTo ? formatTemporalDate(validTo) : "Unknown");
+          const transactionTime = changes?.transaction_time
+            ? formatTemporalDate(changes.transaction_time)
+            : "Unknown";
+
+          return (
+            <List.Item
+              actions={[
+                onRestore && (
+                  <Button
+                    size="small"
+                    icon={<UndoOutlined />}
+                    onClick={() => onRestore(item.id)}
+                  >
+                    Restore
+                  </Button>
+                ),
+              ]}
+            >
+              <List.Item.Meta
+                title={
+                  <Text type="secondary">Valid from {validFrom}</Text>
+                }
+                description={
+                  <div style={{ marginTop: 8 }}>
+                    <Space direction="vertical" size="small" style={{ width: "100%" }}>
+                      {/* Valid Time Range */}
+                      <div>
+                        <Text type="secondary" strong>
+                          Valid Time:
+                        </Text>
+                        <br />
+                        <Text style={{ fontSize: "12px" }}>
+                          {validFrom} → {validToDisplay}
+                        </Text>
+                      </div>
+
+                      {/* Transaction Time */}
+                      <div>
+                        <ClockCircleOutlined style={{ marginRight: 4 }} />
+                        <Text type="secondary" strong>
+                          Recorded:
+                        </Text>{" "}
+                        <Text style={{ fontSize: "12px" }}>{transactionTime}</Text>
+                      </div>
+
+                      {/* Changed By */}
+                      <div>
+                        <Text type="secondary" strong>
+                          Changed by:
+                        </Text>{" "}
+                        <Text>{item.changed_by || "Unknown"}</Text>
+                      </div>
+
+                      {index !== versions.length - 1 && <Divider style={{ margin: "4px 0" }} />}
+                    </Space>
+                  </div>
+                }
+              />
+            </List.Item>
+          );
+        }}
       />
     </Drawer>
   );
