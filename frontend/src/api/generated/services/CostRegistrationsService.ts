@@ -138,6 +138,39 @@ export class CostRegistrationsService {
         });
     }
     /**
+     * Get Project Budget Status
+     * Get project-level budget status (aggregated across all cost elements).
+     *
+     * Returns the project budget, total spend across all cost elements,
+     * remaining amount, and percentage used. This is used for project-level
+     * budget validation in the cost registration modal.
+     *
+     * The total spend is aggregated across all cost registrations in all
+     * cost elements belonging to the project.
+     * @param projectId
+     * @param branch Branch context to resolve Project budget
+     * @returns any Successful Response
+     * @throws ApiError
+     */
+    public static getProjectBudgetStatus(
+        projectId: string,
+        branch: string = 'main',
+    ): CancelablePromise<Record<string, any>> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/cost-registrations/project-budget-status/{project_id}',
+            path: {
+                'project_id': projectId,
+            },
+            query: {
+                'branch': branch,
+            },
+            errors: {
+                422: `Validation Error`,
+            },
+        });
+    }
+    /**
      * Get Aggregated Costs
      * Get cost aggregations by time period.
      *

@@ -1,5 +1,18 @@
 /**
  * Temporal/bitemporal utility functions for handling valid_time and transaction_time ranges.
+ *
+ * @deprecated This module is deprecated. Use @/utils/localeDate for locale-aware date formatting.
+ *
+ * The backend now provides pre-formatted temporal data via computed fields:
+ * - valid_time_formatted.lower_formatted
+ * - transaction_time_formatted.lower_formatted
+ *
+ * For locale-aware formatting of backend dates, use:
+ * - formatLocaleDate() - Format dates using browser locale
+ * - formatLocaleDateTime() - Format datetimes using browser locale
+ * - formatLocaleTemporalRange() - Format temporal ranges using browser locale
+ *
+ * This file is kept for backward compatibility during the migration period.
  */
 
 /**
@@ -68,7 +81,10 @@ export function parseRangeLowerBound(rangeStr: string | null | undefined): Date 
 
   if (commaIndex === -1) return null;
 
-  const timestamp = rangeStr.slice(1, commaIndex).trim();
+  let timestamp = rangeStr.slice(1, commaIndex).trim();
+
+  // Remove escaped quotes if present (JSON serialization of PostgreSQL ranges)
+  timestamp = timestamp.replace(/\\"/g, '');
 
   // Check for infinity
   if (timestamp === '-infinity' || timestamp === 'infinity') {
@@ -100,7 +116,10 @@ export function parseRangeUpperBound(rangeStr: string | null | undefined): Date 
 
   if (commaIndex === -1) return null;
 
-  const timestamp = rangeStr.slice(commaIndex + 1, -1).trim();
+  let timestamp = rangeStr.slice(commaIndex + 1, -1).trim();
+
+  // Remove escaped quotes if present (JSON serialization of PostgreSQL ranges)
+  timestamp = timestamp.replace(/\\"/g, '');
 
   // Check for empty (unbounded) or infinity
   if (!timestamp || timestamp === '-infinity' || timestamp === 'infinity') {
@@ -129,7 +148,10 @@ export function isRangeUnbounded(rangeStr: string | null | undefined): boolean {
 
   if (commaIndex === -1) return false;
 
-  const upperBound = rangeStr.slice(commaIndex + 1, -1).trim();
+  let upperBound = rangeStr.slice(commaIndex + 1, -1).trim();
+
+  // Remove escaped quotes if present (JSON serialization of PostgreSQL ranges)
+  upperBound = upperBound.replace(/\\"/g, '');
 
   // Empty or infinity means unbounded
   return !upperBound || upperBound === '-infinity' || upperBound === 'infinity';

@@ -25,11 +25,6 @@ import { Can } from "@/components/auth/Can";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { WbEsService } from "@/api/generated";
 import { EntityGrid } from "@/components/common/EntityGrid";
-import {
-  parseTemporalRangeLowerBound,
-  parseRangeUpperBound,
-  isRangeUnbounded,
-} from "@/utils/temporal";
 
 import {
   useEVMMetrics,
@@ -471,25 +466,20 @@ export const WBEDetailPage = () => {
           entityName={`WBE: ${wbe.code} - ${wbe.name}`}
           isLoading={historyLoading}
           versions={(historyVersions || []).map((version, idx, arr) => {
-            // Parse valid_time range using temporal utilities
-            const validFrom = parseTemporalRangeLowerBound(version.valid_time);
-            const validTo = parseRangeUpperBound(version.valid_time);
-            const isCurrentlyValid = isRangeUnbounded(version.valid_time);
-
-            // Parse transaction_time (when this version was recorded)
-            const transactionTime = parseTemporalRangeLowerBound(version.transaction_time);
+            // Use backend-formatted temporal data (computed fields)
+            const validTimeFormatted = version.valid_time_formatted;
+            const transactionTimeFormatted = version.transaction_time_formatted;
 
             return {
               id: `v${arr.length - idx}`,
-              valid_from: validFrom?.toISOString() || new Date().toISOString(),
-              // Include valid_to in changes for display
-              changes: {
-                valid_from: validFrom?.toISOString() || "",
-                valid_to: validTo?.toISOString() || (isCurrentlyValid ? "Present" : ""),
-                transaction_time: transactionTime?.toISOString() || "",
-              },
-              transaction_time: transactionTime?.toISOString() || new Date().toISOString(),
+              // Pass the formatted temporal data directly to VersionHistoryDrawer
+              valid_from: validTimeFormatted?.lower || "",
+              valid_to: validTimeFormatted?.upper || null,
+              transaction_time: transactionTimeFormatted?.lower || "",
               changed_by: version.created_by_name || "System",
+              // Also pass the formatted objects for the drawer to use
+              valid_time_formatted: validTimeFormatted,
+              transaction_time_formatted: transactionTimeFormatted,
             };
           })}
         />

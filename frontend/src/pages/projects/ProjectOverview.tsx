@@ -22,6 +22,7 @@ import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { ProjectsService } from "@/api/generated";
 import { ProjectEditModal } from "@/components/projects/ProjectEditModal";
 import { getProjectStatusColor } from "@/lib/status";
+import { formatRangeDate } from "@/utils/temporal";
 
 /**
  * Format a numeric value as EUR currency.
@@ -581,10 +582,10 @@ export const ProjectOverview = () => {
                   {formatTimestamp(project.created_at)}
                 </Descriptions.Item>
                 <Descriptions.Item label="Valid Time">
-                  {formatTimestamp(project.valid_time)}
+                  {formatRangeDate(project.valid_time)}
                 </Descriptions.Item>
                 <Descriptions.Item label="Transaction Time">
-                  {formatTimestamp(project.transaction_time)}
+                  {formatRangeDate(project.transaction_time)}
                 </Descriptions.Item>
               </Descriptions>
             </div>
@@ -647,30 +648,17 @@ export const ProjectOverview = () => {
             entityName={`Project: ${project.name}`}
             isLoading={historyLoading}
             versions={(historyVersions || []).map((version, idx, arr) => {
-              // Basic parsing of stringified range "[start, end)"
-              let start = new Date().toISOString();
-              if (version.valid_time && typeof version.valid_time === "string") {
-                const clean = version.valid_time
-                  .replace("[", "")
-                  .replace(")", "")
-                  .split(",")[0];
-                if (clean) start = clean.trim();
-              } else if (
-                Array.isArray(
-                  (version as unknown as { valid_time: string[] }).valid_time
-                )
-              ) {
-                start = (version as unknown as { valid_time: string[] })
-                  .valid_time[0];
-              }
-
               return {
                 id: `v${arr.length - idx}`,
-                valid_from: start,
-                transaction_time: new Date().toISOString(), // Placeholder if not parsed
+                valid_from: version.valid_time || "",
+                transaction_time: version.transaction_time || "",
                 changed_by: version.created_by_name || "System",
+                valid_to: null, // The backend formatter handles unbounded ranges
                 changes:
                   idx === 0 ? { created: "initial" } : { updated: "changed" },
+                // Backend-formatted temporal fields (new API format)
+                valid_time_formatted: version.valid_time_formatted,
+                transaction_time_formatted: version.transaction_time_formatted,
               };
             })}
           />

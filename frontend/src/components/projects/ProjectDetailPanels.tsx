@@ -35,6 +35,7 @@ import {
 } from "@ant-design/icons";
 import { ProjectRead } from "@/api/generated";
 import { getProjectStatusColor } from "@/lib/status";
+import { formatRangeDate } from "@/utils/temporal";
 
 const { Text } = Typography;
 
@@ -395,10 +396,10 @@ export const ProjectDetailPanels: React.FC<ProjectDetailPanelsProps> = ({ projec
               {formatTimestamp(project.created_at)}
             </Descriptions.Item>
             <Descriptions.Item label="Valid Time">
-              {formatTimestamp(project.valid_time)}
+              {formatRangeDate(project.valid_time)}
             </Descriptions.Item>
             <Descriptions.Item label="Transaction Time">
-              {formatTimestamp(project.transaction_time)}
+              {formatRangeDate(project.transaction_time)}
             </Descriptions.Item>
           </Descriptions>
         ),

@@ -13,11 +13,11 @@ import {
   HistoryOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
-import dayjs from "dayjs";
 import { useState } from "react";
 import type { ColumnType } from "antd/es/table";
 import type { FilterValue } from "antd/es/table/interface";
 import type { CostElementRead } from "@/api/generated";
+import { formatRangeDate } from "@/utils/temporal";
 import type { ProgressEntryRead, ProgressEntryCreate } from "@/api/generated";
 import {
   useProgressEntries,
@@ -201,12 +201,7 @@ export const ProgressEntriesTab = ({
       sorter: true,
       render: (validTime: string) => {
         if (!validTime) return "-";
-        // Extract lower bound from TSTZRANGE format: '["2026-01-31T00:00:00Z",)'
-        const lowerBound = validTime
-          .split(",")[0]
-          .substring(1)
-          .replace(/"/g, "");
-        return dayjs(lowerBound).format("YYYY-MM-DD HH:mm");
+        return formatRangeDate(validTime);
       },
     },
     {
@@ -381,20 +376,14 @@ export const ProgressEntriesTab = ({
             id: `v${arr.length - idx}`,
             valid_from:
               v.valid_from ||
-              (typeof v.valid_time === "object" ? v.valid_time?.lower : null) ||
-              (typeof v.valid_time === "string"
-                ? v.valid_time
-                : new Date().toISOString()),
+              (typeof v.valid_time === "object" ? v.valid_time?.lower : v.valid_time) ||
+              "",
             transaction_time:
               (typeof v.transaction_time === "object"
                 ? v.transaction_time?.lower
-                : null) ||
-              (typeof v.transaction_time === "string"
-                ? v.transaction_time
-                : new Date().toISOString()),
+                : v.transaction_time) || "",
+            valid_to: null,
             changed_by: v.created_by_name || "System",
-            changes:
-              idx === 0 ? { created: "initial" } : { updated: "changed" },
           };
         })}
         entityName={`Progress Entry: ${

@@ -27,7 +27,6 @@ import { useTableParams } from "@/hooks/useTableParams";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { useQueryClient } from "@tanstack/react-query";
-import dayjs from "dayjs";
 import { queryKeys } from "@/api/queryKeys";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { useWBE } from "@/features/wbes/api/useWBEs";
@@ -397,30 +396,18 @@ export const CostRegistrationsTab = ({
           // Helper type for history object variations
           type HistoryItem = {
             valid_from?: string;
-            valid_time?: string | { lower: string };
-            transaction_time?: string | { lower: string };
+            valid_time?: string | { lower: string; start?: string };
+            transaction_time?: string | { lower: string; start?: string };
             created_by_name?: string;
           };
           const v = version as unknown as HistoryItem;
 
           return {
             id: `v${arr.length - idx}`,
-            valid_from:
-              v.valid_from ||
-              (typeof v.valid_time === "object" ? v.valid_time?.lower : null) ||
-              (typeof v.valid_time === "string"
-                ? v.valid_time
-                : new Date().toISOString()),
-            transaction_time:
-              (typeof v.transaction_time === "object"
-                ? v.transaction_time?.lower
-                : null) ||
-              (typeof v.transaction_time === "string"
-                ? v.transaction_time
-                : new Date().toISOString()),
+            valid_from: v.valid_from || (typeof v.valid_time === "string" ? v.valid_time : ""),
+            transaction_time: (typeof v.transaction_time === "string" ? v.transaction_time : ""),
+            valid_to: null,
             changed_by: v.created_by_name || "System",
-            changes:
-              idx === 0 ? { created: "initial" } : { updated: "changed" },
           };
         })}
         entityName={`Cost Registration: ${

@@ -548,3 +548,33 @@ export const useCostElementEvmHistory = (
     enabled: !!costElementId,
   });
 };
+
+/**
+ * Hook to get full version history for a cost element.
+ * Returns all versions of the cost element (including forecast data) in the specified branch,
+ * ordered by transaction_time descending (most recent first).
+ *
+ * @param costElementId - The cost element ID
+ * @param branch - Branch to query history from
+ * @returns TanStack Query result with array of cost element versions
+ */
+export const useCostElementHistory = (
+  costElementId: string,
+  branch?: string,
+) => {
+  const { branch: tmBranch } = useTimeMachineParams();
+
+  return useQuery<CostElementRead[]>({
+    queryKey: queryKeys.costElements.detail(costElementId, {
+      branch: branch || tmBranch,
+      history: true,
+    }),
+    queryFn: async () => {
+      return await CostElementsService.getHistory(
+        costElementId,
+        branch || tmBranch || "main",
+      );
+    },
+    enabled: !!costElementId,
+  });
+};

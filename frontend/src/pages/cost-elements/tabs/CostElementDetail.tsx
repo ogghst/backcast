@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   Descriptions,
   Progress,
-  Statistic,
   Button,
   Grid,
   Typography,
@@ -26,6 +25,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
+import { formatRangeDate } from "@/utils/temporal";
 
 interface CostElementDetailProps {
   costElement: CostElementRead;
@@ -252,12 +252,10 @@ export const CostElementDetail = ({ costElement }: CostElementDetailProps) => {
             {costElement.created_by || "-"}
           </Descriptions.Item>
           <Descriptions.Item label="Valid Time">
-            {costElement.valid_time
-              ? new Date(costElement.valid_time).toLocaleString()
-              : "-"}
+            {costElement.valid_time ? formatRangeDate(costElement.valid_time) : "-"}
           </Descriptions.Item>
           <Descriptions.Item label="Transaction Time">
-            {costElement.transaction_time ?? "-"}
+            {costElement.transaction_time ? formatRangeDate(costElement.transaction_time) : "-"}
           </Descriptions.Item>
         </Descriptions>
       </CollapsibleCard>
