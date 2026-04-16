@@ -7,6 +7,7 @@ import {
   SyncOutlined,
   MergeCellsOutlined,
   ToolOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import type { ChangeOrderPublic } from "@/api/generated";
 import {
@@ -65,7 +66,7 @@ export function ChangeOrderWorkflowSection({
   const [recoveryDialogVisible, setRecoveryDialogVisible] = useState(false);
 
   // Workflow actions - Hook must be top level
-  const { submit, review, approve, reject, merge, isLoading } = useWorkflowActions(
+  const { submit, review, approve, reject, merge, archive, isLoading } = useWorkflowActions(
     changeOrder?.change_order_id || "",
     { onSuccess: onActionSuccess },
   );
@@ -213,6 +214,17 @@ export function ChangeOrderWorkflowSection({
                 style={{ backgroundColor: "#722ed1", borderColor: "#722ed1" }}
               >
                 Merge to Main
+              </Button>
+            )}
+            {/* Archive button - visible for Implemented/Rejected */}
+            {(status === "Implemented" || status === "Rejected") && (
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => archive()}
+                disabled={actionsDisabled}
+              >
+                Archive
               </Button>
             )}
             {/* Recovery button for stuck workflows (admin only) */}

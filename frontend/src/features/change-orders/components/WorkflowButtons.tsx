@@ -59,7 +59,8 @@ export function WorkflowButtons({
   const canReject = true; // Reject is always available as a workflow action
   const canReopen = isActionAvailable("REOPEN", availableTransitions);
   const canMerge = isActionAvailable("MERGE", availableTransitions);
-  const canArchive = isActionAvailable("ARCHIVE", availableTransitions);
+  const canArchive = changeOrder.status === "Implemented" ||
+                     changeOrder.status === "Rejected";
 
   const handleAction = async (action: () => Promise<ChangeOrderPublic>) => {
     try {
