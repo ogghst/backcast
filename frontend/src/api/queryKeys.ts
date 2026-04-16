@@ -106,6 +106,10 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     history: (id: string) => ["cost-registrations", "history", id] as const,
     budgetStatus: (costElementId: string, context?: unknown) =>
       ["budget-status", costElementId, context] as const,
+    aggregated: (entityType: string, entityId: string, params?: unknown) =>
+      [...queryKeys.costRegistrations.all, "aggregated", entityType, entityId, params] as const,
+    cumulative: (entityType: string, entityId: string, params?: unknown) =>
+      [...queryKeys.costRegistrations.all, "cumulative", entityType, entityId, params] as const,
   },
 
   // Progress Entries

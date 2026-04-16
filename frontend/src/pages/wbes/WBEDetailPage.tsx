@@ -35,6 +35,7 @@ import { EVMTimeSeriesChart } from "@/features/evm/components/EVMTimeSeriesChart
 import { EVMAnalyzerModal } from "@/features/evm/components/EVMAnalyzerModal";
 import { EVMTimeSeriesGranularity, EntityType } from "@/features/evm/types";
 import { ChatInterface } from "@/features/ai/chat/components/ChatInterface";
+import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
 
 export const WBEDetailPage = () => {
   const { projectId, wbeId } = useParams<{
@@ -401,6 +402,13 @@ export const WBEDetailPage = () => {
                 {evmTabContent}
               </>
             ),
+          },
+          {
+            key: "cost-history",
+            label: "Cost History",
+            children: wbe ? (
+              <CostHistoryChart entityType="wbe" entityId={wbeId!} />
+            ) : null,
           },
           {
             key: "chat",

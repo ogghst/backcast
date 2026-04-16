@@ -12,6 +12,7 @@ import { CostRegistrationsTab } from "./tabs/CostRegistrationsTab";
 import { ForecastsTab } from "./tabs/ForecastsTab";
 import { ScheduleBaselinesTab } from "./tabs/ScheduleBaselinesTab";
 import { ProgressEntriesTab } from "@/features/progress-entries/components/ProgressEntriesTab";
+import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
 import {
   CostElementBreadcrumbBuilder,
   type CostElementBreadcrumb,
@@ -89,6 +90,17 @@ export const CostElementDetailPage = () => {
       label: "Cost Registrations",
       children: costElement ? (
         <CostRegistrationsTab costElement={costElement} />
+      ) : null,
+    },
+    {
+      key: "cost-history",
+      label: "Cost History",
+      children: costElement ? (
+        <CostHistoryChart
+          entityType="cost_element"
+          entityId={costElement.cost_element_id}
+          budgetAmount={Number(costElement.budget_amount)}
+        />
       ) : null,
     },
     {
