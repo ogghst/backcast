@@ -570,7 +570,9 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
 
         # Apply legacy dict filters (for backward compatibility)
         if filters:
-            if "wbe_id" in filters:
+            if "wbe_ids" in filters:
+                stmt = stmt.where(CostElement.wbe_id.in_(filters["wbe_ids"]))
+            elif "wbe_id" in filters:
                 stmt = stmt.where(CostElement.wbe_id == filters["wbe_id"])
             if "cost_element_type_id" in filters:
                 stmt = stmt.where(
@@ -648,6 +650,68 @@ class CostElementService(BranchableService[CostElement]):  # type: ignore[type-v
             limit=limit,
         )
         return items
+
+    async def get_as_of_batch(
+        self,
+        entity_ids: builtin_list[UUID],
+        as_of: datetime | None = None,
+        branch: str = "main",
+        branch_mode: BranchMode | None = None,
+    ) -> dict[UUID, CostElement]:
+        """Bulk time-travel fetch: Get multiple entities at a specific timestamp.
+
+        Args:
+            entity_ids: List of root entity IDs (cost_element_id)
+            as_of: Timestamp to query (None = current versions)
+            branch: Branch name (default: main)
+            branch_mode: Resolution mode for branches (STRICT or MERGE)
+
+        Returns:
+            Dictionary mapping cost_element_id to CostElement (only found entities)
+        """
+        if not entity_ids:
+            return {}
+
+        if branch_mode is None:
+            branch_mode = BranchMode.STRICT
+
+        stmt = (
+            select(CostElement)
+            .where(CostElement.cost_element_id.in_(entity_ids))
+            .where(CostElement.deleted_at.is_(None))
+        )
+
+        # Apply temporal filters
+        if as_of is not None:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            stmt = stmt.where(func.upper(CostElement.valid_time).is_(None))
+
+        # Branch filtering with MERGE mode support
+        if branch_mode == BranchMode.MERGE and branch != "main":
+            import asyncio
+
+            branch_stmt = stmt.where(CostElement.branch == branch)
+            main_stmt = stmt.where(CostElement.branch == "main")
+
+            (branch_results, main_results) = await asyncio.gather(
+                self.session.execute(branch_stmt),
+                self.session.execute(main_stmt),
+            )
+            branch_elements = {
+                e.cost_element_id: e for e in branch_results.scalars()
+            }
+            main_elements = {
+                e.cost_element_id: e for e in main_results.scalars()
+            }
+
+            merged = main_elements.copy()
+            merged.update(branch_elements)
+            return merged
+        else:
+            stmt = stmt.where(CostElement.branch == branch)
+            rows = await self.session.execute(stmt)
+            return {e.cost_element_id: e for e in rows.scalars()}
 
     async def get_history(
         self, root_id: UUID, branch: str = "main"

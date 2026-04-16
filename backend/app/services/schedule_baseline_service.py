@@ -453,12 +453,14 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
         self,
         cost_element_ids: list[UUID],
         branch: str = "main",
+        as_of: datetime | None = None,
     ) -> dict[UUID, ScheduleBaseline]:
         """Get schedule baselines for multiple cost elements efficiently.
 
         Args:
             cost_element_ids: List of cost element UUIDs
             branch: Branch name (default: "main")
+            as_of: Optional timestamp for time-travel query (None = current)
 
         Returns:
             Dictionary mapping cost_element_id to ScheduleBaseline
@@ -478,13 +480,38 @@ class ScheduleBaselineService(BranchableService[ScheduleBaseline]):  # type: ign
             .where(
                 CostElement.cost_element_id.in_(cost_element_ids),
                 CostElement.branch == branch,
-                func.upper(cast(Any, CostElement).valid_time).is_(None),
-                cast(Any, CostElement).deleted_at.is_(None),
+                CostElement.deleted_at.is_(None),
                 ScheduleBaseline.branch == branch,
-                func.upper(cast(Any, ScheduleBaseline).valid_time).is_(None),
-                cast(Any, ScheduleBaseline).deleted_at.is_(None),
+                ScheduleBaseline.deleted_at.is_(None),
             )
         )
+
+        # Apply temporal filters for time-travel
+        if as_of is not None:
+            from sqlalchemy import cast as sql_cast
+            from sqlalchemy import or_
+            from sqlalchemy.dialects.postgresql import TIMESTAMP
+
+            as_of_tstz = sql_cast(as_of, TIMESTAMP(timezone=True))
+            stmt = stmt.where(
+                CostElement.valid_time.op("@>")(as_of_tstz),
+                func.lower(CostElement.valid_time) <= as_of_tstz,
+                or_(
+                    CostElement.deleted_at.is_(None),
+                    CostElement.deleted_at > as_of_tstz,
+                ),
+                ScheduleBaseline.valid_time.op("@>")(as_of_tstz),
+                func.lower(ScheduleBaseline.valid_time) <= as_of_tstz,
+                or_(
+                    ScheduleBaseline.deleted_at.is_(None),
+                    ScheduleBaseline.deleted_at > as_of_tstz,
+                ),
+            )
+        else:
+            stmt = stmt.where(
+                func.upper(CostElement.valid_time).is_(None),
+                func.upper(ScheduleBaseline.valid_time).is_(None),
+            )
 
         result = await self.session.execute(stmt)
 

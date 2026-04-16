@@ -1,7 +1,9 @@
 """EVM (Earned Value Management) Service - orchestrates EVM metrics calculation."""
 
+import asyncio
 import logging
 import time
+from bisect import bisect_right
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -612,41 +614,34 @@ class EVMService:
         # appears in multiple WBEs (e.g., in MERGE mode with branch versions)
         unique_cost_element_ids = list(dict.fromkeys(cost_element_ids))
 
-        # TODO: Optimize this loop with a batch get_as_of in BranchableService later
-        for ce_id in unique_cost_element_ids:
-            ce = await self.ce_service.get_as_of(
-                entity_id=ce_id,
-                as_of=control_date,
-                branch=branch,
-                branch_mode=branch_mode,
-            )
-            if ce:
-                cost_elements.append(ce)
-                valid_ids.append(ce.cost_element_id)
+        ce_map = await self.ce_service.get_as_of_batch(
+            entity_ids=unique_cost_element_ids,
+            as_of=control_date,
+            branch=branch,
+            branch_mode=branch_mode,
+        )
 
-        if not valid_ids:
+        if not ce_map:
             return []
 
-        # 2. Bulk fetch all related data
-        baselines_map = await self.sb_service.get_baselines_for_cost_elements(
-            valid_ids, branch
-        )
+        cost_elements = list(ce_map.values())
+        valid_ids = list(ce_map.keys())
 
-        ac_map = await self.cr_service.get_totals_for_cost_elements(
-            valid_ids, as_of=control_date
-        )
-
-        progress_map = await self.pe_service.get_latest_progress_for_cost_elements(
-            valid_ids, as_of=control_date
-        )
-
-        # CRITICAL FIX: In MERGE mode, forecasts should be fetched from the cost element's branch
-        # When the requested branch doesn't exist, cost_elements are from main (via MERGE fallback),
-        # so forecasts must also be fetched from main, not the non-existent branch.
-        # Forecasts "follow" the cost element - they are linked via CostElement.forecast_id.
+        # 2. Bulk fetch all related data in parallel
         forecast_branch = "main" if branch_mode == BranchMode.MERGE else branch
-        forecasts_map = await self.f_service.get_forecasts_for_cost_elements(
-            valid_ids, forecast_branch
+        baselines_map, ac_map, progress_map, forecasts_map = await asyncio.gather(
+            self.sb_service.get_baselines_for_cost_elements(
+                valid_ids, branch, as_of=control_date
+            ),
+            self.cr_service.get_totals_for_cost_elements(
+                valid_ids, as_of=control_date
+            ),
+            self.pe_service.get_latest_progress_for_cost_elements(
+                valid_ids, as_of=control_date
+            ),
+            self.f_service.get_forecasts_for_cost_elements(
+                valid_ids, forecast_branch
+            ),
         )
 
         # 3. Calculate metrics in memory
@@ -829,25 +824,23 @@ class EVMService:
         Raises:
             ValueError: If no valid cost elements found
         """
-        # Collect all cost element IDs from all WBEs
+        # Fetch ALL cost elements for ALL WBEs in ONE query
+        all_cost_elements, _ = await self.ce_service.get_cost_elements(
+            filters={"wbe_ids": wbe_ids},
+            branch=branch,
+            branch_mode=branch_mode,
+            as_of=None,
+            skip=0,
+            limit=10000,
+        )
+
+        # Deduplicate cost element IDs
         all_cost_element_ids: list[UUID] = []
-
-        for wbe_id in wbe_ids:
-            # Get all cost elements for this WBE
-            # Note: We pass None for as_of to get current versions, then time-travel
-            # is handled in calculate_evm_metrics for each cost element
-            cost_elements, _ = await self.ce_service.get_cost_elements(
-                filters={"wbe_id": wbe_id},
-                branch=branch,
-                branch_mode=branch_mode,
-                as_of=None,  # Get current versions
-                skip=0,
-                limit=10000,  # Large limit to get all cost elements
-            )
-
-            # Extract cost element IDs (using cost_element_id from CostElement model)
-            for ce in cost_elements:
+        seen_ce_ids: set[UUID] = set()
+        for ce in all_cost_elements:
+            if ce.cost_element_id not in seen_ce_ids:
                 all_cost_element_ids.append(ce.cost_element_id)
+                seen_ce_ids.add(ce.cost_element_id)
 
         if not all_cost_element_ids:
             # No cost elements found for these WBEs
@@ -936,23 +929,29 @@ class EVMService:
         Raises:
             ValueError: If no valid WBEs found
         """
-        # Collect all WBE IDs from all Projects
+        # Fetch WBEs for ALL projects in parallel
+        wbe_fetches = await asyncio.gather(
+            *[
+                self.wbe_service.get_wbes(
+                    project_id=project_id,
+                    branch=branch,
+                    branch_mode=branch_mode,
+                    as_of=None,
+                    skip=0,
+                    limit=10000,
+                )
+                for project_id in project_ids
+            ]
+        )
+
+        # Collect all unique WBE IDs
         all_wbe_ids: list[UUID] = []
-
-        for project_id in project_ids:
-            # Get all WBEs for this project
-            wbes, _ = await self.wbe_service.get_wbes(
-                project_id=project_id,
-                branch=branch,
-                branch_mode=branch_mode,
-                as_of=None,  # Get current versions
-                skip=0,
-                limit=10000,  # Large limit to get all WBEs
-            )
-
-            # Extract WBE IDs (using wbe_id from WBE model)
+        seen_wbe_ids: set[UUID] = set()
+        for wbes, _ in wbe_fetches:
             for wbe in wbes:
-                all_wbe_ids.append(wbe.wbe_id)
+                if wbe.wbe_id not in seen_wbe_ids:
+                    all_wbe_ids.append(wbe.wbe_id)
+                    seen_wbe_ids.add(wbe.wbe_id)
 
         if not all_wbe_ids:
             # No WBEs found for these projects
@@ -1134,6 +1133,74 @@ class EVMService:
             progress_percentage=progress_percentage,
             warning=warning,
         )
+
+    async def _gather_timeseries(
+        self,
+        tasks: list[Awaitable[EVMTimeSeriesResponse]],
+        label: str,
+    ) -> list[EVMTimeSeriesResponse]:
+        """Execute time-series tasks concurrently, filtering out failures."""
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        collected: list[EVMTimeSeriesResponse] = []
+        for r in results:
+            if isinstance(r, BaseException):
+                if not isinstance(r, ValueError):
+                    logger.warning(f"Unexpected error fetching {label} time-series: {r}")
+                continue
+            collected.append(r)
+        return collected
+
+    def _aggregate_timeseries(
+        self,
+        all_timeseries: list[EVMTimeSeriesResponse],
+        dates: list[datetime],
+    ) -> list[EVMTimeSeriesPoint]:
+        """Aggregate multiple time-series into a single point list.
+
+        Uses running cursors for O(dates * timeseries) instead of
+        O(dates * timeseries * points_per_series).
+        """
+        # Pre-build: for each time-series, extract sorted (date, point) pairs
+        ts_sorted: list[list[tuple[datetime, EVMTimeSeriesPoint]]] = []
+        for ts in all_timeseries:
+            ts_sorted.append([(p.date, p) for p in ts.points])
+
+        # Running cursors — one per time-series, advancing monotonically
+        cursors = [0] * len(ts_sorted)
+
+        aggregated: list[EVMTimeSeriesPoint] = []
+        for date in dates:
+            total_pv = Decimal("0")
+            total_ev = Decimal("0")
+            total_ac = Decimal("0")
+            total_forecast = Decimal("0")
+            total_actual = Decimal("0")
+
+            for i, entries in enumerate(ts_sorted):
+                # Advance cursor to latest entry <= date
+                while cursors[i] < len(entries) and entries[cursors[i]][0].date() <= date.date():
+                    cursors[i] += 1
+                if cursors[i] > 0:
+                    p = entries[cursors[i] - 1][1]
+                    total_pv += p.pv
+                    total_ev += p.ev
+                    total_ac += p.ac
+                    total_forecast += p.forecast
+                    total_actual += p.actual
+
+            cpi, spi = self._calculate_indices(total_ev, total_ac, total_pv)
+            aggregated.append(EVMTimeSeriesPoint(
+                date=date,
+                pv=total_pv,
+                ev=total_ev,
+                ac=total_ac,
+                forecast=total_forecast,
+                actual=total_actual,
+                cpi=cpi,
+                spi=spi,
+            ))
+
+        return aggregated
 
     @log_performance("get_evm_timeseries")
     async def get_evm_timeseries(
@@ -1414,24 +1481,23 @@ class EVMService:
 
         # Generate points using pre-fetched data (no more queries!)
         points: list[EVMTimeSeriesPoint] = []
-        latest_ev = Decimal("0")
-        Decimal("0")  # Track last PV for projection beyond baseline
 
-        # Calculate AC at control_date (to carry forward for future dates)
-        # Calculate AC and EV at control_date (to carry forward for future dates)
+        # Pre-sort keys for O(log n) bisect lookups instead of O(n) linear scans
+        sorted_ac_dates = sorted(ac_map.keys())
+        sorted_ev_dates = sorted(ev_map.keys())
+
         final_ac = Decimal("0")
-        for ac_date in sorted(ac_map.keys()):
-            if ac_date <= control_date:
-                final_ac = ac_map[ac_date]
-            else:
-                break
+        ac_idx = bisect_right(sorted_ac_dates, control_date)
+        if ac_idx > 0:
+            final_ac = ac_map[sorted_ac_dates[ac_idx - 1]]
 
         final_ev = Decimal("0")
-        for report_date, (_progress_pct, ev_val) in sorted(ev_map.items()):
-            if report_date <= control_date:
-                final_ev = ev_val
-            else:
-                break
+        ev_idx = bisect_right(sorted_ev_dates, control_date)
+        if ev_idx > 0:
+            final_ev = ev_map[sorted_ev_dates[ev_idx - 1]][1]
+
+        latest_ev = Decimal("0")
+        ev_cursor = 0  # Running cursor avoids re-scanning from start
 
         for date in dates:
             # 1. Calculate PV (deterministic based on date)
@@ -1464,25 +1530,18 @@ class EVMService:
 
             # 2. Calculate EV and AC
             if date > control_date:
-                ev = final_ev  # Use EV at control_date for future dates (flat line)
-                ac = final_ac  # Use AC at control_date for future dates (flat line)
+                ev = final_ev
+                ac = final_ac
             else:
-                # Get EV from progress entries (find latest progress as of date)
-                for report_date, (_progress_pct, ev_val) in sorted(ev_map.items()):
-                    if report_date <= date:
-                        latest_ev = ev_val
-                    else:
-                        break
+                # EV: advance running cursor to find latest entry <= date
+                while ev_cursor < len(sorted_ev_dates) and sorted_ev_dates[ev_cursor] <= date:
+                    latest_ev = ev_map[sorted_ev_dates[ev_cursor]][1]
+                    ev_cursor += 1
                 ev = latest_ev
 
-                # Get AC from cost registrations
-                latest_ac = Decimal("0")
-                for ac_date in sorted(ac_map.keys()):
-                    if ac_date <= date:
-                        latest_ac = ac_map[ac_date]
-                    else:
-                        break
-                ac = latest_ac
+                # AC: bisect for O(log n) lookup
+                ac_idx = bisect_right(sorted_ac_dates, date)
+                ac = ac_map[sorted_ac_dates[ac_idx - 1]] if ac_idx > 0 else Decimal("0")
 
             # Calculate performance indices
             cpi, spi = self._calculate_indices(ev=ev, ac=ac, pv=pv)
@@ -1504,6 +1563,191 @@ class EVMService:
             points.append(point)
 
         return points
+
+    async def _generate_timeseries_points_batch(
+        self,
+        cost_element_ids: list[UUID],
+        granularity: EVMTimeSeriesGranularity,
+        control_date: datetime,
+        branch: str,
+        branch_mode: BranchMode,
+    ) -> dict[UUID, list[EVMTimeSeriesPoint]]:
+        """Generate time-series data points for multiple cost elements at once.
+
+        Uses batch queries to fetch all data in 4 parallel round-trips regardless
+        of how many cost elements are processed.  Each CE's points are then built
+        in-memory from the pre-fetched maps.
+
+        Args:
+            cost_element_ids: Cost element IDs to process
+            granularity: Time granularity (day, week, month)
+            control_date: Control date for time-travel
+            branch: Branch name
+            branch_mode: Branch isolation mode
+
+        Returns:
+            Dictionary mapping each cost_element_id to its list of
+            EVMTimeSeriesPoint.  CEs with no BAC or no data are omitted.
+        """
+        if not cost_element_ids:
+            return {}
+
+        # 1. Batch-fetch all data in parallel (4 queries total, not 4 * N)
+        cumulative_start = datetime.min.replace(tzinfo=UTC)
+        ce_map, ac_raw, progress_raw, baseline_map = await asyncio.gather(
+            self.ce_service.get_as_of_batch(
+                cost_element_ids, control_date, branch, branch_mode
+            ),
+            self.cr_service.get_cumulative_costs_batch(
+                cost_element_ids, cumulative_start, control_date, control_date
+            ),
+            self.pe_service.get_progress_history_batch(
+                cost_element_ids, control_date
+            ),
+            self.sb_service.get_baselines_for_cost_elements(
+                cost_element_ids, branch, control_date
+            ),
+        )
+
+        # 2. For each CE, build timeseries points from pre-fetched data
+        result: dict[UUID, list[EVMTimeSeriesPoint]] = {}
+
+        for ce_id in cost_element_ids:
+            ce = ce_map.get(ce_id)
+            if ce is None or ce.budget_amount is None:
+                continue
+
+            bac = ce.budget_amount
+            baseline = baseline_map.get(ce_id)
+
+            # Build AC map (same logic as _generate_timeseries_points)
+            ac_map: dict[datetime, Decimal] = {}
+            for entry in ac_raw.get(ce_id, []):
+                entry_date = datetime.fromisoformat(
+                    entry["registration_date"]
+                ).replace(hour=0, minute=0, second=0, microsecond=0)
+                if entry_date.tzinfo is None and control_date.tzinfo is not None:
+                    entry_date = entry_date.replace(tzinfo=control_date.tzinfo)
+                ac_map[entry_date] = Decimal(str(entry["cumulative_amount"]))
+
+            # Build EV map (same logic as _generate_timeseries_points)
+            ev_map: dict[datetime, tuple[Decimal, Decimal]] = {}
+            pe_list = progress_raw.get(ce_id, [])
+            sorted_entries = sorted(
+                [
+                    (p, p.valid_time.lower if p.valid_time else None)
+                    for p in pe_list
+                ],
+                key=lambda x: x[1] if x[1] is not None else datetime.min,
+            )
+            p_entry: ProgressEntry
+            valid_lower: datetime | None
+            for p_entry, valid_lower in sorted_entries:
+                if valid_lower is not None:
+                    report_date = valid_lower.replace(
+                        hour=0, minute=0, second=0, microsecond=0
+                    )
+                    ev = bac * p_entry.progress_percentage / Decimal("100")
+                    ev_map[report_date] = (p_entry.progress_percentage, ev)
+
+            # Determine date range (mirrors _generate_timeseries_points logic)
+            if baseline is None:
+                if not ac_map and not ev_map:
+                    continue
+                earliest_ac = min(ac_map.keys()) if ac_map else control_date
+                earliest_ev = min(ev_map.keys()) if ev_map else control_date
+                earliest_date = min(earliest_ac, earliest_ev)
+                dates = self._generate_date_intervals(
+                    earliest_date, control_date, granularity
+                )
+                strategy = None
+                baseline_end = control_date
+            else:
+                from app.services.progression import get_progression_strategy
+
+                strategy = get_progression_strategy(baseline.progression_type)
+                start_date = baseline.start_date
+                end_date = max(baseline.end_date, control_date)
+                dates = self._generate_date_intervals(
+                    start_date, end_date, granularity
+                )
+                baseline_end = baseline.end_date
+
+            # Generate points (same bisect + cursor logic)
+            sorted_ac_dates = sorted(ac_map.keys())
+            sorted_ev_dates = sorted(ev_map.keys())
+
+            final_ac = Decimal("0")
+            ac_idx = bisect_right(sorted_ac_dates, control_date)
+            if ac_idx > 0:
+                final_ac = ac_map[sorted_ac_dates[ac_idx - 1]]
+
+            final_ev = Decimal("0")
+            ev_idx = bisect_right(sorted_ev_dates, control_date)
+            if ev_idx > 0:
+                final_ev = ev_map[sorted_ev_dates[ev_idx - 1]][1]
+
+            latest_ev = Decimal("0")
+            ev_cursor = 0
+            points: list[EVMTimeSeriesPoint] = []
+
+            for date in dates:
+                # PV calculation
+                if baseline is None or strategy is None:
+                    pv = Decimal("0")
+                elif date > control_date:
+                    if date > baseline_end:
+                        pv = bac
+                    else:
+                        progress = strategy.calculate_progress(
+                            date, baseline.start_date, baseline.end_date
+                        )
+                        pv = bac * Decimal(str(progress))
+                else:
+                    if date > baseline_end:
+                        pv = bac
+                    else:
+                        progress = strategy.calculate_progress(
+                            date, baseline.start_date, baseline.end_date
+                        )
+                        pv = bac * Decimal(str(progress))
+
+                # EV and AC
+                if date > control_date:
+                    ev = final_ev
+                    ac = final_ac
+                else:
+                    while (
+                        ev_cursor < len(sorted_ev_dates)
+                        and sorted_ev_dates[ev_cursor] <= date
+                    ):
+                        latest_ev = ev_map[sorted_ev_dates[ev_cursor]][1]
+                        ev_cursor += 1
+                    ev = latest_ev
+                    ac_idx = bisect_right(sorted_ac_dates, date)
+                    ac = (
+                        ac_map[sorted_ac_dates[ac_idx - 1]]
+                        if ac_idx > 0
+                        else Decimal("0")
+                    )
+
+                cpi, spi = self._calculate_indices(ev=ev, ac=ac, pv=pv)
+                points.append(
+                    EVMTimeSeriesPoint(
+                        date=date,
+                        pv=pv,
+                        ev=ev,
+                        ac=ac,
+                        forecast=pv,
+                        actual=ac,
+                        cpi=float(cpi) if cpi is not None else None,
+                        spi=float(spi) if spi is not None else None,
+                    )
+                )
+
+            result[ce_id] = points
+
+        return result
 
     def _generate_date_intervals(
         self,
@@ -1624,34 +1868,27 @@ class EVMService:
                 total_points=0,
             )
 
-        # Collect all time-series from child cost elements
+        # Batch-fetch timeseries for all CEs in 4 parallel queries
+        ce_ids = [ce.cost_element_id for ce in cost_elements]
+        ce_points_map = await self._generate_timeseries_points_batch(
+            ce_ids, granularity, control_date, branch, branch_mode,
+        )
+
+        # Build EVMTimeSeriesResponse for each CE that has points
         all_timeseries: list[EVMTimeSeriesResponse] = []
-        overall_start_date = control_date
-        overall_end_date = control_date
-
-        for ce in cost_elements:
-            try:
-                ce_timeseries = await self.get_evm_timeseries(
-                    entity_type=EntityType.COST_ELEMENT,
-                    entity_id=ce.cost_element_id,
-                    granularity=granularity,
-                    control_date=control_date,
-                    branch=branch,
-                    branch_mode=branch_mode,
-                )
-                all_timeseries.append(ce_timeseries)
-
-                # Update overall date range
-                if ce_timeseries.start_date < overall_start_date:
-                    overall_start_date = ce_timeseries.start_date
-                if ce_timeseries.end_date > overall_end_date:
-                    overall_end_date = ce_timeseries.end_date
-            except ValueError:
-                # Skip cost elements that fail
+        for _ce_id, points in ce_points_map.items():
+            if not points:
                 continue
+            ts_response = EVMTimeSeriesResponse(
+                granularity=granularity,
+                points=points,
+                start_date=points[0].date,
+                end_date=points[-1].date,
+                total_points=len(points),
+            )
+            all_timeseries.append(ts_response)
 
         if not all_timeseries:
-            # No valid time-series found
             return EVMTimeSeriesResponse(
                 granularity=granularity,
                 points=[],
@@ -1659,6 +1896,14 @@ class EVMService:
                 end_date=control_date,
                 total_points=0,
             )
+
+        overall_start_date = control_date
+        overall_end_date = control_date
+        for ts in all_timeseries:
+            if ts.start_date < overall_start_date:
+                overall_start_date = ts.start_date
+            if ts.end_date > overall_end_date:
+                overall_end_date = ts.end_date
 
         # Generate date intervals for the aggregated range
         dates = self._generate_date_intervals(
@@ -1668,46 +1913,7 @@ class EVMService:
         )
 
         # Aggregate time-series points by date
-        aggregated_points: list[EVMTimeSeriesPoint] = []
-        for date in dates:
-            # Sum values from all time-series for this date
-            total_pv = Decimal("0")
-            total_ev = Decimal("0")
-            total_ac = Decimal("0")
-            total_forecast = Decimal("0")
-            total_actual = Decimal("0")
-
-            for ts in all_timeseries:
-                # Find the latest point less than or equal to the current date
-                # Since ts.points is sorted chronologically, we take the last point that matches
-                latest_point = None
-                for point in ts.points:
-                    if point.date.date() <= date.date():  # Compare dates without time
-                        latest_point = point
-                    else:
-                        # Since points are sorted, we can stop once we pass the current date
-                        break
-
-                if latest_point:
-                    total_pv += latest_point.pv
-                    total_ev += latest_point.ev
-                    total_ac += latest_point.ac
-                    total_forecast += latest_point.forecast
-                    total_actual += latest_point.actual
-
-            cpi, spi = self._calculate_indices(total_ev, total_ac, total_pv)
-
-            aggregated_point = EVMTimeSeriesPoint(
-                date=date,
-                pv=total_pv,
-                ev=total_ev,
-                ac=total_ac,
-                forecast=total_forecast,
-                actual=total_actual,
-                cpi=cpi,
-                spi=spi,
-            )
-            aggregated_points.append(aggregated_point)
+        aggregated_points = self._aggregate_timeseries(all_timeseries, dates)
 
         return EVMTimeSeriesResponse(
             granularity=granularity,
@@ -1726,9 +1932,11 @@ class EVMService:
         branch: str,
         branch_mode: BranchMode,
     ) -> EVMTimeSeriesResponse:
-        """Get EVM time-series for a Project by aggregating child WBEs.
+        """Get EVM time-series for a Project by aggregating all its cost elements.
 
-        The date range is from project start to max(project end, control_date).
+        Instead of going Project -> WBEs -> per-WBE parallel calls (which causes
+        connection pool saturation), this method fetches all cost elements directly
+        and calls ``_generate_timeseries_points_batch`` once (4 queries total).
 
         Args:
             project_id: Project ID
@@ -1752,7 +1960,6 @@ class EVMService:
         )
 
         if project is None:
-            # Project not found - return empty time-series
             return EVMTimeSeriesResponse(
                 granularity=granularity,
                 points=[],
@@ -1761,18 +1968,17 @@ class EVMService:
                 total_points=0,
             )
 
-        # Get all WBEs for this project
+        # Fetch ALL cost elements for the project in one query via WBE IDs
         wbes, _ = await self.wbe_service.get_wbes(
             project_id=project_id,
             branch=branch,
             branch_mode=branch_mode,
-            as_of=None,  # Get current versions
+            as_of=None,
             skip=0,
             limit=10000,
         )
 
         if not wbes:
-            # No WBEs found - return empty time-series
             return EVMTimeSeriesResponse(
                 granularity=granularity,
                 points=[],
@@ -1781,40 +1987,21 @@ class EVMService:
                 total_points=0,
             )
 
-        # Determine date range: project start to max(project end, control_date)
-        start_date = project.start_date or control_date
-        end_date = project.end_date or control_date
-        if control_date > end_date:
-            end_date = control_date
+        wbe_ids = [wbe.wbe_id for wbe in wbes]
+        all_cost_elements, _ = await self.ce_service.get_cost_elements(
+            filters={"wbe_ids": wbe_ids},
+            branch=branch,
+            branch_mode=branch_mode,
+            as_of=None,
+            skip=0,
+            limit=10000,
+        )
 
-        # Collect all time-series from child WBEs
-        all_timeseries: list[EVMTimeSeriesResponse] = []
-        overall_start_date = end_date
-        overall_end_date = start_date
-
-        for wbe in wbes:
-            try:
-                wbe_timeseries = await self.get_evm_timeseries(
-                    entity_type=EntityType.WBE,
-                    entity_id=wbe.wbe_id,
-                    granularity=granularity,
-                    control_date=control_date,
-                    branch=branch,
-                    branch_mode=branch_mode,
-                )
-                all_timeseries.append(wbe_timeseries)
-
-                # Update overall date range
-                if wbe_timeseries.start_date < overall_start_date:
-                    overall_start_date = wbe_timeseries.start_date
-                if wbe_timeseries.end_date > overall_end_date:
-                    overall_end_date = wbe_timeseries.end_date
-            except ValueError:
-                # Skip WBEs that fail
-                continue
-
-        if not all_timeseries:
-            # No valid time-series found
+        if not all_cost_elements:
+            start_date = project.start_date or control_date
+            end_date = project.end_date or control_date
+            if control_date > end_date:
+                end_date = control_date
             return EVMTimeSeriesResponse(
                 granularity=granularity,
                 points=[],
@@ -1823,60 +2010,65 @@ class EVMService:
                 total_points=0,
             )
 
-        # Use project date range if it's broader
-        if start_date < overall_start_date:
-            overall_start_date = start_date
-        if end_date > overall_end_date:
-            overall_end_date = end_date
+        # Single batch call for ALL project cost elements (4 queries total)
+        ce_ids = [ce.cost_element_id for ce in all_cost_elements]
+        ce_points_map = await self._generate_timeseries_points_batch(
+            ce_ids, granularity, control_date, branch, branch_mode,
+        )
 
-        # Generate date intervals for the aggregated range
+        # Build EVMTimeSeriesResponse objects from batch results
+        all_timeseries: list[EVMTimeSeriesResponse] = []
+        for points in ce_points_map.values():
+            if not points:
+                continue
+            all_timeseries.append(EVMTimeSeriesResponse(
+                granularity=granularity,
+                points=points,
+                start_date=points[0].date,
+                end_date=points[-1].date,
+                total_points=len(points),
+            ))
+
+        if not all_timeseries:
+            start_date = project.start_date or control_date
+            end_date = project.end_date or control_date
+            if control_date > end_date:
+                end_date = control_date
+            return EVMTimeSeriesResponse(
+                granularity=granularity,
+                points=[],
+                start_date=start_date,
+                end_date=end_date,
+                total_points=0,
+            )
+
+        # Determine overall date range from timeseries data
+        overall_start_date = control_date
+        overall_end_date = control_date
+        for ts in all_timeseries:
+            if ts.start_date < overall_start_date:
+                overall_start_date = ts.start_date
+            if ts.end_date > overall_end_date:
+                overall_end_date = ts.end_date
+
+        # Expand to project date range if broader
+        project_start = project.start_date or control_date
+        project_end = project.end_date or control_date
+        if control_date > project_end:
+            project_end = control_date
+        if project_start < overall_start_date:
+            overall_start_date = project_start
+        if project_end > overall_end_date:
+            overall_end_date = project_end
+
+        # Generate date intervals and aggregate
         dates = self._generate_date_intervals(
             start_date=overall_start_date,
             end_date=overall_end_date,
             granularity=granularity,
         )
 
-        # Aggregate time-series points by date
-        aggregated_points: list[EVMTimeSeriesPoint] = []
-        for date in dates:
-            # Sum values from all time-series for this date
-            total_pv = Decimal("0")
-            total_ev = Decimal("0")
-            total_ac = Decimal("0")
-            total_forecast = Decimal("0")
-            total_actual = Decimal("0")
-
-            for ts in all_timeseries:
-                # Find the latest point less than or equal to the current date
-                # Since ts.points is sorted chronologically, we take the last point that matches
-                latest_point = None
-                for point in ts.points:
-                    if point.date.date() <= date.date():  # Compare dates without time
-                        latest_point = point
-                    else:
-                        # Since points are sorted, we can stop once we pass the current date
-                        break
-
-                if latest_point:
-                    total_pv += latest_point.pv
-                    total_ev += latest_point.ev
-                    total_ac += latest_point.ac
-                    total_forecast += latest_point.forecast
-                    total_actual += latest_point.actual
-
-            cpi, spi = self._calculate_indices(total_ev, total_ac, total_pv)
-
-            aggregated_point = EVMTimeSeriesPoint(
-                date=date,
-                pv=total_pv,
-                ev=total_ev,
-                ac=total_ac,
-                forecast=total_forecast,
-                actual=total_actual,
-                cpi=cpi,
-                spi=spi,
-            )
-            aggregated_points.append(aggregated_point)
+        aggregated_points = self._aggregate_timeseries(all_timeseries, dates)
 
         return EVMTimeSeriesResponse(
             granularity=granularity,

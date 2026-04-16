@@ -339,6 +339,49 @@ class ProgressEntryService(TemporalService[ProgressEntry]):  # type: ignore[type
         result = await self.session.execute(stmt)
         return list(result.scalars().all()), total
 
+    async def get_progress_history_batch(
+        self,
+        cost_element_ids: list[UUID],
+        as_of: datetime | None = None,
+    ) -> dict[UUID, list[ProgressEntry]]:
+        """Get progress history for multiple cost elements in a single query.
+
+        Eliminates N+1 queries when building EVM timeseries for multiple
+        cost elements by fetching all progress entries in one round-trip.
+
+        Args:
+            cost_element_ids: List of cost element UUIDs to fetch history for
+            as_of: Optional timestamp for historical query (time-travel)
+
+        Returns:
+            Dictionary mapping cost_element_id to list of ProgressEntry records,
+            ordered by valid_time descending (most recent first)
+        """
+        if not cost_element_ids:
+            return {}
+
+        stmt = select(ProgressEntry).where(
+            ProgressEntry.cost_element_id.in_(cost_element_ids),
+        )
+
+        if as_of is not None:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            stmt = stmt.where(ProgressEntry.deleted_at.is_(None))
+
+        stmt = stmt.order_by(
+            ProgressEntry.cost_element_id,
+            func.lower(ProgressEntry.valid_time).desc(),
+        )
+
+        result = await self.session.execute(stmt)
+
+        grouped: dict[UUID, list[ProgressEntry]] = {}
+        for entry in result.scalars().all():
+            grouped.setdefault(entry.cost_element_id, []).append(entry)
+
+        return grouped
+
     async def get_progress_entry_as_of(
         self,
         progress_entry_id: UUID,

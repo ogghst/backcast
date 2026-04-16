@@ -761,6 +761,85 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
 
         return cumulative_costs
 
+    async def get_cumulative_costs_batch(
+        self,
+        cost_element_ids: list[UUID],
+        start_date: datetime,
+        end_date: datetime | None = None,
+        as_of: datetime | None = None,
+    ) -> dict[UUID, list[dict[str, Any]]]:
+        """Get cumulative costs over time for multiple cost elements.
+
+        Batch version of get_cumulative_costs that fetches all cost
+        registrations in a single query instead of N individual queries.
+
+        Args:
+            cost_element_ids: List of cost element UUIDs to query
+            start_date: Start date for calculation
+            end_date: End date for calculation (defaults to now)
+            as_of: Optional timestamp for time-travel query
+
+        Returns:
+            Dictionary mapping each cost_element_id to its cumulative
+            costs list (same format as get_cumulative_costs).
+        """
+        if not cost_element_ids:
+            return {}
+
+        if end_date is None:
+            end_date = datetime.now(tz=UTC)
+
+        # Build batch query with time-travel support
+        stmt = select(
+            CostRegistration.cost_element_id,
+            CostRegistration.registration_date,
+            CostRegistration.amount,
+        ).where(
+            CostRegistration.cost_element_id.in_(cost_element_ids),
+            CostRegistration.registration_date >= start_date,
+            CostRegistration.registration_date <= end_date,
+        )
+
+        # Apply bitemporal filter
+        if as_of is not None:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            stmt = stmt.where(func.upper(CostRegistration.valid_time).is_(None))
+            stmt = stmt.where(CostRegistration.deleted_at.is_(None))
+
+        # Order by cost element then date for grouped cumulative calc
+        stmt = stmt.order_by(
+            CostRegistration.cost_element_id,
+            CostRegistration.registration_date,
+        )
+
+        result = await self.session.execute(stmt)
+        rows = result.all()
+
+        # Group rows by cost_element_id preserving insertion order
+        grouped: dict[UUID, list[Any]] = {}
+        for row in rows:
+            grouped.setdefault(row.cost_element_id, []).append(row)
+
+        # Calculate cumulative sum per cost element
+        batch_result: dict[UUID, list[dict[str, Any]]] = {}
+        for ce_id in cost_element_ids:
+            ce_rows = grouped.get(ce_id, [])
+            cumulative_amount = Decimal("0")
+            costs: list[dict[str, Any]] = []
+            for row in ce_rows:
+                cumulative_amount += row.amount
+                costs.append(
+                    {
+                        "registration_date": row.registration_date.isoformat(),
+                        "amount": float(row.amount),
+                        "cumulative_amount": float(cumulative_amount),
+                    }
+                )
+            batch_result[ce_id] = costs
+
+        return batch_result
+
     async def get_totals_for_cost_elements(
         self,
         cost_element_ids: list[UUID],
