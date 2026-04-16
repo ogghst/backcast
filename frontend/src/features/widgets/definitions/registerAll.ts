@@ -22,6 +22,7 @@ import "./ForecastWidget";
 import "./ChangeOrderAnalyticsWidget";
 import "./ChangeOrdersListWidget";
 import "./MiniGanttWidget";
+import "./CostHistoryWidget";
 
 export function registerAllWidgets() {
   // Widgets are registered via module-level side effects on import.
