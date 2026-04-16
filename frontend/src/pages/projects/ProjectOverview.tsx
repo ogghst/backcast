@@ -23,6 +23,7 @@ import { ProjectsService } from "@/api/generated";
 import { ProjectEditModal } from "@/components/projects/ProjectEditModal";
 import { getProjectStatusColor } from "@/lib/status";
 import { formatDate, formatCurrency, formatTemporalRange, calculateDuration } from "@/utils/formatters";
+import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
 
 /**
  * ProjectOverview component
@@ -503,6 +504,16 @@ export const ProjectOverview = () => {
                   </Col>
                 )}
               </Row>
+              {projectId && (
+                <div style={{ marginTop: token.paddingLG }}>
+                  <CostHistoryChart
+                    entityType="project"
+                    entityId={projectId}
+                    budgetAmount={project.budget ? Number(project.budget) : undefined}
+                    headless
+                  />
+                </div>
+              )}
             </div>
           </Card>
 

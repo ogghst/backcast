@@ -840,6 +840,210 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
 
         return batch_result
 
+    async def _get_costs_by_period_for_ces(
+        self,
+        ce_ids: list[UUID],
+        period: str,
+        start_date: datetime,
+        end_date: datetime | None = None,
+        as_of: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """Batch version of get_costs_by_period for multiple cost elements.
+
+        Uses IN clause + date_trunc + sum to aggregate across all CEs
+        in a single query instead of N sequential queries.
+        """
+        if not ce_ids:
+            return []
+
+        if end_date is None:
+            end_date = datetime.now(tz=UTC)
+
+        period_mapping = {"daily": "day", "weekly": "week", "monthly": "month"}
+        pg_period = period_mapping.get(period, period)
+
+        stmt = select(
+            func.date_trunc(pg_period, CostRegistration.registration_date).label(
+                "period_start"
+            ),
+            func.sum(CostRegistration.amount).label("total_amount"),
+        ).where(
+            CostRegistration.cost_element_id.in_(ce_ids),
+            CostRegistration.registration_date >= start_date,
+            CostRegistration.registration_date <= end_date,
+        )
+
+        if as_of is not None:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            stmt = stmt.where(func.upper(CostRegistration.valid_time).is_(None))
+            stmt = stmt.where(CostRegistration.deleted_at.is_(None))
+
+        stmt = stmt.group_by("period_start").order_by("period_start")
+
+        result = await self.session.execute(stmt)
+        return [
+            {
+                "period_start": row.period_start.isoformat(),
+                "total_amount": float(row.total_amount),
+            }
+            for row in result.all()
+        ]
+
+    async def _resolve_cost_element_ids(
+        self, entity_type: str, entity_id: UUID
+    ) -> list[UUID]:
+        """Resolve WBE or project ID to child cost element root IDs.
+
+        Args:
+            entity_type: "wbe" or "project"
+            entity_id: Root ID of the WBE or project
+
+        Returns:
+            List of cost_element_id root UUIDs (current, non-deleted versions only).
+        """
+        if entity_type == "wbe":
+            stmt = select(CostElement.cost_element_id).where(
+                CostElement.wbe_id == entity_id,
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+        elif entity_type == "project":
+            stmt = (
+                select(CostElement.cost_element_id)
+                .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+                .where(
+                    WBE.project_id == entity_id,
+                    func.upper(cast(Any, CostElement).valid_time).is_(None),
+                    cast(Any, CostElement).deleted_at.is_(None),
+                    func.upper(cast(Any, WBE).valid_time).is_(None),
+                    cast(Any, WBE).deleted_at.is_(None),
+                )
+            )
+        else:
+            raise ValueError(
+                f"Unsupported entity_type '{entity_type}' for cost element resolution"
+            )
+
+        result = await self.session.execute(stmt)
+        return [row.cost_element_id for row in result.all()]
+
+    async def get_aggregated_costs_by_entity(
+        self,
+        entity_type: str,
+        entity_id: UUID,
+        period: str,
+        start_date: datetime,
+        end_date: datetime | None = None,
+        as_of: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get cost aggregations by time period for a cost element, WBE, or project.
+
+        For WBE/project, resolves child cost elements, fetches aggregated costs
+        per CE, then merges by period_start (summing total_amounts).
+
+        Args:
+            entity_type: "cost_element", "wbe", or "project"
+            entity_id: Root ID of the entity
+            period: Period type ("daily", "weekly", "monthly")
+            start_date: Start date for aggregation
+            end_date: End date for aggregation (defaults to now)
+            as_of: Optional timestamp for time-travel query
+
+        Returns:
+            List of dicts with period_start and total_amount, sorted by period_start.
+        """
+        if entity_type == "cost_element":
+            return await self.get_costs_by_period(
+                cost_element_id=entity_id,
+                period=period,
+                start_date=start_date,
+                end_date=end_date,
+                as_of=as_of,
+            )
+
+        # Resolve to cost element IDs
+        ce_ids = await self._resolve_cost_element_ids(entity_type, entity_id)
+        if not ce_ids:
+            return []
+
+        # Single batch query — date_trunc + sum with IN clause merges across
+        # all CEs in one round-trip (no N+1).
+        return await self._get_costs_by_period_for_ces(
+            ce_ids=ce_ids,
+            period=period,
+            start_date=start_date,
+            end_date=end_date,
+            as_of=as_of,
+        )
+
+    async def get_cumulative_costs_by_entity(
+        self,
+        entity_type: str,
+        entity_id: UUID,
+        start_date: datetime,
+        end_date: datetime | None = None,
+        as_of: datetime | None = None,
+    ) -> list[dict[str, Any]]:
+        """Get cumulative costs over time for a cost element, WBE, or project.
+
+        For WBE/project, resolves child cost elements, uses the batch method,
+        then merges all series into one sorted by date (summing amounts at the
+        same date and recalculating cumulative totals).
+
+        Args:
+            entity_type: "cost_element", "wbe", or "project"
+            entity_id: Root ID of the entity
+            start_date: Start date for calculation
+            end_date: End date for calculation (defaults to now)
+            as_of: Optional timestamp for time-travel query
+
+        Returns:
+            List of dicts with registration_date, amount, and cumulative_amount.
+        """
+        if entity_type == "cost_element":
+            return await self.get_cumulative_costs(
+                cost_element_id=entity_id,
+                start_date=start_date,
+                end_date=end_date,
+                as_of=as_of,
+            )
+
+        # Resolve to cost element IDs and use batch method
+        ce_ids = await self._resolve_cost_element_ids(entity_type, entity_id)
+        if not ce_ids:
+            return []
+
+        batch_result = await self.get_cumulative_costs_batch(
+            cost_element_ids=ce_ids,
+            start_date=start_date,
+            end_date=end_date,
+            as_of=as_of,
+        )
+
+        # Merge all series: sum amounts at same date
+        merged: dict[str, float] = {}
+        for _ce_id, entries in batch_result.items():
+            for entry in entries:
+                key = entry["registration_date"]
+                merged[key] = merged.get(key, 0.0) + entry["amount"]
+
+        # Sort by date and recalculate cumulative
+        cumulative_amount = Decimal("0")
+        result: list[dict[str, Any]] = []
+        for date_key in sorted(merged.keys()):
+            amount = merged[date_key]
+            cumulative_amount += Decimal(str(amount))
+            result.append(
+                {
+                    "registration_date": date_key,
+                    "amount": amount,
+                    "cumulative_amount": float(cumulative_amount),
+                }
+            )
+
+        return result
+
     async def get_totals_for_cost_elements(
         self,
         cost_element_ids: list[UUID],

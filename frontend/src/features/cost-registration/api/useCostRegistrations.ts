@@ -206,6 +206,86 @@ export const useCostRegistrationHistory = (costRegistrationId: string) => {
   });
 };
 
+type CostEntityType = "cost_element" | "wbe" | "project";
+
+/** Set the entity filter param corresponding to the entity type. */
+const applyEntityFilter = (
+  query: Record<string, string | undefined>,
+  entityType: CostEntityType,
+  entityId: string,
+) => {
+  const key = entityType === "cost_element" ? "cost_element_id" : entityType === "wbe" ? "wbe_id" : "project_id";
+  query[key] = entityId;
+};
+
+/**
+ * Hook to fetch aggregated cost data grouped by period.
+ *
+ * Supports aggregation at cost_element, wbe, or project level.
+ */
+export const useAggregatedCosts = (
+  entityType: CostEntityType,
+  entityId: string,
+  period: "daily" | "weekly" | "monthly",
+  startDate: string,
+  endDate?: string,
+) => {
+  const { asOf } = useTimeMachineParams();
+  return useQuery({
+    queryKey: queryKeys.costRegistrations.aggregated(entityType, entityId, { period, startDate, endDate, asOf }),
+    queryFn: async () => {
+      const query: Record<string, string | undefined> = {
+        period,
+        start_date: startDate,
+        end_date: endDate || undefined,
+        as_of: asOf || undefined,
+      };
+      applyEntityFilter(query, entityType, entityId);
+
+      return __request(OpenAPI, {
+        method: "GET",
+        url: "/api/v1/cost-registrations/aggregated",
+        query,
+        errors: { 422: "Validation Error" },
+      });
+    },
+    enabled: !!entityId && !!startDate,
+  });
+};
+
+/**
+ * Hook to fetch cumulative cost data over a date range.
+ *
+ * Supports cumulative costs at cost_element, wbe, or project level.
+ */
+export const useCumulativeCosts = (
+  entityType: CostEntityType,
+  entityId: string,
+  startDate: string,
+  endDate?: string,
+) => {
+  const { asOf } = useTimeMachineParams();
+  return useQuery({
+    queryKey: queryKeys.costRegistrations.cumulative(entityType, entityId, { startDate, endDate, asOf }),
+    queryFn: async () => {
+      const query: Record<string, string | undefined> = {
+        start_date: startDate,
+        end_date: endDate || undefined,
+        as_of: asOf || undefined,
+      };
+      applyEntityFilter(query, entityType, entityId);
+
+      return __request(OpenAPI, {
+        method: "GET",
+        url: "/api/v1/cost-registrations/cumulative",
+        query,
+        errors: { 422: "Validation Error" },
+      });
+    },
+    enabled: !!entityId && !!startDate,
+  });
+};
+
 /**
  * Hook to create a new cost registration.
  *

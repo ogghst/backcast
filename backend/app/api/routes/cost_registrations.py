@@ -25,6 +25,32 @@ from app.services.cost_registration_service import (
 router = APIRouter()
 
 
+def _resolve_entity_params(
+    cost_element_id: UUID | None, wbe_id: UUID | None, project_id: UUID | None
+) -> tuple[str, UUID]:
+    """Validate exactly one entity param is provided and return (entity_type, entity_id)."""
+    provided = sum(x is not None for x in [cost_element_id, wbe_id, project_id])
+    if provided != 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Exactly one of cost_element_id, wbe_id, or project_id must be provided",
+        )
+    if cost_element_id is not None:
+        return "cost_element", cost_element_id
+    if wbe_id is not None:
+        return "wbe", wbe_id
+    return "project", project_id  # type: ignore[return-value]
+
+
+def _default_as_of(as_of: datetime | None) -> datetime:
+    """Return as_of if provided, otherwise current UTC time."""
+    if as_of is not None:
+        return as_of
+    from datetime import UTC
+
+    return datetime.now(tz=UTC)
+
+
 def get_cost_registration_service(
     session: AsyncSession = Depends(get_db),
 ) -> CostRegistrationService:
@@ -331,8 +357,14 @@ async def get_project_budget_status(
     dependencies=[Depends(RoleChecker(required_permission="cost-registration-read"))],
 )
 async def get_aggregated_costs(
-    cost_element_id: UUID = Query(
-        ..., description="Cost Element ID to aggregate costs for"
+    cost_element_id: UUID | None = Query(
+        None, description="Cost Element ID to aggregate costs for"
+    ),
+    wbe_id: UUID | None = Query(
+        None, description="WBE ID (aggregates across all child cost elements)"
+    ),
+    project_id: UUID | None = Query(
+        None, description="Project ID (aggregates across all project cost elements)"
     ),
     period: str = Query(
         ...,
@@ -353,8 +385,12 @@ async def get_aggregated_costs(
 ) -> list[dict[str, Any]]:
     """Get cost aggregations by time period.
 
-    Returns costs aggregated by day, week, or month for a cost element.
-    Useful for generating cost charts and trend analysis.
+    Returns costs aggregated by day, week, or month. Supports three levels:
+    - cost_element_id: Aggregation for a single cost element
+    - wbe_id: Aggregation across all cost elements under a WBE
+    - project_id: Aggregation across all cost elements in a project
+
+    Exactly one of cost_element_id, wbe_id, or project_id must be provided.
 
     Example:
         - period=daily: One row per day with total costs
@@ -363,15 +399,13 @@ async def get_aggregated_costs(
 
     All costs respect time-travel queries via the as_of parameter.
     """
-    # Default to current time if as_of is not provided
-    if as_of is None:
-        from datetime import UTC
-
-        as_of = datetime.now(tz=UTC)
+    entity_type, entity_id = _resolve_entity_params(cost_element_id, wbe_id, project_id)
+    as_of = _default_as_of(as_of)
 
     try:
-        costs = await service.get_costs_by_period(
-            cost_element_id=cost_element_id,
+        costs = await service.get_aggregated_costs_by_entity(
+            entity_type=entity_type,
+            entity_id=entity_id,
             period=period,
             start_date=start_date,
             end_date=end_date,
@@ -391,8 +425,14 @@ async def get_aggregated_costs(
     dependencies=[Depends(RoleChecker(required_permission="cost-registration-read"))],
 )
 async def get_cumulative_costs(
-    cost_element_id: UUID = Query(
-        ..., description="Cost Element ID to get cumulative costs for"
+    cost_element_id: UUID | None = Query(
+        None, description="Cost Element ID to get cumulative costs for"
+    ),
+    wbe_id: UUID | None = Query(
+        None, description="WBE ID (cumulative across all child cost elements)"
+    ),
+    project_id: UUID | None = Query(
+        None, description="Project ID (cumulative across all project cost elements)"
     ),
     start_date: datetime = Query(
         ..., description="Start date for calculation (ISO 8601)"
@@ -409,7 +449,12 @@ async def get_cumulative_costs(
     """Get cumulative costs over time.
 
     Returns a time series of costs with running cumulative totals.
-    Useful for S-curve charts and cumulative cost tracking.
+    Supports three levels:
+    - cost_element_id: Cumulative for a single cost element
+    - wbe_id: Cumulative across all cost elements under a WBE
+    - project_id: Cumulative across all cost elements in a project
+
+    Exactly one of cost_element_id, wbe_id, or project_id must be provided.
 
     Each entry includes:
     - registration_date: Date of the cost registration
@@ -418,15 +463,13 @@ async def get_cumulative_costs(
 
     All costs respect time-travel queries via the as_of parameter.
     """
-    # Default to current time if as_of is not provided
-    if as_of is None:
-        from datetime import UTC
-
-        as_of = datetime.now(tz=UTC)
+    entity_type, entity_id = _resolve_entity_params(cost_element_id, wbe_id, project_id)
+    as_of = _default_as_of(as_of)
 
     try:
-        costs = await service.get_cumulative_costs(
-            cost_element_id=cost_element_id,
+        costs = await service.get_cumulative_costs_by_entity(
+            entity_type=entity_type,
+            entity_id=entity_id,
             start_date=start_date,
             end_date=end_date,
             as_of=as_of,
