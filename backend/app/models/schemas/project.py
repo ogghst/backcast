@@ -104,9 +104,9 @@ class ProjectRead(ProjectBase):
             return str(v)
         return v  # type: ignore
 
-    @computed_field  # type: ignore[misc]
+    @computed_field  # type: ignore[prop-decorator]
     @property
-    def valid_time_formatted(self) -> dict[str, str | None]:
+    def valid_time_formatted(self) -> dict[str, str | bool | None]:
         """Display-ready valid_time temporal data.
 
         Returns pre-formatted temporal range information including:
@@ -128,9 +128,9 @@ class ProjectRead(ProjectBase):
         """
         return format_temporal_range_for_api(self.valid_time)
 
-    @computed_field  # type: ignore[misc]
+    @computed_field  # type: ignore[prop-decorator]
     @property
-    def transaction_time_formatted(self) -> dict[str, str | None]:
+    def transaction_time_formatted(self) -> dict[str, str | bool | None]:
         """Display-ready transaction_time temporal data.
 
         Returns pre-formatted temporal range information for the

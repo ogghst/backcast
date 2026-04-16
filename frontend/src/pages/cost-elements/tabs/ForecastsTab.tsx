@@ -10,7 +10,7 @@ import {
 import { ForecastModal, ForecastHistoryView } from "@/features/forecasts/components";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { queryKeys } from "@/api/queryKeys";
-import { formatRangeDate } from "@/utils/temporal";
+import { formatDateTime } from "@/utils/formatters";
 
 const { Text, Title } = Typography;
 
@@ -202,7 +202,7 @@ export const ForecastsTab = ({ costElement }: ForecastsTabProps) => {
         {forecast.transaction_time && (
           <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: `1px solid ${token.colorBorderSecondary}` }}>
             <Text type="secondary" style={{ fontSize: "12px" }}>
-              Last updated: {formatRangeDate(forecast.transaction_time)}
+              Last updated: {formatDateTime(forecast.transaction_time)}
             </Text>
           </div>
         )}

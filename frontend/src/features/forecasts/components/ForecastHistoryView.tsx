@@ -21,7 +21,7 @@ import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { useCostElementHistory } from "@/features/cost-elements/api/useCostElements";
-import { parseRangeLowerBound, formatRangeDate } from "@/utils/temporal";
+import { parseTemporalRangeLower, formatTemporalRangeString } from "@/utils/formatters";
 
 const { RangePicker } = DatePicker;
 
@@ -49,15 +49,15 @@ export const ForecastHistoryView = ({
   // Filter by date range if specified
   const filteredHistory = costElementHistory.filter((ce) => {
     if (!dateRange) return true;
-    const ceDate = dayjs(parseRangeLowerBound(ce.transaction_time) || ce.created_at);
+    const ceDate = dayjs(parseTemporalRangeLower(ce.transaction_time) || ce.created_at);
     return ceDate.isBetween(dateRange[0], dateRange[1], "day", "[]");
   });
 
   // Sort by transaction time (newest first)
   const sortedHistory = [...filteredHistory].sort(
     (a, b) => {
-      const aTime = parseRangeLowerBound(a.transaction_time) || new Date(a.created_at);
-      const bTime = parseRangeLowerBound(b.transaction_time) || new Date(b.created_at);
+      const aTime = parseTemporalRangeLower(a.transaction_time) || new Date(a.created_at);
+      const bTime = parseTemporalRangeLower(b.transaction_time) || new Date(b.created_at);
       return bTime.getTime() - aTime.getTime();
     },
   );
@@ -93,9 +93,9 @@ export const ForecastHistoryView = ({
   };
 
   const handleTimeTravel = (transactionTime: string | null | undefined) => {
-    const date = parseRangeLowerBound(transactionTime);
+    const date = parseTemporalRangeLower(transactionTime);
     if (date) {
-      setAsOf(date.toISOString());
+      setAsOf(new Date(date).toISOString());
     }
   };
 
@@ -194,7 +194,7 @@ export const ForecastHistoryView = ({
             mode="left"
             items={sortedHistory.map((ce, index) => {
               const forecast = getForecastFromCostElement(ce);
-              const createdDate = dayjs(parseRangeLowerBound(ce.transaction_time) || ce.created_at);
+              const createdDate = dayjs(parseTemporalRangeLower(ce.transaction_time) || ce.created_at);
               const isLatest = index === 0;
               const isCurrentView = asOf
                 ? createdDate.isBefore(dayjs(asOf))
@@ -274,14 +274,14 @@ export const ForecastHistoryView = ({
                       {ce.valid_time && (
                         <Col span={24}>
                           <div style={{ fontSize: "11px", color: "#999" }}>
-                            Valid: {formatRangeDate(ce.valid_time, "short")} → {formatRangeDate(ce.valid_time)}
+                            Valid: {formatTemporalRangeString(ce.valid_time, { style: "short" })} → {formatTemporalRangeString(ce.valid_time)}
                           </div>
                         </Col>
                       )}
                       {ce.transaction_time && (
                         <Col span={24}>
                           <div style={{ fontSize: "11px", color: "#999" }}>
-                            Recorded: {formatRangeDate(ce.transaction_time, "short")}
+                            Recorded: {formatTemporalRangeString(ce.transaction_time, { style: "short" })}
                           </div>
                         </Col>
                       )}

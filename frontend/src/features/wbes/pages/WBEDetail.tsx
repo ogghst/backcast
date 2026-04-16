@@ -23,6 +23,7 @@ import { useEVMMetrics, useEVMTimeSeries } from "@/features/evm/api/useEVMMetric
 import { useWBE } from "../api/useWBEs";
 import { EntityType } from "@/features/evm/types";
 import type { EVMTimeSeriesGranularity } from "@/features/evm/types";
+import { formatDate, formatTemporalRange } from "@/utils/formatters";
 
 const { Title } = Typography;
 
@@ -133,6 +134,16 @@ export const WBEDetail: React.FC<WBEDetailProps> = ({ wbeId: propWbeId }) => {
           <Descriptions.Item label="Project ID">{wbeData.project_id}</Descriptions.Item>
           <Descriptions.Item label="Parent ID">
             {wbeData.parent_id || "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="Created">
+            {wbeData.transaction_time_formatted?.lower_formatted
+              ? formatDate(wbeData.transaction_time_formatted.lower, { fallback: "-" })
+              : "-"}
+          </Descriptions.Item>
+          <Descriptions.Item label="Valid Time">
+            {wbeData.valid_time_formatted
+              ? formatTemporalRange(wbeData.valid_time_formatted)
+              : "-"}
           </Descriptions.Item>
         </Descriptions>
       </Card>

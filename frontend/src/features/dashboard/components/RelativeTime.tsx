@@ -8,6 +8,7 @@
 import { useState, useEffect } from "react";
 import { Typography } from "antd";
 import { useThemeTokens } from "@/hooks/useThemeTokens";
+import { formatDate } from "@/utils/formatters";
 
 const { Text } = Typography;
 
@@ -56,11 +57,7 @@ export function RelativeTime({ timestamp, className }: RelativeTimeProps) {
 
     // Future dates - show absolute date
     if (diffMs < 0) {
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
+      return formatDate(timestamp, { style: "medium" });
     }
 
     // Less than 1 minute
@@ -90,11 +87,7 @@ export function RelativeTime({ timestamp, className }: RelativeTimeProps) {
     }
 
     // 30+ days - show absolute date
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+    return formatDate(timestamp, { style: "medium" });
   };
 
   return (

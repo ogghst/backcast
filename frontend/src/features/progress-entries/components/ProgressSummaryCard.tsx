@@ -1,6 +1,6 @@
 import { Card, Progress, Alert, Typography, List, Space, theme } from "antd";
 import type { ProgressEntryRead } from "@/api/generated";
-import dayjs from "dayjs";
+import { parseTemporalRangeLower, formatDate } from "@/utils/formatters";
 
 const { Text } = Typography;
 
@@ -17,11 +17,11 @@ interface ProgressSummaryCardProps {
  * Format a TSTZRANGE valid_time to a readable date string.
  * Example input: '["2026-01-31T00:00:00Z",)'
  */
-const formatDate = (dateStr: string | null | undefined): string => {
+const formatProgressDate = (dateStr: string | null | undefined): string => {
   if (!dateStr) return "-";
   // Extract lower bound from TSTZRANGE format
-  const lowerBound = dateStr.split(",")[0].substring(1).replace(/"/g, "");
-  return dayjs(lowerBound).format("MMM D, YYYY");
+  const lowerBound = parseTemporalRangeLower(dateStr);
+  return formatDate(lowerBound, { fallback: "-" });
 };
 
 /**
@@ -68,7 +68,7 @@ export const ProgressSummaryCard: React.FC<ProgressSummaryCardProps> = ({
               </Text>
               <br />
               <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                As of {formatDate(latestEntry.valid_time)}
+                As of {formatProgressDate(latestEntry.valid_time)}
               </Text>
               {latestEntry.notes && (
                 <>
@@ -102,7 +102,7 @@ export const ProgressSummaryCard: React.FC<ProgressSummaryCardProps> = ({
                       }}
                     >
                       <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                        {formatDate(entry.valid_time)}
+                        {formatProgressDate(entry.valid_time)}
                       </Text>
                       <Text style={{ fontSize: token.fontSizeSM }}>{pct}%</Text>
                     </div>

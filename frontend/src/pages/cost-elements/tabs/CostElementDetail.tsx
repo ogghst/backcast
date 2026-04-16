@@ -25,7 +25,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
-import { formatRangeDate } from "@/utils/temporal";
+import { formatTemporalRange } from "@/utils/formatters";
 
 interface CostElementDetailProps {
   costElement: CostElementRead;
@@ -252,10 +252,14 @@ export const CostElementDetail = ({ costElement }: CostElementDetailProps) => {
             {costElement.created_by || "-"}
           </Descriptions.Item>
           <Descriptions.Item label="Valid Time">
-            {costElement.valid_time ? formatRangeDate(costElement.valid_time) : "-"}
+            {costElement.valid_time_formatted
+              ? formatTemporalRange(costElement.valid_time_formatted)
+              : "-"}
           </Descriptions.Item>
           <Descriptions.Item label="Transaction Time">
-            {costElement.transaction_time ? formatRangeDate(costElement.transaction_time) : "-"}
+            {costElement.transaction_time_formatted
+              ? formatTemporalRange(costElement.transaction_time_formatted)
+              : "-"}
           </Descriptions.Item>
         </Descriptions>
       </CollapsibleCard>

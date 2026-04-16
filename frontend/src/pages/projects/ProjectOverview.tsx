@@ -22,48 +22,7 @@ import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { ProjectsService } from "@/api/generated";
 import { ProjectEditModal } from "@/components/projects/ProjectEditModal";
 import { getProjectStatusColor } from "@/lib/status";
-import { formatRangeDate } from "@/utils/temporal";
-
-/**
- * Format a numeric value as EUR currency.
- */
-const formatCurrency = (value: string | number | null | undefined): string => {
-  if (!value) return "-";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "EUR",
-  }).format(Number(value));
-};
-
-/**
- * Format an ISO date string for display.
- */
-const formatDate = (dateString: string | null | undefined): string => {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString();
-};
-
-/**
- * Format an ISO timestamp string for display with time.
- */
-const formatTimestamp = (timestamp: string | null | undefined): string => {
-  if (!timestamp) return "-";
-  return new Date(timestamp).toLocaleString();
-};
-
-/**
- * Calculate the duration in days between two dates.
- */
-const calculateDuration = (
-  start: string | null | undefined,
-  end: string | null | undefined
-): string | null => {
-  if (!start || !end) return null;
-  const days = Math.ceil(
-    (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24)
-  );
-  return `${Math.abs(days)} day${Math.abs(days) !== 1 ? "s" : ""}`;
-};
+import { formatDate, formatCurrency, formatTemporalRange, calculateDuration } from "@/utils/formatters";
 
 /**
  * ProjectOverview component
@@ -383,7 +342,7 @@ export const ProjectOverview = () => {
                         color: token.colorText,
                       }}
                     >
-                      {formatDate(project.start_date)}
+                      {formatDate(project.start_date, { fallback: "-" })}
                     </Typography.Text>
                   </div>
                 </Col>
@@ -407,7 +366,7 @@ export const ProjectOverview = () => {
                         color: token.colorText,
                       }}
                     >
-                      {formatDate(project.end_date)}
+                      {formatDate(project.end_date, { fallback: "-" })}
                     </Typography.Text>
                   </div>
                 </Col>
@@ -579,13 +538,19 @@ export const ProjectOverview = () => {
                   {project.created_by_name || "-"}
                 </Descriptions.Item>
                 <Descriptions.Item label="Created At">
-                  {formatTimestamp(project.created_at)}
+                  {project.created_at
+                    ? formatDate(project.created_at, { style: "long", fallback: "-" })
+                    : "-"}
                 </Descriptions.Item>
                 <Descriptions.Item label="Valid Time">
-                  {formatRangeDate(project.valid_time)}
+                  {project.valid_time_formatted
+                    ? formatTemporalRange(project.valid_time_formatted)
+                    : "-"}
                 </Descriptions.Item>
                 <Descriptions.Item label="Transaction Time">
-                  {formatRangeDate(project.transaction_time)}
+                  {project.transaction_time_formatted
+                    ? formatTemporalRange(project.transaction_time_formatted)
+                    : "-"}
                 </Descriptions.Item>
               </Descriptions>
             </div>

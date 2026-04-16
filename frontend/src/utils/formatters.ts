@@ -323,3 +323,119 @@ export function calculateDuration(
 export function getBrowserLocale(): string {
   return navigator.language || "en-US";
 }
+
+// ============================================================================
+// Temporal Range Formatters (for entities without backend formatted fields)
+// ============================================================================
+
+/**
+ * Parse a PostgreSQL temporal range string and extract the lower bound timestamp.
+ *
+ * @param rangeStr - PostgreSQL range string (e.g., "[2026-01-15 10:00:00+00,)")
+ * @returns ISO timestamp string or null if parsing fails
+ *
+ * @example
+ * parseTemporalRangeLower("[2026-01-15 10:00:00+00,)") // => "2026-01-15T10:00:00+00:00"
+ * parseTemporalRangeLower(null) // => null
+ */
+export function parseTemporalRangeLower(
+  rangeStr: string | null | undefined
+): string | null {
+  if (!rangeStr) return null;
+
+  // PostgreSQL range format: "[lower,upper)" or "(lower,upper]"
+  const commaIndex = rangeStr.indexOf(",");
+  if (commaIndex === -1) return null;
+
+  let timestamp = rangeStr.slice(1, commaIndex).trim();
+
+  // Remove escaped quotes if present (JSON serialization of PostgreSQL ranges)
+  timestamp = timestamp.replace(/\\"/g, "");
+
+  // Check for infinity
+  if (timestamp === "-infinity" || timestamp === "infinity") {
+    return null;
+  }
+
+  return timestamp;
+}
+
+/**
+ * Check if a temporal range has an unbounded upper bound (currently valid).
+ *
+ * @param rangeStr - PostgreSQL range string (e.g., "[2026-01-15 10:00:00+00,)")
+ * @returns true if unbounded (currently valid), false otherwise
+ *
+ * @example
+ * isTemporalRangeUnbounded("[2026-01-15 10:00:00+00,)") // => true
+ * isTemporalRangeUnbounded("[2026-01-15 10:00:00+00,2026-02-15 10:00:00)") // => false
+ */
+export function isTemporalRangeUnbounded(
+  rangeStr: string | null | undefined
+): boolean {
+  if (!rangeStr) return false;
+
+  const commaIndex = rangeStr.indexOf(",");
+  if (commaIndex === -1) return false;
+
+  let upperBound = rangeStr.slice(commaIndex + 1, -1).trim();
+  upperBound = upperBound.replace(/\\"/g, "");
+
+  // Empty or infinity means unbounded
+  return (
+    !upperBound || upperBound === "-infinity" || upperBound === "infinity"
+  );
+}
+
+/**
+ * Format a temporal range string for display.
+ *
+ * This is a fallback for entities that don't have backend-formatted fields.
+ * Prefer using formatTemporalRange() with backend *_formatted fields when available.
+ *
+ * @param rangeStr - PostgreSQL range string or raw timestamp
+ * @param options - Formatting options
+ * @returns Formatted date string or "Unknown" if parsing fails
+ *
+ * @example
+ * formatTemporalRangeString("[2026-01-15 10:00:00+00,)") // => "Jan 15, 2026 – Present"
+ * formatTemporalRangeString("2026-01-15T10:00:00+00:00") // => "Jan 15, 2026"
+ */
+export function formatTemporalRangeString(
+  rangeStr: string | null | undefined,
+  options: FormatDateOptions = {}
+): string {
+  const { style = "medium", locale = undefined, fallback = "Unknown" } = options;
+
+  if (!rangeStr) return fallback;
+
+  // Check if it's a raw ISO timestamp (not a range string)
+  if (rangeStr.startsWith("20") && !rangeStr.startsWith("[")) {
+    return formatDate(rangeStr, { style, locale, fallback });
+  }
+
+  // Parse PostgreSQL range string
+  const lower = parseTemporalRangeLower(rangeStr);
+  if (!lower) return fallback;
+
+  const lowerFormatted = formatDate(lower, { style, locale, fallback });
+
+  // Check if unbounded (currently valid)
+  const isUnbounded = isTemporalRangeUnbounded(rangeStr);
+
+  if (isUnbounded) {
+    return `${lowerFormatted} – Present`;
+  }
+
+  // Parse upper bound
+  const commaIndex = rangeStr.indexOf(",");
+  let upperStr = rangeStr.slice(commaIndex + 1, -1).trim();
+  upperStr = upperStr.replace(/\\"/g, "");
+
+  if (!upperStr || upperStr === "-infinity" || upperStr === "infinity") {
+    return `${lowerFormatted} – Present`;
+  }
+
+  const upperFormatted = formatDate(upperStr, { style, locale, fallback });
+  return `${lowerFormatted} – ${upperFormatted}`;
+}

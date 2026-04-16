@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import type { ProjectRead } from "@/api/generated";
 import { Can } from "@/components/auth/Can";
 import { EntityCard } from "@/components/common/EntityCard";
+import { formatDate } from "@/utils/formatters";
 
 interface ProjectCardProps {
   project: ProjectRead;
@@ -33,9 +34,6 @@ const formatCurrency = (value: number | null | undefined) =>
         currencyDisplay: "narrowSymbol",
       }).format(value)
     : "-";
-
-const formatDate = (date: string | null | undefined) =>
-  date ? new Date(date).toLocaleDateString() : "-";
 
 export const ProjectCard = ({
   project,

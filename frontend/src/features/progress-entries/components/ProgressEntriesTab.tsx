@@ -17,7 +17,7 @@ import { useState } from "react";
 import type { ColumnType } from "antd/es/table";
 import type { FilterValue } from "antd/es/table/interface";
 import type { CostElementRead } from "@/api/generated";
-import { formatRangeDate } from "@/utils/temporal";
+import { formatDate } from "@/utils/formatters";
 import type { ProgressEntryRead, ProgressEntryCreate } from "@/api/generated";
 import {
   useProgressEntries,
@@ -202,7 +202,7 @@ export const ProgressEntriesTab = ({
       sorter: true,
       render: (validTime: string) => {
         if (!validTime) return "-";
-        return formatRangeDate(validTime);
+        return formatDate(validTime);
       },
     },
     {

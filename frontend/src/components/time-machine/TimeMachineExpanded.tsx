@@ -16,6 +16,7 @@ import { BranchSelector } from "./BranchSelector";
 import { ViewModeSelector } from "./ViewModeSelector";
 import type { QuickJumpPreset, ProjectTimelineData } from "./types";
 import "./TimeMachine.styles.css";
+import { formatDate, formatTime } from "@/utils/formatters";
 
 interface TimeMachineExpandedProps {
   /** Project ID */
@@ -159,18 +160,11 @@ export function TimeMachineExpanded({
               <>
                 Viewing History:{" "}
                 <strong>
-                  {selectedDate?.toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
+                  {selectedDate ? formatDate(selectedDate.toISOString()) : ""}
                 </strong>
                 {" at "}
                 <strong>
-                  {selectedDate?.toLocaleTimeString(undefined, {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {selectedDate ? formatTime(selectedDate.toISOString()) : ""}
                 </strong>
               </>
             ) : (

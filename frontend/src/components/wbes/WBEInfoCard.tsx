@@ -2,6 +2,7 @@ import React from "react";
 import { Typography, Tag, Divider, theme, Space, Row, Col } from "antd";
 import { WBERead } from "@/api/generated";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
+import { formatDateTime } from "@/utils/formatters";
 
 const { Text, Paragraph, Title } = Typography;
 
@@ -21,12 +22,6 @@ export const WBEInfoCard = ({
   loading,
 }: WBEInfoCardProps) => {
   const { token } = theme.useToken();
-
-  // Format timestamps
-  const formatDateTime = (dateString: string | null | undefined) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleString();
-  };
 
   return (
     <CollapsibleCard

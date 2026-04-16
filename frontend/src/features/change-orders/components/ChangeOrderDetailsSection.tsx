@@ -1,6 +1,6 @@
 import { Descriptions, Space, Tag, Typography } from "antd";
-import dayjs from "dayjs";
 import type { ChangeOrderPublic } from "@/api/generated";
+import { formatDate } from "@/utils/formatters";
 
 const { Text, Paragraph } = Typography;
 
@@ -66,7 +66,7 @@ export function ChangeOrderDetailsSection({
         {
           label: "Effective Date",
           children: changeOrder.effective_date
-            ? dayjs(changeOrder.effective_date).format("YYYY-MM-DD")
+            ? formatDate(changeOrder.effective_date, { style: "short" })
             : "Not set",
         },
         {

@@ -11,7 +11,7 @@ from typing import Any
 
 def format_temporal_range_for_api(
     range_value: Any,
-) -> dict[str, str | None]:
+) -> dict[str, str | bool | None]:
     """Convert PostgreSQL TSTZRANGE to display-ready format.
 
     Extracts temporal range information and returns both raw ISO timestamps
@@ -94,7 +94,7 @@ def format_temporal_range_for_api(
     return _get_empty_range_dict()
 
 
-def _parse_postgresql_range_string(range_str: str) -> dict[str, str | None]:
+def _parse_postgresql_range_string(range_str: str) -> dict[str, str | bool | None]:
     """Parse PostgreSQL TSTZRANGE string format.
 
     Expected format: ["lower",upper") or ["lower",upper] etc.
@@ -176,7 +176,7 @@ def _format_datetime(dt: datetime | None) -> str:
     return dt.strftime("%B %d, %Y")
 
 
-def _get_empty_range_dict() -> dict[str, str | None]:
+def _get_empty_range_dict() -> dict[str, str | bool | None]:
     """Return dictionary for empty/invalid temporal ranges."""
     return {
         "lower": None,

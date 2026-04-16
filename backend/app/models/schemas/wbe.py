@@ -96,7 +96,7 @@ class WBERead(BaseModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def valid_time_formatted(self) -> dict[str, str | None]:
+    def valid_time_formatted(self) -> dict[str, str | bool | None]:
         """Display-ready valid_time temporal data.
 
         Returns pre-formatted temporal range information including:
@@ -120,7 +120,7 @@ class WBERead(BaseModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def transaction_time_formatted(self) -> dict[str, str | None]:
+    def transaction_time_formatted(self) -> dict[str, str | bool | None]:
         """Display-ready transaction_time temporal data.
 
         Returns pre-formatted temporal range information for the

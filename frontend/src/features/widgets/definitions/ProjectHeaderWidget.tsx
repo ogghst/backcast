@@ -1,6 +1,5 @@
 import { ProjectOutlined } from "@ant-design/icons";
 import { Space, Tag, Typography, theme } from "antd";
-import dayjs from "dayjs";
 import type { FC } from "react";
 import { useProject } from "@/features/projects/api/useProjects";
 import { getProjectStatusColor } from "@/lib/status";
@@ -8,6 +7,7 @@ import { useDashboardContext } from "../context/useDashboardContext";
 import { WidgetShell } from "../components/WidgetShell";
 import { registerWidget, widgetTypeId } from "..";
 import type { WidgetComponentProps } from "../types";
+import { formatDate } from "@/utils/formatters";
 
 const { Text } = Typography;
 
@@ -19,7 +19,7 @@ interface ProjectHeaderConfig {
 /** Format an ISO date string as "MMM YYYY" (e.g. "Jan 2024"). */
 const formatMonthYear = (date: string | null | undefined): string => {
   if (!date) return "";
-  return dayjs(date).format("MMM YYYY");
+  return formatDate(date, { style: "medium", fallback: "" });
 };
 
 const ProjectHeaderComponent: FC<WidgetComponentProps<ProjectHeaderConfig>> = ({
