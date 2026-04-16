@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
 class CostRegistrationBase(BaseModel):
@@ -77,3 +77,28 @@ class CostRegistrationRead(CostRegistrationBase):
     cost_registration_id: UUID
     cost_element_id: UUID
     created_by: UUID
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def registration_date_formatted(self) -> dict[str, str | None]:
+        """Display-ready registration date data.
+
+        Returns pre-formatted date information including:
+        - ISO timestamp for machine processing
+        - Formatted display string for UI
+
+        This allows the frontend to display dates without additional formatting.
+
+        Example:
+            {
+                "iso": "2026-01-15T10:00:00+00:00",
+                "formatted": "January 15, 2026"
+            }
+        """
+        if not self.registration_date:
+            return {"iso": None, "formatted": "Unknown"}
+
+        return {
+            "iso": self.registration_date.isoformat(),
+            "formatted": self.registration_date.strftime("%B %d, %Y"),
+        }

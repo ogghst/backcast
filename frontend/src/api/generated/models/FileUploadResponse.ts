@@ -15,9 +15,9 @@ export type FileUploadResponse = {
      */
     filename: string;
     /**
-     * URL to access the uploaded file
+     * Extracted text content (None if unsupported or extraction failed)
      */
-    url: string;
+    content?: (string | null);
     /**
      * File size in bytes
      */

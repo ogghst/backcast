@@ -14,19 +14,18 @@ export class AiUploadService {
      * Upload Image
      * Upload an image for AI chat.
      *
-     * Validates the image file, stores it in the uploads directory,
-     * and returns a URL that can be included in chat messages.
+     * Reads the image bytes, base64-encodes them, and returns the encoded
+     * content for inline use in chat messages. No disk storage is used.
      *
      * Args:
      * file: Image file to upload (PNG, JPG, JPEG)
      * current_user: Authenticated user
      *
      * Returns:
-     * ImageUploadResponse with file URL and metadata
+     * ImageUploadResponse with base64-encoded content and metadata
      *
      * Raises:
      * HTTPException 400: Invalid file type or size
-     * HTTPException 500: Failed to save file
      * @param formData
      * @returns ImageUploadResponse Successful Response
      * @throws ApiError
@@ -48,19 +47,19 @@ export class AiUploadService {
      * Upload File
      * Upload a file attachment for AI chat.
      *
-     * Validates the document file, stores it in the uploads directory,
-     * and returns a URL that can be included in chat messages.
+     * Reads the file bytes, extracts text content using the appropriate
+     * extractor, and returns it for inline use in chat messages.
+     * No disk storage is used.
      *
      * Args:
      * file: Document file to upload
      * current_user: Authenticated user
      *
      * Returns:
-     * FileUploadResponse with file URL and metadata
+     * FileUploadResponse with extracted text content and metadata
      *
      * Raises:
-     * HTTPException 400: Invalid file type or size
-     * HTTPException 500: Failed to save file
+     * HTTPException 400: Invalid file type, size, or extraction failure
      * @param formData
      * @returns FileUploadResponse Successful Response
      * @throws ApiError
@@ -73,68 +72,6 @@ export class AiUploadService {
             url: '/api/v1/ai/chat/upload-file',
             formData: formData,
             mediaType: 'multipart/form-data',
-            errors: {
-                422: `Validation Error`,
-            },
-        });
-    }
-    /**
-     * Get Image
-     * Retrieve an uploaded image by file ID.
-     *
-     * Args:
-     * file_id: Unique file identifier
-     * current_user: Authenticated user
-     *
-     * Returns:
-     * The image file
-     *
-     * Raises:
-     * HTTPException 404: File not found
-     * @param fileId
-     * @returns any Successful Response
-     * @throws ApiError
-     */
-    public static getAiImage(
-        fileId: string,
-    ): CancelablePromise<any> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/ai/chat/images/{file_id}',
-            path: {
-                'file_id': fileId,
-            },
-            errors: {
-                422: `Validation Error`,
-            },
-        });
-    }
-    /**
-     * Get Document
-     * Retrieve an uploaded document by file ID.
-     *
-     * Args:
-     * file_id: Unique file identifier
-     * current_user: Authenticated user
-     *
-     * Returns:
-     * The document file
-     *
-     * Raises:
-     * HTTPException 404: File not found
-     * @param fileId
-     * @returns any Successful Response
-     * @throws ApiError
-     */
-    public static getAiDocument(
-        fileId: string,
-    ): CancelablePromise<any> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/ai/chat/documents/{file_id}',
-            path: {
-                'file_id': fileId,
-            },
             errors: {
                 422: `Validation Error`,
             },

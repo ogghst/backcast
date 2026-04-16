@@ -2,6 +2,7 @@ import React from "react";
 import { Card, Tag, Typography, theme, Row, Col } from "antd";
 import { ProjectRead } from "@/api/generated";
 import { getProjectStatusColor } from "@/lib/status";
+import { formatDate } from "@/utils/formatters";
 
 const { Text, Title } = Typography;
 
@@ -28,12 +29,6 @@ export const ProjectHeaderCard = ({
       style: "currency",
       currency: "EUR",
     }).format(Number(value));
-  };
-
-  // Format date values
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString();
   };
 
   return (

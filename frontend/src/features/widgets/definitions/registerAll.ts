@@ -10,6 +10,7 @@ import "./ProjectHeaderWidget";
 import "./QuickStatsBarWidget";
 import "./EVMSummaryWidget";
 import "./BudgetStatusWidget";
+import "./BudgetSettingsWidget";
 import "./CostRegistrationsWidget";
 import "./WBETreeWidget";
 import "./VarianceChartWidget";

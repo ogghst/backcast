@@ -331,20 +331,14 @@ export const CostElementManagement = ({
             id: `v${arr.length - idx}`,
             valid_from:
               v.valid_from ||
-              (typeof v.valid_time === "object" ? v.valid_time?.lower : null) ||
-              (typeof v.valid_time === "string"
-                ? v.valid_time
-                : new Date().toISOString()),
+              (typeof v.valid_time === "object" ? v.valid_time?.lower : v.valid_time) ||
+              "",
             transaction_time:
               (typeof v.transaction_time === "object"
                 ? v.transaction_time?.lower
-                : null) ||
-              (typeof v.transaction_time === "string"
-                ? v.transaction_time
-                : new Date().toISOString()),
+                : v.transaction_time) || "",
+            valid_to: null,
             changed_by: v.created_by_name || "System",
-            changes:
-              idx === 0 ? { created: "initial" } : { updated: "changed" },
           };
         })}
         entityName={`Cost Element: ${selectedElement?.name || ""}`}

@@ -18,6 +18,7 @@ import {
   useDeleteChangeOrder,
 } from "../api/useChangeOrders";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
+import { formatDate } from "@/utils/formatters";
 import { ChangeOrdersService } from "@/api/generated";
 
 interface ChangeOrderListProps {
@@ -96,7 +97,7 @@ export const ChangeOrderList = ({ projectId }: ChangeOrderListProps) => {
       key: "effective_date",
       width: 130,
       render: (date: string | null) =>
-        date ? new Date(date).toLocaleDateString() : "-",
+        date ? formatDate(date) : "-",
     },
     {
       title: "Actions",

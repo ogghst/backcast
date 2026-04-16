@@ -9,6 +9,7 @@ import {
 import { useState } from "react";
 import type { ColumnType } from "antd/es/table";
 import type { FilterValue } from "antd/es/table/interface";
+import { formatDate } from "@/utils/formatters";
 import {
   CostRegistrationsService,
   type CostRegistrationRead,
@@ -26,10 +27,11 @@ import { StandardTable } from "@/components/common/StandardTable";
 import { useTableParams } from "@/hooks/useTableParams";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
+import { mapHistoryVersions } from "@/utils/versionHistory";
 import { useQueryClient } from "@tanstack/react-query";
-import dayjs from "dayjs";
 import { queryKeys } from "@/api/queryKeys";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
+import { useWBE } from "@/features/wbes/api/useWBEs";
 
 interface CostRegistrationsTabProps {
   costElement: CostElementRead;
@@ -56,6 +58,9 @@ export const CostRegistrationsTab = ({
   const { asOf } = useTimeMachineParams();
   const screens = Grid.useBreakpoint();
   const isMobile = !screens.md;
+
+  // Fetch WBE to get project_id for project-level budget validation
+  const { data: wbe } = useWBE(costElement.wbe_id);
 
   // Build query params
   const queryParams: CostRegistrationApiParams = {
@@ -232,7 +237,7 @@ export const CostRegistrationsTab = ({
       key: "registration_date",
       sorter: true,
       width: 140,
-      render: (date) => (date ? dayjs(date).format("YYYY-MM-DD") : "-"),
+      render: (date) => formatDate(date, { style: "short", fallback: "-" }),
     },
     {
       title: "Description",
@@ -383,41 +388,13 @@ export const CostRegistrationsTab = ({
         confirmLoading={isLoading}
         initialValues={selectedRegistration}
         costElementId={costElement.cost_element_id}
+        projectId={wbe?.project_id ?? ""}
       />
 
       <VersionHistoryDrawer
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
-        versions={(historyVersions || []).map((version, idx, arr) => {
-          // Helper type for history object variations
-          type HistoryItem = {
-            valid_from?: string;
-            valid_time?: string | { lower: string };
-            transaction_time?: string | { lower: string };
-            created_by_name?: string;
-          };
-          const v = version as unknown as HistoryItem;
-
-          return {
-            id: `v${arr.length - idx}`,
-            valid_from:
-              v.valid_from ||
-              (typeof v.valid_time === "object" ? v.valid_time?.lower : null) ||
-              (typeof v.valid_time === "string"
-                ? v.valid_time
-                : new Date().toISOString()),
-            transaction_time:
-              (typeof v.transaction_time === "object"
-                ? v.transaction_time?.lower
-                : null) ||
-              (typeof v.transaction_time === "string"
-                ? v.transaction_time
-                : new Date().toISOString()),
-            changed_by: v.created_by_name || "System",
-            changes:
-              idx === 0 ? { created: "initial" } : { updated: "changed" },
-          };
-        })}
+        versions={mapHistoryVersions(historyVersions)}
         entityName={`Cost Registration: ${
           selectedRegistration?.description ||
           `€${selectedRegistration?.amount}`

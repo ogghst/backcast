@@ -15,9 +15,9 @@ export type ImageUploadResponse = {
      */
     filename: string;
     /**
-     * URL to access the uploaded image
+     * Base64-encoded image content
      */
-    url: string;
+    content: string;
     /**
      * File size in bytes
      */

@@ -9,7 +9,7 @@ import {
 import { ProjectSummaryCard } from "@/components/hierarchy/ProjectSummaryCard";
 import { WBETable } from "@/components/hierarchy/WBETable";
 import { WBECreate, WBERead, WBEUpdate } from "@/api/generated";
-import { Button, Breadcrumb, Skeleton, Card, theme } from "antd";
+import { Button, Breadcrumb, Skeleton, Card, theme, Row, Col } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { useState } from "react";
 import { WBEModal } from "@/features/wbes/components/WBEModal";
@@ -19,6 +19,7 @@ import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { ProjectsService } from "@/api/generated";
 import { ChangeOrderList } from "@/features/change-orders";
+import { BudgetSettingsWidget } from "@/features/projects/widgets/BudgetSettingsWidget";
 
 export const ProjectDetailPage = () => {
   const { token } = theme.useToken();
@@ -116,11 +117,25 @@ export const ProjectDetailPage = () => {
 
       {project && (
         <>
-          <ProjectSummaryCard
-            project={project}
-            loading={projectLoading}
-            onViewHistory={() => setHistoryOpen(true)}
-          />
+          <Row gutter={token.paddingMD}>
+            <Col xs={24} lg={16}>
+              <ProjectSummaryCard
+                project={project}
+                loading={projectLoading}
+                onViewHistory={() => setHistoryOpen(true)}
+              />
+            </Col>
+            <Col xs={24} lg={8}>
+              <Can permission="project-budget-settings-read">
+                <BudgetSettingsWidget
+                  projectId={projectId!}
+                  onSuccess={() => {
+                    // Optionally refetch or show success message
+                  }}
+                />
+              </Can>
+            </Col>
+          </Row>
 
           <Card
             title="Root Work Breakdown Elements"
@@ -183,28 +198,12 @@ export const ProjectDetailPage = () => {
           entityName={`Project: ${project.name}`}
           isLoading={historyLoading}
           versions={(historyVersions || []).map((version, idx, arr) => {
-            // Basic parsing of stringified range "[start, end)"
-            let start = new Date().toISOString();
-            if (version.valid_time && typeof version.valid_time === "string") {
-              const clean = version.valid_time
-                .replace("[", "")
-                .replace(")", "")
-                .split(",")[0];
-              if (clean) start = clean.trim();
-            } else if (
-              Array.isArray(
-                (version as unknown as { valid_time: string[] }).valid_time
-              )
-            ) {
-              start = (version as unknown as { valid_time: string[] })
-                .valid_time[0];
-            }
-
             return {
               id: `v${arr.length - idx}`,
-              valid_from: start,
-              transaction_time: new Date().toISOString(), // Placeholder if not parsed
+              valid_from: version.valid_time || "",
+              transaction_time: version.transaction_time || "",
               changed_by: version.created_by_name || "System",
+              valid_to: null,
               changes:
                 idx === 0 ? { created: "initial" } : { updated: "changed" },
             };

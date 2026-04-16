@@ -1,8 +1,20 @@
 /**
  * Shared Formatter Utilities
  *
- * Common formatting functions extracted from explorer detail cards.
- * Shared across ProjectDetailCards, WBEDetailCards, and CostElementDetailCards.
+ * @deprecated This module is deprecated. Use @/utils/formatters instead.
+ *
+ * The new unified utility provides:
+ * - Better locale awareness
+ * - Hook-based formatters for performance
+ * - Consistent API across all formatting needs
+ * - TypeScript types and JSDoc documentation
+ *
+ * Migration guide:
+ * - formatDate() → formatDate() from @/utils/formatters (same signature)
+ * - formatTimestamp() → formatDateTime() from @/utils/formatters
+ * - formatCurrency() → formatCurrency() from @/utils/formatters (same signature)
+ *
+ * This file is kept for backward compatibility during migration.
  *
  * @module components/explorer/shared/formatters
  */

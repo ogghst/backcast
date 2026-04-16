@@ -14,6 +14,7 @@ import {
 import { useTimeMachineStore } from "@/stores/useTimeMachineStore";
 import { useTimeMachine } from "@/contexts/TimeMachineContext";
 import { useProject, useProjectBranches } from "@/features/projects/api/useProjects";
+import { formatDate } from "@/utils/formatters";
 
 // Mobile breakpoint for compact display
 const MOBILE_BREAKPOINT = 600;
@@ -110,10 +111,7 @@ export function TimeMachineCompact({ projectId }: TimeMachineCompactProps) {
 
   // Format display date
   const displayDate = selectedTime
-    ? new Date(selectedTime).toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-      })
+    ? formatDate(selectedTime, { style: "medium" })
     : "Now";
 
   return (

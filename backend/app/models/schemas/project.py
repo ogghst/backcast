@@ -4,9 +4,10 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.core.enums import ProjectStatus
+from app.core.temporal import format_temporal_range_for_api
 
 
 class ProjectBase(BaseModel):
@@ -102,6 +103,42 @@ class ProjectRead(ProjectBase):
                 return v.lower.isoformat()
             return str(v)
         return v  # type: ignore
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def valid_time_formatted(self) -> dict[str, str | bool | None]:
+        """Display-ready valid_time temporal data.
+
+        Returns pre-formatted temporal range information including:
+        - ISO timestamps for machine processing
+        - Formatted display strings for UI
+        - Validity status
+
+        This allows the frontend to display dates without parsing
+        PostgreSQL range syntax.
+
+        Example:
+            {
+                "lower": "2026-01-15T10:00:00+00:00",
+                "upper": null,
+                "lower_formatted": "January 15, 2026",
+                "upper_formatted": "Present",
+                "is_currently_valid": true
+            }
+        """
+        return format_temporal_range_for_api(self.valid_time)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def transaction_time_formatted(self) -> dict[str, str | bool | None]:
+        """Display-ready transaction_time temporal data.
+
+        Returns pre-formatted temporal range information for the
+        transaction time (when this version was created in the system).
+
+        See valid_time_formatted for response format details.
+        """
+        return format_temporal_range_for_api(self.transaction_time)
 
     model_config = ConfigDict(from_attributes=True)
 

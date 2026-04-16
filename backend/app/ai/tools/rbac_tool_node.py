@@ -12,7 +12,7 @@ from langchain_core.tools import BaseTool
 from langgraph.prebuilt import ToolNode
 
 from app.ai.tools.types import ExecutionMode, RiskLevel, ToolContext
-from app.core.rbac import get_rbac_service
+from app.core.rbac import get_rbac_service, inject_rbac_session
 
 
 class RBACToolNode(ToolNode):
@@ -96,9 +96,8 @@ class RBACToolNode(ToolNode):
         rbac_service = get_rbac_service()
 
         # Inject session if service supports it and project_id is provided
-        if project_id is not None and hasattr(rbac_service, "session"):
-            if rbac_service.session is None:
-                rbac_service.session = self.context.session
+        if project_id is not None:
+            inject_rbac_session(rbac_service, self.context.session)
 
         # Check each required permission
         for permission in metadata.permissions:

@@ -10,6 +10,7 @@ Quick reference for finding architecture documents. Start here when working on t
 | **Understand domain boundaries** | [`01-bounded-contexts.md`](01-bounded-contexts.md) - Context mapping |
 | **Write backend code** | [`backend/coding-standards.md`](backend/coding-standards.md) - Type safety, patterns, quality gates |
 | **Write frontend code** | [`frontend/coding-standards.md`](frontend/coding-standards.md) - React patterns, state management |
+| **Format dates & times** | [`frontend/date-formatting-guide.md`](frontend/date-formatting-guide.md) - Temporal formatting |
 | **Work with EVCS/versioning** | [`backend/contexts/evcs-core/`](backend/contexts/evcs-core/) - Entity versioning framework |
 | **Implement API endpoints** | [`cross-cutting/api-conventions.md`](cross-cutting/api-conventions.md) - REST patterns, RBAC |
 | **Write database queries** | [`cross-cutting/database-strategy.md`](cross-cutting/database-strategy.md) - PostgreSQL, bitemporal |
@@ -80,6 +81,7 @@ Quick reference for finding architecture documents. Start here when working on t
 ├── frontend/                     # Frontend architecture
 │   ├── coding-standards.md       # React/TypeScript standards
 │   ├── ui-patterns.md            # UI component patterns
+│   ├── date-formatting-guide.md  # Date & temporal formatting
 │   └── contexts/                 # Per-context frontend docs
 │       ├── 01-core-architecture.md   # Frontend architecture overview
 │       ├── 02-state-data.md          # State management patterns

@@ -2,6 +2,7 @@ import React from "react";
 import { Descriptions, Typography, Tag, Divider, theme, Space } from "antd";
 import { ProjectRead } from "@/api/generated";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
+import { formatDate, formatDateTime } from "@/utils/formatters";
 
 const { Text, Paragraph, Title } = Typography;
 
@@ -21,18 +22,6 @@ export const ProjectInfoCard = ({
   loading,
 }: ProjectInfoCardProps) => {
   const { token } = theme.useToken();
-
-  // Format dates
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  // Format timestamps
-  const formatDateTime = (dateString: string | null | undefined) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleString();
-  };
 
   return (
     <CollapsibleCard

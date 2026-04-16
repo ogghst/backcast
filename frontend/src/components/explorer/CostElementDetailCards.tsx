@@ -27,14 +27,15 @@ import {
 import { useBudgetStatus } from "@/features/cost-registration/api/useCostRegistrations";
 import { ForecastComparisonCard } from "@/features/forecasts/components";
 import { KPIStrip, BudgetUtilizationGauge, MiniSparkline } from "./charts";
-import { formatCurrency } from "./shared/formatters";
+import { formatCurrency } from "@/utils/formatters";
 import { useEVMMetrics } from "@/features/evm/api/useEVMMetrics";
 import { EntityType } from "@/features/evm/types";
+import { formatDateTime } from "@/utils/formatters";
 
 const { Text } = Typography;
 
 const formatTimestamp = (t: string | null | undefined) =>
-  !t ? "-" : new Date(t).toLocaleString();
+  !t ? "-" : formatDateTime(t);
 
 interface CostElementDetailCardsProps {
   costElementId: string;

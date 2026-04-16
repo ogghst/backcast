@@ -59,7 +59,9 @@
         "ai-config-update",
         "ai-config-delete",
         "ai-chat",
-        "dashboard-template-update"
+        "dashboard-template-update",
+        "project-budget-settings-read",
+        "project-budget-settings-write"
       ]
     },
     "manager": {
@@ -101,7 +103,9 @@
         "evm-create",
         "evm-update",
         "evm-delete",
-        "ai-chat"
+        "ai-chat",
+        "project-budget-settings-read",
+        "project-budget-settings-write"
       ]
     },
     "viewer": {

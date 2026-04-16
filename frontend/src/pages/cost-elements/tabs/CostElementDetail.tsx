@@ -2,17 +2,18 @@ import { useState } from "react";
 import {
   Descriptions,
   Progress,
-  Statistic,
-  Row,
-  Col,
-  Alert,
   Button,
   Grid,
+  Typography,
   theme,
 } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import type { CostElementRead } from "@/api/generated";
-import { useBudgetStatus } from "@/features/cost-registration/api/useCostRegistrations";
+import {
+  useBudgetStatus,
+  useProjectBudgetSettings,
+} from "@/features/cost-registration/api/useCostRegistrations";
+import { useWBE } from "@/features/wbes/api/useWBEs";
 import {
   useUpdateCostElement,
   useCostElementForecast,
@@ -24,12 +25,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
+import { formatTemporalRange } from "@/utils/formatters";
 
 interface CostElementDetailProps {
   costElement: CostElementRead;
 }
 
 const { useBreakpoint } = Grid;
+const { Text } = Typography;
 
 export const CostElementDetail = ({ costElement }: CostElementDetailProps) => {
   const screens = useBreakpoint();
@@ -43,6 +46,14 @@ export const CostElementDetail = ({ costElement }: CostElementDetailProps) => {
 
   const { data: budgetStatus, isLoading } = useBudgetStatus(
     costElement.cost_element_id,
+  );
+
+  // Fetch WBE to get project_id for budget settings
+  const { data: wbe } = useWBE(costElement.wbe_id);
+
+  // Fetch project budget settings to get warning threshold
+  const { data: projectBudgetSettings } = useProjectBudgetSettings(
+    wbe?.project_id || "",
   );
 
   // Fetch forecast for this cost element (1:1 relationship)
@@ -95,17 +106,22 @@ export const CostElementDetail = ({ costElement }: CostElementDetailProps) => {
       ? (used / budget) * 100
       : 0;
 
-  // Determine status color
+  // Get warning threshold from project settings (default to 85% if not configured)
+  const warningThresholdPercent = projectBudgetSettings
+    ? Number(projectBudgetSettings.warning_threshold_percent || 85)
+    : 85;
+
+  // Determine status color based on project warning threshold
   let statusColor = "#52c41a"; // green
   let statusText = "Healthy";
 
   if (percentage >= 100) {
     statusColor = "#ff4d4f"; // red
     statusText = "Exceeded";
-  } else if (percentage >= 90) {
+  } else if (percentage >= warningThresholdPercent) {
     statusColor = "#faad14"; // orange
     statusText = "Warning";
-  } else if (percentage >= 75) {
+  } else if (percentage >= warningThresholdPercent - 10) {
     statusColor = "#1890ff"; // blue
     statusText = "Monitoring";
   }
@@ -138,128 +154,46 @@ export const CostElementDetail = ({ costElement }: CostElementDetailProps) => {
         {isLoading ? (
           <Progress percent={0} />
         ) : (
-          <>
-            <Row
-              gutter={[isMobile ? token.marginSM : token.marginLG, isMobile ? token.marginSM : token.marginMD]}
-              style={{ marginBottom: isMobile ? token.marginMD : token.marginLG }}
-            >
-              <Col xs={12} sm={12} md={6}>
-                <Statistic
-                  title="Budget"
-                  value={budget}
-                  precision={2}
-                  prefix="€"
-                  styles={{
-                    content: {
-                      color: token.colorInfo,
-                      fontSize: isSmallMobile ? token.fontSizeLG : token.fontSizeXL,
-                    },
-                    title: {
-                      fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
-                    },
-                  }}
-                />
-              </Col>
-              <Col xs={12} sm={12} md={6}>
-                <Statistic
-                  title="Used"
-                  value={used}
-                  precision={2}
-                  prefix="€"
-                  styles={{
-                    content: {
-                      color: percentage >= 100 ? token.colorError : token.colorSuccess,
-                      fontSize: isSmallMobile ? token.fontSizeLG : token.fontSizeXL,
-                    },
-                    title: {
-                      fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
-                    },
-                  }}
-                />
-              </Col>
-              <Col xs={12} sm={12} md={6}>
-                <Statistic
-                  title="Remaining"
-                  value={remaining}
-                  precision={2}
-                  prefix="€"
-                  styles={{
-                    content: {
-                      color: remaining < 0 ? token.colorError : token.colorSuccess,
-                      fontSize: isSmallMobile ? token.fontSizeLG : token.fontSizeXL,
-                    },
-                    title: {
-                      fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
-                    },
-                  }}
-                />
-              </Col>
-              <Col xs={12} sm={12} md={6}>
-                <Statistic
-                  title="Used"
-                  value={percentage}
-                  precision={1}
-                  suffix="%"
-                  styles={{
-                    content: {
-                      color: statusColor,
-                      fontSize: isSmallMobile ? token.fontSizeLG : token.fontSizeXL,
-                    },
-                    title: {
-                      fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
-                    },
-                  }}
-                />
-              </Col>
-            </Row>
-
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: token.paddingMD,
+            }}
+          >
             <Progress
-              percent={Math.min(percentage, 100)}
+              type="circle"
+              percent={Math.round(Math.min(percentage, 100))}
+              size={80}
+              format={(percent) => `${percent}%`}
               strokeColor={statusColor}
-              status={percentage >= 100 ? "exception" : undefined}
-              strokeHeight={isMobile ? 8 : 10}
             />
-            <div style={{
-              marginTop: token.paddingXS,
-              color: token.colorTextSecondary,
-              fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
-            }}>
-              Status:{" "}
-              <strong style={{ color: statusColor }}>{statusText}</strong>
+            <div>
+              <Text strong style={{ fontSize: token.fontSizeLG }}>
+                {statusText}
+              </Text>
+              <br />
+              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                Budget: €{budget.toFixed(2)} · Used: €{used.toFixed(2)} · Remaining: €{remaining.toFixed(2)}
+              </Text>
+              {remaining < 0 && (
+                <>
+                  <br />
+                  <Text type="danger" style={{ fontSize: token.fontSizeSM }}>
+                    ⚠ Over budget by €{Math.abs(remaining).toFixed(2)}
+                  </Text>
+                </>
+              )}
+              {percentage >= warningThresholdPercent && percentage < 100 && (
+                <>
+                  <br />
+                  <Text type="warning" style={{ fontSize: token.fontSizeSM }}>
+                    ⚠ Approaching budget limit (threshold: {warningThresholdPercent}%)
+                  </Text>
+                </>
+              )}
             </div>
-
-            {remaining < 0 && (
-              <Alert
-                message="Budget Exceeded"
-                description={isSmallMobile
-                  ? `Over budget by €${Math.abs(remaining).toFixed(2)}`
-                  : `This cost element has exceeded its budget by €${Math.abs(remaining).toFixed(2)}.`
-                }
-                type="warning"
-                showIcon
-                style={{
-                  marginTop: isMobile ? token.marginSM : token.marginMD,
-                  fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
-                }}
-              />
-            )}
-
-            {percentage >= 90 && percentage < 100 && (
-              <Alert
-                message="Budget Warning"
-                description={isSmallMobile
-                  ? `Used ${percentage.toFixed(1)}% of budget`
-                  : `This cost element has used ${percentage.toFixed(1)}% of its budget. Consider reviewing before adding more costs.`
-                }
-                type="warning"
-                showIcon
-                style={{
-                  marginTop: isMobile ? token.marginSM : token.marginMD,
-                  fontSize: isSmallMobile ? token.fontSizeSM : token.fontSizeMD,
-                }}
-              />
-            )}
-          </>
+          </div>
         )}
       </CollapsibleCard>
 
@@ -318,12 +252,14 @@ export const CostElementDetail = ({ costElement }: CostElementDetailProps) => {
             {costElement.created_by || "-"}
           </Descriptions.Item>
           <Descriptions.Item label="Valid Time">
-            {costElement.valid_time
-              ? new Date(costElement.valid_time).toLocaleString()
+            {costElement.valid_time_formatted
+              ? formatTemporalRange(costElement.valid_time_formatted)
               : "-"}
           </Descriptions.Item>
           <Descriptions.Item label="Transaction Time">
-            {costElement.transaction_time ?? "-"}
+            {costElement.transaction_time_formatted
+              ? formatTemporalRange(costElement.transaction_time_formatted)
+              : "-"}
           </Descriptions.Item>
         </Descriptions>
       </CollapsibleCard>

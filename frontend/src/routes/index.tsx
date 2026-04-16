@@ -25,6 +25,7 @@ import { Profile } from "@/pages/Profile";
 import { ChatInterfacePage } from "@/pages/chat/ChatInterface";
 import { ProjectChat } from "@/pages/projects/ProjectChat";
 import { ProjectMembers } from "@/pages/projects/ProjectMembers";
+import { ProjectAdminPage } from "@/pages/projects/ProjectAdminPage";
 import { DashboardPage } from "@/features/widgets/pages/DashboardPage";
 
 export const router = createBrowserRouter([
@@ -132,6 +133,10 @@ export const router = createBrowserRouter([
           {
             path: "dashboard",
             element: <DashboardPage />,
+          },
+          {
+            path: "admin",
+            element: <ProjectAdminPage />,
           },
         ],
       },

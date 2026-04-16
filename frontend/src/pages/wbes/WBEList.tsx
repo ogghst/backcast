@@ -229,11 +229,10 @@ export const WBEList = ({ projectId }: WBEListProps) => {
         onClose={() => setHistoryOpen(false)}
         versions={(historyVersions || []).map((version, idx, arr) => ({
           id: `v${arr.length - idx}`,
-          valid_from: version.valid_time?.[0] || new Date().toISOString(),
-          transaction_time:
-            version.transaction_time?.[0] || new Date().toISOString(),
+          valid_from: version.valid_time || "",
+          transaction_time: version.transaction_time || "",
+          valid_to: null,
           changed_by: version.created_by_name || "System",
-          changes: idx === 0 ? { created: "initial" } : { updated: "changed" },
         }))}
         entityName={`WBE: ${selectedWBE?.name || ""}`}
         isLoading={historyLoading}

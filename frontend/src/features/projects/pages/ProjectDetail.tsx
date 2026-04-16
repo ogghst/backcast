@@ -44,61 +44,9 @@ import { useProject } from "../api/useProjects";
 import { getProjectStatusColor } from "@/lib/status";
 import { EntityType } from "@/features/evm/types";
 import type { EVMTimeSeriesGranularity } from "@/features/evm/types";
+import { formatDate, formatCurrency, formatTemporalRange, calculateDuration } from "@/utils/formatters";
 
 const { Title, Text } = Typography;
-
-/** Currency formatter for EUR values. */
-const currencyFormatter = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "EUR",
-});
-
-/**
- * Format a numeric value as EUR currency.
- * @param value - The value to format
- * @returns Formatted currency string or "-" if falsy
- */
-const formatCurrency = (value: string | number | null | undefined): string => {
-  if (!value) return "-";
-  return currencyFormatter.format(Number(value));
-};
-
-/**
- * Format an ISO date string for display.
- * @param dateString - ISO date string
- * @returns Locale-formatted date string or "-" if falsy
- */
-const formatDate = (dateString: string | null | undefined): string => {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString();
-};
-
-/**
- * Format an ISO timestamp string for display with time.
- * @param timestamp - ISO timestamp string
- * @returns Locale-formatted datetime string or "-" if falsy
- */
-const formatTimestamp = (timestamp: string | null | undefined): string => {
-  if (!timestamp) return "-";
-  return new Date(timestamp).toLocaleString();
-};
-
-/**
- * Calculate the duration in days between two dates.
- * @param start - Start date string
- * @param end - End date string
- * @returns Duration string like "365 days" or null if dates are missing
- */
-const calculateDuration = (
-  start: string | null | undefined,
-  end: string | null | undefined
-): string | null => {
-  if (!start || !end) return null;
-  const days = Math.ceil(
-    (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24)
-  );
-  return `${Math.abs(days)} day${Math.abs(days) !== 1 ? "s" : ""}`;
-};
 
 /**
  * Props for ProjectDetail component
@@ -271,7 +219,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectId: propPro
                     color: token.colorText,
                   }}
                 >
-                  {formatDate(projectData.start_date)}
+                  {formatDate(projectData.start_date, { fallback: "-" })}
                 </Text>
               </div>
             </Col>
@@ -295,7 +243,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectId: propPro
                     color: token.colorText,
                   }}
                 >
-                  {formatDate(projectData.end_date)}
+                  {formatDate(projectData.end_date, { fallback: "-" })}
                 </Text>
               </div>
             </Col>
@@ -432,13 +380,19 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ projectId: propPro
               {projectData.created_by_name || "-"}
             </Descriptions.Item>
             <Descriptions.Item label="Created At">
-              {formatTimestamp(projectData.created_at)}
+              {projectData.created_at
+                ? formatDate(projectData.created_at, { style: "long", fallback: "-" })
+                : "-"}
             </Descriptions.Item>
             <Descriptions.Item label="Valid Time">
-              {formatTimestamp(projectData.valid_time)}
+              {projectData.valid_time_formatted
+                ? formatTemporalRange(projectData.valid_time_formatted)
+                : "-"}
             </Descriptions.Item>
             <Descriptions.Item label="Transaction Time">
-              {formatTimestamp(projectData.transaction_time)}
+              {projectData.transaction_time_formatted
+                ? formatTemporalRange(projectData.transaction_time_formatted)
+                : "-"}
             </Descriptions.Item>
           </Descriptions>
         ),

@@ -18,10 +18,15 @@ from app.core.versioning.enums import BranchMode
 from app.core.versioning.service import TemporalService
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_registration import CostRegistration
+from app.models.domain.project import Project
 from app.models.domain.wbe import WBE
 from app.models.schemas.cost_registration import (
     CostRegistrationCreate,
     CostRegistrationUpdate,
+)
+from app.models.schemas.project_budget_settings import BudgetWarning
+from app.services.project_budget_settings_service import (
+    ProjectBudgetSettingsService,
 )
 
 
@@ -31,6 +36,16 @@ class BudgetStatus(BaseModel):
     cost_element_id: UUID
     budget: Decimal
     used: Decimal
+    remaining: Decimal
+    percentage: Decimal
+
+
+class ProjectBudgetStatus(BaseModel):
+    """Budget status for a project (aggregated across all cost elements)."""
+
+    project_id: UUID
+    project_budget: Decimal
+    total_spend: Decimal
     remaining: Decimal
     percentage: Decimal
 
@@ -49,6 +64,128 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             db: Async database session
         """
         super().__init__(CostRegistration, db)
+
+    async def get_project_budget_status(
+        self, project_id: UUID, branch: str = "main"
+    ) -> ProjectBudgetStatus:
+        """Get project-level budget status (aggregated across all cost elements).
+
+        Calculates total spend across all cost registrations in the project
+        and compares against the project's overall budget.
+
+        Args:
+            project_id: The project to get status for
+            branch: Branch context for queries (defaults to "main")
+
+        Returns:
+            ProjectBudgetStatus with project_budget, total_spend, remaining, percentage
+        """
+        # Get project budget
+        project_stmt = select(Project).where(
+            Project.project_id == project_id,
+            Project.branch == branch,
+            func.upper(Project.valid_time).is_(None),
+            Project.deleted_at.is_(None),
+        )
+        project_result = await self.session.execute(project_stmt.limit(1))
+        project = project_result.scalar_one_or_none()
+
+        if project is None and branch != "main":
+            # Fallback to main branch
+            project_stmt_main = select(Project).where(
+                Project.project_id == project_id,
+                Project.branch == "main",
+                func.upper(Project.valid_time).is_(None),
+                Project.deleted_at.is_(None),
+            )
+            project_result_main = await self.session.execute(project_stmt_main.limit(1))
+            project = project_result_main.scalar_one_or_none()
+
+        if project is None:
+            raise ValueError(f"Project {project_id} not found on branch {branch} or main")
+
+        project_budget = project.budget
+
+        # Calculate total spend across all cost elements in the project
+        # Join: Project -> WBE -> CostElement -> CostRegistration
+        # Cost registrations are global (not branchable), so we don't need to check multiple branches
+        total_spend_stmt = (
+            select(func.sum(CostRegistration.amount))
+            .join(CostElement, CostRegistration.cost_element_id == CostElement.cost_element_id)
+            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id == project_id,
+                func.upper(CostRegistration.valid_time).is_(None),
+                CostRegistration.deleted_at.is_(None),
+                func.upper(CostElement.valid_time).is_(None),
+                CostElement.deleted_at.is_(None),
+                func.upper(WBE.valid_time).is_(None),
+                WBE.deleted_at.is_(None),
+            )
+        )
+
+        result = await self.session.execute(total_spend_stmt)
+        total_spend = result.scalar_one() or Decimal("0")
+        total_spend = Decimal(str(total_spend))
+
+        # Calculate remaining and percentage
+        remaining = project_budget - total_spend
+        percentage = (total_spend / project_budget * Decimal("100")) if project_budget > 0 else Decimal("0")
+
+        return ProjectBudgetStatus(
+            project_id=project_id,
+            project_budget=project_budget,
+            total_spend=total_spend,
+            remaining=remaining,
+            percentage=percentage,
+        )
+
+    async def validate_budget_status(
+        self,
+        cost_element_id: UUID,
+        project_id: UUID,
+        user_id: UUID,
+        branch: str = "main",
+    ) -> BudgetWarning | None:
+        """Validate budget status and return warning if threshold exceeded.
+
+        Checks if the PROJECT's total budget usage exceeds the project's
+        warning threshold (aggregated across all cost elements).
+        Returns None if no warning needed.
+
+        Args:
+            cost_element_id: The cost element being charged (for context)
+            project_id: The project context for validation
+            user_id: The user making the registration (for admin override check)
+            branch: Branch to check budget against (defaults to "main")
+
+        Returns:
+            BudgetWarning if project-level threshold exceeded, None otherwise
+        """
+        # Get project budget settings
+        settings_service = ProjectBudgetSettingsService(self.session)
+        threshold = await settings_service.get_warning_threshold(project_id)
+
+        # Get PROJECT-level budget status (aggregated across all cost elements)
+        project_budget_status = await self.get_project_budget_status(
+            project_id=project_id, branch=branch
+        )
+
+        # Check if threshold exceeded
+        if project_budget_status.percentage < threshold:
+            return None
+
+        # Threshold exceeded - create warning
+        return BudgetWarning(
+            exceeds_threshold=True,
+            threshold_percent=threshold,
+            current_percent=project_budget_status.percentage,
+            message=(
+                f"Project budget usage at {project_budget_status.percentage:.1f}% "
+                f"exceeds warning threshold of {threshold:.1f}% "
+                f"(€{project_budget_status.total_spend:,.2f} of €{project_budget_status.project_budget:,.2f})"
+            ),
+        )
 
     async def create_cost_registration(
         self,
@@ -121,8 +258,60 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
                     f"Cost Element {registration_in.cost_element_id} not found on branch {branch} or main"
                 )
 
-        # Budget validation removed - allowing over-budget registration with frontend warning
+        # Get Cost Element to validate budget and fetch project_id
+        ce_stmt = select(CostElement).where(
+            CostElement.cost_element_id == registration_in.cost_element_id,
+            CostElement.branch == branch,
+            func.upper(cast(Any, CostElement).valid_time).is_(None),
+            cast(Any, CostElement).deleted_at.is_(None),
+        )
+        ce_result = await self.session.execute(ce_stmt.limit(1))
+        cost_element = ce_result.scalar_one_or_none()
 
+        if cost_element is None and branch != "main":
+            # Fallback to main branch
+            ce_stmt_main = select(CostElement).where(
+                CostElement.cost_element_id == registration_in.cost_element_id,
+                CostElement.branch == "main",
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            ce_result_main = await self.session.execute(ce_stmt_main.limit(1))
+            cost_element = ce_result_main.scalar_one_or_none()
+
+        if cost_element is None:
+            raise ValueError(
+                f"Cost Element {registration_in.cost_element_id} not found on branch {branch} or main"
+            )
+
+        # Get WBE to fetch project_id for budget validation
+        wbe_stmt = select(WBE).where(
+            WBE.wbe_id == cost_element.wbe_id,
+            WBE.branch == branch,
+            func.upper(cast(Any, WBE).valid_time).is_(None),
+            cast(Any, WBE).deleted_at.is_(None),
+        )
+        wbe_result = await self.session.execute(wbe_stmt.limit(1))
+        wbe = wbe_result.scalar_one_or_none()
+
+        if wbe is None and branch != "main":
+            # Fallback to main branch
+            wbe_stmt_main = select(WBE).where(
+                WBE.wbe_id == cost_element.wbe_id,
+                WBE.branch == "main",
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
+            )
+            wbe_result_main = await self.session.execute(wbe_stmt_main.limit(1))
+            wbe = wbe_result_main.scalar_one_or_none()
+
+        if wbe is None:
+            raise ValueError(
+                f"WBE {cost_element.wbe_id} not found on branch {branch} or main"
+            )
+
+        # Create the cost registration (budget validation is non-blocking)
+        # The warning will be included in the response via the API layer
         cmd = CreateVersionCommand(
             entity_class=CostRegistration,  # type: ignore[type-var,unused-ignore]
             root_id=root_id,
@@ -571,6 +760,85 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             )
 
         return cumulative_costs
+
+    async def get_cumulative_costs_batch(
+        self,
+        cost_element_ids: list[UUID],
+        start_date: datetime,
+        end_date: datetime | None = None,
+        as_of: datetime | None = None,
+    ) -> dict[UUID, list[dict[str, Any]]]:
+        """Get cumulative costs over time for multiple cost elements.
+
+        Batch version of get_cumulative_costs that fetches all cost
+        registrations in a single query instead of N individual queries.
+
+        Args:
+            cost_element_ids: List of cost element UUIDs to query
+            start_date: Start date for calculation
+            end_date: End date for calculation (defaults to now)
+            as_of: Optional timestamp for time-travel query
+
+        Returns:
+            Dictionary mapping each cost_element_id to its cumulative
+            costs list (same format as get_cumulative_costs).
+        """
+        if not cost_element_ids:
+            return {}
+
+        if end_date is None:
+            end_date = datetime.now(tz=UTC)
+
+        # Build batch query with time-travel support
+        stmt = select(
+            CostRegistration.cost_element_id,
+            CostRegistration.registration_date,
+            CostRegistration.amount,
+        ).where(
+            CostRegistration.cost_element_id.in_(cost_element_ids),
+            CostRegistration.registration_date >= start_date,
+            CostRegistration.registration_date <= end_date,
+        )
+
+        # Apply bitemporal filter
+        if as_of is not None:
+            stmt = self._apply_bitemporal_filter(stmt, as_of)
+        else:
+            stmt = stmt.where(func.upper(CostRegistration.valid_time).is_(None))
+            stmt = stmt.where(CostRegistration.deleted_at.is_(None))
+
+        # Order by cost element then date for grouped cumulative calc
+        stmt = stmt.order_by(
+            CostRegistration.cost_element_id,
+            CostRegistration.registration_date,
+        )
+
+        result = await self.session.execute(stmt)
+        rows = result.all()
+
+        # Group rows by cost_element_id preserving insertion order
+        grouped: dict[UUID, list[Any]] = {}
+        for row in rows:
+            grouped.setdefault(row.cost_element_id, []).append(row)
+
+        # Calculate cumulative sum per cost element
+        batch_result: dict[UUID, list[dict[str, Any]]] = {}
+        for ce_id in cost_element_ids:
+            ce_rows = grouped.get(ce_id, [])
+            cumulative_amount = Decimal("0")
+            costs: list[dict[str, Any]] = []
+            for row in ce_rows:
+                cumulative_amount += row.amount
+                costs.append(
+                    {
+                        "registration_date": row.registration_date.isoformat(),
+                        "amount": float(row.amount),
+                        "cumulative_amount": float(cumulative_amount),
+                    }
+                )
+            batch_result[ce_id] = costs
+
+        return batch_result
 
     async def get_totals_for_cost_elements(
         self,

@@ -40,13 +40,15 @@ export function widgetTypeId(id: string): WidgetTypeId {
  * - **diagnostic**: Variance analysis, root-cause views
  * - **breakdown**: Structured drilldowns (WBS tree, cost element grids)
  * - **action**: Action-oriented lists (pending approvals, recent entries)
+ * - **settings**: Configuration widgets for project-specific settings
  */
 export type WidgetCategory =
   | "summary"
   | "trend"
   | "diagnostic"
   | "breakdown"
-  | "action";
+  | "action"
+  | "settings";
 
 // ============================================================================
 // Widget Size Constraints
@@ -153,6 +155,8 @@ export interface WidgetDefinition<
   defaultConfig: TConfig;
   /** Optional configuration form component for the WidgetConfigDrawer */
   configFormComponent?: FC<ConfigFormProps<TConfig>>;
+  /** Whether this widget requires a project context to function */
+  requiresProjectContext?: boolean;
 }
 
 // ============================================================================

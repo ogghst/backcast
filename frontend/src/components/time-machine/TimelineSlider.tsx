@@ -2,6 +2,7 @@ import { useMemo, useRef, useCallback } from "react";
 import { Tooltip, theme } from "antd";
 import type { TimelineEvent } from "./types";
 import "./TimeMachine.styles.css";
+import { formatDate, formatDateTime as formatDateTimeUtil } from "@/utils/formatters";
 
 interface TimelineSliderProps {
   /** Minimum date (project start) */
@@ -223,20 +224,11 @@ export function TimelineSlider({
 
 // Helper functions
 function formatShortDate(date: Date): string {
-  return date.toLocaleDateString(undefined, {
-    month: "short",
-    year: "2-digit",
-  });
+  return formatDate(date.toISOString(), { style: "short" });
 }
 
 function formatDateTime(date: Date): string {
-  return date.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatDateTimeUtil(date.toISOString());
 }
 
 function getEventColor(

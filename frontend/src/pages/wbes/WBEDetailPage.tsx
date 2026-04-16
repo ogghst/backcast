@@ -466,30 +466,20 @@ export const WBEDetailPage = () => {
           entityName={`WBE: ${wbe.code} - ${wbe.name}`}
           isLoading={historyLoading}
           versions={(historyVersions || []).map((version, idx, arr) => {
-            // Basic parsing of stringified range "[start, end)"
-            let start = new Date().toISOString();
-            if (version.valid_time && typeof version.valid_time === "string") {
-              const clean = version.valid_time
-                .replace("[", "")
-                .replace(")", "")
-                .split(",")[0];
-              if (clean) start = clean.trim();
-            } else if (
-              Array.isArray(
-                (version as unknown as { valid_time: string[] }).valid_time,
-              )
-            ) {
-              start = (version as unknown as { valid_time: string[] })
-                .valid_time[0];
-            }
+            // Use backend-formatted temporal data (computed fields)
+            const validTimeFormatted = version.valid_time_formatted;
+            const transactionTimeFormatted = version.transaction_time_formatted;
 
             return {
               id: `v${arr.length - idx}`,
-              valid_from: start,
-              transaction_time: new Date().toISOString(), // Placeholder if not parsed
+              // Pass the formatted temporal data directly to VersionHistoryDrawer
+              valid_from: validTimeFormatted?.lower || "",
+              valid_to: validTimeFormatted?.upper || null,
+              transaction_time: transactionTimeFormatted?.lower || "",
               changed_by: version.created_by_name || "System",
-              changes:
-                idx === 0 ? { created: "initial" } : { updated: "changed" },
+              // Also pass the formatted objects for the drawer to use
+              valid_time_formatted: validTimeFormatted,
+              transaction_time_formatted: transactionTimeFormatted,
             };
           })}
         />

@@ -1,7 +1,7 @@
 import { Card, Descriptions, Tag, Button, Space } from "antd";
 import { EditOutlined } from "@ant-design/icons";
 import { ChangeOrderPublic } from "@/api/generated";
-import dayjs from "dayjs";
+import { formatDate } from "@/utils/formatters";
 import { useWorkflowInfo } from "../hooks/useWorkflowInfo";
 
 interface ChangeOrderSummaryCardProps {
@@ -61,7 +61,7 @@ export const ChangeOrderSummaryCard = ({
         </Descriptions.Item>
         <Descriptions.Item label="Effective Date">
           {changeOrder.effective_date
-            ? dayjs(changeOrder.effective_date).format("YYYY-MM-DD")
+            ? formatDate(changeOrder.effective_date, { style: "short" })
             : "-"}
         </Descriptions.Item>
         <Descriptions.Item label="Description" style={{ whiteSpace: "pre-wrap" }}>

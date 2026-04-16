@@ -2,7 +2,7 @@ import { theme } from "antd";
 import type React from "react";
 import type { EVMMetricsResponse, MetricKey } from "@/features/evm/types";
 import { getMetricStatus } from "@/features/evm/types";
-import { formatCompactCurrency } from "@/components/explorer/shared/formatters";
+import { formatCompactCurrency } from "@/utils/formatters";
 
 interface CompactKPIStripProps {
   metrics: EVMMetricsResponse;

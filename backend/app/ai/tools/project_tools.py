@@ -17,6 +17,7 @@ from app.ai.tools.temporal_logging import (
     log_temporal_context,
 )
 from app.ai.tools.types import RiskLevel, ToolContext
+from app.core.rbac import inject_rbac_session
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +78,7 @@ async def list_projects(
         rbac_service = get_rbac_service()
 
         # Inject session for project-level access checks
-        if hasattr(rbac_service, "session") and rbac_service.session is None:
-            rbac_service.session = context.session
+        inject_rbac_session(rbac_service, context.session)
 
         user_uuid = UUID(context.user_id)
 

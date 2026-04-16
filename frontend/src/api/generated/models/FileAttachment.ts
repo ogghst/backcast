@@ -23,9 +23,9 @@ export type FileAttachment = {
      */
     file_size: number;
     /**
-     * URL to access the file
+     * Extracted text or base64-encoded content
      */
-    url: string;
+    content?: (string | null);
     /**
      * Upload timestamp
      */

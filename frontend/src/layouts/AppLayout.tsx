@@ -16,7 +16,7 @@ import {
   useProject,
   useProjectBranches,
 } from "@/features/projects/api/useProjects";
-import { parseRangeLowerBound } from "@/utils/temporal";
+import { parseTemporalRangeLower } from "@/utils/formatters";
 
 const { Header, Content, Footer } = Layout;
 
@@ -122,7 +122,7 @@ const AppLayout: React.FC = () => {
           projectName={project?.name}
           timelineData={{
             startDate:
-              parseRangeLowerBound(project?.valid_time ?? null) ??
+              parseTemporalRangeLower(project?.valid_time ?? null) ??
               (project?.start_date ? new Date(project.start_date) : null),
             endDate: project?.end_date ? new Date(project.end_date) : null,
             branches: branches.map((b) => b.name),

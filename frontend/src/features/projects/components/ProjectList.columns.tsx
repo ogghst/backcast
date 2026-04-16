@@ -16,6 +16,7 @@ import { useMemo } from "react";
 import type { ColumnType } from "antd/es/table";
 import type { ProjectRead } from "@/types";
 import { Can } from "@/components/auth/Can";
+import { formatDate } from "@/utils/formatters";
 
 /**
  * Get column search props for table filtering
@@ -110,9 +111,9 @@ export const useCurrencyFormatter = () =>
 /**
  * Memoized date formatter for date columns
  */
-export const useDateFormatter = () =>
+export const useProjectListDateFormatter = () =>
   useMemo(
-    () => (date: string) => (date ? new Date(date).toLocaleDateString() : "-"),
+    () => (date: string) => (date ? formatDate(date) : "-"),
     [],
   );
 

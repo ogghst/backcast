@@ -12,6 +12,7 @@ import { useTimeMachineParams } from "@/contexts/TimeMachineContext";
 import { queryKeys } from "@/api/queryKeys";
 import { request as __request } from "@/api/generated/core/request";
 import { OpenAPI } from "@/api/generated/core/OpenAPI";
+import { formatDate } from "@/utils/formatters";
 
 const { Text } = Typography;
 
@@ -46,7 +47,7 @@ const formatCurrency = (value: string | number | undefined): string => {
 
 const formatDateShort = (dateStr: string | null | undefined): string | null => {
   if (!dateStr) return null;
-  return new Date(dateStr).toLocaleDateString("en-IE", { month: "short", year: "2-digit" });
+  return formatDate(dateStr, { style: "short" });
 };
 
 const formatDateRange = (

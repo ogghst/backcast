@@ -13,11 +13,11 @@ import {
   HistoryOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
-import dayjs from "dayjs";
 import { useState } from "react";
 import type { ColumnType } from "antd/es/table";
 import type { FilterValue } from "antd/es/table/interface";
 import type { CostElementRead } from "@/api/generated";
+import { formatDate } from "@/utils/formatters";
 import type { ProgressEntryRead, ProgressEntryCreate } from "@/api/generated";
 import {
   useProgressEntries,
@@ -34,6 +34,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/queryKeys";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
+import { mapHistoryVersions } from "@/utils/versionHistory";
 import { ProgressEntriesService } from "@/api/generated";
 
 interface ProgressEntriesTabProps {
@@ -201,12 +202,7 @@ export const ProgressEntriesTab = ({
       sorter: true,
       render: (validTime: string) => {
         if (!validTime) return "-";
-        // Extract lower bound from TSTZRANGE format: '["2026-01-31T00:00:00Z",)'
-        const lowerBound = validTime
-          .split(",")[0]
-          .substring(1)
-          .replace(/"/g, "");
-        return dayjs(lowerBound).format("YYYY-MM-DD HH:mm");
+        return formatDate(validTime);
       },
     },
     {
@@ -367,36 +363,7 @@ export const ProgressEntriesTab = ({
       <VersionHistoryDrawer
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
-        versions={(historyVersions || []).map((version, idx, arr) => {
-          type HistoryItem = {
-            valid_from?: string;
-            valid_time?: string | { lower: string };
-            transaction_time?: string | { lower: string };
-            created_by_name?: string;
-            progress_percentage?: string;
-          };
-          const v = version as unknown as HistoryItem;
-
-          return {
-            id: `v${arr.length - idx}`,
-            valid_from:
-              v.valid_from ||
-              (typeof v.valid_time === "object" ? v.valid_time?.lower : null) ||
-              (typeof v.valid_time === "string"
-                ? v.valid_time
-                : new Date().toISOString()),
-            transaction_time:
-              (typeof v.transaction_time === "object"
-                ? v.transaction_time?.lower
-                : null) ||
-              (typeof v.transaction_time === "string"
-                ? v.transaction_time
-                : new Date().toISOString()),
-            changed_by: v.created_by_name || "System",
-            changes:
-              idx === 0 ? { created: "initial" } : { updated: "changed" },
-          };
-        })}
+        versions={mapHistoryVersions(historyVersions)}
         entityName={`Progress Entry: ${
           selectedEntry?.progress_percentage
             ? `${selectedEntry.progress_percentage}%`

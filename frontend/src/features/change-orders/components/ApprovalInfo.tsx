@@ -13,8 +13,8 @@ import {
   DollarOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import dayjs from "dayjs";
 import type { ApprovalInfoPublic as ApprovalInfo } from "@/api/generated";
+import { formatDate } from "@/utils/formatters";
 
 const { Text } = Typography;
 
@@ -183,7 +183,7 @@ export function ApprovalInfo({
               <Space size="large">
                 <Statistic
                   title="Due Date"
-                  value={dayjs(approvalInfo.sla_due_date).format("MMM D, YYYY")}
+                  value={formatDate(approvalInfo.sla_due_date)}
                   valueStyle={{ fontSize: "16px" }}
                 />
                 <Statistic
@@ -212,7 +212,7 @@ export function ApprovalInfo({
             {approvalInfo.sla_assigned_at && (
               <Text type="secondary" style={{ fontSize: "12px" }}>
                 Assigned on{" "}
-                {dayjs(approvalInfo.sla_assigned_at).format("MMM D, YYYY")}
+                {formatDate(approvalInfo.sla_assigned_at)}
               </Text>
             )}
           </div>

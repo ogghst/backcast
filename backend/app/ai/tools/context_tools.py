@@ -5,6 +5,7 @@ Tools in this module do NOT modify project state - they only provide
 visibility into the current project context.
 """
 
+import asyncio
 import logging
 from typing import Annotated, Any
 
@@ -18,8 +19,13 @@ from app.ai.tools.temporal_logging import (
     log_temporal_context,
 )
 from app.ai.tools.types import RiskLevel, ToolContext
+from app.core.rbac import inject_rbac_session
 
 logger = logging.getLogger(__name__)
+
+# Reasonable limits for data fetching to prevent memory issues
+_MAX_WBES = 5000
+_MAX_COST_ELEMENTS = 10000
 
 
 @ai_tool(
@@ -104,8 +110,7 @@ async def get_project_context(
 
         # Inject session for project-level access checks
         rbac_service = get_rbac_service()
-        if hasattr(rbac_service, "session") and rbac_service.session is None:
-            rbac_service.session = context.session
+        inject_rbac_session(rbac_service, context.session)
 
         # Get project details
         from app.core.versioning.enums import BranchMode
@@ -315,24 +320,27 @@ async def get_project_structure(
                 {"error": f"Project {context.project_id} not found"}, context
             )
 
-        # Fetch all WBEs for this project
+        # Fetch all WBEs and cost elements concurrently
         wbe_service = WBEService(context.session)
-        wbes, _ = await wbe_service.get_wbes(
-            project_id=project_uuid,
-            branch=branch,
-            branch_mode=branch_mode,
-            as_of=context.as_of,
-            limit=100000,
-        )
-
-        # Fetch all cost elements, filter to this project's WBEs
         ce_service = CostElementService(context.session)
-        all_ces, _ = await ce_service.get_cost_elements(
-            branch=branch,
-            branch_mode=branch_mode,
-            limit=100000,
-            as_of=context.as_of,
+
+        wbes_result, ces_result = await asyncio.gather(
+            wbe_service.get_wbes(
+                project_id=project_uuid,
+                branch=branch,
+                branch_mode=branch_mode,
+                as_of=context.as_of,
+                limit=_MAX_WBES,
+            ),
+            ce_service.get_cost_elements(
+                branch=branch,
+                branch_mode=branch_mode,
+                limit=_MAX_COST_ELEMENTS,
+                as_of=context.as_of,
+            ),
         )
+        wbes, _ = wbes_result
+        all_ces, _ = ces_result
 
         wbe_ids = {str(w.wbe_id) for w in wbes}
         cost_elements_by_wbe: dict[str, list[dict[str, Any]]] = {}

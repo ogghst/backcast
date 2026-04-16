@@ -18,6 +18,7 @@ import {
 import { useUsers } from "@/features/users/api/useUsers";
 import { ProjectRole, type ProjectMemberRead } from "../types/projectMembers";
 import type { ColumnsType } from "antd/es/table";
+import { formatDate } from "@/utils/formatters";
 
 interface ProjectMemberManagerProps {
   projectId: string;
@@ -220,7 +221,7 @@ export const ProjectMemberManager = ({
       width: 180,
       render: (date: string) => (
         <span style={{ fontSize: typography.sizes.sm }}>
-          {new Date(date).toLocaleDateString()}
+          {formatDate(date)}
         </span>
       ),
     },

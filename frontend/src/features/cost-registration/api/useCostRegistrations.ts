@@ -18,6 +18,7 @@ import { OpenAPI } from "@/api/generated/core/OpenAPI";
 import { request as __request } from "@/api/generated/core/request";
 import {
   CostRegistrationsService,
+  ProjectBudgetSettingsService,
   type CostRegistrationRead,
   type CostRegistrationCreate,
   type CostRegistrationUpdate,
@@ -144,6 +145,46 @@ export const useBudgetStatus = (costElementId: string) => {
       );
     },
     enabled: !!costElementId,
+  });
+};
+
+/**
+ * Hook to get project-level budget status (aggregated across all cost elements).
+ *
+ * @param projectId - The project ID to get budget status for
+ * @returns TanStack Query result with project budget status (project_budget, total_spend, remaining, percentage)
+ */
+export const useProjectBudgetStatus = (projectId: string) => {
+  return useQuery({
+    queryKey: ["project-budget-status", projectId] as const,
+    queryFn: async () => {
+      // Call the new project-budget-status endpoint
+      return await __request(OpenAPI, {
+        method: "GET",
+        url: `/api/v1/cost-registrations/project-budget-status/${projectId}`,
+        query: {
+          branch: "main",
+        },
+        errors: { 404: "Project not found", 422: "Validation Error" },
+      });
+    },
+    enabled: !!projectId,
+  });
+};
+
+/**
+ * Hook to get project budget settings including warning threshold.
+ *
+ * @param projectId - The project ID to get budget settings for
+ * @returns TanStack Query result with project budget settings (warning_threshold_percent, etc.)
+ */
+export const useProjectBudgetSettings = (projectId: string) => {
+  return useQuery({
+    queryKey: ["project-budget-settings", projectId] as const,
+    queryFn: async () => {
+      return await ProjectBudgetSettingsService.getProjectBudgetSettings(projectId);
+    },
+    enabled: !!projectId,
   });
 };
 
