@@ -13,6 +13,7 @@ import { ForecastsTab } from "./tabs/ForecastsTab";
 import { ScheduleBaselinesTab } from "./tabs/ScheduleBaselinesTab";
 import { ProgressEntriesTab } from "@/features/progress-entries/components/ProgressEntriesTab";
 import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
+import { QualityEventsTab } from "@/features/quality-event";
 import {
   CostElementBreadcrumbBuilder,
   type CostElementBreadcrumb,
@@ -108,6 +109,13 @@ export const CostElementDetailPage = () => {
       label: "Progress",
       children: costElement ? (
         <ProgressEntriesTab costElement={costElement} />
+      ) : null,
+    },
+    {
+      key: "quality-events",
+      label: "Quality Events",
+      children: costElement ? (
+        <QualityEventsTab costElement={costElement} />
       ) : null,
     },
     {

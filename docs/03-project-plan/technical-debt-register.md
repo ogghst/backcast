@@ -45,27 +45,14 @@ This file tracks active technical debt items. For completed/closed debt, see [te
 
 ---
 
-### [TD-082] Missing Archive Action for Rejected Change Orders
-
-- **Source:** Change Order Workflow UI Test (2026-02-25)
-- **Description:** UI only shows "Submit" action from Rejected state, missing "Archive" button.
-- **Impact:** Incomplete workflow implementation
-- **Estimated Effort:** 2 hours
-- **Target Date:** 2026-03-15
-- **Status:** 🔴 Open
-- **Owner:** Frontend Developer
-- **Priority:** Medium
-
----
-
 ## Summary
 
 | Priority | Count | Total Effort |
 |----------|-------|--------------|
 | High (P0-P1) | 0 | 0 hours |
-| Medium (P2-P3) | 3 | 66 hours |
+| Medium (P2-P3) | 2 | 8 hours |
 | Low (P4+) | 0 | 0 hours |
-| **Total** | **3** | **~66 hours** |
+| **Total** | **2** | **~8 hours** |
 
 ---
 

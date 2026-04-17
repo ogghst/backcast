@@ -93,6 +93,7 @@ class ProjectRole(str, Enum):
                 "progress-entry-*",
                 "change-order-*",
                 "forecast-*",
+                "quality-event-*",
             ],
             ProjectRole.PROJECT_MANAGER: [
                 "project-read",
@@ -103,6 +104,9 @@ class ProjectRole(str, Enum):
                 "change-order-read",
                 "change-order-create",
                 "forecast-*",
+                "quality-event-read",
+                "quality-event-create",
+                "quality-event-update",
             ],
             ProjectRole.PROJECT_EDITOR: [
                 "project-read",
@@ -117,6 +121,8 @@ class ProjectRole(str, Enum):
                 "change-order-read",
                 "forecast-read",
                 "forecast-create",
+                "quality-event-read",
+                "quality-event-create",
             ],
             ProjectRole.PROJECT_VIEWER: [
                 "project-read",
@@ -125,6 +131,7 @@ class ProjectRole(str, Enum):
                 "progress-entry-read",
                 "change-order-read",
                 "forecast-read",
+                "quality-event-read",
             ],
         }
         return permission_map[self]

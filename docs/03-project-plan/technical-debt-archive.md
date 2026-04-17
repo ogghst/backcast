@@ -1,7 +1,7 @@
 # Technical Debt Archive
 
-**Last Updated:** 2026-03-19
-**Total Archived Items:** 32
+**Last Updated:** 2026-04-17
+**Total Archived Items:** 33
 
 ---
 
@@ -56,6 +56,20 @@ This file contains all completed, closed, or resolved technical debt items. For 
 - **Affected Files:**
   - `frontend/src/features/ai/api/__tests__/useAIModels.test.tsx`
   - `frontend/src/features/ai/api/__tests__/useAIProviders.test.tsx`
+
+#### [TD-082] Missing Archive Action for Rejected Change Orders
+
+- **Source:** Change Order Workflow UI Test (2026-02-25)
+- **Description:** UI only shows "Submit" action from Rejected state, missing "Archive" button.
+- **Status:** ✅ Complete (2026-04-17)
+- **Owner:** Frontend Developer
+- **Priority:** Medium (P2)
+- **Resolution:** Added Archive button visibility for Rejected status by checking status directly instead of relying on workflow transitions. Archive is a direct action (branch soft-delete), not a workflow transition.
+- **Actual Effort:** 2 hours (as estimated)
+- **Changes:**
+  - `frontend/src/features/change-orders/components/WorkflowButtons.tsx` - Changed `canArchive` to check status directly
+  - `frontend/src/features/change-orders/components/ChangeOrderWorkflowSection.tsx` - Added Archive button for Rejected status
+- **Commit:** 6bf6cc6 (worktree-td-082-archive-rejected-change-orders)
   - `frontend/src/features/ai/chat/api/__tests__/useStreamingChat.test.tsx`
   - `frontend/src/features/ai/chat/components/ChatInterface.tsx`
   - `frontend/src/features/ai/chat/components/MessageList.tsx`
@@ -304,8 +318,8 @@ This file contains all completed, closed, or resolved technical debt items. For 
 ## Summary by Year
 
 ### 2026
-- **Q1:** 7 items closed (TD-072, TD-073, TD-057, TD-062, TD-068, TD-059, TD-067)
-- **Total Archived:** 7 items
+- **Q1:** 8 items closed (TD-072, TD-073, TD-082, TD-057, TD-062, TD-068, TD-059, TD-067)
+- **Total Archived:** 8 items
 
 ### 2025
 - **Q4:** 15 items closed

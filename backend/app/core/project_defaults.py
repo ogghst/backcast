@@ -27,6 +27,7 @@ class BudgetSettingsService(Protocol):
         actor_id: UUID,
         warning_threshold_percent: Decimal | None = None,
         allow_project_admin_override: bool | None = None,
+        enforce_budget: bool | None = None,
     ) -> object: ...  # Returns ProjectBudgetSettings, but we use object to avoid import
 
 # Default budget warning threshold percentage
@@ -108,6 +109,7 @@ async def apply_project_creation_defaults(
         actor_id=actor_id,
         warning_threshold_percent=defaults.budget.warning_threshold_percent,
         allow_project_admin_override=defaults.budget.allow_project_admin_override,
+        enforce_budget=defaults.budget.enforce_budget,
     )
 
     # Future: Add additional default configurations here

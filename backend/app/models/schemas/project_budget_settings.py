@@ -20,6 +20,10 @@ class ProjectBudgetSettingsBase(BaseModel):
         default=True,
         description="Whether project admins can override budget warnings",
     )
+    enforce_budget: bool = Field(
+        default=False,
+        description="Whether to block cost registrations that exceed budget",
+    )
 
 
 class ProjectBudgetSettingsCreate(ProjectBudgetSettingsBase):
@@ -57,3 +61,24 @@ class BudgetWarning(BaseModel):
         ..., description="Current budget usage percentage"
     )
     message: str = Field(..., description="Human-readable warning message")
+
+
+class BudgetExceededError(BaseModel):
+    """Error returned when budget enforcement blocks a cost registration."""
+
+    cost_element_id: UUID = Field(
+        ..., description="Cost element that would exceed budget"
+    )
+    budget: Decimal = Field(
+        ..., description="Cost element budget amount"
+    )
+    used: Decimal = Field(
+        ..., description="Current total spend on this cost element"
+    )
+    projected: Decimal = Field(
+        ..., description="Projected total after new registration"
+    )
+    over_by: Decimal = Field(
+        ..., description="Amount over budget"
+    )
+    message: str = Field(..., description="Human-readable error message")

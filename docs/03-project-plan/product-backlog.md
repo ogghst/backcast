@@ -1,9 +1,9 @@
 # Backlog
 
-**Last Updated:** 2026-04-14
+**Last Updated:** 2026-04-17
 **Total Items:** 35
 **Total Estimated Points:** 213
-**Completed:** 26 items (152 points)
+**Completed:** 31 items (194 points)
 
 ---
 
@@ -76,45 +76,54 @@
   - Unit tests: `test_change_order_merge_orchestration.py`
 - **Ready for Iteration:** No (already complete)
 
-#### [E03-U06] Generic VersionedRepository for Reusability
+#### [E03-U06] Generic VersionedRepository for Reusability ✅
 
 - **Epic:** E003 (Entity Versioning System)
 - **Story Points:** 13
 - **Business Value:** CRITICAL - Reduces duplication, enforces consistency
-- **Dependencies:** E03-U03
+- **Dependencies:** E03-U03 ✅
 - **Acceptance Criteria:**
   - Generic `VersionedRepository[T]` with common CRUD operations
   - Type-safe query builders
   - Automatic branch filtering
   - Automatic valid-time filtering
 - **Estimated Complexity:** Complex
-- **Ready for Iteration:** No (blocked by E03-U03)
+- **Status:** ✅ Complete
+- **Completed:** 2026-01-10
+- **Implementation Notes:** TemporalBase, TemporalService[T], BranchableService in core EVCS
+- **Ready for Iteration:** No (already complete)
 
-#### [E03-U07] Automatic Filtering to Active/Latest Versions
+#### [E03-U07] Automatic Filtering to Active/Latest Versions ✅
 
 - **Epic:** E003 (Entity Versioning System)
 - **Story Points:** 8
 - **Business Value:** CRITICAL - Default UX expectation
-- **Dependencies:** E03-U03
+- **Dependencies:** E03-U03 ✅
 - **Acceptance Criteria:**
   - Repository filters by default to current valid version
   - Optional parameter to query all versions
   - Performance: <100ms for queries
 - **Estimated Complexity:** Medium
-- **Ready for Iteration:** No (blocked by E03-U03)
+- **Status:** ✅ Complete
+- **Completed:** 2026-01-10
+- **Implementation Notes:** Default TSTZRANGE filtering in TemporalService queries
+- **Ready for Iteration:** No (already complete)
 
-#### [E03-U05] Time-Travel Queries (Query State at Any Past Date)
+#### [E03-U05] Time-Travel Queries (Query State at Any Past Date) ✅
 
 - **Epic:** E003 (Entity Versioning System)
 - **Story Points:** 8
 - **Business Value:** CRITICAL - Core audit capability
-- **Dependencies:** E03-U02
+- **Dependencies:** E03-U02 ✅
 - **Acceptance Criteria:**
   - Query entity state as of any historical date
   - Returns version valid at specified time
   - Performance: <200ms for historical queries
 - **Estimated Complexity:** Medium
-- **Ready for Iteration:** No (blocked by E03-U02)
+- **Status:** ✅ Complete
+- **Completed:** 2026-01-10
+- **Implementation Notes:** Time Machine control with control_date parameter, TSTZRANGE range queries
+- **Ready for Iteration:** No (already complete)
 
 #### [E06-U08] Delete/Archive Branches ✅
 
@@ -141,18 +150,21 @@
 
 ### High Priority
 
-#### [E04-U06] Maintain Project-WBE-Cost Element Hierarchy Integrity
+#### [E04-U06] Maintain Project-WBE-Cost Element Hierarchy Integrity ✅
 
 - **Epic:** E004 (Project Structure Management)
 - **Story Points:** 8
 - **Business Value:** HIGH - Data consistency
-- **Dependencies:** E04-U03
+- **Dependencies:** E04-U03 ✅
 - **Acceptance Criteria:**
   - Cascading delete: Project delete → WBE delete → Cost Element delete
   - Validation: Cannot delete parent if children have dependencies
   - Re-parenting support with validation
 - **Estimated Complexity:** Medium
-- **Ready for Iteration:** No (blocked by E04-U03)
+- **Status:** ✅ Complete
+- **Completed:** 2026-01-12
+- **Implementation Notes:** Soft delete cascade via EVCS, branch-aware hierarchy validation
+- **Ready for Iteration:** No (already complete)
 
 #### [E06-U04] Compare Branch to Main (Impact Analysis) ✅
 
@@ -256,7 +268,7 @@
 - **Estimated Complexity:** Medium
 - **Ready for Iteration:** Yes (dependencies resolved)
 
-#### [E05-U06] View Cost History and Trends
+#### [E05-U06] View Cost History and Trends ✅
 
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 5
@@ -267,7 +279,13 @@
   - Trend analysis (burn rate)
   - Export to CSV
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** Yes (dependencies resolved)
+- **Status:** ✅ Complete (Backend & Frontend)
+- **Completed:** 2026-04-17
+- **Implementation Notes:**
+  - Frontend: CostHistoryChart component with timeline/burn rate
+  - Frontend: CostHistoryWidget for composable dashboard
+  - CSV export via WidgetExportMenu
+- **Ready for Iteration:** No (already complete)
 
 #### [E08-U01] Calculate PV using Schedule Baselines ✅
 
@@ -438,13 +456,13 @@
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 5
 - **Business Value:** MEDIUM - Quality tracking
-- **Dependencies:** E05-U01
+- **Dependencies:** E05-U01 ✅
 - **Acceptance Criteria:**
   - Quality event entity with description, cost impact
   - Link to cost elements for rework cost tracking
   - Versioning support
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** No (blocked by E05-U01)
+- **Ready for Iteration:** Yes (dependencies resolved)
 
 #### [E06-U06] Lock/Unlock Branches
 
@@ -486,7 +504,7 @@
 - **Related Docs:** [`iterations/2026-04-14-e06-u06-ui-workflow-aware-status-management/00-analysis.md`](iterations/2026-04-14-e06-u06-ui-workflow-aware-status-management/00-analysis.md)
 - **Ready for Iteration:** No (already complete)
 
-#### [E06-U07] Merged View Showing Main + Branch Changes
+#### [E06-U07] Merged View Showing Main + Branch Changes — ⏸️ Deferred
 
 - **Epic:** E006 (Branching & Change Order Management)
 - **Story Points:** 5
@@ -497,9 +515,9 @@
   - Highlight conflicts
   - Preview of merged state
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** Yes (dependencies resolved)
+- **Ready for Iteration:** Deferred
 
-#### [E07-U01] Create Baselines at Milestones
+#### [E07-U01] Create Baselines at Milestones — ⏸️ Deferred
 
 - **Epic:** E007 (Baseline Management)
 - **Story Points:** 5
@@ -510,7 +528,7 @@
   - Immutable snapshot
   - Baseline metadata (date, creator, milestone type)
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** Yes (dependencies resolved)
+- **Ready for Iteration:** Deferred
 
 #### [E07-U03] Compare Current State to Any Baseline
 
@@ -598,7 +616,7 @@
 - **Estimated Complexity:** Simple
 - **Ready for Iteration:** No (blocked by E07-U01)
 
-#### [E05-U01-CSV] Import Cost Registrations from CSV
+#### [E05-U01-CSV] Import Cost Registrations from CSV — ⏸️ Deferred
 
 - **Epic:** E005 (Financial Data Management)
 - **Story Points:** 3
@@ -609,7 +627,7 @@
   - Validation of CSV format and data integrity
   - Rollback on failure (atomic batch)
 - **Estimated Complexity:** Simple
-- **Ready for Iteration:** Yes (E05-U01 complete)
+- **Ready for Iteration:** Deferred
 
 ---
 
@@ -647,6 +665,9 @@
 
 | Date       | Item                                              | Points | Iteration                | Notes                              |
 | ---------- | ------------------------------------------------- | ------ | ------------------------ | ---------------------------------- |
+| 2026-04-17 | E05-U06: View Cost History and Trends             | 5      | -                        | CostHistoryChart, burn rate, CSV   |
+| 2026-04-17 | E03-U05/U06/U07: EVCS Core (time-travel, repo, filtering) | 29 | Sprint 3-4             | Backlog cleanup — completed 2026-01-10 |
+| 2026-04-17 | E04-U06: Hierarchy Integrity                      | 8      | Sprint 5-6               | Backlog cleanup — completed 2026-01-12 |
 | 2026-04-14 | E06-U06-UI: Workflow-Aware Status Management      | 5      | -                        | Dynamic status options, locking UX |
 | 2026-04-04 | E04-U07: Tree View of Project Structure           | 5      | -                        | ProjectTree component, navigation  |
 | 2026-02-28 | E04-U05: Allocate Budgets to Cost Elements        | 5      | -                        | Budgets in CostElement only        |

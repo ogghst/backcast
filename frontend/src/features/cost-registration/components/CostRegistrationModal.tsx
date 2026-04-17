@@ -50,6 +50,7 @@ export const CostRegistrationModal = ({
   const { data: budgetStatus } = useBudgetStatus(costElementId);
   const { data: projectBudgetSettings } = useProjectBudgetSettings(projectId);
   const isEdit = !!initialValues;
+  const enforceBudget = projectBudgetSettings?.enforce_budget ?? false;
 
   useEffect(() => {
     if (open) {
@@ -118,6 +119,30 @@ export const CostRegistrationModal = ({
 
       // Check if cost element budget will be exceeded
       if (costElementBudget > 0 && projectedCostElementSpend > costElementBudget) {
+        if (enforceBudget) {
+          // Hard block — enforcement is on
+          modal.error({
+            title: "Budget Limit Reached",
+            content: (
+              <div>
+                <p>
+                  Budget enforcement is enabled. This cost registration would exceed the cost element budget.
+                </p>
+                <div style={{ marginTop: 8, marginBottom: 8, padding: 8, background: "#fff1f0", borderRadius: 4, border: "1px solid #ffccc7" }}>
+                  <p style={{ margin: 0 }}><strong>Cost Element Budget:</strong> €{costElementBudget.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                  <p style={{ margin: 0 }}><strong>Currently Used:</strong> €{effectiveCostElementUsed.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                  <p style={{ margin: 0, color: "#cf1322" }}><strong>Projected Total:</strong> €{projectedCostElementSpend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                  <p style={{ margin: 0, fontSize: "12px", color: "#666" }}>
+                    Over budget by: €{(projectedCostElementSpend - costElementBudget).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <p>Contact your project manager to increase the budget or disable enforcement.</p>
+              </div>
+            ),
+            okText: "Understood",
+          });
+          return;
+        }
         modal.confirm({
           title: "Cost Element Budget Exceeded",
           content: (

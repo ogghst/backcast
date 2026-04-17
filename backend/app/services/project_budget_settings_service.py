@@ -64,6 +64,7 @@ class ProjectBudgetSettingsService(TemporalService[ProjectBudgetSettings]):  # t
         actor_id: UUID,
         warning_threshold_percent: Decimal | None = None,
         allow_project_admin_override: bool | None = None,
+        enforce_budget: bool | None = None,
     ) -> ProjectBudgetSettings:
         """Create or update budget settings for a project.
 
@@ -75,6 +76,7 @@ class ProjectBudgetSettingsService(TemporalService[ProjectBudgetSettings]):  # t
             actor_id: The user making the change
             warning_threshold_percent: Warning threshold (optional, uses default if not provided)
             allow_project_admin_override: Allow admin override (optional, uses default if not provided)
+            enforce_budget: Block over-budget registrations (optional, defaults to False)
 
         Returns:
             The created or updated ProjectBudgetSettings
@@ -96,6 +98,11 @@ class ProjectBudgetSettingsService(TemporalService[ProjectBudgetSettings]):  # t
         else:
             # Use default if not provided
             fields["allow_project_admin_override"] = True
+
+        if enforce_budget is not None:
+            fields["enforce_budget"] = enforce_budget
+        else:
+            fields["enforce_budget"] = False
 
         if existing:
             # Update existing settings
@@ -156,3 +163,19 @@ class ProjectBudgetSettingsService(TemporalService[ProjectBudgetSettings]):  # t
         if settings:
             return settings.allow_project_admin_override
         return True
+
+    async def is_budget_enforced(self, project_id: UUID) -> bool:
+        """Check if budget enforcement is enabled for a project.
+
+        Returns False (default) if no custom settings exist.
+
+        Args:
+            project_id: The project to check
+
+        Returns:
+            True if budget enforcement is enabled, False otherwise
+        """
+        settings = await self.get_settings_for_project(project_id)
+        if settings:
+            return settings.enforce_budget
+        return False

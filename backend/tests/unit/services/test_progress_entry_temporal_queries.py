@@ -13,6 +13,7 @@ from app.services.progress_entry_service import ProgressEntryService
 from tests.unit.fixtures.cost_element_fixtures import (  # noqa: F401
     sample_cost_element_type,
     sample_department,
+    sample_project,
     sample_wbe,
 )
 

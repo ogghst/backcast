@@ -31,6 +31,7 @@ from app.api.routes import (
     project_budget_settings,
     project_members,
     projects,
+    quality_events,
     schedule_baselines,
     users,
     wbes,
@@ -262,6 +263,11 @@ app.include_router(
     progress_entries.router,
     prefix=f"{settings.API_V1_STR}/progress-entries",
     tags=["Progress Entries"],
+)
+app.include_router(
+    quality_events.router,
+    prefix=f"{settings.API_V1_STR}/quality-events",
+    tags=["Quality Events"],
 )
 app.include_router(
     evm.router,

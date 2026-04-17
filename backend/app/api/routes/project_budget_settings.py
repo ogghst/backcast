@@ -78,6 +78,7 @@ async def update_project_budget_settings(
             actor_id=current_user.user_id,
             warning_threshold_percent=settings_in.warning_threshold_percent,
             allow_project_admin_override=settings_in.allow_project_admin_override,
+            enforce_budget=settings_in.enforce_budget,
         )
     except Exception as e:
         raise HTTPException(

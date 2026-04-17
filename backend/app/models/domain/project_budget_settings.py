@@ -68,6 +68,11 @@ class ProjectBudgetSettings(EntityBase, VersionableMixin):
         Boolean, nullable=False, default=True
     )
 
+    # Whether to block cost registrations that exceed budget
+    enforce_budget: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
     # Temporal fields inherited from VersionableMixin:
     # - valid_time: TSTZRANGE
     # - transaction_time: TSTZRANGE
@@ -83,5 +88,6 @@ class ProjectBudgetSettings(EntityBase, VersionableMixin):
             f"project_budget_settings_id={self.project_budget_settings_id}, "
             f"project_id={self.project_id}, "
             f"warning_threshold_percent={self.warning_threshold_percent}, "
-            f"allow_project_admin_override={self.allow_project_admin_override})>"
+            f"allow_project_admin_override={self.allow_project_admin_override}, "
+            f"enforce_budget={self.enforce_budget})>"
         )

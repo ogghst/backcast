@@ -291,6 +291,22 @@ export const queryKeys = createQueryKeys("backcast-evs", {
     details: () => ["dashboard-layouts", "detail"] as const,
     detail: (id: string) => ["dashboard-layouts", "detail", id] as const,
   },
+
+  // Quality Events
+  qualityEvents: {
+    all: ["quality-events"] as const,
+    lists: () => ["quality-events", "list"] as const,
+    list: (costElementId: string, params?: unknown) =>
+      ["quality-events", "list", costElementId, params] as const,
+    details: () => ["quality-events", "detail"] as const,
+    detail: (id: string, context?: unknown) =>
+      ["quality-events", "detail", id, context] as const,
+    history: (id: string) => ["quality-events", "history", id] as const,
+    total: (costElementId: string, context?: unknown) =>
+      ["quality-events", "total", costElementId, context] as const,
+    byPeriod: (costElementId: string, params?: unknown) =>
+      ["quality-events", "by-period", costElementId, params] as const,
+  },
 });
 
 /**

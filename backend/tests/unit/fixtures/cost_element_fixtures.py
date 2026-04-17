@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.domain.cost_element import CostElement
 from app.models.domain.cost_element_type import CostElementType
 from app.models.domain.department import Department
+from app.models.domain.project import Project
 from app.models.domain.wbe import WBE
 
 
@@ -45,11 +46,27 @@ async def sample_cost_element_type(sample_department: Department) -> CostElement
 
 
 @pytest_asyncio.fixture
-async def sample_wbe(db_session: AsyncSession) -> WBE:
+async def sample_project(db_session: AsyncSession) -> Project:
+    """Create a sample project for testing."""
+    project = Project(
+        project_id=uuid4(),
+        name="Test Project",
+        code="TEST-PRJ",
+        budget=Decimal("1000.00"),
+        status="Active",
+        created_by=uuid4(),
+    )
+    db_session.add(project)
+    await db_session.flush()
+    return project
+
+
+@pytest_asyncio.fixture
+async def sample_wbe(db_session: AsyncSession, sample_project: Project) -> WBE:
     """Create a sample WBE for testing."""
     wbe = WBE(
         wbe_id=uuid4(),
-        project_id=uuid4(),
+        project_id=sample_project.project_id,
         code="1.1",
         name="Site Preparation",
         description="Initial site preparation work",

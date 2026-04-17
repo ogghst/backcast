@@ -61,14 +61,17 @@ export const BudgetSettingsWidget = ({
     ? parseFloat(settings.warning_threshold_percent)
     : 80;
   const initialOverride = settings?.allow_project_admin_override ?? true;
+  const initialEnforceBudget = settings?.enforce_budget ?? false;
 
   const handleSubmit = async (values: {
     warning_threshold_percent: number;
     allow_project_admin_override: boolean;
+    enforce_budget: boolean;
   }) => {
     const settingsData: ProjectBudgetSettingsCreate = {
       warning_threshold_percent: values.warning_threshold_percent.toString(),
       allow_project_admin_override: values.allow_project_admin_override,
+      enforce_budget: values.enforce_budget,
     };
 
     updateSettings.mutate({
@@ -98,6 +101,7 @@ export const BudgetSettingsWidget = ({
         initialValues={{
           warning_threshold_percent: initialThreshold,
           allow_project_admin_override: initialOverride,
+          enforce_budget: initialEnforceBudget,
         }}
         onFinish={handleSubmit}
         disabled={readOnly || isUpdating}
@@ -151,6 +155,18 @@ export const BudgetSettingsWidget = ({
           </Checkbox>
         </Form.Item>
 
+        <Form.Item
+          name="enforce_budget"
+          valuePropName="checked"
+        >
+          <Checkbox
+            disabled={readOnly || isUpdating}
+            style={{ fontSize: typography.md }}
+          >
+            Enforce budget limits (block over-budget registrations)
+          </Checkbox>
+        </Form.Item>
+
         {!readOnly && (
           <Form.Item style={{ marginBottom: 0 }}>
             <Button
@@ -181,10 +197,10 @@ export const BudgetSettingsWidget = ({
                 When cost registrations reach the threshold percentage, a warning is shown
               </li>
               <li>
-                Warnings are informational and don't block registrations
+                When enforcement is enabled, registrations that would exceed cost element budgets are blocked
               </li>
               <li>
-                Project admins can proceed despite warnings when override is enabled
+                When enforcement is disabled, users can proceed despite warnings with confirmation
               </li>
               <li>
                 Settings apply to all cost elements within this project

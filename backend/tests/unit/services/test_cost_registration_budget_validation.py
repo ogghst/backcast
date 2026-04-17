@@ -4,13 +4,16 @@ Tests budget validation logic (now permissive) for cost registrations.
 """
 
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.domain.wbe import WBE
 from app.models.schemas.cost_registration import (
     CostRegistrationCreate,
+    CostRegistrationUpdate,
 )
 from app.services.cost_registration_service import CostRegistrationService
 from app.services.project_budget_settings_service import (
@@ -21,6 +24,7 @@ from app.services.project_budget_settings_service import (
 from tests.unit.fixtures.cost_element_fixtures import (  # noqa: F401
     sample_cost_element_type,
     sample_department,
+    sample_project,
     sample_wbe,
 )
 from tests.unit.fixtures.cost_element_fixtures import (
@@ -29,6 +33,18 @@ from tests.unit.fixtures.cost_element_fixtures import (
 
 # Type alias for the fixture
 sample_cost_element_with_budget = sample_cost_element_with_budget_fixture
+
+
+async def _resolve_project_id(db: AsyncSession, wbe_id: UUID) -> UUID:
+    """Resolve the real project_id from wbe_id via the WBE table.
+
+    The fixture creates WBE with wbe_id and project_id as separate UUIDs.
+    The service resolves project_id through CE -> WBE -> project_id,
+    so tests must do the same to store settings under the correct key.
+    """
+    stmt = select(WBE.project_id).where(WBE.wbe_id == wbe_id).limit(1)
+    result = await db.execute(stmt)
+    return result.scalar_one()
 
 
 class TestBudgetValidation:
@@ -296,6 +312,7 @@ class TestServerSideBudgetWarnings:
         # Arrange
         service = CostRegistrationService(db_session)
         cost_element = sample_cost_element_with_budget  # budget=1000
+        project_id = await _resolve_project_id(db_session, cost_element.wbe_id)
 
         # Create costs totaling 500 (50%)
         for _ in range(5):
@@ -310,7 +327,7 @@ class TestServerSideBudgetWarnings:
         # Act - Validate with default threshold (80%)
         warning = await service.validate_budget_status(
             cost_element_id=cost_element.cost_element_id,
-            project_id=cost_element.wbe_id,  # Using wbe_id as proxy for project_id
+            project_id=project_id,
             user_id=uuid4(),
         )
 
@@ -325,6 +342,7 @@ class TestServerSideBudgetWarnings:
         # Arrange
         service = CostRegistrationService(db_session)
         cost_element = sample_cost_element_with_budget  # budget=1000
+        project_id = await _resolve_project_id(db_session, cost_element.wbe_id)
 
         # Create costs totaling 850 (85%)
         for _ in range(8):
@@ -346,7 +364,7 @@ class TestServerSideBudgetWarnings:
         # Act - Validate with default threshold (80%)
         warning = await service.validate_budget_status(
             cost_element_id=cost_element.cost_element_id,
-            project_id=cost_element.wbe_id,  # Using wbe_id as proxy for project_id
+            project_id=project_id,
             user_id=uuid4(),
         )
 
@@ -365,10 +383,11 @@ class TestServerSideBudgetWarnings:
         service = CostRegistrationService(db_session)
         settings_service = ProjectBudgetSettingsService(db_session)
         cost_element = sample_cost_element_with_budget  # budget=1000
+        project_id = await _resolve_project_id(db_session, cost_element.wbe_id)
 
         # Set custom threshold to 90%
         await settings_service.upsert_settings(
-            project_id=cost_element.wbe_id,  # Using wbe_id as proxy for project_id
+            project_id=project_id,
             actor_id=test_user.user_id,
             warning_threshold_percent=Decimal("90.0"),
         )
@@ -393,7 +412,7 @@ class TestServerSideBudgetWarnings:
         # Act - Validate with custom threshold (90%)
         warning = await service.validate_budget_status(
             cost_element_id=cost_element.cost_element_id,
-            project_id=cost_element.wbe_id,
+            project_id=project_id,
             user_id=uuid4(),
         )
 
@@ -408,6 +427,7 @@ class TestServerSideBudgetWarnings:
         # Arrange
         service = CostRegistrationService(db_session)
         cost_element = sample_cost_element_with_budget  # budget=1000
+        project_id = await _resolve_project_id(db_session, cost_element.wbe_id)
 
         # Create costs totaling 800 (exactly 80%)
         for _ in range(8):
@@ -422,7 +442,7 @@ class TestServerSideBudgetWarnings:
         # Act - Validate with default threshold (80%)
         warning = await service.validate_budget_status(
             cost_element_id=cost_element.cost_element_id,
-            project_id=cost_element.wbe_id,
+            project_id=project_id,
             user_id=uuid4(),
         )
 
@@ -439,6 +459,7 @@ class TestServerSideBudgetWarnings:
         # Arrange
         service = CostRegistrationService(db_session)
         cost_element = sample_cost_element_with_budget  # budget=1000
+        project_id = await _resolve_project_id(db_session, cost_element.wbe_id)
 
         # Create costs totaling 950 (95%)
         for _ in range(9):
@@ -460,7 +481,7 @@ class TestServerSideBudgetWarnings:
         # Act
         warning = await service.validate_budget_status(
             cost_element_id=cost_element.cost_element_id,
-            project_id=cost_element.wbe_id,
+            project_id=project_id,
             user_id=uuid4(),
         )
 
@@ -470,4 +491,198 @@ class TestServerSideBudgetWarnings:
         assert warning.threshold_percent == Decimal("80.0")
         assert "95" in warning.message
         assert "80" in warning.message
+
+
+class TestBudgetEnforcement:
+    """Test budget enforcement when enforce_budget is enabled."""
+
+    @pytest.mark.asyncio
+    async def test_create_blocked_when_enforcement_on_and_budget_exceeded(
+        self, db_session: AsyncSession, sample_cost_element_with_budget, test_user
+    ) -> None:
+        """Test that registration is blocked when enforcement on and budget exceeded."""
+        service = CostRegistrationService(db_session)
+        settings_service = ProjectBudgetSettingsService(db_session)
+        cost_element = sample_cost_element_with_budget  # budget=1000
+
+        # Enable enforcement (resolve real project_id through WBE chain)
+        project_id = await _resolve_project_id(db_session, cost_element.wbe_id)
+        await settings_service.upsert_settings(
+            project_id=project_id,
+            actor_id=test_user.user_id,
+            enforce_budget=True,
+        )
+
+        # Fill budget: 10 x 100 = 1000
+        for _ in range(10):
+            await service.create_cost_registration(
+                CostRegistrationCreate(
+                    cost_element_id=cost_element.cost_element_id,
+                    amount=Decimal("100.00"),
+                ),
+                actor_id=uuid4(),
+            )
+
+        # Attempt one more -- should be blocked
+        with pytest.raises(ValueError, match="would exceed cost element budget"):
+            await service.create_cost_registration(
+                CostRegistrationCreate(
+                    cost_element_id=cost_element.cost_element_id,
+                    amount=Decimal("1.00"),
+                ),
+                actor_id=uuid4(),
+            )
+
+    @pytest.mark.asyncio
+    async def test_create_allowed_when_enforcement_on_but_within_budget(
+        self, db_session: AsyncSession, sample_cost_element_with_budget, test_user
+    ) -> None:
+        """Test registration succeeds with enforcement on when within budget."""
+        service = CostRegistrationService(db_session)
+        settings_service = ProjectBudgetSettingsService(db_session)
+        cost_element = sample_cost_element_with_budget
+
+        project_id = await _resolve_project_id(db_session, cost_element.wbe_id)
+        await settings_service.upsert_settings(
+            project_id=project_id,
+            actor_id=test_user.user_id,
+            enforce_budget=True,
+        )
+
+        # Create costs totaling 500
+        for _ in range(5):
+            await service.create_cost_registration(
+                CostRegistrationCreate(
+                    cost_element_id=cost_element.cost_element_id,
+                    amount=Decimal("100.00"),
+                ),
+                actor_id=uuid4(),
+            )
+
+        # Add 400 more (total: 900, within 1000 budget)
+        result = await service.create_cost_registration(
+            CostRegistrationCreate(
+                cost_element_id=cost_element.cost_element_id,
+                amount=Decimal("400.00"),
+            ),
+            actor_id=uuid4(),
+        )
+        assert result.amount == Decimal("400.00")
+
+    @pytest.mark.asyncio
+    async def test_create_allowed_when_enforcement_off_even_if_over_budget(
+        self, db_session: AsyncSession, sample_cost_element_with_budget, test_user
+    ) -> None:
+        """Test registration succeeds with enforcement off even when over budget."""
+        service = CostRegistrationService(db_session)
+        settings_service = ProjectBudgetSettingsService(db_session)
+        cost_element = sample_cost_element_with_budget
+
+        # Explicitly disable enforcement
+        project_id = await _resolve_project_id(db_session, cost_element.wbe_id)
+        await settings_service.upsert_settings(
+            project_id=project_id,
+            actor_id=test_user.user_id,
+            enforce_budget=False,
+        )
+
+        # Fill budget
+        for _ in range(10):
+            await service.create_cost_registration(
+                CostRegistrationCreate(
+                    cost_element_id=cost_element.cost_element_id,
+                    amount=Decimal("100.00"),
+                ),
+                actor_id=uuid4(),
+            )
+
+        # Over budget -- should still succeed
+        result = await service.create_cost_registration(
+            CostRegistrationCreate(
+                cost_element_id=cost_element.cost_element_id,
+                amount=Decimal("100.00"),
+            ),
+            actor_id=uuid4(),
+        )
+        assert result.amount == Decimal("100.00")
+
+    @pytest.mark.asyncio
+    async def test_update_blocked_when_enforcement_on_and_would_exceed(
+        self, db_session: AsyncSession, sample_cost_element_with_budget, test_user
+    ) -> None:
+        """Test update is blocked when enforcement on and would exceed budget."""
+        service = CostRegistrationService(db_session)
+        settings_service = ProjectBudgetSettingsService(db_session)
+        cost_element = sample_cost_element_with_budget
+
+        project_id = await _resolve_project_id(db_session, cost_element.wbe_id)
+        await settings_service.upsert_settings(
+            project_id=project_id,
+            actor_id=test_user.user_id,
+            enforce_budget=True,
+        )
+
+        # Create registrations totaling 900
+        reg1 = await service.create_cost_registration(
+            CostRegistrationCreate(
+                cost_element_id=cost_element.cost_element_id,
+                amount=Decimal("800.00"),
+            ),
+            actor_id=uuid4(),
+        )
+        await service.create_cost_registration(
+            CostRegistrationCreate(
+                cost_element_id=cost_element.cost_element_id,
+                amount=Decimal("100.00"),
+            ),
+            actor_id=uuid4(),
+        )
+
+        # Update reg1 from 800 to 950 -> total would be 1050, over budget
+        with pytest.raises(ValueError, match="would exceed cost element budget"):
+            await service.update_cost_registration(
+                cost_registration_id=reg1.cost_registration_id,
+                registration_in=CostRegistrationUpdate(amount=Decimal("950.00")),
+                actor_id=uuid4(),
+            )
+
+    @pytest.mark.asyncio
+    async def test_update_decreasing_amount_allowed_under_enforcement(
+        self, db_session: AsyncSession, sample_cost_element_with_budget, test_user
+    ) -> None:
+        """Test update that decreases amount is allowed under enforcement."""
+        service = CostRegistrationService(db_session)
+        settings_service = ProjectBudgetSettingsService(db_session)
+        cost_element = sample_cost_element_with_budget
+
+        project_id = await _resolve_project_id(db_session, cost_element.wbe_id)
+        await settings_service.upsert_settings(
+            project_id=project_id,
+            actor_id=test_user.user_id,
+            enforce_budget=True,
+        )
+
+        # Create registrations totaling 900
+        reg1 = await service.create_cost_registration(
+            CostRegistrationCreate(
+                cost_element_id=cost_element.cost_element_id,
+                amount=Decimal("800.00"),
+            ),
+            actor_id=uuid4(),
+        )
+        await service.create_cost_registration(
+            CostRegistrationCreate(
+                cost_element_id=cost_element.cost_element_id,
+                amount=Decimal("100.00"),
+            ),
+            actor_id=uuid4(),
+        )
+
+        # Update reg1 from 800 to 500 -> total becomes 600, within budget
+        result = await service.update_cost_registration(
+            cost_registration_id=reg1.cost_registration_id,
+            registration_in=CostRegistrationUpdate(amount=Decimal("500.00")),
+            actor_id=uuid4(),
+        )
+        assert result.amount == Decimal("500.00")
 

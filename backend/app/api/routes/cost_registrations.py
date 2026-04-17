@@ -253,6 +253,20 @@ async def create_cost_registration(
 
         return response
 
+    except ValueError as e:
+        error_str = str(e)
+        if "would exceed cost element budget" in error_str:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "type": "budget_exceeded",
+                    "message": error_str,
+                },
+            ) from e
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_str,
+        ) from e
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -552,7 +566,16 @@ async def update_cost_registration(
             actor_id=current_user.user_id,
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e)) from e
+        error_str = str(e)
+        if "would exceed cost element budget" in error_str:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "type": "budget_exceeded",
+                    "message": error_str,
+                },
+            ) from e
+        raise HTTPException(status_code=404, detail=error_str) from e
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

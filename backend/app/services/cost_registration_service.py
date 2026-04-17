@@ -24,7 +24,10 @@ from app.models.schemas.cost_registration import (
     CostRegistrationCreate,
     CostRegistrationUpdate,
 )
-from app.models.schemas.project_budget_settings import BudgetWarning
+from app.models.schemas.project_budget_settings import (
+    BudgetExceededError,
+    BudgetWarning,
+)
 from app.services.project_budget_settings_service import (
     ProjectBudgetSettingsService,
 )
@@ -187,6 +190,88 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             ),
         )
 
+    async def validate_cost_element_budget(
+        self,
+        cost_element_id: UUID,
+        new_amount: Decimal,
+        project_id: UUID,
+        is_update: bool = False,
+        old_amount: Decimal | None = None,
+        actor_id: UUID | None = None,
+        branch: str = "main",
+    ) -> BudgetExceededError | None:
+        """Validate that a cost registration won't exceed the CE budget.
+
+        Only enforces when project budget settings have enforce_budget=True.
+        Returns BudgetExceededError if the registration would exceed budget,
+        None otherwise.
+
+        Args:
+            cost_element_id: The cost element being charged
+            new_amount: Amount of the new/updated registration
+            project_id: Project context for checking enforcement settings
+            is_update: True if this is an update (old_amount will be subtracted)
+            old_amount: Previous amount (required when is_update=True)
+            actor_id: User performing the action (for admin override, not yet implemented)
+            branch: Branch to resolve cost element budget from
+
+        Returns:
+            BudgetExceededError if budget would be exceeded, None if allowed
+        """
+        # Check if enforcement is enabled
+        settings_service = ProjectBudgetSettingsService(self.session)
+
+        if not await settings_service.is_budget_enforced(project_id):
+            return None
+
+        # Get cost element budget
+        ce_stmt = select(CostElement.budget_amount).where(
+            CostElement.cost_element_id == cost_element_id,
+            func.upper(cast(Any, CostElement).valid_time).is_(None),
+            cast(Any, CostElement).deleted_at.is_(None),
+        )
+        # Try branch first, fallback to main
+        ce_result = await self.session.execute(
+            ce_stmt.where(CostElement.branch == branch).limit(1)
+        )
+        budget_amount = ce_result.scalar_one_or_none()
+
+        if budget_amount is None and branch != "main":
+            ce_result_main = await self.session.execute(
+                ce_stmt.where(CostElement.branch == "main").limit(1)
+            )
+            budget_amount = ce_result_main.scalar_one_or_none()
+
+        if budget_amount is None or budget_amount == Decimal("0"):
+            return None  # No budget set, no enforcement
+
+        # Get current total spend
+        current_spend = Decimal(str(await self.get_total_for_cost_element(cost_element_id)))
+
+        # Calculate projected total
+        effective_spend = current_spend
+        if is_update and old_amount is not None:
+            effective_spend -= old_amount
+
+        projected = effective_spend + new_amount
+
+        if projected > budget_amount:
+            over_by = projected - budget_amount
+            return BudgetExceededError(
+                cost_element_id=cost_element_id,
+                budget=budget_amount,
+                used=current_spend,
+                projected=projected,
+                over_by=over_by,
+                message=(
+                    f"Cost registration would exceed cost element budget: "
+                    f"\u20ac{projected:,.2f} > \u20ac{budget_amount:,.2f} "
+                    f"(over by \u20ac{over_by:,.2f})"
+                ),
+            )
+
+        return None
+
     async def create_cost_registration(
         self,
         registration_in: CostRegistrationCreate,
@@ -310,6 +395,17 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
                 f"WBE {cost_element.wbe_id} not found on branch {branch} or main"
             )
 
+        # Enforce budget if enabled
+        budget_error = await self.validate_cost_element_budget(
+            cost_element_id=registration_in.cost_element_id,
+            new_amount=registration_in.amount,
+            project_id=wbe.project_id,
+            actor_id=actor_id,
+            branch=branch,
+        )
+        if budget_error:
+            raise ValueError(budget_error.message)
+
         # Create the cost registration (budget validation is non-blocking)
         # The warning will be included in the response via the API layer
         cmd = CreateVersionCommand(
@@ -345,6 +441,40 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
             exclude_unset=True,
             exclude={"control_date"},  # Exclude from entity fields
         )
+
+        # Enforce budget if enabled (only when amount is changing)
+        if registration_in.amount is not None:
+            current = await self.get_by_id(cost_registration_id)
+            if current is not None:
+                # Resolve CE -> WBE -> project_id chain
+                ce_result = await self.session.execute(
+                    select(CostElement).where(
+                        CostElement.cost_element_id == current.cost_element_id,
+                        func.upper(cast(Any, CostElement).valid_time).is_(None),
+                        cast(Any, CostElement).deleted_at.is_(None),
+                    ).limit(1)
+                )
+                cost_element = ce_result.scalar_one_or_none()
+                if cost_element:
+                    wbe_result = await self.session.execute(
+                        select(WBE).where(
+                            WBE.wbe_id == cost_element.wbe_id,
+                            func.upper(cast(Any, WBE).valid_time).is_(None),
+                            cast(Any, WBE).deleted_at.is_(None),
+                        ).limit(1)
+                    )
+                    wbe_obj = wbe_result.scalar_one_or_none()
+                    if wbe_obj:
+                        budget_error = await self.validate_cost_element_budget(
+                            cost_element_id=current.cost_element_id,
+                            new_amount=registration_in.amount,
+                            project_id=wbe_obj.project_id,
+                            is_update=True,
+                            old_amount=current.amount,
+                            actor_id=actor_id,
+                        )
+                        if budget_error:
+                            raise ValueError(budget_error.message)
 
         # Custom command class to handle multi-word entity name
         class CostRegistrationUpdateCommand(UpdateVersionCommand[CostRegistration]):  # type: ignore[type-var,unused-ignore]

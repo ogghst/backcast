@@ -329,8 +329,11 @@ export const useCreateCostRegistration = (
       mutationOptions?.onSuccess?.(...args);
     },
     onError: (error, ...args) => {
-      // Check for budget exceeded error
-      if (error instanceof Error && error.message.includes("Budget exceeded")) {
+      // Check for budget exceeded error (422 from backend enforcement)
+      const isBudgetExceeded =
+        (error as { body?: { type?: string } })?.body?.type === "budget_exceeded" ||
+        (error instanceof Error && error.message.includes("Budget exceeded"));
+      if (isBudgetExceeded) {
         toast.error("Budget exceeded: Cannot add cost that exceeds budget");
       } else {
         toast.error(`Error creating cost registration: ${error.message}`);

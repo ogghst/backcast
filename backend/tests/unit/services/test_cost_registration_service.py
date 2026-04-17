@@ -18,6 +18,7 @@ from app.services.cost_registration_service import CostRegistrationService
 from tests.unit.fixtures.cost_element_fixtures import (  # noqa: F401
     sample_cost_element_type,
     sample_department,
+    sample_project,
     sample_wbe,
 )
 
