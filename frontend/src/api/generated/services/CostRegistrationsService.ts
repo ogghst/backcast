@@ -174,8 +174,12 @@ export class CostRegistrationsService {
      * Get Aggregated Costs
      * Get cost aggregations by time period.
      *
-     * Returns costs aggregated by day, week, or month for a cost element.
-     * Useful for generating cost charts and trend analysis.
+     * Returns costs aggregated by day, week, or month. Supports three levels:
+     * - cost_element_id: Aggregation for a single cost element
+     * - wbe_id: Aggregation across all cost elements under a WBE
+     * - project_id: Aggregation across all cost elements in a project
+     *
+     * Exactly one of cost_element_id, wbe_id, or project_id must be provided.
      *
      * Example:
      * - period=daily: One row per day with total costs
@@ -183,18 +187,22 @@ export class CostRegistrationsService {
      * - period=monthly: One row per month (starts 1st) with total costs
      *
      * All costs respect time-travel queries via the as_of parameter.
-     * @param costElementId Cost Element ID to aggregate costs for
      * @param period Aggregation period (daily, weekly, or monthly)
      * @param startDate Start date for aggregation (ISO 8601)
+     * @param costElementId Cost Element ID to aggregate costs for
+     * @param wbeId WBE ID (aggregates across all child cost elements)
+     * @param projectId Project ID (aggregates across all project cost elements)
      * @param endDate End date for aggregation (ISO 8601, defaults to now)
      * @param asOf Time travel: get costs as of this timestamp (ISO 8601)
      * @returns any Successful Response
      * @throws ApiError
      */
     public static getAggregatedCosts(
-        costElementId: string,
         period: string,
         startDate: string,
+        costElementId?: (string | null),
+        wbeId?: (string | null),
+        projectId?: (string | null),
         endDate?: (string | null),
         asOf?: (string | null),
     ): CancelablePromise<Array<Record<string, any>>> {
@@ -203,6 +211,8 @@ export class CostRegistrationsService {
             url: '/api/v1/cost-registrations/aggregated',
             query: {
                 'cost_element_id': costElementId,
+                'wbe_id': wbeId,
+                'project_id': projectId,
                 'period': period,
                 'start_date': startDate,
                 'end_date': endDate,
@@ -218,7 +228,12 @@ export class CostRegistrationsService {
      * Get cumulative costs over time.
      *
      * Returns a time series of costs with running cumulative totals.
-     * Useful for S-curve charts and cumulative cost tracking.
+     * Supports three levels:
+     * - cost_element_id: Cumulative for a single cost element
+     * - wbe_id: Cumulative across all cost elements under a WBE
+     * - project_id: Cumulative across all cost elements in a project
+     *
+     * Exactly one of cost_element_id, wbe_id, or project_id must be provided.
      *
      * Each entry includes:
      * - registration_date: Date of the cost registration
@@ -226,16 +241,20 @@ export class CostRegistrationsService {
      * - cumulative_amount: Running total of all costs to date
      *
      * All costs respect time-travel queries via the as_of parameter.
-     * @param costElementId Cost Element ID to get cumulative costs for
      * @param startDate Start date for calculation (ISO 8601)
+     * @param costElementId Cost Element ID to get cumulative costs for
+     * @param wbeId WBE ID (cumulative across all child cost elements)
+     * @param projectId Project ID (cumulative across all project cost elements)
      * @param endDate End date for calculation (ISO 8601, defaults to now)
      * @param asOf Time travel: get costs as of this timestamp (ISO 8601)
      * @returns any Successful Response
      * @throws ApiError
      */
     public static getCumulativeCosts(
-        costElementId: string,
         startDate: string,
+        costElementId?: (string | null),
+        wbeId?: (string | null),
+        projectId?: (string | null),
         endDate?: (string | null),
         asOf?: (string | null),
     ): CancelablePromise<Array<Record<string, any>>> {
@@ -244,6 +263,8 @@ export class CostRegistrationsService {
             url: '/api/v1/cost-registrations/cumulative',
             query: {
                 'cost_element_id': costElementId,
+                'wbe_id': wbeId,
+                'project_id': projectId,
                 'start_date': startDate,
                 'end_date': endDate,
                 'as_of': asOf,

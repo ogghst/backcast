@@ -50,6 +50,11 @@
         "progress-entry-create",
         "progress-entry-update",
         "progress-entry-delete",
+        "quality-event-read",
+        "quality-event-create",
+        "quality-event-update",
+        "quality-event-delete",
+        "quality-event-write",
         "evm-read",
         "evm-create",
         "evm-update",
@@ -99,6 +104,10 @@
         "progress-entry-create",
         "progress-entry-update",
         "progress-entry-delete",
+        "quality-event-read",
+        "quality-event-create",
+        "quality-event-update",
+        "quality-event-write",
         "evm-read",
         "evm-create",
         "evm-update",
@@ -118,7 +127,8 @@
         "cost-registration-read",
         "change-order-read",
         "forecast-read",
-        "schedule-baseline-read"
+        "schedule-baseline-read",
+        "quality-event-read"
       ]
     }
   }

@@ -68,7 +68,7 @@ export type ProjectRead = {
          * "is_currently_valid": true
          * }
          */
-        readonly valid_time_formatted: Record<string, (string | null)>;
+        readonly valid_time_formatted: Record<string, (string | boolean | null)>;
         /**
          * Display-ready transaction_time temporal data.
          *
@@ -77,6 +77,6 @@ export type ProjectRead = {
          *
          * See valid_time_formatted for response format details.
          */
-        readonly transaction_time_formatted: Record<string, (string | null)>;
+        readonly transaction_time_formatted: Record<string, (string | boolean | null)>;
     };
 

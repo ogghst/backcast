@@ -38,5 +38,21 @@ export type CostRegistrationRead = {
     cost_registration_id: string;
     cost_element_id: string;
     created_by: string;
-};
+    /**
+     * Display-ready registration date data.
+     *
+     * Returns pre-formatted date information including:
+     * - ISO timestamp for machine processing
+     * - Formatted display string for UI
+     *
+     * This allows the frontend to display dates without additional formatting.
+     *
+     * Example:
+     * {
+         * "iso": "2026-01-15T10:00:00+00:00",
+         * "formatted": "January 15, 2026"
+         * }
+         */
+        readonly registration_date_formatted: Record<string, (string | null)>;
+    };
 

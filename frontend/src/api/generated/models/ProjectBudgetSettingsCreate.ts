@@ -14,5 +14,9 @@ export type ProjectBudgetSettingsCreate = {
      * Whether project admins can override budget warnings
      */
     allow_project_admin_override?: boolean;
+    /**
+     * Whether to block cost registrations that exceed budget
+     */
+    enforce_budget?: boolean;
 };
 
