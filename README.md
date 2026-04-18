@@ -59,9 +59,11 @@ Backcast solves this with a Git-inspired approach to project data:
 
 ## Features
 
-### AI Assistant
+### AI Assistants
 
-Ask questions about your projects in plain English. The AI uses purpose-built tools to query budgets, calculate EVM metrics, draft change orders, and run variance analysis &mdash; all with real-time streaming responses. It can also **create and update project data** directly: attach invoices, add cost elements, modify schedules, and more.
+Ask questions in **your preferred language** &mdash; not just English. The AI uses purpose-built tools to query budgets, calculate EVM metrics, draft change orders, and run variance analysis &mdash; all with real-time streaming responses. It can also **create and update project data** directly: attach invoices, add cost elements, modify schedules, and more.
+
+Configure **multiple AI agents**, each with its own LLM, personality, and tool set. Build a team that fits your workflow: a cost-focused agent with write access to financials, a reporting agent that only reads EVM data, a change-order specialist. You choose the model, the tools, and the style &mdash; and each agent sticks to its lane.
 
 *"Show me all projects where CPI is below 0.9"*
 *"Add the attached invoice to the electrical engineering cost element"*
