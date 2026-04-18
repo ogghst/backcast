@@ -1,74 +1,145 @@
-# Backcast
+<p align="center">
+  <img src="frontend/public/assets/images/backcast-logo.svg" alt="Backcast" width="400">
+</p>
 
-**Project Budget Management & Earned Value Management System** for end-of-line automation projects.
+<p align="center">
+  <strong>Open-source project budget management with AI-powered Earned Value Analysis</strong><br>
+  Git-style versioning for your project data. Ask questions in plain English. Travel back in time.
+</p>
 
-![Favicon](frontend/public/assets/images/backcast.png)
+<p align="center">
+  <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT">
+  <img src="https://github.com/ogghst/backcast/actions/workflows/ci.yml/badge.svg" alt="CI">
+  <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome">
+  <img src="https://img.shields.io/badge/docker-ready-blue.svg" alt="Docker Ready">
+</p>
+
+---
+
+## Screenshots
+
+<p align="center">
+  <em>Dashboard &mdash; AI Chat &mdash; Time Travel &mdash; Project Explorer</em>
+</p>
+
+<!-- TODO: Add screenshots from a running instance -->
+<!--
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="Dashboard" width="45%">
+  <img src="docs/screenshots/ai-chat.png" alt="AI Chat" width="45%">
+</p>
+<p align="center">
+  <img src="docs/screenshots/time-travel.png" alt="Time Travel" width="45%">
+  <img src="docs/screenshots/explorer.png" alt="Project Explorer" width="45%">
+</p>
+-->
+
+---
+
+## Why Backcast?
+
+If you manage projects with complex budgets, you know the pain:
+
+- **Spreadsheet hell** &mdash; budgets live in Excel, no audit trail, no history
+- **No what-if analysis** &mdash; you can't test a budget change without breaking the real numbers
+- **Black-box EVM** &mdash; earned value metrics in proprietary tools you can't inspect or extend
+- **No AI assistance** &mdash; you spend hours building reports instead of asking questions
+
+Backcast solves this with a Git-inspired approach to project data:
+
+| You're used to... | Backcast gives you... |
+|---|---|
+| Manually computing EVM metrics | **AI assistant** &mdash; *"What's the CPI of Project Alpha?"* |
+| Overwriting budgets with no history | **Time Machine** &mdash; see your project as it was on any date |
+| Guessing the impact of a change order | **Change Orders** &mdash; test budget changes in a branch, review the diff, then merge |
+| Copy-pasting charts into PowerPoint | **Custom Dashboards** &mdash; 15+ drag-and-drop widgets, auto-refreshing |
+| Paying per seat for EVM compliance | **Open source** &mdash; ANSI/EIA-748 compliant, self-hosted, free forever |
 
 ---
 
 ## Features
 
-### Bitemporal Versioning & Time Travel
+### AI Assistant
 
-Every entity mutation is tracked with dual time dimensions — *valid time* (when the fact is true in business terms) and *transaction time* (when the system recorded it). A global **Time Machine** control lets you navigate to any point in history, query the database as it was on that date, and compare snapshots across branches.
+Ask questions about your projects in plain English. The AI uses purpose-built tools to query budgets, calculate EVM metrics, draft change orders, and run variance analysis &mdash; all with real-time streaming responses.
 
-### Branch Isolation & Change Orders
+*"Show me all projects where CPI is below 0.9"*
+*"What's the cost variance for the Alpha project's electrical engineering department?"*
+*"Draft a change order to increase the mechanical engineering budget by 15%"*
 
-Change orders create dedicated Git-style branches (`BR-{code}`). Modifications to WBEs, cost elements, and budgets happen in isolation — the main timeline is untouched until the change order is **submitted, approved, and merged**. An **Impact Analysis** view provides side-by-side comparison of main vs. branch, hierarchical diffs, and KPI comparison cards. The full workflow includes SLA tracking, approval matrices, and audit trails.
+### Time Machine
 
-### Earned Value Management (EVM)
+Navigate to any point in your project's history. Every change to budgets, cost elements, and schedules is tracked with full audit trails. Compare snapshots, review what changed and when, and restore past states.
 
-Full ANSI/EIA-748-compliant EVM at every aggregation level — cost element, WBE, and project:
+### Change Orders
 
-- **Performance Indices** — CPI, SPI with gauge visualizations
-- **Variance Analysis** — Cost Variance (CV), Schedule Variance (SV), Variance at Completion (VAC)
-- **Forecasting** — Estimate at Completion (EAC), Estimate to Complete (ETC), To-Complete Performance Index (TCPI)
-- **Time-Series Charts** — PV/EV/AC progression with daily/weekly/monthly granularity
-- **Batch Aggregation** — Server-side roll-up with weighted averages for parent entities
+Like pull requests for your project budget. Create a change order to work in an isolated branch &mdash; modify budgets, add cost elements, adjust schedules &mdash; then use the **Impact Analysis** view to see a side-by-side diff before merging to the main timeline. Includes SLA tracking, approval workflows, and full audit trails.
 
-All EVM queries respect time-travel and branch context.
+### EVM Analytics
 
-### AI Chat with Sub-Agents & Tools
+Full ANSI/EIA-748-compliant Earned Value Management at every level &mdash; cost element, machine (WBE), and project:
 
-A conversational AI assistant backed by LangGraph orchestration, with specialized tools for project data:
+- **Performance Indices** &mdash; CPI, SPI with gauge visualizations
+- **Variance Analysis** &mdash; Cost Variance, Schedule Variance, Variance at Completion
+- **Forecasting** &mdash; Estimate at Completion, Estimate to Complete, TCPI
+- **Time-Series Charts** &mdash; PV/EV/AC progression with daily/weekly/monthly granularity
 
-- **Natural Language Queries** — Ask about projects, WBEs, cost elements, and EVM metrics in plain English
-- **AI Tools** — Purpose-built backend tools for CRUD operations, EVM calculations, change order drafts, and variance analysis
-- **Sub-Agent Orchestration** — LangGraph agents with tool-calling, streaming responses, and context management
-- **Execution Modes** — Safe (read-only), Standard (write with approval), Expert (full access) to control tool risk levels
-- **WebSocket Streaming** — Real-time token streaming with execution lifecycle tracking
+All metrics respect time-travel and branch context.
 
-### Composable Widget Dashboard
+### Custom Dashboards
 
-Per-user, per-project customizable dashboards built on a plugin architecture:
+Per-user, per-project dashboards built on a drag-and-drop widget system:
 
-- **15+ Widget Types** — Budget overview, EVM gauges, variance bars, Gantt chart, KPI cards, cost element tables, and more
-- **Drag & Drop Layout** — `react-grid-layout` with 12-column responsive grid
-- **Widget Registry** — Plugin-style registration; each widget self-registers on import
-- **Context Bus** — Cross-widget communication via entity selection and Time Machine integration
-- **Templates** — Pre-built dashboard templates (Project Overview, EVM Analysis) seeded on first use
-- **Auto-Save** — Changes persist automatically with dirty-state tracking and navigation guards
+- 15+ widget types &mdash; budget overview, EVM gauges, variance bars, Gantt chart, KPI cards
+- Responsive 12-column grid with auto-save
+- Cross-widget communication &mdash; select an entity in one widget, others update
+- Pre-built templates for Project Overview and EVM Analysis
 
 ### Project Explorer
 
-A master-detail interface for navigating project hierarchies:
+Navigate your project hierarchy visually &mdash; projects, machines (WBEs), and department budgets (cost elements) in an interactive tree with inline status badges, progress bars, and a Gantt timeline.
 
-- **Card-Based Views** — Project, WBE, and Cost Element detail cards with inline charts
-- **Interactive Project Tree** — Hierarchical tree with InfoPill labels (status, budget, EVM indices)
-- **Allotment Split Panels** — Resizable tree + detail layout
-- **Gantt Chart** — ECharts-based timeline with rich text labels, dual-grid layout, and branch/time-travel support
+### Quality Tracking
 
-### Hierarchical Project Structure
+Track quality issues with cost impact, severity classification, root cause analysis, and resolution status &mdash; all versioned within the change order framework.
 
-- **Projects** — Top-level containers with contract value, customer info, and project manager
-- **WBEs** (Work Breakdown Elements) — Machines or deliverables with hierarchical nesting (sub-WBEs)
-- **Cost Elements** — Departmental budgets with type classification (Engineering, Electrical, etc.)
-- **Schedule Baselines** — Versioned, branchable schedule registrations with linear, Gaussian, and logarithmic progression types
-- **Revenue Allocation** — Revenue tracking at WBE level, distributed to cost elements via planned value
+---
 
-### Quality Events
+## Quick Start
 
-Track quality issues with cost impact, severity classification, root cause tracking, and resolution status — all versioned within the EVCS framework.
+### Docker (recommended)
+
+```bash
+git clone https://github.com/ogghst/backcast.git
+cd backcast
+cp backend/.env.example backend/.env  # Configure your environment
+docker compose up -d postgres  # Start the database
+```
+
+Then start the backend and frontend separately for development:
+
+```bash
+# Backend
+cd backend && source .venv/bin/activate
+uv sync
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload --port 8020
+
+# Frontend (new terminal)
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:5173 and start managing projects.
+
+For **production deployment** with Traefik, SSL, and automated migrations, see the [Docker Deployment Guide](docs/05-user-guide/docker-deployment-guide.md).
+
+### Developer Setup
+
+Full development environment setup, architecture walkthrough, and coding standards:
+
+**[Onboarding Guide](docs/00-meta/onboarding.md)**
 
 ---
 
@@ -77,24 +148,15 @@ Track quality issues with cost impact, severity classification, root cause track
 | Layer | Technology |
 |-------|-----------|
 | Backend | Python 3.12+, FastAPI, SQLAlchemy 2.0 (async), Pydantic V2 |
-| Frontend | React 18, TypeScript, Vite 7, Ant Design 5 |
+| Frontend | React 18, TypeScript, Vite, Ant Design |
 | State | TanStack Query (server), Zustand (client) |
-| Database | PostgreSQL 15+ with TSTZRANGE bitemporal ranges |
+| Database | PostgreSQL 15+ with bitemporal range indexing |
 | AI | LangGraph, LangChain, WebSocket streaming |
-| Quality | MyPy strict, Ruff, Vitest, 80%+ coverage |
-
----
-
-## Installation & Deployment
-
-- **[Development Setup](docs/00-meta/onboarding.md)** — Local dev environment setup
-- **[Docker Deployment Guide](docs/05-user-guide/docker-deployment-guide.md)** — Production deployment with Docker, Traefik, and Let's Encrypt SSL
+| Quality | MyPy strict, Ruff, Vitest |
 
 ---
 
 ## Documentation
-
-Browse the full documentation starting from the **[Documentation Guide](docs/00-meta/README.md)**.
 
 ### Architecture & Design
 
@@ -128,6 +190,23 @@ Browse the full documentation starting from the **[Documentation Guide](docs/00-
 | [Functional Requirements](docs/01-product-scope/functional-requirements.md) | Detailed feature requirements |
 | [Product Backlog](docs/03-project-plan/product-backlog.md) | Current backlog |
 
+Browse the full documentation starting from the **[Documentation Guide](docs/00-meta/README.md)**.
+
+---
+
+## Contributing
+
+Contributions are welcome! Whether it's a bug fix, new feature, documentation improvement, or feedback from the project management trenches.
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Commit your changes
+4. Open a Pull Request
+
+See the [Onboarding Guide](docs/00-meta/onboarding.md) for development setup and coding standards.
+
+---
+
 ## License
 
-[TBD]
+[MIT](LICENSE)
