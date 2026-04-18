@@ -61,10 +61,11 @@ Backcast solves this with a Git-inspired approach to project data:
 
 ### AI Assistant
 
-Ask questions about your projects in plain English. The AI uses purpose-built tools to query budgets, calculate EVM metrics, draft change orders, and run variance analysis &mdash; all with real-time streaming responses.
+Ask questions about your projects in plain English. The AI uses purpose-built tools to query budgets, calculate EVM metrics, draft change orders, and run variance analysis &mdash; all with real-time streaming responses. It can also **create and update project data** directly: attach invoices, add cost elements, modify schedules, and more.
 
 *"Show me all projects where CPI is below 0.9"*
-*"What's the cost variance for the Alpha project's electrical engineering department?"*
+*"Add the attached invoice to the electrical engineering cost element"*
+*"Update the construction plan by adding a new building, starting next year"*
 *"Draft a change order to increase the mechanical engineering budget by 15%"*
 
 ### Time Machine
