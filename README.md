@@ -36,6 +36,10 @@
 
 ---
 
+Traditional project management tools force you into rigid forms and fixed workflows. Pure AI assistants are conversational but lack the structure for professional-grade budget tracking, EVM compliance, and audit trails. Backcast bridges both: a full-featured project management platform where you can work through structured dashboards and forms **or** talk to your data through AI assistants &mdash; moving seamlessly between the two as the task demands.
+
+---
+
 ## Why Backcast?
 
 If you manage projects with complex budgets, you know the pain:
