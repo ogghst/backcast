@@ -91,6 +91,10 @@ A supplier offers to deliver critical components two months early &mdash; at a 5
 
 The PM's director wants a status update. Instead of building a deck, the PM shares a link to the project dashboard with pre-configured EVM widgets. The director can see CPI, SPI, variance trends, and the Gantt chart &mdash; all live, all self-updating. Questions that used to require a follow-up email now get answered on the spot.
 
+### Connecting the corporate stack
+
+A company runs SAP for procurement, a legacy ERP for cost accounting, and Power BI for executive reporting. Backcast's REST API and open data model fit right in. The IT team writes a sync pipeline that pushes approved invoices from the ERP into Backcast every night, so cost registrations are always current. Executives browse live EVM dashboards in Backcast &mdash; or connect Power BI directly to the PostgreSQL database and build their own views. No data silos, no manual exports.
+
 ---
 
 ## Features
@@ -147,6 +151,10 @@ Track quality issues with cost impact, severity classification, root cause analy
 ### Role-Based Access Control
 
 Fine-grained permissions let you control exactly who can do what in each project. Assign roles per project with read or write capabilities across every feature &mdash; project structure, cost registration, AI assistant, dashboards, and change orders. An accountant can register costs but not modify the project hierarchy; a controller gets read-only EVM analytics; the project manager holds the keys.
+
+### REST API & Open Data Model
+
+Every feature in Backcast is accessible through a versioned REST API (`/api/v1`) with full OpenAPI documentation. Built on a proven open-source stack &mdash; FastAPI, PostgreSQL, React &mdash; Backcast integrates cleanly into existing corporate infrastructure: sync data from legacy ERPs, feed business intelligence tools directly from the database, or build custom automations on top of the API. No vendor lock-in, no proprietary formats.
 
 ---
 
