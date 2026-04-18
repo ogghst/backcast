@@ -5,25 +5,23 @@ import { queryKeys } from "@/api/queryKeys";
 import {
   useWBEs,
   useCreateWBE,
-  useUpdateWBE,
-  useDeleteWBE,
 } from "@/features/wbes/api/useWBEs";
 import { WBETable } from "@/components/hierarchy/WBETable";
-import { WBECreate, WBERead, WBEUpdate, ProjectUpdate } from "@/api/generated";
-import { Button, Breadcrumb, Skeleton, Card, theme, Typography, Space, Flex, Row, Col, Tag, Descriptions, Grid } from "antd";
-import { PlusOutlined, EditOutlined, HistoryOutlined, DeleteOutlined, FileTextOutlined, ClockCircleOutlined, DollarOutlined, InfoCircleOutlined } from "@ant-design/icons";
+import { WBECreate, WBERead, ProjectUpdate } from "@/api/generated";
+import { useProjectBudgetStatus } from "@/features/cost-registration/api/useCostRegistrations";
+import { Button, Breadcrumb, Skeleton, Card, theme, Typography, Space, Flex, Grid } from "antd";
+import { PlusOutlined, EditOutlined, HistoryOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useState } from "react";
 import { WBEModal } from "@/features/wbes/components/WBEModal";
-import { DeleteWBEModal } from "@/components/hierarchy/DeleteWBEModal";
 import { DeleteProjectModal } from "@/components/projects/DeleteProjectModal";
 import { Can } from "@/components/auth/Can";
 import { VersionHistoryDrawer } from "@/components/common/VersionHistory";
 import { useEntityHistory } from "@/hooks/useEntityHistory";
 import { ProjectsService } from "@/api/generated";
 import { ProjectEditModal } from "@/components/projects/ProjectEditModal";
-import { getProjectStatusColor } from "@/lib/status";
-import { formatDate, formatCurrency, formatTemporalRange, calculateDuration } from "@/utils/formatters";
 import { CostHistoryChart } from "@/features/cost-registration/components/CostHistoryChart";
+import { ProjectHeaderCard } from "@/components/projects/ProjectHeaderCard";
+import { ProjectInfoCard } from "@/components/projects/ProjectInfoCard";
 
 /**
  * ProjectOverview component
@@ -42,6 +40,9 @@ export const ProjectOverview = () => {
 
   const { data: project, isLoading: projectLoading } = useProject(projectId!);
 
+  // Fetch actual costs for cost progress ring
+  const { data: budgetStatus } = useProjectBudgetStatus(projectId!);
+
   // Fetch Root WBEs
   const {
     data,
@@ -54,11 +55,6 @@ export const ProjectOverview = () => {
   const wbes = data?.items || [];
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedWBE, setSelectedWBE] = useState<WBERead | null>(null);
-
-  // Delete Modal State
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [wbeToDelete, setWbeToDelete] = useState<WBERead | null>(null);
 
   // Edit Project Modal State
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -112,24 +108,7 @@ export const ProjectOverview = () => {
     },
   });
 
-  const { mutateAsync: updateWBE } = useUpdateWBE({
-    onSuccess: () => {
-      refetchWBEs();
-      setModalOpen(false);
-    },
-  });
-
-  const { mutate: deleteWBE } = useDeleteWBE({
-    onSuccess: () => refetchWBEs(),
-  });
-
   const handleCreate = () => {
-    setSelectedWBE(null);
-    setModalOpen(true);
-  };
-
-  const handleEdit = (wbe: WBERead) => {
-    setSelectedWBE(wbe);
     setModalOpen(true);
   };
 
@@ -199,377 +178,27 @@ export const ProjectOverview = () => {
 
       {project && (
         <>
-          {/* Project Name Header */}
-          <Typography.Title
-            level={2}
-            style={{
-              marginBottom: token.paddingLG,
-              fontSize: isMobile ? token.fontSizeXL : token.fontSizeXXL,
-              fontWeight: token.fontWeightSemiBold,
-            }}
-          >
-            {project.name}
-          </Typography.Title>
-
-          {/* Scope Panel */}
-          <Card
-            title={
-              <Space>
-                <FileTextOutlined />
-                <span
-                  style={{
-                    fontSize: token.fontSizeLG,
-                    fontWeight: token.fontWeightSemiBold,
-                  }}
-                >
-                  Scope
-                </span>
-              </Space>
+          {/* Project Header - replaces Scope, Time, Costs cards */}
+          <ProjectHeaderCard
+            project={project}
+            loading={projectLoading}
+            actualCosts={budgetStatus?.total_spend}
+            extraContent={
+              projectId ? (
+                <CostHistoryChart
+                  entityType="project"
+                  entityId={projectId}
+                  budgetAmount={project.budget ? Number(project.budget) : undefined}
+                  headless
+                />
+              ) : undefined
             }
-            style={{
-              marginBottom: token.marginLG,
-              borderRadius: token.borderRadiusLG,
-              border: `1px solid ${token.colorBorder}`,
-            }}
-          >
-            <div style={{ padding: token.paddingLG }}>
-              {project.description && (
-                <Typography.Paragraph
-                  type="secondary"
-                  style={{
-                    marginBottom: token.paddingMD,
-                    fontSize: token.fontSize,
-                  }}
-                >
-                  {project.description}
-                </Typography.Paragraph>
-              )}
-              <Row gutter={[token.marginLG, token.marginMD]}>
-                <Col xs={24} sm={12} md={8}>
-                  <div>
-                    <Typography.Text
-                      type="secondary"
-                      style={{
-                        fontSize: token.fontSizeSM,
-                        display: "block",
-                        marginBottom: token.paddingXS,
-                        fontWeight: token.fontWeightMedium,
-                      }}
-                    >
-                      Code
-                    </Typography.Text>
-                    <Typography.Text
-                      style={{
-                        fontSize: token.fontSizeLG,
-                        fontWeight: token.fontWeightSemiBold,
-                        color: token.colorText,
-                      }}
-                    >
-                      {project.code}
-                    </Typography.Text>
-                  </div>
-                </Col>
-                <Col xs={24} sm={12} md={8}>
-                  <div>
-                    <Typography.Text
-                      type="secondary"
-                      style={{
-                        fontSize: token.fontSizeSM,
-                        display: "block",
-                        marginBottom: token.paddingXS,
-                        fontWeight: token.fontWeightMedium,
-                      }}
-                    >
-                      Status
-                    </Typography.Text>
-                    <Tag
-                      color={getProjectStatusColor(project.status)}
-                      style={{
-                        fontSize: token.fontSize,
-                        padding: `${token.paddingXS}px ${token.paddingSM}px`,
-                        borderRadius: token.borderRadius,
-                        fontWeight: token.fontWeightMedium,
-                        margin: 0,
-                      }}
-                    >
-                      {project.status || "Draft"}
-                    </Tag>
-                  </div>
-                </Col>
-              </Row>
-            </div>
-          </Card>
+          />
 
-          {/* Time Panel */}
-          <Card
-            title={
-              <Space>
-                <ClockCircleOutlined />
-                <span
-                  style={{
-                    fontSize: token.fontSizeLG,
-                    fontWeight: token.fontWeightSemiBold,
-                  }}
-                >
-                  Time
-                </span>
-              </Space>
-            }
-            style={{
-              marginBottom: token.marginLG,
-              borderRadius: token.borderRadiusLG,
-              border: `1px solid ${token.colorBorder}`,
-            }}
-          >
-            <div style={{ padding: token.paddingLG }}>
-              <Row gutter={[token.marginLG, token.marginMD]}>
-                <Col xs={24} sm={12} md={8}>
-                  <div>
-                    <Typography.Text
-                      type="secondary"
-                      style={{
-                        fontSize: token.fontSizeSM,
-                        display: "block",
-                        marginBottom: token.paddingXS,
-                        fontWeight: token.fontWeightMedium,
-                      }}
-                    >
-                      Start Date
-                    </Typography.Text>
-                    <Typography.Text
-                      style={{
-                        fontSize: token.fontSizeLG,
-                        fontWeight: token.fontWeightSemiBold,
-                        color: token.colorText,
-                      }}
-                    >
-                      {formatDate(project.start_date, { fallback: "-" })}
-                    </Typography.Text>
-                  </div>
-                </Col>
-                <Col xs={24} sm={12} md={8}>
-                  <div>
-                    <Typography.Text
-                      type="secondary"
-                      style={{
-                        fontSize: token.fontSizeSM,
-                        display: "block",
-                        marginBottom: token.paddingXS,
-                        fontWeight: token.fontWeightMedium,
-                      }}
-                    >
-                      End Date
-                    </Typography.Text>
-                    <Typography.Text
-                      style={{
-                        fontSize: token.fontSizeLG,
-                        fontWeight: token.fontWeightSemiBold,
-                        color: token.colorText,
-                      }}
-                    >
-                      {formatDate(project.end_date, { fallback: "-" })}
-                    </Typography.Text>
-                  </div>
-                </Col>
-                {calculateDuration(project.start_date, project.end_date) && (
-                  <Col xs={24} sm={12} md={8}>
-                    <div>
-                      <Typography.Text
-                        type="secondary"
-                        style={{
-                          fontSize: token.fontSizeSM,
-                          display: "block",
-                          marginBottom: token.paddingXS,
-                          fontWeight: token.fontWeightMedium,
-                        }}
-                      >
-                        Duration
-                      </Typography.Text>
-                      <Typography.Text
-                        style={{
-                          fontSize: token.fontSizeLG,
-                          fontWeight: token.fontWeightSemiBold,
-                          color: token.colorText,
-                        }}
-                      >
-                        {calculateDuration(project.start_date, project.end_date)}
-                      </Typography.Text>
-                    </div>
-                  </Col>
-                )}
-              </Row>
-            </div>
-          </Card>
-
-          {/* Costs Panel */}
-          <Card
-            title={
-              <Space>
-                <DollarOutlined />
-                <span
-                  style={{
-                    fontSize: token.fontSizeLG,
-                    fontWeight: token.fontWeightSemiBold,
-                  }}
-                >
-                  Costs
-                </span>
-              </Space>
-            }
-            style={{
-              marginBottom: token.marginLG,
-              borderRadius: token.borderRadiusLG,
-              border: `1px solid ${token.colorBorder}`,
-            }}
-          >
-            <div style={{ padding: token.paddingLG }}>
-              <Row gutter={[token.marginLG, token.marginMD]}>
-                <Col xs={24} sm={12} md={8}>
-                  <div>
-                    <Typography.Text
-                      type="secondary"
-                      style={{
-                        fontSize: token.fontSizeSM,
-                        display: "block",
-                        marginBottom: token.paddingXS,
-                        fontWeight: token.fontWeightMedium,
-                      }}
-                    >
-                      Budget
-                    </Typography.Text>
-                    <Typography.Text
-                      style={{
-                        fontSize: token.fontSizeLG,
-                        fontWeight: token.fontWeightSemiBold,
-                        color: token.colorText,
-                      }}
-                    >
-                      {formatCurrency(project.budget)}
-                    </Typography.Text>
-                  </div>
-                </Col>
-                <Col xs={24} sm={12} md={8}>
-                  <div>
-                    <Typography.Text
-                      type="secondary"
-                      style={{
-                        fontSize: token.fontSizeSM,
-                        display: "block",
-                        marginBottom: token.paddingXS,
-                        fontWeight: token.fontWeightMedium,
-                      }}
-                    >
-                      Contract Value
-                    </Typography.Text>
-                    <Typography.Text
-                      style={{
-                        fontSize: token.fontSizeLG,
-                        fontWeight: token.fontWeightSemiBold,
-                        color: token.colorText,
-                      }}
-                    >
-                      {formatCurrency(project.contract_value)}
-                    </Typography.Text>
-                  </div>
-                </Col>
-                {project.budget && project.contract_value && (
-                  <Col xs={24} sm={12} md={8}>
-                    <div>
-                      <Typography.Text
-                        type="secondary"
-                        style={{
-                          fontSize: token.fontSizeSM,
-                          display: "block",
-                          marginBottom: token.paddingXS,
-                          fontWeight: token.fontWeightMedium,
-                        }}
-                      >
-                        Variance
-                      </Typography.Text>
-                      <Typography.Text
-                        style={{
-                          fontSize: token.fontSizeLG,
-                          fontWeight: token.fontWeightSemiBold,
-                          color:
-                            Number(project.contract_value) - Number(project.budget) >= 0
-                              ? token.colorSuccess
-                              : token.colorError,
-                        }}
-                      >
-                        {formatCurrency(
-                          Number(project.contract_value) - Number(project.budget)
-                        )}
-                      </Typography.Text>
-                    </div>
-                  </Col>
-                )}
-              </Row>
-              {projectId && (
-                <div style={{ marginTop: token.paddingLG }}>
-                  <CostHistoryChart
-                    entityType="project"
-                    entityId={projectId}
-                    budgetAmount={project.budget ? Number(project.budget) : undefined}
-                    headless
-                  />
-                </div>
-              )}
-            </div>
-          </Card>
-
-          {/* System Info Panel */}
-          <Card
-            title={
-              <Space>
-                <InfoCircleOutlined />
-                <span
-                  style={{
-                    fontSize: token.fontSizeLG,
-                    fontWeight: token.fontWeightSemiBold,
-                  }}
-                >
-                  System Info
-                </span>
-              </Space>
-            }
-            style={{
-              marginBottom: token.marginLG,
-              borderRadius: token.borderRadiusLG,
-              border: `1px solid ${token.colorBorder}`,
-            }}
-          >
-            <div style={{ padding: token.paddingLG }}>
-              <Descriptions column={isMobile ? 1 : { xs: 1, sm: 2 }} size="small">
-                <Descriptions.Item label="ID">{project.id}</Descriptions.Item>
-                <Descriptions.Item label="Project ID">
-                  {project.project_id}
-                </Descriptions.Item>
-                <Descriptions.Item label="Branch">{project.branch}</Descriptions.Item>
-                <Descriptions.Item label="Created By">
-                  {project.created_by_name || "-"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Created At">
-                  {project.created_at
-                    ? formatDate(project.created_at, { style: "long", fallback: "-" })
-                    : "-"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Valid Time">
-                  {project.valid_time_formatted
-                    ? formatTemporalRange(project.valid_time_formatted)
-                    : "-"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Transaction Time">
-                  {project.transaction_time_formatted
-                    ? formatTemporalRange(project.transaction_time_formatted)
-                    : "-"}
-                </Descriptions.Item>
-              </Descriptions>
-            </div>
-          </Card>
-
+          {/* Root WBEs */}
           <Card
             title="Root Work Breakdown Elements"
-            style={{ marginTop: token.paddingMD }}
+            style={{ marginBottom: token.marginLG }}
             extra={
               <Can permission="wbe-create">
                 <Button
@@ -586,34 +215,12 @@ export const ProjectOverview = () => {
               wbes={wbes || []}
               loading={wbesLoading}
               onRowClick={handleRowClick}
-              onEdit={handleEdit}
-              onDelete={(wbe) => {
-                setWbeToDelete(wbe);
-                setDeleteModalOpen(true);
-              }}
             />
           </Card>
 
-          {/* NOTE: Change Orders Card removed - moved to dedicated page/tab */}
+          {/* Project Info - collapsible system metadata (replaces System Info card) */}
+          <ProjectInfoCard project={project} />
         </>
-      )}
-
-      {deleteModalOpen && (
-        <DeleteWBEModal
-          wbe={wbeToDelete}
-          open={deleteModalOpen}
-          onCancel={() => {
-            setDeleteModalOpen(false);
-            setWbeToDelete(null);
-          }}
-          onConfirm={() => {
-            if (wbeToDelete) {
-              deleteWBE(wbeToDelete.wbe_id);
-              setDeleteModalOpen(false);
-              setWbeToDelete(null);
-            }
-          }}
-        />
       )}
 
       {project && (
@@ -664,22 +271,14 @@ export const ProjectOverview = () => {
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={async (values) => {
-          if (selectedWBE) {
-            await updateWBE({
-              id: selectedWBE.wbe_id,
-              data: values as WBEUpdate,
-            });
-          } else {
-            // For root WBEs, parent context is passed via props and set in form
-            await createWBE({
-              ...values,
-              project_id: projectId!,
-              level: 1, // Default level 1 for roots
-            } as WBECreate);
-          }
+          await createWBE({
+            ...values,
+            project_id: projectId!,
+            level: 1,
+          } as WBECreate);
         }}
         confirmLoading={false}
-        initialValues={selectedWBE}
+        initialValues={null}
         projectId={projectId}
         parentWbeId={null}
         parentName="Project Root"

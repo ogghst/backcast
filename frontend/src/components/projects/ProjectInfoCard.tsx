@@ -1,10 +1,10 @@
-import React from "react";
-import { Descriptions, Typography, Tag, Divider, theme, Space } from "antd";
+import React, { useState } from "react";
+import { Descriptions, Typography, Tag, theme, message } from "antd";
 import { ProjectRead } from "@/api/generated";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
-import { formatDate, formatDateTime } from "@/utils/formatters";
+import { CopyOutlined } from "@ant-design/icons";
 
-const { Text, Paragraph, Title } = Typography;
+const { Text } = Typography;
 
 interface ProjectInfoCardProps {
   project: ProjectRead;
@@ -12,16 +12,31 @@ interface ProjectInfoCardProps {
 }
 
 /**
- * ProjectInfoCard - Collapsible card with additional project details.
+ * ProjectInfoCard - Collapsible card with basic project technical information.
  *
- * Displays description, branch, and metadata in a clean layout.
+ * Displays minimal technical details: Branch and Technical ID.
  * Defaults to collapsed state for progressive disclosure.
+ *
+ * Note: Description and project_id are displayed in ProjectHeaderCard
+ * to avoid duplication and ensure primary information is always visible.
  */
 export const ProjectInfoCard = ({
   project,
   loading,
 }: ProjectInfoCardProps) => {
   const { token } = theme.useToken();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyId = async () => {
+    try {
+      await navigator.clipboard.writeText(project.id);
+      setCopied(true);
+      message.success("Technical ID copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      message.error("Failed to copy Technical ID");
+    }
+  };
 
   return (
     <CollapsibleCard
@@ -46,140 +61,52 @@ export const ProjectInfoCard = ({
       }}
     >
       <div style={{ padding: token.paddingLG }}>
-        <Space direction="vertical" size={token.marginXL} style={{ width: "100%" }}>
-          {/* Section 1: Description */}
-          <div>
-            <Title
-              level={5}
+        <Descriptions
+          size="middle"
+          column={{ xs: 1, sm: 2 }}
+          colon={true}
+          labelStyle={{
+            fontWeight: token.fontWeightMedium,
+            color: token.colorTextSecondary,
+            fontSize: token.fontSize,
+          }}
+          contentStyle={{
+            color: token.colorText,
+            fontSize: token.fontSize,
+          }}
+        >
+          <Descriptions.Item label="Branch">
+            <Tag
+              color="orange"
               style={{
-                margin: `0 0 ${token.marginMD}px 0`,
-                fontSize: token.fontSizeLG,
-                fontWeight: token.fontWeightSemiBold,
-                color: token.colorText,
+                padding: `${token.paddingXS}px ${token.paddingSM}px`,
+                borderRadius: token.borderRadiusSM,
               }}
             >
-              Description
-            </Title>
-            {project.description ? (
-              <Paragraph
+              {project.branch || "main"}
+            </Tag>
+          </Descriptions.Item>
+
+          <Descriptions.Item label="Technical ID">
+            <Text
+              code
+              style={{
+                fontSize: token.fontSizeXS,
+                cursor: "pointer",
+              }}
+              onClick={handleCopyId}
+            >
+              {project.id}{" "}
+              <CopyOutlined
                 style={{
-                  margin: 0,
-                  color: token.colorText,
-                  fontSize: token.fontSize,
-                  lineHeight: token.lineHeight,
+                  fontSize: token.fontSizeXS,
+                  color: copied ? token.colorSuccess : token.colorTextSecondary,
+                  marginLeft: token.paddingXS,
                 }}
-              >
-                {project.description}
-              </Paragraph>
-            ) : (
-              <Text type="secondary">No description provided</Text>
-            )}
-          </div>
-
-          <Divider style={{ margin: `${token.marginLG}px 0` }} />
-
-          {/* Section 2: Technical Details */}
-          <div>
-            <Title
-              level={5}
-              style={{
-                margin: `0 0 ${token.marginMD}px 0`,
-                fontSize: token.fontSizeLG,
-                fontWeight: token.fontWeightSemiBold,
-                color: token.colorText,
-              }}
-            >
-              Technical Details
-            </Title>
-            <Descriptions
-              size="middle"
-              column={{ xs: 1, sm: 2 }}
-              colon={true}
-              labelStyle={{
-                fontWeight: token.fontWeightMedium,
-                color: token.colorTextSecondary,
-                fontSize: token.fontSize,
-              }}
-              contentStyle={{
-                color: token.colorText,
-                fontSize: token.fontSize,
-              }}
-            >
-              <Descriptions.Item label="Branch">
-                <Tag
-                  color="orange"
-                  style={{
-                    padding: `${token.paddingXS}px ${token.paddingSM}px`,
-                    borderRadius: token.borderRadiusSM,
-                  }}
-                >
-                  {project.branch || "main"}
-                </Tag>
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Control Date">
-                <Text style={{ color: token.colorText }}>
-                  {formatDate(project.control_date)}
-                </Text>
-              </Descriptions.Item>
-            </Descriptions>
-          </div>
-
-          <Divider style={{ margin: `${token.marginLG}px 0` }} />
-
-          {/* Section 3: Audit Information */}
-          <div>
-            <Title
-              level={5}
-              style={{
-                margin: `0 0 ${token.marginMD}px 0`,
-                fontSize: token.fontSizeLG,
-                fontWeight: token.fontWeightSemiBold,
-                color: token.colorText,
-              }}
-            >
-              Audit Information
-            </Title>
-            <Descriptions
-              size="middle"
-              column={{ xs: 1, sm: 2 }}
-              colon={true}
-              labelStyle={{
-                fontWeight: token.fontWeightMedium,
-                color: token.colorTextSecondary,
-                fontSize: token.fontSize,
-              }}
-              contentStyle={{
-                color: token.colorText,
-                fontSize: token.fontSize,
-              }}
-            >
-              <Descriptions.Item label="Created">
-                <Text style={{ color: token.colorText }}>
-                  {formatDateTime(project.created_at)}
-                </Text>
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Created By">
-                <Text style={{ color: token.colorText }}>
-                  {project.created_by_name || "System"}
-                </Text>
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Last Updated">
-                <Text style={{ color: token.colorText }}>
-                  {formatDateTime(project.updated_at)}
-                </Text>
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Updated By">
-                <Text style={{ color: token.colorText }}>
-                  {project.updated_by_name || "System"}
-                </Text>
-              </Descriptions.Item>
-            </Descriptions>
-          </div>
-        </Space>
+              />
+            </Text>
+          </Descriptions.Item>
+        </Descriptions>
       </div>
     </CollapsibleCard>
   );
