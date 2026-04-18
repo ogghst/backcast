@@ -122,7 +122,7 @@ async def setup_wbe_evm_data(client: AsyncClient) -> dict[str, Any]:
     # 3. Project
     proj_res = await client.post(
         "/api/v1/projects",
-        json={"code": "P-WBE", "name": "WBE Test Project", "budget": 300000},
+        json={"code": "P-WBE", "name": "WBE Test Project"},
     )
     proj_id = proj_res.json()["project_id"]
 
@@ -243,7 +243,7 @@ async def setup_project_evm_data(client: AsyncClient) -> dict[str, Any]:
     # 3. Project
     proj_res = await client.post(
         "/api/v1/projects",
-        json={"code": "P-PROJ", "name": "Project Test Project", "budget": 1000000},
+        json={"code": "P-PROJ", "name": "Project Test Project"},
     )
     proj_id = proj_res.json()["project_id"]
 
@@ -360,7 +360,7 @@ async def setup_cost_element_evm_data(client: AsyncClient) -> dict[str, Any]:
     # 3. Project
     proj_res = await client.post(
         "/api/v1/projects",
-        json={"code": "P-CE", "name": "CE Test Project", "budget": 200000},
+        json={"code": "P-CE", "name": "CE Test Project"},
     )
     proj_id = proj_res.json()["project_id"]
 
@@ -686,7 +686,6 @@ class TestCostElementEntityEVM:
             json={
                 "code": f"P-{uuid4().hex[:4].upper()}",
                 "name": "Batch CE Proj",
-                "budget": 300000,
             },
         )
         proj_id = proj_res.json()["project_id"]
@@ -808,7 +807,6 @@ class TestCostElementEntityEVM:
             json={
                 "code": f"P-{uuid4().hex[:4].upper()}",
                 "name": "No Progress CE Proj",
-                "budget": 100000,
             },
         )
         proj_id = proj_res.json()["project_id"]
@@ -895,7 +893,6 @@ class TestCostElementEntityEVM:
             json={
                 "code": f"P-{uuid4().hex[:4].upper()}",
                 "name": "Zero AC CE Proj",
-                "budget": 100000,
             },
         )
         proj_id = proj_res.json()["project_id"]
@@ -1046,7 +1043,6 @@ class TestWBEEntityEVM:
             json={
                 "code": f"P-{uuid4().hex[:4].upper()}",
                 "name": "Empty Proj",
-                "budget": 100000,
             },
         )
         proj_id = proj_res.json()["project_id"]
@@ -1167,7 +1163,6 @@ class TestEVMMultiEntityAggregation:
             json={
                 "code": f"P-{uuid4().hex[:4].upper()}",
                 "name": "Batch Proj",
-                "budget": 500000,
             },
         )
         proj_id = proj_res.json()["project_id"]
@@ -1285,7 +1280,6 @@ class TestEVMMultiEntityAggregation:
                 json={
                     "code": f"P-{uuid4().hex[:4].upper()}",
                     "name": f"Batch Project {i}",
-                    "budget": 300000,
                 },
             )
             proj_id = proj_res.json()["project_id"]
@@ -1910,7 +1904,6 @@ class TestEVMEdgeCases:
             json={
                 "code": f"P-{uuid4().hex[:4].upper()}",
                 "name": "No Progress Proj",
-                "budget": 100000,
             },
         )
         proj_id = proj_res.json()["project_id"]
@@ -1999,7 +1992,6 @@ class TestEVMEdgeCases:
             json={
                 "code": f"P-{uuid4().hex[:4].upper()}",
                 "name": "Zero AC Proj",
-                "budget": 100000,
             },
         )
         proj_id = proj_res.json()["project_id"]

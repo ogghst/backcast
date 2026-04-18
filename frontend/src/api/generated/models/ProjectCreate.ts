@@ -16,10 +16,6 @@ export type ProjectCreate = {
      */
     code: string;
     /**
-     * Project budget
-     */
-    budget: (number | string);
-    /**
      * Contract value
      */
     contract_value?: (number | string | null);

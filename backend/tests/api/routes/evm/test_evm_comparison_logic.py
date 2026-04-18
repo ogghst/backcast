@@ -75,7 +75,6 @@ class TestEVMCostComparisonLogic:
             json={
                 "code": f"P-{uuid4().hex[:4].upper()}",
                 "name": "Test Project",
-                "budget": 10000,
             },
         )
         assert proj_res.status_code == 201

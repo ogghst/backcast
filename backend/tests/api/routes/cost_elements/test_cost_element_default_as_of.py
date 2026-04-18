@@ -93,7 +93,7 @@ async def setup_dependencies(client: AsyncClient) -> dict[str, Any]:
     # 3. Project
     proj_res = await client.post(
         "/api/v1/projects",
-        json={"code": f"P-{uuid4().hex[:4].upper()}", "name": "Proj", "budget": 100},
+        json={"code": f"P-{uuid4().hex[:4].upper()}", "name": "Proj"},
     )
     if proj_res.status_code != 201:
         raise Exception(f"Proj failed: {proj_res.text}")

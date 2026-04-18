@@ -1,5 +1,5 @@
 from collections.abc import Generator
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
@@ -45,6 +45,21 @@ class MockRBACService(RBACServiceABC):
             "change-order-read",
         ]
 
+    async def has_project_access(
+        self,
+        user_id: UUID,
+        user_role: str,
+        project_id: UUID,
+        required_permission: str,
+    ) -> bool:
+        return True
+
+    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
+        return []
+
+    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
+        return None
+
 
 def mock_get_rbac_service() -> RBACServiceABC:
     return MockRBACService()
@@ -69,7 +84,7 @@ async def test_get_branches_empty(
     # Create project
     p_resp = await client.post(
         "/api/v1/projects",
-        json={"name": "Branch Test 1", "code": "B-TEST-1", "budget": 100000},
+        json={"name": "Branch Test 1", "code": "B-TEST-1"},
     )
     assert p_resp.status_code == 201
     pid = p_resp.json()["project_id"]
@@ -92,7 +107,7 @@ async def test_get_branches_with_cos(
     # Create project
     p_resp = await client.post(
         "/api/v1/projects",
-        json={"name": "Branch Test 2", "code": "B-TEST-2", "budget": 100000},
+        json={"name": "Branch Test 2", "code": "B-TEST-2"},
     )
     pid = p_resp.json()["project_id"]
 

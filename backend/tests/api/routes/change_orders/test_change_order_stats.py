@@ -86,7 +86,6 @@ async def test_project(client: AsyncClient) -> dict[str, Any]:
     project_data = {
         "name": "CO Stats Test Project",
         "code": "CO-STATS-PROJ",
-        "budget": 1000000,
     }
     response = await client.post("/api/v1/projects", json=project_data)
     assert response.status_code == 201
@@ -314,7 +313,6 @@ class TestChangeOrderStatsEndpoint:
         project_data = {
             "name": "Empty Project",
             "code": "EMPTY-PROJ",
-            "budget": 500000,
         }
         response = await client.post("/api/v1/projects", json=project_data)
         assert response.status_code == 201

@@ -15,8 +15,8 @@ from app.services.quality_event_service import QualityEventService
 async def create_test_project(db_session: AsyncSession, admin_user, project_id: uuid4):
     """Create a test project with proper temporal fields."""
     stmt = text("""
-        INSERT INTO projects (id, project_id, name, code, budget, branch, valid_time, transaction_time, created_by)
-        VALUES (:id, :project_id, :name, :code, :budget, :branch, tstzrange(:now, NULL), tstzrange(clock_timestamp(), NULL), :created_by)
+        INSERT INTO projects (id, project_id, name, code, status, branch, valid_time, transaction_time, created_by)
+        VALUES (:id, :project_id, :name, :code, :status, :branch, tstzrange(:now, NULL), tstzrange(clock_timestamp(), NULL), :created_by)
         RETURNING id
     """)
     result = await db_session.execute(stmt, {
@@ -24,7 +24,7 @@ async def create_test_project(db_session: AsyncSession, admin_user, project_id: 
         "project_id": str(project_id),
         "name": "Test Project",
         "code": "TEST-PROJ",
-        "budget": 100000,
+        "status": "Active",
         "branch": "main",
         "now": datetime.now(UTC),
         "created_by": str(admin_user.id)

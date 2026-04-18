@@ -9,6 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_active_user, get_current_user
+from uuid import UUID
+
 from app.core.rbac import RBACServiceABC, get_rbac_service
 from app.main import app
 from app.models.domain.user import User
@@ -54,6 +56,21 @@ class MockRBACService(RBACServiceABC):
             "wbe-delete",
         ]
 
+    async def has_project_access(
+        self,
+        user_id: UUID,
+        user_role: str,
+        project_id: UUID,
+        required_permission: str,
+    ) -> bool:
+        return True
+
+    async def get_user_projects(self, user_id: UUID, user_role: str) -> list[UUID]:
+        return []
+
+    async def get_project_role(self, user_id: UUID, project_id: UUID) -> str | None:
+        return None
+
 
 def mock_get_rbac_service() -> RBACServiceABC:
     return MockRBACService()
@@ -78,7 +95,6 @@ async def test_create_project(
     project_data = {
         "name": "Test Project",
         "code": unique_code,
-        "budget": 100000,
         "contract_value": 120000,
         "status": "Draft",
         "description": "A test project",
@@ -90,7 +106,7 @@ async def test_create_project(
     data = response.json()
     assert data["name"] == "Test Project"
     assert data["code"] == unique_code
-    assert float(data["budget"]) == 100000
+    assert float(data["budget"]) == 0
     assert data["branch"] == "main"
     assert "id" in data
     assert "project_id" in data
@@ -105,7 +121,6 @@ async def test_create_project_duplicate_code(
     project_data = {
         "name": "Test Project 1",
         "code": unique_code,
-        "budget": 100000,
     }
 
     # Create first project
@@ -130,7 +145,6 @@ async def test_get_projects(
         project_data = {
             "name": f"Project {i}",
             "code": f"PRJ-{i:03d}",
-            "budget": 100000 * (i + 1),
         }
         await client.post("/api/v1/projects", json=project_data)
 
@@ -152,7 +166,6 @@ async def test_get_project_by_id(
     project_data = {
         "name": "Specific Project",
         "code": "SPEC-001",
-        "budget": 50000,
     }
     create_response = await client.post("/api/v1/projects", json=project_data)
     project_id = create_response.json()["project_id"]
@@ -178,7 +191,6 @@ async def test_update_project(
     project_data = {
         "name": "Original Name",
         "code": "UPD-001",
-        "budget": 100000,
     }
     create_response = await client.post("/api/v1/projects", json=project_data)
     project_id = create_response.json()["project_id"]
@@ -186,14 +198,12 @@ async def test_update_project(
     # Update project
     update_data = {
         "name": "Updated Name",
-        "budget": 150000,
     }
     response = await client.put(f"/api/v1/projects/{project_id}", json=update_data)
 
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Updated Name"
-    assert float(data["budget"]) == 150000
     assert data["code"] == "UPD-001"  # Code should remain unchanged
 
 
@@ -206,7 +216,6 @@ async def test_delete_project(
     project_data = {
         "name": "To Delete",
         "code": "DEL-001",
-        "budget": 50000,
     }
     create_response = await client.post("/api/v1/projects", json=project_data)
     project_id = create_response.json()["project_id"]
@@ -240,7 +249,6 @@ async def test_get_project_history(
     project_data = {
         "name": "History Project",
         "code": "HIST-001",
-        "budget": 100000,
     }
     create_response = await client.post("/api/v1/projects", json=project_data)
     project_id = create_response.json()["project_id"]
@@ -274,7 +282,7 @@ async def test_get_projects_with_pagination(
     for i in range(5):
         await client.post(
             "/api/v1/projects",
-            json={"name": f"Project {i}", "code": f"PAG-{i:03d}", "budget": 10000},
+            json={"name": f"Project {i}", "code": f"PAG-{i:03d}"},
         )
 
     # Get first page

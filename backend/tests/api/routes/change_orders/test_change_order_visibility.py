@@ -73,7 +73,7 @@ async def test_change_order_branch_visibility_future_control_date(
     # 1. Create Project
     p_resp = await client.post(
         "/api/v1/projects",
-        json={"name": "Visibility Test Project", "code": "VIS-TEST", "budget": 100000},
+        json={"name": "Visibility Test Project", "code": "VIS-TEST"},
     )
     assert p_resp.status_code == 201
     project_id = p_resp.json()["project_id"]

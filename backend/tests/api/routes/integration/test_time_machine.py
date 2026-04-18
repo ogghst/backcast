@@ -76,7 +76,6 @@ async def test_project(client: AsyncClient) -> dict[str, Any]:
     project_data = {
         "name": "Time Travel Test Project",
         "code": "TT-TEST",
-        "budget": 1000000,
     }
     response = await client.post("/api/v1/projects", json=project_data)
     return cast(dict[str, Any], response.json())
@@ -261,17 +260,16 @@ async def test_project_time_travel(
     Test time-travel for projects.
 
     Scenario:
-    1. Create project with budget 500k at T1
+    1. Create project with name "Original" at T1
     2. Record timestamp T2
-    3. Update project to budget 750k at T3
-    4. Query at T2 - should see 500k
-    5. Query at current - should see 750k
+    3. Update project name to "Updated" at T3
+    4. Query at T2 - should see "Original"
+    5. Query at current - should see "Updated"
     """
     # T1: Create project
     project_data = {
         "name": "Time Travel Project",
         "code": "TT-PROJ",
-        "budget": 500000,
     }
     create_response = await client.post("/api/v1/projects", json=project_data)
     assert create_response.status_code == 201
@@ -288,26 +286,26 @@ async def test_project_time_travel(
     time.sleep(1.0)
 
     # T3: Update project
-    update_data = {"budget": 750000}
+    update_data = {"name": "Updated Time Travel Project"}
     update_response = await client.put(
         f"/api/v1/projects/{project_id}", json=update_data
     )
     assert update_response.status_code == 200
 
-    # Query at T2 - should see original budget
+    # Query at T2 - should see original name
     as_of_original = format_as_of(time_after_create)
     response_original = await client.get(
         f"/api/v1/projects/{project_id}", params={"as_of": as_of_original}
     )
     assert response_original.status_code == 200
     project_original = response_original.json()
-    assert float(project_original["budget"]) == 500000.0
+    assert project_original["name"] == "Time Travel Project"
 
-    # Query at current - should see updated budget
+    # Query at current - should see updated name
     response_current = await client.get(f"/api/v1/projects/{project_id}")
     assert response_current.status_code == 200
     project_current = response_current.json()
-    assert float(project_current["budget"]) == 750000.0
+    assert project_current["name"] == "Updated Time Travel Project"
 
 
 @pytest.mark.asyncio

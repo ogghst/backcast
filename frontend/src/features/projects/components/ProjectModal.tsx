@@ -29,8 +29,10 @@ export const ProjectModal = ({
     if (open) {
       if (initialValues) {
         // Transform API date strings to dayjs objects for DatePicker
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { budget: _budget, ...rest } = initialValues;
         form.setFieldsValue({
-          ...initialValues,
+          ...rest,
           start_date: initialValues.start_date
             ? dayjs(initialValues.start_date)
             : null,
@@ -91,42 +93,21 @@ export const ProjectModal = ({
           <Input placeholder="PRJ-001" disabled={isEdit} />
         </Form.Item>
 
-        <div style={{ display: "flex", gap: "16px" }}>
-          <Form.Item
-            name="budget"
-            label="Budget"
-            style={{ flex: 1 }}
-            rules={[{ required: true, message: "Please enter budget" }]}
-          >
-            <InputNumber
-              style={{ width: "100%" }}
-              formatter={(value) =>
-                `€ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-              }
-              parser={(value) =>
-                value?.replace(/€\s?|(,*)/g, "") as unknown as number
-              }
-              placeholder="0.00"
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="contract_value"
-            label="Contract Value"
-            style={{ flex: 1 }}
-          >
-            <InputNumber
-              style={{ width: "100%" }}
-              formatter={(value) =>
-                `€ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-              }
-              parser={(value) =>
-                value?.replace(/€\s?|(,*)/g, "") as unknown as number
-              }
-              placeholder="0.00"
-            />
-          </Form.Item>
-        </div>
+        <Form.Item
+          name="contract_value"
+          label="Contract Value"
+        >
+          <InputNumber
+            style={{ width: "100%" }}
+            formatter={(value) =>
+              `€ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+            }
+            parser={(value) =>
+              value?.replace(/€\s?|(,*)/g, "") as unknown as number
+            }
+            placeholder="0.00"
+          />
+        </Form.Item>
 
         <div style={{ display: "flex", gap: "16px" }}>
           <Form.Item name="start_date" label="Start Date" style={{ flex: 1 }}>

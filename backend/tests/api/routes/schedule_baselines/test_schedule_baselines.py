@@ -95,7 +95,6 @@ async def setup_dependencies(client: AsyncClient) -> dict[str, Any]:
         json={
             "code": f"P-{uuid4().hex[:4].upper()}",
             "name": "Project",
-            "budget": 1000000,
             "branch": "main",
         },
     )

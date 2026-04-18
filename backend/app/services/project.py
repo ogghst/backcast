@@ -4,6 +4,7 @@ Provides Project-specific operations on top of generic temporal service.
 """
 
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
@@ -17,8 +18,10 @@ from app.core.versioning.commands import (
     SoftDeleteCommand,
 )
 from app.core.versioning.enums import BranchMode
+from app.models.domain.cost_element import CostElement
 from app.models.domain.project import Project
 from app.models.domain.user import User
+from app.models.domain.wbe import WBE
 from app.models.schemas.project import ProjectCreate, ProjectUpdate
 
 if TYPE_CHECKING:
@@ -34,6 +37,111 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(Project, session)
+
+    async def get_as_of(
+        self,
+        entity_id: UUID,
+        as_of: datetime | None = None,
+        branch: str = "main",
+        branch_mode: BranchMode | None = None,
+    ) -> Project | None:
+        """Override parent to compute and attach budget after fetch."""
+        project = await super().get_as_of(
+            entity_id=entity_id,
+            as_of=as_of,
+            branch=branch,
+            branch_mode=branch_mode,
+        )
+        if project:
+            project.budget = await self._compute_project_budget(
+                entity_id, branch=branch
+            )
+        return project
+
+    async def _compute_project_budget(
+        self, project_id: UUID, branch: str = "main"
+    ) -> Decimal:
+        """Compute project budget as sum of all cost element budgets.
+
+        Joins WBE + CostElement to sum budget_amount across all WBEs
+        belonging to this project on the specified branch.
+
+        Args:
+            project_id: Root project ID
+            branch: Branch name (default: "main")
+
+        Returns:
+            Sum of all cost element budgets in the project
+        """
+        from typing import cast
+
+        stmt = (
+            select(func.coalesce(func.sum(CostElement.budget_amount), Decimal("0")))
+            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id == project_id,
+                WBE.branch == branch,
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
+                CostElement.branch == branch,
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+        )
+
+        result = await self.session.execute(stmt)
+        return result.scalar() or Decimal("0")
+
+    async def _populate_computed_budgets(
+        self, projects: list[Project], branch: str = "main"
+    ) -> list[Project]:
+        """Populate computed budget for a list of projects.
+
+        Uses a batch query to compute all project budgets in one SQL call
+        to avoid N+1 queries.
+
+        Args:
+            projects: List of Project objects to populate
+            branch: Branch name for budget computation
+
+        Returns:
+            Same list with budget populated on each Project
+        """
+        from typing import cast
+
+        if not projects:
+            return projects
+
+        # Batch query: compute budget for all projects at once
+        stmt = (
+            select(
+                WBE.project_id,
+                func.coalesce(func.sum(CostElement.budget_amount), Decimal("0")).label(
+                    "total_budget"
+                ),
+            )
+            .join(CostElement, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id.in_([p.project_id for p in projects]),
+                WBE.branch == branch,
+                func.upper(cast(Any, WBE).valid_time).is_(None),
+                cast(Any, WBE).deleted_at.is_(None),
+                CostElement.branch == branch,
+                func.upper(cast(Any, CostElement).valid_time).is_(None),
+                cast(Any, CostElement).deleted_at.is_(None),
+            )
+            .group_by(WBE.project_id)
+        )
+
+        result = await self.session.execute(stmt)
+        budget_map: dict[UUID, Decimal] = {
+            row[0]: row[1] for row in result.all()
+        }
+
+        for project in projects:
+            project.budget = budget_map.get(project.project_id, Decimal("0"))
+
+        return projects
 
     async def get_projects(
         self,
@@ -58,8 +166,8 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
                 - STRICT: Only return entities from current branch
             search: Search term to match against code and name (case-insensitive)
             filters: Filter string in format "column:value;column:value1,value2"
-                     Example: "status:Active;budget:>100000"
-            sort_field: Field name to sort by (e.g., "name", "code", "budget")
+                     Example: "status:Active;code:PRJ"
+            sort_field: Field name to sort by (e.g., "name", "code")
             sort_order: Sort order, either "asc" or "desc" (default: "asc")
             as_of: Optional timestamp for time-travel queries
 
@@ -150,11 +258,13 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
 
         # Apply sorting
         if sort_field:
-            # Validate sort field exists on model
+            # Validate sort field is a mapped column (not computed attributes)
             if not hasattr(Project, sort_field):
                 raise ValueError(f"Invalid sort field: {sort_field}")
 
             column = getattr(Project, sort_field)
+            if not hasattr(column, "desc"):
+                raise ValueError(f"Invalid sort field: {sort_field}")
             if sort_order.lower() == "desc":
                 stmt = stmt.order_by(column.desc())
             else:
@@ -181,6 +291,9 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
 
             projects.append(project)
 
+        # Populate computed budgets for all projects (batch query)
+        await self._populate_computed_budgets(projects, branch=branch)
+
         return projects, total
 
     async def get_by_code(self, code: str, branch: str = "main") -> Project | None:
@@ -201,7 +314,12 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
             .limit(1)
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        project = result.scalar_one_or_none()
+        if project:
+            project.budget = await self._compute_project_budget(
+                project.project_id, branch=branch
+            )
+        return project
 
     async def create_project(
         self,
@@ -234,6 +352,10 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
 
         await self._populate_project_metadata_from_db(project)
         await self._populate_project_metadata_from_db(project)
+
+        # New projects have no cost elements, budget is 0
+        project.budget = Decimal("0")
+
         return project
 
     async def update_project(
@@ -263,6 +385,10 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
 
         # Populate created_by_name and created_at
         await self._populate_project_metadata_from_db(project)
+
+        # Populate computed budget
+        project.budget = await self._compute_project_budget(project_id, branch=branch)
+
         return project
 
     async def delete_project(
@@ -279,11 +405,18 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
 
         # Populate created_by_name and created_at
         await self._populate_project_metadata_from_db(project)
+
+        # Populate computed budget
+        project.budget = await self._compute_project_budget(project_id)
+
         return project
 
     async def get_project_history(self, project_id: UUID) -> list[Project]:
         """Get all versions of a project by root project_id (with creator name)."""
-        return await self.get_history(project_id)
+        versions = await self.get_history(project_id)
+        for v in versions:
+            v.budget = Decimal("0")
+        return versions
 
     async def get_project_as_of(
         self,
@@ -525,4 +658,9 @@ class ProjectService(BranchableService[Project]):  # type: ignore[type-var,unuse
         stmt = stmt.order_by(desc(cast(Any, Project).transaction_time)).limit(limit)
 
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        projects = list(result.scalars().all())
+
+        # Populate computed budgets (batch query)
+        await self._populate_computed_budgets(projects, branch=branch)
+
+        return projects

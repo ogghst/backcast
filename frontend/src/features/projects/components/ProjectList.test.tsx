@@ -35,7 +35,7 @@ vi.mock("@/features/projects/components/ProjectModal", () => ({
       <div data-testid="mock-project-modal">
         <button
           onClick={() =>
-            onOk({ name: "New Project", code: "NEW-001", budget: 1000 })
+            onOk({ name: "New Project", code: "NEW-001" })
           }
           data-testid="mock-modal-submit"
         >
@@ -123,7 +123,6 @@ describe("ProjectList Integration", () => {
     });
 
     expect(screen.getByText("PRJ-001")).toBeInTheDocument();
-    expect(screen.getByText(/100,000/)).toBeInTheDocument();
   });
 
   it("handles create project flow", async () => {

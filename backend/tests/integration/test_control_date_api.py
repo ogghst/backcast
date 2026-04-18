@@ -69,7 +69,6 @@ async def test_create_project_with_control_date_header(client, db_session):
         json={
             "name": "Control Date Test",
             "code": "CD-001",
-            "budget": 50000,
             "start_date": datetime.now().isoformat(),
             "end_date": datetime.now().isoformat(),
             "control_date": control_date.isoformat(),
@@ -98,7 +97,7 @@ async def test_update_project_with_control_date_header(client, db_session):
     # Create project first (default date)
     create_resp = await client.post(
         "/api/v1/projects",
-        json={"name": "Update Test", "code": "UPD-CD-001", "budget": 50000},
+        json={"name": "Update Test", "code": "UPD-CD-001"},
     )
     assert create_resp.status_code == 201
     project_id = create_resp.json()["project_id"]
@@ -129,7 +128,7 @@ async def test_delete_project_with_control_date_header(client, db_session):
     """Delete via API with control_date query parameter should respect control date."""
     create_resp = await client.post(
         "/api/v1/projects",
-        json={"name": "Delete Test", "code": "DEL-CD-001", "budget": 50000},
+        json={"name": "Delete Test", "code": "DEL-CD-001"},
     )
     project_id = create_resp.json()["project_id"]
 

@@ -647,7 +647,7 @@ async def assert_entity_unchanged_on_branch[TVersionable: VersionableProtocol](
             service=wbe_service,
             branch="main",
             as_of_time=T2,
-            expected_state={"name": "Original WBE", "budget": 100000},
+            expected_state={"name": "Original WBE", "code": "1.1"},
         )
     """
     entity = await service.get_as_of(

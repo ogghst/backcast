@@ -75,7 +75,7 @@ async def list_projects(
         status: Optional status filter (e.g., "Active", "On Hold")
         skip: Number of records to skip for pagination
         limit: Maximum number of records to return
-        sort_field: Field to sort by (e.g., "name", "code", "budget")
+        sort_field: Field to sort by (e.g., "name", "code")
         sort_order: Sort order ("asc" or "desc")
         context: Injected tool execution context
 
@@ -298,7 +298,6 @@ async def update_project(
     project_id: str,
     name: str | None = None,
     description: str | None = None,
-    budget: float | None = None,
     status: str | None = None,
     context: Annotated[ToolContext, InjectedToolArg] = None,  # type: ignore[assignment]
 ) -> dict[str, Any]:
@@ -310,7 +309,6 @@ async def update_project(
         project_id: UUID of the project to update
         name: New project name (optional)
         description: New description (optional)
-        budget: New budget (optional)
         status: New status (optional)
         context: Injected tool execution context
 
@@ -327,7 +325,7 @@ async def update_project(
         ...     budget=600000.00,
         ...     status="Active"
         ... )
-        >>> print(f"Updated project budget to: ${result['budget']}")
+        >>> print(f"Updated project: {result['name']}")
     """
     try:
         from uuid import UUID
@@ -341,8 +339,6 @@ async def update_project(
             update_kwargs["name"] = name
         if description is not None:
             update_kwargs["description"] = description
-        if budget is not None:
-            update_kwargs["budget"] = budget
         if status is not None:
             update_kwargs["status"] = status
 

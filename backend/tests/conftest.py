@@ -836,7 +836,6 @@ async def api_test_project(client: AsyncClient) -> dict[str, Any]:
         json={
             "name": "API Test Project",
             "code": f"API-PROJ-{uuid4().hex[:6].upper()}",
-            "budget": 100000,
             "status": "Active",
         },
     )
@@ -977,7 +976,6 @@ async def api_test_entity_hierarchy(client: AsyncClient) -> dict[str, dict[str, 
         json={
             "name": "Hierarchy Project",
             "code": f"HIER-PROJ-{uuid4().hex[:6].upper()}",
-            "budget": 1000000,
             "status": "Active",
         },
     )

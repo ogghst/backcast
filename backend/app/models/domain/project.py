@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import DECIMAL, Numeric, String, Text
+from sqlalchemy import DECIMAL, String, Text
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -25,13 +25,18 @@ class Project(EntityBase, VersionableMixin, BranchableMixin):
         name: Project name.
         code: Unique project code.
         description: Optional description.
-        budget: Project budget.
+        budget: Computed budget (sum of all cost element budgets in the project).
+            Not stored in database; computed on-the-fly by ProjectService.
         contract_value: Contract value (if different from budget).
         start_date: Project start date.
         end_date: Project end date.
+
+    Note: Budget is computed from CostElement.budget_amount values across all
+    WBEs in the project. The service layer populates this on read.
     """
 
     __tablename__ = "projects"
+    __allow_unmapped__ = True  # Allow non-mapped attribute: budget
 
     # Root ID (stable identity across versions and branches)
     project_id: Mapped[UUID] = mapped_column(PG_UUID, nullable=False, index=True)
@@ -40,8 +45,10 @@ class Project(EntityBase, VersionableMixin, BranchableMixin):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
 
+    # Computed attribute (not stored in DB, populated by service layer)
+    budget: Decimal | None = None
+
     # Financial
-    budget: Mapped[Decimal] = mapped_column(Numeric(15, 2), default=0)
     contract_value: Mapped[Decimal | None] = mapped_column(
         DECIMAL(15, 2), nullable=True
     )

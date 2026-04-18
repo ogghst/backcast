@@ -8,7 +8,6 @@ import type { ProjectStatus } from './ProjectStatus';
  */
 export type ProjectUpdate = {
     name?: (string | null);
-    budget?: (number | string | null);
     contract_value?: (number | string | null);
     /**
      * Project status

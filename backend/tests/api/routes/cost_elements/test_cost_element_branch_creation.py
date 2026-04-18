@@ -103,7 +103,6 @@ async def test_create_cost_element_in_non_main_branch_no_default(
             json={
                 "code": f"P-{uuid4().hex[:4].upper()}",
                 "name": "Test Project",
-                "budget": 100000,
             },
         )
         proj_id = proj_res.json()["project_id"]

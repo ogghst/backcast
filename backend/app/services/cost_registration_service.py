@@ -74,7 +74,8 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         """Get project-level budget status (aggregated across all cost elements).
 
         Calculates total spend across all cost registrations in the project
-        and compares against the project's overall budget.
+        and compares against the project's computed budget (sum of all
+        cost element budgets).
 
         Args:
             project_id: The project to get status for
@@ -83,7 +84,7 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         Returns:
             ProjectBudgetStatus with project_budget, total_spend, remaining, percentage
         """
-        # Get project budget
+        # Verify project exists
         project_stmt = select(Project).where(
             Project.project_id == project_id,
             Project.branch == branch,
@@ -107,10 +108,28 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         if project is None:
             raise ValueError(f"Project {project_id} not found on branch {branch} or main")
 
-        project_budget = project.budget
+        # Use the branch where the project was actually found
+        effective_branch = project.branch
+
+        # Compute project budget as sum of all cost element budgets
+        budget_stmt = (
+            select(func.coalesce(func.sum(CostElement.budget_amount), Decimal("0")))
+            .join(WBE, CostElement.wbe_id == WBE.wbe_id)
+            .where(
+                WBE.project_id == project_id,
+                WBE.branch == effective_branch,
+                func.upper(WBE.valid_time).is_(None),
+                WBE.deleted_at.is_(None),
+                CostElement.branch == effective_branch,
+                func.upper(CostElement.valid_time).is_(None),
+                CostElement.deleted_at.is_(None),
+            )
+        )
+        budget_result = await self.session.execute(budget_stmt)
+        project_budget = Decimal(str(budget_result.scalar_one()))
 
         # Calculate total spend across all cost elements in the project
-        # Join: Project -> WBE -> CostElement -> CostRegistration
+        # Join: WBE -> CostElement -> CostRegistration
         # Cost registrations are global (not branchable), so we don't need to check multiple branches
         total_spend_stmt = (
             select(func.sum(CostRegistration.amount))

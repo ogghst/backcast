@@ -90,7 +90,7 @@ async def setup_evm_data(client: AsyncClient) -> dict[str, Any]:
     # 3. Project
     proj_res = await client.post(
         "/api/v1/projects",
-        json={"code": f"P-{uuid4().hex[:4].upper()}", "name": "Proj", "budget": 100000},
+        json={"code": f"P-{uuid4().hex[:4].upper()}", "name": "Proj"},
     )
     proj_id = proj_res.json()["project_id"]
 

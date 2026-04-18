@@ -15,7 +15,6 @@ class ProjectBase(BaseModel):
 
     name: str = Field(..., max_length=200, description="Project name")
     code: str = Field(..., max_length=50, description="Unique project code")
-    budget: Decimal = Field(..., ge=0, description="Project budget")
     contract_value: Decimal | None = Field(None, ge=0, description="Contract value")
     status: ProjectStatus = Field(ProjectStatus.DRAFT, description="Project status")
     start_date: datetime | None = Field(None, description="Project start date")
@@ -44,7 +43,6 @@ class ProjectUpdate(BaseModel):
     """Schema for updating an existing project."""
 
     name: str | None = Field(None, max_length=200)
-    budget: Decimal | None = Field(None, ge=0)
     contract_value: Decimal | None = Field(None, ge=0)
     status: ProjectStatus | None = Field(None, description="Project status")
     start_date: datetime | None = None
@@ -76,6 +74,10 @@ class ProjectRead(ProjectBase):
     id: UUID
     project_id: UUID
     branch: str
+    budget: Decimal = Field(
+        Decimal("0"),
+        description="Computed project budget (sum of all cost element budgets)",
+    )
     created_at: datetime | None = None
     created_by: UUID | None = None
     created_by_name: str | None = None

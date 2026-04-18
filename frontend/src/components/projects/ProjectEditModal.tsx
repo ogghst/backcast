@@ -24,7 +24,6 @@ interface ProjectEditModalProps {
 interface FormValues {
   name: string;
   status?: string;
-  budget?: number | null;
   contract_value?: number | null;
   start_date?: dayjs.Dayjs | null;
   end_date?: dayjs.Dayjs | null;
@@ -60,7 +59,6 @@ export const ProjectEditModal = ({
       form.setFieldsValue({
         name: project.name,
         status: project.status || "Draft",
-        budget: project.budget ? Number(project.budget) : undefined,
         contract_value: project.contract_value
           ? Number(project.contract_value)
           : undefined,
@@ -77,7 +75,6 @@ export const ProjectEditModal = ({
       const updateData: ProjectUpdate = {
         name: values.name,
         status: values.status ?? null,
-        budget: values.budget ?? null,
         contract_value: values.contract_value ?? null,
         start_date: values.start_date
           ? values.start_date.toISOString()
@@ -152,52 +149,27 @@ export const ProjectEditModal = ({
               />
             </Form.Item>
 
-            {/* Budget and Contract Value */}
-            <Space direction="horizontal" size={token.marginLG} style={{ width: "100%" }}>
-              <Form.Item
-                label="Budget (EUR)"
-                name="budget"
-                style={{ width: "100%" }}
-                rules={[
-                  {
-                    type: "number",
-                    min: 0,
-                    message: "Budget must be a positive number",
-                  },
-                ]}
-              >
-                <InputNumber
-                  placeholder="0.00"
-                  style={{ width: "100%", borderRadius: token.borderRadius }}
-                  precision={2}
-                  min={0}
-                  controls={false}
-                  addonAfter="€"
-                />
-              </Form.Item>
-
-              <Form.Item
-                label="Contract Value (EUR)"
-                name="contract_value"
-                style={{ width: "100%" }}
-                rules={[
-                  {
-                    type: "number",
-                    min: 0,
-                    message: "Contract value must be a positive number",
-                  },
-                ]}
-              >
-                <InputNumber
-                  placeholder="0.00"
-                  style={{ width: "100%", borderRadius: token.borderRadius }}
-                  precision={2}
-                  min={0}
-                  controls={false}
-                  addonAfter="€"
-                />
-              </Form.Item>
-            </Space>
+            {/* Contract Value */}
+            <Form.Item
+              label="Contract Value (EUR)"
+              name="contract_value"
+              rules={[
+                {
+                  type: "number",
+                  min: 0,
+                  message: "Contract value must be a positive number",
+                },
+              ]}
+            >
+              <InputNumber
+                placeholder="0.00"
+                style={{ width: "100%", borderRadius: token.borderRadius }}
+                precision={2}
+                min={0}
+                controls={false}
+                addonAfter="€"
+              />
+            </Form.Item>
 
             {/* Date Range */}
             <Space direction="horizontal" size={token.marginLG} style={{ width: "100%" }}>

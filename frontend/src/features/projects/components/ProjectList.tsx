@@ -29,7 +29,6 @@ import { ProjectsService } from "@/api/generated";
 const SORT_OPTIONS: SortOption[] = [
   { label: "Code", value: "code" },
   { label: "Name", value: "name" },
-  { label: "Budget", value: "budget" },
   { label: "Start Date", value: "start_date" },
 ];
 

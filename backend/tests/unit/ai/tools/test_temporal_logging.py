@@ -145,8 +145,8 @@ class TestAddTemporalMetadata:
         """
         result = {
             "projects": [
-                {"id": "1", "name": "Project A", "budget": 100000},
-                {"id": "2", "name": "Project B", "budget": 200000},
+                {"id": "1", "name": "Project A", "code": "P-001"},
+                {"id": "2", "name": "Project B", "code": "P-002"},
             ],
             "total": 2,
             "skip": 0,

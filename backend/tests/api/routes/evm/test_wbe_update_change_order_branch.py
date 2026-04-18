@@ -80,7 +80,6 @@ async def test_project(client: AsyncClient) -> dict[str, Any]:
     project_data = {
         "name": "WBE CO Test Project",
         "code": "WBE-CO-TEST",
-        "budget": 500000,
     }
     response = await client.post("/api/v1/projects", json=project_data)
     return cast(dict[str, Any], response.json())

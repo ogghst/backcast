@@ -109,7 +109,7 @@ async def test_forecast_time_travel_with_future_control_date(
 
     proj_res = await client.post(
         "/api/v1/projects",
-        json={"code": f"P-{uuid4().hex[:4].upper()}", "name": "Proj", "budget": 100},
+        json={"code": f"P-{uuid4().hex[:4].upper()}", "name": "Proj"},
     )
     proj_id = proj_res.json()["project_id"]
 

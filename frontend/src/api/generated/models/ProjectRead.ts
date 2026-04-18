@@ -16,10 +16,6 @@ export type ProjectRead = {
      */
     code: string;
     /**
-     * Project budget
-     */
-    budget: string;
-    /**
      * Contract value
      */
     contract_value?: (string | null);
@@ -42,6 +38,10 @@ export type ProjectRead = {
     id: string;
     project_id: string;
     branch: string;
+    /**
+     * Computed project budget (sum of all cost element budgets)
+     */
+    budget?: string;
     created_at?: (string | null);
     created_by?: (string | null);
     created_by_name?: (string | null);

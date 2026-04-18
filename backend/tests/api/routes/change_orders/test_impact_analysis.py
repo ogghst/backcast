@@ -73,7 +73,6 @@ async def test_project(client: AsyncClient) -> dict[str, Any]:
     project_data = {
         "name": "Impact Analysis Test Project",
         "code": "IA-PROJ",
-        "budget": 1000000,
     }
     response = await client.post("/api/v1/projects", json=project_data)
     assert response.status_code == 201

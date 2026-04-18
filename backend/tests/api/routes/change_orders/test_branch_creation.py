@@ -67,7 +67,6 @@ async def test_create_project_on_branch(client: AsyncClient) -> None:
     project_data = {
         "code": f"P-{uuid4().hex[:4].upper()}",
         "name": "Branch Project",
-        "budget": 100000,
         "branch": "draft-1",
     }
     response = await client.post("/api/v1/projects", json=project_data)
@@ -95,7 +94,6 @@ async def test_create_wbe_on_branch(client: AsyncClient) -> None:
         json={
             "code": f"P-{uuid4().hex[:4].upper()}",
             "name": "Main Project",
-            "budget": 100,
         },
     )
     proj_id = proj_res.json()["project_id"]
