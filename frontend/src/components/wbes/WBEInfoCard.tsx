@@ -1,10 +1,8 @@
 import React from "react";
-import { Typography, Tag, Divider, theme, Space, Row, Col } from "antd";
+import { Descriptions, Typography, Tag, theme } from "antd";
 import { WBERead } from "@/api/generated";
 import { CollapsibleCard } from "@/components/common/CollapsibleCard";
 import { formatDateTime } from "@/utils/formatters";
-
-const { Text, Paragraph, Title } = Typography;
 
 interface WBEInfoCardProps {
   wbe: WBERead;
@@ -14,7 +12,7 @@ interface WBEInfoCardProps {
 /**
  * WBEInfoCard - Collapsible card with additional WBE details.
  *
- * Displays description, branch, parent info, and metadata in a clean layout.
+ * Displays level, parent info, revenue, technical IDs, and audit info.
  * Defaults to collapsed state for progressive disclosure.
  */
 export const WBEInfoCard = ({
@@ -46,277 +44,56 @@ export const WBEInfoCard = ({
       }}
     >
       <div style={{ padding: token.paddingLG }}>
-        <Space direction="vertical" size={token.marginXL} style={{ width: "100%" }}>
-          {/* Section 1: Description */}
-          <div>
-            <Title
-              level={5}
+        <Descriptions
+          size="middle"
+          column={{ xs: 1, sm: 2 }}
+          colon={true}
+          labelStyle={{
+            fontWeight: token.fontWeightMedium,
+            color: token.colorTextSecondary,
+            fontSize: token.fontSize,
+          }}
+          contentStyle={{
+            color: token.colorText,
+            fontSize: token.fontSize,
+          }}
+        >
+          <Descriptions.Item label="Level">
+            <Tag
+              color="cyan"
               style={{
-                margin: `0 0 ${token.marginMD}px 0`,
-                fontSize: token.fontSizeLG,
-                fontWeight: token.fontWeightSemiBold,
-                color: token.colorText,
+                padding: `${token.paddingXS}px ${token.paddingSM}px`,
+                borderRadius: token.borderRadiusSM,
               }}
             >
-              Description
-            </Title>
-            {wbe.description ? (
-              <Paragraph
-                style={{
-                  margin: 0,
-                  color: token.colorText,
-                  fontSize: token.fontSize,
-                  lineHeight: token.lineHeight,
-                }}
-              >
-                {wbe.description}
-              </Paragraph>
-            ) : (
-              <Text type="secondary">No description provided</Text>
-            )}
-          </div>
+              L{wbe.level}
+            </Tag>
+          </Descriptions.Item>
 
-          <Divider style={{ margin: `${token.marginLG}px 0` }} />
+          <Descriptions.Item label="Parent WBE">
+            {wbe.parent_wbe_id ? wbe.parent_name || wbe.parent_wbe_id : "Project Root"}
+          </Descriptions.Item>
 
-          {/* Section 2: Technical Details */}
-          <div>
-            <Title
-              level={5}
-              style={{
-                margin: `0 0 ${token.marginMD}px 0`,
-                fontSize: token.fontSizeLG,
-                fontWeight: token.fontWeightSemiBold,
-                color: token.colorText,
-              }}
-            >
-              Technical Details
-            </Title>
-            <Row gutter={[token.marginLG, token.marginMD]}>
-              <Col xs={12} sm={8}>
-                <div>
-                  <Text
-                    type="secondary"
-                    style={{
-                      fontSize: token.fontSizeSM,
-                      display: "block",
-                      marginBottom: token.paddingXS,
-                      fontWeight: token.fontWeightMedium,
-                    }}
-                  >
-                    WBE ID
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: token.fontSizeLG,
-                      fontWeight: token.fontWeightSemiBold,
-                      color: token.colorText,
-                    }}
-                  >
-                    {wbe.wbe_id}
-                  </Text>
-                </div>
-              </Col>
+          <Descriptions.Item label="WBE ID">
+            <Typography.Text code copyable style={{ fontSize: token.fontSizeXS }}>
+              {wbe.wbe_id}
+            </Typography.Text>
+          </Descriptions.Item>
 
-              <Col xs={12} sm={8}>
-                <div>
-                  <Text
-                    type="secondary"
-                    style={{
-                      fontSize: token.fontSizeSM,
-                      display: "block",
-                      marginBottom: token.paddingXS,
-                      fontWeight: token.fontWeightMedium,
-                    }}
-                  >
-                    Project ID
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: token.fontSizeLG,
-                      fontWeight: token.fontWeightSemiBold,
-                      color: token.colorText,
-                    }}
-                  >
-                    {wbe.project_id}
-                  </Text>
-                </div>
-              </Col>
+          <Descriptions.Item label="Project ID">
+            <Typography.Text code style={{ fontSize: token.fontSizeXS }}>
+              {wbe.project_id}
+            </Typography.Text>
+          </Descriptions.Item>
 
-              <Col xs={12} sm={8}>
-                <div>
-                  <Text
-                    type="secondary"
-                    style={{
-                      fontSize: token.fontSizeSM,
-                      display: "block",
-                      marginBottom: token.paddingXS,
-                      fontWeight: token.fontWeightMedium,
-                    }}
-                  >
-                    Parent WBE ID
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: token.fontSizeLG,
-                      fontWeight: token.fontWeightSemiBold,
-                      color: token.colorText,
-                    }}
-                  >
-                    {wbe.parent_wbe_id || "-"}
-                  </Text>
-                </div>
-              </Col>
+          <Descriptions.Item label="Created">
+            {formatDateTime(wbe.created_at)}
+          </Descriptions.Item>
 
-              <Col xs={12} sm={8}>
-                <div>
-                  <Text
-                    type="secondary"
-                    style={{
-                      fontSize: token.fontSizeSM,
-                      display: "block",
-                      marginBottom: token.paddingXS,
-                      fontWeight: token.fontWeightMedium,
-                    }}
-                  >
-                    Branch
-                  </Text>
-                  <Tag
-                    color={wbe.branch === "main" ? "blue" : "orange"}
-                    style={{
-                      padding: `${token.paddingXS}px ${token.paddingSM}px`,
-                      borderRadius: token.borderRadiusSM,
-                    }}
-                  >
-                    {wbe.branch || "main"}
-                  </Tag>
-                </div>
-              </Col>
-
-              <Col xs={12} sm={8}>
-                <div>
-                  <Text
-                    type="secondary"
-                    style={{
-                      fontSize: token.fontSizeSM,
-                      display: "block",
-                      marginBottom: token.paddingXS,
-                      fontWeight: token.fontWeightMedium,
-                    }}
-                  >
-                    Level
-                  </Text>
-                  <Tag
-                    color="cyan"
-                    style={{
-                      padding: `${token.paddingXS}px ${token.paddingSM}px`,
-                      borderRadius: token.borderRadiusSM,
-                    }}
-                  >
-                    L{wbe.level}
-                  </Tag>
-                </div>
-              </Col>
-
-              <Col xs={12} sm={8}>
-                <div>
-                  <Text
-                    type="secondary"
-                    style={{
-                      fontSize: token.fontSizeSM,
-                      display: "block",
-                      marginBottom: token.paddingXS,
-                      fontWeight: token.fontWeightMedium,
-                    }}
-                  >
-                    Revenue Allocation
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: token.fontSizeLG,
-                      fontWeight: token.fontWeightSemiBold,
-                      color: token.colorText,
-                    }}
-                  >
-                    {wbe.revenue_allocation
-                      ? new Intl.NumberFormat("en-US", {
-                          style: "currency",
-                          currency: "EUR",
-                        }).format(Number(wbe.revenue_allocation))
-                      : "-"}
-                  </Text>
-                </div>
-              </Col>
-            </Row>
-          </div>
-
-          <Divider style={{ margin: `${token.marginLG}px 0` }} />
-
-          {/* Section 3: Audit Information */}
-          <div>
-            <Title
-              level={5}
-              style={{
-                margin: `0 0 ${token.marginMD}px 0`,
-                fontSize: token.fontSizeLG,
-                fontWeight: token.fontWeightSemiBold,
-                color: token.colorText,
-              }}
-            >
-              Audit Information
-            </Title>
-            <Row gutter={[token.marginLG, token.marginMD]}>
-              <Col xs={12} sm={8}>
-                <div>
-                  <Text
-                    type="secondary"
-                    style={{
-                      fontSize: token.fontSizeSM,
-                      display: "block",
-                      marginBottom: token.paddingXS,
-                      fontWeight: token.fontWeightMedium,
-                    }}
-                  >
-                    Created
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: token.fontSizeLG,
-                      fontWeight: token.fontWeightSemiBold,
-                      color: token.colorText,
-                    }}
-                  >
-                    {formatDateTime(wbe.created_at)}
-                  </Text>
-                </div>
-              </Col>
-
-              <Col xs={12} sm={8}>
-                <div>
-                  <Text
-                    type="secondary"
-                    style={{
-                      fontSize: token.fontSizeSM,
-                      display: "block",
-                      marginBottom: token.paddingXS,
-                      fontWeight: token.fontWeightMedium,
-                    }}
-                  >
-                    Created By
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: token.fontSizeLG,
-                      fontWeight: token.fontWeightSemiBold,
-                      color: token.colorText,
-                    }}
-                  >
-                    {wbe.created_by_name || "System"}
-                  </Text>
-                </div>
-              </Col>
-            </Row>
-          </div>
-        </Space>
+          <Descriptions.Item label="Created By">
+            {wbe.created_by_name || "System"}
+          </Descriptions.Item>
+        </Descriptions>
       </div>
     </CollapsibleCard>
   );

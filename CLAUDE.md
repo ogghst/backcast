@@ -58,7 +58,7 @@ npm run lint                   # ESLint - must pass
 
 ## Architecture Overview
 
-**Backend:** Layered architecture (API → Services → Repositories → Models).
+**Backend:** Layered architecture (API → Services → Models). No repository pattern — services access the database directly via `AsyncSession`.
 
 **Frontend:** Feature-based organization with TanStack Query for server state, Zustand for client state.
 
@@ -91,11 +91,12 @@ The codebase and test suite are large. To improve efficiency, perform quality ch
 
 ## Important Non-Obvious Patterns
 
-**EVCS Entity Types:**
+**EVCS Entity Tiers:**
 
-- **Versioned entities:** Use `TemporalBase`, `TemporalService[T]` (supports bitemporal tracking, branches, soft delete)
-- **Non-versioned entities:** Use `SimpleBase`, `SimpleService` (standard CRUD, standard delete)
-- **Key files:** `backend/app/core/versioning/temporal.py`, `backend/app/core/versioning/simple.py`
+- **Simple:** `SimpleEntityBase` → `SimpleService` (`app/core/base/base.py`, `app/core/simple/service.py`)
+- **Versionable:** `EntityBase + VersionableMixin` → `TemporalService` (`app/core/versioning/service.py`)
+- **Branchable:** `EntityBase + VersionableMixin + BranchableMixin` → `BranchableService` (`app/core/branching/service.py`)
+- **Entity guide:** `docs/02-architecture/backend/contexts/evcs-core/entity-classification.md`
 
 ## Documentation
 

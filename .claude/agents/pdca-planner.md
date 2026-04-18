@@ -35,8 +35,8 @@ This is the **Backcast  (Entity Versioning System)** project:
 - **Tech Stack**: Python 3.12+ / FastAPI + React 18 / TypeScript / Vite + PostgreSQL 15+
 - **Core Feature**: Bitemporal versioning with Git-style entity tracking
 - **Quality Standards**: Zero MyPy/Ruff errors, 80%+ test coverage
-- **Architecture**: Layered backend (API→Service→Repository→Model), feature-based frontend
-- **Versioning**: TemporalBase/TemporalService for versioned entities, SimpleBase/SimpleService for non-versioned
+- **Architecture**: Layered backend (API→Service→Model, no Repository), feature-based frontend
+- **EVCS Tiers**: SimpleEntityBase→SimpleService, EntityBase+VersionableMixin→TemporalService, EntityBase+VersionableMixin+BranchableMixin→BranchableService
 
 ## Your Workflow
 

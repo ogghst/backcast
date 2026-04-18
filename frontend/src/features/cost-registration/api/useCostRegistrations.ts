@@ -172,6 +172,23 @@ export const useProjectBudgetStatus = (projectId: string) => {
   });
 };
 
+export const useWBEBudgetStatus = (wbeId: string) => {
+  return useQuery({
+    queryKey: ["wbe-budget-status", wbeId] as const,
+    queryFn: async () => {
+      return await __request(OpenAPI, {
+        method: "GET",
+        url: `/api/v1/cost-registrations/wbe-budget-status/${wbeId}`,
+        query: {
+          branch: "main",
+        },
+        errors: { 404: "WBE not found", 422: "Validation Error" },
+      });
+    },
+    enabled: !!wbeId,
+  });
+};
+
 /**
  * Hook to get project budget settings including warning threshold.
  *

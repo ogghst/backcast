@@ -366,6 +366,42 @@ async def get_project_budget_status(
 
 
 @router.get(
+    "/wbe-budget-status/{wbe_id}",
+    operation_id="get_wbe_budget_status",
+    dependencies=[Depends(RoleChecker(required_permission="cost-registration-read"))],
+)
+async def get_wbe_budget_status(
+    wbe_id: UUID,
+    branch: str = Query(
+        "main", description="Branch context to resolve WBE budget"
+    ),
+    service: CostRegistrationService = Depends(get_cost_registration_service),
+) -> dict[str, Any]:
+    """Get WBE-level budget status (aggregated across WBE hierarchy).
+
+    Returns the WBE budget (sum of cost element budgets in hierarchy),
+    total spend across all cost registrations, remaining amount, and
+    percentage used.
+    """
+    try:
+        budget_status = await service.get_wbe_budget_status(
+            wbe_id=wbe_id, branch=branch
+        )
+        return {
+            "wbe_id": str(budget_status.wbe_id),
+            "budget": str(budget_status.budget),
+            "total_spend": str(budget_status.total_spend),
+            "remaining": str(budget_status.remaining),
+            "percentage": float(budget_status.percentage),
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        ) from e
+
+
+@router.get(
     "/aggregated",
     operation_id="get_aggregated_costs",
     dependencies=[Depends(RoleChecker(required_permission="cost-registration-read"))],

@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.core.versioning.commands import (
     CreateVersionCommand,
@@ -48,6 +49,16 @@ class ProjectBudgetStatus(BaseModel):
 
     project_id: UUID
     project_budget: Decimal
+    total_spend: Decimal
+    remaining: Decimal
+    percentage: Decimal
+
+
+class WBEBudgetStatus(BaseModel):
+    """Budget status for a WBE (aggregated across its cost element hierarchy)."""
+
+    wbe_id: UUID
+    budget: Decimal
     total_spend: Decimal
     remaining: Decimal
     percentage: Decimal
@@ -157,6 +168,94 @@ class CostRegistrationService(TemporalService[CostRegistration]):  # type: ignor
         return ProjectBudgetStatus(
             project_id=project_id,
             project_budget=project_budget,
+            total_spend=total_spend,
+            remaining=remaining,
+            percentage=percentage,
+        )
+
+    async def get_wbe_budget_status(
+        self, wbe_id: UUID, branch: str = "main"
+    ) -> WBEBudgetStatus:
+        """Get WBE-level budget status (aggregated across WBE hierarchy).
+
+        Uses a recursive CTE to include this WBE and all descendants,
+        then sums cost element budgets and actual cost registrations.
+
+        Args:
+            wbe_id: The WBE to get status for
+            branch: Branch context (defaults to "main")
+
+        Returns:
+            WBEBudgetStatus with budget, total_spend, remaining, percentage
+        """
+        from sqlalchemy import literal_column
+
+        # Recursive CTE: WBE + all descendants
+        wbe_hierarchy = (
+            select(
+                WBE.wbe_id,
+                literal_column("0").label("depth"),
+            )
+            .where(
+                WBE.wbe_id == wbe_id,
+                WBE.branch == branch,
+                func.upper(cast("Any", WBE).valid_time).is_(None),
+                cast("Any", WBE).deleted_at.is_(None),
+            )
+            .cte(name="wbe_hierarchy_cte", recursive=True)
+        )
+
+        child_wbe = aliased(WBE, name="child_wbe")
+        wbe_hierarchy = wbe_hierarchy.union_all(
+            select(
+                child_wbe.wbe_id,
+                (wbe_hierarchy.c.depth + 1).label("depth"),
+            ).where(
+                child_wbe.parent_wbe_id == wbe_hierarchy.c.wbe_id,
+                child_wbe.branch == branch,
+                func.upper(cast("Any", child_wbe).valid_time).is_(None),
+                cast("Any", child_wbe).deleted_at.is_(None),
+            )
+        )
+
+        # Sum cost element budgets in the hierarchy
+        budget_stmt = (
+            select(func.coalesce(func.sum(CostElement.budget_amount), Decimal("0")))
+            .select_from(wbe_hierarchy)
+            .join(CostElement, CostElement.wbe_id == wbe_hierarchy.c.wbe_id)
+            .where(
+                CostElement.branch == branch,
+                func.upper(cast("Any", CostElement).valid_time).is_(None),
+                cast("Any", CostElement).deleted_at.is_(None),
+            )
+        )
+        budget_result = await self.session.execute(budget_stmt)
+        budget = Decimal(str(budget_result.scalar_one()))
+
+        # Sum actual cost registrations in the hierarchy
+        # Cost registrations are global (not branchable)
+        spend_stmt = (
+            select(func.coalesce(func.sum(CostRegistration.amount), Decimal("0")))
+            .select_from(wbe_hierarchy)
+            .join(CostElement, CostElement.wbe_id == wbe_hierarchy.c.wbe_id)
+            .join(
+                CostRegistration,
+                CostRegistration.cost_element_id == CostElement.cost_element_id,
+            )
+            .where(
+                func.upper(CostRegistration.valid_time).is_(None),
+                CostRegistration.deleted_at.is_(None),
+            )
+        )
+        spend_result = await self.session.execute(spend_stmt)
+        total_spend = Decimal(str(spend_result.scalar_one()))
+
+        remaining = budget - total_spend
+        percentage = (total_spend / budget * Decimal("100")) if budget > 0 else Decimal("0")
+
+        return WBEBudgetStatus(
+            wbe_id=wbe_id,
+            budget=budget,
             total_spend=total_spend,
             remaining=remaining,
             percentage=percentage,

@@ -26,7 +26,7 @@ Before implementing, review the relevant architecture docs:
 | -------------------------------------------------- | ----------------------------------- |
 | `docs/02-architecture/00-system-map.md`            | High-level system overview          |
 | `docs/02-architecture/01-bounded-contexts.md`      | Domain boundaries and relationships |
-| `docs/02-architecture/coding-standards.md`         | Code style and patterns             |
+| `docs/02-architecture/backend/coding-standards.md` | Code style and patterns             |
 | `docs/02-architecture/backend/contexts/evcs-core/` | EVCS versioning patterns            |
 | `docs/02-architecture/code-review-checklist.md`    | Quality checklist                   |
 
@@ -43,22 +43,28 @@ You MUST align your implementation with these architecture documents.
 
 ### EVCS Framework
 
-Two base patterns:
+Three entity tiers (not two):
 
-- **TemporalBase/TemporalService[T]**: Versioned entities with bitemporal tracking
-- **SimpleBase/SimpleService**: Non-versioned entities with standard CRUD
+| Tier | Model | Service |
+|---|---|---|
+| Simple | `SimpleEntityBase` (`app.core.base.base`) | `SimpleService` (`app.core.simple.service`) |
+| Versionable | `EntityBase + VersionableMixin` (`app.models.mixins`) | `TemporalService` (`app.core.versioning.service`) |
+| Branchable | `EntityBase + VersionableMixin + BranchableMixin` | `BranchableService` (`app.core.branching.service`) |
 
 Key locations:
-
-- `backend/app/core/versioning/temporal.py`
-- `backend/app/core/versioning/simple.py`
 - `backend/app/core/versioning/commands.py`
+- `backend/app/core/simple/commands.py`
+- `backend/app/core/branching/service.py`
+
+**Decision guide:** `docs/02-architecture/backend/contexts/evcs-core/entity-classification.md`
 
 ### Architecture Layers
 
 ```text
-API (app/api/) → Services (app/services/) → Repositories (app/repositories/) → Models (app/models/)
+API (app/api/) → Services (app/services/) → Models (app/models/)
 ```
+
+No repository pattern — services access the database directly via `AsyncSession`.
 
 ### Quality Commands
 
