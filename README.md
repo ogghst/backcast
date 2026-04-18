@@ -50,7 +50,7 @@ Backcast solves this with a Git-inspired approach to project data:
 | You're used to... | Backcast gives you... |
 |---|---|
 | Manually computing EVM metrics | **AI assistant** &mdash; *"What's the CPI of Project Alpha?"* |
-| Overwriting budgets with no history | **Time Machine** &mdash; see your project as it was on any date |
+| Overwriting budgets with no history | **Time Machine** &mdash; navigate to any date, past or future, and explore what-if scenarios |
 | Guessing the impact of a change order | **Change Orders** &mdash; test budget changes in a branch, review the diff, then merge |
 | Copy-pasting charts into PowerPoint | **Custom Dashboards** &mdash; 15+ drag-and-drop widgets, auto-refreshing |
 | Paying per seat for EVM compliance | **Open source** &mdash; ANSI/EIA-748 compliant, self-hosted, free forever |
@@ -69,7 +69,9 @@ Ask questions about your projects in plain English. The AI uses purpose-built to
 
 ### Time Machine
 
-Navigate to any point in your project's history. Every change to budgets, cost elements, and schedules is tracked with full audit trails. Compare snapshots, review what changed and when, and restore past states.
+Set a control date to any point in your project's timeline &mdash; past, present, or future. Every change to budgets, cost elements, and schedules is tracked with full audit trails, so you can see how the project looked on a given date or how it's forecasted to look ahead.
+
+Because you can modify project data at any control date, Time Machine opens up **what-if scenario analysis**: *What if I had increased the engineering budget a month ago? How would that have rippled through cost and schedule variance?* Make the change in a branch, compare against the real timeline, and decide with data instead of guesswork.
 
 ### Change Orders
 
