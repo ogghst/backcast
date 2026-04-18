@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>Open-source project budget management with AI-powered Earned Value Analysis</strong><br>
-  Git-style versioning for your project data. Ask questions in plain English. Travel back in time.
+  Git-style versioning for your project data. Ask questions in plain English. Navigate through project timeline.
 </p>
 
 <p align="center">
@@ -105,6 +105,10 @@ Navigate your project hierarchy visually &mdash; projects, machines (WBEs), and 
 ### Quality Tracking
 
 Track quality issues with cost impact, severity classification, root cause analysis, and resolution status &mdash; all versioned within the change order framework.
+
+### Role-Based Access Control
+
+Fine-grained permissions let you control exactly who can do what in each project. Assign roles per project with read or write capabilities across every feature &mdash; project structure, cost registration, AI assistant, dashboards, and change orders. An accountant can register costs but not modify the project hierarchy; a controller gets read-only EVM analytics; the project manager holds the keys.
 
 ---
 
