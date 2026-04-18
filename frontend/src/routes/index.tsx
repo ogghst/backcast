@@ -17,7 +17,11 @@ import { ProjectChangeOrdersPage } from "@/pages/projects/ProjectChangeOrdersPag
 import { ProjectEVMAnalysis } from "@/pages/projects/ProjectEVMAnalysis";
 import { ProjectSchedulePage } from "@/pages/projects/ProjectSchedulePage";
 import { WBEList } from "@/pages/wbes/WBEList";
-import { WBEDetailPage } from "@/pages/wbes/WBEDetailPage";
+import { WBELayout } from "@/pages/wbes/WBELayout";
+import { WBEOverview } from "@/pages/wbes/WBEOverview";
+import { WBEEVMAnalysis } from "@/pages/wbes/WBEEVMAnalysis";
+import { WBECostHistory } from "@/pages/wbes/WBECostHistory";
+import { WBEChat } from "@/pages/wbes/WBEChat";
 import { ChangeOrderUnifiedPage } from "@/pages/projects/change-orders/ChangeOrderUnifiedPage";
 import { ChangeOrderImpactAnalysisPage } from "@/pages/projects/change-orders/ChangeOrderImpactAnalysisPage";
 import { CostElementDetailPage } from "@/pages/cost-elements/CostElementDetailPage";
@@ -154,7 +158,13 @@ export const router = createBrowserRouter([
       },
       {
         path: "/projects/:projectId/wbes/:wbeId",
-        element: <WBEDetailPage />,
+        element: <WBELayout />,
+        children: [
+          { index: true, element: <WBEOverview /> },
+          { path: "evm-analysis", element: <WBEEVMAnalysis /> },
+          { path: "cost-history", element: <WBECostHistory /> },
+          { path: "chat", element: <WBEChat /> },
+        ],
       },
       {
         path: "/cost-elements/:id",
