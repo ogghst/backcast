@@ -61,6 +61,38 @@ Backcast solves this with a Git-inspired approach to project data:
 
 ---
 
+## Use Cases
+
+### Starting a project from scratch
+
+A project manager wins a contract for a new production line with 12 machines. No structure exists yet &mdash; just a contract and a deadline.
+
+They start by creating a **Planner agent** configured with a cost-focused LLM and write access to project structure. Then they open a chat:
+
+> *"I have a new production line project for ACME Corp, contract value 4.2M, delivering 12 assembly machines by March 2027. Each machine has mechanical, electrical, and software engineering departments. Build the project structure with WBEs and cost elements."*
+
+The agent creates the full hierarchy &mdash; project, 12 WBEs, cost elements per machine &mdash; in seconds. The PM reviews it in the Project Explorer, adjusts a few budgets, and the project is ready to track.
+
+Later, they add a **Cost Controller agent** with write access limited to cost registrations, so the accounting team can log invoices without touching the project structure.
+
+### Catching a budget overrun early
+
+Three months in, the PM opens the dashboard and notices the electrical engineering CPI dipping below 0.85 on Machine 7. Instead of digging through spreadsheets, they ask:
+
+> *"Why is Machine 7 electrical engineering underperforming? Show me cost registrations for the last 60 days."*
+
+The AI surfaces a cluster of unexpected rework costs. The PM opens a change order, increases the budget by 8%, and uses Impact Analysis to show the effect on the overall project EAC before sending it for approval.
+
+### Exploring a what-if scenario
+
+A supplier offers to deliver critical components two months early &mdash; at a 5% premium. The PM sets the control date back to when the original order was placed, creates a branch, and modifies the procurement cost element with the new price and timeline. They compare both timelines side by side: the premium is real, but the earlier delivery pulls the schedule variance back into positive territory across three downstream machines. They take the deal.
+
+### Month-end review without the report
+
+The PM's director wants a status update. Instead of building a deck, the PM shares a link to the project dashboard with pre-configured EVM widgets. The director can see CPI, SPI, variance trends, and the Gantt chart &mdash; all live, all self-updating. Questions that used to require a follow-up email now get answered on the spot.
+
+---
+
 ## Features
 
 ### AI Assistants
