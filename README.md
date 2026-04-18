@@ -120,37 +120,39 @@ Fine-grained permissions let you control exactly who can do what in each project
 
 ## Quick Start
 
-### Docker (recommended)
+### Deploy with Docker
+
+The fastest way to get Backcast running &mdash; backend, frontend, database, SSL, and automated migrations, all in one stack.
+
+**Prerequisites:** Docker 24.0+, Docker Compose 2.20+, a domain pointing to your server.
 
 ```bash
 git clone https://github.com/ogghst/backcast.git
 cd backcast
-cp backend/.env.example backend/.env  # Configure your environment
-docker compose up -d postgres  # Start the database
+
+# Create the Traefik network
+docker network create traefik-public
+
+# Configure your environment
+cd deploy
+cp .env.production.example .env.production
+nano .env.production   # Set domain, passwords, secret key, email
+
+# Build and launch
+docker compose --env-file .env.production build
+docker compose --env-file .env.production up -d
+
+# Run database migrations
+docker compose --env-file .env.production run --rm alembic upgrade head
 ```
 
-Then start the backend and frontend separately for development:
+Open `https://app.yourdomain.com` and start managing projects.
 
-```bash
-# Backend
-cd backend && source .venv/bin/activate
-uv sync
-uv run alembic upgrade head
-uv run uvicorn app.main:app --reload --port 8020
+For the full guide including SSL troubleshooting, Apache integration, and security hardening, see the [Docker Deployment Guide](docs/05-user-guide/docker-deployment-guide.md).
 
-# Frontend (new terminal)
-cd frontend
-npm install
-npm run dev
-```
+### Local Development
 
-Open http://localhost:5173 and start managing projects.
-
-For **production deployment** with Traefik, SSL, and automated migrations, see the [Docker Deployment Guide](docs/05-user-guide/docker-deployment-guide.md).
-
-### Developer Setup
-
-Full development environment setup, architecture walkthrough, and coding standards:
+For contributing or running locally without Docker:
 
 **[Onboarding Guide](docs/00-meta/onboarding.md)**
 
