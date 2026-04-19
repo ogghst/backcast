@@ -120,6 +120,14 @@ Because you can modify project data at any control date, Time Machine opens up *
 
 Like pull requests for your project budget. Create a change order to work in an isolated branch &mdash; modify budgets, add cost elements, adjust schedules &mdash; then use the **Impact Analysis** view to see a side-by-side diff before merging to the main timeline. Includes SLA tracking, approval workflows, and full audit trails.
 
+### Financial Tracking
+
+The foundation everything else builds on. Distribute contract revenue across machines (WBEs) and down to department-level cost elements. Register actual costs by category &mdash; labor, materials, subcontracts, other &mdash; with invoice tracking and full audit trails. Budget enforcement blocks cost registrations that would exceed the allocated budget, so overruns get caught at the point of entry.
+
+### Schedule Baselines
+
+Define how work progresses over time for each cost element &mdash; linear (even spread), Gaussian (bell curve peaking at midpoint), or logarithmic (slow start, accelerating finish). Baselines drive Planned Value calculations and can be versioned and branched like everything else, so you can compare the original plan against reality at any point.
+
 ### EVM Analytics
 
 Full ANSI/EIA-748-compliant Earned Value Management at every level &mdash; cost element, machine (WBE), and project:
@@ -127,6 +135,8 @@ Full ANSI/EIA-748-compliant Earned Value Management at every level &mdash; cost 
 - **Performance Indices** &mdash; CPI, SPI with gauge visualizations
 - **Variance Analysis** &mdash; Cost Variance, Schedule Variance, Variance at Completion
 - **Forecasting** &mdash; Estimate at Completion, Estimate to Complete, TCPI
+- **Multi-Method Forecasting** &mdash; choose between Bottom-Up (re-estimate from scratch), Performance-Based (extrapolate from CPI/SPI trends), or Management Judgment (manual override) depending on where you are in the project lifecycle
+- **Variance Alerts** &mdash; configurable thresholds (minor, moderate, significant, critical) that flag metrics drifting outside acceptable ranges
 - **Time-Series Charts** &mdash; PV/EV/AC progression with daily/weekly/monthly granularity
 
 All metrics respect time-travel and branch context.
