@@ -11,12 +11,20 @@ class TestSubagentTemporalContextAccess:
     """Verify get_temporal_context is available to all subagents."""
 
     def test_all_subagents_have_get_temporal_context(self):
-        """Every subagent should have get_temporal_context in allowed_tools."""
+        """Every subagent should have get_temporal_context in allowed_tools.
+
+        For general-purpose agents with allowed_tools=None (meaning all tools),
+        this is implicitly satisfied.
+        """
         subagents = get_all_subagents()
 
         for subagent in subagents:
             subagent_name = subagent.get("name", "")
-            allowed_tools = subagent.get("allowed_tools", [])
+            allowed_tools = subagent.get("allowed_tools")
+
+            # None means "all tools" — skip explicit check
+            if allowed_tools is None:
+                continue
 
             assert "get_temporal_context" in allowed_tools, (
                 f"Subagent '{subagent_name}' is missing get_temporal_context in allowed_tools. "
@@ -25,12 +33,20 @@ class TestSubagentTemporalContextAccess:
             )
 
     def test_get_temporal_context_is_first_tool(self):
-        """get_temporal_context should be the first tool in allowed_tools for consistency."""
+        """get_temporal_context should be the first tool in allowed_tools for consistency.
+
+        For general-purpose agents with allowed_tools=None (meaning all tools),
+        this is implicitly satisfied.
+        """
         subagents = get_all_subagents()
 
         for subagent in subagents:
             subagent_name = subagent.get("name", "")
-            allowed_tools = subagent.get("allowed_tools", [])
+            allowed_tools = subagent.get("allowed_tools")
+
+            # None means "all tools" — skip explicit check
+            if allowed_tools is None:
+                continue
 
             assert allowed_tools[0] == "get_temporal_context", (
                 f"Subagent '{subagent_name}' should have get_temporal_context as the first tool. "
@@ -49,6 +65,7 @@ class TestSubagentTemporalContextAccess:
             "user_admin",
             "visualization_specialist",
             "forecast_manager",
+            "general_purpose",
         }
 
         assert subagent_names == expected_names, (

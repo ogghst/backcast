@@ -40,6 +40,7 @@ Ensure data integrity and proper validation.
 Provide clear summaries of project structures and cost/progress trends.""",
     "allowed_tools": [
         "get_temporal_context",
+        "global_search",
         "get_project_structure",
         "list_projects",
         "get_project",
@@ -106,6 +107,7 @@ Provide clear explanations of what the metrics mean and actionable insights.
 Identify trends and potential risks early.""",
     "allowed_tools": [
         "get_temporal_context",
+        "global_search",
         "calculate_evm_metrics",
         "get_evm_performance_summary",
         "analyze_cost_variance",
@@ -138,6 +140,7 @@ of proposed changes before proceeding.
 Ensure proper documentation and audit trails.""",
     "allowed_tools": [
         "get_temporal_context",
+        "global_search",
         "list_change_orders",
         "get_change_order",
         "create_change_order",
@@ -168,6 +171,7 @@ Ensure data integrity and proper validation.
 Follow security best practices for user management.""",
     "allowed_tools": [
         "get_temporal_context",
+        "global_search",
         "list_users",
         "get_user",
         "create_user",
@@ -199,6 +203,7 @@ Always ensure diagrams are clear and well-structured.
 Use appropriate diagram types for the information being presented.""",
     "allowed_tools": [
         "get_temporal_context",
+        "global_search",
         "generate_mermaid_diagram",
     ],
     "structured_output_schema": None,  # No structured output for visualization_specialist (returns diagrams/text)
@@ -227,6 +232,7 @@ Identify potential risks based on trends.
 Explain the impact of forecasts vs. budgets.""",
     "allowed_tools": [
         "get_temporal_context",
+        "global_search",
         "get_forecast",
         "create_forecast",
         "update_forecast",
@@ -240,6 +246,24 @@ Explain the impact of forecasts vs. budgets.""",
         "delete_schedule_baseline",
     ],
     "structured_output_schema": ForecastRead,  # Returns structured forecast data
+}
+
+# Subagent: General Purpose
+# Fallback agent for tasks that don't fit a specialist domain
+GENERAL_PURPOSE_SUBAGENT: dict[str, Any] = {
+    "name": "general_purpose",
+    "description": "General-purpose agent for tasks that don't fit a specialist. Has access to all tools. Use as fallback when no specialized agent is suitable.",
+    "system_prompt": """You are a general-purpose assistant for the Backcast project budget management system.
+
+You handle tasks that don't clearly fit a specialist domain, including:
+- Global search across all entity types
+- Cross-domain queries that span multiple areas
+- General information retrieval and analysis
+- Any task not covered by specialized subagents
+
+Use the tools available to you to accomplish the task. Provide clear, concise results.""",
+    "allowed_tools": None,  # None means "all available tools"
+    "structured_output_schema": None,
 }
 
 
@@ -267,6 +291,7 @@ def get_all_subagents() -> list[dict[str, Any]]:
         USER_ADMIN_SUBAGENT,
         VISUALIZATION_SPECIALIST_SUBAGENT,
         FORECAST_MANAGER_SUBAGENT,
+        GENERAL_PURPOSE_SUBAGENT,
     ]
 
 
@@ -297,6 +322,7 @@ __all__ = [
     "USER_ADMIN_SUBAGENT",
     "VISUALIZATION_SPECIALIST_SUBAGENT",
     "FORECAST_MANAGER_SUBAGENT",
+    "GENERAL_PURPOSE_SUBAGENT",
     "get_all_subagents",
     "get_subagent_by_name",
 ]

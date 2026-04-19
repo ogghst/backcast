@@ -310,7 +310,9 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
         Args:
             subagent_configs: List of subagent configuration dictionaries
             available_tools: List of all available tools for filtering
-            allowed_tools: Optional whitelist of tool names from the assistant config
+            allowed_tools: Optional whitelist of tool names from the assistant config.
+                When a subagent config has allowed_tools=None, it receives all available
+                tools (intersected with this whitelist if provided).
 
         Returns:
             List of dicts with 'name', 'description', and 'runnable' keys
@@ -331,21 +333,26 @@ Do NOT attempt to use Backcast tools directly - they will not work. Always deleg
             name = config.get("name", "")
             description = config.get("description", "")
             system_prompt = config.get("system_prompt", "")
-            allowed_tool_names = config.get("allowed_tools", [])
+            allowed_tool_names = config.get("allowed_tools")
 
             # Filter tools by subagent's allowed_tool_names AND assistant's whitelist
-            if allowed_tools is not None:
-                filtered_tool_names = [
-                    tool_name
-                    for tool_name in allowed_tool_names
-                    if tool_name in allowed_tools
-                ]
-                logger.debug(
-                    f"Subagent '{name}': filtered {len(filtered_tool_names)} tools "
-                    f"(from {len(allowed_tool_names)} requested) based on assistant whitelist"
-                )
+            if allowed_tool_names is None:
+                # General-purpose agent: gets all available tools
+                # (intersected with assistant whitelist)
+                if allowed_tools is not None:
+                    filtered_tool_names = list(allowed_tools)
+                else:
+                    filtered_tool_names = [t.name for t in available_tools]
             else:
-                filtered_tool_names = allowed_tool_names
+                # Specialist agent: filter by its specific tool list
+                if allowed_tools is not None:
+                    filtered_tool_names = [
+                        tool_name
+                        for tool_name in allowed_tool_names
+                        if tool_name in allowed_tools
+                    ]
+                else:
+                    filtered_tool_names = allowed_tool_names
 
             # Filter tools by the filtered tool names
             subagent_tools = [
